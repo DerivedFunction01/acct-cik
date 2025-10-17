@@ -227,7 +227,7 @@ def build_smart_regex(
 
 ALL_BASE_TYPES = [
     "swaps?", "forwards?", "futures?", "options?", "caps?", "floors?", "collars?", 
-    "derivatives?", "swaptions?", "locks?", "hedges?"
+    "derivatives?", "swaptions?", "locks?", "hedges?", "hedging",
 ]
 
 ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?", "arrangements?", "assets?", "liabilit(?:y|ies)"]
@@ -308,7 +308,7 @@ def build_cp_regex() -> re.Pattern:
     
     # Define base commodities and modifiers separately for cleaner logic
     base_commodities = ["commodity"] + COMMON_COMMODITIES
-    modifiers = ["[- ]price", "[- ]related"]
+    modifiers = ["[- ]price", "[- ]related", "[- ]based", "[- ]linked"]
 
     # Programmatically create variations like "commodity price", "crude oil price", etc.
     core_terms = []
@@ -886,11 +886,6 @@ def filter_by_keywords(
     def expand_context(
         all_sentences: list, target_idx: int, target_category: str, seen_counts: dict
     ) -> tuple[str, set]:
-        random.seed(target_idx)
-        dynamic_min = random.randint(
-            int(min_char_length * 0.75), int(min_char_length * 1.25)
-        )
-
         # The seed sentence is always included, so we check its count in the main loop.
         merged = [all_sentences[target_idx]]
         used_indices_in_this_expansion = {target_idx}
@@ -898,7 +893,7 @@ def filter_by_keywords(
         right_idx = target_idx + 1
 
         while True:
-            if measure_merged_length(merged) >= dynamic_min:
+            if measure_merged_length(merged) >= min_char_length:
                 break
 
             added_left, new_left_idx = _expand_one_side(
