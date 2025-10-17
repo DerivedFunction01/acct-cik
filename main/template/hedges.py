@@ -64,7 +64,7 @@ base_structures = [
 ]
 
 # Time prefix variations (single year)
-time_prefixes = [
+one_year_prefixes = [
     "As of {month} {end_day}, {year}",
     "At year-end {year}",
     "As of {month} {year}",
@@ -76,16 +76,33 @@ time_prefixes = [
     "During the {quarter} quarter of {year}",
 ]
 
+one_year_table_prefixes =[
+    "{year}", # table-like format
+    "{month} {year}", # table-like format
+]
+
 # Two-year time prefixes
 two_year_prefixes = [
     "At {month} {end_day}, {year} and {prev_year}",
     "As of {month} {end_day}, {year} and {prev_year}",
 ]
 
+two_year_table_prefixes = [
+    "{year} and {prev_year}" # table-like format
+    "{year} {prev_year}" # table-like format
+    "{month} {year} {prev_year}" # table-like format
+]
+
 # Three-year time prefixes
 three_year_prefixes = [
     "At {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
     "As of {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
+]
+
+three_year_table_prefixes = [
+    "{year}, {prev_year}, and {prev2_year}" # table-like format
+    "{year} {prev_year} {prev2_year}" # table-like format
+    "{month} {year} {prev_year} {prev2_year}" # table-like format
 ]
 
 # Amount connectors (words that connect amounts to swap types)
@@ -99,13 +116,20 @@ amount_connectors = [
     "with a value of",
     "with amounts totaling",
     "with a total of",
+    "with fair value of",
+    "with fair values totaling",
 ]
 
 # Amount patterns (order of amount vs swap)
-amount_patterns = [
-    
+one_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}",
-    "{connector} {currency_code}{notional} {money_unit} in {swap_type}",
+    "{connector} {currency_code}{notional} {money_unit} in {swap_type}",   
+]
+
+# One-year amount patterns
+one_year_table_patterns = [
+    "{swap_type} {currency_code}{notional} {money_unit}",
+    "{swap_type}: {currency_code}{notional}", # Table-like format
 ]
 
 # Two-year amount patterns
@@ -114,10 +138,24 @@ two_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively, in {swap_type}",
 ]
 
+two_year_table_patterns = [
+    "{swap_type} {currency_code}{notional} {currency_code}{prev_notional}", # Table-like format
+    "{swap_type} {currency_code}{notional}, {currency_code}{prev_notional}", # Table-like format
+    "{swap_type}: {currency_code}{notional} {currency_code}{prev_notional}", # Table-like format
+    "{swap_type}: {currency_code}{notional}, {currency_code}{prev_notional}", # Table-like format
+]
+
 # Three-year amount patterns
 three_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively",
     "{connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively, in {swap_type}",
+]
+
+three_year_table_patterns = [
+    "{swap_type} {currency_code}{notional} {currency_code}{prev_notional} {currency_code}{prev2_notional}", # Table-like format
+    "{swap_type} {currency_code}{notional}, {currency_code}{prev_notional}, {currency_code}{prev2_notional}", # Table-like format
+    "{swap_type}: {currency_code}{notional} {currency_code}{prev_notional} {currency_code}{prev2_notional}", # Table-like format
+    "{swap_type}: {currency_code}{notional}, {currency_code}{prev_notional}, {currency_code}{prev2_notional}", # Table-like format
 ]
 
 # Hedge designation phrases (optional endings)
@@ -162,22 +200,22 @@ historical_templates = [
     "{company}'s notional balance of {currency_code}{old_notional} {money_unit} in {swap_type} contracted in {old_year} remains {state} as of {year}, scheduled to mature in {future_year}",
     "To manage exposure, {company} {verb} {swap_type} in {old_year}, with an inception notional of {currency_code}{old_notional} {money_unit} and a stated maturity in {future_year}",
     "To manage exposure, {company} {verb} notional amounts of {currency_code}{old_notional} {money_unit} in {swap_type} during {old_year}, with a stated maturity in {future_year}",
-    "In {month} {old_year}, {company} {verb} {swap_type} with notional amounts of {currency_code}{old_notional} {money_unit}, which are set to expire in {month} {future_year}",
+    "In {month} {old_year}, {company} {verb} {swap_type} with fair values of {currency_code}{old_notional} {money_unit}, which are set to expire in {month} {future_year}",
     "In {month} {old_year}, {company} {verb} notional amounts of {currency_code}{old_notional} {money_unit} in {swap_type}, which are set to expire in {month} {future_year}",
     "As of {month} {year}, {company} {verb} {swap_type} {verb} in {old_year}, with total notional of {currency_code}{old_notional} {money_unit}, expiring in {future_year}",
-    "As of {month} {year}, {company} {verb} notional totals of {currency_code}{old_notional} {money_unit} in {swap_type} initiated in {old_year}, expiring in {future_year}",
+    "As of {month} {year}, {company} {verb} fair values of {currency_code}{old_notional} {money_unit} in {swap_type} initiated in {old_year}, expiring in {future_year}",
     "{company} {verb} {swap_type} which expires in {month} {future_year}",
     "{company} {verb} {swap_type} which matures in {month} {future_year}",
     "{company} {verb} {swap_type} which expires in {future_year}",
     "{company} {verb} {swap_type} which matures in {future_year}",
     "{company}'s {swap_type} terminates in {month} {future_year}",
-    "{company}'s {swap_type} terminates in {future_year}",    
+    "{company}'s {swap_type} terminates in {future_year}",
     "{company}'s {swap_type} matures in {month} {future_year}",
     "{company}'s {swap_type} matures in {future_year}",
     "{company} {verb} {swap_type} with a value of {currency_code}{notional} {money_unit} that expires in {future_year}",
-    "{company} {verb} {swap_type} with a notional value of {currency_code}{notional} {money_unit} that matures in {future_year}",
+    "{company} {verb} {swap_type} with a fair value of {currency_code}{notional} {money_unit} that matures in {future_year}",
     "{company} {verb} {swap_type} with a value of {currency_code}{notional} {money_unit} that expires in {month} {future_year}",
-    "{company} {verb} {swap_type} with a notional value of {currency_code}{notional} {money_unit} that matures in {month} {future_year}",
+    "{company} {verb} {swap_type} with a fair value of {currency_code}{notional} {money_unit} that matures in {month} {future_year}",
     "{company} {verb} {swap_type} with a value of {currency_code}{notional} {money_unit} which expires in {future_year}",
     "{company} {verb} {swap_type} with a value of {currency_code}{notional} {money_unit} which matures in {future_year}",
     "{company} {verb} {swap_type} with a notional value of {currency_code}{notional} {money_unit} which expires in {month} {future_year}",
@@ -532,6 +570,10 @@ trend_descriptors = [
     "with notional amounts increasing from",
     "with notional values of",
     "had a notional value of",
+    "with fair value decreasing from",
+    "with fair value increasing from",
+    "with fair values of",
+    "had a fair value of",
     "with amounts decreasing from",
     "with amounts increasing from",
     "with values of",
@@ -551,14 +593,14 @@ optional_purposes = [
 
 # Base optional template patterns
 optional_template_patterns = [
-    "{company} also have {verb} {swap_type} {purpose}. Such {swap_type} had a notional value of {currency_code}{notional1} {money_unit} and {currency_code}{notional2} {money_unit} as of {month} {end_day}, {year} and {month} {end_day}, {prev_year}, respectively",
+    "{company} also have {verb} {swap_type} {purpose}. Such {swap_type} had a fair value of {currency_code}{notional1} {money_unit} and {currency_code}{notional2} {money_unit} as of {month} {end_day}, {year} and {month} {end_day}, {prev_year}, respectively",
     "{company} {verb} {swap_type} with notional values of {currency_code}{notional1} {money_unit} as of {month} {end_day}, {year} {comparison} {currency_code}{notional2} {money_unit} as of {month} {end_day}, {prev_year}",
-    "As of {month} {end_day}, {year}, {company} {verb} {swap_type} with a notional value of {currency_code}{notional1} {money_unit}, {comparison} {currency_code}{notional2} {money_unit} in the prior year",
+    "As of {month} {end_day}, {year}, {company} {verb} {swap_type} with a fair value of {currency_code}{notional1} {money_unit}, {comparison} {currency_code}{notional2} {money_unit} in the prior year",
     "{company} {verb} {swap_type} {purpose}, {trend} {currency_code}{notional2} {money_unit} as of {month} {end_day}, {prev_year} to {currency_code}{notional1} {money_unit} as of {month} {end_day}, {year}",
-    "As of {month} {end_day}, {year}, {swap_type} with a notional value of {currency_code}{notional1} {money_unit} were in place, {comparison} {currency_code}{notional2} {money_unit} as of {month} {end_day}, {prev_year}",
+    "As of {month} {end_day}, {year}, {swap_type} with a fair value of {currency_code}{notional1} {money_unit} were in place, {comparison} {currency_code}{notional2} {money_unit} as of {month} {end_day}, {prev_year}",
     "In {year}, {swap_type} with a notional value of {currency_code}{notional1} {money_unit} were active, {comparison} {currency_code}{notional2} {money_unit} in {prev_year}",
-    "As of {month} {end_day}, {year}, {company}'s {swap_type} portfolio had a notional value of {currency_code}{notional1} {money_unit}, {comparison} {currency_code}{notional2} {money_unit} in {prev_year}",
-    "At year-end {year}, {swap_type} with a notional amount of {currency_code}{notional1} {money_unit} were {verb} {purpose}, {comparison} {currency_code}{notional2} {money_unit} in {prev_year}",
+    "As of {month} {end_day}, {year}, {company}'s {swap_type} portfolio had a fair value of {currency_code}{notional1} {money_unit}, {comparison} {currency_code}{notional2} {money_unit} in {prev_year}",
+    "At year-end {year}, {swap_type} with a fair value of {currency_code}{notional1} {money_unit} were {verb} {purpose}, {comparison} {currency_code}{notional2} {money_unit} in {prev_year}",
 ]
 
 # ------------------------------------------------------------------------------
@@ -1128,7 +1170,7 @@ def generate_hedge_position_templates(hedge_type="gen"):
     # Single-year amount_swap_orders
     amount_swap_orders = [
         to_sentence_case(pattern.replace("{connector}", connector))
-        for pattern in amount_patterns
+        for pattern in one_year_amount_patterns
         for connector in amount_connectors
     ]
 
@@ -1145,7 +1187,7 @@ def generate_hedge_position_templates(hedge_type="gen"):
     ]
 
     # Single-year templates
-    for prefix in time_prefixes:
+    for prefix in one_year_prefixes:
         for amount_order in amount_swap_orders:
             for designation in hedge_designations:
                 full = (
@@ -1176,6 +1218,27 @@ def generate_hedge_position_templates(hedge_type="gen"):
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
                 templates.append(to_sentence_case(full))
+
+    # Single-year table-like patterns
+    for template in one_year_table_prefixes:
+        for order in one_year_table_patterns:
+            full = (
+                f"{template} {order}"
+            )
+            templates.append(to_sentence_case(full))
+
+    # Two-year table-like patterns
+    for template in two_year_table_prefixes:
+        for order in two_year_table_patterns:
+            full = (
+                f"{template} {order}"
+            )
+            templates.append(to_sentence_case(full))
+    # Three-year table-like patterns
+    for template in three_year_table_prefixes:
+        for order in three_year_table_patterns:
+            full = (f"{template} {order}")
+            templates.append(to_sentence_case(full))
 
     # Historical templates
     for template in historical_templates:

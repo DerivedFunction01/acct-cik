@@ -737,11 +737,11 @@ def generate_hedge_paragraph(
 
     def hedge_type_policy() -> list[str]:
         labels[swapType] = 1
-        labels[f"{swapType}_use"] =max(0.7, labels[f"{swapType}_use"]) # We may use it, but it is neither current nor historic
-        labels["gen_use"] =max(0.7, labels["gen_use"]) # Generic use as well
+        labels[f"{swapType}_use"] = 1 # We may use it, but it is neither current nor historic
+        labels["gen_use"] = 1
         labels["spec"] = 1
-        labels["curr"] = max(0.7, labels["curr"]) if has_active_derivative else 0
-        labels["hist"] = 0 if has_active_derivative else max(0.7, labels["hist"])
+        labels["curr"] = 1 if has_active_derivative else 0
+        labels["hist"] = 0 if has_active_derivative else 1
         sentences = []
         # begin context template (company, verb)
         beg_ctx_template = random.choice(hedge_begin_context_templates[swapType])
@@ -750,6 +750,8 @@ def generate_hedge_paragraph(
             if has_active_derivative
             else random.choice(hedge_may_use_verbs)
         )
+        if has_active_derivative:
+            verb = random.choice(["currently", "actively", "presently", "now", ""]) + " " + verb
         sentences.append(
             beg_ctx_template.format(
                 company=pick_company_name(company_name),
