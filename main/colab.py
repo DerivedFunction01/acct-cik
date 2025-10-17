@@ -610,7 +610,7 @@ def get_cik_filings(cik: str) -> List[dict]:
 # =============================================================================
 
 
-def extract_content(data: str, asHTML=True, max_len=1200) -> str:
+def extract_content(data: str, asHTML=True, max_len=600) -> str:
     if not data:
         return ""
 
