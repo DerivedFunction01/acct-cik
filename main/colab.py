@@ -817,7 +817,7 @@ def filter_by_keywords(
     """
     ignore_keywords = [kw.lower() for kw in IGNORE_KEYWORDS]
     allowed_keywords = [kw.lower() for kw in ALLOWED_KEYWORDS]
-    OVERLAP_COUNT = 1  # A sentence can appear in up to this many final paragraphs
+    OVERLAP_COUNT = 2  # A sentence can appear in up to this many final paragraphs
 
     def get_keyword_category(text: str) -> str:
         try:
