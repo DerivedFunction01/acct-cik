@@ -1,0 +1,255 @@
+---
+title: "Derivative Classification Using Post Training Stage"
+format: html
+editor: source
+jupyter: python3
+---
+
+## Using Your Trained Model for Predictions
+
+```{python}
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import numpy as np
+import pandas as pd
+import random
+import re
+import json
+```
+
+# 1. Load the Fine-Tuned Model and Tokenizer
+
+```{python}
+# This path should point to the directory where your best model was saved.
+MODEL_PATH = "DerivedFunction/finbert-derivative-usage-classifier"
+
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
+```
+
+```{python}
+# Check if a GPU is available and move the model to the GPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+print(f"Model loaded on: {device}")
+```
+
+# 2. Prepare Your Input Sentences
+
+```{python}
+UNLABELED_EXCEL_PATH = "../excel/unlabeled_data.xlsx"
+MODIFIED_LABELS_EXCEL_PATH = "../excel/modified_labels.xlsx"
+df = pd.read_excel(UNLABELED_EXCEL_PATH)
+new_sentences = df["sentence"].tolist()
+random.shuffle(new_sentences)
+```
+
+# 3. Make Predictions
+
+```{python}
+def getBatch(size=20, index=None):
+    result_dict = {}
+    if index is None:
+        index = random.randint(0, len(new_sentences) - size)
+    with open("../temp/temp.xml", "w", encoding="utf-8") as f:
+        f.write("<cases>\n")
+        for i in range(size):
+            if index + i < len(new_sentences):
+                # Get the model's prediction
+                inputs = tokenizer(
+                    new_sentences[index + i],
+                    return_tensors="pt",
+                    truncation=True,
+                    padding=True,
+                )
+                inputs = {name: tensor.to(device) for name, tensor in inputs.items()}
+                outputs = model(**inputs)
+
+                # Probabilities
+                probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+                probs = probs.cpu().detach().numpy()[0]
+
+                # Get all labels with probability > 0.5
+                high_prob_labels = [
+                    (j, id2label[j]) for j, p in enumerate(probs) if p > 0.5
+                ]
+
+                # Sentence string
+                sentence_string = new_sentences[index + i]
+                # Store in dictionary
+                result_dict[index + i] = {
+                    "sentence": sentence_string,
+                    "labels": [label for _, label in high_prob_labels],
+                }
+
+                # Write to file
+                f.write(f'<case num="{index + i}">\n')
+                f.write(f"  <sentence>{sentence_string}</sentence>\n")
+                f.write("  <labels>\n")
+                for label_id, label_name in high_prob_labels:
+                    f.write(f'    <label id="{label_id}">{label_name}</label>\n')
+                f.write("  </labels>\n")
+                f.write("</case>\n")
+        f.write("</cases>\n")
+    return result_dict
+
+
+def modify_dict(case_labels):
+    with open("../temp/modified_labels.txt", "a+", encoding="utf-8") as f:
+        for case_num, label_num in case_labels.items():
+            if case_num in result_dict:
+                # Strip double spaces, etc
+                sentence_string = result_dict[case_num].strip()
+                sentence_string = re.sub(r"\s+", " ", sentence_string)
+                f.write(f"{sentence_string}\t{label_num}\n")
+
+
+model.eval()  # Put the model in evaluation mode
+predictions = []
+# This is the mapping from the model's output index back to your original labels
+KEYWORDS_FILE = "../config/keywords_labels.json"
+
+with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+id2label = {int(k): v for k, v in data["id2label"].items()}  # Convert keys to int
+MATCHING_KEYWORDS = {int(k): v for k, v in data["MATCHING_KEYWORDS"].items()}
+
+```
+
+```{python}
+result_dict = getBatch(10, 0)  # Initial batch write
+```
+
+## Our goal is to try to fix labeling errors using AI
+
+```{python}
+
+case_labels = {
+}
+
+modify_dict(case_labels)
+
+```
+
+# Convert our modified file to a dataframe and save it
+
+```{python}
+modified_df = pd.read_csv("modified_labels.txt", sep="\t")
+MODIFIED_LABELS_EXCEL_PATH.to_excel(, index=False)
+```
+
+# Or we can load a small batch and verify it manually
+
+```{python}
+import pandas as pd
+import random
+import re
+
+SENTENCE_LABELS_EXCEL_PATH = "../excel/sentence_labels.xlsx"
+RANDOM_SAMPLE_EXCEL_PATH = "../excel/sentence_labels_sample.xlsx"
+TRAINING_EXCEL_PATH = "../excel/training_labels.xlsx"
+SAMPLE_XML_PATH="../temp/temp-sample.xml"
+
+def stratified_sample(df, stratify_col="label", frac=0.05, n=None, random_state=42):
+    """
+    Take a stratified sample from a DataFrame.
+    - df: input DataFrame
+    - stratify_col: column to stratify on (e.g., 'label')
+    - frac: fraction of each group to sample
+    - n: fixed number per group (overrides frac if set)
+    """
+    grouped = df.groupby(stratify_col, group_keys=False)
+
+    if n is not None:
+        return grouped.apply(
+            lambda x: x.sample(min(len(x), n), random_state=random_state),
+            include_groups=False,
+        ).reset_index(drop=True)
+    else:
+        return grouped.apply(
+            lambda x: x.sample(frac=frac, random_state=random_state),
+            include_groups=False,
+        ).reset_index(drop=True)
+
+
+def getBatchFromSample(df, size=20, index=None, output_path=SAMPLE_XML_PATH):
+    """
+    Write a batch of rows from df into an XML-like file.
+    Each row -> <case num="..."><sentence>...</sentence><label>...</label></case>
+    """
+    if index is None:
+        index = random.randint(0, len(df) - size)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("<cases>\n")
+        for i in range(size):
+            if index + i < len(df):
+                row = df.iloc[index + i]
+                sentence_string = str(row["sentence"])
+                sentence_string = (
+                    f"<reportYear>{row['year']}</reportYear>{sentence_string}"
+                )
+                label_string = row["label_id"]
+                case_string = f'<case num="{index + i}"><sentence>{sentence_string}</sentence><label>{label_string}</label></case>\n'
+                f.write(case_string)
+        f.write("</cases>\n")
+
+    print(f"Wrote {size} cases to {output_path} (starting at index {index})")
+    # Return the starting index and size of the batch
+    return [index, size]
+
+
+def append_xml_to_training(starting_index, size, new_labels={}):
+    sample_df.loc[starting_index : starting_index + size - 1, "label_id"] = sample_df.loc[
+        starting_index : starting_index + size - 1, "label_id"
+    ].apply(lambda x: new_labels.get(x, x))
+    # Append to current_df
+    try:
+        current_df = pd.read_excel(TRAINING_EXCEL_PATH)
+    except FileNotFoundError:
+        current_df = pd.DataFrame(columns=sample_df.columns)
+        current_df.to_excel(TRAINING_EXCEL_PATH, index=False)
+    finally:
+        current_df = pd.concat([current_df, sample_df.loc[starting_index : starting_index + size - 1]], ignore_index=True)
+        current_df.to_excel(TRAINING_EXCEL_PATH, index=False)
+
+label_df = pd.read_excel(SENTENCE_LABELS_EXCEL_PATH)
+sample_df = pd.read_excel(RANDOM_SAMPLE_EXCEL_PATH)
+```
+
+```{python}
+
+# Example 1: take 10% stratified sample
+sample_df = stratified_sample(label_df, stratify_col="label", frac=0.1)
+
+# Example 2: take 50 rows per label (if available)
+# sample_df = stratified_sample(sentence_label_df, stratify_col="label", n=50)
+
+# Save to Excel
+sample_df.to_excel(RANDOM_SAMPLE_EXCEL_PATH, index=False)
+```
+
+```{python}
+# Take a random sample of sample_df and write to a temp.xml file
+smpl_idx, smpl_size = getBatchFromSample(sample_df)
+```
+
+```{python}
+# new labels maps the index to the new label
+new_labels ={
+    885: 0,
+}
+append_xml_to_training(smpl_idx, smpl_size, new_labels)
+```
+
+```{python}
+import re
+string = '''
+
+'''
+string = " ".join(string.split("\n"))
+string = re.sub("<reportingYear>", "\n<reportingYear>", string)
+
+print(string)
+```

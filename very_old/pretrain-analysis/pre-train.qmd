@@ -1,0 +1,193 @@
+---
+title: "Get Data for Pretraining"
+format: html
+editor: source
+jupyter: python3
+---
+
+# Importing required libraries
+
+```{python}
+# Installing required libraries
+# %pip install pandas requests bs4 matplotlib
+```
+
+```{python}
+import pandas as pd  # Data processing
+import json          # JSON parsing
+import sqlite3       # To store our data
+import re # Regex expressions
+import regex # Regex expressions
+import matplotlib.pyplot as plt # For plotting
+from concurrent.futures import ThreadPoolExecutor, as_completed # Concurrency
+from tqdm import tqdm
+```
+
+```{python}
+DB_PATH = "../db/webpage.db"
+UNLABELED_DATA_EXCEL_PATH = "../excel/unlabeled_data.xlsx"
+KEYWORD_EXCEL_PATH = "../excel/keywords_results.xlsx"
+KEYWORDS_FILE = "../config/keywords_labels.json"
+
+with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+id2label = {int(k): v for k, v in data["id2label"].items()}  # Convert keys to int
+MATCHING_KEYWORDS = {int(k): v for k, v in data["MATCHING_KEYWORDS"].items()}
+```
+
+## Database Functions
+
+```{python}
+def fetch_webpage_results():
+    """
+    Fetch results from webpage_results
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT * FROM webpage_result")
+    columns = [col[0] for col in c.description]
+    rows = c.fetchall()
+    pre_data = pd.DataFrame(rows, columns=columns)
+    conn.close()
+    return pre_data
+```
+
+# Post Data Extraction Stage
+
+## Functions
+
+```{python}
+def parse_json(data):
+    try:
+        return json.loads(data)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+def expand_sentences(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """
+    Expand a column containing lists of sentences into separate rows.
+    Null, empty, or whitespace-only sentences are removed.
+    
+    Args:
+        df: Original DataFrame
+        column: Column name containing lists (e.g., "matches" or "not_matches")
+    
+    Returns:
+        Expanded DataFrame with one sentence per row in a column named 'sentence'.
+    """
+    df_copy = df[["cik", "year", "url", column]].copy()
+    df_copy[column] = df_copy[column].apply(parse_json)
+    
+    # Explode and rename column
+    df_expanded = df_copy.explode(column).rename(columns={column: "sentence"})
+
+    # Remove null or empty sentences
+    df_expanded = df_expanded[df_expanded["sentence"].notna()]
+    df_expanded = df_expanded[df_expanded["sentence"].str.strip() != ""]
+    
+    # Remove newlines
+    df_expanded['sentence'] = df_expanded['sentence'].str.replace('\n', ' ')
+    # Prepend reporting year and remove any stray newlines
+    df_expanded["sentence"] = df_expanded.apply(
+        lambda row: f"<reportingYear>{row['year']}</reportingYear> {row['sentence'].strip()}",
+        axis=1
+    )
+    df_expanded['label'] = -1 if column == 'matches' else 3
+    return df_expanded
+
+def plot_data(df):
+    df['sentence_length'] = df['sentence'].apply(len)
+    print(df['sentence_length'].describe())
+    plt.figure(figsize=(10,6))
+    plt.hist(df['sentence_length'], bins=100, edgecolor='k', alpha=0.7)
+    plt.title("Distribution of Sentence Lengths")
+    plt.xlabel("Sentence Length (characters)")
+    plt.ylabel("Frequency")
+    plt.show()
+
+def drop_outliers(df, low=1.96, high=1.44):
+    MAX_LENGTH = 2000
+    df['sentence_length'] = df['sentence'].apply(len)
+    df = df[df['sentence_length'] <= MAX_LENGTH].copy()
+    df = df.drop(columns=['sentence_length'])
+    df = df.reset_index(drop=True)
+    return df
+```
+
+## Fetch the results
+
+```{python}
+wr = fetch_webpage_results()
+wr.head()
+```
+
+## Keyword Analysis
+
+```{python}
+# KW: Drop unneeded columns,keep only cik, year, url, and keywords
+kw = wr[["cik", "year", "url", "keywords"]].copy()
+kw["keywords"] = kw["keywords"].apply(parse_json)
+## Make each keyword {keyword: count} its own column
+# Ensure 'keywords' is a dict
+# Make sure 'keywords' column contains dicts
+kw.loc[:, "keywords"] = kw["keywords"].apply(lambda x: x if isinstance(x, dict) else {})
+
+# For each group, sum the counts of the individual keywords
+for group_name, kw_list in MATCHING_KEYWORDS.items():
+    kw.loc[:, group_name] = kw["keywords"].apply(
+        lambda d: sum(d.get(k, 0) for k in kw_list)
+    )
+
+# Optionally drop the original 'keywords' column
+kw_summary = kw.drop(columns=["keywords"])
+# Optional: Rename the columns using id2label mapping if your MATCHING_KEYWORDS uses numeric labels
+# Only rename the numeric columns that exist in kw_summary
+for label_id, label_name in id2label.items():
+    if label_id in kw_summary.columns:
+        kw_summary.rename(columns={label_id: label_name}, inplace=True)
+
+kw_summary.head()
+```
+
+```{python}
+# Save KW file
+kw_summary.to_excel(KEYWORD_EXCEL_PATH, index=False)
+```
+
+## Sentence Analysis
+
+```{python}
+# SM: Drop unneeded columns, keep only cik, year, url, matches
+sm_expanded = expand_sentences(wr, "matches")
+plot_data(sm_expanded)
+sm_expanded = drop_outliers(sm_expanded)
+plot_data(sm_expanded)
+# SN: Drop unneeded columns, keep only cik, year, url, not_matches
+sn_expanded = expand_sentences(wr, "not_matches")
+plot_data(sn_expanded)
+sn_expanded = drop_outliers(sn_expanded)
+plot_data(sn_expanded)
+```
+
+## Save the results
+
+```{python}
+merged_sa = pd.concat([sm_expanded, sn_expanded], ignore_index=True)
+merged_sa.to_excel(UNLABELED_DATA_EXCEL_PATH, index=False)
+```
+
+Write some rows to a plain text file, so easier copy paste to AI for labeling, if needed.
+
+```{python}
+def get_n_rows(df: pd.DataFrame, n: int, begin: int) -> pd.DataFrame:
+    return df.iloc[begin:begin+n]
+```
+
+```{python}
+dr = get_n_rows(merged_sa, 20, 0)
+# Output the sentences to a temp.txt file
+with open("../temp/temp.txt", "w", encoding="utf-8") as f:
+    for sentence in dr["sentence"]:
+        f.write(sentence + "\n")
+```

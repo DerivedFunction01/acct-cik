@@ -1,0 +1,157 @@
+---
+title: "database-viewer"
+format: html
+editor: source
+jupyter: python3
+---
+
+## Initialization
+
+```{python}
+import sqlite3
+import pandas as pd
+import json
+from typing import Union
+db_path = "../db/webpage.db"
+
+def execute_sql(sql: str, fetch: bool = True) -> Union[pd.DataFrame, int]:
+    """
+    Execute a SQL statement on a SQLite database.
+
+    Parameters
+    ----------
+    sql : str
+        SQL statement to execute.
+    fetch : bool, default True
+        If True, fetch results (for SELECT statements) and return as DataFrame.
+        If False, commit changes (INSERT, UPDATE, DELETE) and return affected row count.
+
+    Returns
+    -------
+    pd.DataFrame or int
+        - DataFrame if fetch=True (SELECT query)
+        - Number of affected rows if fetch=False (modifying query)
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql)
+        if fetch:
+            # Fetch all results for SELECT
+            columns = [col[0] for col in cursor.description]
+            data = cursor.fetchall()
+            return pd.DataFrame(data, columns=columns)
+        else:
+            # Commit changes for INSERT/UPDATE/DELETE
+            conn.commit()
+            return cursor.rowcount
+    finally:
+        conn.close()
+
+def update_result(result, url, cik, year):
+    """
+    Save a single page result to SQLite.
+    If insert fails (e.g., duplicate url), insert into fail_results.
+    """
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE webpage_data SET raw_text=? WHERE url=? AND cik=? AND year=?",
+            (result, url, cik, year)
+        )
+        debug_print("Updated", url)
+    except sqlite3.IntegrityError:
+        # Insert into fail_results if duplicate or other integrity error
+        debug_print("Failed to update", url)
+        c.execute(
+            "INSERT OR IGNORE INTO fail_results (url, cik, year) VALUES (?, ?, ?)",
+            (url, cik, year)
+        )
+    conn.commit()
+    conn.close()
+```
+
+## Execute SELECT Statements on webpage data
+
+```{python}
+
+wf = execute_sql("SELECT * FROM report_data", fetch=True)
+wf.head(20)
+```
+
+## Execute SELECT Statements on webpage result
+
+```{python}
+
+ff = execute_sql("SELECT * FROM webpage_result", fetch=True)
+ff.head()
+```
+
+## Execute SELECT Statements on server result
+
+```{python}
+
+ff = execute_sql("SELECT * FROM server_result", fetch=True)
+ff.head()
+```
+
+## Execute INSERT/DELETE/UPDATE Statements
+
+```{python}
+
+dd = execute_sql("DELETE FROM server_result", fetch=False)
+print(dd)
+```
+
+## Save a dataframe as an Excel file
+
+```{python}
+wf.to_excel("../excel/webpage_results.xlsx", index=False)
+```
+
+```{python}
+# Grab data from this database and copy it over to another
+conn2 = sqlite3.connect("../db/final_webpage_data.db")
+cursor2 = conn2.cursor()
+
+wd = execute_sql("SELECT * FROM webpage_data", fetch=True)
+wd.head()
+
+```
+
+```{python}
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+NUM_THREADS = 3
+def fix_text(para, cik, year, url):
+    pass
+
+# Use concurrent and futures
+with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+    futures = [
+        executor.submit(fix_text, row["raw_text"], row["cik"], row["year"], row["url"])
+        for idx, row in wd.iterrows()
+    ]
+    for future in tqdm(as_completed(futures), total=len(futures)):
+        future.result()
+    
+```
+
+```{python}
+# Shuffle and grab 10 random samples
+ws = wf.sample(n=10, random_state=42)
+# Create a text file to store the raw text
+with open("raw_text.txt", "w", encoding="utf-8") as f:
+    for idx, row in ws.iterrows():
+        para = row["raw_text"]
+        if para:  # Check if text exists
+            f.write(f"--- Entry {idx} ---\n")
+            f.write(str(para) + "\n\n")
+    
+```
+
+```{python}
+wd.to_sql("webpage_data", conn2, if_exists="replace", index=False)
+```

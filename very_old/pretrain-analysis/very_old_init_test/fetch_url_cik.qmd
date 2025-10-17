@@ -1,0 +1,537 @@
+---
+title: "Fetch URL from CIK"
+format: html
+editor: source
+jupyter: python3
+---
+
+# Initialization
+## Installing required libraries
+
+```{python}
+# Installing required libraries
+# %pip install pandas requests bs4
+```
+
+## Importing required libraries
+
+```{python}
+import pandas as pd  # Data processing
+import requests      # Synchronous HTTP requests
+import time          # For rate limiting
+from bs4 import BeautifulSoup  # Webpage extraction
+import json          # JSON parsing
+import sqlite3       # To store our data
+from typing import List
+import random
+import re # Regex expressions
+import matplotlib.pyplot as plt # For plotting
+```
+
+## Initialization
+
+```{python}
+filename = "sample.csv"
+DB_PATH = "../db/webpage_results.db"
+EXCEL_PATH="../excel/training-pre-output.xlsx"
+KEYWORDS = [
+    # General derivative disclosures
+    "derivative liability",
+    "derivative liabilities",
+    "embedded derivative",
+
+    # Swaps
+    "interest rate swap",
+    "cross currency swap",
+    "cross-currency swap",
+    "total return swap",
+
+    # Options
+    "option contract",
+    "options contract",
+
+    # Forwards
+    "forward contract",
+    "foreign exchange contract",
+    "forward foreign",
+    "foreign currency future",
+
+    # Other precise markers
+    "notional amount",
+    "not designated as hedging",
+    "not designated as a hedging"
+]
+FILING_TYPES = {"10-K", "20-F"}
+SEC_RATE_LIMIT = 5  # requests per second
+df = pd.read_csv(filename)
+df.head()
+```
+
+## Predefined Functions
+
+### Debug printing
+```{python}
+debug = True # Debug printing
+def debug_print(*args):
+    if debug:
+        print(*args)
+
+debug_print("Debug Print status:", debug)
+```
+
+### Fetch URLs
+
+```{python}
+def rate_limit_sleep():
+    """Simple sleep to respect SEC rate limits synchronously."""
+    time.sleep(1 / SEC_RATE_LIMIT)
+
+
+def fetch_json(url: str) -> dict | None:
+    """Fetch a URL and return JSON as dict, or None if failed."""
+    headers = {"User-Agent": f"testing {random.randint(1000,9999)}@example.com"}
+    rate_limit_sleep()
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        print("Fetching", url)
+        if resp.status_code == 429:
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after:
+                print(f"Rate limited. Retrying after {retry_after} seconds.")
+                time.sleep(int(retry_after))
+                return fetch_json(url)  # retry
+        elif resp.status_code != 200:
+            print(f"Error {resp.status_code} fetching {url}")
+            return None
+        return resp.json()
+    except Exception as e:
+        print(f"Exception fetching {url}: {e}")
+        return None
+
+
+def extract_filings(data: dict, cik: str, name: str, ticker: str) -> List[dict]:
+    """Extract filings from SEC JSON data."""
+    links = []
+    forms = data.get("form", [])
+    accession_numbers = data.get("accessionNumber", [])
+    primary_docs = data.get("primaryDocument", [])
+    filing_dates = data.get("filingDate", [])
+    report_dates = data.get("reportDate", [])
+
+    for i, f_type in enumerate(forms):
+        if f_type in FILING_TYPES:
+            accession = accession_numbers[i].replace("-", "")
+            doc = primary_docs[i]
+            if not doc or doc.endswith("txt"): # For old files
+                doc = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}.txt"
+            link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{doc}"
+            links.append({
+                "name": name,
+                "filing_date": filing_dates[i],
+                "report_date": report_dates[i],
+                "link": link,
+                "ticker": ticker,
+                "type": f_type
+            })
+    return links
+
+
+def get_cik_filings(cik: str) -> List[dict]:
+    """Fetch all filings for a CIK (synchronously)."""
+    cik = str(cik).zfill(10)
+    url_main = f"https://data.sec.gov/submissions/CIK{cik}.json"
+
+    data = fetch_json(url_main)
+    if not data:
+        return []
+
+    name = data.get("name", "")
+    ticker = data.get("tickers", [])[0] if data.get("tickers", []) else cik
+
+    # Recent filings
+    recent = data.get("filings", {}).get("recent", {})
+    links = extract_filings(recent, cik, name, ticker)
+
+    # Older filings
+    older_files = data.get("filings", {}).get("files", [])
+    for f in older_files:
+        older_data = fetch_json(f"https://data.sec.gov/submissions/{f.get('name')}")
+        if isinstance(older_data, dict):
+            links.extend(extract_filings(older_data, cik, name, ticker))
+
+    return links
+```
+
+### Extract Content from Webpage
+
+```{python}
+def extract_content(html: str) -> dict:
+    """
+    Extract paragraphs from HTML
+
+    Returns a dict with keys:
+    - 'paragraphs': list[str]
+    """
+    if not html:
+        return {"paragraphs": []}
+    debug_print("Parsing Output")
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Paragraphs outside of tables
+    paragraphs = []
+    for p in soup.find_all("p"):
+        if p.find_parent("table") is None:  # ignore if inside table
+            text = p.get_text(strip=True)
+            if text:
+                paragraphs.append(text)
+
+    return {
+        "paragraphs": paragraphs,
+    }
+
+
+def extract_text(text: str):
+    """
+    Extract paragraphs using simplified fixed rules.
+    """
+
+    # Remove tables from text
+    cleaned_text = re.sub(r"<TABLE>.*?</TABLE>", "", text, flags=re.DOTALL | re.I)
+    
+    # Split paragraphs by double newlines
+    raw_paragraphs = [p.strip() for p in cleaned_text.split("\n\n") if p.strip()]
+
+    return {"paragraphs": raw_paragraphs}
+
+```
+
+### Match text
+
+```{python}
+def filter_by_keywords(content: dict, year: int) -> dict:
+    """
+    Filter extracted content to only include items containing keywords, 
+    and add some random content for training.
+    """
+    keywords_lower = [kw.lower() for kw in KEYWORDS]
+
+    def matches_text(text: str) -> bool:
+        if not text:
+            return False
+        return any(kw in text.lower() for kw in keywords_lower)
+
+    # Paragraphs
+    debug_print("Matching paragraphs")
+    # Add some paragraphs, and use a random seed to add a non-matching paragraph past the table of contents
+    para_matches = [
+        p for idx, p in enumerate(content.get("paragraphs", []))
+        if matches_text(p)
+    ]
+
+    match_sentences = []
+
+    # Iterate through each paragraph and extract the sentence
+    for paragraph in para_matches:
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        paragraph = paragraph.replace("\n", " ")
+        paragraph = re.sub(r"\s+", " ", paragraph)
+
+        sentences = [s.strip() for s in paragraph.split(".") if s.strip()]
+        if not sentences:
+            continue
+
+        for idx, sentence in enumerate(sentences):
+            # Skip too short sentences
+            if len(sentence.split()) < 6:
+                continue
+
+            merged_sentences = []
+
+            # Previous sentence
+            if idx > 0:
+                merged_sentences.append(sentences[idx - 1])
+
+            # Current sentence
+            merged_sentences.append(sentence)
+
+            # Next sentence
+            if idx < len(sentences) - 1:
+                merged_sentences.append(sentences[idx + 1])
+
+            merged_string = ". ".join(merged_sentences)
+            final_sentence = merged_string.strip() + "."
+
+            if matches_text(final_sentence) and final_sentence not in match_sentences:
+                match_sentences.append(final_sentence)
+
+    return {
+        "paragraphs": match_sentences,
+    }
+```
+
+### Process Each URL
+
+```{python}
+def fetch_url(url: str, timeout: int = 10) -> str | None:
+    """
+    Fetch the content of a webpage synchronously.
+    """
+    if not url:
+        return None
+    try:
+        rate_limit_sleep()
+        print("Fetching", url)
+        resp = requests.get(url, timeout=timeout, headers={"User-Agent": "sync-fetch@example.com"})
+        if resp.status_code != 200:
+            print(f"Error {resp.status_code} for {url}")
+            return None
+        return resp.text
+    except Exception as e:
+        print(f"Error fetching {url}: {e}")
+        return None
+
+
+def process_url(url: str, year: int):
+    """
+    Processes a url and its data synchronously.
+    """
+    data = fetch_url(url)
+    if not data:
+        return {}
+    content = None
+    if url.endswith("htm"):
+        debug_print("Processing as html")
+        content = extract_content(data)
+    else:
+        debug_print("Processing as text")
+        content = extract_text(data)
+    filtered = filter_by_keywords(content, year)
+    if any(filtered.values()):  # skip if nothing matches
+        return filtered
+    return {}
+```
+
+## Database Functions
+
+```{python}
+def create_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS webpage_results (
+                cik INTEGER,
+                year INTEGER,
+                url TEXT PRIMARY KEY,
+                json_data TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS fail_results (
+                cik INTEGER,
+                year INTEGER,
+                url TEXT PRIMARY KEY
+            )
+        """)
+    except sqlite3.IntegrityError:
+        debug_print("Something went wrong creating the database")
+    finally:
+        conn.commit()
+        conn.close()
+
+
+def save_result(result, df):
+    """
+    Save a single page result to SQLite.
+    If insert fails (e.g., duplicate url), insert into fail_results.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute(
+            "INSERT INTO webpage_results (url, cik, year, json_data) VALUES (?, ?, ?, ?)",
+            (df.link, df.cik, df.year, json.dumps(result))
+        )
+    except sqlite3.IntegrityError:
+        # Insert into fail_results if duplicate or other integrity error
+        c.execute(
+            "INSERT OR IGNORE INTO fail_results (url, cik, year) VALUES (?, ?, ?)",
+            (df.link, df.cik, df.year)
+        )
+    conn.commit()
+    conn.close()
+
+def fetch_webpage_results():
+    """
+    Fetch results from webpage_results
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT * FROM webpage_results")
+    columns = [col[0] for col in c.description]
+    rows = c.fetchall()
+    pre_data = pd.DataFrame(rows, columns=columns)
+    conn.close()
+    return pre_data
+
+create_db()
+```
+
+## Merge it all together
+
+```{python}
+def filter_by_fyear(filings: list[dict], fyear: int) -> list[dict]:
+    """Filter filings by fiscal year."""
+    return [f for f in filings if f.get("report_date") and f.get("report_date").startswith(str(fyear))]
+
+def fetch_all_grouped(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Fetch filings once per CIK, filter by fiscal years, 
+    and return as a new DataFrame.
+    """
+    records = []
+
+    # group: {cik -> [fyears]}
+    cik_groups = df.groupby("cik")["fyear"].apply(list).reset_index()
+
+    for row in cik_groups.itertuples(index=False):
+        cik = row.cik
+        years = row.fyear
+
+        filings = get_cik_filings(cik)  # fetch once
+
+        for fyear in years:
+            year_filings = filter_by_fyear(filings, fyear)
+            for filing in year_filings:
+                records.append({
+                    "cik": cik,
+                    "year": fyear,
+                    **filing  # expands filing dict into columns
+                })
+
+    return pd.DataFrame(records)
+```
+
+# Execute Main Loop
+```{python}
+report_results = fetch_all_grouped(df)
+```
+
+## Pre-Process each link and store in a database
+```{python}
+for report in report_results.itertuples(index=False):
+    debug_print("Processing", report.cik, report.year)
+    result = process_url(report.link, report.year)
+    save_result(result, report)
+```
+
+# Post-Process and store in database
+## Functions
+```{python}
+def fetch_excel():
+    return pd.read_excel(EXCEL_PATH)
+def parse_json(data):
+    try:
+        return json.loads(data).get('paragraphs', [])
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+def post_process_sentence(sentence):
+    if not sentence or not isinstance(sentence, str):
+        return None
+    # words to remove. If it exists, then we set it to null
+    REMOVE_WORDS = [
+        "Table of Contents",
+        "CONSOLIDATED BALANCE SHEETS"
+    ]
+    temp_sentence = str(sentence).lower()
+    for word in REMOVE_WORDS:
+        if word.lower() in temp_sentence:
+            return None
+    
+    # Add a space between capital letters. Then, we will remove double spaces with a single space, since some words are together
+    sentence = re.sub(r'([a-z])([A-Z])', r'\1 \2', sentence)
+    # Add a space between a letter and a number, and the other way around. Then, we will remove double spaces with a single space, since some words are together
+    sentence = re.sub(r'([a-zA-Z])(\d+)', r'\1 \2', sentence)
+    sentence = re.sub(r'(\d+)([a-zA-Z])', r'\1 \2', sentence)
+    # Add space between a letter and a dollar sign
+    sentence = re.sub(r'([a-zA-Z0-9])(\$)', r'\1 \2', sentence)
+    # Remove double spaces
+    sentence = re.sub(r'\s+', ' ', sentence)
+    return sentence
+
+# Display sentence length statistics
+def plot_data(df):
+    df['sentence_length'] = df['sentence'].apply(len)
+    print(df['sentence_length'].describe())
+    plt.figure(figsize=(10,6))
+    plt.hist(df['sentence_length'], bins=100, edgecolor='k', alpha=0.7)
+    plt.title("Distribution of Sentence Lengths")
+    plt.xlabel("Sentence Length (characters)")
+    plt.ylabel("Frequency")
+    plt.show()
+```
+
+## Begin
+### 1. Parse the JSON string in 'json_data' into a Python list of sentences
+We'll handle potential errors by returning an empty list if parsing fails
+```{python}
+dp = fetch_webpage_results()
+dp['sentences'] = dp['json_data'].apply(parse_json)
+dp.head()
+```
+
+### 2. "Explode" the DataFrame. 
+Each sentence in the list gets its own row, duplicating the 'cik' and 'year' for each new row. Clean up the DataFrame for the next step
+```{python}
+training_df = dp.explode('sentences')
+training_df = training_df[['cik', 'year', 'sentences']].copy()
+training_df.rename(columns={'sentences': 'sentence'}, inplace=True)
+
+# Apply post processing to sentences
+training_df['sentence'] = training_df['sentence'].apply(post_process_sentence)
+# Drop columns where sentence is empty
+training_df.dropna(subset=['sentence'], inplace=True)
+
+```
+
+### 3. Display the status of each sentence length. 
+Then we want to drop those that are too short or too long
+```{python}
+# Show initial results
+plot_data(training_df)
+
+```
+
+```{python}
+# Define thresholds for dropping sentences
+mean_len = training_df['sentence_length'].mean()
+std_len = training_df['sentence_length'].std()
+
+# Drop sentences that are too short or too long (> 3 standard deviations from mean)
+training_df = training_df[
+    (training_df['sentence_length'] >= mean_len - 1.96 * std_len) &
+    (training_df['sentence_length'] <= mean_len + 1.28  * std_len)
+].copy()
+training_df = training_df.reset_index(drop=True)
+# Recompute sentence length stats after filtering
+plot_data(training_df)
+```
+
+### Let's attach meaningful information to each sentence
+```{python}
+# Create a final output column that attaches the year to the sentence
+training_df["final_output"] = "<reportingYear>" + training_df["year"].astype(str) + "</reportingYear>\n"+ training_df["sentence"]
+
+# Drop unneeded columns
+training_df = training_df[["cik", "year", "final_output"]]
+```
+
+### Display the first few rows of the new, transformed DataFrame and save it for labeling
+```{python}
+print(training_df.head())
+# Save the dataframe to an excel file
+training_df.to_excel(EXCEL_PATH, index=False)
+```

@@ -1,0 +1,893 @@
+---
+title: "Get Data"
+format: html
+editor: source
+jupyter: python3
+---
+
+# Importing required libraries
+
+```{python}
+# Installing required libraries
+# %pip install pandas requests bs4 matplotlib
+```
+
+```{python}
+import pandas as pd  # Data processing
+import requests      # Synchronous HTTP requests
+import time          # For rate limiting
+from bs4 import BeautifulSoup  # Webpage extraction
+import json          # JSON parsing
+import sqlite3       # To store our data
+from typing import List
+import random
+import re # Regex expressions
+import regex # Regex expressions
+from concurrent.futures import ThreadPoolExecutor, as_completed # Concurrency
+from tqdm import tqdm
+```
+
+```{python}
+filename = "../excel/derivatives_data.csv"
+DB_PATH = "../db/webpage.db"
+REPORT_RESULTS_EXCEL_PATH = "../excel/cik_urls.xlsx"
+KEYWORDS_FILE = "../config/keywords_labels.json"
+NUM_THREADS = 4
+
+IGNORE_KEYWORDS = {
+    "table of contents",
+    "consolidated",
+    "balance sheet",
+    "BEGIN PRIVACY-ENHANCED MESSAGE",
+    "us-gaap:",
+}
+FILING_TYPES = {
+    # Current
+    "10-K",
+    "10-KT",
+    "20-F",
+    "40-F",
+    # Legacy
+    "10-K405",
+    "10KSB",
+    "10KSB40",
+}
+
+# temporarily replace whitelisted currency symbols with placeholders
+PLACEHOLDERS = {
+    "€": "__EURO__",
+    "£": "__POUND__",
+    "¥": "__YEN__",
+    "¢": "__CENTS__",
+}
+REPLACE_HOLDERS = PLACEHOLDERS | {
+    "•": "*",
+    "—": "--",
+    "“": '"',
+    "”": '"',
+    "‘": "'",
+    "’": "'",
+}
+NON_ASCII_PATTERN = re.compile(r"[^\x00-\x7F]+")
+SEC_RATE_LIMIT = 10  # requests per second
+
+df = pd.read_csv(filename)
+
+
+def existing_report_df() -> pd.DataFrame | None:
+    try:
+        return pd.read_excel(REPORT_RESULTS_EXCEL_PATH)
+    except FileNotFoundError:
+        return None
+
+
+existing_report_df = existing_report_df()
+
+with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+    keyword_data = json.load(f)
+
+id2label = {int(k): v for k, v in keyword_data["id2label"].items()}
+MATCHING_KEYWORDS = {int(k): v for k, v in keyword_data["MATCHING_KEYWORDS"].items()}
+
+# Optional: flatten all keywords into a single set if needed for old functions
+KEYWORDS = {kw for kws in MATCHING_KEYWORDS.values() for kw in kws}
+
+```
+
+## Predefined Functions
+
+### Debug printing
+
+```{python}
+debug = False # Debug printing
+def debug_print(*args):
+    if debug:
+        print(*args)
+```
+
+## Database Functions
+
+```{python}
+def create_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS webpage_data (
+                cik INTEGER,
+                year INTEGER,
+                url TEXT PRIMARY KEY,
+                raw_text TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS webpage_result (
+                cik INTEGER,
+                year INTEGER,
+                url TEXT PRIMARY KEY,
+                matches TEXT,
+                not_matches TEXT,
+                keywords TEXT,
+                FOREIGN KEY (url) REFERENCES webpage_data (url)
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS fail_results (
+                cik INTEGER,
+                year INTEGER,
+                url TEXT PRIMARY KEY
+            )
+        """)
+    except sqlite3.IntegrityError:
+        debug_print("Something went wrong creating the database")
+    finally:
+        conn.commit()
+        conn.close()
+
+
+def save_data(data, url, cik, year):
+    """
+    Save a single page result to SQLite.
+    If insert fails (e.g., duplicate url), insert into fail_results.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute(
+            "INSERT INTO webpage_data (url, cik, year, raw_text) VALUES (?, ?, ?, ?)",
+            (url, cik, year, data)
+        )
+    except sqlite3.IntegrityError:
+        # Insert into fail_results if duplicate or other integrity error
+        c.execute(
+            "INSERT OR IGNORE INTO fail_results (url, cik, year) VALUES (?, ?, ?)",
+            (url, cik, year)
+        )
+        
+    conn.commit()
+    conn.close()
+
+def get_webpage_data(url):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT * FROM webpage_data WHERE url=?", (url,))
+    columns = [col[0] for col in c.description]
+    result = c.fetchone()
+    conn.close()
+    if not result:
+        return pd.DataFrame(columns=columns)
+    data = pd.DataFrame([result], columns=columns)
+    return data
+
+def fetch_webpage_data():
+    """
+    Fetch results from webpage_data
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT * FROM webpage_data")
+    columns = [col[0] for col in c.description]
+    rows = c.fetchall()
+    pre_data = pd.DataFrame(rows, columns=columns)
+    conn.close()
+    return pre_data
+
+def fetch_webpage_results():
+    """
+    Fetch results from webpage_results
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT * FROM webpage_result")
+    columns = [col[0] for col in c.description]
+    rows = c.fetchall()
+    pre_data = pd.DataFrame(rows, columns=columns)
+    conn.close()
+    return pre_data
+
+def get_processed_urls() -> set[tuple]:
+    """
+    Return a set of (cik, year, url) that are already processed in `webpage_result`.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT cik, year, url FROM webpage_result")
+    rows = c.fetchall()
+    conn.close()
+    return set(rows)
+
+def save_process_result(df):
+    """
+    Inserts a new item into the webpage_result table
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO webpage_result (url, cik, year, matches, not_matches, keywords) VALUES (?, ?, ?, ?, ?, ?)",
+        (df.url, df.cik, df.year, json.dumps(df.matches), json.dumps(df.not_matches), json.dumps(df.keywords)
+        )
+    )
+    conn.commit()
+    conn.close()
+
+create_db()
+```
+
+### Fetch report URLS
+
+```{python}
+def rate_limit_sleep():
+    """Simple sleep to respect SEC rate limits synchronously."""
+    time.sleep(1 / SEC_RATE_LIMIT)
+
+
+def fetch_json(url: str) -> dict | None:
+    """Fetch a URL and return JSON as dict, or None if failed."""
+    headers = {"User-Agent": f"testing {random.randint(1000,9999)}@example.com"}
+    rate_limit_sleep()
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        debug_print("Fetching", url)
+        if resp.status_code == 429:
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after:
+                print(f"Rate limited. Retrying after {retry_after} seconds.")
+                time.sleep(int(retry_after))
+                return fetch_json(url)  # retry
+        elif resp.status_code != 200:
+            print(f"Error {resp.status_code} fetching {url}")
+            return None
+        return resp.json()
+    except Exception as e:
+        print(f"Exception fetching {url}: {e}")
+        return None
+
+
+def extract_filings(data: dict, cik: str, name: str, ticker: str) -> List[dict]:
+    """Extract filings from SEC JSON data."""
+    links = []
+    forms = data.get("form", [])
+    accession_numbers = data.get("accessionNumber", [])
+    primary_docs = data.get("primaryDocument", [])
+    filing_dates = data.get("filingDate", [])
+    report_dates = data.get("reportDate", [])
+
+    for i, f_type in enumerate(forms):
+        if f_type in FILING_TYPES:
+            accession = accession_numbers[i].replace("-", "")
+            doc = primary_docs[i]
+            if not doc or doc.endswith("txt"): # For old files
+                doc = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}.txt"
+            link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{doc}"
+            links.append({
+                "name": name,
+                "filing_date": filing_dates[i],
+                "report_date": report_dates[i],
+                "link": link,
+                "ticker": ticker,
+                "type": f_type
+            })
+    return links
+
+
+def get_cik_filings(cik: str) -> List[dict]:
+    """Fetch all filings for a CIK (synchronously)."""
+    cik = str(cik).zfill(10)
+    url_main = f"https://data.sec.gov/submissions/CIK{cik}.json"
+
+    data = fetch_json(url_main)
+    if not data:
+        return []
+
+    name = data.get("name", "")
+    ticker = data.get("tickers", [])[0] if data.get("tickers", []) else cik
+
+    # Recent filings
+    recent = data.get("filings", {}).get("recent", {})
+    links = extract_filings(recent, cik, name, ticker)
+
+    # Older filings
+    older_files = data.get("filings", {}).get("files", [])
+    for f in older_files:
+        older_data = fetch_json(f"https://data.sec.gov/submissions/{f.get('name')}")
+        if isinstance(older_data, dict):
+            links.extend(extract_filings(older_data, cik, name, ticker))
+
+    return links
+```
+
+### Extract Content from Webpage
+
+```{python}
+def extract_content(data: str, asHTML=True, max_len=2000) -> str:
+    """
+    Extract and clean text from HTML or plaintext in one pass.
+    Optimized version with reduced regex compilation and string operations.
+    """
+    if not data:
+        return ""
+
+    # Compile regex patterns once
+    BULLET_PATTERN = re.compile(r"^[-*•]\s*")
+    NUMBERED_PATTERN = re.compile(r"^\(?\d+[\.\)]\s+")
+    PUNCTUATION_END_PATTERN = re.compile(r"[.!?;:•)]$")
+    SENTENCE_SPLIT_PATTERN = re.compile(r"(?<![A-Z0-9])\s*\.\s*(?![a-zA-Z0-9])")
+    CRUNCHED_TEXT_PATTERNS = [
+        (re.compile(r"([a-z])([A-Z])"), r"\1 \2"),
+        (re.compile(r"([a-zA-Z])(\d+)"), r"\1 \2"),
+        (re.compile(r"(\d+)([a-zA-Z])"), r"\1 \2"),
+        (re.compile(r"([a-zA-Z0-9])(\$)"), r"\1 \2"),
+    ]
+    CLEANUP_PATTERNS = [
+        (re.compile(r"\s+"), " "),
+        (re.compile(r"\(\s*"), "("),
+        (re.compile(r"\s*\)"), ")"),
+        (re.compile(r"\s*,"), ","),
+        (re.compile(r"(-{3,}|={3,}|\.{3,})"), ""),
+        (re.compile(r"<.*?>"), ""),
+        (re.compile(r"table of contents", re.IGNORECASE), ""),
+        (re.compile(r"F-\d+"), ""),
+    ]
+
+    if asHTML:
+        soup = BeautifulSoup(data, "html.parser")
+        text = soup.get_text(separator="\n\n", strip=True)
+        text = keep_allowed_chars(text, True)
+        # Split into candidate paragraphs
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+        merged_paragraphs = []
+
+        i = 0
+        while i < len(paragraphs):
+            line = paragraphs[i]
+
+            # Check for bullets
+            if BULLET_PATTERN.match(line):
+                # Merge single-character bullet with next line
+                if len(line.strip()) == 1 and i + 1 < len(paragraphs):
+                    line = f"{line} {paragraphs[i + 1]}"
+                    i += 1  # Skip next line
+
+                # Merge with previous bullet if applicable
+                if merged_paragraphs and BULLET_PATTERN.match(merged_paragraphs[-1]):
+                    merged_paragraphs[-1] += f"\n{line}"
+                else:
+                    merged_paragraphs.append(line)
+
+            # Check for numbered lists
+            elif NUMBERED_PATTERN.match(line):
+                if merged_paragraphs and NUMBERED_PATTERN.match(merged_paragraphs[-1]):
+                    merged_paragraphs[-1] += f"\n{line}"
+                else:
+                    merged_paragraphs.append(line)
+
+            # Merge if previous line doesn't end in punctuation
+            elif merged_paragraphs and not PUNCTUATION_END_PATTERN.search(
+                merged_paragraphs[-1]
+            ):
+                merged_paragraphs[-1] += f" {line}"
+            else:
+                merged_paragraphs.append(line)
+
+            i += 1
+
+        # Handle max length with pre-compiled regex
+        final_paragraphs = []
+        for para in merged_paragraphs:
+            if len(para) <= max_len:
+                final_paragraphs.append(para)
+            else:
+                parts = SENTENCE_SPLIT_PATTERN.split(para)
+                current_chunk = ""
+
+                for part in parts:
+                    if len(current_chunk) + len(part) + 1 <= max_len:
+                        current_chunk += f" {part}" if current_chunk else part
+                    else:
+                        if current_chunk:
+                            final_paragraphs.append(current_chunk)
+                        current_chunk = part
+
+                if current_chunk:
+                    final_paragraphs.append(current_chunk)
+
+        paragraphs = final_paragraphs
+
+    else:  # Plain text processing
+        text = keep_allowed_chars(data)
+        # Use more efficient split with compiled regex
+        table_split_pattern = re.compile(
+            r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE
+        )
+        parts = table_split_pattern.split(text)
+        paragraphs = []
+
+        for part in parts:
+            if part.strip().lower().startswith("<table>"):
+                rows = parse_plain_text_table_fixed(part)
+                table_text = "\n".join(["\t".join(row) for row in rows])
+                paragraphs.append(table_text)
+            else:
+                # Use list comprehension for better performance
+                sub_paras = [p for p in re.split(r"\n\s*\n", part) if p.strip()]
+                paragraphs.extend(sub_paras)
+
+    # Optimized cleaning loop
+    cleaned_paragraphs = []
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+
+        # Keep newlines for bullets and numbered lists (check once)
+        is_list_item = BULLET_PATTERN.match(para) or NUMBERED_PATTERN.match(para)
+        if not is_list_item:
+            para = re.sub(r"\n+", " ", para)
+
+        # Apply crunched text fixes
+        for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
+            para = pattern.sub(replacement, para)
+
+        # Apply cleanup patterns
+        for pattern, replacement in CLEANUP_PATTERNS:
+            para = pattern.sub(replacement, para)
+
+        para = para.strip()
+
+        # Merge short paragraphs
+        if len(para) < 15 and cleaned_paragraphs:
+            cleaned_paragraphs[-1] = f"{cleaned_paragraphs[-1]} {para}"
+        elif para:
+            cleaned_paragraphs.append(para)
+
+    return "\n\n".join(cleaned_paragraphs)
+
+
+def keep_allowed_chars(text, asHTML=False):
+    """Optimized version with single pass processing"""
+    if not isinstance(text, str):
+        return text  # Ignore non-strings
+
+    # Try HTML decode if requested
+    if asHTML:
+        try:
+            text = text.encode("utf-8").decode("unicode_escape")
+        except Exception:
+            pass  # Leave text as-is if decoding fails
+
+    # Apply placeholders
+    for sym, ph in REPLACE_HOLDERS.items():
+        text = text.replace(sym, ph)
+
+    # Remove non-ASCII in single pass
+    text = NON_ASCII_PATTERN.sub("", text)
+
+    # Restore placeholders
+    for sym, ph in PLACEHOLDERS.items():
+        text = text.replace(ph, sym)
+    return text
+
+
+def parse_plain_text_table_fixed(block: str):
+    """
+    Optimized table parsing with pre-compiled patterns
+    """
+    # Pre-compile patterns
+    SEPARATOR_PATTERN = re.compile(r"[-=\s]+")
+    CAPTION_PATTERN = re.compile(r"<CAPTION>", re.IGNORECASE)
+    COLUMN_SPLIT_PATTERN = re.compile(r"\s{2,}")
+
+    rows = []
+    first_col_buffer = ""
+    first_col_active = True
+
+    # Process lines more efficiently
+    lines = [line.rstrip() for line in block.splitlines() if line.strip()]
+
+    for line in lines:
+        if SEPARATOR_PATTERN.fullmatch(line) or CAPTION_PATTERN.match(line.strip()):
+            continue
+
+        if "<S>" in line:
+            first_col_active = False
+            line = line.replace("<S>", "").lstrip()
+
+        if first_col_active:
+            first_col_buffer = f"{first_col_buffer} {line.strip()}".strip()
+            continue
+
+        # Split columns efficiently
+        cols = [col.strip() for col in COLUMN_SPLIT_PATTERN.split(line)]
+
+        if first_col_buffer:
+            rows.append([first_col_buffer] + cols)
+            first_col_buffer = ""
+        else:
+            rows.append(cols)
+
+    return rows
+
+
+def fetch_url(url: str, timeout: int = 10) -> str | None:
+    """
+    Fetch the content of a webpage synchronously.
+    """
+    if not url:
+        return None
+    try:
+        rate_limit_sleep()
+        debug_print("Fetching", url)
+        resp = requests.get(
+            url, timeout=timeout, headers={"User-Agent": "sync-fetch@example.com"}
+        )
+        if resp.status_code != 200:
+            print(f"Error {resp.status_code} for {url}")
+            return None
+        return resp.text
+    except Exception as e:
+        print(f"Error fetching {url}: {e}")
+        return None
+
+
+def process_url(url: str, cik: int, year: int):
+    """
+    Processes a URL and its data synchronously.
+    Saves the extracted content in the DB if not already cached.
+    """
+    debug_str = f"Processing {cik} for year {year}"
+    data = get_webpage_data(url)
+
+    if data.empty:  # fetch and process
+        debug_print(debug_str)
+        raw_text = fetch_url(url)
+        if not raw_text:
+            return ""
+
+        # Extract content
+        if url.endswith("htm"):
+            debug_print("Processing as html")
+            content = extract_content(raw_text, True)
+        else:
+            debug_print("Processing as text")
+            content = extract_content(raw_text, False)
+
+        save_data(content, url, cik, year)  # save extracted content
+    else:
+        debug_print(debug_str + ": Already found a hit in cache.")
+        content = data.iloc[0]["raw_text"]  # this now stores extracted content
+    return content    
+```
+
+### Keywords Finder: Find keywords
+
+```{python}
+def find_count_by_keywords(content: str, year: int) -> dict:
+    """
+    Find the count for each keyword.
+    """
+    keywords_lower = [kw.lower() for kw in KEYWORDS]
+    keyword_counts = {kw: 0 for kw in keywords_lower}
+
+    for keyword in keywords_lower:
+        keyword_counts[keyword] = len(re.findall(r"\b" + re.escape(keyword) + r"\b", content.lower()))
+
+    return keyword_counts
+```
+
+### Match Text: Find matching keywords and extract the paragraphs
+
+```{python}
+
+def filter_by_keywords(content: str, year: int, min_char_length: int = 400, max_char_length=2000) -> dict:
+    """
+    Extract and filter sentences based on keywords with simple context expansion.
+    Optimized for speed with pre-cleaning and minimal keyword searches.
+    """
+    keywords_lower = [kw.lower() for kw in KEYWORDS]
+    ignore_keywords = [kw.lower() for kw in IGNORE_KEYWORDS]
+    debug_print("Generating sentences")
+    def matches_text(text: str) -> bool:
+        return bool(text) and any(kw in text.lower() for kw in keywords_lower)
+    
+    def clean_sentence(sentence: str) -> str:
+        """Apply consistent cleaning to a single sentence"""
+        return re.sub(r"\s+", " ", sentence.strip())
+    
+    def measure_merged_length(sentences: list) -> int:
+        """Calculate length of merged sentences with proper formatting"""
+        return len(". ".join(sentences).strip() + ".")
+    
+    def should_ignore(text: str) -> bool:
+        """Check if text should be ignored based on keywords"""
+        normalized = text.lower()
+        return any(kw in normalized for kw in ignore_keywords)
+    
+    def expand_context(all_sentences: list, target_idx: int, has_keyword: bool) -> list:
+        """Expand context around target sentence with randomized min_char_length and truncation"""
+        # Randomize min length within range (e.g., 600–800)
+        random.seed(year + target_idx)  # stable per target sentence
+        dynamic_min = random.randint(int(min_char_length * 0.75), int(min_char_length * 1.25))
+
+        merged = [all_sentences[target_idx]]
+        left_idx = target_idx - 1
+        right_idx = target_idx + 1
+        
+        while True:
+            current_length = measure_merged_length(merged)
+            if current_length >= dynamic_min:
+                break
+
+            added = False
+
+            # Try adding left
+            if left_idx >= 0:
+                candidate = [all_sentences[left_idx]] + merged
+                if measure_merged_length(candidate) <= max_char_length:
+                    merged.insert(0, all_sentences[left_idx])
+                    left_idx -= 1
+                    added = True
+
+            # Try adding right
+            if right_idx < len(all_sentences):
+                candidate = merged + [all_sentences[right_idx]]
+                if measure_merged_length(candidate) <= max_char_length:
+                    merged.append(all_sentences[right_idx])
+                    right_idx += 1
+                    added = True
+
+            if not added:
+                break
+
+            # Limit expansion for non-keyword sentences
+            if not has_keyword and len(merged) >= 2:
+                break
+
+        # --- enforce max_char_length by truncating ---
+        final_text = ". ".join(merged).strip() + "."
+        if len(final_text) > max_char_length:
+            excess = len(final_text) - max_char_length
+            trim_left = excess // 2
+            trim_right = excess - trim_left
+            final_text = final_text[trim_left:len(final_text)-trim_right].strip()
+
+        return final_text
+
+    # Pre-process and clean all sentences from entire content
+    text = re.sub(r"\s+", " ", content.strip())
+    raw_sentences = [s.strip() for s in re.split(r'(?<![A-Z0-9])\s*\.\s*(?![a-zA-Z0-9])', text) if s.strip()]
+    
+    # Clean sentences once during preprocessing
+    all_sentences = [clean_sentence(sentence) for sentence in raw_sentences]
+
+    # Process sentences
+    match_sentences = []
+    not_match_sentences = []
+    seen_matches = set()
+    seen_non_matches = set()
+    
+    random.seed(year)
+    count_non_matches = 0
+    final_size = 0
+
+    for i, sentence in enumerate(all_sentences):
+        if len(sentence.split()) < 6:
+            continue
+
+        # Quick keyword check first (most efficient)
+        has_keyword = matches_text(sentence)
+        
+        # Only do expensive context expansion if needed
+        if has_keyword or len(not_match_sentences) < final_size:
+            # Expand context around sentence
+            final_sentence = expand_context(all_sentences, i, has_keyword)
+            normalized = final_sentence.lower().strip()
+            
+            if should_ignore(normalized):
+                continue
+                
+            if has_keyword:
+                if normalized not in seen_matches:
+                    seen_matches.add(normalized)
+                    match_sentences.append(final_sentence)
+            else:
+                # Check additional ignore filters
+                if any(kw in normalized for kw in ignore_keywords):
+                    continue
+                    
+                count_non_matches += 1
+                if len(not_match_sentences) < final_size:
+                    if normalized not in seen_non_matches:
+                        seen_non_matches.add(normalized)
+                        not_match_sentences.append(final_sentence)
+                else:
+                    j = random.randint(0, count_non_matches - 1)
+                    if j < final_size and normalized not in seen_non_matches:
+                        seen_non_matches.add(normalized)
+                        not_match_sentences[j] = final_sentence
+    debug_print("Done generating sentences", len(match_sentences), len(not_match_sentences))
+    return {
+        "matches": match_sentences,
+        "not_matches": not_match_sentences
+    }
+
+```
+
+## Merge it all together
+
+```{python}
+def filter_by_fyear(filings: list[dict], fyear: int) -> list[dict]:
+    """Filter filings by fiscal year."""
+    return [f for f in filings if f.get("report_date") and f.get("report_date").startswith(str(fyear))]
+
+def fetch_all_grouped(df: pd.DataFrame,
+                      saveIteration: int = 10) -> pd.DataFrame:
+    global existing_report_df
+    """
+    Fetch filings once per CIK, filter by fiscal years,
+    and return as a new DataFrame.
+    Skips already-processed (cik, year) pairs if they exist in existing_report_df.
+    Saves intermediate results every `saveIteration` CIKs.
+    """
+    records = []
+
+    if existing_report_df is None or existing_report_df.empty:
+        existing_report_df = pd.DataFrame(columns=["cik", "year"])
+
+    already_done = set(zip(existing_report_df["cik"], existing_report_df["year"]))
+    # group: {cik -> [fyears]}
+    cik_groups = df.groupby("cik")["fyear"].apply(list).reset_index()
+
+    for i, row in enumerate(cik_groups.itertuples(index=False), start=1):
+        cik = row.cik
+        years = row.fyear
+
+        # Only fetch if at least one year is missing
+        years_to_fetch = [y for y in years if (cik, y) not in already_done]
+        if not years_to_fetch:
+            continue
+        debug_print("Fetching", years_to_fetch)
+        filings = get_cik_filings(cik)  # fetch once
+
+        for fyear in years_to_fetch:
+            year_filings = filter_by_fyear(filings, fyear)
+            for filing in year_filings:
+                records.append({
+                    "cik": cik,
+                    "year": fyear,
+                    **filing
+                })
+
+        # Periodic save
+        if i % saveIteration == 0 and records:
+            new_df = _save_partial(records)
+            # update in-memory state
+            existing_report_df = pd.concat([existing_report_df, new_df], ignore_index=True)
+            existing_report_df = existing_report_df.drop_duplicates(subset=["cik", "year"])
+            already_done = set(zip(existing_report_df["cik"], existing_report_df["year"]))
+            records = []  # clear buffer
+
+    # Final save
+    if records:
+        new_df = _save_partial(records)
+        existing_report_df = pd.concat([existing_report_df, new_df], ignore_index=True)
+        existing_report_df = existing_report_df.drop_duplicates(subset=["cik", "year"])
+
+    return existing_report_df
+
+
+def _save_partial(records: list) -> pd.DataFrame:
+    """Helper: return new_df and append to REPORT_RESULTS_EXCEL_PATH."""
+    new_df = pd.DataFrame(records)
+
+    try:
+        old_df = pd.read_excel(REPORT_RESULTS_EXCEL_PATH)
+        combined_df = pd.concat([old_df, new_df], ignore_index=True)
+        combined_df = combined_df.drop_duplicates(subset=["cik", "year"])
+    except FileNotFoundError:
+        combined_df = new_df.drop_duplicates(subset=["cik", "year"])
+
+    combined_df.to_excel(REPORT_RESULTS_EXCEL_PATH, index=False)
+    print(f"Saved {len(combined_df)} rows → {REPORT_RESULTS_EXCEL_PATH}")
+    return new_df
+
+def store_webpage_data():
+    with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+        futures = [
+            executor.submit(process_url, report.link, report.cik, report.year)
+            for report in existing_report_df.itertuples(index=False)
+        ]
+        
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            future.result()  # Wait for completion and handle any exceptions
+
+```
+
+# Execute Main Loop
+
+## Fetch from the csv all the 10-K report URLS
+
+```{python}
+# Click run above to init
+# Returns all the 10-K links
+fetch_all_grouped(df)
+```
+
+## Process each link and store in a database
+
+```{python}
+store_webpage_data()
+```
+
+## Parallel execution: Perform keyword extraction
+
+And then save the results to the database
+
+```{python}
+
+processed_set = get_processed_urls()
+
+def process_keywords_for_report(report):
+    key = (report.cik, report.year, report.link)
+    if key in processed_set:
+        debug_print(f"Skipping already processed: {key}")
+        return None
+
+    content = process_url(report.link, report.cik, report.year)
+    if not content:
+        return None
+
+    keywords = find_count_by_keywords(content, report.year)
+    sentences = filter_by_keywords(content, report.year)
+
+    result_row = pd.Series({
+        "url": report.link,
+        "cik": report.cik,
+        "year": report.year,
+        "matches": sentences["matches"],
+        "not_matches": sentences["not_matches"],
+        "keywords": keywords
+    })
+
+    save_process_result(result_row)
+    return result_row
+
+
+
+# Only process reports not already in webpage_result
+reports_to_process = [
+    r for r in existing_report_df.itertuples(index=False)
+    if (r.cik, r.year, r.link) not in processed_set
+]
+
+results = []
+
+with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+    future_to_report = {executor.submit(process_keywords_for_report, r): r for r in reports_to_process}
+
+    for future in tqdm(as_completed(future_to_report), total=len(future_to_report)):
+        res = future.result()
+        if res is not None:
+            results.append(res)
+
+print(f"Processed {len(results)} new reports in parallel.")
+```

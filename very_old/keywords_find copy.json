@@ -1,0 +1,21 @@
+{
+  "id2label": {
+    "0": "Gen/Unknown Hedge Der.",
+    "1": "Gen/Unknown Hedge Der. Historic",
+    "2": "Gen/Unknown Hedge Der. Speculative/Policy",
+    "3": "Irrelevant / Unrelated Context",
+    "4": "Der. Liabilities / Warrants",
+    "5": "Der. Liabilities / Warrants Historic",
+    "6": "Embedded Der.",
+    "7": "Embedded Der. Historic",
+    "8": "IR Hedge",
+    "9": "IR Hedge Historic",
+    "10": "FX Hedge",
+    "11": "FX Hedge Historic",
+    "12": "CP Hedge",
+    "13": "CP Hedge Historic",
+    "14": "IR Hedge Speculative/Policy",
+    "15": "FX Hedge Speculative/Policy",
+    "16": "CP Hedge Speculative/Policy"
+  }
+}

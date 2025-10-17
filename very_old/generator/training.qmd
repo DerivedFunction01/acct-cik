@@ -1,0 +1,228 @@
+---
+title: "Derivative Classification Training Stage"
+format: html
+editor: source
+jupyter: python3
+---
+
+# Initialization
+
+## Required libraries
+
+```{python}
+# %pip install pandas torch scikit-learn datasets transformers numpy openpyxl accelerate
+```
+
+```{python}
+import pandas as pd
+import torch
+from sklearn.model_selection import train_test_split
+from datasets import Dataset
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer, DataCollatorWithPadding
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+import json
+```
+
+## Global variables
+
+```{python}
+EXCEL_PATH = "./training_data.xlsx"
+MODEL_PATH = "derivative-type-classifier"
+MODEL_USER = "DerivedFunction"
+FINE_TUNE_MODEL = "ProsusAI/finbert"
+MODEL_NAME = f"{MODEL_USER}/{MODEL_PATH}" if not FINE_TUNE_MODEL else FINE_TUNE_MODEL
+KEYWORDS_FILE = "./keywords_find.json"
+```
+
+# Data Preparation
+
+## Load and Pre-process Data
+
+This step loads your labeled Excel file and prepares it for the model.
+
+```{python}
+# Load the labeled data
+df = pd.read_excel(EXCEL_PATH)
+# Drop rows where 'final_output' or 'label' might be empty
+df.dropna(subset=["sentence", "label"], inplace=True)
+
+# Split the data into training and validation sets
+train_df, val_df = train_test_split(
+    df, test_size=0.2, random_state=42
+)  #  stratify=df['label']
+
+print(f"Training set size: {len(train_df)}")
+print(f"Validation set size: {len(val_df)}")
+df.head()
+```
+
+## Convert to Hugging Face Dataset
+
+The `transformers` library works best with its own `Dataset` format.
+
+```{python}
+train_dataset = Dataset.from_pandas(train_df)
+val_dataset = Dataset.from_pandas(val_df)
+batch_size = 4
+num_epochs = 3
+print(f"Number of epochs: {num_epochs}")
+```
+
+# Model Fine-Tuning
+
+## Tokenization
+
+We'll load the FinBERT tokenizer to convert sentences into a format the model understands.
+
+```{python}
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+# Replace your old tokenize_function with this one
+def tokenize_function(examples):
+    return tokenizer(examples["sentence"], truncation=True, max_length=512)
+
+tokenized_train_dataset = train_dataset.map(tokenize_function, batched=True)
+tokenized_val_dataset = val_dataset.map(tokenize_function, batched=True)
+```
+
+## Define Metrics
+
+This function will calculate performance metrics during training so we can see how well the model is learning.
+
+```{python}
+def compute_metrics(pred):
+    labels = pred.label_ids
+    preds = pred.predictions.argmax(-1)
+    precision, recall, f1, _ = precision_recall_fscore_support(labels, preds, average='weighted')
+    acc = accuracy_score(labels, preds)
+    return {
+        'accuracy': acc,
+        'f1': f1,
+        'precision': precision,
+        'recall': recall
+    }
+```
+
+## Training
+
+Here, we define the training parameters and launch the fine-tuning process. 🚀
+
+```{python}
+# Define the model, specifying we have 5 labels (1 new label from model checkpoint)
+with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+    keyword_data = json.load(f)
+id2label = {int(k): v for k, v in keyword_data["id2label"].items()}
+label2id = {v: int(k) for k, v in keyword_data["id2label"].items()}
+
+model = AutoModelForSequenceClassification.from_pretrained(
+    MODEL_NAME,
+    num_labels=len(id2label),
+    id2label=id2label,
+    label2id=label2id,
+    # Allow loading even if the checkpoint's head has a different size.
+    # This prevents the RuntimeError when you add/remove labels compared to
+    # the original checkpoint. The classification head weights will be
+    # randomly initialized for the mismatched entries.
+    ignore_mismatched_sizes=True,
+)
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+model.to(device)
+print(f"Model loaded to {device}")
+
+collator = DataCollatorWithPadding(tokenizer=tokenizer)
+# Define Training Arguments
+training_args = TrainingArguments(
+    output_dir=MODEL_PATH,  # Directory to save the model
+    num_train_epochs=num_epochs,  # Total number of training epochs
+    per_device_train_batch_size=batch_size,  # Batch size for training
+    per_device_eval_batch_size=1,  # Batch size for evaluation
+    warmup_steps=500,  # Number of warmup steps for learning rate scheduler
+    weight_decay=0.01,  # Strength of weight decay
+    logging_dir="./logs",  # Directory for storing logs
+    logging_steps=10,
+    eval_strategy="epoch",  # Evaluate at the end of each epoch
+    save_strategy="epoch",  # Save the model at the end of each epoch
+    load_best_model_at_end=True,  # Load the best model found during training
+)
+
+```
+
+```{python}
+# Initialize the Trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_train_dataset,
+    eval_dataset=tokenized_val_dataset,
+    compute_metrics=compute_metrics,
+    data_collator=collator # Pass the data collator
+)
+
+# Start training!
+trainer.train() # resume_from_checkpoint=True
+```
+
+```{python}
+# Save the model %pip install -U "huggingface_hub[cli]" 
+## hf auth login 
+## hf upload DerivedFunction/finbert-derivative-usage-classifier [folder-path]
+## from huggingface_hub import notebook_login
+# notebook_login()
+# trainer.push_to_hub(MODEL_CHECKPOINT)
+```
+
+```{python}
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+import json
+
+EXCEL_PATH = "./training_data.xlsx"
+MODEL_PATH = "derivative-type-classifier"
+MODEL_USER = "DerivedFunction"
+MODEL_NAME = f"{MODEL_USER}/{MODEL_PATH}"
+KEYWORDS_FILE = "./keywords_find.json"
+
+with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+    keyword_data = json.load(f)
+id2label = {int(k): v for k, v in keyword_data["id2label"].items()}
+label2id = {v: int(k) for k, v in keyword_data["id2label"].items()}
+
+# Load tokenizer and model
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = AutoModelForSequenceClassification.from_pretrained(
+    MODEL_NAME,
+    num_labels=len(id2label),
+    id2label=id2label,
+    label2id=label2id,
+    # Allow loading even if the checkpoint's head has a different size.
+    # This prevents the RuntimeError when you add/remove labels compared to
+    # the original checkpoint. The classification head weights will be
+    # randomly initialized for the mismatched entries.
+    ignore_mismatched_sizes=True,
+)
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+model.to(device)
+print(f"Model loaded to {device}")
+```
+
+
+```{python}
+string = """
+"""
+
+model.eval()
+inputs = tokenizer(
+    string.strip(),
+    return_tensors="pt",
+    truncation=True,
+    padding=True,
+)
+inputs = {k: v.to(device) for k, v in inputs.items()}
+
+with torch.no_grad():
+    outputs = model(**inputs)
+    logits = outputs.logits
+    predicted_ids = torch.argmax(logits, dim=1).tolist()
+    print([id2label[i] for i in predicted_ids])
+
+```

@@ -1,0 +1,58 @@
+{
+  "id2label": {
+    "0": "Confirmed Hedging Derivative Usage",
+    "1": "Likely Hedging Derivative Usage (Not Confirmed Year)",
+    "2": "Mentions Derivatives, Speculative/Policy",
+    "3": "Irrelevant / Unrelated Context",
+    "4": "Derivative Liabilities / Warrants",
+    "5": "Likely Derivative Liabilities / Warrants (Not Confirmed Year)",
+    "6": "Embedded Derivatives / Other",
+    "7": "Likely Embedded Derivatives / Other (Not Confirmed Year)"
+  },
+  "MATCHING_KEYWORDS": {
+    "0": [
+      "interest rate swap",
+      "interest rate hedge",
+      "swap agreement",
+      "cash flow hedge",
+      "fair value hedge",
+      "economic hedge",
+      "swaption",
+      "option contract",
+      "option agreement",
+      "purchased option",
+      "written option",
+      "commodity option",
+      "forward contract",
+      "foreign exchange contract",
+      "forward foreign",
+      "foreign currency forward",
+      "forward currency contract",
+      "foreign currency future",
+      "futures contract",
+      "commodity forward",
+      "commodity future",
+      "notional",
+      "designated as hedging",
+      "designated as a hedging"
+    ],
+    "1": [],
+    "2": [
+      "derivative instrument",
+      "financial derivative",
+      "may use derivatives",
+      "over-the-counter derivative",
+      "otc derivative"
+    ],
+    "3": [],
+    "4": [
+      "warrants",
+      "warrant derivative",
+      "derivative liability",
+      "derivative liabilities"
+    ],
+    "5": [],
+    "6": ["embedded derivative", "derivative asset"],
+    "7": []
+  }
+}
