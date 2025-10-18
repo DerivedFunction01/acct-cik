@@ -1411,7 +1411,6 @@ print(f"Found {len(existing_report_df)} reports in database")
 # =============================================================================
 # %%
 if __name__ == "__main__":
-    DEBUG = True
     print("=" * 70)
     print("STEP 1: Fetch all 10-K report URLs from SEC")
     print("=" * 70)
