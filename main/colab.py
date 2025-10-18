@@ -91,22 +91,6 @@ else:
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
 
-# Allowed keywords for expiration
-ALLOWED_KEYWORDS = {
-    "expire",
-    "terminat",
-    "outstanding",
-    "designat",
-    "matur",
-    "settle",
-    "unwound",
-    "close",
-    "liquidat",
-    "gain",
-    "loss",
-    "fair value",
-    "notional"
-}
 FILING_TYPES = {
     "10-K",
     "10-KT",
@@ -261,7 +245,7 @@ def build_ir_regex() -> re.Pattern:
         "variable[- ]rate",
         "benchmark[- ]rate",
     ]
-    
+
     specific_phrases = [
         "zero[- ]coupon swap",
         "FRA",
@@ -269,10 +253,11 @@ def build_ir_regex() -> re.Pattern:
         "interest rate lock",
         "interest rate cap",
         "interest rate floor",
-        "single currency basis swap",
+        "single currency basis swap"
     ]
     
-    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
+    # Use ALL_SUFFIXES to catch "interest rate contract/instrument"
+    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases)
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
 
 
@@ -292,9 +277,6 @@ def build_fx_regex() -> re.Pattern:
 
     specific_phrases = [
         "NDF",
-        "forward rate agreements?",
-        "forward rate contracts?",
-        "forward rate options?",
         "currency swaps?",
         "currency collars?",
         "currency caps?",
@@ -312,7 +294,7 @@ def build_fx_regex() -> re.Pattern:
 
 def build_cp_regex() -> re.Pattern:
     """Build optimized Commodity Price derivatives regex."""
-    
+
     # Define base commodities and modifiers separately for cleaner logic
     base_commodities = ["commodity"] + COMMON_COMMODITIES
     modifiers = ["[- ]price", "[- ]related", "[- ]based", "[- ]linked"]
@@ -326,13 +308,14 @@ def build_cp_regex() -> re.Pattern:
 
     # Add other specific placeholders
     core_terms.append("fixed[- ]commodity")
-    
+
     specific_phrases = [
         "commodity index",
-        "commodity swaps?",
+        "commodity swaps?"
     ]
     
-    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
+    # Use ALL_SUFFIXES to catch "commodity contract/instrument" etc.
+    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases)
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
 
 
@@ -344,7 +327,7 @@ def build_eq_regex() -> re.Pattern:
         "equity[- ]related"
     ]
     
-    specific_phrases = [
+    specific_phrases = [ # No specific equity keywords were provided, so keeping existing
         "call options?",
         "put options?",
         "equity collar strateg(?:y|ies)",
@@ -366,25 +349,70 @@ def build_gen_regex() -> re.Pattern:
     # Specific multi-word phrases that are strong indicators on their own.
     specific_phrases = [
         "embedded derivatives?",
-        "notional (?:amounts?|values?|principals?)",
-        "over[- ]the[- ]counter derivatives?",
-        "total[- ]return swap",
+        "notional (?:amounts?|values?|principals?)", # Covered
         "derivative (?:assets?|liabilities|gains?|losses?|positions?|contracts?|instruments?)",
         "(?:gain|loss) on derivatives?",
         "change in fair value of derivatives?",
-        "designated as (?:a )?hedges?",
+        "over[- ]the[- ]counter derivatives?",
+        "total[- ]return swap",
+        "designated as (?:a )?hedges?", # Covers "designated as a hedge" and "designated as hedges"
         "(?:instruments?|contracts?) are designated",
         "hedge of the net investment",
         "net investment hedges?",
+        "cash flow hedges?", # Added from user input
+        "fair value hedges?", # Added from user input
         "ineffective portion",
         "derivative financial instruments?",
         "derivative expense",
     ]
-    
+
+    # Add individual base types and suffixes as specific phrases for standalone matches
+    # This ensures "hedge" or "swap" alone are caught if not followed by a specific term
+    specific_phrases.extend([t for t in ALL_BASE_TYPES if t not in ["hedges?", "hedging"]]) # Avoid redundancy with "designated as hedges"
+    specific_phrases.extend(ALL_SUFFIXES)
+
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
 
 # =============================================================================
+# DYNAMICALLY GENERATE ALLOWED_KEYWORDS
+# =============================================================================
+
+def generate_allowed_keywords() -> set:
+    """Collects all core terms, specific phrases, base types, and suffixes."""
+    # This is a simplified approach. A more robust way would be to inspect the functions.
+    # For now, we'll manually list the core concepts.
+    keywords = set([
+        "expire", "terminat", "outstanding", "designat", "matur", "settle",
+        "unwound", "close", "liquidat", "gain", "loss", "fair value", "notional",
+        "derivative", "hedge", "swap", "option", "forward", "future", "collar",
+        "contract", "instrument", "agreement", "liability", "asset", "position",
+        "interest", "rate", "currency", "exchange", "fx", "commodity", "equity",
+        "embedded", "warrant", "cash flow", "net investment"
+    ])
+    
+    # Clean up the keywords
+    cleaned_keywords = set()
+    for kw in keywords:
+        # Remove regex-specific characters for simple string matching
+        cleaned_kw = re.sub(r'\[- \]', ' ', kw)
+        cleaned_kw = re.sub(r'[\?\(\)\|\:]', '', cleaned_kw)
+        cleaned_keywords.add(cleaned_kw)
+
+    # Add all base types and suffixes without regex chars
+    for term_list in [ALL_BASE_TYPES, ALL_SUFFIXES]:
+        for term in term_list:
+            cleaned_term = re.sub(r'[\?\(\)\|\:]', '', term)
+            cleaned_term = re.sub(r'\[- \]', ' ', cleaned_term)
+            if 'ies' in cleaned_term: # for liability|liabilities
+                cleaned_keywords.add(cleaned_term.replace('ies', 'y'))
+            cleaned_keywords.add(cleaned_term)
+
+    return cleaned_keywords
+
+
+# Dynamically generate ALLOWED_KEYWORDS
+ALLOWED_KEYWORDS = generate_allowed_keywords()
 # EXPORT PATTERNS
 # =============================================================================
 
@@ -834,7 +862,6 @@ def filter_by_keywords(
     'gen' category can now expand with ANY other category.
     """
     allowed_keywords = [kw.lower() for kw in ALLOWED_KEYWORDS]
-    OVERLAP_COUNT = 2  # A sentence can appear in up to this many final paragraphs
 
     def get_keyword_category(text: str) -> str:
         try:
@@ -852,6 +879,7 @@ def filter_by_keywords(
     def measure_merged_length(sentences: list) -> int:
         return len(". ".join(sentences).strip() + ".")
 
+    OVERLAP_COUNT = 2  # A sentence can appear in up to this many final paragraphs
     def _expand_one_side(
         direction: str,
         current_idx: int,
