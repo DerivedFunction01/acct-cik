@@ -689,6 +689,7 @@ def generate_hedge_paragraph(
                     end_day=end_day,
                     quarter=quarter,
                     gain_loss=random.choice(["gain", "loss"]),
+                    swap_type=swap_type,
                 )
             )
             discont_template = random.choice(hedge_discontinuation_templates)
