@@ -1309,7 +1309,7 @@ def generate_noise_paragraph(
             standard=standard,
             topic=topic,
             purpose=purpose,
-            description=description,
+            policy_description=description,
             additional_feature=extra,
             eff_month=eff_month,
             eff_day=eff_day,
