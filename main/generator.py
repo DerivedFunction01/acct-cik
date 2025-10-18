@@ -866,7 +866,7 @@ def generate_hedge_paragraph(
         if random.random() < 0.2:
             trans_line = random.choice(shared_transition_templates).format(
                 company=pick_company_name(company_name),
-                method=random.choice(shared_adoption_methods),
+                adoption_method=random.choice(shared_adoption_methods),
                 feature=random.choice(shared_transition_features),
             )
             sentences.append(trans_line)
