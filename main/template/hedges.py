@@ -886,10 +886,10 @@ hedge_effectiveness_policy_templates = [
 
 hedge_effectiveness_actual_templates = [
     "The {swap_type} was determined to be highly effective in offsetting the {metric} of the hedged item",
-    "As of {month} {end_day}, {year}, the {swap_type} was considered a highly effective hedge",
+    "As of {month} {end_day}, {year}, the {swap_type} was considered a highly effective {hedge_type} hedge against {metric}",
     "All designated {swap_type} were deemed highly effective as of the latest assessment date",
-    "Management concluded that the {swap_type} is a highly effective hedge against {metric}",
-    "Each {swap_type} guarantees a return equal to the actual return, and as such, effectively acts as a hedge",
+    "Management concluded that the {swap_type} is a highly effective {hedge_type} hedge against {metric}",
+    "Each {swap_type} guarantees a return equal to the actual return, and as such, effectively acts as a {hedge_type} hedge",
     "The {swap_type} designated as a {hedge_type} hedge was determined to be highly effective in offsetting {metric}",
     "Based on {frequency} assessments using {method}, the {swap_type} has been, and is expected to continue to be, highly effective",
     "The hedging relationship for the {swap_type} was highly effective throughout the period in accordance with {standard}",
@@ -933,7 +933,13 @@ hedge_discontinuation_templates = [
     "If the hedged item does not materialize, accumulated OCI amounts for the hedge are transferred to current earnings",
     "{company} derecognizes hedge accounting when criteria are no longer met, and any associated gains or losses are recognized in the period of discontinuation",
     "{swap_type} being accounted for as a {hedge_type} hedge does not qualify for hedge accounting because it is no longer highly effective in offsetting {metric} of a hedged item",
-    "If the {swap_type} expires or is sold, terminated or exercised; or if management determines that designation of the {swap_type} as a hedge instrument is no longer appropriate, hedge accounting would be discontinued",
+    "If the {swap_type} expires or is sold, terminated or exercised, or if management determines that designation of the {swap_type} as a hedge instrument is no longer appropriate, hedge accounting would be discontinued",
+    "In {year}, {company} discontinued hedge accounting for certain {swap_type} as part of a strategic change in its risk management approach",
+    "Upon discontinuation of the {hedge_type} hedge, a net {gain_loss} of {currency_code}{amount} {money_unit} was reclassified from accumulated other comprehensive income into {location}",
+    "Hedge accounting was discontinued for the {swap_type} in {month} {year} following the early repayment of the hedged debt instrument",
+    "When a hedge is discontinued because it is no longer effective, the derivative is no longer designated as a hedge, and subsequent changes in fair value are recognized in earnings",
+    "For discontinued {hedge_type} hedges, any gains or losses previously deferred in other comprehensive income are recognized in earnings when the hedged transaction affects earnings",
+    "{company} may terminate or de-designate a {swap_type} at any time, at which point hedge accounting is discontinued prospectively",
 ]
 
 hedge_no_trading_templates = [
