@@ -91,18 +91,6 @@ else:
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
 
-IGNORE_KEYWORDS = {
-    "table of contents",
-    "consolidated",
-    "balance sheet",
-    "BEGIN PRIVACY-ENHANCED MESSAGE",
-    "us-gaap:",
-    "derivative lawsuit",
-    "hedge fund",
-    "stock option",
-    "forward-looking statement",
-}
-
 # Allowed keywords for expiration
 ALLOWED_KEYWORDS = {
     "expire",
@@ -815,7 +803,6 @@ def filter_by_keywords(
     OPTIMIZED: Pre-filter sentences by category before expansion.
     'gen' category can now expand with ANY other category.
     """
-    ignore_keywords = [kw.lower() for kw in IGNORE_KEYWORDS]
     allowed_keywords = [kw.lower() for kw in ALLOWED_KEYWORDS]
     OVERLAP_COUNT = 2  # A sentence can appear in up to this many final paragraphs
 
@@ -855,7 +842,9 @@ def filter_by_keywords(
         category = get_keyword_category(sentence_to_add)
         is_allowed = should_allow(sentence_to_add)
 
-        if not (target_category == "gen" or category == target_category or category == "gen" or is_allowed):
+        # Allow expansion if the next sentence has a matching category, is generic, is allowed, or has no category at all (is neutral).
+        # Stop expansion only if it has a *different, non-generic* category.
+        if category and category != target_category and category != "gen" and not is_allowed:
             return False, -1 if is_left else len(all_sentences)
 
         # Prepare candidate for length check
@@ -874,10 +863,6 @@ def filter_by_keywords(
             used_indices.add(next_idx)
             return True, -1 if is_left else len(all_sentences)
 
-
-    def should_ignore(text: str) -> bool:
-        normalized = text.lower()
-        return any(kw in normalized for kw in ignore_keywords)
 
     def should_allow(text: str) -> bool:
         normalized = text.lower()
@@ -925,11 +910,15 @@ def filter_by_keywords(
     # --- Pre-categorize ---
     sentence_categories = []
     for i, sentence in enumerate(all_sentences):
-        if len(sentence.split()) < 4:
-            sentence_categories.append((i, None))
-            continue
         category = get_keyword_category(sentence)
         sentence_categories.append((i, category))
+    debug_print("Pre-categorized sentences")
+    # Print the count of sentences per category for debugging
+    category_counts = {}
+    for _, category in sentence_categories:
+        if category:
+            category_counts[category] = category_counts.get(category, 0) + 1
+    print("Sentence counts by category:", category_counts, flush=True)
     # Grab the tuple from CATEGORY_REGEX_ORDER
     categorized_matches = {category: [] for category, _ in CATEGORY_REGEX_ORDER}
     seen_matches = {category: set() for category, _ in CATEGORY_REGEX_ORDER}
@@ -945,15 +934,14 @@ def filter_by_keywords(
             final_sentence, used_indices = expand_context(all_sentences, i, category, seen_sentences_global)
             normalized = final_sentence.lower().strip()
 
-            if should_ignore(normalized):
-                continue
-
             if normalized not in seen_matches[category]:
                 seen_matches[category].add(normalized)
                 categorized_matches[category].append(final_sentence)
                 # Increment the counter for all sentences used in this expansion
                 for idx in used_indices:
                     seen_sentences_global[idx] = seen_sentences_global.get(idx, 0) + 1
+            else:
+                debug_print(f"Ignoring paragraph for category '{category}' as it is a duplicate.")
 
     # # --- Pass 2: 'gen' category (can attach anywhere) ---
     for i, category in sentence_categories:
@@ -966,15 +954,14 @@ def filter_by_keywords(
             final_sentence, used_indices = expand_context(all_sentences, i, "gen", seen_sentences_global)
             normalized = final_sentence.lower().strip()
 
-            if should_ignore(normalized):
-                continue
-
             if normalized not in seen_matches["gen"]:
                 seen_matches["gen"].add(normalized)
                 categorized_matches["gen"].append(final_sentence)
                 # Increment the counter for all sentences used in this expansion
                 for idx in used_indices:
                     seen_sentences_global[idx] = seen_sentences_global.get(idx, 0) + 1
+            else:
+                debug_print("Ignoring 'gen' paragraph as it is a duplicate.")
 
     debug_print(
         "Done generating sentences", sum(len(v) for v in categorized_matches.values())
@@ -1128,14 +1115,9 @@ def parse_and_save_content(data):
 
         # 2. Filter for keywords to get relevant sentences (CPU-intensive)
         # CPU-intensive parsing
-        sentences = filter_by_keywords(content, 2000)
-        matches = []
-        # Extend for each key in sentences
-        for _, value in sentences.items():
-            matches.extend(value)
-
+        categorized_sentences = filter_by_keywords(content)
         # 3. Save the result to the database
-        result_row = pd.Series({"url": url, "matches": matches})
+        result_row = pd.Series({"url": url, "matches": categorized_sentences})
 
         save_process_result(result_row)
         return True
@@ -1320,6 +1302,7 @@ print(f"Found {len(existing_report_df)} reports in database")
 # =============================================================================
 # %%
 if __name__ == "__main__":
+    DEBUG = True
     print("=" * 70)
     print("STEP 1: Fetch all 10-K report URLs from SEC")
     print("=" * 70)
@@ -1335,3 +1318,5 @@ if __name__ == "__main__":
     print("\n" + "=" * 70)
     print("All done!")
     print("=" * 70)
+
+# %%
