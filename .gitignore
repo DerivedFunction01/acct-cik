@@ -9,3 +9,4 @@ logs
 *.parquet
 *.pyc
 *.csv
+client_secrets.json
