@@ -880,6 +880,7 @@ def filter_by_keywords(
         return len(". ".join(sentences).strip() + ".")
 
     OVERLAP_COUNT = 2  # A sentence can appear in up to this many final paragraphs
+
     def _expand_one_side(
         direction: str,
         current_idx: int,
@@ -888,39 +889,60 @@ def filter_by_keywords(
         target_category: str,
         all_sentences: list,
         seen_counts: dict,
-    ) -> tuple[bool, int]:
+    ) -> tuple[bool, int, bool]:
         """Helper to expand context in one direction (left or right)."""
         is_left = direction == "left"
         next_idx = current_idx - 1 if is_left else current_idx + 1
 
-        if not (0 <= next_idx < len(all_sentences)) or seen_counts.get(next_idx, 0) >= OVERLAP_COUNT:
-            return False, -1 if is_left else len(all_sentences)
+        if (
+            not (0 <= next_idx < len(all_sentences))
+            or seen_counts.get(next_idx, 0) >= OVERLAP_COUNT
+        ):
+            return False, -1 if is_left else len(all_sentences), False
 
-        sentence_to_add = all_sentences[next_idx]
+        sentence_to_add = all_sentences[next_idx]  # This is a full sentence
         category = get_keyword_category(sentence_to_add)
         is_allowed = should_allow(sentence_to_add)
 
         # Allow expansion if the next sentence has a matching category, is generic, is allowed, or has no category at all (is neutral).
         # Stop expansion only if it has a *different, non-generic* category.
-        if category and category != target_category and category != "gen" and not is_allowed:
-            return False, -1 if is_left else len(all_sentences)
+        if (
+            category
+            and category != target_category
+            and category != "gen"
+            and not is_allowed
+        ):
+            return False, -1 if is_left else len(all_sentences), False
 
         # Prepare candidate for length check
-        candidate = [sentence_to_add] + merged_sentences if is_left else merged_sentences + [sentence_to_add]
+        candidate = (
+            [sentence_to_add] + merged_sentences
+            if is_left
+            else merged_sentences + [sentence_to_add]
+        )
         candidate_length = measure_merged_length(candidate)
 
         if candidate_length <= max_char_length:
-            merged_sentences.insert(0, sentence_to_add) if is_left else merged_sentences.append(sentence_to_add)
+            (
+                merged_sentences.insert(0, sentence_to_add)
+                if is_left
+                else merged_sentences.append(sentence_to_add)
+            )
             used_indices.add(next_idx)
-            return True, next_idx
+            return True, next_idx, False  # Not truncated
         else:
             # Trim and add, then stop expansion on this side
             excess = candidate_length - max_char_length
-            trimmed_sentence = sentence_to_add[excess:] if is_left else sentence_to_add[:-excess]
-            merged_sentences.insert(0, trimmed_sentence) if is_left else merged_sentences.append(trimmed_sentence)
+            trimmed_sentence = (
+                sentence_to_add[excess:] if is_left else sentence_to_add[:-excess]
+            )
+            (
+                merged_sentences.insert(0, trimmed_sentence)
+                if is_left
+                else merged_sentences.append(trimmed_sentence)
+            )
             used_indices.add(next_idx)
-            return True, -1 if is_left else len(all_sentences)
-
+            return True, -1 if is_left else len(all_sentences), True  # Was truncated
 
     def should_allow(text: str) -> bool:
         normalized = text.lower()
@@ -928,10 +950,11 @@ def filter_by_keywords(
 
     def expand_context(
         all_sentences: list, target_idx: int, target_category: str, seen_counts: dict
-    ) -> tuple[str, set]:
+    ) -> tuple[str, set, set]:
         # The seed sentence is always included, so we check its count in the main loop.
-        merged = [all_sentences[target_idx]]
+        merged = [all_sentences[target_idx]]  # This is a full sentence
         used_indices_in_this_expansion = {target_idx}
+        truncated_indices = set()
         left_idx = target_idx - 1
         right_idx = target_idx + 1
 
@@ -939,29 +962,43 @@ def filter_by_keywords(
             if measure_merged_length(merged) >= min_char_length:
                 break
 
-            added_left, new_left_idx = _expand_one_side(
-                "left", left_idx, merged, used_indices_in_this_expansion, target_category, all_sentences, seen_counts
+            added_left, new_left_idx, truncated_left = _expand_one_side(
+                "left",
+                left_idx,
+                merged,
+                used_indices_in_this_expansion,
+                target_category,
+                all_sentences,
+                seen_counts,
             )
             left_idx = new_left_idx
+            if truncated_left:
+                truncated_indices.add(new_left_idx)
 
-            added_right, new_right_idx = _expand_one_side(
-                "right", right_idx, merged, used_indices_in_this_expansion, target_category, all_sentences, seen_counts
+            added_right, new_right_idx, truncated_right = _expand_one_side(
+                "right",
+                right_idx,
+                merged,
+                used_indices_in_this_expansion,
+                target_category,
+                all_sentences,
+                seen_counts,
             )
             right_idx = new_right_idx
+            if truncated_right:
+                truncated_indices.add(new_right_idx)
 
             if not added_left and not added_right:
                 break
 
         final_text = ". ".join(merged).strip() + "."
 
-        return final_text, used_indices_in_this_expansion
+        return final_text, used_indices_in_this_expansion, truncated_indices
 
     # --- Sentence preprocessing ---
     text = re.sub(r"\s+", " ", content.strip())
     raw_sentences = [
-        s.strip()
-        for s in re.split(r"(?<![A-Z0-9])\s*\.\s*(?![a-zA-Z0-9])", text)
-        if s.strip()
+        s.strip() for s in re.split(SENTENCE_SPLIT_PATTERN, text) if s.strip()
     ]
     all_sentences = [clean_sentence(sentence) for sentence in raw_sentences]
 
@@ -980,7 +1017,7 @@ def filter_by_keywords(
     # Grab the tuple from CATEGORY_REGEX_ORDER
     categorized_matches = {category: [] for category, _ in CATEGORY_REGEX_ORDER}
     seen_matches = {category: set() for category, _ in CATEGORY_REGEX_ORDER}
-    seen_sentences_global = {} # Using a dict as a counter: {index: count}
+    seen_sentences_global = {}  # Using a dict as a counter: {index: count}
 
     # --- Pass 1: non-gen categories ---
     for i, category in sentence_categories:
@@ -989,34 +1026,49 @@ def filter_by_keywords(
             if seen_sentences_global.get(i, 0) >= OVERLAP_COUNT:
                 continue
 
-            final_sentence, used_indices = expand_context(all_sentences, i, category, seen_sentences_global)
+            final_sentence, used_indices, truncated_indices = expand_context(
+                all_sentences, i, category, seen_sentences_global
+            )
             normalized = final_sentence.lower().strip()
 
             if normalized not in seen_matches[category]:
                 seen_matches[category].add(normalized)
                 categorized_matches[category].append(final_sentence)
                 # Increment the counter for all sentences used in this expansion
+                # Do NOT increment count for truncated sentences
                 for idx in used_indices:
+                    if idx in truncated_indices:
+                        continue
                     seen_sentences_global[idx] = seen_sentences_global.get(idx, 0) + 1
             else:
-                debug_print(f"Ignoring paragraph for category '{category}' as it is a duplicate.")
+                debug_print(
+                    f"Ignoring paragraph for category '{category}' as it is a duplicate."
+                )
 
     # # --- Pass 2: 'gen' category (can attach anywhere) ---
     for i, category in sentence_categories:
         if category == "gen":
             # Skip if the seed sentence has already been used max times
-            if len(all_sentences[i].split()) < 6 or seen_sentences_global.get(i, 0) >= OVERLAP_COUNT:
+            if (
+                len(all_sentences[i].split()) < 6
+                or seen_sentences_global.get(i, 0) >= OVERLAP_COUNT
+            ):
                 continue
 
             # ✅ Will expand freely due to logic above
-            final_sentence, used_indices = expand_context(all_sentences, i, "gen", seen_sentences_global)
+            final_sentence, used_indices, truncated_indices = expand_context(
+                all_sentences, i, "gen", seen_sentences_global
+            )
             normalized = final_sentence.lower().strip()
 
             if normalized not in seen_matches["gen"]:
                 seen_matches["gen"].add(normalized)
                 categorized_matches["gen"].append(final_sentence)
                 # Increment the counter for all sentences used in this expansion
+                # Do NOT increment count for truncated sentences
                 for idx in used_indices:
+                    if idx in truncated_indices:
+                        continue
                     seen_sentences_global[idx] = seen_sentences_global.get(idx, 0) + 1
             else:
                 debug_print("Ignoring 'gen' paragraph as it is a duplicate.")
@@ -1026,7 +1078,6 @@ def filter_by_keywords(
     )
 
     return categorized_matches
-
 
 # =============================================================================
 # PARALLEL PROCESSING FUNCTIONS (OPTIMIZED FOR PARALLEL CORES)
