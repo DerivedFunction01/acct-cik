@@ -840,7 +840,7 @@ def generate_hedge_paragraph(
             year=issue_year,
             issuer=issuer,
             standard=standard,
-            topic=topic,
+            topic=topic, # Corrected from hedge_topic
             purpose=purpose,
             hedge_description=description,
             hedge_feature=extra,
@@ -866,7 +866,7 @@ def generate_hedge_paragraph(
         if random.random() < 0.2:
             trans_line = random.choice(shared_transition_templates).format(
                 company=pick_company_name(company_name),
-                adoption_method=random.choice(shared_adoption_methods),
+                method=random.choice(shared_adoption_methods),
                 feature=random.choice(shared_transition_features),
             )
             sentences.append(trans_line)
@@ -904,7 +904,7 @@ def generate_hedge_paragraph(
         adoption_sentence = adopt_template.format(
             company=pick_company_name(company_name),
             standard=adopt_standard,
-            adoption_method=adopt_method,
+            method=adopt_method,
             month=adopt_month,
             day=adopt_day,
             year=adopt_year,
@@ -915,7 +915,7 @@ def generate_hedge_paragraph(
         if random.random() < 0.25:
             impact_line = random.choice(shared_adoption_impact_templates).format(
                 company=pick_company_name(company_name),
-                impact=random.choice(
+                adoption_impact=random.choice(
                     [
                         "a reduction in earnings volatility",
                         "an increase in OCI from effective hedge portions",
@@ -941,7 +941,7 @@ def generate_hedge_paragraph(
                 standard=random.choice(hedge_standards),
                 topic=random.choice(
                     [
-                        "hedging relationships",
+                        "derivatives and hedging",
                         "cash flow hedge presentation",
                         "fair value hedge accounting",
                     ]
@@ -949,7 +949,7 @@ def generate_hedge_paragraph(
                 month=random.choice(months),
                 year=random.randint(current_year - 2, current_year),
                 adoption_year=random.randint(current_year, current_year + 3),
-            )
+            ) # Corrected from hedge_adoption_year
             sentences.append(pronouncement)
 
         return sentences
@@ -1307,7 +1307,7 @@ def generate_noise_paragraph(
             year=issue_year,
             issuer=issuer,
             standard=standard,
-            topic=topic,
+            topic=topic, # Corrected from other_topic
             purpose=purpose,
             policy_description=description,
             additional_feature=extra,
@@ -1332,7 +1332,7 @@ def generate_noise_paragraph(
         if random.random() < 0.2:
             trans_line = random.choice(shared_transition_templates).format(
                 company=pick_company_name(company_name),
-                adoption_method=random.choice(shared_adoption_methods),
+                method=random.choice(shared_adoption_methods),
                 transition_feature=random.choice(shared_transition_features),
             )
             sentences.append(trans_line)
@@ -1374,7 +1374,7 @@ def generate_noise_paragraph(
         adoption_sentence = adopt_template.format(
             company=pick_company_name(company_name),
             standard=adopt_standard,
-            adoption_method=adopt_method,
+            method=adopt_method,
             month=adopt_month,
             day=adopt_day,
             year=adopt_year,
@@ -1411,8 +1411,7 @@ def generate_noise_paragraph(
                 standard=random.choice(other_standards),
                 topic=random.choice(other_topics),
                 month=random.choice(months),
-                year=random.randint(current_year - 2, current_year),
-                adoption_year=random.randint(current_year, current_year + 3),
+                year=random.randint(current_year, current_year + 3), # Corrected from adoption_year
             )
             sentences.append(pronouncement)
 
