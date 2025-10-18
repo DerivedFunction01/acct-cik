@@ -1192,6 +1192,10 @@ def fetch_raw_content(url: str, rate_limiter: ThreadSafeRateLimiter = None):
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # Check if the URL is already in the database to avoid re-fetching
+    # This is a quick check before the more expensive fetch_url call
+    # Note: This is a read-only operation, so it's thread-safe without locks
+    # for this specific use case.
     c.execute("SELECT 1 FROM webpage_result WHERE url = ?", (url,))
     exists = c.fetchone()
     conn.close()
@@ -1201,6 +1205,11 @@ def fetch_raw_content(url: str, rate_limiter: ThreadSafeRateLimiter = None):
     raw_text = fetch_url(url, shared_rate_limit=rate_limiter)
     if raw_text:
         return url, raw_text
+    elif raw_text is None and url: # Check if fetch_url returned None due to rate limit
+        # This is a signal that we might have been rate-limited
+        # We can return a special value to notify the main loop
+        return "RATE_LIMITED", url
+
     return None
 
 
@@ -1282,6 +1291,7 @@ def process_all_reports_fully():
     total_time = 0
 
     for chunk_idx, chunk in enumerate(chunks, 1):
+        rate_limited_in_chunk = False
         start_chunk_time = time.time()
         current_chunk_time = start_chunk_time
         num_reqs = 0  # Keep track of number of requests, to divide difference between cur time and chunk time
@@ -1320,11 +1330,21 @@ def process_all_reports_fully():
                         current_chunk_time = time.time()  # reset
 
                     result = future.result()
-                    if result:
+                    if result and result[0] != "RATE_LIMITED":
                         fetched_data.append(result)
                         debug_print(result)
+                    elif result and result[0] == "RATE_LIMITED":
+                        rate_limited_in_chunk = True
+
                 except Exception as e:
                     print(f"Fetch error: {e}")
+
+        # If we were rate-limited in this chunk, enforce a cool-down
+        if rate_limited_in_chunk:
+            cool_down_period = 5  # seconds
+            print(f"🧊 Rate limit detected in chunk. Cooling down for {cool_down_period}s...")
+            time.sleep(cool_down_period)
+            # Optionally, you could also make the rate limiter more conservative here
 
         chunk_time = time.time() - start_chunk_time
         chunk_times.append(chunk_time)
