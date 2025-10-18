@@ -121,8 +121,10 @@ REPLACE_HOLDERS = PLACEHOLDERS | {
 NON_ASCII_PATTERN = re.compile(r"[^\x00-\x7F]+")
 BULLET_PATTERN = re.compile(r"^[-*•]\s*")
 NUMBERED_PATTERN = re.compile(r"^\(?\d+[\.\)]\s+")
-PUNCTUATION_END_PATTERN = re.compile(r"[.!?;:•)]$")
-SENTENCE_SPLIT_PATTERN = re.compile(r"(?<![A-Z0-9])\s*\.\s*(?![a-zA-Z0-9])")
+PUNCTUATION_END_PATTERN = re.compile(r"[.!?;:•)]\s*$")
+# Split on periods, but also on lowercase-to-uppercase transitions (camelCase splitting)
+# This helps break up sentences that are missing periods.
+SENTENCE_SPLIT_PATTERN = re.compile(r'(?<=[.!?])\s+|(?<=[a-z])(?=[A-Z])')
 
 CRUNCHED_TEXT_PATTERNS = [
     (re.compile(r"([a-z])([A-Z])"), r"\1 \2"),
