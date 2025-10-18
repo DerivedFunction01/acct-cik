@@ -648,13 +648,12 @@ def generate_hedge_paragraph(
         if has_active_derivative is True:
             labels["curr"] = 1
             labels[swapType] = 0
-
-            # Documentation and Effectiveness are key for current hedges
+            # For current use, discuss actual effectiveness and documentation.
             doc_template = random.choice(hedge_documentation_templates)
             sentences.append(
                 doc_template.format(company=pick_company_name(company_name), hedge_type=hedge_type)
             )
-            eff_template = random.choice(hedge_effectiveness_templates)
+            eff_template = random.choice(hedge_effectiveness_actual_templates)
             sentences.append(
                 eff_template.format(
                     company=pick_company_name(company_name),
@@ -672,13 +671,21 @@ def generate_hedge_paragraph(
         elif has_active_derivative is False:
             labels["hist"] = 1
             labels[swapType] = 0
-
-            # Ineffectiveness and Discontinuation are relevant for historical hedges
-            ineff_template = random.choice(hedge_ineffectiveness_templates)
+            # For historical use, discuss actual ineffectiveness and discontinuation.
+            ineff_template = random.choice(hedge_ineffectiveness_actual_templates)
             sentences.append(
                 ineff_template.format(
                     company=pick_company_name(company_name),
                     frequency=random.choice(frequencies),
+                    year=random.choice(past_years) if past_years else reporting_year -1,
+                    prev_year=random.choice(past_years) -1 if past_years else reporting_year - 2,
+                    amount=generate_value(),
+                    currency_code=currency_code,
+                    money_unit=money_units,
+                    month=month,
+                    end_day=end_day,
+                    quarter=quarter,
+                    gain_loss=random.choice(["gain", "loss"]),
                 )
             )
             discont_template = random.choice(hedge_discontinuation_templates)
@@ -695,14 +702,33 @@ def generate_hedge_paragraph(
         else: # has_active_derivative is None
             labels["spec"] = 1
             labels[swapType] = 0
-
-            # General accounting policy
+            # For speculative use, discuss policies for effectiveness, ineffectiveness, and general accounting.
             act_template = random.choice(hedge_policy_templates)
             sentences.append(
                 act_template.format(
                     company=pick_company_name(company_name),
                     swap_type=swap_type,
                     hedge_type=hedge_type,
+                )
+            )
+            eff_template = random.choice(hedge_effectiveness_policy_templates)
+            sentences.append(
+                eff_template.format(
+                    company=pick_company_name(company_name),
+                    verb=random.choice(assessment_verbs),
+                    swap_type=swap_type,
+                    method=random.choice(hedge_methods),
+                    metric=random.choice(hedge_metrics),
+                    standard=random.choice(hedge_standards),
+                    frequency=random.choice(frequencies),
+                    hedge_type=hedge_type,
+                )
+            )
+            ineff_template = random.choice(hedge_ineffectiveness_policy_templates)
+            sentences.append(
+                ineff_template.format(
+                    company=pick_company_name(company_name),
+                    frequency=random.choice(frequencies),
                 )
             )
             # No trading policy

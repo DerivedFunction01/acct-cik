@@ -864,41 +864,61 @@ hedge_documentation_templates = [
     "{company} document all hedging relationships at inception, including the risk management strategy and hedge objectives",
 ]
 
-hedge_effectiveness_templates = [
+hedge_effectiveness_policy_templates = [
     "{company} {verb}, both at inception and on an on-going basis, whether the {swap_type} that are utilized in {hedge_type} hedging transactions are highly effective in offsetting the {metric} of hedged items",
     "{company} {verb} hedge effectiveness {frequency} to ensure derivatives continue to meet the criteria for hedge accounting",
     "Hedge effectiveness is {verb} {frequency} using {method} in accordance with {standard}",
     "{company} {verb} {frequency} assessments of hedge effectiveness to determine whether hedging relationships remain highly effective",
     "{company} {verb} hedge effectiveness {frequency} in accordance with {standard}",
-    "Hedge effectiveness is {verb} {frequency} to confirm that {swap_type} remain highly effective in offsetting {metric}",
     "{company} {verb} hedge effectiveness {frequency} using {method} to ensure compliance with {standard}",
     "{company} {verb} {frequency} tests of hedge effectiveness for {swap_type} to offset changes in {metric}",
     "Hedge effectiveness is {verb} {frequency} to verify that derivatives qualify for hedge accounting under {standard}",
     "{company} evaluate {swap_type} effectiveness {frequency} to ensure they offset {metric} as intended",
     "{company} {verb} effectiveness of {swap_type} {frequency} using {method} per {standard}",
-    "Hedge effectiveness for {swap_type} is {verb} {frequency} to confirm alignment with {metric}",
     "{company} {verb} {frequency} hedge effectiveness tests using {method} to comply with {standard}",
-    "{company} {verb} {swap_type} {frequency} to ensure they effectively hedge {metric}",
     "Hedge effectiveness is {verb} {frequency} for {swap_type} to meet {standard} requirements",
     "{company} {verb} the effectiveness of {swap_type} {frequency} to offset changes in {metric} per {standard}",
     "{company} {verb} {frequency} assessments of {swap_type} effectiveness using {method}",
-    "Hedge effectiveness is {verb} {frequency} to ensure {swap_type} offset {metric} as required",
     "{company} {verb} hedge effectiveness {frequency} for {swap_type} in accordance with {standard}",
     "{company} {verb} {swap_type} effectiveness {frequency} to confirm compliance with {standard}",
-    "Each {swap_type} guarantees a return equal to the actual return, and as such, effectively acts as a hedge",
-    "{company}'s hedge positions in {swap_type} are continually assessed to determine whether new or offsetting transactions are required"
+    "{company}'s hedge positions in {swap_type} are continually assessed to determine whether new or offsetting transactions are required",
 ]
-hedge_ineffectiveness_templates = [
+
+hedge_effectiveness_actual_templates = [
+    "The {swap_type} was determined to be highly effective in offsetting the {metric} of the hedged item",
+    "As of {month} {end_day}, {year}, the {swap_type} was considered a highly effective hedge",
+    "All designated {swap_type} were deemed highly effective as of the latest assessment date",
+    "Management concluded that the {swap_type} is a highly effective hedge against {metric}",
+    "Each {swap_type} guarantees a return equal to the actual return, and as such, effectively acts as a hedge",
+    "The {swap_type} designated as a {hedge_type} hedge was determined to be highly effective in offsetting {metric}",
+    "Based on {frequency} assessments using {method}, the {swap_type} has been, and is expected to continue to be, highly effective",
+    "The hedging relationship for the {swap_type} was highly effective throughout the period in accordance with {standard}",
+    "{company} concluded that its {swap_type} were highly effective as {hedge_type} hedges of {metric} during the year",
+    "For the year ended {month} {end_day}, {year}, all designated {swap_type} hedges were highly effective",
+    "The effectiveness of the {swap_type} was confirmed using {method}, and the hedge was deemed highly effective",
+    "Quantitative testing using {method} confirmed the {swap_type} was highly effective in mitigating {metric} under {standard}",
+]
+
+hedge_ineffectiveness_policy_templates = [
     "{company} assess hedge ineffectiveness {frequency} and record the gain or loss related to the ineffective portion of derivative instruments, if any, to current earnings",
     "Any hedge ineffectiveness is recognized immediately in earnings in the period identified",
     "Ineffectiveness, if present, is measured {frequency} and recorded in the consolidated statements of operations",
     "{company} recognizes any ineffective portion of hedging instruments in current period earnings",
     "Gains or losses from the ineffective portion of derivative instruments are recognized in earnings {frequency}",
-    "{company} evaluates hedge effectiveness and records any ineffectiveness in the statement of operations for the relevant period",
+    "{company} evaluates hedge ineffectiveness and records any such amounts in the statement of operations for the relevant period",
     "Ineffective amounts arising from hedging relationships are reported in earnings as part of the assessment {frequency}",
     "{company} monitors hedge effectiveness and immediately recognizes any ineffectiveness in income",
     "Hedge ineffectiveness, when identified, is reflected in earnings for the reporting period in which it occurs",
     "The ineffective portion of designated hedges is calculated and recognized in current earnings {frequency}",
+]
+
+hedge_ineffectiveness_actual_templates = [
+    "During {year}, the company recorded {currency_code}{amount} {money_unit} of ineffectiveness related to its {swap_type} hedges",
+    "Hedge ineffectiveness of {currency_code}{amount} {money_unit} was recognized in earnings for the year ended {month} {end_day}, {year}",
+    "The ineffective portion of the {hedge_type} hedge resulted in a {gain_loss} of {currency_code}{amount} {money_unit} recorded in the consolidated statements of operations",
+    "For the {quarter} quarter of {year}, ineffectiveness on certain {swap_type} hedges amounted to {currency_code}{amount} {money_unit}",
+    "An insignificant amount of hedge ineffectiveness was recorded in earnings during {year}",
+    "The amount of hedge ineffectiveness recognized in earnings for {year} and {prev_year} was not material",
 ]
 
 hedge_discontinuation_templates = [
