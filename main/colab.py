@@ -812,13 +812,13 @@ def parse_plain_text_table_fixed(block: str):
     return rows
 
 
-def fetch_url(url: str, timeout: int = 10, shared_rate_limit=None) -> str | None:
+def fetch_url(url: str, timeout: int = 10, rate_limiter: "ThreadSafeRateLimiter" = None) -> str | None:
     global SEC_RATE_LIMIT, SEC_RATE
     if not url:
         return None
     try:
-        rate_limit = shared_rate_limit.value if shared_rate_limit else SEC_RATE_LIMIT
-        time.sleep(rate_limit)
+        # Use the rate_limiter's current value for sleeping
+        time.sleep(rate_limiter.value if rate_limiter else SEC_RATE_LIMIT)
         debug_print("Fetching", url)
         resp = requests.get(
             url, timeout=timeout, headers={
@@ -1186,6 +1186,41 @@ class ThreadSafeRateLimiter:
             self._rate_limit = new_value
 
 
+def adjust_rate_in_background(
+    tqdm_bar: tqdm,
+    rate_limiter: ThreadSafeRateLimiter,
+    target_rate: float,
+    stop_event: threading.Event,
+):
+    """
+    A background thread function to dynamically adjust the sleep rate.
+    This runs independently of the main fetch loop.
+    """
+    while not stop_event.is_set():
+        time.sleep(1.0)  # Check once per second
+
+        # Ensure the tqdm bar and its rate are available
+        if not hasattr(tqdm_bar, "rate") or tqdm_bar.rate is None:
+            continue
+
+        current_rate = tqdm_bar.rate
+        current_sleep = rate_limiter.value
+
+        # Proactive adjustment logic
+        # If we are going too fast, increase sleep time
+        if current_rate > target_rate:
+            # Increase sleep time proportionally to how much we are over
+            overshoot_factor = (current_rate - target_rate) / target_rate
+            rate_limiter.value += 0.001 + (0.01 * overshoot_factor)
+        # If we are too slow, decrease sleep time (but not below zero)
+        elif current_rate < (target_rate * 0.9):  # Leave a 10% buffer
+            rate_limiter.value = max(0, current_sleep - 0.002)
+
+        tqdm_bar.set_postfix(
+            rate=f"{current_rate:.1f} req/s", sleep=f"{rate_limiter.value*1000:.1f}ms"
+        )
+
+
 def fetch_raw_content(url: str, rate_limiter: ThreadSafeRateLimiter = None):
     """
     Fetches raw text content from a URL. This is purely I/O-bound.
@@ -1293,8 +1328,6 @@ def process_all_reports_fully():
     for chunk_idx, chunk in enumerate(chunks, 1):
         rate_limited_in_chunk = False
         start_chunk_time = time.time()
-        current_chunk_time = start_chunk_time
-        num_reqs = 0  # Keep track of number of requests, to divide difference between cur time and chunk time
         print(f"\n📦 Chunk {chunk_idx}/{len(chunks)} ({len(chunk)} reports)")
 
         # Stage 1: Fetch this chunk
@@ -1306,38 +1339,39 @@ def process_all_reports_fully():
                 for url in chunk
             ]
 
-            for future in tqdm(
+            # Create the tqdm bar instance
+            tqdm_bar = tqdm(
                 as_completed(fetch_futures),
                 total=len(fetch_futures),
                 desc=f"  Fetching chunk {chunk_idx}",
                 leave=False,
-            ):
-                try:
-                    num_reqs += 1
-                    if num_reqs % CHUNK_CHECK_RATE == 0:
-                        current_sleep = rate_limiter.value
-                        current_rate = CHUNK_CHECK_RATE / \
-                            (time.time() - current_chunk_time)
-                        # Update the shared rate limit value
-                        if current_rate < SEC_RATE:
-                            RATE_INCREASE = (
-                                SEC_RATE - current_rate) / SEC_RATE
-                            new_limit = current_sleep * (1 - RATE_INCREASE)
-                            rate_limiter.value = max(
-                                new_limit, 0)  # don't go below 0ms
-                        elif current_rate > SEC_RATE:
-                            rate_limiter.value = NUM_FETCHERS / SEC_RATE
-                        current_chunk_time = time.time()  # reset
+            )
 
-                    result = future.result()
-                    if result and result[0] != "RATE_LIMITED":
-                        fetched_data.append(result)
-                        debug_print(result)
-                    elif result and result[0] == "RATE_LIMITED":
-                        rate_limited_in_chunk = True
+            # Start the background thread for rate adjustment
+            stop_event = threading.Event()
+            adjuster_thread = threading.Thread(
+                target=adjust_rate_in_background,
+                args=(tqdm_bar, rate_limiter, SEC_RATE, stop_event),
+                daemon=True,  # Allows main program to exit even if thread is running
+            )
+            adjuster_thread.start()
 
-                except Exception as e:
-                    print(f"Fetch error: {e}")
+            try:
+                for future in tqdm_bar:
+                    try:
+                        result = future.result()
+                        if result and result[0] != "RATE_LIMITED":
+                            fetched_data.append(result)
+                            debug_print(result)
+                        elif result and result[0] == "RATE_LIMITED":
+                            rate_limited_in_chunk = True
+
+                    except Exception as e:
+                        print(f"Fetch error: {e}")
+            finally:
+                # Ensure the background thread is stopped when the loop is done
+                stop_event.set()
+                adjuster_thread.join(timeout=2)
 
         # If we were rate-limited in this chunk, enforce a cool-down
         if rate_limited_in_chunk:
