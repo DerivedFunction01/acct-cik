@@ -642,10 +642,10 @@ def generate_hedge_paragraph(
         sentences = []
         hedge_type = random.choice(hedge_types)
         labels["spec"] = 1
-        labels[swapType] = 1
+        if swapType is not None:
+            labels[swapType] = 1
         # --- Current Use Policy ---
         if has_active_derivative is True:
-            labels["curr"] = 1
             # For current use, discuss actual effectiveness and documentation.
             doc_template = random.choice(hedge_documentation_templates)
             sentences.append(
@@ -670,7 +670,6 @@ def generate_hedge_paragraph(
 
         # --- Historical Use Policy ---
         elif has_active_derivative is False:
-            labels["hist"] = 1
             # For historical use, discuss actual ineffectiveness and discontinuation.
             ineff_template = random.choice(hedge_ineffectiveness_actual_templates)
             sentences.append(
@@ -764,10 +763,6 @@ def generate_hedge_paragraph(
         labels["spec"] = 1
         labels[f"{swapType}_use"] = 1
         labels["gen_use"] = 1
-        if has_active_derivative:
-            labels["curr"] = 1
-        else:
-            labels["hist"] = 1 if has_active_derivative is False else 0
         sentences = []
         # begin context template (company, verb)
         beg_ctx_template = random.choice(hedge_begin_context_templates[swapType])
@@ -1639,7 +1634,7 @@ def generate(size_per_label=100):
                         swapType=prefix,
                     )
                 )
-            for _ in range(count):
+            for _ in range(count // 2):
                 futures.append(
                     executor.submit(
                         generate_hedge_paragraph,
@@ -1647,7 +1642,7 @@ def generate(size_per_label=100):
                         swapType=prefix,
                     )
                 )
-        for _ in range(count):
+        for _ in range(count // 2):
             futures.append(
                 executor.submit(
                     generate_hedge_paragraph,
@@ -1657,7 +1652,7 @@ def generate(size_per_label=100):
             )
 
         # Warrant and Embedded Derivative Generation
-        warr_emb_count = count * 2 
+        warr_emb_count = count 
         for _ in range(warr_emb_count):
             futures.append(executor.submit(generate_warrant_paragraph, use_case='current'))
             futures.append(executor.submit(generate_warrant_paragraph, use_case='historical'))
