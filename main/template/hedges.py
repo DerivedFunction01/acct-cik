@@ -88,9 +88,9 @@ two_year_prefixes = [
 ]
 
 two_year_table_prefixes = [
-    "{year} and {prev_year}" # table-like format
-    "{year} {prev_year}" # table-like format
-    "{month} {year} {prev_year}" # table-like format
+    "{year} and {prev_year}", # table-like format
+    "{year} {prev_year}", # table-like format
+    "{month} {year} {prev_year}", # table-like format
 ]
 
 # Three-year time prefixes
@@ -100,9 +100,9 @@ three_year_prefixes = [
 ]
 
 three_year_table_prefixes = [
-    "{year}, {prev_year}, and {prev2_year}" # table-like format
-    "{year} {prev_year} {prev2_year}" # table-like format
-    "{month} {year} {prev_year} {prev2_year}" # table-like format
+    "{year}, {prev_year}, and {prev2_year}", # table-like format
+    "{year} {prev_year} {prev2_year}", # table-like format
+    "{month} {year} {prev_year} {prev2_year}", # table-like format
 ]
 
 # Amount connectors (words that connect amounts to swap types)
