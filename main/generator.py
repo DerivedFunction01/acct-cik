@@ -651,7 +651,7 @@ def generate_hedge_paragraph(
             # For current use, discuss actual effectiveness and documentation.
             doc_template = random.choice(hedge_documentation_templates)
             sentences.append(
-                doc_template.format(company=pick_company_name(company_name), hedge_type=hedge_type)
+                doc_template.format(company=pick_company_name(company_name), hedge_type=hedge_type, swap_type=swap_type)
             )
             eff_template = random.choice(hedge_effectiveness_actual_templates)
             sentences.append(

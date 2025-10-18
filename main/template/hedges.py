@@ -841,26 +841,26 @@ hedge_policy_templates = [
 ]
 
 hedge_documentation_templates = [
-    "For a derivative to qualify as a hedge at inception and throughout the hedged period, {company} formally document the nature and relationships between the hedging instruments and hedged item",
-    "For a derivative designated as a {hedge_type} hedge, the gain or loss is recognized in earnings in the period of change together with the offsetting loss or gain on the risk being hedged",
+    "For a {swap_type} to qualify as a hedge at inception and throughout the hedged period, {company} formally document the nature and relationships between the hedging instruments and hedged item",
+    "For a {swap_type} designated as a {hedge_type} hedge, the gain or loss is recognized in earnings in the period of change together with the offsetting loss or gain on the risk being hedged",
     "{company} maintains formal documentation of all hedging relationships, including the risk management objective and strategy for undertaking the hedge",
     "Hedge accounting requires formal documentation at inception describing the hedging relationship and {company}'s risk management objectives",
     "{company} document our hedging relationships and risk management strategies at inception in accordance with applicable accounting standards",
-    "{company} prepares formal documentation for all hedges, detailing the hedging instrument, hedged item, and risk management strategy",
-    "At hedge inception, {company} document the relationship between the derivative and the hedged item, including the risk management objective",
+    "{company} prepares formal documentation for all hedges, detailing the hedging {swap_type}, hedged item, and risk management strategy",
+    "At hedge inception, {company} document the relationship between the {swap_type} and the hedged item, including the risk management objective",
     "{company} maintains detailed documentation of hedging relationships to comply with hedge accounting requirements",
     "{company} formally document all hedging relationships at inception, including the strategy and objectives for risk management",
-    "Hedge documentation includes the risk management objective, hedging instrument, and hedged item, prepared at inception",
+    "Hedge documentation includes the risk management objective, hedging {swap_type}, and hedged item, prepared at inception",
     "{company} records formal documentation for hedges, outlining the relationship and risk management strategy",
     "{company} document the hedging relationship and risk management objectives at the start of each hedge in line with accounting standards",
     "{company} maintains documentation for all derivative hedges, including the hedged item and risk management strategy",
     "Formal documentation of hedging relationships is prepared at inception to support hedge accounting treatment",
     "{company} document the nature of hedging relationships and risk management objectives at the outset of each hedge",
     "{company} ensures formal documentation of all hedges, including the hedged item and risk management strategy",
-    "Hedge accounting documentation includes the hedging instrument, hedged item, and risk management objectives at inception",
+    "Hedge accounting documentation includes the hedging {swap_type}, hedged item, and risk management objectives at inception",
     "{company} prepare formal documentation for all hedging relationships to meet accounting standard requirements",
     "{company} documents the risk management strategy and hedging relationships at the start of each hedge",
-    "Formal hedge documentation is maintained, detailing the hedged item, hedging instrument, and risk management objectives",
+    "Formal hedge documentation is maintained, detailing the hedged item, hedging {swap_type}, and risk management objectives",
     "{company} document all hedging relationships at inception, including the risk management strategy and hedge objectives",
 ]
 
