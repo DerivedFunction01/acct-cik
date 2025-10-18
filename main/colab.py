@@ -385,7 +385,7 @@ def generate_allowed_keywords() -> set:
     keywords = set([
         "expire", "terminat", "outstanding", "designat", "matur", "settle",
         "unwound", "close", "liquidat", "gain", "loss", "fair value", "notional",
-        "derivative", "hedge", "swap", "option", "forward", "future", "collar",
+        "derivative", "hedg", "swap", "option", "forward", "future", "collar",
         "contract", "instrument", "agreement", "liability", "asset", "position",
         "interest", "rate", "currency", "exchange", "fx", "commodity", "equity",
         "embedded", "warrant", "cash flow", "net investment"
