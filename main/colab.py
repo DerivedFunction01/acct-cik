@@ -198,8 +198,8 @@ def build_smart_regex(
     # e.g., "interest-rate swap", "currency contract"
     core_pattern = build_alternation(core_terms)
     
-    # Combine base types (context_terms) and suffixes into one group
-    follow_terms = context_terms + ALL_SUFFIXES
+    # Combine base types (context_terms)into one group
+    follow_terms = context_terms
     follow_pattern = build_alternation(follow_terms)
     
     pattern1 = f"{core_pattern}[- ]{follow_pattern}"
@@ -278,7 +278,7 @@ def build_ir_regex() -> re.Pattern:
 
 def build_fx_regex() -> re.Pattern:
     """Build optimized Foreign Exchange derivatives regex."""
-    
+
     core_terms = [
         "foreign[- ]exchange",
         "foreign[- ]currency",
@@ -289,7 +289,7 @@ def build_fx_regex() -> re.Pattern:
         "FX",
         "forex"
     ]
-    
+
     specific_phrases = [
         "NDF",
         "forward rate agreements?",
@@ -303,8 +303,10 @@ def build_fx_regex() -> re.Pattern:
         "forward foreign exchange",
         "foreign currency contracts?",
     ]
-    
-    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
+
+    pattern = build_smart_regex(
+        core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
+    )
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
 
 

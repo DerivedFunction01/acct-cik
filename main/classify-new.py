@@ -145,9 +145,24 @@ def get_matches(url):
     conn.close()
     if not result:
         return []
-    data = pd.DataFrame([result], columns=columns)
-    matches = json.loads(data.matches.iloc[0])
-    return matches
+    data = pd.DataFrame([result], columns=columns)    
+    # Load the matches, which is now a dictionary from colab.py
+    categorized_matches = json.loads(data.matches.iloc[0])
+
+    # Flatten the dictionary of lists into a single list of sentences
+    # Ensure it's a dictionary before trying to iterate over its values
+    if isinstance(categorized_matches, dict):
+        flattened_sentences = []
+        for category_sentences in categorized_matches.values():
+            if isinstance(category_sentences, list): # Ensure the value is a list
+                flattened_sentences.extend(category_sentences)
+        return flattened_sentences
+    else:
+        # Fallback for old format or unexpected data, treat as a list if it is
+        if isinstance(categorized_matches, list):
+            return categorized_matches
+        else:
+            return [] # Return empty list if it's neither a dict nor a list
 
 
 def fetch_server_results():
