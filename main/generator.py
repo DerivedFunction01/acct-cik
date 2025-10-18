@@ -841,7 +841,7 @@ def generate_hedge_paragraph(
             issuer=issuer,
             standard=standard,
             topic=topic, # Corrected from hedge_topic
-            purpose=purpose,
+            standard_purpose=purpose,
             hedge_description=description,
             hedge_feature=extra,
             eff_month=eff_month,
@@ -1308,7 +1308,7 @@ def generate_noise_paragraph(
             issuer=issuer,
             standard=standard,
             topic=topic, # Corrected from other_topic
-            purpose=purpose,
+            standard_purpose=purpose,
             policy_description=description,
             policy_feature=policy_feature,
             eff_month=eff_month,
