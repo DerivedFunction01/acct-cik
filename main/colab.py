@@ -31,7 +31,7 @@ REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
 
 
-SEC_RATE = 9  # requests per second
+SEC_RATE = 8  # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
 CHUNK_CHECK_RATE = 10  # Check every 10 iterations
