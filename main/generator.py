@@ -1294,7 +1294,7 @@ def generate_noise_paragraph(
         topic = random.choice(other_topics)
         purpose = random.choice(shared_purposes)
         description = random.choice(general_descriptions)
-        extra = random.choice(general_additional_features)
+        policy_feature = random.choice(general_additional_features)
 
         issue_month = random.choice(months)
         issue_year = random.randint(current_year - 5, current_year)
@@ -1310,7 +1310,7 @@ def generate_noise_paragraph(
             topic=topic, # Corrected from other_topic
             purpose=purpose,
             policy_description=description,
-            additional_feature=extra,
+            policy_feature=policy_feature,
             eff_month=eff_month,
             eff_day=eff_day,
             eff_year=effective_year,
