@@ -664,6 +664,9 @@ def generate_hedge_paragraph(
                     standard=random.choice(hedge_standards),
                     frequency=random.choice(frequencies),
                     hedge_type=hedge_type,
+                    month=month,
+                    end_day=end_day,
+                    year=current_year,
                 )
             )
 
