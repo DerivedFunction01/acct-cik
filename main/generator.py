@@ -19,7 +19,7 @@ output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
 parquet_file = "./training_data.parquet"
 
-#%%
+# %%
 # Precompile regex patterns
 pattern_we_s = re.compile(r"We's", flags=re.IGNORECASE)
 pattern_we_is = re.compile(r"We is", flags=re.IGNORECASE)
@@ -355,7 +355,6 @@ def generate_hedge_paragraph(
     # Initialize labels
     labels = new_label()
 
-    
     # -----------------------
     # Actual use
     # -----------------------
@@ -387,10 +386,10 @@ def generate_hedge_paragraph(
         selected_debt = ", ".join(debt_type_list)
 
         debt_templates_pool = debt_templates + sum(noise_templates.get("IR", []), [])
-        
+
         for _ in range(random.randint(2, 4)):
             template = random.choice(debt_templates_pool)
-            
+
             replacements = {
                 "{amount}": str(generate_value(False)),
                 "{amount2}": str(generate_value(False)),
@@ -427,7 +426,7 @@ def generate_hedge_paragraph(
             return []
         for _ in range(random.randint(1, 3)):
             template = random.choice(cp_templates)
-            
+
             replacements = {
                 "{amount}": str(generate_value(False)),
                 "{amount2}": str(generate_value(False)),
@@ -462,7 +461,7 @@ def generate_hedge_paragraph(
             return []
         for _ in range(random.randint(1, 3)):
             template = random.choice(fx_templates)
-            
+
             _currencies = random.sample(all_currencies, min(3, len(all_currencies)))
             currency_list = ", ".join(_currencies)
 
@@ -564,7 +563,7 @@ def generate_hedge_paragraph(
             if has_active_derivative
             else random.randint(old_year - 1, prev_year)
         )
-        
+
         old_notional = generate_value(False)
         gain_loss = random.choice(["gain", "loss"])
 
@@ -639,109 +638,99 @@ def generate_hedge_paragraph(
         return sentence
 
     def hedge_policy() -> list[str]:
-        labels["spec"] = 1 #  A speculation
-        labels[swapType] = 0 # Not related to any swap
         sentences = []
-        # Accounting policy (always)
-        act_template = random.choice(hedge_policy_templates)
         swap_type = (
             random.choice(derivative_keywords["gen"]) if random.random() < 0.5 else "derivatives"
         )
-        sentences.append(
-            act_template.format(
-                company=pick_company_name(company_name),
-                swap_type=swap_type,
-                hedge_type=hedge_type,
-            )
-        )
-        # No trading policy (always)
-        nt_template = random.choice(hedge_no_trading_templates)
-        sentences.append(
-            nt_template.format(
-                company=pick_company_name(company_name),
-                verb=random.choice(hedge_may_use_verbs),
-            )
-        )
+        hedge_type = random.choice(hedge_types)
 
-        # Chance of documentation:
-        if random.random() < 0.5:
+        # --- Current Use Policy ---
+        if has_active_derivative is True:
+            labels["curr"] = 1
+            labels[swapType] = 0
+
+            # Documentation and Effectiveness are key for current hedges
             doc_template = random.choice(hedge_documentation_templates)
             sentences.append(
                 doc_template.format(company=pick_company_name(company_name), hedge_type=hedge_type)
             )
-        # Chance of hedge effectiveness or hedge ineffectiveness (frequency, verb, swap_type, method, metric, standard)
-        if random.random() < 0.5:
             eff_template = random.choice(hedge_effectiveness_templates)
-            verb = random.choice(assessment_verbs)
-            method = random.choice(hedge_methods)
-            metric = random.choice(hedge_metrics)
-            standard = random.choice(hedge_standards)
-            frequency = random.choice(frequencies)
             sentences.append(
                 eff_template.format(
                     company=pick_company_name(company_name),
-                    verb=verb,
+                    verb=random.choice(assessment_verbs),
                     swap_type=swap_type,
-                    method=method,
-                    metric=metric,
-                    standard=standard,
-                    frequency=frequency,
+                    method=random.choice(hedge_methods),
+                    metric=random.choice(hedge_metrics),
+                    standard=random.choice(hedge_standards),
+                    frequency=random.choice(frequencies),
                     hedge_type=hedge_type,
                 )
             )
-        else:  # company, freqency
+
+        # --- Historical Use Policy ---
+        elif has_active_derivative is False:
+            labels["hist"] = 1
+            labels[swapType] = 0
+
+            # Ineffectiveness and Discontinuation are relevant for historical hedges
             ineff_template = random.choice(hedge_ineffectiveness_templates)
-            frequency = random.choice(frequencies)
             sentences.append(
                 ineff_template.format(
                     company=pick_company_name(company_name),
-                    frequency=frequency,
+                    frequency=random.choice(frequencies),
                 )
             )
-        # Discontinuation
-        if random.random() < 0.5:
             discont_template = random.choice(hedge_discontinuation_templates)
             sentences.append(
                 discont_template.format(
                     company=pick_company_name(company_name),
                     swap_type=swap_type,
                     hedge_type=hedge_type,
-                    metric=random.choice(hedge_metrics),
+                    metric=random.choice(hedge_metrics)
                 )
             )
-        # Risk
-        if random.random() < 0.5:
-            materiality_choice = random.choice(materiality)
-            template = random.choice(risk_templates)
-            item = (
-                random.choice(swap_types)
-                if random.random() < 0.5
-                else random.choice(risk_items_derivative)
+
+        # --- Speculative / General Policy ---
+        else: # has_active_derivative is None
+            labels["spec"] = 1
+            labels[swapType] = 0
+
+            # General accounting policy
+            act_template = random.choice(hedge_policy_templates)
+            sentences.append(
+                act_template.format(
+                    company=pick_company_name(company_name),
+                    swap_type=swap_type,
+                    hedge_type=hedge_type,
+                )
             )
-            template.format(
-                item=item,
-                company=pick_company_name(company_name),
-                materiality=materiality_choice,
+            # No trading policy
+            nt_template = random.choice(hedge_no_trading_templates)
+            sentences.append(
+                nt_template.format(
+                    company=pick_company_name(company_name),
+                    verb=random.choice(hedge_may_use_verbs),
+                )
             )
-            sentences.append(template)
-        # Counterparty
-        if random.random() < 0.5:
+            # General risk and counterparty policy
             counterparty_template = random.choice(hedge_counterparty_templates)
             sentences.append(
-                counterparty_template.format(
-                    company=pick_company_name(company_name), 
-                )
+                counterparty_template.format(company=pick_company_name(company_name))
             )
+
         random.shuffle(sentences)
         return sentences
 
     def hedge_type_policy() -> list[str]:
         labels[swapType] = 1
-        labels[f"{swapType}_use"] = 1 # We may use it, but it is neither current nor historic
-        labels["gen_use"] = 1
-        labels["spec"] = 1
-        labels["curr"] = 1 if has_active_derivative else 0
-        labels["hist"] = 0 if has_active_derivative else 1
+        if has_active_derivative:
+            labels[f"{swapType}_use"] = 1
+            labels["gen_use"] = 1
+            labels["curr"] = 1
+        else:
+            labels["spec"] = 1
+            labels["hist"] = 1 if has_active_derivative is False else 0
         sentences = []
         # begin context template (company, verb)
         beg_ctx_template = random.choice(hedge_begin_context_templates[swapType])
@@ -772,7 +761,7 @@ def generate_hedge_paragraph(
         )
         # If we don't have an active derivative, add a no such outstanding sentence
         if not has_active_derivative and random.random() < 0.25:
-           sentences.append(expire_hedge(use_current_year=True))
+            sentences.append(expire_hedge(use_current_year=True))
         random.shuffle(sentences)
         return sentences
 
@@ -923,26 +912,30 @@ def generate_hedge_paragraph(
 
         return sentences
 
-    # Main Execution
-    if has_active_derivative is None:
-        if swapType is not None:
-            # Specific hedge type policy
+    # --- Main Execution Logic ---
+    # This block orchestrates which sentence generation functions are called
+    # based on the desired paragraph type (current, historical, or speculative).
+
+    if has_active_derivative is None:  # Speculative / Policy-only
+        if swapType and random.random() < 0.5:
+            # Generate a policy specific to a hedge type (e.g., "we may use IR swaps...")
             all_sentences.extend(hedge_type_policy())
+        elif random.random() < 0.65:
+            # Generate a general, non-specific hedge policy
+            all_sentences.extend(hedge_policy())
         else:
-            # Generic policy if no hedge type is given
-            if random.random() < 0.65:
-                all_sentences.extend(hedge_policy())
-            else:
-                all_sentences.extend(generate_hedge_policy_update())
-    else:
-        if random.random() < 0.75:
-            all_sentences.extend(generate_derivative_sentences())
-            # Chance to include policy
-            if include_policy:
+            # Generate a policy update disclosure (e.g., ASU 2017-12)
+            all_sentences.extend(generate_hedge_policy_update())
+    else:  # Current or Historical Use
+        # Always include sentences about the specific derivative position
+        all_sentences.extend(generate_derivative_sentences())
+        # Optionally, add relevant policy context (e.g., effectiveness for current use)
+        if include_policy:
+            if random.random() < 0.5:
                 all_sentences.extend(hedge_type_policy())
-        else: # Plain policy that states use currently or historically
-            all_sentences.extend(hedge_type_policy())
-  
+            else:
+                all_sentences.extend(hedge_policy())
+
     paragraph = cleanup(all_sentences, current_year)
     labels = label_paragraph(paragraph, labels)
     label = get_primary_label(labels)
