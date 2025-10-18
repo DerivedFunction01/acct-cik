@@ -260,8 +260,9 @@ def label_paragraph(paragraph: str, labels: dict) -> dict:
     for category, keywords in category_keywords.items():
         score = 0.0
         for keyword, weight in keywords.items():
-            # Count occurrences and multiply by weight
-            score += para_lower.count(keyword) * weight
+            # Use regex with word boundaries to avoid partial matches like 'corn' in 'corp'
+            pattern = r'\b' + re.escape(keyword) + r'\b'
+            score += len(re.findall(pattern, para_lower)) * weight
         
         # Normalize the score to a 0-1 range using tanh.
         # This prevents scores from becoming too large while rewarding more mentions.
@@ -639,15 +640,12 @@ def generate_hedge_paragraph(
 
     def hedge_policy() -> list[str]:
         sentences = []
-        swap_type = (
-            random.choice(derivative_keywords["gen"]) if random.random() < 0.5 else "derivatives"
-        )
         hedge_type = random.choice(hedge_types)
-
+        labels["spec"] = 1
+        labels[swapType] = 1
         # --- Current Use Policy ---
         if has_active_derivative is True:
             labels["curr"] = 1
-            labels[swapType] = 0
             # For current use, discuss actual effectiveness and documentation.
             doc_template = random.choice(hedge_documentation_templates)
             sentences.append(
@@ -673,7 +671,6 @@ def generate_hedge_paragraph(
         # --- Historical Use Policy ---
         elif has_active_derivative is False:
             labels["hist"] = 1
-            labels[swapType] = 0
             # For historical use, discuss actual ineffectiveness and discontinuation.
             ineff_template = random.choice(hedge_ineffectiveness_actual_templates)
             sentences.append(
@@ -712,8 +709,6 @@ def generate_hedge_paragraph(
 
         # --- Speculative / General Policy ---
         else: # has_active_derivative is None
-            labels["spec"] = 1
-            labels[swapType] = 0
             # For speculative use, discuss policies for effectiveness, ineffectiveness, and general accounting.
             act_template = random.choice(hedge_policy_templates)
             sentences.append(
@@ -766,12 +761,12 @@ def generate_hedge_paragraph(
 
     def hedge_type_policy() -> list[str]:
         labels[swapType] = 1
+        labels["spec"] = 1
+        labels[f"{swapType}_use"] = 1
+        labels["gen_use"] = 1
         if has_active_derivative:
-            labels[f"{swapType}_use"] = 1
-            labels["gen_use"] = 1
             labels["curr"] = 1
         else:
-            labels["spec"] = 1
             labels["hist"] = 1 if has_active_derivative is False else 0
         sentences = []
         # begin context template (company, verb)
