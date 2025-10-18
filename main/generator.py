@@ -694,7 +694,15 @@ def generate_hedge_paragraph(
                     company=pick_company_name(company_name),
                     swap_type=swap_type,
                     hedge_type=hedge_type,
-                    metric=random.choice(hedge_metrics)
+                    metric=random.choice(hedge_metrics),
+                    # Add missing placeholders for discontinuation templates
+                    gain_loss=random.choice(["gain", "loss"]),
+                    amount=generate_value(),
+                    currency_code=currency_code,
+                    money_unit=money_units,
+                    location=random.choice(balance_sheet_locations),
+                    month=month,
+                    year=random.choice(past_years) if past_years else reporting_year -1,
                 )
             )
 
