@@ -368,8 +368,8 @@ def build_gen_regex() -> re.Pattern:
 
     # Add individual base types and suffixes as specific phrases for standalone matches
     # This ensures "hedge" or "swap" alone are caught if not followed by a specific term
-    specific_phrases.extend([t for t in ALL_BASE_TYPES if t not in ["hedges?", "hedging"]]) # Avoid redundancy with "designated as hedges"
-    specific_phrases.extend(ALL_SUFFIXES)
+    # REMOVED: The lines above were too broad, matching standalone terms like "swap" or "contract".
+    # By removing them, we now require more specific phrases, reducing noise.
 
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
