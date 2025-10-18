@@ -134,6 +134,7 @@ hedge_designations = [
     "as part of its hedging strategy",
     "as part of its risk management strategy",
     "within its hedging program",
+    "and is a highly effective {hedge_type} hedge on hedged item"
 ]
 
 # Portfolio terms
