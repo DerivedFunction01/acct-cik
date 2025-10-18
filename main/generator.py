@@ -904,7 +904,7 @@ def generate_hedge_paragraph(
         adoption_sentence = adopt_template.format(
             company=pick_company_name(company_name),
             standard=adopt_standard,
-            method=adopt_method,
+            adoption_method=adopt_method,
             month=adopt_month,
             day=adopt_day,
             year=adopt_year,
@@ -1374,7 +1374,7 @@ def generate_noise_paragraph(
         adoption_sentence = adopt_template.format(
             company=pick_company_name(company_name),
             standard=adopt_standard,
-            method=adopt_method,
+            adoption_method=adopt_method,
             month=adopt_month,
             day=adopt_day,
             year=adopt_year,
