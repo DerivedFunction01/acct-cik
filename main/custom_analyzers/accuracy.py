@@ -64,12 +64,23 @@ class AccuracySampler:
     def _process_report_row(self, row) -> list:
         """Processes a single report row to extract and label sentences."""
         global PRED_COUNT
-        try:
-            matches = row["matches"]
-            predictions = row["server_response"]
-        except (json.JSONDecodeError, TypeError):
+        
+        categorized_matches = row.get("matches")
+        predictions = row.get("server_response")
+
+        if not isinstance(categorized_matches, dict) or not isinstance(predictions, list):
             return []
 
+        # Flatten the dictionary of categorized sentences into a single list
+        matches = []
+        if isinstance(categorized_matches, dict):
+            for category_sentences in categorized_matches.values():
+                if isinstance(category_sentences, list):
+                    matches.extend(category_sentences)
+        else:
+            # Fallback for old list format
+            matches = categorized_matches
+            
         min_len = min(len(matches), len(predictions))
         processed_sentences = []
 

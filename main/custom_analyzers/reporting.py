@@ -25,10 +25,21 @@ class SentenceLabeler:
         results = []
 
         for cik, year, url, matches, predictions, user_flags in chunk_data:
-            min_len = min(len(matches), len(predictions))
+
+            # Flatten the dictionary of categorized sentences into a single list
+            flattened_matches = []
+            if isinstance(matches, dict):
+                for category_sentences in matches.values():
+                    if isinstance(category_sentences, list):
+                        flattened_matches.extend(category_sentences)
+            else:
+                # Fallback for old list format
+                flattened_matches = matches if isinstance(matches, list) else []
+
+            min_len = min(len(flattened_matches), len(predictions))
 
             for i in range(min_len):
-                sentence = matches[i]
+                sentence = flattened_matches[i]
                 prob_dict = predictions[i]
                 # Defensive check: Ensure prob_dict is a dictionary
                 if not isinstance(prob_dict, dict):
@@ -121,10 +132,10 @@ class SentenceLabeler:
         # Group by label category
         sentences_df["category"] = (
             sentences_df["primary_label"]
-            .apply(lambda x: self.label_mapper.primary_label2id.get(x, 24)) # Default to irrelevant ID 24
             .apply(
-                lambda x: self.label_mapper.get_label_category(x)
-            )
+                lambda x: self.label_mapper.primary_label2id.get(x, 24)
+            )  # Default to irrelevant ID 24
+            .apply(lambda x: self.label_mapper.get_label_category(x))
         )
 
         # Define label groupings for workbook consolidation
@@ -136,7 +147,9 @@ class SentenceLabeler:
             "EQ_Hedge": ["Equity_Derivative", "Equity_Context"],
             "Warrant": ["Warrant"],
             "Embedded_Derivative": ["Embedded_Derivative"],
-            "Speculation": ["Speculation"], # Assuming 'Speculation' is a direct category
+            "Speculation": [
+                "Speculation"
+            ],  # Assuming 'Speculation' is a direct category
             "Irrelevant": ["Irrelevant_Non-Hedge", "Irrelevant"],
         }
 
@@ -146,10 +159,14 @@ class SentenceLabeler:
             futures = []
             for workbook_name, categories_in_group in label_groups.items():
                 # Filter using the list of categories for this group
-                group_df = sentences_df[sentences_df["category"].isin(categories_in_group)].copy()
+                group_df = sentences_df[
+                    sentences_df["category"].isin(categories_in_group)
+                ].copy()
 
                 if group_df.empty:
-                    print(f"  - Skipping workbook for '{workbook_name}' (no sentences found in this group).")
+                    print(
+                        f"  - Skipping workbook for '{workbook_name}' (no sentences found in this group)."
+                    )
                     continue
 
                 # The group_name is now the same for the file, sheet, and category filter.
