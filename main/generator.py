@@ -665,6 +665,9 @@ def generate_hedge_paragraph(
                     frequency=random.choice(frequencies),
                     hedge_type=hedge_type,
                     month=month,
+                    # Add missing placeholders for effectiveness templates
+                    gain_loss=random.choice(["gain", "loss"]),
+                    amount=generate_value(),
                     end_day=end_day,
                     year=current_year,
                 )
@@ -690,6 +693,7 @@ def generate_hedge_paragraph(
                     quarter=quarter,
                     gain_loss=random.choice(["gain", "loss"]),
                     swap_type=swap_type,
+                    hedge_type=hedge_type,
                 )
             )
             discont_template = random.choice(hedge_discontinuation_templates)
@@ -741,6 +745,8 @@ def generate_hedge_paragraph(
                 ineff_template.format(
                     company=pick_company_name(company_name),
                     frequency=random.choice(frequencies),
+                    swap_type=swap_type,
+                    hedge_type=hedge_type,
                 )
             )
             # No trading policy
