@@ -2,10 +2,9 @@
 ```sh
 sudo apt update
 sudo apt install -y python3 python3-pip git unzip zip python3-venv git-lfs
-snap install aws-cli --classic
+snap install aws-cli --classic # Or pip install awscli
 python3 -m venv acct-cik
 source acct-cik/bin/activate
-pip install pandas requests beautifulsoup4 tqdm psutil
 ```
 ### Grab a file from a S3 Bucket
 ```sh
