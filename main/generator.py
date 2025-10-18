@@ -757,7 +757,8 @@ def generate_hedge_paragraph(
             # General risk and counterparty policy
             counterparty_template = random.choice(hedge_counterparty_templates)
             sentences.append(
-                counterparty_template.format(company=pick_company_name(company_name))
+                counterparty_template.format(company=pick_company_name(company_name),
+                                             swap_type=swap_type)
             )
 
         random.shuffle(sentences)
