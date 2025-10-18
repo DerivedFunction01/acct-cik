@@ -34,7 +34,7 @@ DB_PATH = "web_data.db"
 SEC_RATE = 8  # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
-CHUNK_CHECK_RATE = 10  # Check every 10 iterations
+CHUNK_CHECK_RATE = 5  # Check every 5 iterations
 NUM_FETCHERS = 1
 NUM_PARSERS = 1
 NUM_THREADS = 5
@@ -1013,7 +1013,7 @@ def filter_by_keywords(
     for _, category in sentence_categories:
         if category:
             category_counts[category] = category_counts.get(category, 0) + 1
-    print("Sentence counts by category:", category_counts, flush=True)
+    debug_print("Sentence counts by category:", category_counts)
     # Grab the tuple from CATEGORY_REGEX_ORDER
     categorized_matches = {category: [] for category, _ in CATEGORY_REGEX_ORDER}
     seen_matches = {category: set() for category, _ in CATEGORY_REGEX_ORDER}
