@@ -194,18 +194,21 @@ def build_smart_regex(
     Returns:
         A single regex pattern string.
     """
-    # Pattern 1: Core term strictly followed by a context term.
-    # e.g., "derivative instrument", "hedge accounting"
+    # Pattern 1: Core term followed by either a base type (swap, option) or a common suffix (contract, instrument).
+    # e.g., "interest-rate swap", "currency contract"
     core_pattern = build_alternation(core_terms)
-    context_pattern = build_alternation(context_terms)
-    pattern1 = f"{core_pattern}[- ]{context_pattern}"
+    
+    # Combine base types (context_terms) and suffixes into one group
+    follow_terms = context_terms + ALL_SUFFIXES
+    follow_pattern = build_alternation(follow_terms)
+    
+    pattern1 = f"{core_pattern}[- ]{follow_pattern}"
 
     # Pattern 2: Specific, high-confidence phrases.
     # e.g., "notional amounts", "embedded derivatives"
     pattern2 = build_alternation(specific_phrases)
 
-    # Combine the two main patterns.
-    # This ensures we match either a core+context combo OR a specific phrase.
+    # Combine the main patterns.
     return build_alternation([pattern1, pattern2])
 
 
@@ -297,6 +300,8 @@ def build_fx_regex() -> re.Pattern:
         "currency caps?",
         "non[- ]deliverable forwards?",
         "deliverable forwards?",
+        "forward foreign exchange",
+        "foreign currency contracts?",
     ]
     
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
@@ -370,6 +375,8 @@ def build_gen_regex() -> re.Pattern:
         "hedge of the net investment",
         "net investment hedges?",
         "ineffective portion",
+        "derivative financial instruments?",
+        "derivative expense",
     ]
     
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
