@@ -34,7 +34,6 @@ DB_PATH = "web_data.db"
 SEC_RATE = 8  # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
-CHUNK_CHECK_RATE = 5  # Check every 5 iterations
 NUM_FETCHERS = 1
 NUM_PARSERS = 1
 NUM_THREADS = 5
@@ -1197,7 +1196,7 @@ def adjust_rate_in_background(
     This runs independently of the main fetch loop.
     """
     while not stop_event.is_set():
-        time.sleep(1.0)  # Check once per second
+        time.sleep(0.25)  # Check 4 times per second
 
         # Ensure the tqdm bar and its rate are available
         if not hasattr(tqdm_bar, "rate") or tqdm_bar.rate is None:
