@@ -839,7 +839,7 @@ def generate_hedge_paragraph(
             topic=topic,
             purpose=purpose,
             hedge_description=description,
-            hedging_additional_features=extra,
+            hedge_feature=extra,
             eff_month=eff_month,
             eff_day=eff_day,
             eff_year=effective_year,
