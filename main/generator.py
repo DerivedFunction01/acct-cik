@@ -245,9 +245,9 @@ def label_paragraph(paragraph: str, labels: dict) -> dict:
 
     # Define weighted keywords. Stronger indicators get higher weights.
     category_keywords = {
-        "ir": {"interest rate": 0.3, "debt": 0.3, "loan": 0.3},
-        "fx": {"currency": 0.3, "foreign": 0.3, "international": 0.4, "border": 0.2, "exchange rate": 0.8},
-        "cp": {"commodit": 0.7, **{commodity: 0.7 for commodity in commodities}},
+        "ir": {"interest": 0.3, "debt": 0.3, "loan": 0.3},
+        "fx": {"currency": 0.3, "foreign": 0.3, "international": 0.4, "border": 0.2, "exchange": 0.3},
+        "cp": {"commodit": 0.3, **{commodity: 0.3 for commodity in commodities}},
         "eq": {"stock": 0.3, "equity": 0.3, "share price": 0.3},
         "gen": {"hedges": 0.3, "derivatives": 0.3},
         "spec": {"derivatives": 0.3, **{verb: 0.3 for verb in hedge_may_use_verbs}},
