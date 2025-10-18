@@ -916,7 +916,7 @@ def generate_hedge_paragraph(
     # This block orchestrates which sentence generation functions are called
     # based on the desired paragraph type (current, historical, or speculative).
 
-    if has_active_derivative is None:  # Speculative / Policy-only
+    if has_active_derivative is None: # Speculative / Policy-only
         if swapType and random.random() < 0.5:
             # Generate a policy specific to a hedge type (e.g., "we may use IR swaps...")
             all_sentences.extend(hedge_type_policy())
@@ -926,11 +926,10 @@ def generate_hedge_paragraph(
         else:
             # Generate a policy update disclosure (e.g., ASU 2017-12)
             all_sentences.extend(generate_hedge_policy_update())
-    else:  # Current or Historical Use
-        # Always include sentences about the specific derivative position
+    else: # Current or Historical Use
         all_sentences.extend(generate_derivative_sentences())
-        # Optionally, add relevant policy context (e.g., effectiveness for current use)
         if include_policy:
+            # Randomly add either a general policy or a type-specific policy
             if random.random() < 0.5:
                 all_sentences.extend(hedge_type_policy())
             else:
@@ -1690,3 +1689,5 @@ generate(1000)
 # %%
 df = pd.read_excel(output_file)
 df.to_parquet(parquet_file, index=False)
+
+# %%
