@@ -1237,7 +1237,7 @@ def fetch_raw_content(url: str, rate_limiter: ThreadSafeRateLimiter = None):
     if exists:
         return None
 
-    raw_text = fetch_url(url, shared_rate_limit=rate_limiter)
+    raw_text = fetch_url(url, rate_limiter=rate_limiter)
     if raw_text:
         return url, raw_text
     elif raw_text is None and url: # Check if fetch_url returned None due to rate limit
