@@ -76,33 +76,16 @@ one_year_prefixes = [
     "During the {quarter} quarter of {year}",
 ]
 
-one_year_table_prefixes =[
-    "{year}", # table-like format
-    "{month} {year}", # table-like format
-]
-
 # Two-year time prefixes
 two_year_prefixes = [
     "At {month} {end_day}, {year} and {prev_year}",
     "As of {month} {end_day}, {year} and {prev_year}",
 ]
 
-two_year_table_prefixes = [
-    "{year} and {prev_year}", # table-like format
-    "{year} {prev_year}", # table-like format
-    "{month} {year} {prev_year}", # table-like format
-]
-
 # Three-year time prefixes
 three_year_prefixes = [
     "At {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
     "As of {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
-]
-
-three_year_table_prefixes = [
-    "{year}, {prev_year}, and {prev2_year}", # table-like format
-    "{year} {prev_year} {prev2_year}", # table-like format
-    "{month} {year} {prev_year} {prev2_year}", # table-like format
 ]
 
 # Amount connectors (words that connect amounts to swap types)
@@ -126,11 +109,6 @@ one_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit} in {swap_type}",   
 ]
 
-# One-year amount patterns
-one_year_table_patterns = [
-    "{swap_type} {currency_code}{notional} {money_unit}",
-    "{swap_type}: {currency_code}{notional}", # Table-like format
-]
 
 # Two-year amount patterns
 two_year_amount_patterns = [
@@ -138,24 +116,11 @@ two_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively, in {swap_type}",
 ]
 
-two_year_table_patterns = [
-    "{swap_type} {currency_code}{notional} {currency_code}{prev_notional}", # Table-like format
-    "{swap_type} {currency_code}{notional}, {currency_code}{prev_notional}", # Table-like format
-    "{swap_type}: {currency_code}{notional} {currency_code}{prev_notional}", # Table-like format
-    "{swap_type}: {currency_code}{notional}, {currency_code}{prev_notional}", # Table-like format
-]
 
 # Three-year amount patterns
 three_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively",
     "{connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively, in {swap_type}",
-]
-
-three_year_table_patterns = [
-    "{swap_type} {currency_code}{notional} {currency_code}{prev_notional} {currency_code}{prev2_notional}", # Table-like format
-    "{swap_type} {currency_code}{notional}, {currency_code}{prev_notional}, {currency_code}{prev2_notional}", # Table-like format
-    "{swap_type}: {currency_code}{notional} {currency_code}{prev_notional} {currency_code}{prev2_notional}", # Table-like format
-    "{swap_type}: {currency_code}{notional}, {currency_code}{prev_notional}, {currency_code}{prev2_notional}", # Table-like format
 ]
 
 # Hedge designation phrases (optional endings)
@@ -1244,27 +1209,6 @@ def generate_hedge_position_templates(hedge_type="gen"):
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
                 templates.append(to_sentence_case(full))
-
-    # Single-year table-like patterns
-    for template in one_year_table_prefixes:
-        for order in one_year_table_patterns:
-            full = (
-                f"{template} {order}"
-            )
-            templates.append(to_sentence_case(full))
-
-    # Two-year table-like patterns
-    for template in two_year_table_prefixes:
-        for order in two_year_table_patterns:
-            full = (
-                f"{template} {order}"
-            )
-            templates.append(to_sentence_case(full))
-    # Three-year table-like patterns
-    for template in three_year_table_prefixes:
-        for order in three_year_table_patterns:
-            full = (f"{template} {order}")
-            templates.append(to_sentence_case(full))
 
     # Historical templates
     for template in historical_templates:
