@@ -687,23 +687,25 @@ def generate_hedge_paragraph(
                     hedge_type=hedge_type,
                 )
             )
-            discont_template = random.choice(hedge_discontinuation_templates)
-            sentences.append(
-                discont_template.format(
-                    company=pick_company_name(company_name),
-                    swap_type=swap_type,
-                    hedge_type=hedge_type,
-                    metric=random.choice(hedge_metrics),
-                    # Add missing placeholders for discontinuation templates
-                    gain_loss=random.choice(["gain", "loss"]),
-                    amount=generate_value(),
-                    currency_code=currency_code,
-                    money_unit=money_units,
-                    location=random.choice(balance_sheet_locations),
-                    month=month,
-                    year=year,
+            # Discontinuation sentence only for historical use
+            if has_active_derivative == False:
+                discont_template = random.choice(hedge_discontinuation_templates)
+                sentences.append(
+                    discont_template.format(
+                        company=pick_company_name(company_name),
+                        swap_type=swap_type,
+                        hedge_type=hedge_type,
+                        metric=random.choice(hedge_metrics),
+                        # Add missing placeholders for discontinuation templates
+                        gain_loss=random.choice(["gain", "loss"]),
+                        amount=generate_value(),
+                        currency_code=currency_code,
+                        money_unit=money_units,
+                        location=random.choice(balance_sheet_locations),
+                        month=month,
+                        year=year,
+                    )
                 )
-            )
             sentences = random.sample(sentences, random.randint(2,3))
         # --- Speculative / General Policy ---
         else: # has_active_derivative is None
