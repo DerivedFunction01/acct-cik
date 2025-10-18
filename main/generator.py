@@ -664,10 +664,7 @@ def generate_hedge_paragraph(
                     standard=random.choice(hedge_standards),
                     frequency=random.choice(frequencies),
                     hedge_type=hedge_type,
-                    month=month,
-                    # Add missing placeholders for effectiveness templates
-                    gain_loss=random.choice(["gain", "loss"]),
-                    amount=generate_value(),
+                    month=month,                    
                     end_day=end_day,
                     year=current_year,
                 )
@@ -681,8 +678,7 @@ def generate_hedge_paragraph(
             ineff_template = random.choice(hedge_ineffectiveness_actual_templates)
             sentences.append(
                 ineff_template.format(
-                    company=pick_company_name(company_name),
-                    frequency=random.choice(frequencies),
+                    company=pick_company_name(company_name),                    
                     year=random.choice(past_years) if past_years else reporting_year -1,
                     prev_year=random.choice(past_years) -1 if past_years else reporting_year - 2,
                     amount=generate_value(),
@@ -738,6 +734,7 @@ def generate_hedge_paragraph(
                     standard=random.choice(hedge_standards),
                     frequency=random.choice(frequencies),
                     hedge_type=hedge_type,
+                    end_day=end_day,
                 )
             )
             ineff_template = random.choice(hedge_ineffectiveness_policy_templates)
