@@ -263,6 +263,10 @@ def build_ir_regex() -> re.Pattern:
         "zero[- ]coupon swap",
         "FRA",
         "treasury lock",
+        "interest rate lock",
+        "interest rate cap",
+        "interest rate floor",
+        "single currency basis swap",
     ]
     
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
@@ -277,12 +281,20 @@ def build_fx_regex() -> re.Pattern:
         "foreign[- ]currency",
         "currency",
         "cross[- ]currency",
+        "currency[- ]rate",
+        "foreign[- ]exchange[- ]rate",
         "FX",
         "forex"
     ]
     
     specific_phrases = [
         "NDF",
+        "forward rate agreements?",
+        "forward rate contracts?",
+        "forward rate options?",
+        "currency swaps?",
+        "currency collars?",
+        "currency caps?",
         "non[- ]deliverable forwards?",
         "deliverable forwards?",
     ]
@@ -310,6 +322,7 @@ def build_cp_regex() -> re.Pattern:
     
     specific_phrases = [
         "commodity index",
+        "commodity swaps?",
     ]
     
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
@@ -349,6 +362,14 @@ def build_gen_regex() -> re.Pattern:
         "notional (?:amounts?|values?|principals?)",
         "over[- ]the[- ]counter derivatives?",
         "total[- ]return swap",
+        "derivative (?:assets?|liabilities|gains?|losses?|positions?|contracts?|instruments?)",
+        "(?:gain|loss) on derivatives?",
+        "change in fair value of derivatives?",
+        "designated as (?:a )?hedges?",
+        "(?:instruments?|contracts?) are designated",
+        "hedge of the net investment",
+        "net investment hedges?",
+        "ineffective portion",
     ]
     
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
