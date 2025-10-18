@@ -644,8 +644,9 @@ def generate_hedge_paragraph(
         labels["spec"] = 1
         if swapType is not None:
             labels[swapType] = 1
+        year = current_year if has_active_derivative else random.choice(past_years)
         # --- Current Use Policy ---
-        if has_active_derivative is True:
+        if has_active_derivative is not None:
             # For current use, discuss actual effectiveness and documentation.
             doc_template = random.choice(hedge_documentation_templates)
             sentences.append(
@@ -664,19 +665,17 @@ def generate_hedge_paragraph(
                     hedge_type=hedge_type,
                     month=month,                    
                     end_day=end_day,
-                    year=current_year,
+                    year=year,
                 )
             )
-
-        # --- Historical Use Policy ---
-        elif has_active_derivative is False:
+            
             # For historical use, discuss actual ineffectiveness and discontinuation.
             ineff_template = random.choice(hedge_ineffectiveness_actual_templates)
             sentences.append(
                 ineff_template.format(
                     company=pick_company_name(company_name),                    
-                    year=random.choice(past_years) if past_years else reporting_year -1,
-                    prev_year=random.choice(past_years) -1 if past_years else reporting_year - 2,
+                    year=year,
+                    prev_year=year - 1,
                     amount=generate_value(),
                     currency_code=currency_code,
                     money_unit=money_units,
@@ -702,10 +701,10 @@ def generate_hedge_paragraph(
                     money_unit=money_units,
                     location=random.choice(balance_sheet_locations),
                     month=month,
-                    year=random.choice(past_years) if past_years else reporting_year -1,
+                    year=year,
                 )
             )
-
+            sentences = random.sample(sentences, random.randint(2,3))
         # --- Speculative / General Policy ---
         else: # has_active_derivative is None
             # For speculative use, discuss policies for effectiveness, ineffectiveness, and general accounting.
@@ -755,7 +754,7 @@ def generate_hedge_paragraph(
                                              swap_type=swap_type)
             )
 
-        random.shuffle(sentences)
+            random.shuffle(sentences)
         return sentences
 
     def hedge_type_policy() -> list[str]:
