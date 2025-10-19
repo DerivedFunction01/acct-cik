@@ -46,7 +46,7 @@ def create_unified_schema(conn):
     # From classify-new.py
     c.execute(
         """
-        CREATE TABLE IF NOT NOT EXISTS server_result (
+        CREATE TABLE IF NOT EXISTS server_result (
             url TEXT PRIMARY KEY,
             server_response TEXT,
             FOREIGN KEY (url) REFERENCES report_data (url)
@@ -83,14 +83,29 @@ def transfer_table_data(source_conn, dest_conn, table_name):
     """
     print(f"  Transferring data for table: {table_name}...")
     try:
+        # 1. Read all data from the source table
         df = pd.read_sql(f"SELECT * FROM {table_name}", source_conn)
-        if not df.empty:
-            # Use INSERT OR IGNORE to gracefully handle duplicates
-            df.to_sql(table_name, dest_conn, if_exists="append", index=False)
-            print(f"    -> Transferred {len(df)} rows from {table_name}.")
-        else:
+        
+        if df.empty:
             print(f"    -> No data to transfer for {table_name}.")
-    except sqlite3.DatabaseError as e:
+            return
+
+        # 2. Use executemany to perform an "INSERT OR IGNORE"
+        # This correctly handles duplicates in common tables (report_data, names, etc.)
+        cols = ', '.join(df.columns)
+        placeholders = ', '.join(['?'] * len(df.columns))
+        sql = f"INSERT OR IGNORE INTO {table_name} ({cols}) VALUES ({placeholders})"
+        
+        # Get data as a list of tuples for executemany
+        data_tuples = df.to_records(index=False)
+        
+        dest_conn.executemany(sql, data_tuples)
+        # We must commit here since we're not using the pandas `to_sql` context
+        dest_conn.commit() 
+        
+        print(f"    -> Processed {len(df)} rows from {table_name}. (Duplicates ignored)")
+
+    except (sqlite3.DatabaseError, pd.io.sql.DatabaseError) as e:
         print(f"    -> Could not read table '{table_name}'. It might not exist in this source DB. Error: {e}")
 
 
