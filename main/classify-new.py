@@ -22,7 +22,7 @@ import psutil
 
 DB_PATH = "web_data.db"
 REPORT_CSV_PATH = "./report_data.csv"
-SERVER_URL = "http://127.0.0.1:5000/predict"
+SERVER_BASE_URL = "http://127.0.0.1:5000"
 KEYWORDS_FILE = "./keywords_find.json"
 DEBUG = False  # Debug printing
 CHUNK_SIZE = 100  # Base chunk size, will be adjusted based on RAM
@@ -38,21 +38,45 @@ SAVE_SHELL_CMD = f"cp {DB_PATH} {DRIVE_PATH}/."
 IS_COLAB = Path(DRIVE_PATH).exists()
 
 def get_system_config():
-    """Auto-detects system capabilities to set configuration."""
+    """Auto-detects client and server capabilities to set configuration."""
     cpu_cores = mp.cpu_count()
-    ram_gb = psutil.virtual_memory().total / (1024**3)
+    client_ram_gb = psutil.virtual_memory().total / (1024**3)
 
-    print(f"🖥️  System Detected: {cpu_cores} CPU cores, {ram_gb:.2f} GB RAM")
+    print(f"🖥️  Client System: {cpu_cores} CPU cores, {client_ram_gb:.2f} GB RAM")
 
-    # Set NUM_THREADS based on CPU cores
-    num_threads = cpu_cores * 5
+    # Query server for GPU info to determine NUM_THREADS
+    try:
+        info_url = f"{SERVER_BASE_URL}/info"
+        response = requests.get(info_url, timeout=5)
+        response.raise_for_status()
+        server_info = response.json()
 
-    # Set CHUNK_SIZE based on RAM
-    if ram_gb > 32:
+        if server_info.get("gpu_available"):
+            gpu_ram = server_info.get("total_ram_gb", 0)
+            print(f"✅ Server has GPU: {server_info.get('gpu_name')} with {gpu_ram:.2f} GB RAM")
+            # Scale threads based on GPU RAM. More RAM can handle more concurrent requests.
+            if gpu_ram > 20:  # A100, etc.
+                num_threads = 20
+            elif gpu_ram > 14: # T4, P100
+                num_threads = 8
+            elif gpu_ram > 6: # Smaller GPUs
+                num_threads = 4
+            else:
+                num_threads = 2
+        else:
+            print("⚠️  Server has no GPU, defaulting to CPU-based threading")
+            server_cpu_cores = server_info.get("cpu_cores", cpu_cores)
+            num_threads = server_cpu_cores
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Could not connect to server at {SERVER_BASE_URL}. Defaulting to CPU-based thread count.")
+        print(f"   Error: {e}")
+        num_threads = cpu_cores # Fallback if server is down, use client's cores as a guess
+
+    if client_ram_gb > 32:
         chunk_multiplier = 10  # High-RAM machine
-    elif ram_gb > 16:
+    elif client_ram_gb > 16:
         chunk_multiplier = 5  # Medium-RAM machine
-    elif ram_gb > 8:
+    elif client_ram_gb > 8:
         chunk_multiplier = 2  # Standard machine
     else:
         chunk_multiplier = 1  # Low-RAM machine
@@ -146,23 +170,26 @@ def get_matches(url):
     if not result:
         return []
     data = pd.DataFrame([result], columns=columns)    
-    # Load the matches, which is now a dictionary from colab.py
-    categorized_matches = json.loads(data.matches.iloc[0])
+    try:
+        # Load the matches, which is now a dictionary from colab.py
+        categorized_matches = json.loads(data.matches.iloc[0])
 
-    # Flatten the dictionary of lists into a single list of sentences
-    # Ensure it's a dictionary before trying to iterate over its values
-    if isinstance(categorized_matches, dict):
-        flattened_sentences = []
-        for category_sentences in categorized_matches.values():
-            if isinstance(category_sentences, list): # Ensure the value is a list
-                flattened_sentences.extend(category_sentences)
-        return flattened_sentences
-    else:
-        # Fallback for old format or unexpected data, treat as a list if it is
-        if isinstance(categorized_matches, list):
-            return categorized_matches
+        # Flatten the dictionary of lists into a single list of sentences
+        # Ensure it's a dictionary before trying to iterate over its values
+        if isinstance(categorized_matches, dict):
+            flattened_sentences = []
+            for category_sentences in categorized_matches.values():
+                if isinstance(category_sentences, list): # Ensure the value is a list
+                    flattened_sentences.extend(category_sentences)
+            return flattened_sentences
         else:
-            return [] # Return empty list if it's neither a dict nor a list
+            # Fallback for old format or unexpected data, treat as a list if it is
+            if isinstance(categorized_matches, list):
+                return categorized_matches
+            else:
+                return [] # Return empty list if it's neither a dict nor a list
+    except (json.JSONDecodeError, IndexError):
+        return []
 
 
 def fetch_server_results():
@@ -309,9 +336,8 @@ def get_result_from_server(sentences, batch_size=128):
         batch = sentences[i : i + batch_size]
         payload = {"texts": batch}
         try:
-            response = requests.post(
-                SERVER_URL, headers=headers, data=json.dumps(payload)
-            )
+            predict_url = f"{SERVER_BASE_URL}/predict"
+            response = requests.post(predict_url, headers=headers, data=json.dumps(payload))
             response.raise_for_status()
             resp_json = response.json()
             preds = resp_json.get("predictions")  # Server returns a list of prediction dicts
@@ -324,13 +350,13 @@ def get_result_from_server(sentences, batch_size=128):
                     f"Warning: batch size {len(batch)} vs response {len(preds)} mismatch"
                 )
                 # Use a consistent error object instead of -1
-                predictions.extend([{"error": -1}] * len(batch))
-                continue  # Continue to the next batch
+                predictions.extend([{"error": "mismatch"}] * len(batch))
+                continue
             predictions.extend(preds)
         except requests.exceptions.RequestException as e:
             print(f"Error communicating with server: {e}")
             # Use a consistent error object for network errors
-            predictions.extend([{"error": -1}] * len(batch))
+            predictions.extend([{"error": "network_error"}] * len(batch))
     return predictions
 
 
@@ -489,8 +515,12 @@ print(f"Found {len(existing_report_df)} reports in database")
 with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
     keyword_data = json.load(f)
 
-id2label = {i: label for i, label in enumerate(keyword_data)}
-label2id = {label: i for i, label in enumerate(keyword_data)}
+# Handle both old and new formats of keywords_find.json
+if isinstance(keyword_data, dict) and "0" in keyword_data:
+    id2label = {int(k): v for k, v in keyword_data.items()}
+else:
+    id2label = {i: label for i, label in enumerate(keyword_data)}
+label2id = {v: k for k, v in id2label.items()}
 
 # =============================================================================
 # MAIN EXECUTION

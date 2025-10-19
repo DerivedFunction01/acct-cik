@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
+import multiprocessing as mp
 import json
 
 app = Flask(__name__)
@@ -61,6 +62,27 @@ def predict_endpoint():
     texts = data["texts"]
     predictions = predict_batch(texts)
     return jsonify(predictions)
+
+
+# GPU Info route
+@app.route("/info", methods=["GET"])
+def info_endpoint():
+    """Provides information about the server's GPU, if available."""
+    if torch.cuda.is_available():
+        gpu_name = torch.cuda.get_device_name(0)
+        total_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        info = {
+            "gpu_available": True,
+            "gpu_name": gpu_name,
+            "total_ram_gb": round(total_memory_gb, 2),
+        }
+    else:
+        info = {
+            "gpu_available": False,
+            "message": "No CUDA-enabled GPU found.",
+            "cpu_cores": mp.cpu_count(),
+        }
+    return jsonify(info)
 
 
 # Run Flask app
