@@ -24,6 +24,7 @@ class QualitativeSampler(BaseAnalyzer):
         self.sample_size = sample_size
         self.random_state = random_state
         self.output_filename = self.config.output_dir / "qualitative_review_sample.html"
+        self.sampled_urls_csv = self.config.output_dir / "qualitative_review_sampled_urls.csv"
         # Basic HTML template for the report
         self.html_template = """
 <!DOCTYPE html>
@@ -158,10 +159,27 @@ class QualitativeSampler(BaseAnalyzer):
             print("   ❌ 'url' column not found in input data. Skipping.")
             return {}
 
-        # Take a random sample of the reports
-        sample_df = data.sample(
-            n=min(self.sample_size, len(data)), random_state=self.random_state
-        )
+        # Check if a file with sampled URLs already exists.
+        if self.sampled_urls_csv.exists():
+            print(f"   -> Found existing sample file: {self.sampled_urls_csv}. Reusing URLs.")
+            try:
+                sampled_keys_df = pd.read_csv(self.sampled_urls_csv)
+                # Use an inner merge to select only the rows from the main data that match the saved sample.
+                sample_df = pd.merge(data, sampled_keys_df[['cik', 'year']], on=['cik', 'year'], how='inner')
+                if len(sample_df) != len(sampled_keys_df):
+                    print(f"   ⚠️  Warning: Mismatch between sampled URLs file and available data. Found {len(sample_df)} of {len(sampled_keys_df)} reports.")
+            except Exception as e:
+                print(f"   ❌ Error reading sample file: {e}. Generating a new random sample.")
+                sample_df = data.sample(n=min(self.sample_size, len(data)), random_state=self.random_state)
+                # Save the new sample's keys for future runs
+                sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
+                print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
+        else:
+            print("   -> No existing sample file found. Generating a new random sample.")
+            sample_df = data.sample(n=min(self.sample_size, len(data)), random_state=self.random_state)
+            # Save the new sample's keys for future runs
+            sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
+            print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
 
         reports_data = []
         for _, row in sample_df.iterrows():
