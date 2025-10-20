@@ -12,3 +12,4 @@ logs
 client_secrets.json
 *.pickle
 mycreds.txt
+venv-acct-cik/
