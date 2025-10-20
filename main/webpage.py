@@ -1175,6 +1175,8 @@ class ThreadSafeRateLimiter:
         self._last_429_time = 0
         self._429_count = 0
         self._recovery_mode = False
+        # Keep the initial value so we can decay back to it after recovery
+        self._initial_rate_limit = float(initial_rate_limit)
 
     @property
     def value(self) -> float:
@@ -1208,6 +1210,30 @@ class ThreadSafeRateLimiter:
                 self._429_count = 0
             return self._recovery_mode, self._429_count, time_since_last_429
 
+    @property
+    def initial_value(self) -> float:
+        """Return the initial configured sleep value (seconds)."""
+        with self._lock:
+            return self._initial_rate_limit
+
+    def recover_towards_initial(self, step: float = 0.1) -> float:
+        """Gradually reduce the current sleep value toward the initial value.
+
+        Args:
+            step: fraction of the remaining gap to close each call (0-1). e.g. 0.1 reduces 10% of the gap.
+
+        Returns:
+            The updated rate limit value.
+        """
+        with self._lock:
+            if self._rate_limit <= self._initial_rate_limit:
+                return self._rate_limit
+            # reduce the excess by `step` fraction so it decays exponentially
+            gap = self._rate_limit - self._initial_rate_limit
+            reduction = max(gap * step, 1e-6)
+            self._rate_limit = max(self._initial_rate_limit, self._rate_limit - reduction)
+            return self._rate_limit
+
 
 def adjust_rate_in_background(
     tqdm_bar: tqdm,
@@ -1221,14 +1247,30 @@ def adjust_rate_in_background(
     """
     consecutive_slow_checks = 0
     consecutive_fast_checks = 0
+
+    # Small, robust rate estimator using tqdm's completed count
+    prev_count = getattr(tqdm_bar, "n", 0)
+    prev_time = time.time()
+
+    min_time_since_429 = 5
+
     while not stop_event.is_set():
         time.sleep(0.25)  # Check 4 times per second
 
-        # Ensure the tqdm bar and its rate are available
-        if not hasattr(tqdm_bar, "rate") or tqdm_bar.rate is None:
-            continue
+        # Estimate current rate (requests/sec) from progress increments
+        try:
+            now = time.time()
+            current_count = getattr(tqdm_bar, "n", prev_count)
+            elapsed = now - prev_time if now - prev_time > 0 else 1e-6
+            current_rate = (current_count - prev_count) / elapsed
+            # Smooth small negative glitches
+            if current_rate < 0:
+                current_rate = 0.0
+            prev_count = current_count
+            prev_time = now
+        except Exception:
+            current_rate = 0.0
 
-        current_rate = tqdm_bar.rate
         current_sleep = rate_limiter.value
         mode = "Normal"
 
@@ -1247,6 +1289,25 @@ def adjust_rate_in_background(
                 target_rate_adjusted = target_rate * (0.5 + (0.5 * recovery_factor))
         else:
             target_rate_adjusted = target_rate
+
+        # Gradual recovery of the sleep value toward the configured initial value.
+        # If we're in recovery and some time has passed since the last 429, gently decay the sleep.
+        try:
+            if in_recovery:
+                # Start gradual decay after a short buffer; make the step grow as we remain free of 429s
+                if time_since_429 > min_time_since_429:
+                    # step ranges ~0.005 -> 0.05 depending on how long we've been clear of 429s
+                    recovery_factor = min((time_since_429 - min_time_since_429) / 25, 1.0)
+                    step = 0.01 + (0.04 * recovery_factor)
+                    new_sleep = rate_limiter.recover_towards_initial(step=step)
+            else:
+                # Not in recovery: always decay back toward initial value slowly
+                if rate_limiter.value > rate_limiter.initial_value:
+                    # modest step so we don't ramp up too quickly
+                    new_sleep = rate_limiter.recover_towards_initial(step=0.02)
+        except Exception:
+            # Keep running even if recover call fails for some reason
+            pass
 
         # Proactive adjustment logic
         if current_rate > target_rate_adjusted * 1.05: # If we are >5% over target
@@ -1292,9 +1353,14 @@ def fetch_raw_content(url: str, rate_limiter: ThreadSafeRateLimiter = None):
     raw_text = fetch_url(url, rate_limiter=rate_limiter)
     if raw_text:
         return url, raw_text
-    elif raw_text is None and url: # Check if fetch_url returned None due to rate limit
-        # This is a signal that we might have been rate-limited
-        # We can return a special value to notify the main loop
+    elif raw_text is None and url:  # Check if fetch_url returned None due to rate limit
+        # Notify the rate limiter (if provided) that we saw a 429
+        try:
+            if rate_limiter:
+                rate_limiter.signal_429()
+        except Exception:
+            pass
+        # Return sentinel for the main loop to react to
         return "RATE_LIMITED", url
 
     return None
@@ -1347,6 +1413,38 @@ def format_time(seconds):
 def process_all_reports_fully():
     # Initialize a thread-safe rate limiter for the fetching stage.
     rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT)
+
+    # Background recovery worker to ensure the sleep value decays back toward initial
+    def recovery_worker(rate_limiter: ThreadSafeRateLimiter, stop_event: threading.Event):
+        """Continuously attempt to recover the sleep value toward the initial value.
+
+        This runs independently of chunk-level adjusters so that recovery proceeds
+        even when no per-chunk adjuster is active.
+        """
+        while not stop_event.is_set():
+            try:
+                in_recovery, num_429s, time_since_429 = rate_limiter.check_recovery()
+                # If we are in recovery and some time has passed without 429s, be a bit more aggressive
+                if in_recovery:
+                    if time_since_429 > 5:
+                        # step grows up to 0.05 as time passes
+                        recovery_factor = min((time_since_429 - 5) / 25, 1.0)
+                        step = 0.01 + (0.04 * recovery_factor)
+                        rate_limiter.recover_towards_initial(step=step)
+                else:
+                    # Not in recovery: slowly decay toward initial
+                    if rate_limiter.value > rate_limiter.initial_value:
+                        rate_limiter.recover_towards_initial(step=0.02)
+            except Exception:
+                pass
+            # Sleep a bit between adjustments to avoid spinning
+            time.sleep(5)
+
+    recovery_stop_event = threading.Event()
+    recovery_thread = threading.Thread(
+        target=recovery_worker, args=(rate_limiter, recovery_stop_event), daemon=True
+    )
+    recovery_thread.start()
 
     processed_set = get_processed_urls()
 
@@ -1414,12 +1512,19 @@ def process_all_reports_fully():
                         if result and result[0] != "RATE_LIMITED":
                             fetched_data.append(result)
                         elif result and result[0] == "RATE_LIMITED":
-                            # Rate limit detected. Immediately increase sleep time for all threads.
-                            cool_down_increase = 0.1 * NUM_FETCHERS  # Increase sleep by 100ms per fetcher
-                            rate_limiter.value += cool_down_increase
-                            tqdm_bar.set_postfix_str(
-                                f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
-                            )
+                                    # Rate limit detected. Notify the limiter and increase sleep time a bit.
+                                    try:
+                                        rate_limiter.signal_429()
+                                    except Exception:
+                                        pass
+                                    # Increase sleep conservatively but bounded
+                                    cool_down_increase = min(0.5, 0.05 * NUM_FETCHERS)
+                                    rate_limiter.value = rate_limiter.value + cool_down_increase
+                                    # Cap sleep to a reasonable upper bound (e.g., 60s)
+                                    rate_limiter.value = min(rate_limiter.value, 60.0)
+                                    tqdm_bar.set_postfix_str(
+                                        f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
+                                    )
 
                     except Exception as e:
                         print(f"Fetch error: {e}")
@@ -1501,6 +1606,12 @@ def process_all_reports_fully():
             f"  📈 Success rate: {(total_results/(total_results+total_empty)*100):.1f}%"
         )
     print("=" * 70)
+    # Stop the recovery thread
+    try:
+        recovery_stop_event.set()
+        recovery_thread.join(timeout=2)
+    except Exception:
+        pass
 
 
 # =============================================================================
