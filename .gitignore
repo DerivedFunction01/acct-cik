@@ -10,3 +10,4 @@ logs
 *.pyc
 *.csv
 client_secrets.json
+*.pickle
