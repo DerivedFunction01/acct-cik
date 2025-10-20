@@ -696,6 +696,20 @@ stock_comp_valuation_templates = [
     "The weighted-average grant-date fair value of options granted during {year} was {currency_code}{amount} per share",
 ]
 
+stock_option_plan_templates = [
+    "{company} maintains the {year} Stock Option Plan, under which {shares} shares of common stock are reserved for issuance to employees and directors.",
+    "Options granted under the employee stock option plan have a maximum term of {small_int} years and generally vest over a {small_int2}-year period.",
+    "The exercise price of stock options granted is equal to the fair market value of the common stock on the date of grant.",
+    "During {year}, employees exercised options to purchase {shares} shares, resulting in cash proceeds of {currency_code}{amount} {money_unit}.",
+    "As of {month} {end_day}, {year}, there was {currency_code}{amount} {money_unit} of total unrecognized compensation cost related to non-vested stock options.",
+    "The Company's stock option plan is administered by the Compensation Committee of the Board of Directors.",
+    "No stock options were granted during the year ended {month} {end_day}, {year}.",
+    "Stock option activity during the year ended {month} {end_day}, {year} was as follows: outstanding at beginning of year, {shares}; granted, {shares2}; exercised, {shares}; forfeited, {shares2}.",
+    "The intrinsic value of stock options exercised during {year}, {prev_year}, and {prev2_year} was {currency_code}{amount} {money_unit}, {currency_code}{amount2} {money_unit}, and {currency_code}{amount3} {money_unit}, respectively.",
+    "The Company issues new shares of common stock upon the exercise of stock options.",
+    "All stock options are granted with an exercise price equal to the market price of the Company's stock at the date of grant."
+]
+
 # ============ PENSION AND POSTRETIREMENT BENEFITS ============
 
 pension_templates = [
@@ -3073,8 +3087,10 @@ noise_templates: dict[str, list[list[str]]] = {
         warrant_amortization_templates,
         stock_comp_templates,
         stock_comp_valuation_templates,
+        stock_option_plan_templates,
         stock_price_templates,
         trading_volume_templates,
+        stock_option_plan_templates,
     ],
     # IR related
     "IR": [debt_templates, debt_covenant_templates],
