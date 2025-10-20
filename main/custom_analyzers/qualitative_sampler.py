@@ -34,70 +34,141 @@ class QualitativeSampler(BaseAnalyzer):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Qualitative Review Sample</title>
     <style>
-        body { font-family: sans-serif; line-height: 1.6; margin: 20px; background-color: #f4f4f9; color: #333; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        .report { border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
-        h1 { color: #444; }
-        h2 { color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-        a { color: #007bff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f8f8f8; }
-        .text-content { background-color: #fafafa; border-left: 3px solid #007bff; padding: 15px; white-space: pre-wrap; word-wrap: break-word; }
-        .flag-yes { color: green; font-weight: bold; }
-        .flag-no { color: red; }
-        .sentence-container { margin-bottom: 1em; }
-        .sentence-labels { font-size: 0.8em; color: #666; background-color: #e9e9f3; padding: 3px 8px; border-radius: 12px; display: inline-block; margin-top: 5px; }
-        .sentence-labels strong { color: #0056b3; }
+        :root { --sidebar-width: 320px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 0; color: #222; }
+        .app { display: flex; height: 100vh; }
+        .sidebar { width: var(--sidebar-width); background: #0f1724; color: #e6eef8; overflow: auto; padding: 12px; box-sizing: border-box; }
+        .sidebar h2 { margin: 8px 0 12px; font-size: 16px; }
+        .report-link { display: block; padding: 8px; border-radius: 6px; margin-bottom: 6px; color: inherit; text-decoration: none; }
+        .report-link:hover { background: rgba(255,255,255,0.03); }
+        .report-link.active { background: rgba(255,255,255,0.06); font-weight: 600; }
+        .main { flex: 1; overflow: auto; padding: 20px; box-sizing: border-box; background: #f6f7fb; }
+        .header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+        .card { background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 6px 18px rgba(18, 38, 63, 0.06); margin-top: 12px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+        th, td { border: 1px solid #eee; padding: 8px; text-align: left; }
+        .text-content { background-color: #fcfdff; border-left: 3px solid #2b6cb0; padding: 12px; white-space: pre-wrap; }
+        .sentence { margin-bottom: 12px; }
+        .sentence-labels { font-size: 0.82em; color: #444; background: #eef2ff; padding: 6px 8px; border-radius: 8px; display:inline-block; }
+        .controls { display:flex; gap:8px; align-items:center; }
+        .btn { background:#2b6cb0; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; cursor:pointer; border:none; }
+        .btn.secondary { background:#edf2ff; color:#1e293b; }
+        .meta { color:#475569; font-size:0.95em; }
+        .small { font-size:0.85em; color:#64748b; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Qualitative Review Sample ({{ num_samples }} Reports)</h1>
-        {% for report in reports %}
-        <div class="report">
-            <h2>Report: CIK {{ report.cik }} ({{ report.year }})</h2>
-            <p><strong>URL:</strong> <a href="{{ report.url }}" target="_blank">{{ report.url }}</a></p>
-            
-            <h3>Comparison Flags</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Category</th>
-                        <th>Keyword Flag</th>
-                        <th>Model Flag</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for flag in report.flags %}
-                    <tr>
-                        <td>{{ flag.name }}</td>
-                        <td class="{{ 'flag-yes' if flag.keyword else 'flag-no' }}">{{ 'Yes' if flag.keyword else 'No' }}</td>
-                        <td class="{{ 'flag-yes' if flag.model else 'flag-no' }}">{{ 'Yes' if flag.model else 'No' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-
-            <h3>Extracted Text</h3>
-            <div class="text-content">
-                {% for sentence_info in report.sentences %}
-                    <div class="sentence-container">
-                        <p>{{ sentence_info.text }}</p>
-                        <div class="sentence-labels">
-                            <strong>Primary:</strong> {{ sentence_info.primary_label if sentence_info.primary_label else 'None' }}
-                            &nbsp;|&nbsp;
-                            <strong>All Primary:</strong> {{ sentence_info.all_primary_labels | join(', ') if sentence_info.all_primary_labels else 'None' }}
-                            &nbsp;|&nbsp;
-                            <strong>Active Scores:</strong> {{ sentence_info.labels | join(', ') if sentence_info.labels else 'None' }}
-                        </div>
-                    </div>
-                {% endfor %}
+    <div class="app">
+        <aside class="sidebar">
+            <h2>Qualitative Review ({{ num_samples }} reports)</h2>
+            <div id="report-list"></div>
+        </aside>
+        <main class="main">
+            <div class="header">
+                <div>
+                    <h1 id="report-title">Report</h1>
+                    <div class="meta" id="report-meta"></div>
+                </div>
+                <div class="controls">
+                    <button class="btn" id="prev-btn">Previous</button>
+                    <button class="btn" id="next-btn">Next</button>
+                    <a id="open-url" class="btn secondary" target="_blank">Open URL</a>
+                </div>
             </div>
-        </div>
-        {% endfor %}
+
+            <div id="report-content" class="card">
+                <!-- Flags -->
+                <h3>Comparison Flags</h3>
+                <table id="flags-table"><thead><tr><th>Category</th><th>Keyword Flag</th><th>Model Flag</th></tr></thead><tbody></tbody></table>
+
+                <!-- Extracted text -->
+                <h3 style="margin-top:18px">Extracted Text</h3>
+                <div id="sentences" class="text-content"></div>
+            </div>
+        </main>
     </div>
+
+    <!-- Embedded data -->
+    <script id="reports-data" type="application/json">{{ reports_json | safe }}</script>
+
+    <script>
+        // Small SPA to render each report on its own "page"
+        const reports = JSON.parse(document.getElementById('reports-data').textContent || '[]');
+        const listEl = document.getElementById('report-list');
+        const titleEl = document.getElementById('report-title');
+        const metaEl = document.getElementById('report-meta');
+        const flagsTableBody = document.querySelector('#flags-table tbody');
+        const sentencesEl = document.getElementById('sentences');
+        const openUrlEl = document.getElementById('open-url');
+
+        function makeList() {
+            reports.forEach((r, idx) => {
+                const a = document.createElement('a');
+                a.href = `#${idx}`;
+                a.className = 'report-link';
+                a.textContent = `CIK ${r.cik} (${r.year})`;
+                a.dataset.idx = idx;
+                listEl.appendChild(a);
+            });
+        }
+
+        function renderReport(idx) {
+            const r = reports[idx];
+            if (!r) return;
+            // highlight
+            Array.from(document.querySelectorAll('.report-link')).forEach(el => el.classList.toggle('active', el.dataset.idx == idx));
+
+            titleEl.textContent = `CIK ${r.cik} — ${r.year}`;
+            metaEl.textContent = r.url;
+            openUrlEl.href = r.url;
+            openUrlEl.textContent = 'Open URL';
+
+            // flags table
+            flagsTableBody.innerHTML = '';
+            r.flags.forEach(f => {
+                const tr = document.createElement('tr');
+                const tdName = document.createElement('td'); tdName.textContent = f.name;
+                const tdKw = document.createElement('td'); tdKw.textContent = f.keyword ? 'Yes' : 'No'; tdKw.style.color = f.keyword ? 'green' : 'red';
+                const tdModel = document.createElement('td'); tdModel.textContent = f.model ? 'Yes' : 'No'; tdModel.style.color = f.model ? 'green' : 'red';
+                tr.appendChild(tdName); tr.appendChild(tdKw); tr.appendChild(tdModel);
+                flagsTableBody.appendChild(tr);
+            });
+
+            // sentences
+            sentencesEl.innerHTML = '';
+            (r.sentences || []).forEach(s => {
+                const div = document.createElement('div'); div.className = 'sentence';
+                const p = document.createElement('p'); p.textContent = s.text;
+                const labelsDiv = document.createElement('div'); labelsDiv.className = 'sentence-labels';
+                const primary = s.primary_label || 'None';
+                const allPrimary = (s.all_primary_labels && s.all_primary_labels.length) ? s.all_primary_labels.join(', ') : 'None';
+                const active = (s.labels && s.labels.length) ? s.labels.join(', ') : 'None';
+                labelsDiv.innerHTML = `<strong>Primary:</strong> ${primary} &nbsp;|&nbsp; <strong>All Primary:</strong> ${allPrimary} &nbsp;|&nbsp; <strong>Active Scores:</strong> ${active}`;
+                div.appendChild(p); div.appendChild(labelsDiv);
+                sentencesEl.appendChild(div);
+            });
+        }
+
+        function route() {
+            const hash = window.location.hash.replace('#','');
+            let idx = parseInt(hash, 10);
+            if (Number.isNaN(idx) || idx < 0 || idx >= reports.length) idx = 0;
+            renderReport(idx);
+            // update prev/next buttons
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            prevBtn.disabled = idx === 0; nextBtn.disabled = idx === reports.length - 1;
+            prevBtn.onclick = () => { window.location.hash = Math.max(0, idx - 1); };
+            nextBtn.onclick = () => { window.location.hash = Math.min(reports.length - 1, idx + 1); };
+        }
+
+        window.addEventListener('hashchange', route);
+
+        // init
+        makeList();
+        if (!window.location.hash) window.location.hash = '#0';
+        route();
+    </script>
 </body>
 </html>
 """
@@ -287,7 +358,9 @@ class QualitativeSampler(BaseAnalyzer):
         # Using Jinja2 for safer and cleaner template rendering
         from jinja2 import Template
         template = Template(self.html_template)
-        html_content = template.render(reports=reports_data, num_samples=len(reports_data))
+        # Pass reports as JSON to embed into the SPA template
+        reports_json = json.dumps(reports_data, ensure_ascii=False)
+        html_content = template.render(reports=reports_data, num_samples=len(reports_data), reports_json=reports_json)
 
         # Save the HTML file
         with open(self.output_filename, "w", encoding="utf-8") as f:
