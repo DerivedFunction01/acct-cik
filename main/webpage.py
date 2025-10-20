@@ -1379,12 +1379,6 @@ def process_all_reports_fully():
             time.sleep(cool_down_period)
             # Optionally, you could also make the rate limiter more conservative here
 
-        chunk_time = time.time() - start_chunk_time
-        chunk_times.append(chunk_time)
-        total_time += chunk_time
-        avg_chunk_time = sum(chunk_times) / len(chunk_times)
-        remaining_chunks = len(chunks) - chunk_idx
-        est_time_remaining = avg_chunk_time * remaining_chunks
 
         print(f"  ✓ Fetched {len(fetched_data)} reports.")
 
@@ -1415,6 +1409,13 @@ def process_all_reports_fully():
                 except Exception as e:
                     print(f"Parse error: {e}")
                     chunk_empty += 1
+        
+        chunk_time = time.time() - start_chunk_time
+        chunk_times.append(chunk_time)
+        total_time += chunk_time
+        avg_chunk_time = sum(chunk_times) / len(chunk_times)
+        remaining_chunks = len(chunks) - chunk_idx
+        est_time_remaining = avg_chunk_time * remaining_chunks
 
         total_results += chunk_results
         total_empty += chunk_empty
