@@ -1172,6 +1172,9 @@ class ThreadSafeRateLimiter:
     def __init__(self, initial_rate_limit: float):
         self._rate_limit = initial_rate_limit
         self._lock = threading.Lock()
+        self._last_429_time = 0
+        self._429_count = 0
+        self._recovery_mode = False
 
     @property
     def value(self) -> float:
@@ -1185,6 +1188,26 @@ class ThreadSafeRateLimiter:
         with self._lock:
             self._rate_limit = new_value
 
+    def signal_429(self):
+        """Signal that a 429 response was received."""
+        with self._lock:
+            self._last_429_time = time.time()
+            self._429_count += 1
+            self._recovery_mode = True
+            # Immediately increase sleep time by 50%
+            self._rate_limit *= 1.5
+
+    def check_recovery(self) -> tuple[bool, int, float]:
+        """Check recovery status from 429s."""
+        with self._lock:
+            time_since_last_429 = time.time() - self._last_429_time
+            was_in_recovery = self._recovery_mode
+            # Exit recovery mode if no 429s for 30 seconds
+            if self._recovery_mode and time_since_last_429 > 30:
+                self._recovery_mode = False
+                self._429_count = 0
+            return self._recovery_mode, self._429_count, time_since_last_429
+
 
 def adjust_rate_in_background(
     tqdm_bar: tqdm,
@@ -1196,6 +1219,7 @@ def adjust_rate_in_background(
     A background thread function to dynamically adjust the sleep rate.
     This runs independently of the main fetch loop.
     """
+    consecutive_slow_checks = 0
     while not stop_event.is_set():
         time.sleep(0.25)  # Check 4 times per second
 
@@ -1206,18 +1230,39 @@ def adjust_rate_in_background(
         current_rate = tqdm_bar.rate
         current_sleep = rate_limiter.value
 
+        # Check recovery status from 429s
+        in_recovery, num_429s, time_since_429 = rate_limiter.check_recovery()
+
+        # If we're in recovery mode, be more conservative
+        if in_recovery:
+            target_rate_adjusted = target_rate * 0.5  # Aim for 50% of normal rate
+            min_time_since_429 = 5  # Start increasing rate after 5 seconds without 429s
+            if time_since_429 > min_time_since_429:
+                # Gradually increase target rate as time passes without 429s
+                recovery_factor = min((time_since_429 - min_time_since_429) / 25, 1.0)
+                target_rate_adjusted = target_rate * (0.5 + (0.5 * recovery_factor))
+        else:
+            target_rate_adjusted = target_rate
+
         # Proactive adjustment logic
-        # If we are going too fast, increase sleep time
-        if current_rate > target_rate:
+        if current_rate > target_rate_adjusted:
             # Increase sleep time proportionally to how much we are over
-            overshoot_factor = (current_rate - target_rate) / target_rate
+            overshoot_factor = (current_rate - target_rate_adjusted) / target_rate_adjusted
             rate_limiter.value += 0.001 + (0.01 * overshoot_factor)
-        # If we are too slow, decrease sleep time (but not below zero)
-        elif current_rate < (target_rate * 0.9):  # Leave a 10% buffer
-            rate_limiter.value = max(0, current_sleep - 0.002)
+            consecutive_slow_checks = 0
+        elif current_rate < (target_rate_adjusted * 0.95):
+            if not in_recovery:  # Be more aggressive only when not in recovery
+                consecutive_slow_checks += 1
+                decrease_factor = min(0.01 * consecutive_slow_checks, 0.2)
+                rate_limiter.value = max(0, current_sleep * (1 - decrease_factor))
+        else:
+            consecutive_slow_checks = 0
 
         tqdm_bar.set_postfix(
-            rate=f"{current_rate:.1f} req/s", sleep=f"{rate_limiter.value*1000:.1f}ms"
+            rate=f"{current_rate:.1f} req/s", 
+            sleep=f"{rate_limiter.value*1000:.1f}ms",
+            recovery=f"{'Y' if in_recovery else 'N'}",
+            target=f"{target_rate_adjusted:.1f}"
         )
 
 
