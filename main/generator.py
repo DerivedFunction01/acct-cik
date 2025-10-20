@@ -1627,6 +1627,14 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     month = random.choice(months)
     end_day = random.randint(28, 31)
     
+    category_map =  {
+        'ir': "Interest Rate contracts",
+        'fx': "Foreign Exchange contracts",
+        'cp': "Commodity contracts",
+        'eq': "Equity contracts",
+        'gen': "Derivatives",
+    }
+    
     # Determine which swap types to include
     if swapType == 'mixed':
         # Mixed: include multiple swap types
@@ -1661,15 +1669,17 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         labels[swap] = 1.0  
         labels[f"{swap}_use"] = 1.0 
         
-    
         cat_lines = random.sample(derivative_keywords["gen"], k=random.randint(3, 5))
         
         # Add multiple line items with lots of numbers
         num_lines = random.randint(4, 6)
-        selected_lines = random.sample(cat_lines, k=min(num_lines, len(cat_lines)))
         
-        for line_item in selected_lines:
+        for _ in range(num_lines):
             template = random.choice(table_line_templates)
+            
+            # Create a concatenated line item from random swap types
+            num_concat = random.randint(1, 3)
+            line_item = " ".join(random.sample(cat_lines, k=min(num_concat, len(cat_lines))))
             
             notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
             prev_notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
@@ -1691,6 +1701,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     # Add summary/total lines with more numbers
     if random.random() < 0.7:
         total_template = random.choice(table_totals)
+        line_item = random.choice(derivative_keywords.get(swapType, derivative_keywords['gen']))
         amount = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
         amount2 = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
         
@@ -1698,6 +1709,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             year=current_year,
             prev_year=prev_year,
             amount=amount,
+            line_item=line_item,
             amount2=amount2,
             money_unit=money_units,
             currency_code=currency_code
