@@ -169,7 +169,7 @@ class SentenceLabeler:
                 record = {
                     "cik": row["cik"],
                     "year": row["year"],
-                    "url": row["url"],
+                    "url": row["url_x"],  # Use the URL from the sentence data batch
                     "sentence": matches[i],
                     "labels": ", ".join(primary_labels),
                     **{col: row.get(col, 0) for col in flag_cols},

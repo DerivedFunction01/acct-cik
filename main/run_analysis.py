@@ -149,11 +149,9 @@ class AnalysisPipeline:
     def _run_comparison_analysis(self):
         """Runs the keyword vs. model comparison and saves the workbook."""
         print("\n[Extra] Running Keyword vs. Model Comparison...")
-        # This analyzer is now run as part of the DisagreementSampler if needed,
-        # or can be run standalone if it had its own `run` method.
-        # For now, we assume its main value is for the sampler.
-        # If a separate comparison file is needed, we would give it a `run` method.
-        print("     (Comparison is run internally by Disagreement Sampler)")
+        # This analyzer is now a standalone component with its own run method.
+        comparison_analyzer = ComparisonAnalyzer(self.config, self.label_mapper)
+        comparison_analyzer.run()
 
     def _run_disagreement_sampler(self):
         """Runs the disagreement sampler if comparison results are available."""

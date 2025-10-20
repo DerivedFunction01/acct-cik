@@ -229,3 +229,32 @@ class ComparisonAnalyzer(BaseAnalyzer):
 
         print(f"✅ Comparison analysis complete ({len(merged_df):,} firm-years)")
         return results
+    
+    def run(self):
+        """
+        Main execution method. Loads data, runs the comparison, and saves the
+        results to a dedicated Excel workbook.
+        """
+        print("-" * 70)
+        print("Running Standalone Comparison Analyzer...")
+
+        # 1. Load necessary data using its own components
+        from .analysis import DataLoader, PredictionsProcessor
+
+        data_loader = DataLoader(self.config)
+        predictions_processor = PredictionsProcessor(self.config, self.label_mapper)
+
+        print("  -> Loading keyword and model data...")
+        keyword_df = data_loader.load_keyword_data()
+        model_df = data_loader.load_model_predictions()
+        model_agg_df = predictions_processor.process_predictions(model_df)
+
+        # 2. Run the core analysis
+        print("  -> Analyzing keyword vs. model flags...")
+        comparison_results = self.analyze(keyword_df=keyword_df, model_df=model_agg_df)
+
+        # 3. Write the results to an Excel workbook
+        print("  -> Writing comparison workbook...")
+        workbook_manager = WorkbookManager(self.config)
+        workbook_manager.write_comparison_workbook(comparison_results)
+        print("-" * 70)
