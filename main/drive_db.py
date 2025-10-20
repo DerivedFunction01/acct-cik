@@ -172,13 +172,13 @@ def get_drive_service():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if not os.path.exists("credentials.json"):
-                print("❌ Error: 'credentials.json' not found.")
+            if not os.path.exists("client_secrets.json"):
+                print("❌ Error: 'client_secrets.json' not found.")
                 print(
                     "Please follow the setup instructions to download it and place it in this directory."
                 )
                 return None
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file("client_secrets.json", SCOPES)
             creds = flow.run_local_server(port=0)
 
         # Save the credentials for the next run
