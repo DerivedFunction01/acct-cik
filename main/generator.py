@@ -1662,7 +1662,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     labels["gen_use"] = 1.0
     labels["gen"] = 1.0
     labels["curr"] = 1.0  # Assume current use from table data
-    
+
     # Generate raw tabular lines for each swap type
     for swap in swap_types_to_use:
         # Set labels for this swap type
@@ -1717,7 +1717,13 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             money_unit=money_units,
             currency_code=currency_code
         ))
-    
+    if random.random() < 0.5:
+        hedge_sentence, _, _ = generate_hedge_paragraph(True, swapType)
+        # Remove the all text between < and >
+        hedge_sentence = re.sub(r'<.*?>', '', hedge_sentence)
+        hedge_sentence = hedge_sentence.strip()
+        lines.append(hedge_sentence)
+    random.shuffle(lines)
     # Create paragraph and get primary label
     paragraph = cleanup(lines, reporting_year, fullCheck=False)
     labels = label_paragraph(paragraph, labels)

@@ -3187,6 +3187,9 @@ stock_list = [
     "class A shares",
     "class B shares",
     "warrants",
+    "stock option plan",
+    "stock option agreement",
+    "stock option",
 ]
 
 ppe_list = [
