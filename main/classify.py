@@ -191,6 +191,26 @@ def get_matches(url):
     except (json.JSONDecodeError, IndexError):
         return []
 
+def get_unprocessed_reports() -> pd.DataFrame:
+    """
+    Finds reports that are in webpage_result but not yet in server_result.
+    It joins with report_data to get the necessary 'year' for processing.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    query = """
+        SELECT
+            rd.cik,
+            rd.year,
+            wr.url
+        FROM webpage_result wr
+        JOIN report_data rd ON wr.url = rd.url
+        LEFT JOIN server_result sr ON wr.url = sr.url
+        WHERE sr.url IS NULL;
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
+
 
 def fetch_server_results():
     """
@@ -399,16 +419,11 @@ def process_report_fully(report):
 
 def process_reports_in_chunks():
     """Process reports in chunks with periodic saves and statistics."""
-    global existing_report_df
-
     processed_set = get_processed_server_urls()
 
-    # Only process reports not already in server_result
-    reports_to_process = [
-        r
-        for r in existing_report_df.itertuples(index=False)
-        if r.url not in processed_set
-    ]
+    # Find reports in webpage_result that are not yet in server_result
+    reports_to_process_df = get_unprocessed_reports()
+    reports_to_process = list(reports_to_process_df.itertuples(index=False))
 
     total_reports = len(reports_to_process)
     print(f"Processing {total_reports:,} new reports")
@@ -510,8 +525,6 @@ def process_reports_in_chunks():
 # =============================================================================
 # %%
 create_db()
-existing_report_df = fetch_report_data()
-print(f"Found {len(existing_report_df)} reports in database")
 with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
     keyword_data = json.load(f)
 
