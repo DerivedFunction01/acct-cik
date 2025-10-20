@@ -9,7 +9,7 @@ if [ ! -d "$VENV_DIR" ]; then
   source "$VENV_DIR/bin/activate"
 
   # Define packages
-  BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2"
+  BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 google-api-python-client google-auth-oauthlib"
   ML_PACKAGES="torch scikit-learn datasets transformers accelerate"
 
   if [[ "$1" == "--ml" ]]; then
