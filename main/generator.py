@@ -1682,7 +1682,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             
             # Create a concatenated line item from random swap types
             num_concat = random.randint(1, 3)
-            line_item = " and".join(random.sample(cat_lines, k=min(num_concat, len(cat_lines))))
+            line_item = ", ".join(random.sample(cat_lines, k=min(num_concat, len(cat_lines))))
             
             notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
             prev_notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
