@@ -1630,7 +1630,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     category_map =  {
         'ir': "Interest Rate " + random.choice(DEFAULT_SUFFIXES),
         'fx': "Foreign Exchange " + random.choice(DEFAULT_SUFFIXES),
-        'cp': "Commodity " + random.choice(DEFAULT_SUFFIXES),
+        'cp': "Commodity " if random.random() < 0.25 else random.choice(commodities) + random.choice(DEFAULT_SUFFIXES),
         'eq': "Equity "+ random.choice(DEFAULT_SUFFIXES),
         'gen': "Derivatives "+ random.choice(DEFAULT_SUFFIXES),
     }
@@ -1672,7 +1672,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         # Add a header from the category map
         lines.append(category_map[swap])
         
-        cat_lines = random.sample(BASE_TYPES, k=random.randint(3, 5))
+        cat_lines = random.sample(derivative_keywords["gen"], k=random.randint(3, 5))
         
         # Add multiple line items with lots of numbers
         num_lines = random.randint(4, 6)
