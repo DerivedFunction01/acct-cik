@@ -3171,7 +3171,33 @@ balance_sheet_list = [
     "treasury stock",
     "accumulated other comprehensive income",
     "non-controlling interest"
-]
+    
+    # Income statement items
+    "revenue",
+    "cost of goods sold",
+    "gross profit",
+    "selling, general, and administrative expenses",
+    "research and development expenses",
+    "operating income",
+    "interest expense",
+    "other income (expense), net",
+    "income before income taxes",
+    "income tax expense",
+    "net income",
+    "earnings per share",
+    "comprehensive income",
+    "net income available to common shareholders",
+    "diluted earnings", 
+
+    # Cash flow statement items
+    "net cash from operating activities",
+    "net cash from investing activities",
+    "net cash from financing activities",
+    "effect of exchange rate changes on cash",
+    "net increase (decrease) in cash and cash equivalents",
+    "cash paid for interest",
+    "cash paid for income taxes",
+]   
 
 
 stock_list = [
