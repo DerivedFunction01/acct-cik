@@ -41,7 +41,7 @@ def create_unified_schema(conn):
         )
         """
     )
-    # From colab.py
+    # From webpage_result
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS webpage_result (
@@ -51,7 +51,7 @@ def create_unified_schema(conn):
         )
         """
     )
-    # From classify-new.py
+    # From server_result
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS server_result (
@@ -120,8 +120,8 @@ def merge_databases(colab_db_path, classify_db_path, merged_db_path):
     Merges two SQLite databases into a new one.
     """
     print(f"\nStarting database merge process...")
-    print(f"Source (colab.py): {colab_db_path}")
-    print(f"Source (classify-new.py): {classify_db_path}")
+    print(f"Source (webpage_result): {colab_db_path}")
+    print(f"Source (server_result): {classify_db_path}")
     print(f"Destination: {merged_db_path}")
 
     try:
@@ -134,11 +134,11 @@ def merge_databases(colab_db_path, classify_db_path, merged_db_path):
             colab_tables = ["report_data", "names", "webpage_result", "fail_results"]
             classify_tables = ["report_data", "names", "server_result", "fail_results"]
 
-            print("\nProcessing source DB from colab.py...")
+            print("\nProcessing source DB from webpage_result...")
             for table in colab_tables:
                 transfer_table_data(colab_conn, dest_conn, table)
 
-            print("\nProcessing source DB from classify-new.py...")
+            print("\nProcessing source DB from server_result...")
             for table in classify_tables:
                 transfer_table_data(classify_conn, dest_conn, table)
 
@@ -335,9 +335,9 @@ def run_merge_interactive():
 
     try:
         # 1. Get source DB paths
-        colab_db_path = Path(input("  1. Path to colab.py DB (source 1): ").strip())
+        colab_db_path = Path(input("  1. Path to webpage_result DB (source 1): ").strip())
         classify_db_path = Path(
-            input("  2. Path to classify-new.py DB (source 2): ").strip()
+            input("  2. Path to server_result DB (source 2): ").strip()
         )
 
         # Check if source files exist
