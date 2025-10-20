@@ -1363,7 +1363,7 @@ def process_all_reports_fully():
                             fetched_data.append(result)
                         elif result and result[0] == "RATE_LIMITED":
                             # Rate limit detected. Immediately increase sleep time for all threads.
-                            cool_down_increase = 0.1  # Increase sleep by 100ms
+                            cool_down_increase = 0.1 * NUM_FETCHERS  # Increase sleep by 100ms per fetcher
                             rate_limiter.value += cool_down_increase
                             tqdm_bar.set_postfix_str(
                                 f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
