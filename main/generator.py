@@ -1940,7 +1940,7 @@ def generate(size_per_label=100):
     print(f"\n{len(all_samples)} samples written/appended to {output_file} (sorted)")
 
 # %%
-generate(100)
+generate(1000)
 
 # %%
 df = pd.read_excel(output_file)
