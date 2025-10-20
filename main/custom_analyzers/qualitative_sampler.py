@@ -85,7 +85,13 @@ class QualitativeSampler(BaseAnalyzer):
                 {% for sentence_info in report.sentences %}
                     <div class="sentence-container">
                         <p>{{ sentence_info.text }}</p>
-                        <div class="sentence-labels"><strong>Labels:</strong> {{ sentence_info.labels | join(', ') if sentence_info.labels else 'None' }}</div>
+                        <div class="sentence-labels">
+                            <strong>Primary:</strong> {{ sentence_info.primary_label if sentence_info.primary_label else 'None' }}
+                            &nbsp;|&nbsp;
+                            <strong>All Primary:</strong> {{ sentence_info.all_primary_labels | join(', ') if sentence_info.all_primary_labels else 'None' }}
+                            &nbsp;|&nbsp;
+                            <strong>Active Scores:</strong> {{ sentence_info.labels | join(', ') if sentence_info.labels else 'None' }}
+                        </div>
                     </div>
                 {% endfor %}
             </div>
@@ -130,53 +136,61 @@ class QualitativeSampler(BaseAnalyzer):
             else:
                 return [{"text": "Matches data is not in a recognized format.", "labels": []}]
 
+
             sentence_data = []
             for i, text in enumerate(sentences):
                 pred_labels: List[str] = []
+                primary_label = None
+                all_primary_labels: List[str] = []
 
                 if i < len(predictions):
                     prediction_item = predictions[i]
 
-                    # Handle dict-style predictions (two common shapes):
-                    # 1) New wrapper format: {"pred_vector": {label: score, ...}, ...}
-                    # 2) Direct mapping: {label: score, ...}
-                    # 3) Legacy integer label id
+                    # Resolve a numeric label->score vector from several shapes
+                    pred_vector = {}
                     if isinstance(prediction_item, dict):
-                        # Prefer explicit pred_vector if present
                         if "pred_vector" in prediction_item and isinstance(prediction_item.get("pred_vector"), dict):
                             pred_vector = prediction_item.get("pred_vector", {})
-                        else:
-                            # Otherwise, treat the dict itself as the score mapping if values are numbers
-                            # Filter keys with numeric values
-                            if all(isinstance(v, (int, float)) for v in prediction_item.values()):
-                                pred_vector = prediction_item
-                            else:
-                                pred_vector = {}
-
-                        # If we have a numeric score vector, use confidence threshold to pick labels
-                        if pred_vector:
-                            for label, score in pred_vector.items():
-                                try:
-                                    if float(score) > self.config.confidence_threshold:
-                                        pred_labels.append(f"{label} ({float(score):.2f})")
-                                except Exception:
-                                    # Non-numeric score, skip
-                                    continue
-
-                        # If there is a primary_labels list (labels only), use that as a fallback
+                        elif all(isinstance(v, (int, float)) for v in prediction_item.values()):
+                            pred_vector = prediction_item
                         elif "primary_labels" in prediction_item and isinstance(prediction_item.get("primary_labels"), list):
-                            for lab in prediction_item.get("primary_labels", []):
-                                pred_labels.append(str(lab))
+                            # If only a list of primary labels is provided, use that as all_primary_labels
+                            all_primary_labels = [str(l) for l in prediction_item.get("primary_labels", [])]
 
                     elif isinstance(prediction_item, int):
-                        # Old format: single integer label id
-                        label_name = None
+                        # Legacy single integer label id
                         if self.label_mapper and getattr(self.label_mapper, "primary_id2label", None) is not None:
                             label_name = self.label_mapper.primary_id2label.get(prediction_item)
-                        if label_name:
-                            pred_labels.append(label_name)
+                            if label_name:
+                                all_primary_labels = [label_name]
 
-                sentence_data.append({"text": text, "labels": pred_labels})
+                    # If we have a numeric pred_vector, compute labels and primary labels using LabelMapper when available
+                    if pred_vector:
+                        # Create a list of 'label (score)' for those above threshold
+                        for label, score in pred_vector.items():
+                            try:
+                                if float(score) > self.config.confidence_threshold:
+                                    pred_labels.append(f"{label} ({float(score):.2f})")
+                            except Exception:
+                                continue
+
+                        # Use label_mapper to derive primary labels ordering if available
+                        if self.label_mapper:
+                            # LabelMapper expects a mapping label->score
+                            try:
+                                primary_list = self.label_mapper.get_primary_labels(pred_vector) or []
+                                all_primary_labels = primary_list
+                                primary_label = primary_list[0] if primary_list else None
+                            except Exception:
+                                # Fallback: leave primary_label as None
+                                pass
+
+                sentence_data.append({
+                    "text": text,
+                    "labels": pred_labels,
+                    "primary_label": primary_label,
+                    "all_primary_labels": all_primary_labels,
+                })
 
             return sentence_data
 
