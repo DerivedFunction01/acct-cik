@@ -140,6 +140,7 @@ class AnalysisPipeline:
         # Store data for other steps to use
         self._pipeline_data["model_df"] = model_df
         self._pipeline_data["keyword_df"] = keyword_df
+        self._pipeline_data["sentence_df"] = self.data_loader.load_sentence_data()
         self._pipeline_data["model_agg_df"] = model_agg
         self._pipeline_data["original_model_agg_df"] = model_agg.copy() # Store a copy
         self._data_loaded = True
@@ -166,7 +167,13 @@ class AnalysisPipeline:
         if "detailed" not in self._pipeline_data.get("comparison_results", {}):
             print("     ❌ Skipping: Disagreement sampler requires 'run_comparison' to be True.")
             return
-        sampler = DisagreementSampler(self.config, self.label_mapper, self.data_loader)
+        if "sentence_df" not in self._pipeline_data:
+            print("     ❌ Skipping: Disagreement sampler requires sentence data, which was not loaded.")
+            return
+        sampler = DisagreementSampler(
+            config=self.config, label_mapper=self.label_mapper, data_loader=self.data_loader,
+            sentence_df=self._pipeline_data["sentence_df"]
+        )
         sampler.analyze(self._pipeline_data["comparison_results"]["detailed"])
 
     def _run_custom_analyzers(self):
@@ -190,17 +197,23 @@ class AnalysisPipeline:
     def _run_sentence_generation(self):
         """Generates labeled sentence files."""
         print("\n[Extra] Creating labeled sentence files (this may take a while)...")
-        sentence_df = self.data_loader.load_sentence_data()
-        # Use the aggregated model data which now contains keyword flags if comparison was run
-        user_flags_df = self._pipeline_data["model_agg_df"]
-        self.sentence_labeler.create_labeled_files(sentence_df, user_flags_df)
+        if "sentence_df" not in self._pipeline_data or "model_agg_df" not in self._pipeline_data:
+            print("     ❌ Skipping: Sentence generation requires both sentence_df and model_agg_df.")
+            return
+        self.sentence_labeler.create_labeled_files(
+            sentence_df=self._pipeline_data["sentence_df"], model_agg_df=self._pipeline_data["model_agg_df"]
+        )
 
     def _run_accuracy_check(self):
         """Runs the accuracy sampling process."""
         print("\n[Extra] Running Accuracy Check...")
+        if "sentence_df" not in self._pipeline_data:
+            print("     ❌ Skipping: Accuracy check requires sentence data, which was not loaded.")
+            return
         # Initialize the accuracy sampler with AccuracyConfig and the aggregated data
         self.accuracy_sampler = AccuracySampler(
-            self.accuracy_config, self.data_loader, self.label_mapper, self._pipeline_data["model_agg_df"]
+            config=self.accuracy_config, data_loader=self.data_loader, label_mapper=self.label_mapper,
+            sentence_df=self._pipeline_data["sentence_df"], model_agg_df=self._pipeline_data["model_agg_df"]
         )
         self.accuracy_sampler.run()
 
@@ -208,6 +221,7 @@ class AnalysisPipeline:
         """Runs the standalone firm inspector analysis."""
         print("\n[Extra] Running Firm Inspector...")
         inspector_config = URLAnalysisConfig()
+        inspector_config.data_loader = self.data_loader # Inject the data loader
         inspector = URLAnalyzer(inspector_config, self.label_mapper)
         inspector.run()
 

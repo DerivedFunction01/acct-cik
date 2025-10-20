@@ -48,11 +48,13 @@ class AccuracySampler:
         config: Config,
         data_loader: DataLoader,
         label_mapper: LabelMapper,
-        model_agg_df: pd.DataFrame = None,
+        sentence_df: pd.DataFrame = None,
+        model_agg_df: pd.DataFrame = None
     ):
         self.config = config
         self.data_loader = data_loader
         self.label_mapper = label_mapper
+        self.sentence_df = sentence_df
         self.model_agg_df = model_agg_df
 
     def get_highest_priority_label(self, prob_dict: dict) -> str:
@@ -111,56 +113,46 @@ class AccuracySampler:
 
         return processed_sentences
 
-    def _load_and_flatten_data(self) -> pd.DataFrame:
-        """Load sentence data from DB and flatten into one-row-per-sentence."""
-        print_memory_usage("Start of _load_and_flatten_data")
-        print("Loading data from database...")
-        df = self.data_loader.load_sentence_data()
-        print_memory_usage("After loading data into DataFrame")
+    def _process_chunk(self, chunk: List[dict]) -> List[dict]:
+        """Helper function to process a chunk of report rows."""
+        chunk_results = []
+        for row in chunk:
+            chunk_results.extend(self._process_report_row(row))
+        return chunk_results
 
-        print(f"Flattening {len(df)} reports into individual sentences...")
+    def _flatten_sentence_data(self) -> pd.DataFrame:
+        """Flatten the pre-loaded sentence DataFrame into one-row-per-sentence."""
+        if self.sentence_df is None or self.sentence_df.empty:
+            print("⚠️ No sentence data provided to flatten.")
+            return pd.DataFrame()
 
-        # Convert DataFrame rows to a list of dictionaries for easier processing
-        report_rows = df.to_dict("records")
-        del df # Free up memory from the initial DataFrame
-        print_memory_usage("After converting to list of dicts")
+        print(f"Flattening {len(self.sentence_df)} reports into individual sentences...")
+        report_rows = self.sentence_df.to_dict("records")
 
         all_sentences = []
-
-        # Use ProcessPoolExecutor for CPU-bound task of processing rows
         with ProcessPoolExecutor(max_workers=self.config.num_workers) as executor:
-            # Create chunks for better load balancing
             chunks = self._chunkify(report_rows)
-            print_memory_usage("After creating chunks")
-
-            # Process chunks in parallel
             future_to_chunk = {
                 executor.submit(self._process_chunk, chunk): chunk for chunk in chunks
             }
-
             for future in tqdm(
                 as_completed(future_to_chunk),
                 total=len(chunks),
                 desc="Processing reports",
             ):
-                chunk_result = future.result()
-                all_sentences.extend(chunk_result)
-                print_memory_usage(f"After processing chunk {len(all_sentences)}/{len(report_rows)} sentences")
+                all_sentences.extend(future.result())
 
         flattened_df = pd.DataFrame(all_sentences)
 
         # Merge with firm-year model flags if available
         if self.model_agg_df is not None and not self.model_agg_df.empty and "cik" in self.model_agg_df.columns:
             print("Merging firm-year user flags into sentence data...")
-            # Select only the flag columns to merge
             flag_cols = ["cik", "year"] + [
                 col for col in self.model_agg_df.columns if col.startswith("model_")
             ]
-            # Ensure we don't have duplicate cik-year entries in the flags df
             agg_flags = self.model_agg_df[flag_cols].drop_duplicates(
                 subset=["cik", "year"]
             )
-
             flattened_df = pd.merge(
                 flattened_df, agg_flags, on=["cik", "year"], how="left"
             )
@@ -170,13 +162,6 @@ class AccuracySampler:
             )
 
         return flattened_df
-
-    def _process_chunk(self, chunk: List[dict]) -> List[dict]:
-        """Helper function to process a chunk of report rows."""
-        chunk_results = []
-        for row in chunk:
-            chunk_results.extend(self._process_report_row(row))
-        return chunk_results
 
     def _create_stratified_sample(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create a stratified sample based on the primary predicted label."""
@@ -260,7 +245,7 @@ class AccuracySampler:
         print("-" * 70)
         print("Running Accuracy Sampling...")
         # 1. Load and process all sentence data
-        flattened_data = self._load_and_flatten_data()
+        flattened_data = self._flatten_sentence_data()
 
         # 2. Create a stratified sample
         accuracy_sample_df = self._create_stratified_sample(flattened_data)
@@ -288,6 +273,7 @@ if __name__ == "__main__":
         data_loader=DataLoader(config),
         label_mapper=LabelMapper(config.keywords_json, config.labels),
         model_agg_df=None,
+        sentence_df=DataLoader(config).load_sentence_data(), # Load data for standalone run
     )
     sampler.run()
 

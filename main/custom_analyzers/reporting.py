@@ -70,18 +70,16 @@ class SentenceLabeler:
         return results
 
     def create_labeled_files(
-        self, sentence_df: pd.DataFrame, user_flags_df: pd.DataFrame
+        self, sentence_df: pd.DataFrame, model_agg_df: pd.DataFrame
     ):
         """Create separate Excel files for each label category with user flags"""
         print(f"Processing {len(sentence_df):,} sentences for labeled files...")
 
         # Merge sentence data with user flags
-        merged_sentences = pd.merge(
-            sentence_df, user_flags_df, on=["cik", "year"], how="left"
-        )
+        merged_sentences = pd.merge(sentence_df, model_agg_df, on=["cik", "year"], how="left")
 
         # Fill NaN for any sentences whose firm-year didn't have flags
-        flag_cols = [col for col in user_flags_df.columns if col not in ["cik", "year"]]
+        flag_cols = [col for col in model_agg_df.columns if col not in ["cik", "year"]]
         merged_sentences[flag_cols] = merged_sentences[flag_cols].fillna(0).astype(int)
 
         # Prepare data for parallel processing

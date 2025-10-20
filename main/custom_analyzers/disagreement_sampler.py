@@ -22,12 +22,14 @@ class DisagreementSampler:
         config: Config,
         label_mapper: LabelMapper,
         data_loader: DataLoader,
+        sentence_df: Optional[pd.DataFrame] = None,
         samples_per_category: int = 25,
         random_state: int = 42,
     ):
         self.config = config
         self.label_mapper = label_mapper
         self.data_loader = data_loader
+        self.sentence_df = sentence_df
         self.samples_per_category = samples_per_category
         self.random_state = random_state
         self.output_filename = "disagreement_analysis_sample.xlsx"
@@ -59,21 +61,42 @@ class DisagreementSampler:
             results.append(record)
         return results
 
-    def _get_sentences_for_reports(self, report_ciks: pd.DataFrame) -> pd.DataFrame:
+    def analyze(self, detailed_comparison_df: pd.DataFrame):
         """
-        Fetches and processes sentences for a given DataFrame of reports.
-        """
-        urls_to_fetch = report_ciks["url"].unique().tolist()
-        print(f"Fetching sentences for {len(urls_to_fetch):,} unique reports...")
-        sentence_data = self.data_loader.load_sentence_data(urls=urls_to_fetch)
+        Takes the detailed comparison DataFrame and generates a sampled
+        Excel file for disagreement analysis.
 
-        # Filter sentence_data to only include the reports we need
-        # The loader already filtered by URL, so this merge is now safe and efficient.
-        reports_with_sentences = pd.merge(report_ciks, sentence_data, on=["cik", "year", "url"], how="inner")
+        Args:
+            detailed_comparison_df (pd.DataFrame): The 'detailed' DataFrame from
+                                                  ComparisonAnalyzer.
+        """
+        print("-" * 70)
+        print("Running Disagreement Sampler...")
+
+        if self.sentence_df is None or self.sentence_df.empty:
+            print("❌ Could not generate disagreement sample as no sentence data was provided.")
+            return
+
+        detailed_df = detailed_comparison_df
+
+        # Define the user types and classification columns to analyze
+        user_types = ["ir_user", "fx_user", "cp_user", "user", "user_all"]
+        class_cols = {
+            "ir_user": "class_ir",
+            "fx_user": "class_fx",
+            "cp_user": "class_cp",
+            "user": "class_hedges_(ir/fx/cp)",
+            "user_all": "class_all_derivatives",
+        }
+
+        # Merge the detailed comparison data with the pre-loaded sentence data
+        reports_with_sentences = pd.merge(
+            detailed_df, self.sentence_df, on=["cik", "year", "url"], how="inner"
+        )
 
         if reports_with_sentences.empty:
-            print("⚠️ No matching reports with sentence data found.")
-            return pd.DataFrame()
+            print("❌ Could not generate disagreement sample as no sentences were found.")
+            return
 
         # Parallel process sentence extraction
         num_chunks = self.config.num_workers * 4
@@ -92,55 +115,14 @@ class DisagreementSampler:
                 all_results.extend(future.result())
 
         if not all_results:
-            return pd.DataFrame()
-
-        return pd.DataFrame(all_results)
-
-    def analyze(self, detailed_comparison_df: pd.DataFrame):
-        """
-        Takes the detailed comparison DataFrame and generates a sampled
-        Excel file for disagreement analysis.
-
-        Args:
-            detailed_comparison_df (pd.DataFrame): The 'detailed' DataFrame from
-                                                  ComparisonAnalyzer.
-        """
-        print("-" * 70)
-        print("Running Disagreement Sampler...")
-
-        if "detailed" not in detailed_comparison_df.columns:
-             # It's the detailed_df itself
-            detailed_df = detailed_comparison_df
-        else:
-            detailed_df = detailed_comparison_df["detailed"]
-
-        # Define the user types to analyze
-        user_types = ["ir_user", "fx_user", "cp_user", "user", "user_all"]
-        class_cols = {
-            "ir_user": "class_ir",
-            "fx_user": "class_fx",
-            "cp_user": "class_cp",
-            "user": "class_hedges_(ir/fx/cp)",
-            "user_all": "class_all_derivatives",
-        }
-
-        # Get a list of all unique firm-years to fetch sentences for
-        # This avoids fetching data multiple times
-        unique_reports = detailed_df[["cik", "year", "url"]].drop_duplicates()
-        reports_with_sentences = self._get_sentences_for_reports(unique_reports)
-
-        if reports_with_sentences.empty:
-            print("❌ Could not generate disagreement sample as no sentences were found.")
             return
 
-        # Merge sentences back into the detailed comparison dataframe
-        # We drop columns that are already in detailed_df to avoid duplication
-        cols_to_drop = [c for c in reports_with_sentences.columns if c in detailed_df.columns and c not in ['cik', 'year', 'url']]
-        detailed_with_sentences = pd.merge(
-            detailed_df,
-            reports_with_sentences.drop(columns=cols_to_drop),
-            on=["cik", "year", "url"],
-            how="left",
+        detailed_with_sentences = pd.DataFrame(all_results)
+
+        output_path = self.config.output_dir / self.output_filename
+        print(f"\nWriting disagreement samples to {output_path}...")
+
+        with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
         )
 
         output_path = self.config.output_dir / self.output_filename
