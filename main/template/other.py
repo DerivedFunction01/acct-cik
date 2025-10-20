@@ -705,43 +705,42 @@ stock_option_plan_templates = [
     "All stock options are granted with an exercise price equal to the market price of the Company's stock at the date of grant.",
     "During {year}, employees exercised options to purchase {shares} shares, resulting in cash proceeds of {currency_code}{amount} {money_unit}.",
     "No stock options were granted during the year ended {month} {end_day}, {year}.",
-    "Stock option activity during the year ended {month} {end_day}, {year} was as follows: outstanding at beginning of year, {shares}; granted, {shares2}; exercised, {shares3}; forfeited, {shares4}.",
-    "The intrinsic value of stock options exercised during {year}, {prev_year}, and {prev2_year} was {currency_code}{amount} {money_unit}, {currency_code}{amount2} {money_unit}, and {currency_code}{amount3} {money_unit}, respectively.",
+    "Stock option activity during the year ended {month} {end_day}, {year} was as follows: outstanding at beginning of year, {shares}; granted, {shares2}; exercised, {net_shares}; forfeited, {shares2}.",
+    "The intrinsic value of stock options exercised during {year}, {prev_year}, and {past_year} was {currency_code}{amount} {money_unit}, {currency_code}{amount2} {money_unit}, and {currency_code}{amount3} {money_unit}, respectively.",
     "As of {month} {end_day}, {year}, there was {currency_code}{amount} {money_unit} of total unrecognized compensation cost related to non-vested stock options.",
     "The Company issues new shares of common stock upon the exercise of stock options.",
-    
-    # --- Stock Option Agreements ---
+    # --- Stock Option Agreements (with SEC-style exhibit references) ---
+    "Form of {company} {year} Omnibus Incentive Compensation Plan Non-Qualified Stock Option Agreement approved {month} {end_day}, {past_year}. (Incorporated by reference to Exhibit 10.{short_int} to {company}'s Form 10-K for the year ended {month} {end_day}, {past_year}.)",
+    "Form of {company} {year} Omnibus Incentive Compensation Plan Performance Non-Qualified Stock Option Agreement approved {month} {end_day}, {past_year}. (Incorporated by reference to Exhibit 10.{short_int2} to {company}'s Form 8-K filed {month} {end_day}, {past_year}.)",
+    "Options granted under the {year} Omnibus Incentive Compensation Plan are evidenced by individual Stock Option Agreements, incorporated by reference to Exhibit 10.{short_int} to the Company's Form 10-K.",
     "Under the Stock Option Agreement, each optionee is entitled to purchase shares of common stock at the grant date fair market value, subject to the vesting schedule defined in the agreement.",
-    "The Stock Option Agreement specifies that options terminate upon the earlier of {small_int}-years from the grant date or {small_int2} days after the termination of employment.",
+    "The Stock Option Agreement specifies that options terminate upon the earlier of {small_int}-years from the grant date or {short_int} days after termination of employment.",
     "In accordance with the Stock Option Agreement, unvested options are forfeited upon resignation or termination for cause.",
-    "Options granted under the {year} Stock Option Plan are evidenced by individual Stock Option Agreements executed between the Company and each participant.",
-    "Upon a change in control, all outstanding and unvested stock options may become fully vested as provided in the Stock Option Agreement.",
-    
+    "Upon a change in control, all outstanding and unvested stock options may become fully vested as provided in the applicable Stock Option Agreement.",
     # --- Restricted Stock / RSUs ---
-    "The Company also grants restricted stock units (RSUs) under the {year} Equity Incentive Plan, which generally vest over a {small_int}-year period.",
+    "The Company also grants restricted stock units (RSUs) under the {year} Omnibus Incentive Compensation Plan, which generally vest over a {small_int}-year period.",
     "RSUs entitle the holder to receive one share of common stock for each unit upon vesting, subject to continued employment or service.",
-    "As of {month} {end_day}, {year}, there were {shares} RSUs outstanding with a weighted-average remaining vesting period of {small_int} years.",
+    "As of {month} {end_day}, {year}, there were {shares} RSUs outstanding with a weighted-average remaining vesting period of {small_int2} years.",
     "Compensation expense related to RSUs was {currency_code}{amount} {money_unit} for the year ended {month} {end_day}, {year}.",
     "RSUs are settled in shares of common stock upon vesting and are subject to forfeiture if vesting conditions are not met.",
-    
     # --- Performance-Based Awards ---
     "Performance-based stock options vest upon the achievement of specified financial and operational goals approved by the Board of Directors.",
     "Performance share units (PSUs) are granted to certain executives and vest based on the attainment of performance targets over a {small_int}-year period.",
-    "As of {month} {end_day}, {year}, {shares} performance-based awards were outstanding with target vesting dates ranging from {year2} to {year3}.",
+    "As of {month} {end_day}, {year}, {shares} performance-based awards were outstanding with target vesting dates ranging from {past_year} to {next_year}.",
     "Compensation expense related to performance-based awards was {currency_code}{amount} {money_unit} for the year ended {month} {end_day}, {year}.",
-    
+    "Form of Performance-Based Non-Qualified Stock Option Agreement under the {year} Omnibus Incentive Compensation Plan. (Incorporated by reference to Exhibit 10.{short_int2} to {company}'s Form 10-K for the year ended {month} {end_day}, {past_year}.)",
     # --- Modifications, Forfeitures, and Cancellations ---
     "During {year}, the Company modified certain outstanding stock option awards to extend their contractual term, resulting in incremental compensation expense of {currency_code}{amount} {money_unit}.",
     "Stock options that expire or are forfeited prior to exercise are returned to the pool of shares available for future grants.",
     "During {year}, {shares} stock options were cancelled due to employee terminations or resignations.",
     "Options with an aggregate intrinsic value of {currency_code}{amount} {money_unit} were forfeited or expired unexercised during {year}.",
-    
     # --- Plan Administration and Accounting ---
     "The fair value of each stock option award is estimated on the date of grant using the Black-Scholes option pricing model.",
-    "The weighted-average assumptions used in the Black-Scholes model for the year ended {month} {end_day}, {year} included expected volatility of {percent}%, expected term of {small_int} years, and a risk-free interest rate of {percent2}%.",
+    "The weighted-average assumptions used in the Black-Scholes model for the year ended {month} {end_day}, {year} included expected volatility of {pct}%, expected term of {small_int} years, and a risk-free interest rate of {pct2}%.",
     "Stock-based compensation expense recognized for stock options was {currency_code}{amount} {money_unit} for the year ended {month} {end_day}, {year}.",
-    "As of {month} {end_day}, {year}, total compensation cost recognized under all stock-based compensation plans was {currency_code}{amount} {money_unit}."
+    "As of {month} {end_day}, {year}, total compensation cost recognized under all stock-based compensation plans was {currency_code}{amount} {money_unit}.",
 ]
+
 
 # ============ PENSION AND POSTRETIREMENT BENEFITS ============
 
