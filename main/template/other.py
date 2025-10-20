@@ -3090,7 +3090,6 @@ noise_templates: dict[str, list[list[str]]] = {
         stock_option_plan_templates,
         stock_price_templates,
         trading_volume_templates,
-        stock_option_plan_templates,
     ],
     # IR related
     "IR": [debt_templates, debt_covenant_templates],
