@@ -167,7 +167,7 @@ def get_drive_service():
         print("\n  Authenticating with Google Drive...")
         gauth = GoogleAuth()
         # Try to load saved credentials
-        gauth.LoadCredentialsFile("mycreds.txt")
+        gauth.LoadCredentialsFile("client_secrets.json")
         
         if gauth.credentials is None:
             # Authenticate if they're not there
@@ -182,7 +182,7 @@ def get_drive_service():
             gauth.Authorize()
         
         # Save the current credentials to a file for next time
-        gauth.SaveCredentialsFile("mycreds.txt")
+        gauth.SaveCredentialsFile("client_secrets.json")
             
         DRIVE_SERVICE = GoogleDrive(gauth)
         print("  Authentication successful.")
