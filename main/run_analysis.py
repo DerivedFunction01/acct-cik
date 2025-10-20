@@ -12,6 +12,7 @@ from custom_analyzers.reporting import SentenceLabeler
 from custom_analyzers.accuracy import AccuracySampler, AccuracyConfig
 from custom_analyzers.disagreement_sampler import DisagreementSampler
 from custom_analyzers.firm_inspector import URLAnalyzer, URLAnalysisConfig
+from custom_analyzers.qualitative_sampler import QualitativeSampler
 from typing import Dict, Optional
 from dataclasses import dataclass, field
 
@@ -27,9 +28,10 @@ class RunOptions:
     run_comparison: bool = False
     run_accuracy_check: bool = False
     run_firm_inspector: bool = False
-    run_custom_analyzers: bool = True
+    run_custom_analyzers: bool = False
     run_disagreement_sampler: bool = False
     generate_sentence_files: bool = True
+    run_qualitative_sampler: bool = True
 
 
 # =============================================================================
@@ -62,6 +64,7 @@ class AnalysisPipeline:
             "run_firm_inspector": self._run_firm_inspector,
             "run_disagreement_sampler": self._run_disagreement_sampler,
             "generate_sentence_files": self._run_sentence_generation,
+            "run_qualitative_sampler": self._run_qualitative_sampler,
         }
 
         # Store data that needs to be passed between steps
@@ -153,6 +156,24 @@ class AnalysisPipeline:
         comparison_analyzer = ComparisonAnalyzer(self.config, self.label_mapper)
         comparison_analyzer.run()
 
+    def _run_qualitative_sampler(self):
+        """Runs the qualitative review sampler."""
+        print("\n[Extra] Running Qualitative Review Sampler...")
+        # This analyzer needs the merged comparison data to show both flags.
+        # We'll create it here if it doesn't exist.
+        if "merged_df" not in self._pipeline_data:
+            print("   -> Merging keyword and model data for sampler...")
+            keyword_df = self._pipeline_data["keyword_df"]
+            model_agg_df = self._pipeline_data["model_agg_df"]
+            merged_df = pd.merge(
+                keyword_df, model_agg_df, on=["cik", "year"], how="outer"
+            ).fillna(0)
+            self._pipeline_data["merged_df"] = merged_df
+
+        sampler = QualitativeSampler(self.config, self.label_mapper)
+        # The analyze method is called with the merged data
+        sampler.analyze(data=self._pipeline_data["merged_df"])
+
     def _run_disagreement_sampler(self):
         """Runs the disagreement sampler if comparison results are available."""
         print("\n[Extra] Running Disagreement Sampler...")
@@ -243,12 +264,13 @@ if __name__ == "__main__":
 
     # Define which parts of the pipeline to run
     run_options = RunOptions(
-        run_comparison=True,
-        run_disagreement_sampler=True,
-        generate_sentence_files=True,  # Now uses streaming - much faster!
-        run_accuracy_check=True,  # Now uses streaming - much faster!
-        run_firm_inspector=True,
+        run_comparison=False,
+        run_disagreement_sampler=False,
+        generate_sentence_files=False,  # Now uses streaming - much faster!
+        run_accuracy_check=False,  # Now uses streaming - much faster!
+        run_firm_inspector=False,
         run_custom_analyzers=False,
+        run_qualitative_sampler=True,
     )
 
     # Execute the pipeline with the chosen options
