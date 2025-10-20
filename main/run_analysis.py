@@ -58,13 +58,16 @@ class AnalysisPipeline:
 
         # Map run options to pipeline methods for modular execution
         self._step_map = {
+            # Fast analysis goes first
+            "run_qualitative_sampler": self._run_qualitative_sampler,
+            "run_firm_inspector": self._run_firm_inspector,
+            # Then slower ones
             "run_comparison": self._run_comparison_analysis,
             "run_custom_analyzers": self._run_custom_analyzers,
+            # Run slowest ones last
             "run_accuracy_check": self._run_accuracy_check,
-            "run_firm_inspector": self._run_firm_inspector,
             "run_disagreement_sampler": self._run_disagreement_sampler,
             "generate_sentence_files": self._run_sentence_generation,
-            "run_qualitative_sampler": self._run_qualitative_sampler,
         }
 
         # Store data that needs to be passed between steps
