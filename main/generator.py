@@ -1874,7 +1874,7 @@ def generate(size_per_label=100):
             futures.append(executor.submit(generate_emb_paragraph, use_case='speculative'))
 
         # Table text
-        table_count = count  # Generate same amount as other categories
+        table_count = count  // 2 # Generate same amount as other categories
         table_types = ['ir', 'fx', 'cp', 'eq', 'gen', 'mixed']
         for _ in range(table_count):
             for swap_type in table_types:
