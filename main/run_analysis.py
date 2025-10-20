@@ -46,9 +46,7 @@ class AnalysisPipeline:
         self.data_loader = DataLoader(config)
         self.predictions_processor = PredictionsProcessor(config, self.label_mapper)
         self.sentence_labeler = SentenceLabeler(config, self.label_mapper)
-        # AccuracySampler is now initialized later with the correct data
-        self.accuracy_sampler = None
-
+        
         # Create AccuracyConfig from base Config
         self.accuracy_config = self._create_accuracy_config()
 
@@ -72,10 +70,8 @@ class AnalysisPipeline:
 
     def _create_accuracy_config(self) -> AccuracyConfig:
         """Create an AccuracyConfig instance from the base Config"""
-        # Copy all attributes from base config to accuracy config
         accuracy_config = AccuracyConfig()
 
-        # Copy attributes from base config that are common
         for attr in dir(self.config):
             if not attr.startswith("_") and hasattr(accuracy_config, attr):
                 setattr(accuracy_config, attr, getattr(self.config, attr))
@@ -93,57 +89,56 @@ class AnalysisPipeline:
         print("MODULAR CLASSIFICATION ANALYSIS PIPELINE")
         print("=" * 70)
 
-        # Ensure data is loaded before running steps
         if not self._data_loaded:
             print("⚠️ Data not loaded. Please run `pipeline.load_and_process_data()` first.")
             return
 
-        # If no options are provided, use default RunOptions
         if options is None:
             options = RunOptions()
 
-        # Reset comparison results if comparison is not being run, to use original model_agg_df
+        # Reset comparison results if comparison is not being run
         if not options.run_comparison and "merged_df" in self._pipeline_data.get("comparison_results", {}):
             self._pipeline_data["model_agg_df"] = self._pipeline_data["original_model_agg_df"]
 
-        # --- 2. Execute Optional Steps based on RunOptions ---
+        # Execute optional steps based on RunOptions
         for step_name, step_func in self._step_map.items():
-            # Check if the step is enabled in the options
             if getattr(options, step_name, False):
                 try:
                     step_func()
                 except Exception as e:
                     print(f"     ❌ Error running step '{step_name}': {e}")
-                    # Optionally, decide if you want to stop the pipeline on error
-                    # raise e
 
         self._print_summary()
 
     def load_and_process_data(self):
         """
-        Core data loading and processing step. This runs once to prepare the
-        base data required by all other optional steps.
+        Core data loading and processing step.
+        Now: loads model predictions and aggregates them.
+        No longer: loads all sentence data (uses streaming instead).
         """
         if self._data_loaded:
             print("ℹ️ Data has already been loaded. Skipping.")
             return
 
-        # 1. Load data
-        print("\n[1/4] Loading data...")
+        print("\n[1/3] Loading model predictions...")
         model_df = self.data_loader.load_model_predictions()
-        keyword_df = self.data_loader.load_keyword_data()
 
-        # 2. Process model predictions
-        print("\n[2/4] Processing predictions...")
+        print("\n[2/3] Processing predictions to firm-year level...")
         model_agg = self.predictions_processor.process_predictions(model_df)
 
-        # Store data for other steps to use
-        self._pipeline_data["model_df"] = model_df
+        print("\n[3/3] Loading keyword data for comparison...")
+        keyword_df = self.data_loader.load_keyword_data()
+
+        # Store data for other steps
         self._pipeline_data["keyword_df"] = keyword_df
-        self._pipeline_data["sentence_df"] = self.data_loader.load_sentence_data()
         self._pipeline_data["model_agg_df"] = model_agg
-        self._pipeline_data["original_model_agg_df"] = model_agg.copy() # Store a copy
+        self._pipeline_data["original_model_agg_df"] = model_agg.copy()
         self._data_loaded = True
+        
+        print(f"✅ Data loading complete")
+        print(f"   - Model predictions: {len(model_df):,} records")
+        print(f"   - Aggregated to firm-year: {len(model_agg):,} records")
+        print(f"   - Keyword comparisons: {len(keyword_df):,} records")
 
     def _run_comparison_analysis(self):
         """Runs the keyword vs. model comparison and saves the workbook."""
@@ -154,10 +149,9 @@ class AnalysisPipeline:
             model_df=self._pipeline_data["model_agg_df"],
         )
 
-        # Write comparison workbook
         workbook_manager = WorkbookManager(self.config)
         workbook_manager.write_comparison_workbook(comparison_results)
-        # Update the main aggregated dataframe with the merged results
+        
         self._pipeline_data["model_agg_df"] = comparison_results.get("merged_df", self._pipeline_data["model_agg_df"])
         self._pipeline_data["comparison_results"] = comparison_results
 
@@ -167,12 +161,12 @@ class AnalysisPipeline:
         if "detailed" not in self._pipeline_data.get("comparison_results", {}):
             print("     ❌ Skipping: Disagreement sampler requires 'run_comparison' to be True.")
             return
-        if "sentence_df" not in self._pipeline_data:
-            print("     ❌ Skipping: Disagreement sampler requires sentence data, which was not loaded.")
-            return
+        
         sampler = DisagreementSampler(
-            config=self.config, label_mapper=self.label_mapper, data_loader=self.data_loader,
-            sentence_df=self._pipeline_data["sentence_df"]
+            config=self.config, 
+            label_mapper=self.label_mapper, 
+            data_loader=self.data_loader,
+            sentence_df=None,  # No longer needed - uses streaming internally
         )
         sampler.analyze(self._pipeline_data["comparison_results"]["detailed"])
 
@@ -181,13 +175,11 @@ class AnalysisPipeline:
         print("\n[Extra] Running custom analyzers...")
         for name, analyzer in self.custom_analyzers.items():
             print(f"  -> Running '{name}'...")
-            # Ensure the required data is available in the pipeline
             if "model_agg_df" not in self._pipeline_data:
                 print(f"     ❌ Skipping '{name}': Required data 'model_agg_df' not found.")
                 continue
 
             try:
-                # Pass the aggregated model data to the custom analyzer's analyze method
                 results = analyzer.analyze(data=self._pipeline_data["model_agg_df"])
                 self.custom_results[name] = results
                 print(f"     ✓ '{name}' completed successfully.")
@@ -195,33 +187,33 @@ class AnalysisPipeline:
                 print(f"     ❌ Error running '{name}': {e}")
 
     def _run_sentence_generation(self):
-        """Generates labeled sentence files."""
-        print("\n[Extra] Creating labeled sentence files (this may take a while)...")
-        if "sentence_df" not in self._pipeline_data or "model_agg_df" not in self._pipeline_data:
-            print("     ❌ Skipping: Sentence generation requires both sentence_df and model_agg_df.")
+        """Generates labeled sentence files using streaming (no need to load all sentences first)."""
+        print("\n[Extra] Creating labeled sentence files (streaming mode - memory efficient)...")
+        if "model_agg_df" not in self._pipeline_data:
+            print("     ❌ Skipping: Sentence generation requires model_agg_df.")
             return
+        
         self.sentence_labeler.create_labeled_files(
-            sentence_df=self._pipeline_data["sentence_df"], model_agg_df=self._pipeline_data["model_agg_df"]
+            model_agg_df=self._pipeline_data["model_agg_df"]
         )
 
     def _run_accuracy_check(self):
-        """Runs the accuracy sampling process."""
-        print("\n[Extra] Running Accuracy Check...")
-        if "sentence_df" not in self._pipeline_data:
-            print("     ❌ Skipping: Accuracy check requires sentence data, which was not loaded.")
-            return
-        # Initialize the accuracy sampler with AccuracyConfig and the aggregated data
-        self.accuracy_sampler = AccuracySampler(
-            config=self.accuracy_config, data_loader=self.data_loader, label_mapper=self.label_mapper,
-            sentence_df=self._pipeline_data["sentence_df"], model_agg_df=self._pipeline_data["model_agg_df"]
+        """Runs the accuracy sampling process using streaming."""
+        print("\n[Extra] Running Accuracy Check (streaming mode - memory efficient)...")
+        sampler = AccuracySampler(
+            config=self.accuracy_config, 
+            data_loader=self.data_loader, 
+            label_mapper=self.label_mapper,
+            sentence_df=None,  # No longer needed - uses streaming internally
+            model_agg_df=None,  # Not used with streaming approach
         )
-        self.accuracy_sampler.run()
+        sampler.run()
 
     def _run_firm_inspector(self):
         """Runs the standalone firm inspector analysis."""
         print("\n[Extra] Running Firm Inspector...")
         inspector_config = URLAnalysisConfig()
-        inspector_config.data_loader = self.data_loader # Inject the data loader
+        inspector_config.data_loader = self.data_loader
         inspector = URLAnalyzer(inspector_config, self.label_mapper)
         inspector.run()
 
@@ -258,8 +250,8 @@ if __name__ == "__main__":
     run_options = RunOptions(
         run_comparison=True,
         run_disagreement_sampler=True,
-        generate_sentence_files=False,
-        run_accuracy_check=True,
+        generate_sentence_files=True,  # Now uses streaming - much faster!
+        run_accuracy_check=True,       # Now uses streaming - much faster!
         run_firm_inspector=True,
         run_custom_analyzers=False,
     )
