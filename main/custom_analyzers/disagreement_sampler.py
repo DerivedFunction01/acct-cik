@@ -123,12 +123,6 @@ class DisagreementSampler:
         print(f"\nWriting disagreement samples to {output_path}...")
 
         with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
-        )
-
-        output_path = self.config.output_dir / self.output_filename
-        print(f"\nWriting disagreement samples to {output_path}...")
-
-        with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
             workbook = writer.book
             workbook.strings_to_urls = False
 
