@@ -1669,6 +1669,9 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         labels[swap] = 1.0  
         labels[f"{swap}_use"] = 1.0 
         
+        # Add a header from the category map
+        lines.append(category_map[swap])
+        
         cat_lines = random.sample(derivative_keywords["gen"], k=random.randint(3, 5))
         
         # Add multiple line items with lots of numbers
@@ -1733,9 +1736,9 @@ def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_
 
     # Define line item sources from other.py for different noise types
     line_item_sources = {
-        "B_S": balance_sheet_reasons + asset_types + liability_reasons,
-        "EQ": equity_warrant_activity_templates + stock_option_plan_templates,
-        "PPE": ppe_templates + capex_purposes,
+        "B_S": balance_sheet_list,
+        "EQ": stock_list,
+        "PPE": ppe_list,
         "DEBT": debt_types_list,
     }
 
@@ -1751,8 +1754,6 @@ def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_
     current_year = random.randint(year_range[0], year_range[1])
     reporting_year = current_year
     prev_year = current_year - 1
-    month = random.choice(months)
-    end_day = random.randint(28, 31)
 
     lines = []
 
@@ -1778,7 +1779,6 @@ def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_
     for line_item in selected_lines:
         # Clean up the line item text
         line_item = re.sub(r'\{.*?\}', '', line_item).strip().capitalize()
-        template = random.choice(table_line_templates)
 
         # Use amounts suitable for balance sheet items
         amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
