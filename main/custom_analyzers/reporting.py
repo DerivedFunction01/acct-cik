@@ -179,7 +179,7 @@ class SentenceLabeler:
 
         return pd.DataFrame(sentences_data)
 
-    def create_labeled_files(self, model_agg_df: pd.DataFrame):
+    def _create_labeled_files_from_agg(self, model_agg_df: pd.DataFrame):
         """Create separate Excel files for each label category using streaming"""
         print(f"Creating labeled sentence files using streaming...")
         print(f"Model aggregated data: {len(model_agg_df):,} firm-year records")
@@ -285,6 +285,25 @@ class SentenceLabeler:
 
         print(f"  ✓ Wrote {workbook_name} workbook ({len(combined_df):,} sentences)")
 
+    def run(self):
+        """
+        Main execution method. Loads necessary data and runs the labeling process.
+        """
+        print("-" * 70)
+        print("Running Sentence Labeler...")
+
+        # This analyzer needs the aggregated model predictions to join user flags.
+        # It initializes its own data loader and processor to be self-contained.
+        from .analysis import DataLoader, PredictionsProcessor
+
+        data_loader = DataLoader(self.config)
+        predictions_processor = PredictionsProcessor(self.config, self.label_mapper)
+
+        model_df = data_loader.load_model_predictions()
+        model_agg_df = predictions_processor.process_predictions(model_df)
+
+        self._create_labeled_files_from_agg(model_agg_df)
+        print("-" * 70)
 
 # =============================================================================
 # MAIN EXECUTION (identical interface to original)
@@ -309,7 +328,7 @@ if __name__ == "__main__":
 
     # Create labeled files
     labeler = SentenceLabeler(config, label_mapper)
-    labeler.create_labeled_files(model_agg_df)
+    labeler.run()
 
     print("\n" + "=" * 70)
     print("Pipeline finished successfully!")

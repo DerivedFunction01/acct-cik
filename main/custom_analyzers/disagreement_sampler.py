@@ -190,7 +190,7 @@ class DisagreementSampler:
 
         return pd.DataFrame(results) if results else pd.DataFrame()
 
-    def analyze(self, detailed_comparison_df: pd.DataFrame):
+    def _analyze_from_comparison(self, detailed_comparison_df: pd.DataFrame):
         """
         Takes the detailed comparison DataFrame and generates sampled Excel files
         for disagreement analysis using streaming.
@@ -290,6 +290,36 @@ class DisagreementSampler:
             f"✅ Disagreement analysis complete ({total_processed:,} records processed)"
         )
         print("-" * 70)
+
+    def run(self):
+        """
+        Main execution method. Loads data, runs comparison, and then samples disagreements.
+        """
+        print("-" * 70)
+        print("Running Disagreement Sampler...")
+
+        # This analyzer needs to run a comparison first to find disagreements.
+        # It initializes its own components to be self-contained.
+        from .analysis import DataLoader, PredictionsProcessor
+        from custom_analyzers.comparison import ComparisonAnalyzer
+
+        # 1. Load data
+        data_loader = DataLoader(self.config)
+        keyword_df = data_loader.load_keyword_data()
+
+        predictions_processor = PredictionsProcessor(self.config, self.label_mapper)
+        model_df = data_loader.load_model_predictions()
+        model_agg_df = predictions_processor.process_predictions(model_df)
+
+        # 2. Run comparison to get the 'detailed' disagreement dataframe
+        print("  -> Running internal comparison to find disagreements...")
+        comparison_analyzer = ComparisonAnalyzer(self.config, self.label_mapper)
+        comparison_results = comparison_analyzer.analyze(
+            keyword_df=keyword_df, model_df=model_agg_df
+        )
+
+        # 3. Run the sampler with the disagreement data
+        self._analyze_from_comparison(comparison_results["detailed"])
 
     def _flush_sheet(self, sheet_name: str, sheet_info: Dict):
         """Write a sheet's accumulated data to Excel"""

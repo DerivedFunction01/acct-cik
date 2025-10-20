@@ -149,42 +149,30 @@ class AnalysisPipeline:
     def _run_comparison_analysis(self):
         """Runs the keyword vs. model comparison and saves the workbook."""
         print("\n[Extra] Running Keyword vs. Model Comparison...")
-        comparison_analyzer = ComparisonAnalyzer(self.config, self.label_mapper)
-        comparison_results = comparison_analyzer.analyze(
-            keyword_df=self._pipeline_data["keyword_df"],
-            model_df=self._pipeline_data["model_agg_df"],
-        )
-
-        workbook_manager = WorkbookManager(self.config)
-        workbook_manager.write_comparison_workbook(comparison_results)
-
-        self._pipeline_data["model_agg_df"] = comparison_results.get(
-            "merged_df", self._pipeline_data["model_agg_df"]
-        )
-        self._pipeline_data["comparison_results"] = comparison_results
+        # This analyzer is now run as part of the DisagreementSampler if needed,
+        # or can be run standalone if it had its own `run` method.
+        # For now, we assume its main value is for the sampler.
+        # If a separate comparison file is needed, we would give it a `run` method.
+        print("     (Comparison is run internally by Disagreement Sampler)")
 
     def _run_disagreement_sampler(self):
         """Runs the disagreement sampler if comparison results are available."""
         print("\n[Extra] Running Disagreement Sampler...")
-        if "detailed" not in self._pipeline_data.get("comparison_results", {}):
-            print(
-                "     ❌ Skipping: Disagreement sampler requires 'run_comparison' to be True."
-            )
-            return
-
         sampler = DisagreementSampler(
             config=self.config,
             label_mapper=self.label_mapper,
             data_loader=self.data_loader,
             sentence_df=None,  # No longer needed - uses streaming internally
         )
-        sampler.analyze(self._pipeline_data["comparison_results"]["detailed"])
+        sampler.run()
 
     def _run_custom_analyzers(self):
         """Execute all registered custom analyzers."""
         print("\n[Extra] Running custom analyzers...")
         for name, analyzer in self.custom_analyzers.items():
             print(f"  -> Running '{name}'...")
+            # Custom analyzers are expected to have a `run` method if they are to be
+            # executed independently in this pipeline.
             if "model_agg_df" not in self._pipeline_data:
                 print(
                     f"     ❌ Skipping '{name}': Required data 'model_agg_df' not found."
@@ -203,13 +191,8 @@ class AnalysisPipeline:
         print(
             "\n[Extra] Creating labeled sentence files (streaming mode - memory efficient)..."
         )
-        if "model_agg_df" not in self._pipeline_data:
-            print("     ❌ Skipping: Sentence generation requires model_agg_df.")
-            return
-
-        self.sentence_labeler.create_labeled_files(
-            model_agg_df=self._pipeline_data["model_agg_df"]
-        )
+        labeler = SentenceLabeler(self.config, self.label_mapper)
+        labeler.run()
 
     def _run_accuracy_check(self):
         """Runs the accuracy sampling process using streaming."""
