@@ -4,7 +4,6 @@ import json
 from dataclasses import dataclass
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import psutil
 from typing import List, Iterator, Optional
 import sqlite3
 from contextlib import contextmanager
@@ -12,18 +11,6 @@ from contextlib import contextmanager
 # Import existing classes from the analysis module
 from .analysis import Config
 from .analysis import DataLoader, LabelMapper
-
-
-# =============================================================================
-# DEBUGGING UTILITIES
-# =============================================================================
-def print_memory_usage(stage: str):
-    """Prints the current memory usage at a given stage."""
-    mem = psutil.virtual_memory()
-    print(
-        f"🧠 MEMORY @ {stage}: {mem.percent}% used ({mem.used / 1024**3:.2f} GB / {mem.total / 1024**3:.2f} GB)"
-    )
-
 
 # =============================================================================
 # CONFIGURATION
@@ -366,22 +353,14 @@ class AccuracySampler:
         """
         print("-" * 70)
         print("Running Accuracy Sampling...")
-        print_memory_usage("START")
 
         # Use streaming to flatten sentence data (no longer loads all into memory)
         flattened_data = self._flatten_sentence_data_streaming()
-
-        print_memory_usage("AFTER FLATTEN")
-
         # Create a stratified sample
         accuracy_sample_df = self._create_stratified_sample(flattened_data)
 
-        print_memory_usage("AFTER STRATIFY")
-
         # Save the sample to Excel for review
         self._save_sample_to_excel(accuracy_sample_df)
-
-        print_memory_usage("AFTER SAVE")
         print("Accuracy sampling complete.")
         print("-" * 70)
 
