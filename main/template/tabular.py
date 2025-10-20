@@ -13,6 +13,14 @@ table_line_templates = [
     "{line_item} {currency_code} {notional} {money_unit} {prev_notional} {money_unit}",
     "{line_item} {notional} {amount} {prev_notional} {amount2}",
     "{line_item} {year} {notional} {prev_year} {prev_notional}",
+    "{line_item} {amount} {prev_amount}",
+]
+
+# Headers for non-derivative tables
+noise_table_headers = [
+    "Consolidated Balance Sheets ({currency_code} in {money_unit})",
+    "Statement of Stockholders' Equity {year} and {prev_year}",
+    "Schedule of Capital Expenditures",
 ]
 
 # Total lines (raw table style)
@@ -25,4 +33,11 @@ table_totals = [
     "Total notional amount {currency_code} {amount} {money_unit} {amount2} {money_unit}",
     "Net derivative positions {year} {amount} {prev_year} {amount2}",
     "Total {line_item} {amount} {amount2}",
+]
+
+# Total lines for non-derivative tables
+noise_table_totals = [
+    "Total Assets {currency_code} {amount} {money_unit} {prev_amount} {money_unit}",
+    "Total Liabilities and Equity {currency_code} {amount} {money_unit} {prev_amount} {money_unit}",
+    "Total {line_item} {amount} {prev_amount}",
 ]

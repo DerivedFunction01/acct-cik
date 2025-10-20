@@ -1722,6 +1722,91 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     
     return paragraph, labels, label
 
+def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_name=None):
+    """
+    Generate raw tabular text for non-derivative financial topics.
+    Mimics table data converted to text, serving as a counter-example to derivative tables.
+    Returns: (paragraph, labels, label)
+    """
+    labels = new_label()
+    labels["irr"] = 1.0  # Mark as irrelevant for the hedge model
+
+    # Define line item sources from other.py for different noise types
+    line_item_sources = {
+        "B_S": balance_sheet_reasons + asset_types + liability_reasons,
+        "EQ": equity_warrant_activity_templates + stock_option_plan_templates,
+        "PPE": ppe_templates + capex_purposes,
+        "DEBT": debt_types_list,
+    }
+
+    if noise_type is None:
+        noise_type = random.choice(list(line_item_sources.keys()))
+
+    # Setup common variables
+    if company_name is None:
+        company_name = random.choice(company_names) if random.random() < 0.95 else "The Company"
+
+    money_units = random.choice(money_unit_list)
+    currency_code = random.choice(currency_codes)
+    current_year = random.randint(year_range[0], year_range[1])
+    reporting_year = current_year
+    prev_year = current_year - 1
+    month = random.choice(months)
+    end_day = random.randint(28, 31)
+
+    lines = []
+
+    # Table header (optional)
+    if random.random() < 0.6:
+        header = random.choice(noise_table_headers).format(
+            year=current_year,
+            prev_year=prev_year,
+            money_unit=money_units,
+            currency_code=currency_code
+        )
+        lines.append(header)
+
+    # Generate raw tabular lines
+    source_list = line_item_sources.get(noise_type, [])
+    if not source_list:
+        # Fallback if noise_type is invalid
+        source_list = balance_sheet_reasons
+
+    num_lines = random.randint(5, 8)
+    selected_lines = random.sample(source_list, k=min(num_lines, len(source_list)))
+
+    for line_item in selected_lines:
+        # Clean up the line item text
+        line_item = re.sub(r'\{.*?\}', '', line_item).strip().capitalize()
+        template = random.choice(table_line_templates)
+
+        # Use amounts suitable for balance sheet items
+        amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
+        prev_amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
+
+        # Format the line using a simple amount/prev_amount structure
+        lines.append(f"{line_item} {amount} {prev_amount}")
+
+    # Add summary/total lines
+    if random.random() < 0.8:
+        total_template = random.choice(noise_table_totals)
+        total_amount = generate_value(haveZero=False, lowerlimit=500000, upperlimit=5000000)
+        total_prev_amount = generate_value(haveZero=False, lowerlimit=500000, upperlimit=5000000)
+
+        lines.append(total_template.format(
+            line_item=random.choice(["Assets", "Liabilities", "Equity", "Expenditures"]),
+            amount=total_amount,
+            prev_amount=total_prev_amount,
+            currency_code=currency_code,
+            money_unit=money_units
+        ))
+
+    # Create paragraph and get primary label
+    paragraph = cleanup(lines, reporting_year, fullCheck=False)
+    label = get_primary_label(labels)
+
+    return paragraph, labels, label
+
 def generate(size_per_label=100):
     """
     Generate the dataset. Fixed:
@@ -1788,6 +1873,12 @@ def generate(size_per_label=100):
         for _ in range(table_count):
             for swap_type in table_types:
                 futures.append(executor.submit(generate_derivative_table_text, swapType=swap_type))
+
+        # Noise table text
+        noise_table_count = count * 2
+        noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT']
+        for _ in range(noise_table_count):
+            futures.append(executor.submit(generate_noise_table_text, noise_type=random.choice(noise_table_types)))
                 
         # Noise Generation
         noise_count = count * 2
