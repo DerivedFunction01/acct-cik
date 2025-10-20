@@ -226,9 +226,8 @@ class AnalysisPipeline:
     def _run_firm_inspector(self):
         """Runs the standalone firm inspector analysis."""
         print("\n[Extra] Running Firm Inspector...")
-        inspector_config = URLAnalysisConfig()
-        inspector_config.data_loader = self.data_loader
-        inspector = URLAnalyzer(inspector_config, self.label_mapper)
+        inspector_config = URLAnalysisConfig() # Uses its own config
+        inspector = URLAnalyzer(inspector_config, self.label_mapper) # Initializes its own DataLoader
         inspector.run()
 
     def _print_summary(self):

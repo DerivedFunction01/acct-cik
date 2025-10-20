@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from tqdm import tqdm
 
 # Import from existing modules
-from custom_analyzers.analysis import Config, LabelMapper
+from custom_analyzers.analysis import Config, LabelMapper, DataLoader
 
 # =============================================================================
 # URL ANALYZER
@@ -24,6 +24,7 @@ class URLAnalyzer:
     def __init__(self, config: URLAnalysisConfig, label_mapper: LabelMapper):
         self.config = config
         self.label_mapper = label_mapper
+        self.data_loader = DataLoader(config)
 
     def load_urls_from_excel(self) -> pd.DataFrame:
         """Load URLs from the input Excel file"""
@@ -335,7 +336,6 @@ if __name__ == "__main__":
     label_mapper = LabelMapper(config.keywords_json, config.labels)
     # Initialize and run analyzer
     analyzer = URLAnalyzer(inspector_config, label_mapper)
-    analyzer.data_loader = DataLoader(config) # Inject the data loader
     analyzer.run()
 
     print("\n" + "=" * 70)
