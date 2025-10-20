@@ -1796,7 +1796,7 @@ def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_
         lines.append(total_template.format(
             line_item=random.choice(["Assets", "Liabilities", "Equity", "Expenditures"]),
             amount=total_amount,
-            prev_amount=total_prev_amount,
+            amount2=total_prev_amount,
             currency_code=currency_code,
             money_unit=money_units
         ))
@@ -1934,7 +1934,7 @@ def generate(size_per_label=100):
     print(f"\n{len(all_samples)} samples written/appended to {output_file} (sorted)")
 
 # %%
-generate(1000)
+generate(100)
 
 # %%
 df = pd.read_excel(output_file)
