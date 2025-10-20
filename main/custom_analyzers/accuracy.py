@@ -74,22 +74,13 @@ class AccuracySampler:
         """Processes a single report row to extract and label sentences."""
         global PRED_COUNT
         
-        categorized_matches = row.get("matches")
+        matches = row.get("matches")  # This is now a flattened list from the DataLoader
         predictions = row.get("server_response")
 
-        if not isinstance(categorized_matches, dict) or not isinstance(predictions, list):
+        # The matches are now pre-flattened by DataLoader, so we expect a list.
+        if not isinstance(matches, list) or not isinstance(predictions, list):
             return []
 
-        # Flatten the dictionary of categorized sentences into a single list
-        matches = []
-        if isinstance(categorized_matches, dict):
-            for category_sentences in categorized_matches.values():
-                if isinstance(category_sentences, list):
-                    matches.extend(category_sentences)
-        else:
-            # Fallback for old list format
-            matches = categorized_matches
-            
         min_len = min(len(matches), len(predictions))
         processed_sentences = []
 
