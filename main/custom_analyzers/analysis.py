@@ -394,6 +394,21 @@ class DataLoader:
                 return None
         return value
 
+    def _flatten_matches(self, matches_dict):
+        """Flatten a dictionary of sentence lists into a single list."""
+        if not isinstance(matches_dict, dict):
+            # Fallback for old format or unexpected data
+            if isinstance(matches_dict, list):
+                return matches_dict
+            return []
+
+        flattened_sentences = []
+        for category_sentences in matches_dict.values():
+            if isinstance(category_sentences, list):
+                flattened_sentences.extend(category_sentences)
+        
+        return flattened_sentences
+
     def load_model_predictions(self) -> pd.DataFrame:
         """Load model predictions from database"""
         query = """
@@ -450,6 +465,7 @@ class DataLoader:
 
         # Parse JSON columns
         df["matches"] = df["matches"].apply(self._parse_json_column)
+        df["matches"] = df["matches"].apply(self._flatten_matches)
         df["server_response"] = df["server_response"].apply(self._parse_json_column)
 
         # Remove rows with failed JSON parsing

@@ -114,22 +114,13 @@ class URLAnalyzer:
             print(f"⚠️  Multiple records found for {url}, using first one")
 
         row = data.iloc[0]
-        categorized_matches = row.get("matches")
+        matches = row.get("matches") # This is now a flattened list from the loader
         predictions = row.get("server_response")
 
-        if not isinstance(categorized_matches, dict) or not isinstance(predictions, list):
+        if not isinstance(matches, list) or not isinstance(predictions, list):
             print(f"⚠️  No sentences or predictions for {url}")
             return pd.DataFrame()
 
-        # Flatten the dictionary of categorized sentences into a single list
-        matches = []
-        if isinstance(categorized_matches, dict):
-            for category_sentences in categorized_matches.values():
-                if isinstance(category_sentences, list):
-                    matches.extend(category_sentences)
-        else:
-            matches = categorized_matches
-            
         # Process each sentence
         sentences_data = []
         min_len = min(len(matches), len(predictions))
