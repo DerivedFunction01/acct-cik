@@ -21,28 +21,28 @@ class KeyFirmsSampler(BaseAnalyzer):
 
     def _get_reports_with_no_text(self) -> pd.DataFrame:
         """
-        Identifies reports where the 'matches' field in the database is empty,
-        indicating no text was extracted.
+        Identifies reports that should have text but are missing server results,
+        or have empty server results. This indicates a processing failure.
 
         Returns:
             pd.DataFrame: A DataFrame with 'cik' and 'year' for reports with no text.
         """
-        print("   -> Identifying reports with no extracted text...")
-        # This query joins report_data with webpage_result to find reports
-        # that have an entry but where the 'matches' field is empty JSON ('[]').
-        query = """
+
+        # Query 1: Find reports that are in server_result but have an empty response,
+        # indicating the server ran but produced no predictions.
+        query_processed_empty = """
             SELECT r.cik, r.year
-            FROM report_data r
-            LEFT JOIN webpage_result w ON r.url = w.url
-            WHERE w.url IS NULL OR w.matches = '[]' OR w.matches = '{}' OR w.matches IS NULL
+            FROM server_result s
+            JOIN report_data r ON s.url = r.url
+            WHERE s.server_response = '[]' OR s.server_response = '{}' OR s.server_response IS NULL
         """
         with self.data_loader._get_connection() as conn:
-            no_text_df = pd.read_sql(query, conn)
-
-        # Drop duplicates to ensure unique firm-year pairs
-        no_text_df = no_text_df.drop_duplicates(subset=['cik', 'year']).reset_index(drop=True)
-        print(f"   -> Found {len(no_text_df)} reports with no text.")
-        return no_text_df
+            processed_empty_df = pd.read_sql(query_processed_empty, conn)
+        print(f"   -> Found {len(processed_empty_df):,} reports processed with an empty server result.")
+        print(
+            f"   -> Total unique firm-years with no/empty text: {len(processed_empty_df):,}"
+        )
+        return processed_empty_df
 
     def analyze(self, data: pd.DataFrame, **kwargs) -> Dict[str, pd.DataFrame]:
         """
