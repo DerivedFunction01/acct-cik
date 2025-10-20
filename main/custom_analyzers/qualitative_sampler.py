@@ -133,12 +133,21 @@ class QualitativeSampler(BaseAnalyzer):
             sentence_data = []
             for i, text in enumerate(sentences):
                 pred_labels = []
-                if i < len(predictions) and isinstance(predictions[i], dict):
-                    # Process multi-label prediction vector
-                    pred_vector = predictions[i].get("pred_vector", {})
-                    for label, score in pred_vector.items():
-                        if score > self.config.confidence_threshold:
-                            pred_labels.append(f"{label} ({score:.2f})")
+                if i < len(predictions):
+                    prediction_item = predictions[i]
+                    # Handle both old and new prediction formats
+                    if isinstance(prediction_item, dict):
+                        # New format: {"pred_vector": {...}, "primary_labels": [...]}
+                        pred_vector = prediction_item.get("pred_vector", {})
+                        for label, score in pred_vector.items():
+                            if score > self.config.confidence_threshold:
+                                pred_labels.append(f"{label} ({score:.2f})")
+                    elif isinstance(prediction_item, int):
+                        # Old format: just a single integer label ID
+                        label_name = self.label_mapper.primary_id2label.get(prediction_item)
+                        if label_name:
+                            pred_labels.append(label_name)
+
                 sentence_data.append({"text": text, "labels": pred_labels})
 
             return sentence_data
@@ -149,6 +158,8 @@ class QualitativeSampler(BaseAnalyzer):
     def analyze(self, data: pd.DataFrame, **kwargs) -> dict:
         """
         Main analysis method.
+        It now samples from all available reports in `server_result` and then
+        merges flags from the pre-aggregated `data` DataFrame.
 
         Args:
             data (pd.DataFrame): Merged DataFrame containing both keyword and model flags.
@@ -159,30 +170,47 @@ class QualitativeSampler(BaseAnalyzer):
             print("   ❌ 'url' column not found in input data. Skipping.")
             return {}
 
+        # Fetch all available reports from the database to use as the sampling pool
+        print("   -> Fetching all available reports from server_result for sampling...")
+        with self.data_loader._get_connection() as conn:
+            all_reports_df = pd.read_sql_query(
+                """
+                SELECT r.cik, r.year, r.url
+                FROM server_result s
+                JOIN report_data r ON s.url = r.url
+                """,
+                conn
+            )
+        print(f"   -> Found {len(all_reports_df)} total reports available for sampling.")
+
         # Check if a file with sampled URLs already exists.
         if self.sampled_urls_csv.exists():
             print(f"   -> Found existing sample file: {self.sampled_urls_csv}. Reusing URLs.")
             try:
                 sampled_keys_df = pd.read_csv(self.sampled_urls_csv)
-                # Use an inner merge to select only the rows from the main data that match the saved sample.
-                sample_df = pd.merge(data, sampled_keys_df[['cik', 'year']], on=['cik', 'year'], how='inner')
+                # Use an inner merge to select only the rows from the full report list that match the saved sample.
+                sample_df = pd.merge(all_reports_df, sampled_keys_df[['cik', 'year']], on=['cik', 'year'], how='inner')
                 if len(sample_df) != len(sampled_keys_df):
                     print(f"   ⚠️  Warning: Mismatch between sampled URLs file and available data. Found {len(sample_df)} of {len(sampled_keys_df)} reports.")
             except Exception as e:
                 print(f"   ❌ Error reading sample file: {e}. Generating a new random sample.")
-                sample_df = data.sample(n=min(self.sample_size, len(data)), random_state=self.random_state)
+                sample_df = all_reports_df.sample(n=min(self.sample_size, len(all_reports_df)), random_state=self.random_state)
                 # Save the new sample's keys for future runs
                 sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
                 print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
         else:
             print("   -> No existing sample file found. Generating a new random sample.")
-            sample_df = data.sample(n=min(self.sample_size, len(data)), random_state=self.random_state)
+            sample_df = all_reports_df.sample(n=min(self.sample_size, len(all_reports_df)), random_state=self.random_state)
             # Save the new sample's keys for future runs
             sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
             print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
 
+        # Now, merge the sampled data with the pre-aggregated flags.
+        # Use a left merge to keep all sampled reports, even if they don't have flags yet.
+        final_sample_df = pd.merge(sample_df, data, on=['cik', 'year', 'url'], how='left').fillna(0)
+
         reports_data = []
-        for _, row in sample_df.iterrows():
+        for _, row in final_sample_df.iterrows():
             report = {
                 "cik": row["cik"],
                 "year": row["year"],
