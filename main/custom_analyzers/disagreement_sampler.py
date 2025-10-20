@@ -324,18 +324,25 @@ class DisagreementSampler:
         output_path = self.config.output_dir / self.output_filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Write to Excel (append mode)
+        # Use openpyxl for append mode, as xlsxwriter does not support it.
+        # Determine mode based on file existence.
+        mode = "a" if output_path.exists() else "w"
+
         with pd.ExcelWriter(
-            output_path, engine="xlsxwriter", mode="a", if_sheet_exists="replace"
+            output_path,
+            engine="openpyxl",
+            mode=mode,
+            if_sheet_exists="replace" if mode == "a" else None,
         ) as writer:
-            writer.book.strings_to_urls = False
             sample_df[display_cols].to_excel(writer, sheet_name=sheet_name, index=False)
 
-            # Format columns
+            # Format columns using openpyxl's syntax
             worksheet = writer.sheets[sheet_name]
-            worksheet.set_column("A:B", 10)  # cik, year
-            worksheet.set_column("C:C", 60)  # url
-            worksheet.set_column("D:E", 15)  # flags
-            worksheet.set_column("F:F", 100)  # sentences
+            worksheet.column_dimensions["A"].width = 10  # cik
+            worksheet.column_dimensions["B"].width = 10  # year
+            worksheet.column_dimensions["C"].width = 60  # url
+            worksheet.column_dimensions["D"].width = 15  # flag 1
+            worksheet.column_dimensions["E"].width = 15  # flag 2
+            worksheet.column_dimensions["F"].width = 100 # sentences
 
         print(f"  ✓ {sheet_name} ({len(sample_df)} samples)")
