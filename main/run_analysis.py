@@ -46,7 +46,7 @@ class AnalysisPipeline:
         self.data_loader = DataLoader(config)
         self.predictions_processor = PredictionsProcessor(config, self.label_mapper)
         self.sentence_labeler = SentenceLabeler(config, self.label_mapper)
-        
+
         # Create AccuracyConfig from base Config
         self.accuracy_config = self._create_accuracy_config()
 
@@ -90,15 +90,21 @@ class AnalysisPipeline:
         print("=" * 70)
 
         if not self._data_loaded:
-            print("⚠️ Data not loaded. Please run `pipeline.load_and_process_data()` first.")
+            print(
+                "⚠️ Data not loaded. Please run `pipeline.load_and_process_data()` first."
+            )
             return
 
         if options is None:
             options = RunOptions()
 
         # Reset comparison results if comparison is not being run
-        if not options.run_comparison and "merged_df" in self._pipeline_data.get("comparison_results", {}):
-            self._pipeline_data["model_agg_df"] = self._pipeline_data["original_model_agg_df"]
+        if not options.run_comparison and "merged_df" in self._pipeline_data.get(
+            "comparison_results", {}
+        ):
+            self._pipeline_data["model_agg_df"] = self._pipeline_data[
+                "original_model_agg_df"
+            ]
 
         # Execute optional steps based on RunOptions
         for step_name, step_func in self._step_map.items():
@@ -134,7 +140,7 @@ class AnalysisPipeline:
         self._pipeline_data["model_agg_df"] = model_agg
         self._pipeline_data["original_model_agg_df"] = model_agg.copy()
         self._data_loaded = True
-        
+
         print(f"✅ Data loading complete")
         print(f"   - Model predictions: {len(model_df):,} records")
         print(f"   - Aggregated to firm-year: {len(model_agg):,} records")
@@ -151,20 +157,24 @@ class AnalysisPipeline:
 
         workbook_manager = WorkbookManager(self.config)
         workbook_manager.write_comparison_workbook(comparison_results)
-        
-        self._pipeline_data["model_agg_df"] = comparison_results.get("merged_df", self._pipeline_data["model_agg_df"])
+
+        self._pipeline_data["model_agg_df"] = comparison_results.get(
+            "merged_df", self._pipeline_data["model_agg_df"]
+        )
         self._pipeline_data["comparison_results"] = comparison_results
 
     def _run_disagreement_sampler(self):
         """Runs the disagreement sampler if comparison results are available."""
         print("\n[Extra] Running Disagreement Sampler...")
         if "detailed" not in self._pipeline_data.get("comparison_results", {}):
-            print("     ❌ Skipping: Disagreement sampler requires 'run_comparison' to be True.")
+            print(
+                "     ❌ Skipping: Disagreement sampler requires 'run_comparison' to be True."
+            )
             return
-        
+
         sampler = DisagreementSampler(
-            config=self.config, 
-            label_mapper=self.label_mapper, 
+            config=self.config,
+            label_mapper=self.label_mapper,
             data_loader=self.data_loader,
             sentence_df=None,  # No longer needed - uses streaming internally
         )
@@ -176,7 +186,9 @@ class AnalysisPipeline:
         for name, analyzer in self.custom_analyzers.items():
             print(f"  -> Running '{name}'...")
             if "model_agg_df" not in self._pipeline_data:
-                print(f"     ❌ Skipping '{name}': Required data 'model_agg_df' not found.")
+                print(
+                    f"     ❌ Skipping '{name}': Required data 'model_agg_df' not found."
+                )
                 continue
 
             try:
@@ -188,11 +200,13 @@ class AnalysisPipeline:
 
     def _run_sentence_generation(self):
         """Generates labeled sentence files using streaming (no need to load all sentences first)."""
-        print("\n[Extra] Creating labeled sentence files (streaming mode - memory efficient)...")
+        print(
+            "\n[Extra] Creating labeled sentence files (streaming mode - memory efficient)..."
+        )
         if "model_agg_df" not in self._pipeline_data:
             print("     ❌ Skipping: Sentence generation requires model_agg_df.")
             return
-        
+
         self.sentence_labeler.create_labeled_files(
             model_agg_df=self._pipeline_data["model_agg_df"]
         )
@@ -201,8 +215,8 @@ class AnalysisPipeline:
         """Runs the accuracy sampling process using streaming."""
         print("\n[Extra] Running Accuracy Check (streaming mode - memory efficient)...")
         sampler = AccuracySampler(
-            config=self.accuracy_config, 
-            data_loader=self.data_loader, 
+            config=self.accuracy_config,
+            data_loader=self.data_loader,
             label_mapper=self.label_mapper,
             sentence_df=None,  # No longer needed - uses streaming internally
             model_agg_df=None,  # Not used with streaming approach
@@ -228,6 +242,7 @@ class AnalysisPipeline:
         print(f"Results saved to: {self.config.output_dir}")
         print("=" * 70)
 
+
 # %%
 # =============================================================================
 # ENTRY POINT
@@ -251,7 +266,7 @@ if __name__ == "__main__":
         run_comparison=True,
         run_disagreement_sampler=True,
         generate_sentence_files=True,  # Now uses streaming - much faster!
-        run_accuracy_check=True,       # Now uses streaming - much faster!
+        run_accuracy_check=True,  # Now uses streaming - much faster!
         run_firm_inspector=True,
         run_custom_analyzers=False,
     )
