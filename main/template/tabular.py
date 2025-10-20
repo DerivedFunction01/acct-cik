@@ -13,7 +13,7 @@ table_line_templates = [
     "{line_item} {currency_code} {notional} {money_unit} {prev_notional} {money_unit}",
     "{line_item} {notional} {amount} {prev_notional} {amount2}",
     "{line_item} {year} {notional} {prev_year} {prev_notional}",
-    "{line_item} {amount} {prev_amount}",
+    "{line_item} {amount} {amount2}",
 ]
 
 # Headers for non-derivative tables
@@ -37,7 +37,7 @@ table_totals = [
 
 # Total lines for non-derivative tables
 noise_table_totals = [
-    "Total Assets {currency_code} {amount} {money_unit} {prev_amount} {money_unit}",
-    "Total Liabilities and Equity {currency_code} {amount} {money_unit} {prev_amount} {money_unit}",
-    "Total {line_item} {amount} {prev_amount}",
+    "Total Assets {currency_code} {amount} {money_unit} {amount2} {money_unit}",
+    "Total Liabilities and Equity {currency_code} {amount} {money_unit} {amount2} {money_unit}",
+    "Total {line_item} {amount} {amount2}",
 ]
