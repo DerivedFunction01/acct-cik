@@ -13,6 +13,7 @@ from custom_analyzers.accuracy import AccuracySampler, AccuracyConfig
 from custom_analyzers.disagreement_sampler import DisagreementSampler
 from custom_analyzers.firm_inspector import URLAnalyzer, URLAnalysisConfig
 from custom_analyzers.qualitative_sampler import QualitativeSampler
+from custom_analyzers.key_firms_sampler import KeyFirmsSampler
 from typing import Dict, Optional
 from dataclasses import dataclass, field
 
@@ -32,6 +33,7 @@ class RunOptions:
     run_disagreement_sampler: bool = False
     generate_sentence_files: bool = True
     run_qualitative_sampler: bool = True
+    run_key_firms_sampler: bool = True
 
 
 # =============================================================================
@@ -61,6 +63,7 @@ class AnalysisPipeline:
             # Fast analysis goes first
             "run_qualitative_sampler": self._run_qualitative_sampler,
             "run_firm_inspector": self._run_firm_inspector,
+            "run_key_firms_sampler": self._run_key_firms_sampler,
             # Then slower ones
             "run_comparison": self._run_comparison_analysis,
             "run_custom_analyzers": self._run_custom_analyzers,
@@ -235,6 +238,11 @@ class AnalysisPipeline:
         inspector = URLAnalyzer(inspector_config, self.label_mapper) # Initializes its own DataLoader
         inspector.run()
 
+    def _run_key_firms_sampler(self):
+        """Runs the new key firms sampler."""
+        sampler = KeyFirmsSampler(self.config)
+        sampler.run(model_agg_df=self._pipeline_data["model_agg_df"])
+
     def _print_summary(self):
         """Prints a final summary of the pipeline execution."""
         print("\n" + "=" * 70)
@@ -274,6 +282,7 @@ if __name__ == "__main__":
         run_firm_inspector=False,
         run_custom_analyzers=False,
         run_qualitative_sampler=True,
+        run_key_firms_sampler=True,
     )
 
     # Execute the pipeline with the chosen options
