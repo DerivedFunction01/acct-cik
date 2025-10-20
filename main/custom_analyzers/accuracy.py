@@ -4,11 +4,20 @@ import json
 from dataclasses import dataclass
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import psutil
 from typing import List
 
 # Import existing classes from the analysis module
 from .analysis import Config
 from .analysis import DataLoader, LabelMapper
+
+# =============================================================================
+# DEBUGGING UTILITIES
+# =============================================================================
+def print_memory_usage(stage: str):
+    """Prints the current memory usage at a given stage."""
+    mem = psutil.virtual_memory()
+    print(f"🧠 MEMORY @ {stage}: {mem.percent}% used ({mem.used / 1024**3:.2f} GB / {mem.total / 1024**3:.2f} GB)")
 
 # =============================================================================
 # CONFIGURATION
@@ -113,13 +122,17 @@ class AccuracySampler:
 
     def _load_and_flatten_data(self) -> pd.DataFrame:
         """Load sentence data from DB and flatten into one-row-per-sentence."""
+        print_memory_usage("Start of _load_and_flatten_data")
         print("Loading data from database...")
         df = self.data_loader.load_sentence_data()
+        print_memory_usage("After loading data into DataFrame")
 
         print(f"Flattening {len(df)} reports into individual sentences...")
 
         # Convert DataFrame rows to a list of dictionaries for easier processing
         report_rows = df.to_dict("records")
+        del df # Free up memory from the initial DataFrame
+        print_memory_usage("After converting to list of dicts")
 
         all_sentences = []
 
@@ -127,6 +140,7 @@ class AccuracySampler:
         with ProcessPoolExecutor(max_workers=self.config.num_workers) as executor:
             # Create chunks for better load balancing
             chunks = self._chunkify(report_rows)
+            print_memory_usage("After creating chunks")
 
             # Process chunks in parallel
             future_to_chunk = {
@@ -138,7 +152,9 @@ class AccuracySampler:
                 total=len(chunks),
                 desc="Processing reports",
             ):
-                all_sentences.extend(future.result())
+                chunk_result = future.result()
+                all_sentences.extend(chunk_result)
+                print_memory_usage(f"After processing chunk {len(all_sentences)}/{len(report_rows)} sentences")
 
         flattened_df = pd.DataFrame(all_sentences)
 
