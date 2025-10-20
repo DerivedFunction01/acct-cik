@@ -1628,11 +1628,11 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     end_day = random.randint(28, 31)
     
     category_map =  {
-        'ir': "Interest Rate contracts",
-        'fx': "Foreign Exchange contracts",
-        'cp': "Commodity contracts",
-        'eq': "Equity contracts",
-        'gen': "Derivatives",
+        'ir': "Interest Rate " + random.choice(DEFAULT_SUFFIXES),
+        'fx': "Foreign Exchange " + random.choice(DEFAULT_SUFFIXES),
+        'cp': "Commodity " + random.choice(DEFAULT_SUFFIXES),
+        'eq': "Equity "+ random.choice(DEFAULT_SUFFIXES),
+        'gen': "Derivatives "+ random.choice(DEFAULT_SUFFIXES),
     }
     
     # Determine which swap types to include
