@@ -132,19 +132,47 @@ class QualitativeSampler(BaseAnalyzer):
 
             sentence_data = []
             for i, text in enumerate(sentences):
-                pred_labels = []
+                pred_labels: List[str] = []
+
                 if i < len(predictions):
                     prediction_item = predictions[i]
-                    # Handle both old and new prediction formats
+
+                    # Handle dict-style predictions (two common shapes):
+                    # 1) New wrapper format: {"pred_vector": {label: score, ...}, ...}
+                    # 2) Direct mapping: {label: score, ...}
+                    # 3) Legacy integer label id
                     if isinstance(prediction_item, dict):
-                        # New format: {"pred_vector": {...}, "primary_labels": [...]}
-                        pred_vector = prediction_item.get("pred_vector", {})
-                        for label, score in pred_vector.items():
-                            if score > self.config.confidence_threshold:
-                                pred_labels.append(f"{label} ({score:.2f})")
+                        # Prefer explicit pred_vector if present
+                        if "pred_vector" in prediction_item and isinstance(prediction_item.get("pred_vector"), dict):
+                            pred_vector = prediction_item.get("pred_vector", {})
+                        else:
+                            # Otherwise, treat the dict itself as the score mapping if values are numbers
+                            # Filter keys with numeric values
+                            if all(isinstance(v, (int, float)) for v in prediction_item.values()):
+                                pred_vector = prediction_item
+                            else:
+                                pred_vector = {}
+
+                        # If we have a numeric score vector, use confidence threshold to pick labels
+                        if pred_vector:
+                            for label, score in pred_vector.items():
+                                try:
+                                    if float(score) > self.config.confidence_threshold:
+                                        pred_labels.append(f"{label} ({float(score):.2f})")
+                                except Exception:
+                                    # Non-numeric score, skip
+                                    continue
+
+                        # If there is a primary_labels list (labels only), use that as a fallback
+                        elif "primary_labels" in prediction_item and isinstance(prediction_item.get("primary_labels"), list):
+                            for lab in prediction_item.get("primary_labels", []):
+                                pred_labels.append(str(lab))
+
                     elif isinstance(prediction_item, int):
-                        # Old format: just a single integer label ID
-                        label_name = self.label_mapper.primary_id2label.get(prediction_item)
+                        # Old format: single integer label id
+                        label_name = None
+                        if self.label_mapper and getattr(self.label_mapper, "primary_id2label", None) is not None:
+                            label_name = self.label_mapper.primary_id2label.get(prediction_item)
                         if label_name:
                             pred_labels.append(label_name)
 
