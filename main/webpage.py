@@ -207,7 +207,7 @@ ALL_BASE_TYPES = [
     "derivatives?", "swaptions?", "locks?", "hedges?", "hedging",
 ]
 
-ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?", "arrangements?", "assets?", "liabilit(?:y|ies)"]
+ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?", "arrangements?", "assets?", "liabilit(?:y|ies)", "commitments?"]
 
 
 COMMON_COMMODITIES = [
