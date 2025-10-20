@@ -1718,7 +1718,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             currency_code=currency_code
         ))
     if random.random() < 0.5:
-        hedge_sentence, _, _ = generate_hedge_paragraph(True, swapType)
+        hedge_sentence, _, _ = generate_hedge_paragraph(True, swapType if swapType != 'mixed' else "gen")
         # Remove the all text between < and >
         hedge_sentence = re.sub(r'<.*?>', '', hedge_sentence)
         hedge_sentence = hedge_sentence.strip()
