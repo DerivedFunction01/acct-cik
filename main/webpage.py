@@ -3,6 +3,7 @@
 # =============================================================================
 # %%
 # pip install pandas requests beautifulsoup4 tqdm psutil
+import string
 import pandas as pd
 import requests
 import time
@@ -582,7 +583,7 @@ def save_process_result(df):
 def fetch_json(url: str) -> dict | None:
     global SEC_RATE_LIMIT
     headers = {
-        "User-Agent": f"{random.randint(1000,9999)}-{random.randint(1000,9999)}@{random.randint(1000,9999)}.com"
+        "User-Agent": f"{random.randint(1000,9999)}-{random.randint(1000,9999)}@{''.join(random.choice(string.ascii_lowercase) for _ in range(random.randint(8,15)))}.com"
     }
     time.sleep(SEC_RATE_LIMIT)
     try:
