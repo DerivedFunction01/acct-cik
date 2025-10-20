@@ -1220,6 +1220,7 @@ def adjust_rate_in_background(
     This runs independently of the main fetch loop.
     """
     consecutive_slow_checks = 0
+    consecutive_fast_checks = 0
     while not stop_event.is_set():
         time.sleep(0.25)  # Check 4 times per second
 
@@ -1229,15 +1230,18 @@ def adjust_rate_in_background(
 
         current_rate = tqdm_bar.rate
         current_sleep = rate_limiter.value
+        mode = "Normal"
 
         # Check recovery status from 429s
         in_recovery, num_429s, time_since_429 = rate_limiter.check_recovery()
 
         # If we're in recovery mode, be more conservative
         if in_recovery:
+            mode = "429 Recovery"
             target_rate_adjusted = target_rate * 0.5  # Aim for 50% of normal rate
             min_time_since_429 = 5  # Start increasing rate after 5 seconds without 429s
             if time_since_429 > min_time_since_429:
+                mode = "Ramping Up"
                 # Gradually increase target rate as time passes without 429s
                 recovery_factor = min((time_since_429 - min_time_since_429) / 25, 1.0)
                 target_rate_adjusted = target_rate * (0.5 + (0.5 * recovery_factor))
@@ -1245,24 +1249,27 @@ def adjust_rate_in_background(
             target_rate_adjusted = target_rate
 
         # Proactive adjustment logic
-        if current_rate > target_rate_adjusted:
+        if current_rate > target_rate_adjusted * 1.05: # If we are >5% over target
             # Increase sleep time proportionally to how much we are over
             overshoot_factor = (current_rate - target_rate_adjusted) / target_rate_adjusted
             rate_limiter.value += 0.001 + (0.01 * overshoot_factor)
             consecutive_slow_checks = 0
-        elif current_rate < (target_rate_adjusted * 0.95):
+            consecutive_fast_checks += 1
+        elif current_rate < (target_rate_adjusted * 0.95): # If we are <5% under target
             if not in_recovery:  # Be more aggressive only when not in recovery
                 consecutive_slow_checks += 1
-                decrease_factor = min(0.01 * consecutive_slow_checks, 0.2)
+                # More aggressive decrease in sleep time
+                decrease_factor = min(0.05 * consecutive_slow_checks, 0.5)
                 rate_limiter.value = max(0, current_sleep * (1 - decrease_factor))
+            consecutive_fast_checks = 0
         else:
             consecutive_slow_checks = 0
 
         tqdm_bar.set_postfix(
-            rate=f"{current_rate:.1f} req/s", 
+            rate=f"{current_rate:.1f} req/s",
             sleep=f"{rate_limiter.value*1000:.1f}ms",
-            recovery=f"{'Y' if in_recovery else 'N'}",
-            target=f"{target_rate_adjusted:.1f}"
+            mode=mode,
+            target=f"{target_rate_adjusted:.1f} req/s"
         )
 
 
