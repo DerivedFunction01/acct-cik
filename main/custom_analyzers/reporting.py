@@ -26,20 +26,11 @@ class SentenceLabeler:
 
         for cik, year, url, matches, predictions, user_flags in chunk_data:
 
-            # Flatten the dictionary of categorized sentences into a single list
-            flattened_matches = []
-            if isinstance(matches, dict):
-                for category_sentences in matches.values():
-                    if isinstance(category_sentences, list):
-                        flattened_matches.extend(category_sentences)
-            else:
-                # Fallback for old list format
-                flattened_matches = matches if isinstance(matches, list) else []
-
-            min_len = min(len(flattened_matches), len(predictions))
+            # `matches` is now a pre-flattened list from the DataLoader
+            min_len = min(len(matches), len(predictions))
 
             for i in range(min_len):
-                sentence = flattened_matches[i]
+                sentence = matches[i]
                 prob_dict = predictions[i]
                 # Defensive check: Ensure prob_dict is a dictionary
                 if not isinstance(prob_dict, dict):

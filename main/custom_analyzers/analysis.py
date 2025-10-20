@@ -446,7 +446,7 @@ class DataLoader:
 
         return keyword_flags
 
-    def load_sentence_data(self) -> pd.DataFrame:
+    def load_sentence_data(self, urls: Optional[List[str]] = None) -> pd.DataFrame:
         """Load sentence-level data with matches"""
         query = """
             SELECT
@@ -459,9 +459,20 @@ class DataLoader:
             JOIN report_data r ON w.url = r.url
             JOIN server_result s ON w.url = s.url
         """
+        params = ()
+
+        if urls:
+            # Create placeholders for the URLs to prevent SQL injection
+            placeholders = ", ".join("?" for _ in urls)
+            query += f" WHERE w.url IN ({placeholders})"
+            params = tuple(urls)
 
         with self._get_connection() as conn:
-            df = pd.read_sql(query, conn)
+            try:
+                df = pd.read_sql(query, conn, params=params)
+            except Exception as e:
+                print(f"Error executing query: {e}")
+                return pd.DataFrame()
 
         # Parse JSON columns
         df["matches"] = df["matches"].apply(self._parse_json_column)

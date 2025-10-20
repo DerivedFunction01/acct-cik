@@ -63,13 +63,13 @@ class DisagreementSampler:
         """
         Fetches and processes sentences for a given DataFrame of reports.
         """
-        print(f"Fetching sentences for {len(report_ciks):,} reports...")
-        sentence_data = self.data_loader.load_sentence_data()
+        urls_to_fetch = report_ciks["url"].unique().tolist()
+        print(f"Fetching sentences for {len(urls_to_fetch):,} unique reports...")
+        sentence_data = self.data_loader.load_sentence_data(urls=urls_to_fetch)
 
         # Filter sentence_data to only include the reports we need
-        reports_with_sentences = pd.merge(
-            report_ciks, sentence_data, on=["cik", "year", "url"], how="inner"
-        )
+        # The loader already filtered by URL, so this merge is now safe and efficient.
+        reports_with_sentences = pd.merge(report_ciks, sentence_data, on=["cik", "year", "url"], how="inner")
 
         if reports_with_sentences.empty:
             print("⚠️ No matching reports with sentence data found.")

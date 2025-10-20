@@ -3,7 +3,6 @@ import pandas as pd
 import json
 import sqlite3
 from pathlib import Path
-from dataclasses import dataclass
 from typing import Dict, List, Optional
 from tqdm import tqdm
 
@@ -11,28 +10,13 @@ from tqdm import tqdm
 from custom_analyzers.analysis import Config, LabelMapper
 
 # =============================================================================
-# CONFIGURATION
-# =============================================================================
-
-
-@dataclass
-class URLAnalysisConfig(Config):
-    """Configuration for URL-specific analysis pipeline"""
-
-    input_csv: str = "firm_urls.csv"
-    output_excel: str = "url_sentence_analysis.xlsx"
-
-    # Override parent defaults if needed
-    def __post_init__(self):
-        super().__post_init__()
-        # Don't need multi-processing for small datasets
-        self.num_workers = 1
-
-
-# =============================================================================
 # URL ANALYZER
 # =============================================================================
 
+class URLAnalysisConfig(Config):
+    """Configuration for URL-specific analysis pipeline"""
+    input_csv: str = "firm_urls.csv"
+    output_excel: str = "url_sentence_analysis.xlsx"
 
 class URLAnalyzer:
     """Analyzes sentences for specific URLs"""
@@ -40,19 +24,6 @@ class URLAnalyzer:
     def __init__(self, config: URLAnalysisConfig, label_mapper: LabelMapper):
         self.config = config
         self.label_mapper = label_mapper
-
-    def _get_connection(self):
-        """Create database connection"""
-        return sqlite3.connect(self.config.db_path)
-
-    def _parse_json_safe(self, value):
-        """Safely parse JSON"""
-        if isinstance(value, str):
-            try:
-                return json.loads(value)
-            except json.JSONDecodeError:
-                return None
-        return value
 
     def load_urls_from_excel(self) -> pd.DataFrame:
         """Load URLs from the input Excel file"""
@@ -69,36 +40,6 @@ class URLAnalyzer:
             raise ValueError("CSV file must contain a 'url' column")
 
         print(f"✅ Loaded {len(df)} URLs")
-        return df
-    def fetch_sentences_for_url(self, url: str) -> Optional[pd.DataFrame]:
-        """Fetch all sentences and predictions for a specific URL"""
-        query = """
-            SELECT
-                r.cik,
-                r.year,
-                w.url,
-                w.matches,
-                s.server_response
-            FROM webpage_result w
-            JOIN report_data r ON w.url = r.url
-            JOIN server_result s ON w.url = s.url
-            WHERE w.url = ?
-        """
-
-        conn = self._get_connection()
-        try:
-            df = pd.read_sql(query, conn, params=(url,))
-        finally:
-            conn.close()
-
-        if df.empty:
-            print(f"⚠️  No data found for URL: {url}")
-            return None
-
-        # Parse JSON columns
-        df["matches"] = df["matches"].apply(self._parse_json_safe)
-        df["server_response"] = df["server_response"].apply(self._parse_json_safe)
-
         return df
 
     def process_url_sentences(self, url: str, cik: int, data: pd.DataFrame) -> pd.DataFrame:
@@ -323,10 +264,12 @@ class URLAnalyzer:
         print("=" * 70)
 
         # Load URLs
-        urls_df = self.load_urls_from_excel()
+        try:
+            urls_df = self.load_urls_from_excel()
+        except FileNotFoundError as e:
+            print(f"     ❌ Error: {e}. Please create a 'firm_urls.csv' file.")
+            return
 
-        # Process each URL
-        print(f"\n📊 Processing {len(urls_df)} URLs...")
         all_results = {}
 
         for _, row in tqdm(
@@ -334,7 +277,9 @@ class URLAnalyzer:
         ):
             url = row["url"]
             # Fetch data once to get CIK/year and to pass to process_url_sentences
-            report_data = self.fetch_sentences_for_url(url)
+            # Use the centralized data loader to fetch data for a single URL
+            report_data = self.data_loader.load_sentence_data(urls=[url])
+
             if report_data is None or report_data.empty:
                 print(f"⚠️ Skipping URL, no data found in DB: {url}")
                 continue
@@ -382,13 +327,15 @@ if __name__ == "__main__":
     print("=" * 70)
 
     # Initialize configuration
-    config = URLAnalysisConfig()
+    from .analysis import DataLoader
+    config = Config()
+    inspector_config = URLAnalysisConfig()
 
     # Initialize label mapper
     label_mapper = LabelMapper(config.keywords_json, config.labels)
-
     # Initialize and run analyzer
-    analyzer = URLAnalyzer(config, label_mapper)
+    analyzer = URLAnalyzer(inspector_config, label_mapper)
+    analyzer.data_loader = DataLoader(config) # Inject the data loader
     analyzer.run()
 
     print("\n" + "=" * 70)
