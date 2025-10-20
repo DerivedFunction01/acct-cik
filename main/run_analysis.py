@@ -58,10 +58,10 @@ class AnalysisPipeline:
         self._step_map = {
             "run_comparison": self._run_comparison_analysis,
             "run_custom_analyzers": self._run_custom_analyzers,
-            "generate_sentence_files": self._run_sentence_generation,
             "run_accuracy_check": self._run_accuracy_check,
             "run_firm_inspector": self._run_firm_inspector,
             "run_disagreement_sampler": self._run_disagreement_sampler,
+            "generate_sentence_files": self._run_sentence_generation,
         }
 
         # Store data that needs to be passed between steps
