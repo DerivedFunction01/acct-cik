@@ -1325,7 +1325,6 @@ def process_all_reports_fully():
     total_time = 0
 
     for chunk_idx, chunk in enumerate(chunks, 1):
-        rate_limited_in_chunk = False
         start_chunk_time = time.time()
         print(f"\n📦 Chunk {chunk_idx}/{len(chunks)} ({len(chunk)} reports)")
 
@@ -1361,9 +1360,13 @@ def process_all_reports_fully():
                         result = future.result()
                         if result and result[0] != "RATE_LIMITED":
                             fetched_data.append(result)
-                            debug_print(result)
                         elif result and result[0] == "RATE_LIMITED":
-                            rate_limited_in_chunk = True
+                            # Rate limit detected. Immediately increase sleep time for all threads.
+                            cool_down_increase = 0.1  # Increase sleep by 100ms
+                            rate_limiter.value += cool_down_increase
+                            tqdm_bar.set_postfix_str(
+                                f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
+                            )
 
                     except Exception as e:
                         print(f"Fetch error: {e}")
@@ -1371,13 +1374,6 @@ def process_all_reports_fully():
                 # Ensure the background thread is stopped when the loop is done
                 stop_event.set()
                 adjuster_thread.join(timeout=2)
-
-        # If we were rate-limited in this chunk, enforce a cool-down
-        if rate_limited_in_chunk:
-            cool_down_period = 5  # seconds
-            print(f"🧊 Rate limit detected in chunk. Cooling down for {cool_down_period}s...")
-            time.sleep(cool_down_period)
-            # Optionally, you could also make the rate limiter more conservative here
 
 
         print(f"  ✓ Fetched {len(fetched_data)} reports.")
