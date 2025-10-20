@@ -11,3 +11,4 @@ logs
 *.csv
 client_secrets.json
 *.pickle
+mycreds.txt
