@@ -1512,19 +1512,19 @@ def process_all_reports_fully():
                         if result and result[0] != "RATE_LIMITED":
                             fetched_data.append(result)
                         elif result and result[0] == "RATE_LIMITED":
-                                    # Rate limit detected. Notify the limiter and increase sleep time a bit.
-                                    try:
-                                        rate_limiter.signal_429()
-                                    except Exception:
-                                        pass
-                                    # Increase sleep conservatively but bounded
-                                    cool_down_increase = min(0.5, 0.05 * NUM_FETCHERS)
-                                    rate_limiter.value = rate_limiter.value + cool_down_increase
-                                    # Cap sleep to a reasonable upper bound (e.g., 60s)
-                                    rate_limiter.value = min(rate_limiter.value, 60.0)
-                                    tqdm_bar.set_postfix_str(
-                                        f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
-                                    )
+                            # Rate limit detected. Notify the limiter and increase sleep time a bit.
+                            try:
+                                rate_limiter.signal_429()
+                            except Exception:
+                                pass
+                            # Increase sleep conservatively but bounded
+                            cool_down_increase = min(0.5, 0.05 * NUM_FETCHERS)
+                            rate_limiter.value = rate_limiter.value + cool_down_increase
+                            # Cap sleep to a reasonable upper bound (e.g., 60s)
+                            rate_limiter.value = min(rate_limiter.value, 60.0)
+                            tqdm_bar.set_postfix_str(
+                                f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
+                            )
 
                     except Exception as e:
                         print(f"Fetch error: {e}")
@@ -1586,7 +1586,7 @@ def process_all_reports_fully():
         import gc
 
         gc.collect()
-        if IS_COLAB:
+        if IS_COLAB and chunk_time > 1: # Avoid spamming in very fast chunks
             subprocess.Popen(SAVE_SHELL_CMD, shell=True)
             print(f"  → Saving to database.")
 
