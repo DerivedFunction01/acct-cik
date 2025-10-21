@@ -118,19 +118,20 @@ def start_servers():
     else: # Low-end GPU or CPU mode
         gpu_threads = 2
 
-    # --- Configure CPU Server ---
-    # Be conservative to avoid memory overload on small machines
-    if ram_gb < 8 or cpu_cores < 4:
-        cpu_workers = 1 # Very conservative for small machines
-        print("⚠️  Low system resources detected. Running CPU server with 1 worker.")
+    # --- Configure CPU Server (using threads for memory safety) ---
+    # Using a single worker and multiple threads is safer for memory, as the model is only loaded once.
+    # This prevents overloading the system with multiple copies of a large model in RAM.
+    if cpu_cores >= 8:
+        cpu_threads = 4 # Good balance for machines with many cores
+    elif cpu_cores >= 4:
+        cpu_threads = 2 # A safe default for standard machines
     else:
-        # A safe number of workers is num_cores, as each loads a full model.
-        cpu_workers = max(1, cpu_cores // 2)
+        cpu_threads = 1 # Very conservative for small machines
 
     print("\n" + "="*50)
     print("🚀 Starting Servers with Optimized Configuration:")
     print(f"   - GPU Server: 1 Worker, {gpu_threads} Threads (Port {GPU_SERVER_PORT})")
-    print(f"   - CPU Server: {cpu_workers} Workers (Port {CPU_SERVER_PORT})")
+    print(f"   - CPU Server: 1 Worker, {cpu_threads} Threads (Port {CPU_SERVER_PORT})")
     print(f"   - Nginx Load Balancer on Port {NGINX_PORT}")
     print("="*50 + "\n")
 
@@ -146,7 +147,7 @@ def start_servers():
     print(f"🚀 Launched GPU server.")
 
     # CPU Server
-    cpu_cmd = f"gunicorn --workers {cpu_workers} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{CPU_SERVER_PORT} {SERVER_SCRIPT}"
+    cpu_cmd = f"gunicorn --workers 1 --threads {cpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{CPU_SERVER_PORT} {SERVER_SCRIPT}"
     cpu_env = os.environ.copy()
     cpu_env["DEVICE_TYPE"] = "cpu"
     subprocess.Popen(cpu_cmd.split(), env=cpu_env)
