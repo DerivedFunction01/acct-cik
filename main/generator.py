@@ -450,6 +450,7 @@ def generate_hedge_paragraph(
                 "{small_int}": str(random.randint(3, 9)),
                 "{integer}": str(random.randint(1000, 10000)),
                 "{short_int2}": str(random.randint(60, 270)),
+                "{verb}": random.choice(hedge_use_verbs),
             }
 
             sentence = template
