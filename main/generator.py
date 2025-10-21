@@ -32,6 +32,8 @@ pattern_dots = re.compile(r"\. +")
 company_name_df = pd.read_excel(company_name_file)
 company_names = list(company_name_df["name"])
 
+category_weights = 0.01
+
 def pick_company_name(company_name: str) -> str:
     return random.choices([company_name, "The Company"], weights=[0.75, 0.25], k=1)[0]
 
@@ -243,7 +245,6 @@ def label_paragraph(paragraph: str, labels: dict) -> dict:
     Labels a paragraph by calculating a weighted score based on keyword mentions.
     This creates more realistic, non-binary labels for training data.
     """
-    category_weights = 0.01
     # Define weighted keywords. Stronger indicators get higher weights.
     category_keywords = {
         "ir": {"interest": category_weights, "debt": category_weights, "loan": category_weights},
@@ -1443,16 +1444,16 @@ def generate_noise_paragraph(
     template_pool = []
     all_sentences = []
     if noise_type == "eq" or noise_type == "warr":  # ex. equity, warrant, stock
-        labels["eq"] = 0.1
+        labels["eq"] = category_weights
         template_pool.extend(sum(noise_templates["EQ"], []))
     elif noise_type == "cp":  # ex. inventory
-        labels["cp"] = 0.1
+        labels["cp"] = category_weights
         template_pool.extend(sum(noise_templates["CP"], []))
     elif noise_type == "ir":  # ex. debt
-        labels["ir"] = 0.1
+        labels["ir"] = category_weights
         template_pool.extend(sum(noise_templates["IR"], []))
     elif noise_type == "fx":  # ex. currency
-        labels["fx"] = 0.1
+        labels["fx"] = category_weights
         template_pool.extend(sum(noise_templates["FX"], []))
     elif noise_type == "law":  # ex. derivative lawsuits (irr)
         template_pool.extend(sum(noise_templates["LAW"], []))
