@@ -295,11 +295,12 @@ ir_specific_results = [
     "scheduled to expire in {month} {future_year}",
     "to hedge debt obligations, with an initial notional of {currency_code}{old_notional} {money_unit}, maturing in {future_year}",
     "which carry notional amounts of {currency_code}{old_notional} {money_unit} and terminate in {future_year}",
-    "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {month} {future_year}",    
+    "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {month} {future_year}",
     "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {future_year}",
     "resulting in a decrease in interest expense of {currency_code}{notional} {money_unit}",
     "resulting in an increase in interest expense of {currency_code}{notional} {money_unit}",
     "recognizing the gains and losses on derivative instruments as an adjustment to interest expense in the period the hedged interest payment affects earnings",
+    "reducing the potential impact of increases in interest rates on its interest-bearing liabilities",
 ]
 
 # Foreign Exchange (FX) specific accounting reasons
