@@ -142,6 +142,9 @@ CLEANUP_PATTERNS = [
     (re.compile(r"<.*?>"), ""),
     (re.compile(r"table of contents", re.IGNORECASE), ""),
     (re.compile(r"F-\d+"), ""),
+    (re.compile(r"us-gaap:[a-zA-Z0-9]+"), ""),
+    # remove links
+    (re.compile(r"http\S+"), ""),
 ]
 
 SEPARATOR_PATTERN = re.compile(r"[-=\s]+")
