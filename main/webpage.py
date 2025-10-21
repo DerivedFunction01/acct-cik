@@ -138,7 +138,7 @@ CLEANUP_PATTERNS = [
     (re.compile(r"\(\s*"), "("),
     (re.compile(r"\s*\)"), ")"),
     (re.compile(r"\s*,"), ","),
-    (re.compile(r"(-{3,}|={3,}|\.{3,})"), ""),
+    (re.compile(r"(-{3,}|={3,}|\.{3,}|\_{3,})"), ""),
     (re.compile(r"<.*?>"), ""),
     (re.compile(r"table of contents", re.IGNORECASE), ""),
     (re.compile(r"F-\d+"), ""),
