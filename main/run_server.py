@@ -28,6 +28,25 @@ GUNICORN_TIMEOUT = 120
 # HELPER FUNCTIONS
 # =============================================================================
 
+def pre_download_model():
+    """
+    Downloads the Hugging Face model and tokenizer before starting the servers
+    to prevent Gunicorn worker timeouts on the first run.
+    """
+    print("🔍 Checking for model... (This may take a while on first run)")
+    try:
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        from server import MODEL_PATH  # Import MODEL_PATH from your server script
+
+        AutoTokenizer.from_pretrained(MODEL_PATH)
+        AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
+        print("✅ Model is available locally.")
+    except ImportError:
+        print("⚠️  Could not import 'transformers'. Skipping model pre-download.")
+        print("   Please run 'pip install transformers torch' if you encounter issues.")
+    except Exception as e:
+        print(f"❌ An error occurred during model pre-download: {e}")
+
 def is_windows():
     """Check if the operating system is Windows."""
     return platform.system() == "Windows"
@@ -107,6 +126,9 @@ def start_servers():
         print("❌ ERROR: Gunicorn is not supported on Windows. Please use WSL (Windows Subsystem for Linux).")
         return
 
+    # Pre-download the model to prevent worker timeouts
+    pre_download_model()
+
     cpu_cores, ram_gb = get_system_resources()
     gpu_ram_gb = get_gpu_ram()
 
@@ -139,12 +161,13 @@ def start_servers():
     generate_nginx_config()
 
     # --- Launch Processes ---
-    # GPU Server
-    gpu_cmd = f"gunicorn --workers 1 --threads {gpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{GPU_SERVER_PORT} {SERVER_SCRIPT}"
-    gpu_env = os.environ.copy()
-    gpu_env["DEVICE_TYPE"] = "gpu"
-    subprocess.Popen(gpu_cmd.split(), env=gpu_env)
-    print(f"🚀 Launched GPU server.")
+    # GPU Server (if available)
+    if gpu_ram_gb > 0:
+        gpu_cmd = f"gunicorn --workers 1 --threads {gpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{GPU_SERVER_PORT} {SERVER_SCRIPT}"
+        gpu_env = os.environ.copy()
+        gpu_env["DEVICE_TYPE"] = "gpu"
+        subprocess.Popen(gpu_cmd.split(), env=gpu_env)
+        print(f"🚀 Launched GPU server.")
 
     # CPU Server
     cpu_cmd = f"gunicorn --workers 1 --threads {cpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{CPU_SERVER_PORT} {SERVER_SCRIPT}"
