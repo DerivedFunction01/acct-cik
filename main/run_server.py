@@ -134,8 +134,27 @@ def get_gpu_ram():
         print(f"⚠️  An error occurred while detecting GPU: {e}")
     return 0
 
-def generate_nginx_config():
-    """Generates the nginx.conf file for load balancing."""
+def generate_nginx_config(gpu_ram: float = 0, cpu_cores: int = 2):
+    """
+    Generates the nginx.conf file with a dynamic weight for the GPU server
+    based on available system resources.
+    """
+    # Start with a base weight for the GPU server
+    gpu_weight = 4
+
+    # Increase weight based on GPU VRAM (more RAM can handle more concurrent requests)
+    if gpu_ram > 20:  # High-end GPU (e.g., >20GB VRAM)
+        gpu_weight += 3
+    elif gpu_ram > 12: # Mid-range GPU (e.g., 12-20GB VRAM)
+        gpu_weight += 2
+    elif gpu_ram > 6:  # Entry-level GPU (e.g., 6-12GB VRAM)
+        gpu_weight += 1
+
+    # Slightly adjust weight based on CPU cores.
+    # If the CPU is very weak, lean more heavily on the GPU.
+    if cpu_cores < 4:
+        gpu_weight += 1
+
     config = f"""
 worker_processes auto;
 pid {os.path.abspath(PID_FILE).replace(os.sep, '/')};
@@ -147,7 +166,7 @@ events {{
 http {{
     upstream model_servers {{
         # GPU server - handles more requests if available
-        server 127.0.0.1:{GPU_SERVER_PORT} weight=3;
+        server 127.0.0.1:{GPU_SERVER_PORT} weight={gpu_weight};
         # CPU server - takes a smaller portion of the load
         server 127.0.0.1:{CPU_SERVER_PORT};
     }}
@@ -171,7 +190,7 @@ http {{
 """
     with open(NGINX_CONF_FILE, "w") as f:
         f.write(config)
-    print(f"✅ Generated '{NGINX_CONF_FILE}' successfully.")
+    print(f"✅ Generated '{NGINX_CONF_FILE}' with GPU weight = {gpu_weight}.")
 
 def start_servers():
     """Starts the Gunicorn and Nginx servers."""
@@ -215,7 +234,7 @@ def start_servers():
     print("="*50 + "\n")
 
     # Generate Nginx config
-    generate_nginx_config()
+    generate_nginx_config(gpu_ram=gpu_ram_gb, cpu_cores=cpu_cores)
 
     # --- Launch Processes ---
     # GPU Server (if available)
