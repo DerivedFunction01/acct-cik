@@ -89,4 +89,5 @@ def info_endpoint():
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, threaded=True)
 
-# gunicorn --workers {num_workers} --timeout 120 server:app --bind 0.0.0.0:5000"
+# For production, use a single worker and multiple threads to share the model in memory efficiently.
+# gunicorn --workers 1 --timeout 120 server:app --bind 0.0.0.0:5000 --threads {num_threads}
