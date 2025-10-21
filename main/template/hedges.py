@@ -1334,7 +1334,7 @@ CATEGORY_EXTRAS = {
     "ir": [],
     "fx": ["NDF"],
     "cp": [],
-    "eq": [],
+    "eq": ["index future"],
     "gen": ["over-the-counter contract", "collar strategies", "total return swap"],
 }
 
@@ -1431,7 +1431,6 @@ derivative_keywords = {
     )
     for cat in PLACEHOLDERS
 }
-
 
 tasks = {
     "hedge_payment_templates": (generate_payment_templates, []),
