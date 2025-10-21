@@ -243,15 +243,15 @@ def label_paragraph(paragraph: str, labels: dict) -> dict:
     Labels a paragraph by calculating a weighted score based on keyword mentions.
     This creates more realistic, non-binary labels for training data.
     """
-
+    category_weights = 0.01
     # Define weighted keywords. Stronger indicators get higher weights.
     category_keywords = {
-        "ir": {"interest": 0.1, "debt": 0.1, "loan": 0.1},
-        "fx": {"currency": 0.1, "foreign": 0.1, "international": 0.1, "border": 0.1, "exchange": 0.1},
-        "cp": {"commodit": 0.1, **{commodity: 0.1 for commodity in commodities}},
-        "eq": {"stock": 0.1, "equity": 0.1, "share price": 0.1},
-        "gen": {"hedges": 0.1, "derivatives": 0.1},
-        "spec": {"derivatives": 0.1, **{verb: 0.1 for verb in hedge_may_use_verbs}},
+        "ir": {"interest": category_weights, "debt": category_weights, "loan": category_weights},
+        "fx": {"currency": category_weights, "foreign": category_weights, "international": category_weights, "border": category_weights, "exchange": category_weights},
+        "cp": {"commodit": category_weights, **{commodity: category_weights for commodity in commodities}},
+        "eq": {"stock": category_weights, "equity": category_weights, "share price": category_weights},
+        "gen": {"hedges": category_weights, "derivatives": category_weights},
+        "spec": {"derivatives": category_weights, **{verb: category_weights for verb in hedge_may_use_verbs}},
     }
 
     # Normalize paragraph for counting
@@ -1443,16 +1443,16 @@ def generate_noise_paragraph(
     template_pool = []
     all_sentences = []
     if noise_type == "eq" or noise_type == "warr":  # ex. equity, warrant, stock
-        labels["eq"] = 0.3
+        labels["eq"] = 0.1
         template_pool.extend(sum(noise_templates["EQ"], []))
     elif noise_type == "cp":  # ex. inventory
-        labels["cp"] = 0.3
+        labels["cp"] = 0.1
         template_pool.extend(sum(noise_templates["CP"], []))
     elif noise_type == "ir":  # ex. debt
-        labels["ir"] = 0.3
+        labels["ir"] = 0.1
         template_pool.extend(sum(noise_templates["IR"], []))
     elif noise_type == "fx":  # ex. currency
-        labels["fx"] = 0.3
+        labels["fx"] = 0.1
         template_pool.extend(sum(noise_templates["FX"], []))
     elif noise_type == "law":  # ex. derivative lawsuits (irr)
         template_pool.extend(sum(noise_templates["LAW"], []))
