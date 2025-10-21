@@ -58,27 +58,22 @@ def get_system_resources():
     return cpu_cores, ram_gb
 
 def get_gpu_ram():
-    """Queries the server info endpoint to get GPU RAM, if available."""
+    """Detects GPU and its RAM directly using torch, without starting a server."""
+    print("🔎 Detecting GPU RAM...")
     try:
-        # Temporarily start the GPU server to query its info
-        print("Temporarily starting server to detect GPU RAM...")
-        cmd = f"gunicorn --workers 1 --threads 1 --bind 127.0.0.1:{GPU_SERVER_PORT} {SERVER_SCRIPT}"
-        proc = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        time.sleep(5) # Give it a moment to start
-
-        response = requests.get(f"http://127.0.0.1:{GPU_SERVER_PORT}/info", timeout=5)
-        if response.status_code == 200:
-            info = response.json()
-            if info.get("gpu_available"):
-                print(f"✅ GPU Detected: {info.get('gpu_name')} with {info.get('total_ram_gb', 0):.2f} GB RAM.")
-                return info.get("total_ram_gb", 0)
+        import torch
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+            total_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            print(f"✅ GPU Detected: {gpu_name} with {total_memory_gb:.2f} GB RAM.")
+            return total_memory_gb
+        else:
+            print("   - No CUDA-enabled GPU found.")
+    except ImportError:
+        print("⚠️  'torch' is not installed. Cannot detect GPU. Assuming 0 GB GPU RAM.")
+        print("   Please run 'pip install torch' if you encounter issues.")
     except Exception as e:
-        print(f"⚠️  Could not query server for GPU info: {e}")
-    finally:
-        if 'proc' in locals():
-            proc.terminate()
-            proc.wait()
-            print("Temporary server stopped.")
+        print(f"⚠️  An error occurred while detecting GPU: {e}")
     return 0
 
 def generate_nginx_config():
