@@ -1607,6 +1607,7 @@ def generate_noise_paragraph(
         "{topics}": random.choice(forward_looking_topics),
         "{increase_decrease}": random.choice(["increase", "decrease", "improved", "decreased"]),
         "{assess_verb}": random.choice(assessment_verbs),
+        "{verb}": random.choice(hedge_use_verbs),
     }
     if template_pool:
         for _ in range(random.randint(3, 4)):

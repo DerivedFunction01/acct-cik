@@ -2641,8 +2641,8 @@ physical_commodity_operations_templates = [
 ]
 
 commodity_contracts_templates = [
-    "On {month} {year}, {company}, along with {company2} {verb} {commodities} contract with {company3} with a purchase price of {currency_code}{amount} {money_unit}",    
-    "On {month} {year}, {company} entered into a long-term supply agreement for {commodities} with {company2} at a fixed price of {currency_code}{amount} per {unit}",
+    "On {month} {year}, {company}, along with {company2} {verb} {commodities} contract with {company3} with a purchase price of {currency_code}{amount} {money_unit} to produce {integer} {unit} of {commodities}",    
+    "On {month} {year}, {company} entered into a long-term supply agreement for {commodities} with {company2} at a fixed price of {currency_code}{amount} per {unit} to make {integer} {unit} of {commodities}",
     "{company} has purchase contracts for {commodities} covering {pct}% of its anticipated needs for {year}",
     "As of {month} {end_day}, {year}, {company} had open purchase commitments for {integer} {unit} of {commodities} totaling {currency_code}{amount} {money_unit}",
     "The fair value of {company}\'s commodity purchase commitments was {currency_code}{amount} {money_unit} as of {month} {end_day}, {year}",
