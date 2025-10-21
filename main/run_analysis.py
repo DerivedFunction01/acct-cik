@@ -282,7 +282,7 @@ if __name__ == "__main__":
         run_firm_inspector=False,
         run_custom_analyzers=False,
         run_qualitative_sampler=True,
-        run_key_firms_sampler=True,
+        run_key_firms_sampler=False,
     )
 
     # Execute the pipeline with the chosen options
