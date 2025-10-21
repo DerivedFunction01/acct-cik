@@ -5,7 +5,7 @@ import psutil
 import multiprocessing as mp
 import platform
 import time
-import requests
+import json
 import shutil
 
 # =============================================================================
@@ -21,19 +21,66 @@ CPU_SERVER_PORT = 5002
 PID_FILE = "server.pid"
 NGINX_CONF_FILE = "nginx.conf"
 SERVER_SCRIPT = "server:app"
+CACHE_FILE = ".server_cache.json"
 
 # Gunicorn settings
 GUNICORN_TIMEOUT = 120
 
 # =============================================================================
+# CACHING FUNCTIONS
+# =============================================================================
+
+
+def load_cache():
+    """Load cached system info if it exists and is recent (< 24 hours old)."""
+    if not os.path.exists(CACHE_FILE):
+        return None
+
+    try:
+        with open(CACHE_FILE, "r") as f:
+            cache = json.load(f)
+
+        # Check if cache is less than 24 hours old
+        cache_age = time.time() - cache.get("timestamp", 0)
+        if cache_age < 86400 * 7:  # 7 days in seconds
+            return cache
+    except (json.JSONDecodeError, IOError):
+        pass
+
+    return None
+
+
+def save_cache(model_available, gpu_ram_gb):
+    """Save system info to cache file."""
+    cache = {
+        "timestamp": time.time(),
+        "model_available": model_available,
+        "gpu_ram_gb": gpu_ram_gb,
+    }
+    try:
+        with open(CACHE_FILE, "w") as f:
+            json.dump(cache, f)
+    except IOError as e:
+        print(f"⚠️  Could not write cache file: {e}")
+
+
+# =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
 
 def pre_download_model():
     """
     Downloads the Hugging Face model and tokenizer before starting the servers
     to prevent Gunicorn worker timeouts on the first run.
+    Returns True if model is available, False otherwise.
     """
+    # Check cache first
+    cache = load_cache()
+    if cache and cache.get("model_available"):
+        print("✅ Model is available (cached).")
+        return True
+
     print("🔍 Checking for model... (This may take a while on first run)")
     try:
         from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -42,11 +89,15 @@ def pre_download_model():
         AutoTokenizer.from_pretrained(MODEL_PATH)
         AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
         print("✅ Model is available locally.")
+        return True
     except ImportError:
         print("⚠️  Could not import 'transformers'. Skipping model pre-download.")
         print("   Please run 'pip install transformers torch' if you encounter issues.")
+        return False
     except Exception as e:
         print(f"❌ An error occurred during model pre-download: {e}")
+        return False
+
 
 def check_nginx():
     """
@@ -105,9 +156,11 @@ def check_nginx():
     )
     return False
 
+
 def is_windows():
     """Check if the operating system is Windows."""
     return platform.system() == "Windows"
+
 
 def get_system_resources():
     """Detects system CPU cores and RAM."""
@@ -115,16 +168,28 @@ def get_system_resources():
     ram_gb = psutil.virtual_memory().total / (1024**3)
     return cpu_cores, ram_gb
 
+
 def get_gpu_ram():
-    """Detects GPU and its RAM directly using torch, without starting a server."""
+    """Detects GPU and its RAM directly using torch, with caching."""
+    # Check cache first
+    cache = load_cache()
+    if cache and "gpu_ram_gb" in cache:
+        gpu_ram = cache["gpu_ram_gb"]
+        if gpu_ram > 0:
+            print(f"✅ GPU RAM: {gpu_ram:.2f} GB (cached).")
+        else:
+            print("   - No GPU detected (cached).")
+        return gpu_ram
+
     print("🔎 Detecting GPU RAM...")
+    gpu_ram = 0
     try:
         import torch
+
         if torch.cuda.is_available():
             gpu_name = torch.cuda.get_device_name(0)
-            total_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-            print(f"✅ GPU Detected: {gpu_name} with {total_memory_gb:.2f} GB RAM.")
-            return total_memory_gb
+            gpu_ram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            print(f"✅ GPU Detected: {gpu_name} with {gpu_ram:.2f} GB RAM.")
         else:
             print("   - No CUDA-enabled GPU found.")
     except ImportError:
@@ -132,40 +197,139 @@ def get_gpu_ram():
         print("   Please run 'pip install torch' if you encounter issues.")
     except Exception as e:
         print(f"⚠️  An error occurred while detecting GPU: {e}")
-    return 0
 
-def generate_nginx_config(gpu_ram: float = 0, cpu_cores: int = 2, cpu_server_enabled: bool = True):
+    return gpu_ram
+
+
+def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
     """
-    Generates the nginx.conf file with a dynamic weight for the GPU server
-    based on available system resources.
+    Calculate optimal GPU and CPU server weights based on hardware.
+    Returns (gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server)
     """
-    # Start with a base weight for the GPU server
-    gpu_weight = 4
+    # Base configuration
+    gpu_weight = 1
+    cpu_weight = 1
+    gpu_threads = 2
+    cpu_threads = 1
+    start_cpu_server = True
 
-    # Increase weight based on GPU VRAM (more RAM can handle more concurrent requests)
-    if gpu_ram > 20:  # High-end GPU (e.g., >20GB VRAM)
-        gpu_weight += 3
-    elif gpu_ram > 12: # Mid-range GPU (e.g., 12-20GB VRAM)
-        gpu_weight += 2
-    elif gpu_ram > 6:  # Entry-level GPU (e.g., 6-12GB VRAM)
-        gpu_weight += 1
+    # === GPU Configuration ===
+    if gpu_ram_gb > 0:
+        # GPU threads based on VRAM
+        if gpu_ram_gb >= 40:  # A100 (40GB/80GB)
+            gpu_threads = 16
+            gpu_weight = 20
+        elif gpu_ram_gb >= 24:  # A100 24GB, RTX 4090/3090
+            gpu_threads = 12
+            gpu_weight = 16
+        elif gpu_ram_gb >= 16:  # V100, RTX 4080, A10
+            gpu_threads = 10
+            gpu_weight = 12
+        elif gpu_ram_gb >= 12:  # RTX 3080 Ti, T4 (16GB)
+            gpu_threads = 8
+            gpu_weight = 10
+        elif gpu_ram_gb >= 8:  # RTX 3070, 4060 Ti
+            gpu_threads = 6
+            gpu_weight = 8
+        elif gpu_ram_gb >= 6:  # RTX 3060
+            gpu_threads = 4
+            gpu_weight = 6
+        else:  # Low-end GPU
+            gpu_threads = 2
+            gpu_weight = 4
 
-    # Slightly adjust weight based on CPU cores.
-    # If the CPU is very weak, lean more heavily on the GPU.
-    if cpu_cores < 4:
-        gpu_weight += 1
+    # === CPU Configuration ===
+    # CPU threads based on core count
+    if cpu_cores >= 80:  # TPU or high-core server (treat as very powerful)
+        cpu_threads = 16
+        cpu_weight = 12
+    elif cpu_cores >= 32:  # High-end server/workstation
+        cpu_threads = 8
+        cpu_weight = 8
+    elif cpu_cores >= 16:  # Mid-high workstation
+        cpu_threads = 6
+        cpu_weight = 6
+    elif cpu_cores >= 12:  # Gaming PC / Colab standard
+        cpu_threads = 4
+        cpu_weight = 4
+    elif cpu_cores >= 8:  # Standard desktop
+        cpu_threads = 3
+        cpu_weight = 3
+    elif cpu_cores >= 4:  # Entry-level
+        cpu_threads = 2
+        cpu_weight = 2
+    else:  # Very low-end (2 cores)
+        cpu_threads = 1
+        cpu_weight = 1
 
+    # === Adjust weights based on RAM ===
+    # If RAM is limited, reduce CPU weight to avoid OOM
+    if ram_gb < 8:
+        cpu_weight = max(1, cpu_weight // 2)
+        cpu_threads = max(1, cpu_threads // 2)
+    elif ram_gb < 16:
+        cpu_weight = max(1, int(cpu_weight * 0.75))
+
+    # === Decide whether to start CPU server ===
+    # Scenarios where CPU server should be disabled:
+    # 1. Very powerful GPU + weak CPU/RAM (let GPU handle everything)
+    # 2. Very limited resources overall
+
+    if gpu_ram_gb > 0:
+        # High-end GPU with low-end CPU
+        if gpu_ram_gb >= 15 and (cpu_cores <= 4 or ram_gb < 12):
+            start_cpu_server = False
+            print("   Strategy: High-end GPU + limited CPU/RAM → GPU-only mode")
+
+        # Gaming PC scenario: strong GPU + strong CPU
+        elif gpu_ram_gb >= 8 and cpu_cores >= 16 and ram_gb >= 24:
+            # Balance the load more evenly for powerful systems
+            gpu_weight = min(gpu_weight, cpu_weight + 4)
+            print("   Strategy: Balanced high-end system → GPU leads, CPU assists")
+
+        # Colab-like scenario: Good GPU, decent CPU
+        elif gpu_ram_gb >= 12 and cpu_cores >= 8:
+            print("   Strategy: Cloud GPU instance → GPU primary, CPU backup")
+
+        # Low-end GPU with many cores (e.g., TPU environment)
+        elif cpu_cores >= 80:
+            # Treat TPU-like environments as CPU-focused
+            cpu_weight = max(cpu_weight, gpu_weight)
+            print("   Strategy: TPU/High-core environment → Balanced distribution")
+
+    else:
+        # No GPU - CPU only
+        print("   Strategy: CPU-only mode")
+        start_cpu_server = True
+        gpu_weight = 0
+
+    # === Final adjustments ===
+    # Never make weights too extreme
+    if gpu_ram_gb > 0 and start_cpu_server:
+        ratio = gpu_weight / max(cpu_weight, 1)
+        if ratio > 10:  # GPU shouldn't dominate too much
+            gpu_weight = cpu_weight * 10
+
+    return gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server
+
+
+def generate_nginx_config(gpu_weight, cpu_weight, cpu_server_enabled):
+    """
+    Generates the nginx.conf file with calculated weights.
+    """
     # Build the upstream block
     if cpu_server_enabled:
         upstream_block = f"""
         # GPU server - handles more requests if available
         server 127.0.0.1:{GPU_SERVER_PORT} weight={gpu_weight};
         # CPU server - takes a smaller portion of the load
-        server 127.0.0.1:{CPU_SERVER_PORT};"""
+        server 127.0.0.1:{CPU_SERVER_PORT} weight={cpu_weight};"""
+        print(f"✅ Nginx config: GPU weight={gpu_weight}, CPU weight={cpu_weight}")
     else:
         upstream_block = f"""
         # Only GPU server is running
         server 127.0.0.1:{GPU_SERVER_PORT};"""
+        print(f"✅ Nginx config: GPU-only mode")
 
     config = f"""
 worker_processes auto;
@@ -199,64 +363,52 @@ http {{
 """
     with open(NGINX_CONF_FILE, "w") as f:
         f.write(config)
-    if cpu_server_enabled:
-        print(f"✅ Generated '{NGINX_CONF_FILE}' with GPU weight = {gpu_weight}.")
-    else:
-        print(f"✅ Generated '{NGINX_CONF_FILE}' to route all traffic to the GPU server.")
+
 
 def start_servers():
     """Starts the Gunicorn and Nginx servers."""
     if is_windows():
-        print("❌ ERROR: Gunicorn is not supported on Windows. Please use WSL (Windows Subsystem for Linux).")
+        print(
+            "❌ ERROR: Gunicorn is not supported on Windows. Please use WSL (Windows Subsystem for Linux)."
+        )
         return
 
     # Check for Nginx before proceeding
     if not check_nginx():
         return
 
-    # Pre-download the model to prevent worker timeouts
-    pre_download_model()
-
+    # Pre-download the model and get GPU info
+    model_available = pre_download_model()
     cpu_cores, ram_gb = get_system_resources()
     gpu_ram_gb = get_gpu_ram()
 
-    # --- Configure GPU Server ---
-    if gpu_ram_gb > 14: # High-end GPU
-        gpu_threads = 8
-    elif gpu_ram_gb > 6: # Mid-range GPU
-        gpu_threads = 4
-    else: # Low-end GPU or CPU mode
-        gpu_threads = 2
+    # Save to cache
+    save_cache(model_available, gpu_ram_gb)
 
-    # --- Configure CPU Server (using threads for memory safety) ---
-    # Using a single worker and multiple threads is safer for memory, as the model is only loaded once.
-    # This prevents overloading the system with multiple copies of a large model in RAM.
-    if cpu_cores >= 8:
-        cpu_threads = 4 # Good balance for machines with many cores
-    elif cpu_cores >= 4:
-        cpu_threads = 2 # A safe default for standard machines
-    else:
-        cpu_threads = 1 # Very conservative for small machines
+    # Calculate optimal configuration
+    gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server = (
+        calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb)
+    )
 
-    # --- Decide whether to start the CPU server ---
-    start_cpu_server = True
-    if gpu_ram_gb > 0 and (cpu_cores < 4 or ram_gb < 8):
-        start_cpu_server = False
-        print("⚠️  Low system resources (CPU/RAM) detected with a GPU present.")
-        print("   -> The CPU server will NOT be started to conserve resources.")
-
-    print("\n" + "="*50)
+    print("\n" + "=" * 70)
     print("🚀 Starting Servers with Optimized Configuration:")
+    print(
+        f"   System: {cpu_cores} CPU cores, {ram_gb:.1f} GB RAM, {gpu_ram_gb:.1f} GB GPU"
+    )
+    print("-" * 70)
     if gpu_ram_gb > 0:
-        print(f"   - GPU Server: 1 Worker, {gpu_threads} Threads (Port {GPU_SERVER_PORT})")
+        print(
+            f"   - GPU Server: 1 Worker, {gpu_threads} Threads (Port {GPU_SERVER_PORT})"
+        )
     if start_cpu_server:
-        print(f"   - CPU Server: 1 Worker, {cpu_threads} Threads (Port {CPU_SERVER_PORT})")
-    
+        print(
+            f"   - CPU Server: 1 Worker, {cpu_threads} Threads (Port {CPU_SERVER_PORT})"
+        )
     print(f"   - Nginx Load Balancer on Port {NGINX_PORT}")
-    print("="*50 + "\n")
+    print("=" * 70 + "\n")
 
     # Generate Nginx config
-    generate_nginx_config(gpu_ram=gpu_ram_gb, cpu_cores=cpu_cores, cpu_server_enabled=start_cpu_server)
+    generate_nginx_config(gpu_weight, cpu_weight, start_cpu_server)
 
     # --- Launch Processes ---
     # GPU Server (if available)
@@ -279,12 +431,17 @@ def start_servers():
     nginx_cmd = f"nginx -c {os.path.abspath(NGINX_CONF_FILE)}"
     subprocess.Popen(nginx_cmd.split())
     print(f"🚀 Launched Nginx load balancer.")
-    print(f"\n✅ All services started. Your application is available at http://127.0.0.1:{NGINX_PORT}")
+    print(
+        f"\n✅ All services started. Your application is available at http://127.0.0.1:{NGINX_PORT}"
+    )
+
 
 def stop_servers():
     """Stops the Gunicorn and Nginx servers."""
     if is_windows():
-        print("❌ ERROR: This script cannot manage processes on Windows. Please stop them manually.")
+        print(
+            "❌ ERROR: This script cannot manage processes on Windows. Please stop them manually."
+        )
         return
 
     print("🛑 Stopping all services...")
@@ -320,21 +477,22 @@ def stop_servers():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Manage the Gunicorn and Nginx servers for the model API.",
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
         "action",
         nargs="?",  # Make the action optional
         default=None,  # Default to None if no action is provided
-        choices=["start", "stop", "restart", "status"],
+        choices=["start", "stop", "restart", "status", "clear-cache"],
         help="""
-start   - Start the Gunicorn and Nginx servers.
-stop    - Stop all running servers.
-restart - Stop and then start all servers.
-status  - Check if the servers are running.
+start       - Start the Gunicorn and Nginx servers.
+stop        - Stop all running servers.
+restart     - Stop and then start all servers.
+status      - Check if the servers are running.
+clear-cache - Clear the cached system information.
 
 If no action is provided, the script will intelligently start or stop the servers.
-"""
+""",
     )
 
     args = parser.parse_args()
@@ -363,3 +521,9 @@ If no action is provided, the script will intelligently start or stop the server
             print("✅ Servers appear to be RUNNING.")
         else:
             print("❌ Servers appear to be STOPPED.")
+    elif action == "clear-cache":
+        if os.path.exists(CACHE_FILE):
+            os.remove(CACHE_FILE)
+            print("✅ Cache cleared. Next start will re-detect system resources.")
+        else:
+            print("ℹ️ No cache file found.")
