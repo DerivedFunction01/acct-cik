@@ -2640,6 +2640,14 @@ physical_commodity_operations_templates = [
     "{company} maintains proved reserves of {short_int2} {unit} of {commodities} as of {month} {end_day}, {year}",
 ]
 
+commodity_contracts_templates = [
+    "On {month} {year}, {company}, along with {company2} {verb} {commodities} contract with {company3} with a purchase price of {currency_code}{amount} {money_unit}",    
+    "On {month} {year}, {company} entered into a long-term supply agreement for {commodities} with {company2} at a fixed price of {currency_code}{amount} per {unit}",
+    "{company} has purchase contracts for {commodities} covering {pct}% of its anticipated needs for {year}",
+    "As of {month} {end_day}, {year}, {company} had open purchase commitments for {integer} {unit} of {commodities} totaling {currency_code}{amount} {money_unit}",
+    "The fair value of {company}\'s commodity purchase commitments was {currency_code}{amount} {money_unit} as of {month} {end_day}, {year}",
+]
+
 # ========== SHARED / GENERIC ==========
 shared_issuers = [
     "FASB",
@@ -3103,6 +3111,7 @@ noise_templates: dict[str, list[list[str]]] = {
         physical_commodity_operations_templates,
         inventory_templates,
         inventory_writedown_templates,
+        commodity_contracts_templates,
     ],
     # Speculative policy related
     "STD": [
