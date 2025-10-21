@@ -508,10 +508,10 @@ intangible_types = [
 
 debt_templates = [
     # General facilities and balances
-    "{company} maintains a {currency_code}{amount} {money_unit} revolving credit facility that expires in {maturity_year}, with {currency_code}{amount} {money_unit} outstanding as of {month} {end_day}, {year}, with annual interest rate of {pct}%",
-    "As of {month} {end_day}, {year}, {company} had total long-term debt of {currency_code}{amount} {money_unit}, consisting primarily of {debt_types}, with an average interest rate of {pct}% and {pct2}%, respectively",
+    "{company} {verb} a {currency_code}{amount} {money_unit} revolving credit facility that expires in {maturity_year}, with {currency_code}{amount} {money_unit} outstanding as of {month} {end_day}, {year}, with annual interest rate of {pct}%",
+    "As of {month} {end_day}, {year}, {company} {verb} total long-term debt of {currency_code}{amount} {money_unit}, consisting primarily of {debt_types}, with an average interest rate of {pct}% and {pct2}%, respectively",
     "Long-term debt, with an annual interest rate of {pct}% as of {month} {end_day}, {year} totaled {currency_code}{amount} {money_unit}, consisting of {debt_types}",
-    "At year-end {year}, {company} reported total debt of {currency_code}{amount} {money_unit} with interest rates ranging from {pct}% to {pct2}%, including {debt_types}",
+    "At year-end {year}, {company} {verb} total debt of {currency_code}{amount} {money_unit} with interest rates ranging from {pct}% to {pct2}%, including {debt_types}",
     "{company}'s outstanding borrowings under its revolving credit facility totaled {currency_code}{amount} {money_unit} with average interest rate of {pct}% to {pct2}% as of {month} {end_day}, {year}",
     "As of {month} {end_day}, {year}, there was {currency_code}{amount} {money_unit} outstanding on the {debt_type} and {currency_code}{amount2} {money_unit} outstanding on {debt_types}",
     # Issuances and repayments
@@ -523,7 +523,7 @@ debt_templates = [
     "The notional amount on the {debt_type} reduces monthly from approximately {currency_code}{amount} {money_unit} at {month} {end_day}, {year} to {currency_code}{amount2} {money_unit} prior to expiration of the agreement",    
     "The {debt_type} has a principal amount of {currency_code}{amount} {money_unit} and matures in {maturity_year}",
     # Interest rate and maturity details
-    "As of year-end {year}, {company} had total {debt_type} of {currency_code}{amount} {money_unit}, {currency_code}{amount2} {money_unit} of which was fixed rate debt with a weighted average interest rate of {pct}% to {pct2}%",
+    "As of year-end {year}, {company} {verb} total {debt_type} of {currency_code}{amount} {money_unit}, {currency_code}{amount2} {money_unit} of which was fixed rate debt with a weighted average interest rate of {pct}% to {pct2}%",
     "The weighted average interest rate on {company}'s {debt_type} was approximately {pct}% as of {month} {end_day}, {year}",
     "As of {month} {end_day}, {year}, {company}'s {debt_type} had a weighted average maturity of {small_int} years",
     "As of {month} {end_day}, {year}, {company}'s variable-rate borrowings bore interest at an average rate of {pct}%",
@@ -531,7 +531,7 @@ debt_templates = [
     "At {month} {year}, {company} repaid {currency_code}{amount} {money_unit} of the {currency_code}{amount2} {money_unit} borrowed",
     "The agreement effectively sets a cap and floor interest rate of {pct}% and {pct2}%, respectively, on most of the {debt_type}",
     # Other specialized cases
-    "During {year}, {company} entered into a new {currency_code}{amount} {money_unit} {debt_type} with a maturity in {maturity_year} and annual interest rate of {pct}%",
+    "During {year}, {company} {verb} a new {currency_code}{amount} {money_unit} {debt_type} with a maturity in {maturity_year} and annual interest rate of {pct}%",
     "Proceeds from the {debt_type} issuance were used to repay existing borrowings and for general corporate purposes",
     "In {year}, {company} retired {currency_code}{amount} {money_unit} of {debt_type} upon maturity",
     "At {month} {end_day}, {year}, unamortized debt issuance costs related to {debt_type} totaled {currency_code}{amount} {money_unit}",
