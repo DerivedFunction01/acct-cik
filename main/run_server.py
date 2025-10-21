@@ -6,6 +6,7 @@ import multiprocessing as mp
 import platform
 import time
 import requests
+import shutil
 
 # =============================================================================
 # CONFIGURATION
@@ -46,6 +47,63 @@ def pre_download_model():
         print("   Please run 'pip install transformers torch' if you encounter issues.")
     except Exception as e:
         print(f"❌ An error occurred during model pre-download: {e}")
+
+def check_nginx():
+    """
+    Checks if nginx is installed. If not, prompts to install it on Debian-based systems.
+    """
+    if shutil.which("nginx") is not None:
+        print("✅ Nginx is available.")
+        return True
+
+    print("❌ ERROR: 'nginx' command not found.")
+    print("   The server management script requires Nginx for load balancing.")
+
+    # Attempt to auto-install on Debian-based systems
+    if platform.system() == "Linux":
+        try:
+            distro_id = platform.freedesktop_os_release().get("ID")
+            if distro_id in ["ubuntu", "debian"]:
+                install_prompt = (
+                    input(
+                        "   Would you like to try and install it now? (sudo apt install nginx) [y/N]: "
+                    )
+                    .lower()
+                    .strip()
+                )
+                if install_prompt == "y":
+                    print(
+                        "   -> Running 'sudo apt update && sudo apt install -y nginx'..."
+                    )
+                    try:
+                        subprocess.check_call("sudo apt update".split())
+                        subprocess.check_call("sudo apt install -y nginx".split())
+                        if shutil.which("nginx"):
+                            print("   ✅ Nginx installed successfully.")
+                            return True
+                        else:
+                            print(
+                                "   ❌ Installation failed. Please install Nginx manually."
+                            )
+                            return False
+                    except (
+                        subprocess.CalledProcessError,
+                        FileNotFoundError,
+                    ) as install_err:
+                        print(f"   ❌ Installation failed: {install_err}")
+                        print(
+                            "      Please try installing Nginx manually: sudo apt install nginx"
+                        )
+                        return False
+        except (AttributeError, FileNotFoundError):
+            # Could not determine Linux distribution
+            pass
+
+    print("   Please install Nginx to continue.")
+    print(
+        "   On Debian/Ubuntu, you can run: sudo apt update && sudo apt install -y nginx"
+    )
+    return False
 
 def is_windows():
     """Check if the operating system is Windows."""
@@ -119,6 +177,10 @@ def start_servers():
     """Starts the Gunicorn and Nginx servers."""
     if is_windows():
         print("❌ ERROR: Gunicorn is not supported on Windows. Please use WSL (Windows Subsystem for Linux).")
+        return
+
+    # Check for Nginx before proceeding
+    if not check_nginx():
         return
 
     # Pre-download the model to prevent worker timeouts
