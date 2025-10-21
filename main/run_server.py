@@ -134,7 +134,7 @@ def get_gpu_ram():
         print(f"⚠️  An error occurred while detecting GPU: {e}")
     return 0
 
-def generate_nginx_config(gpu_ram: float = 0, cpu_cores: int = 2):
+def generate_nginx_config(gpu_ram: float = 0, cpu_cores: int = 2, cpu_server_enabled: bool = True):
     """
     Generates the nginx.conf file with a dynamic weight for the GPU server
     based on available system resources.
@@ -155,6 +155,18 @@ def generate_nginx_config(gpu_ram: float = 0, cpu_cores: int = 2):
     if cpu_cores < 4:
         gpu_weight += 1
 
+    # Build the upstream block
+    if cpu_server_enabled:
+        upstream_block = f"""
+        # GPU server - handles more requests if available
+        server 127.0.0.1:{GPU_SERVER_PORT} weight={gpu_weight};
+        # CPU server - takes a smaller portion of the load
+        server 127.0.0.1:{CPU_SERVER_PORT};"""
+    else:
+        upstream_block = f"""
+        # Only GPU server is running
+        server 127.0.0.1:{GPU_SERVER_PORT};"""
+
     config = f"""
 worker_processes auto;
 pid {os.path.abspath(PID_FILE).replace(os.sep, '/')};
@@ -165,10 +177,7 @@ events {{
 
 http {{
     upstream model_servers {{
-        # GPU server - handles more requests if available
-        server 127.0.0.1:{GPU_SERVER_PORT} weight={gpu_weight};
-        # CPU server - takes a smaller portion of the load
-        server 127.0.0.1:{CPU_SERVER_PORT};
+        {upstream_block}
     }}
 
     server {{
@@ -190,7 +199,10 @@ http {{
 """
     with open(NGINX_CONF_FILE, "w") as f:
         f.write(config)
-    print(f"✅ Generated '{NGINX_CONF_FILE}' with GPU weight = {gpu_weight}.")
+    if cpu_server_enabled:
+        print(f"✅ Generated '{NGINX_CONF_FILE}' with GPU weight = {gpu_weight}.")
+    else:
+        print(f"✅ Generated '{NGINX_CONF_FILE}' to route all traffic to the GPU server.")
 
 def start_servers():
     """Starts the Gunicorn and Nginx servers."""
@@ -226,15 +238,25 @@ def start_servers():
     else:
         cpu_threads = 1 # Very conservative for small machines
 
+    # --- Decide whether to start the CPU server ---
+    start_cpu_server = True
+    if gpu_ram_gb > 0 and (cpu_cores < 4 or ram_gb < 8):
+        start_cpu_server = False
+        print("⚠️  Low system resources (CPU/RAM) detected with a GPU present.")
+        print("   -> The CPU server will NOT be started to conserve resources.")
+
     print("\n" + "="*50)
     print("🚀 Starting Servers with Optimized Configuration:")
-    print(f"   - GPU Server: 1 Worker, {gpu_threads} Threads (Port {GPU_SERVER_PORT})")
-    print(f"   - CPU Server: 1 Worker, {cpu_threads} Threads (Port {CPU_SERVER_PORT})")
+    if gpu_ram_gb > 0:
+        print(f"   - GPU Server: 1 Worker, {gpu_threads} Threads (Port {GPU_SERVER_PORT})")
+    if start_cpu_server:
+        print(f"   - CPU Server: 1 Worker, {cpu_threads} Threads (Port {CPU_SERVER_PORT})")
+    
     print(f"   - Nginx Load Balancer on Port {NGINX_PORT}")
     print("="*50 + "\n")
 
     # Generate Nginx config
-    generate_nginx_config(gpu_ram=gpu_ram_gb, cpu_cores=cpu_cores)
+    generate_nginx_config(gpu_ram=gpu_ram_gb, cpu_cores=cpu_cores, cpu_server_enabled=start_cpu_server)
 
     # --- Launch Processes ---
     # GPU Server (if available)
@@ -246,11 +268,12 @@ def start_servers():
         print(f"🚀 Launched GPU server.")
 
     # CPU Server
-    cpu_cmd = f"gunicorn --workers 1 --threads {cpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{CPU_SERVER_PORT} {SERVER_SCRIPT}"
-    cpu_env = os.environ.copy()
-    cpu_env["DEVICE_TYPE"] = "cpu"
-    subprocess.Popen(cpu_cmd.split(), env=cpu_env)
-    print(f"🚀 Launched CPU server.")
+    if start_cpu_server:
+        cpu_cmd = f"gunicorn --workers 1 --threads {cpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{CPU_SERVER_PORT} {SERVER_SCRIPT}"
+        cpu_env = os.environ.copy()
+        cpu_env["DEVICE_TYPE"] = "cpu"
+        subprocess.Popen(cpu_cmd.split(), env=cpu_env)
+        print(f"🚀 Launched CPU server.")
 
     # Nginx Server
     nginx_cmd = f"nginx -c {os.path.abspath(NGINX_CONF_FILE)}"
