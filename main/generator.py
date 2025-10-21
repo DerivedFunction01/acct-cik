@@ -451,6 +451,8 @@ def generate_hedge_paragraph(
                 "{integer}": str(random.randint(1000, 10000)),
                 "{short_int2}": str(random.randint(60, 270)),
                 "{verb}": random.choice(hedge_use_verbs),
+                "{company2}": random.choice([c for c in company_names if c != company_name]),
+                "{company3}": random.choice([c for c in company_names if c != company_name]),
             }
 
             sentence = template
