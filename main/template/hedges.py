@@ -469,6 +469,7 @@ hedge_context_template = [
 # No-prior-year patterns (two-year)
 two_year_no_prior_patterns = [
     "no such instruments were outstanding at {prev_year}",
+    "no amounts were {verb} at {prev_year}",
     "while no comparable {swap_type} existed during {prev_year}",
     "There were no {swap_type} outstanding at the close of {prev_year}",
     "there were no such {swap_type} reported in {prev_year}",
