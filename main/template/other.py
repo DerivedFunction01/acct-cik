@@ -2819,6 +2819,22 @@ hedge_change_policy_templates = [
     "The amendment to Topic 815 {hedge_description} and {hedge_feature}. Effective for fiscal years beginning after {month} {eff_day}, {year}",
 ]
 
+hedge_definition_templates = [
+    '"{swap_type}" means: any {swap_definitions}',
+    '"{swap_type}" refers to: {swap_definitions}',
+]
+
+hedge_additional_definition_templates = [
+    "any other similar {suffix}",
+    "any option to enter any {suffix}",
+    "any {suffix} providing any of the foregoing",
+    "any combination of the {suffix}",    
+    "any master agreement for any of the foregoing",
+    "any confirmation for any of the foregoing",
+    "any schedule for any of the foregoing",
+    "any document or {suffix} evidencing any of the foregoing",
+    "any agreement or {suffix} (including any guarantee or collateral agreement) with respect to any of the foregoing",
+]
 # ========== GENERAL ACCOUNTING POLICY ==========
 general_descriptions = [
     "requires recognition of lease assets and liabilities for operating leases",

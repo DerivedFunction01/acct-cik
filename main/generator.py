@@ -943,7 +943,28 @@ def generate_hedge_paragraph(
                 adoption_year=random.randint(current_year, current_year + 3),
             ) # Corrected from hedge_adoption_year
             sentences.append(pronouncement)
-
+            
+        if random.random() < 0.2: # Add hedge definitions
+            def_sent = []
+            template = random.choice(hedge_definition_templates)
+            # Build up random base types
+            # '"{swap_type}" means: any {swap_definitions}',
+            swap_type = random.choice(derivative_keywords["gen"])
+            swap_definitions = []
+            num_def = random.randint(2, 4)
+            for idx in range(num_def):
+                s_types = random.sample(["rate", "basis", "commodity", "currency", "debt", "equity"], random.randint(2, 4))
+                swap_sentence = f"{idx}{random.choice([".", ")"])} any {', '.join(s_types)} {random.choice(BASE_TYPES)} {random.choice(DEFAULT_SUFFIXES) if random.random() < 0.25 else ''}"
+                swap_definitions.append(swap_sentence)
+            sentence = template.format(swap_type=swap_type, swap_definitions=', '.join(swap_definitions))
+            def_sent.append(sentence)
+            # Add some additional
+            additional_def = random.sample(hedge_additional_definition_templates, random.randint(2, 4))
+            for add in additional_def:
+                def_sent.append(add.format(suffix=random.choice(DEFAULT_SUFFIXES)))
+            # Join them together
+            sentence = ', '.join(def_sent)
+            sentences.append(sentence)
         return sentences
 
     # --- Main Execution Logic ---
