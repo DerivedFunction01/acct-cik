@@ -857,7 +857,6 @@ def parse_html_table(html: str):
 
     return result
 
-
 def parse_plain_text_table_fixed(block: str):
     rows = []
     header_lines = []
@@ -890,32 +889,39 @@ def parse_plain_text_table_fixed(block: str):
                 ]
                 parsed_headers.append(header_cols)
 
-            # Determine the maximum number of columns from the most detailed header row
-            num_cols = max(len(row) for row in parsed_headers)
+            # The last (most detailed) header row determines the actual number of columns
+            num_cols = len(parsed_headers[-1])
 
-            # For each header row, expand it to fill all columns
+            # For each header row, expand it to match num_cols
             expanded_headers = []
             for header_row in parsed_headers:
-                expanded_row = []
-                last_value = ""
-                for col_idx in range(num_cols):
-                    if col_idx < len(header_row) and header_row[col_idx].strip():
-                        last_value = header_row[col_idx].strip()
-                        expanded_row.append(last_value)
-                    else:
-                        # Duplicate the last seen value (merged cell behavior)
-                        expanded_row.append(last_value)
-                expanded_headers.append(expanded_row)
+                if len(header_row) >= num_cols:
+                    # Already has enough columns
+                    expanded_headers.append(header_row[:num_cols])
+                else:
+                    # Need to expand - each header spans multiple columns
+                    cols_per_header = num_cols // len(header_row)
+                    remainder = num_cols % len(header_row)
+                    
+                    expanded_row = []
+                    for i, header_val in enumerate(header_row):
+                        # Calculate span for this header
+                        span = cols_per_header + (1 if i < remainder else 0)
+                        # Duplicate the header value for each column it spans
+                        expanded_row.extend([header_val] * span)
+                    
+                    expanded_headers.append(expanded_row)
 
             # Now combine hierarchical headers vertically
             aligned_headers = [""]  # Empty first column for row labels
             for col_idx in range(num_cols):
                 header_parts = []
                 for expanded_row in expanded_headers:
-                    value = expanded_row[col_idx]
-                    # Only add if it's different from the last part (avoid duplication like "Gross - Gross")
-                    if value and (not header_parts or value != header_parts[-1]):
-                        header_parts.append(value)
+                    if col_idx < len(expanded_row):
+                        value = expanded_row[col_idx]
+                        # Only add if it's different from the last part
+                        if value and (not header_parts or value != header_parts[-1]):
+                            header_parts.append(value)
 
                 aligned_headers.append(" - ".join(header_parts) if header_parts else "")
 
