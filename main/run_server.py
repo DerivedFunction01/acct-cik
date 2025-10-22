@@ -277,9 +277,9 @@ def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
 
     if gpu_ram_gb > 0:
         # High-end GPU with low-end CPU
-        if gpu_ram_gb >= 15 and (cpu_cores <= 4 or ram_gb < 12):
+        if gpu_ram_gb >= 4 and (cpu_cores <= 4 or ram_gb < 12):
             start_cpu_server = False
-            print("   Strategy: High-end GPU + limited CPU/RAM → GPU-only mode")
+            print("   Strategy: GPU-focused + limited CPU/RAM → GPU-only mode")
 
         # Gaming PC scenario: strong GPU + strong CPU
         elif gpu_ram_gb >= 8 and cpu_cores >= 16 and ram_gb >= 24:
