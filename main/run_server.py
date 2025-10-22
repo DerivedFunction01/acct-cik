@@ -276,8 +276,12 @@ def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
     # 2. Very limited resources overall
 
     if gpu_ram_gb > 0:
+        # CPU has little cores (~2)
+        if cpu_cores <= 2:
+            start_cpu_server = False
+            print("   Strategy: Poor CPU/RAM → GPU-only mode")
         # High-end GPU with low-end CPU
-        if gpu_ram_gb >= 4 and (cpu_cores <= 4 or ram_gb < 12):
+        elif gpu_ram_gb >= 4 and (cpu_cores <= 4 or ram_gb < 12):
             start_cpu_server = False
             print("   Strategy: GPU-focused + limited CPU/RAM → GPU-only mode")
 
