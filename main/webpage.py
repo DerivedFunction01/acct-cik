@@ -667,6 +667,16 @@ def extract_content(data: str, asHTML=True, max_len=600) -> str:
 
     if asHTML:
         soup = BeautifulSoup(data, "html.parser")
+        
+        # Extract and convert HTML tables to array, then to text
+        tables = soup.find_all("table")
+        for table in tables:
+            rows = parse_html_table(str(table))
+            if rows:
+                # Convert array to tab-separated text
+                table_text = "\n".join(["\t".join(row) for row in rows])
+                # Replace the table with the text representation
+                table.replace_with(soup.new_string(f"\n\n{table_text}\n\n"))
         text = soup.get_text(separator="\n\n", strip=True)
         text = keep_allowed_chars(text, True)
         paragraphs = [p.strip()
@@ -731,8 +741,10 @@ def extract_content(data: str, asHTML=True, max_len=600) -> str:
         for part in parts:
             if part.strip().lower().startswith("<table>"):
                 rows = parse_plain_text_table_fixed(part)
-                table_text = "\n".join(["\t".join(row) for row in rows])
-                paragraphs.append(table_text)
+                if rows:
+                    # Convert array to tab-separated text
+                    table_text = "\n".join(["\t".join(row) for row in rows])
+                    paragraphs.append(table_text)
             else:
                 sub_paras = [p for p in re.split(
                     r"\n\s*\n", part) if p.strip()]
@@ -785,9 +797,70 @@ def keep_allowed_chars(text, asHTML=False):
     return text
 
 
+def parse_html_table(html: str):
+    """
+    Parse an HTML table and expand merged cells (colspan/rowspan).
+    Returns a 2D array where merged cells are duplicated.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    table = soup.find("table")
+
+    if not table:
+        return []
+
+    # Build a grid to track cell placement
+    grid = []
+
+    # Process all rows (both thead and tbody)
+    all_rows = table.find_all("tr")
+
+    for row_idx, tr in enumerate(all_rows):
+        # Ensure grid has enough rows
+        while len(grid) <= row_idx:
+            grid.append([])
+
+        cells = tr.find_all(["td", "th"])
+        col_idx = 0
+
+        for cell in cells:
+            # Find the next available column (skip cells occupied by rowspan)
+            while col_idx < len(grid[row_idx]) and grid[row_idx][col_idx] is not None:
+                col_idx += 1
+
+            # Get cell text and span attributes
+            text = cell.get_text(strip=True)
+            colspan = int(cell.get("colspan", 1))
+            rowspan = int(cell.get("rowspan", 1))
+
+            # Fill the grid with this cell's value (duplicating for merged cells)
+            for r in range(rowspan):
+                target_row = row_idx + r
+                # Ensure grid has enough rows
+                while len(grid) <= target_row:
+                    grid.append([])
+
+                for c in range(colspan):
+                    target_col = col_idx + c
+                    # Ensure row has enough columns
+                    while len(grid[target_row]) <= target_col:
+                        grid[target_row].append(None)
+
+                    # Duplicate the cell value for merged cells
+                    grid[target_row][target_col] = text
+
+            col_idx += colspan
+
+    # Clean up None values (shouldn't happen, but just in case)
+    result = []
+    for row in grid:
+        result.append([cell if cell is not None else "" for cell in row])
+
+    return result
+
+
 def parse_plain_text_table_fixed(block: str):
     rows = []
-    first_col_buffer = ""
+    header_lines = []
     first_col_active = True
 
     lines = [line.rstrip() for line in block.splitlines() if line.strip()]
@@ -801,16 +874,57 @@ def parse_plain_text_table_fixed(block: str):
             line = line.replace("<S>", "").lstrip()
 
         if first_col_active:
-            first_col_buffer = f"{first_col_buffer} {line.strip()}".strip()
+            header_lines.append(line.strip())
             continue
 
+        # Split the line into columns
         cols = [col.strip() for col in COLUMN_SPLIT_PATTERN.split(line)]
 
-        if first_col_buffer:
-            rows.append([first_col_buffer] + cols)
-            first_col_buffer = ""
-        else:
-            rows.append(cols)
+        # If we have accumulated header lines, process and align them
+        if header_lines:
+            # Parse each header line into columns
+            parsed_headers = []
+            for header_line in header_lines:
+                header_cols = [
+                    col.strip() for col in COLUMN_SPLIT_PATTERN.split(header_line)
+                ]
+                parsed_headers.append(header_cols)
+
+            # Determine the maximum number of columns from the most detailed header row
+            num_cols = max(len(row) for row in parsed_headers)
+
+            # For each header row, expand it to fill all columns
+            expanded_headers = []
+            for header_row in parsed_headers:
+                expanded_row = []
+                last_value = ""
+                for col_idx in range(num_cols):
+                    if col_idx < len(header_row) and header_row[col_idx].strip():
+                        last_value = header_row[col_idx].strip()
+                        expanded_row.append(last_value)
+                    else:
+                        # Duplicate the last seen value (merged cell behavior)
+                        expanded_row.append(last_value)
+                expanded_headers.append(expanded_row)
+
+            # Now combine hierarchical headers vertically
+            aligned_headers = [""]  # Empty first column for row labels
+            for col_idx in range(num_cols):
+                header_parts = []
+                for expanded_row in expanded_headers:
+                    value = expanded_row[col_idx]
+                    # Only add if it's different from the last part (avoid duplication like "Gross - Gross")
+                    if value and (not header_parts or value != header_parts[-1]):
+                        header_parts.append(value)
+
+                aligned_headers.append(" - ".join(header_parts) if header_parts else "")
+
+            # Add single combined header row
+            rows.append(aligned_headers)
+            header_lines = []
+
+        # Add the current data row (with empty first column)
+        rows.append([""] + cols)
 
     return rows
 
