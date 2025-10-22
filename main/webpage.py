@@ -32,7 +32,7 @@ REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
 
 
-SEC_RATE = 6  # requests per second
+SEC_RATE = 7  # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
 NUM_FETCHERS = 1
@@ -57,7 +57,7 @@ def get_system_config():
     print(f"🖥️  System Detected: {cpu_cores} CPU cores, {ram_gb:.2f} GB RAM")
 
     # Set worker counts based on CPU cores
-    num_fetchers =  max(cpu_cores, SEC_RATE)  # I/O bound
+    num_fetchers =  SEC_RATE  # I/O bound
     num_parsers = cpu_cores  # CPU bound
 
     # Set CHUNK_SIZE based on RAM
