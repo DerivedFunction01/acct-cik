@@ -92,10 +92,19 @@ if __name__ == "__main__":
             df = execute_sql("SELECT * FROM webpage_result")
             last_df = df
             print(df.head(20))
+            # Print statistics
+            print("-" * 30)
+            print("Statistics:")
+            print(df.describe())
+            print("-" * 30)
         elif choice == "2":
             df = execute_sql("SELECT * FROM server_result")
             last_df = df
             print(df.head(20))
+            print("-" * 30)
+            print("Statistics:")
+            print(df.describe())
+            print("-" * 30)
         elif choice == "3":
             custom_sql = input("Enter your SQL query: ").strip()
             if custom_sql:
@@ -103,6 +112,10 @@ if __name__ == "__main__":
                 if isinstance(result, pd.DataFrame):
                     last_df = result
                     print(result)
+                    print("-" * 30)
+                    print("Statistics:")
+                    print(df.describe())
+                    print("-" * 30)
                 else:
                     print(f"Query executed successfully, {result} rows affected.")
             else:
