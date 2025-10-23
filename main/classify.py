@@ -541,23 +541,34 @@ label2id = {v: k for k, v in id2label.items()}
 # %%
 if __name__ == "__main__":
     print("=" * 70)
-    print("Model Classification and Analysis Script")
+    print("🚀 Starting Model Classification Service")
     print("=" * 70)
+    print("This script will run continuously, checking for new data to classify.")
+    print("Press Ctrl+C to stop.")
 
-    # Initialize database
-    create_db()
+    try:
+        while True:
+            # Initialize database schema if it doesn't exist
+            create_db()
 
-    # Process reports in chunks
-    print("\nProcessing reports with server predictions...")
-    total_processed = process_reports_in_chunks()
+            # The process_reports_in_chunks function already finds unprocessed reports.
+            # It will return 0 if there's nothing new to process.
+            total_processed_in_run = process_reports_in_chunks()
 
-    print(f"\nProcessed {total_processed} new reports in chunked parallel mode.")
+            if total_processed_in_run > 0:
+                print(f"\n✅ Run complete. Processed {total_processed_in_run} new reports.")
+                # Final save to Drive if in Colab after a successful run
+                if IS_COLAB:
+                    print("\nFinal database sync to Google Drive...")
+                    subprocess.run(SAVE_SHELL_CMD, shell=True)
+            else:
+                # If no reports were processed, wait before checking again.
+                wait_time = 60
+                print(f"\nNo new reports to process. Waiting for {wait_time} seconds...")
+                time.sleep(wait_time)
 
-    # Final save to Drive if in Colab
-    if IS_COLAB:
-        print("\nFinal database sync to Google Drive...")
-        subprocess.run(SAVE_SHELL_CMD, shell=True)
-
-    print("\n" + "=" * 70)
-    print("All done!")
-    print("=" * 70)
+    except KeyboardInterrupt:
+        print("\n\n🛑 Service stopped by user.")
+        print("=" * 70)
+        print("All done!")
+        print("=" * 70)
