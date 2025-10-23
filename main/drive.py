@@ -451,7 +451,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                         # This is a folder, ensure it exists locally and add to scan queue
                         item_local_path.mkdir(parents=True, exist_ok=True)
                         folders_to_scan.append((item_id, item_local_path))
-                        known_files[file_id] = {
+                        known_files[item_id] = {
                             "modified_time": modified_time,
                             "local_path": str(item_local_path),
                             "title": item_title
