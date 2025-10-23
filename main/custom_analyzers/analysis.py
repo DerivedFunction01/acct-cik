@@ -534,8 +534,13 @@ class PredictionsProcessor:
 
         # Helper to check if label exists with current context
         def has_current_use(use_label: str) -> bool:
+            # A firm is a "current" user only if a `_use` label and a `curr` label are present,
+            # AND a `term` (termination) label is NOT present anywhere in the document.
+            # The presence of `term` overrides `curr` for the entire firm-year aggregation.
             return (
-                label_counts.get(use_label, 0) > 0 and label_counts.get("curr", 0) > 0
+                label_counts.get(use_label, 0) > 0 and 
+                label_counts.get("curr", 0) > 0 and 
+                label_counts.get("term", 0) == 0
             )
 
         # Specific hedge types (must have current usage)
