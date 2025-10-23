@@ -23,12 +23,12 @@ if [ ! -d "$VENV_DIR" ]; then
   BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn"
   ML_PACKAGES="torch scikit-learn datasets transformers accelerate"
 
-  if [[ "$1" == "--ml" ]]; then
+  if [[ "$1" == "--base" ]]; then
+   echo "Installing base packages for fetching only..."
+    pip install $BASE_PACKAGES
+  else
     echo "Installing all packages (including ML)..."
     pip install $BASE_PACKAGES $ML_PACKAGES
-  else
-    echo "Installing base packages for fetching only..."
-    pip install $BASE_PACKAGES
   fi
 else
   echo "Virtual environment '$VENV_DIR' already exists. Skipping creation and installation."
