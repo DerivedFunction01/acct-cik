@@ -1496,5 +1496,3 @@ for ht in swap_t:
     hedge_position_templates[ht] = results[f"hedge_position_templates_{ht}"]
     hedge_mitigation_templates[ht] = results[f"hedge_mitigation_templates_{ht}"]
     hedge_begin_context_templates[ht] = results[f"hedge_begin_context_templates_{ht}"]
-
-print(hedge_zero_templates)
