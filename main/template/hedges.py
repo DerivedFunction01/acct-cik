@@ -725,7 +725,7 @@ zero_current_vs_prior_notional_templates = [
     "While {company} {verb} {swap_type} with notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year} and {currency_code}{prev2_notional} {money_unit} in {prev2_year}, there were no such derivatives outstanding {time_period}",
 ]
 
-zero_any_templates = [# No such outstanding patterms
+zero_any_templates = [  # No such outstanding patterms
     "{time_period}, there were no such {swap_type} outstanding",  # One year
     "{time_period} and {prev_year}, there were no such {swap_type} outstanding",  # Two year
     "{time_period}, {prev_year}, and {prev2_year}, there were no such {swap_type} outstanding",  # Three year
@@ -741,6 +741,9 @@ zero_any_templates = [# No such outstanding patterms
     "{company} {verb} no such {swap_type} {time_period}",  # One year
     "{company} {Verb} no such {swap_type} {time_period} and {prev_year}",  # Two year
     "{company} {verb} no such {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
+    "{company} {verb} no significant {swap_type} {time_period}",  # One year
+    "{company} {Verb} no significant {swap_type} {time_period} and {prev_year}",  # Two year
+    "{company} {verb} no significant {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
     "{company} does not {verb} any {swap_type} {time_period}",  # One year
     "{company} does not {verb} any {swap_type} {time_period} and {prev_year}",  # Two year
     "{company} does not {verb} any {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
