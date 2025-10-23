@@ -43,6 +43,7 @@ labels = [
     "gen_use",
     "curr",
     "hist",
+    "term",
     "spec",
     "warr",
     "emb",
