@@ -27,7 +27,7 @@ model.eval()  # evaluation mode
 labels = [
     "ir", "fx", "cp", "eq", "gen",
     "ir_use", "fx_use", "cp_use", "eq_use", "gen_use",
-    "curr", "hist", "spec",
+    "curr", "hist", "term", "spec",
     "warr", "emb",
     "irr",
 ]
