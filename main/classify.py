@@ -66,7 +66,7 @@ def get_system_config():
         else:
             print("⚠️  Server has no GPU, defaulting to CPU-based threading")
             server_cpu_cores = server_info.get("cpu_cores", cpu_cores)
-            num_threads = min(1, server_cpu_cores // 8)
+            num_threads = min(1, server_cpu_cores // 8 if server_cpu_cores > 8 else 1)
     except requests.exceptions.RequestException as e:
         print(f"❌ Could not connect to server at {SERVER_BASE_URL}. Defaulting to CPU-based thread count.")
         print(f"   Error: {e}")
