@@ -1358,7 +1358,7 @@ DEPENDENT_TYPES = [
 
 BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
 
-DEFAULT_SUFFIXES = ["", "agreement", "contract", "arrangement", "instrument", "transaction", "commitment", "position"]
+DEFAULT_SUFFIXES = ["", "agreement", "contract", "arrangement", "instrument", "transaction", "commitment", "position", "program"]
 
 SPECIAL_EXPANSIONS = {
     "option": [
