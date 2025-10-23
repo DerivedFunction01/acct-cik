@@ -1,6 +1,8 @@
 import os
 import time
 import threading
+import subprocess
+import platform
 from pathlib import Path
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
@@ -10,9 +12,7 @@ from pydrive2.drive import GoogleDrive
 DRIVE_SERVICE = None
 
 # Global mounting state
-MOUNTED_FOLDERS = (
-    {}
-)  # {folder_name: {"folder_id": id, "local_path": path, "listener_thread": thread, "stop_event": event}}
+MOUNTED_FOLDERS = {}  # {folder_name: {"folder_id": id, "local_path": path, "listener_thread": thread, "stop_event": event}}
 MOUNT_BASE_PATH = Path("./drive/MyDrive")
 
 
@@ -253,6 +253,93 @@ def download_folder_recursive(service, folder_id, local_path):
         print(f"  Error downloading from folder: {e}")
 
 
+def force_remove_file(file_path):
+    """
+    Attempts to remove a file or directory using multiple methods.
+    Returns True if successful, False otherwise.
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        return True
+    
+    # Method 1: Standard Python removal
+    try:
+        if file_path.is_dir():
+            import shutil
+            shutil.rmtree(file_path)
+        else:
+            file_path.unlink()
+        return True
+    except Exception as e:
+        print(f"      Standard removal failed: {e}")
+    
+    # Method 2: Try to close any file handles and retry
+    try:
+        import gc
+        gc.collect()  # Force garbage collection to release file handles
+        time.sleep(0.5)
+        
+        if file_path.is_dir():
+            import shutil
+            shutil.rmtree(file_path)
+        else:
+            file_path.unlink()
+        return True
+    except Exception as e:
+        print(f"      Retry after GC failed: {e}")
+    
+    # Method 3: Use OS-specific commands
+    try:
+        system = platform.system()
+        
+        if system == "Windows":
+            # Windows: use del for files, rmdir for directories
+            if file_path.is_dir():
+                subprocess.run(
+                    ["rmdir", "/S", "/Q", str(file_path)],
+                    shell=True,
+                    check=True,
+                    capture_output=True
+                )
+            else:
+                subprocess.run(
+                    ["del", "/F", "/Q", str(file_path)],
+                    shell=True,
+                    check=True,
+                    capture_output=True
+                )
+        else:
+            # Linux/Mac: use rm -rf
+            subprocess.run(
+                ["rm", "-rf", str(file_path)],
+                check=True,
+                capture_output=True
+            )
+        
+        print(f"      Removed using system command")
+        return True
+    except Exception as e:
+        print(f"      System command failed: {e}")
+    
+    # Method 4: Mark for deletion on next restart (Windows only)
+    if platform.system() == "Windows":
+        try:
+            import ctypes
+            # MoveFileEx with MOVEFILE_DELAY_UNTIL_REBOOT flag
+            ctypes.windll.kernel32.MoveFileExW(
+                str(file_path),
+                None,
+                0x4  # MOVEFILE_DELAY_UNTIL_REBOOT
+            )
+            print(f"      File marked for deletion on next restart")
+            return True
+        except Exception as e:
+            print(f"      Delayed deletion failed: {e}")
+    
+    return False
+
+
 def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     """
     Background thread that periodically checks for changes in the Drive folder
@@ -324,15 +411,12 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                 # Remove local file if it exists
                 local_file_path = Path(file_info["local_path"])
                 if local_file_path.exists():
-                    try:
-                        if local_file_path.is_dir():
-                            import shutil
-                            shutil.rmtree(local_file_path)
-                        else:
-                            local_file_path.unlink()
+                    if force_remove_file(local_file_path):
                         print(f"      Removed local file: {file_info['title']}")
-                    except Exception as e:
-                        print(f"      Failed to remove local file: {e}")
+                    else:
+                        print(f"      ⚠️ Could not remove local file (in use): {file_info['title']}")
+                        continue  # Skip cleanup if we couldn't delete
+                        
                 if str(local_file_path) in local_to_drive:
                     del local_to_drive[str(local_file_path)]
                 del known_files[deleted_id]
