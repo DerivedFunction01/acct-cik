@@ -1722,8 +1722,19 @@ def process_all_reports_fully():
 
         gc.collect()
         if IS_COLAB and chunk_time > 1: # Avoid spamming in very fast chunks
-            subprocess.Popen(SAVE_SHELL_CMD, shell=True)
-            print(f"  → Saving to database.")
+            # On Windows, Popen with shell=True can sometimes cause the console to
+            # pause and wait for an 'Enter' key press. By redirecting stdout and
+            # stderr, we prevent this interference.
+            try:
+                subprocess.Popen(
+                    SAVE_SHELL_CMD,
+                    shell=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                print(f"  → Saving to database in background.")
+            except Exception as e:
+                print(f"  ⚠️  Background save failed: {e}")
 
         # Progress summary
         processed_so_far = chunk_idx * CHUNK_SIZE
