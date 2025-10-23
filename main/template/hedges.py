@@ -11,10 +11,10 @@ hedge_mitigation_verbs = ["attempt","seek","pursue","undertake"]
 hedge_may_mitigation_verbs = ["may attempt","may seek","may pursue","may undertake"]
 
 hedge_use_verbs = ["entered into", "executed", "utilized", "employed", "used", "had", "reported", "maintained", "committed", "implemented", 
-                   "applied", "engaged in", "pursued", "utilizes", "employs", "uses", "maintains", "has", "have", "applies", "reports"]
-hedge_may_use_verbs = [ "may engage in", "may commit in", "may implement", "may enter into", "may utilize", "may employ", "may use", "may apply", "may have", "may pursue" ]
+                   "applied", "engaged in", "pursued", "utilizes", "employs", "uses", "maintains", "has", "have", "applies", "reports", "is a party to"]
+hedge_may_use_verbs = [ "may engage in", "may commit in", "may implement", "may enter into", "may utilize", "may employ", "may use", "may apply", "may have", "may pursue", "may be a party in" ]
 
-hedge_change_verbs = ["increase", "decrease", "affect", "impact"]
+hedge_change_verbs = ["increase", "decrease", "affect", "impact", "change"]
 
 hedge_methods = [
     "regression analysis and dollar-offset methods",
@@ -106,7 +106,8 @@ amount_connectors = [
 # Amount patterns (order of amount vs swap)
 one_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}",
-    "{connector} {currency_code}{notional} {money_unit} in {swap_type}",   
+    "{connector} {currency_code}{notional} {money_unit} in {swap_type}",
+    "{swap_type}"   
 ]
 
 
@@ -114,6 +115,7 @@ one_year_amount_patterns = [
 two_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively",
     "{connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively, in {swap_type}",
+    "{swap_type}"
 ]
 
 
@@ -121,6 +123,7 @@ two_year_amount_patterns = [
 three_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively",
     "{connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively, in {swap_type}",
+    "{swap_type}"
 ]
 
 # Hedge designation phrases (optional endings)
@@ -446,6 +449,7 @@ cp_specific_results = [
     "hedging against {commodity} market volatility",
     "mitigating exposure to {commodity} market fluctuations",
     "stabilizing input costs despite {commodity} price movements",
+    "and may be settled upon receipt or deliery of {commodity}",
 ]
 
 # Special templates for accounting impact
@@ -1061,6 +1065,8 @@ begin_cp_context_templates = [
     "The profitability of {company}'s operations depends in part on the stability of {commodity} prices",
     "As part of its risk management strategy, {company} monitors and manages exposure to {commodity} price fluctuations",
     "{company} faces risks related to volatility in {commodity} markets that affect its operating results",
+    "{company} is exposed to {commodity} price risk. {company} may not be successful in balancing our {commodity} purchases and sales",
+    "{company} is exposed commodity price risk when market prices for {commodity} deviate from fixed contract prices",
 ]
 
 # --- Shared placeholders for extension ---
@@ -1159,7 +1165,7 @@ def generate_zero_hedge_positon_templates():
         expanded = _expand_pattern(pattern)
         templates.extend([to_sentence_case(t) for t in expanded])
     return templates
-        
+
 
 def generate_payment_templates():
     """Generate payment-related templates."""

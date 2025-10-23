@@ -577,7 +577,12 @@ def generate_hedge_paragraph(
 
         old_notional = generate_value(False)
         gain_loss = random.choice(["gain", "loss"])
-
+        unit = money_units
+        code = currency_code
+        if swapType == "cp" and random.random() < 0.35:
+            # If it is a cp, we can have a small chance to ditch the currency and use volume units
+            unit = random.choice(volume_units)
+            code = ""
         # --- Build main sentence ---
         sentence = template.format(
             company=pick_company_name(company_name),
@@ -594,12 +599,12 @@ def generate_hedge_paragraph(
             prev2_year=prev2_year,
             old_year=old_year,
             future_year=future_year,
-            currency_code=currency_code,
+            currency_code=code,
             notional=notional,
             prev_notional=prev_notional,
             prev2_notional=prev2_notional,
             old_notional=old_notional,
-            money_unit=money_units,
+            money_unit=unit,
             cost_type=cost_type,
             hedge_type=hedge_type,
             gain_loss=gain_loss,
@@ -817,7 +822,7 @@ def generate_hedge_paragraph(
             else random.choice(hedge_may_use_verbs)
         )
         if has_active_derivative:
-            verb = random.choice(["currently", "actively", "presently", "now", ""]) + " " + verb
+            verb = random.choice(["currently", "actively", "presently", "now", "also", ""]) + " " + verb
         else:
             verb = random.choice(["in the past", ",from time to time, ", ""]) + " " + verb
         sentences.append(
