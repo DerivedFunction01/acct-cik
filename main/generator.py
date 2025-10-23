@@ -829,7 +829,7 @@ def generate_hedge_paragraph(
             verb = random.choice(["currently", "actively", "presently", "now", "also", "primarily", ""]) + " " + verb
         else:
             if random.random() < 0.85: # may use
-                verb = random.choice(["in the past", ",from time to time, ", ""]) + " " + verb
+                verb = random.choice(["in the past", ",from time to time, ", "periodically", ""]) + " " + verb
             else: # will not use
                 verb = random.choice(["does not", "will not", "does not plan to", "does not intend to", "has no plans to", "will not seek to"]) + " " + random.choice(hedge_use_verbs)
         sentences.append(
