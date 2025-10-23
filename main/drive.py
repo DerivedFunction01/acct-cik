@@ -467,6 +467,9 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                             )
                             gfile.SetContentFile(local_file_str)
                             gfile.Upload()
+                            # Explicitly close the file handle to prevent locking issues
+                            if gfile.content:
+                                gfile.content.close()
                             
                             # Add to tracking
                             new_file_id = gfile["id"]
