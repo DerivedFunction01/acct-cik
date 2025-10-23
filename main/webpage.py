@@ -32,7 +32,7 @@ REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
 
 
-SEC_RATE = 5  # requests per second
+SEC_RATE = 8  # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
 NUM_FETCHERS = 1
@@ -902,14 +902,14 @@ def parse_plain_text_table_fixed(block: str):
                     # Need to expand - each header spans multiple columns
                     cols_per_header = num_cols // len(header_row)
                     remainder = num_cols % len(header_row)
-                    
+
                     expanded_row = []
                     for i, header_val in enumerate(header_row):
                         # Calculate span for this header
                         span = cols_per_header + (1 if i < remainder else 0)
                         # Duplicate the header value for each column it spans
                         expanded_row.extend([header_val] * span)
-                    
+
                     expanded_headers.append(expanded_row)
 
             # Now combine hierarchical headers vertically
@@ -935,7 +935,10 @@ def parse_plain_text_table_fixed(block: str):
     return rows
 
 
-def fetch_url(url: str, timeout: int = 10, rate_limiter: "ThreadSafeRateLimiter" = None) -> str | None:
+def fetch_url(
+    url: str, timeout: int = 10, rate_limiter: "ThreadSafeRateLimiter" = None
+) -> str | None:
+    """Fetch URL with rate limiting and completion tracking."""
     global SEC_RATE_LIMIT, SEC_RATE
     if not url:
         return None
@@ -944,9 +947,13 @@ def fetch_url(url: str, timeout: int = 10, rate_limiter: "ThreadSafeRateLimiter"
         time.sleep(rate_limiter.value if rate_limiter else SEC_RATE_LIMIT)
         debug_print("Fetching", url)
         resp = requests.get(
-            url, timeout=timeout, headers={
-                "User-Agent": "sync-fetch@example.com"}
+            url, timeout=timeout, headers={"User-Agent": "sync-fetch@example.com"}
         )
+
+        # Record completion timestamp for rate tracking
+        if rate_limiter:
+            rate_limiter.record_completion()
+
         if resp.status_code == 429:
             print(f"Rate Limited {resp.status_code} for {url}")
             return None
@@ -1298,18 +1305,25 @@ def fetch_all_grouped(saveIteration: int = 100):
 
 class ThreadSafeRateLimiter:
     """
-    A thread-safe class to manage a shared rate limit value.
-    Threads share memory, so we can use a simple lock instead of a
-    heavier multiprocessing.Manager.
+    A thread-safe class to manage a shared rate limit value with sliding-window
+    rate tracking and optional concurrency control.
     """
-    def __init__(self, initial_rate_limit: float):
+
+    def __init__(self, initial_rate_limit: float, window_size: float = 10.0):
         self._rate_limit = initial_rate_limit
         self._lock = threading.Lock()
         self._last_429_time = 0
         self._429_count = 0
         self._recovery_mode = False
-        # Keep the initial value so we can decay back to it after recovery
         self._initial_rate_limit = float(initial_rate_limit)
+
+        # Sliding window tracking
+        self._window_size = window_size  # seconds
+        self._completion_times = []  # List of timestamps
+
+        # EMA tracking (optional, for smoother estimates)
+        self._ema_rate = 0.0
+        self._ema_alpha = 0.2  # Smoothing factor
 
     @property
     def value(self) -> float:
@@ -1350,59 +1364,94 @@ class ThreadSafeRateLimiter:
             return self._initial_rate_limit
 
     def recover_towards_initial(self, step: float = 0.1) -> float:
-        """Gradually reduce the current sleep value toward the initial value.
-
-        Args:
-            step: fraction of the remaining gap to close each call (0-1). e.g. 0.1 reduces 10% of the gap.
-
-        Returns:
-            The updated rate limit value.
-        """
+        """Gradually reduce the current sleep value toward the initial value."""
         with self._lock:
             if self._rate_limit <= self._initial_rate_limit:
                 return self._rate_limit
-            # reduce the excess by `step` fraction so it decays exponentially
             gap = self._rate_limit - self._initial_rate_limit
             reduction = max(gap * step, 1e-6)
-            self._rate_limit = max(self._initial_rate_limit, self._rate_limit - reduction)
+            self._rate_limit = max(
+                self._initial_rate_limit, self._rate_limit - reduction
+            )
             return self._rate_limit
 
+    def record_completion(self, timestamp: float = None):
+        """Record a successful request completion timestamp."""
+        if timestamp is None:
+            timestamp = time.time()
+
+        with self._lock:
+            self._completion_times.append(timestamp)
+
+            # Trim old timestamps outside the window
+            cutoff = timestamp - self._window_size
+            self._completion_times = [t for t in self._completion_times if t >= cutoff]
+
+    def get_rate(self, window_s: float = None) -> float:
+        """
+        Get the current request rate (requests/sec) over the sliding window.
+
+        Args:
+            window_s: Window size in seconds (defaults to self._window_size)
+
+        Returns:
+            Requests per second over the window
+        """
+        if window_s is None:
+            window_s = self._window_size
+
+        with self._lock:
+            now = time.time()
+            cutoff = now - window_s
+
+            # Count completions in the window
+            recent_completions = [t for t in self._completion_times if t >= cutoff]
+
+            if not recent_completions:
+                return 0.0
+
+            # Calculate rate
+            elapsed = now - min(recent_completions)
+            if elapsed < 1e-6:
+                return 0.0
+
+            rate = len(recent_completions) / elapsed
+
+            # Update EMA
+            if self._ema_rate == 0.0:
+                self._ema_rate = rate
+            else:
+                self._ema_rate = (self._ema_alpha * rate) + (
+                    (1 - self._ema_alpha) * self._ema_rate
+                )
+
+            return rate
+
+    def get_ema_rate(self) -> float:
+        """Get the exponentially smoothed rate estimate."""
+        with self._lock:
+            return self._ema_rate
 
 def adjust_rate_in_background(
-    tqdm_bar: tqdm,
     rate_limiter: ThreadSafeRateLimiter,
     target_rate: float,
     stop_event: threading.Event,
 ):
     """
-    A background thread function to dynamically adjust the sleep rate.
-    This runs independently of the main fetch loop.
+    A background thread function to dynamically adjust the sleep rate using
+    sliding-window rate measurement and AIMD-style control.
     """
-    consecutive_slow_checks = 0
-    consecutive_fast_checks = 0
+    consecutive_below_target = 0
 
-    # Small, robust rate estimator using tqdm's completed count
-    prev_count = getattr(tqdm_bar, "n", 0)
-    prev_time = time.time()
-
+    # Small, robust rate estimator using sliding window
     min_time_since_429 = 5
 
     while not stop_event.is_set():
         time.sleep(0.10)  # Check 10 times per second
 
-        # Estimate current rate (requests/sec) from progress increments
-        try:
-            now = time.time()
-            current_count = getattr(tqdm_bar, "n", prev_count)
-            elapsed = now - prev_time if now - prev_time > 0 else 1e-6
-            current_rate = (current_count - prev_count) / elapsed
-            # Smooth small negative glitches
-            if current_rate < 0:
-                current_rate = 0.0
-            prev_count = current_count
-            prev_time = now
-        except Exception:
-            current_rate = 0.0
+        # Get current rate from sliding window
+        current_rate = rate_limiter.get_rate(window_s=5.0)  # 5-second window
+        ema_rate = rate_limiter.get_ema_rate()  # Smoothed estimate
 
         current_sleep = rate_limiter.value
         mode = "Normal"
@@ -1414,7 +1463,7 @@ def adjust_rate_in_background(
         if in_recovery:
             mode = "429 Recovery"
             target_rate_adjusted = target_rate * 0.5  # Aim for 50% of normal rate
-            min_time_since_429 = 5  # Start increasing rate after 5 seconds without 429s
+            min_time_since_429 = 5
             if time_since_429 > min_time_since_429:
                 mode = "Ramping Up"
                 # Gradually increase target rate as time passes without 429s
@@ -1423,47 +1472,50 @@ def adjust_rate_in_background(
         else:
             target_rate_adjusted = target_rate
 
-        # Gradual recovery of the sleep value toward the configured initial value.
-        # If we're in recovery and some time has passed since the last 429, gently decay the sleep.
-        try:
-            if in_recovery:
-                # Start gradual decay after a short buffer; make the step grow as we remain free of 429s
-                if time_since_429 > min_time_since_429:
-                    # step ranges ~0.005 -> 0.05 depending on how long we've been clear of 429s
-                    recovery_factor = min((time_since_429 - min_time_since_429) / 25, 1.0)
-                    step = 0.01 + (0.04 * recovery_factor)
-                    new_sleep = rate_limiter.recover_towards_initial(step=step)
-            else:
-                # Not in recovery: always decay back toward initial value slowly
-                if rate_limiter.value > rate_limiter.initial_value:
-                    # modest step so we don't ramp up too quickly
-                    new_sleep = rate_limiter.recover_towards_initial(step=0.02)
-        except Exception:
-            # Keep running even if recover call fails for some reason
-            pass
-
-        # Proactive adjustment logic
-        if current_rate > target_rate_adjusted * 1.05: # If we are >5% over target
-            # Increase sleep time proportionally to how much we are over
-            overshoot_factor = (current_rate - target_rate_adjusted) / target_rate_adjusted
-            rate_limiter.value += 0.001 + (0.01 * overshoot_factor)
-            consecutive_slow_checks = 0
-            consecutive_fast_checks += 1
-        elif current_rate < (target_rate_adjusted * 0.95): # If we are <5% under target
-            if not in_recovery:  # Be more aggressive only when not in recovery
-                consecutive_slow_checks += 1
-                # More aggressive decrease in sleep time
-                decrease_factor = min(0.05 * consecutive_slow_checks, 0.5)
-                rate_limiter.value = max(0, current_sleep * (1 - decrease_factor))
-            consecutive_fast_checks = 0
+        # Gradual recovery of the sleep value toward the configured initial value
+        if in_recovery:
+            if time_since_429 > min_time_since_429:
+                recovery_factor = min((time_since_429 - min_time_since_429) / 25, 1.0)
+                step = 0.01 + (0.04 * recovery_factor)
+                rate_limiter.recover_towards_initial(step=step)
         else:
-            consecutive_slow_checks = 0
+            # Not in recovery: always decay back toward initial value slowly
+            if rate_limiter.value > rate_limiter.initial_value:
+                rate_limiter.recover_towards_initial(step=0.02)
 
-        tqdm_bar.set_postfix(
-            rate=f"{current_rate:.1f} req/s",
-            sleep=f"{rate_limiter.value*1000:.1f}ms",
-            mode=mode,
-            target=f"{target_rate_adjusted:.1f} req/s"
+        # AIMD-style control: Additive Increase / Multiplicative Decrease
+        tolerance = 0.05  # 5% tolerance band
+
+        if ema_rate > target_rate_adjusted * (1 + tolerance):
+            # Multiplicative decrease when over target
+            overshoot_factor = (ema_rate - target_rate_adjusted) / target_rate_adjusted
+            rate_limiter.value += current_sleep * (
+                0.1 * overshoot_factor
+            )  # Increase sleep
+            consecutive_below_target = 0
+
+        elif ema_rate < target_rate_adjusted * (1 - tolerance):
+            # Additive increase when under target (but be cautious in recovery)
+            if not in_recovery:
+                consecutive_below_target += 1
+                # More aggressive decrease after sustained low rate
+                if consecutive_below_target > 3:
+                    decrease_amount = 0.01  # Additive decrease in sleep time
+                    rate_limiter.value = max(0, current_sleep - decrease_amount)
+            else:
+                consecutive_below_target = 0
+        else:
+            # Within tolerance band - no action needed
+            consecutive_below_target = 0
+
+        # Cap sleep to reasonable bounds
+        rate_limiter.value = max(0.01, min(rate_limiter.value, 60.0))
+
+        # Print status (optional - can be passed to tqdm postfix instead)
+        debug_print(
+            f"Rate: {current_rate:.1f} req/s (EMA: {ema_rate:.1f}), "
+            f"Sleep: {rate_limiter.value*1000:.1f}ms, "
+            f"Mode: {mode}, Target: {target_rate_adjusted:.1f} req/s"
         )
 
 
@@ -1544,33 +1596,28 @@ def format_time(seconds):
 
 
 def process_all_reports_fully():
-    # Initialize a thread-safe rate limiter for the fetching stage.
-    rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT)
+    """Main processing function with improved rate limiting."""
+    # Initialize a thread-safe rate limiter with sliding window tracking
+    rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT, window_size=10.0)
 
-    # Background recovery worker to ensure the sleep value decays back toward initial
-    def recovery_worker(rate_limiter: ThreadSafeRateLimiter, stop_event: threading.Event):
-        """Continuously attempt to recover the sleep value toward the initial value.
-
-        This runs independently of chunk-level adjusters so that recovery proceeds
-        even when no per-chunk adjuster is active.
-        """
+    # Background recovery worker
+    def recovery_worker(
+        rate_limiter: ThreadSafeRateLimiter, stop_event: threading.Event
+    ):
+        """Continuously attempt to recover the sleep value toward the initial value."""
         while not stop_event.is_set():
             try:
                 in_recovery, num_429s, time_since_429 = rate_limiter.check_recovery()
-                # If we are in recovery and some time has passed without 429s, be a bit more aggressive
                 if in_recovery:
                     if time_since_429 > 5:
-                        # step grows up to 0.05 as time passes
                         recovery_factor = min((time_since_429 - 5) / 25, 1.0)
                         step = 0.01 + (0.04 * recovery_factor)
                         rate_limiter.recover_towards_initial(step=step)
                 else:
-                    # Not in recovery: slowly decay toward initial
                     if rate_limiter.value > rate_limiter.initial_value:
                         rate_limiter.recover_towards_initial(step=0.02)
             except Exception:
                 pass
-            # Sleep a bit between adjustments to avoid spinning
             time.sleep(5)
 
     recovery_stop_event = threading.Event()
@@ -1594,11 +1641,12 @@ def process_all_reports_fully():
     print(f"  • {NUM_FETCHERS} parallel fetchers")
     print(f"  • Each worker waits {SEC_RATE_LIMIT:.2f}s between requests")
     print(f"  • Effective rate: ~{NUM_FETCHERS / SEC_RATE_LIMIT:.2f} req/sec")
+    print(f"  • Sliding window: 10s with EMA smoothing")
     total_results = 0
     total_empty = 0
 
     chunks = [
-        reports_to_process[i: i + CHUNK_SIZE]
+        reports_to_process[i : i + CHUNK_SIZE]
         for i in range(0, total_reports, CHUNK_SIZE)
     ]
 
@@ -1633,8 +1681,8 @@ def process_all_reports_fully():
             stop_event = threading.Event()
             adjuster_thread = threading.Thread(
                 target=adjust_rate_in_background,
-                args=(tqdm_bar, rate_limiter, SEC_RATE, stop_event),
-                daemon=True,  # Allows main program to exit even if thread is running
+                args=(rate_limiter, SEC_RATE, stop_event),
+                daemon=True,
             )
             adjuster_thread.start()
 
@@ -1645,27 +1693,24 @@ def process_all_reports_fully():
                         if result and result[0] != "RATE_LIMITED":
                             fetched_data.append(result)
                         elif result and result[0] == "RATE_LIMITED":
-                            # Rate limit detected. Notify the limiter and increase sleep time a bit.
-                            try:
-                                rate_limiter.signal_429()
-                            except Exception:
-                                pass
-                            # Increase sleep conservatively but bounded
+                            rate_limiter.signal_429()
                             cool_down_increase = min(0.5, 0.05 * NUM_FETCHERS)
                             rate_limiter.value = rate_limiter.value + cool_down_increase
-                            # Cap sleep to a reasonable upper bound (e.g., 60s)
                             rate_limiter.value = min(rate_limiter.value, 60.0)
-                            tqdm_bar.set_postfix_str(
-                                f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
-                            )
+
+                        # Update tqdm postfix with rate info
+                        current_rate = rate_limiter.get_rate(window_s=5.0)
+                        ema_rate = rate_limiter.get_ema_rate()
+                        tqdm_bar.set_postfix(
+                            rate=f"{ema_rate:.1f} req/s",
+                            sleep=f"{rate_limiter.value*1000:.1f}ms",
+                        )
 
                     except Exception as e:
                         print(f"Fetch error: {e}")
             finally:
-                # Ensure the background thread is stopped when the loop is done
                 stop_event.set()
                 adjuster_thread.join(timeout=2)
-
 
         print(f"  ✓ Fetched {len(fetched_data)} reports.")
 
@@ -1676,7 +1721,8 @@ def process_all_reports_fully():
 
         with ProcessPoolExecutor(max_workers=NUM_PARSERS) as parse_executor:
             parse_futures = [
-                parse_executor.submit(parse_and_save_content, data) for data in fetched_data
+                parse_executor.submit(parse_and_save_content, data)
+                for data in fetched_data
             ]
 
             for future in tqdm(
@@ -1696,7 +1742,7 @@ def process_all_reports_fully():
                 except Exception as e:
                     print(f"Parse error: {e}")
                     chunk_empty += 1
-        
+
         chunk_time = time.time() - start_chunk_time
         chunk_times.append(chunk_time)
         total_time += chunk_time
@@ -1709,7 +1755,8 @@ def process_all_reports_fully():
 
         print(f"  ✓ Parsed {chunk_results} reports successfully")
         print(f"  Time taken: {format_time(chunk_time)}")
-        print(f"  Current sleep rate: {rate_limiter.value:.2f}")
+        print(f"  Current sleep rate: {rate_limiter.value:.2f}s")
+        print(f"  Actual rate (EMA): {rate_limiter.get_ema_rate():.2f} req/s")
         print(f"  Avg chunk time: {format_time(avg_chunk_time)}")
         print(f"  Est. time remaining: {format_time(est_time_remaining)}")
         print(f"  Total time: {format_time(total_time)}")
@@ -1719,7 +1766,8 @@ def process_all_reports_fully():
         import gc
 
         gc.collect()
-        if IS_COLAB and chunk_time > 1: # Avoid spamming in very fast chunks
+
+        if IS_COLAB and chunk_time > 1:
             subprocess.Popen(SAVE_SHELL_CMD, shell=True)
             print(f"  → Saving to database.")
 
@@ -1739,6 +1787,7 @@ def process_all_reports_fully():
             f"  📈 Success rate: {(total_results/(total_results+total_empty)*100):.1f}%"
         )
     print("=" * 70)
+
     # Stop the recovery thread
     try:
         recovery_stop_event.set()
