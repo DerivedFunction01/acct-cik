@@ -231,11 +231,11 @@ def download_folder_recursive(service, folder_id, local_path):
     """
     local_path = Path(local_path)
     local_path.mkdir(parents=True, exist_ok=True)
-
+    
     try:
         query = f"'{folder_id}' in parents and trashed=false"
         file_list = service.ListFile({"q": query}).GetList()
-
+        
         for item in file_list:
             if item["mimeType"] == "application/vnd.google-apps.folder":
                 # It's a folder - recurse
@@ -248,7 +248,7 @@ def download_folder_recursive(service, folder_id, local_path):
                 print(f"  Downloading: {item['title']}")
                 gfile = service.CreateFile({"id": item["id"]})
                 gfile.GetContentFile(str(file_path))
-
+                
     except Exception as e:
         print(f"  Error downloading from folder: {e}")
 
@@ -256,29 +256,34 @@ def download_folder_recursive(service, folder_id, local_path):
 def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     """
     Background thread that periodically checks for changes in the Drive folder
-    and syncs them to the local path. Also detects local deletions and removes
-    them from Drive.
+    and syncs them to the local path. Also detects local changes (additions,
+    deletions, modifications) and syncs them to Drive.
     """
     print(f"🔊 Listener started for '{folder_name}'")
-
+    
     # Track files we've seen (file_id -> {"modified_time": time, "local_path": path, "title": name})
     known_files = {}
+    # Track local files by their path (local_path -> file_id)
+    local_to_drive = {}
+    
     check_interval = 10  # Check every 10 seconds
-
+    
     while not stop_event.is_set():
         try:
             # Get all files in the folder (and subfolders)
             query = f"'{folder_id}' in parents and trashed=false"
             file_list = service.ListFile({"q": query}).GetList()
-
+            
             current_file_ids = set()
-
+            drive_file_names = set()
+            
             for item in file_list:
                 file_id = item["id"]
                 current_file_ids.add(file_id)
                 modified_time = item.get("modifiedDate", "")
                 file_title = item["title"]
-
+                drive_file_names.add(file_title)
+                
                 if item["mimeType"] == "application/vnd.google-apps.folder":
                     # Ensure subfolder exists
                     subfolder_path = Path(local_path) / file_title
@@ -286,31 +291,31 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                     known_files[file_id] = {
                         "modified_time": modified_time,
                         "local_path": str(subfolder_path),
-                        "title": file_title,
+                        "title": file_title
                     }
+                    local_to_drive[str(subfolder_path)] = file_id
                 else:
                     file_path = Path(local_path) / file_title
                     # Check if file is new or modified
-                    if (
-                        file_id not in known_files
-                        or known_files[file_id]["modified_time"] != modified_time
-                    ):
+                    if file_id not in known_files or known_files[file_id]["modified_time"] != modified_time:
                         print(f"  📥 Syncing from Drive: {file_title}")
                         gfile = service.CreateFile({"id": file_id})
                         gfile.GetContentFile(str(file_path))
                         known_files[file_id] = {
                             "modified_time": modified_time,
                             "local_path": str(file_path),
-                            "title": file_title,
+                            "title": file_title
                         }
+                        local_to_drive[str(file_path)] = file_id
                     else:
                         # File exists in Drive, update tracking info
                         known_files[file_id] = {
                             "modified_time": modified_time,
                             "local_path": str(file_path),
-                            "title": file_title,
+                            "title": file_title
                         }
-
+                        local_to_drive[str(file_path)] = file_id
+            
             # Check for deleted files in Drive (files that were known but aren't in current list)
             deleted_ids = set(known_files.keys()) - current_file_ids
             for deleted_id in deleted_ids:
@@ -322,15 +327,16 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                     try:
                         if local_file_path.is_dir():
                             import shutil
-
                             shutil.rmtree(local_file_path)
                         else:
                             local_file_path.unlink()
                         print(f"      Removed local file: {file_info['title']}")
                     except Exception as e:
                         print(f"      Failed to remove local file: {e}")
+                if str(local_file_path) in local_to_drive:
+                    del local_to_drive[str(local_file_path)]
                 del known_files[deleted_id]
-
+            
             # Check for local deletions (files we're tracking that no longer exist locally)
             files_to_delete_from_drive = []
             for file_id, file_info in list(known_files.items()):
@@ -338,26 +344,64 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                 if not local_file_path.exists() and file_id in current_file_ids:
                     # File was deleted locally but still exists in Drive
                     files_to_delete_from_drive.append((file_id, file_info["title"]))
-
+            
             # Delete files from Drive
             for file_id, file_title in files_to_delete_from_drive:
                 try:
-                    print(
-                        f"  🗑️  Deleting from Drive (local deletion detected): {file_title}"
-                    )
+                    print(f"  🗑️  Deleting from Drive (local deletion detected): {file_title}")
                     gfile = service.CreateFile({"id": file_id})
                     gfile.Delete()
                     if file_id in known_files:
+                        local_path_str = known_files[file_id]["local_path"]
+                        if local_path_str in local_to_drive:
+                            del local_to_drive[local_path_str]
                         del known_files[file_id]
                 except Exception as e:
                     print(f"      Failed to delete from Drive: {e}")
-
+            
+            # Check for new local files (files that exist locally but not in Drive)
+            local_folder = Path(local_path)
+            if local_folder.exists():
+                for local_file in local_folder.iterdir():
+                    local_file_str = str(local_file)
+                    file_name = local_file.name
+                    
+                    # Skip if already tracked or if it's a system file
+                    if local_file_str in local_to_drive or file_name.startswith('.'):
+                        continue
+                    
+                    # Skip if file exists in Drive with same name
+                    if file_name in drive_file_names:
+                        continue
+                    
+                    # This is a new local file - upload it
+                    if local_file.is_file():
+                        try:
+                            print(f"  📤 Uploading new local file to Drive: {file_name}")
+                            gfile = service.CreateFile(
+                                {"title": file_name, "parents": [{"id": folder_id}]}
+                            )
+                            gfile.SetContentFile(local_file_str)
+                            gfile.Upload()
+                            
+                            # Add to tracking
+                            new_file_id = gfile["id"]
+                            known_files[new_file_id] = {
+                                "modified_time": gfile.get("modifiedDate", ""),
+                                "local_path": local_file_str,
+                                "title": file_name
+                            }
+                            local_to_drive[local_file_str] = new_file_id
+                            print(f"      Successfully uploaded: {file_name}")
+                        except Exception as e:
+                            print(f"      Failed to upload {file_name}: {e}")
+            
         except Exception as e:
             print(f"  ⚠️ Listener error for '{folder_name}': {e}")
-
+        
         # Wait before next check (with ability to interrupt)
         stop_event.wait(check_interval)
-
+    
     print(f"🔇 Listener stopped for '{folder_name}'")
 
 
@@ -369,7 +413,7 @@ def mount_drive_folder(service, folder_name, folder_id=None):
     if folder_name in MOUNTED_FOLDERS:
         print(f"⚠️  Folder '{folder_name}' is already mounted.")
         return False
-
+    
     try:
         # If folder_id not provided, search for it
         if not folder_id:
@@ -379,45 +423,45 @@ def mount_drive_folder(service, folder_name, folder_id=None):
                     "q": f"title='{folder_name}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false"
                 }
             ).GetList()
-
+            
             if len(file_list) == 0:
                 print(f"  ❌ Folder '{folder_name}' not found in your Drive.")
                 return False
-
+            
             folder_id = file_list[0]["id"]
             print(f"  Found folder with ID: {folder_id}")
-
+        
         # Create local mount path
         local_path = MOUNT_BASE_PATH / folder_name
         print(f"  Creating local directory: {local_path}")
         local_path.mkdir(parents=True, exist_ok=True)
-
+        
         # Download all contents
         print(f"  📦 Downloading all files from '{folder_name}'...")
         download_folder_recursive(service, folder_id, local_path)
         print(f"  ✅ Initial download complete!")
-
+        
         # Start listener thread
         stop_event = threading.Event()
         listener_thread = threading.Thread(
             target=listen_for_changes,
             args=(service, folder_id, local_path, folder_name, stop_event),
-            daemon=True,
+            daemon=True
         )
         listener_thread.start()
-
+        
         # Store mount info
         MOUNTED_FOLDERS[folder_name] = {
             "folder_id": folder_id,
             "local_path": str(local_path),
             "listener_thread": listener_thread,
-            "stop_event": stop_event,
+            "stop_event": stop_event
         }
-
+        
         print(f"\n✅ Successfully mounted '{folder_name}' to {local_path}")
         print(f"   Background sync is now active.")
         return True
-
+        
     except Exception as e:
         print(f"❌ Failed to mount folder: {e}")
         return False
@@ -437,7 +481,7 @@ def reactivate_listener(service, folder_name):
             # Thread exists but is dead, clean it up
             print(f"  Cleaning up dead listener for '{folder_name}'...")
             del MOUNTED_FOLDERS[folder_name]
-
+    
     try:
         # Check if local folder exists
         local_path = MOUNT_BASE_PATH / folder_name
@@ -445,7 +489,7 @@ def reactivate_listener(service, folder_name):
             print(f"  ❌ Local folder not found at: {local_path}")
             print(f"     Use option 3 (Mount Drive Folder) to download it first.")
             return False
-
+        
         # Search for folder in Drive
         print(f"  Searching for folder '{folder_name}' in Google Drive...")
         file_list = service.ListFile(
@@ -453,36 +497,36 @@ def reactivate_listener(service, folder_name):
                 "q": f"title='{folder_name}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false"
             }
         ).GetList()
-
+        
         if len(file_list) == 0:
             print(f"  ❌ Folder '{folder_name}' not found in your Drive.")
             return False
-
+        
         folder_id = file_list[0]["id"]
         print(f"  Found folder with ID: {folder_id}")
-
+        
         # Start listener thread
         stop_event = threading.Event()
         listener_thread = threading.Thread(
             target=listen_for_changes,
             args=(service, folder_id, local_path, folder_name, stop_event),
-            daemon=True,
+            daemon=True
         )
         listener_thread.start()
-
+        
         # Store mount info
         MOUNTED_FOLDERS[folder_name] = {
             "folder_id": folder_id,
             "local_path": str(local_path),
             "listener_thread": listener_thread,
-            "stop_event": stop_event,
+            "stop_event": stop_event
         }
-
+        
         print(f"\n✅ Successfully reactivated listener for '{folder_name}'")
         print(f"   Local path: {local_path}")
         print(f"   Background sync is now active.")
         return True
-
+        
     except Exception as e:
         print(f"❌ Failed to reactivate listener: {e}")
         return False
@@ -491,7 +535,7 @@ def reactivate_listener(service, folder_name):
 def reactivate_listener_interactive(service):
     """Interactive interface for reactivating a listener for an existing folder."""
     print("\n--- 🔄 Reactivate Folder Listener ---")
-
+    
     # Show available local folders
     if MOUNT_BASE_PATH.exists():
         local_folders = [f.name for f in MOUNT_BASE_PATH.iterdir() if f.is_dir()]
@@ -506,9 +550,9 @@ def reactivate_listener_interactive(service):
     else:
         print("  No mount directory found.")
         return
-
+    
     folder_name = input("\n  Enter folder name or number to reactivate: ").strip()
-
+    
     # Handle numeric choice
     if folder_name.isdigit():
         idx = int(folder_name) - 1
@@ -517,11 +561,11 @@ def reactivate_listener_interactive(service):
         else:
             print("  Invalid number.")
             return
-
+    
     if not folder_name:
         print("  Error: Folder name cannot be empty.")
         return
-
+    
     reactivate_listener(service, folder_name)
 
 
@@ -532,23 +576,23 @@ def unmount_drive_folder(folder_name):
     if folder_name not in MOUNTED_FOLDERS:
         print(f"⚠️  Folder '{folder_name}' is not currently mounted.")
         return False
-
+    
     try:
         mount_info = MOUNTED_FOLDERS[folder_name]
-
+        
         # Signal the listener to stop
         mount_info["stop_event"].set()
-
+        
         # Wait for thread to finish (with timeout)
         mount_info["listener_thread"].join(timeout=5)
-
+        
         # Remove from mounted folders
         del MOUNTED_FOLDERS[folder_name]
-
+        
         print(f"✅ Unmounted '{folder_name}'")
         print(f"   Local files remain at: {mount_info['local_path']}")
         return True
-
+        
     except Exception as e:
         print(f"❌ Error unmounting folder: {e}")
         return False
@@ -558,42 +602,42 @@ def mount_drive_folder_interactive(service):
     """Interactive interface for mounting a Drive folder."""
     print("\n--- 🗂️  Mount Google Drive Folder ---")
     folder_name = input("  Enter the name of the Drive folder to mount: ").strip()
-
+    
     if not folder_name:
         print("  Error: Folder name cannot be empty.")
         return
-
+    
     mount_drive_folder(service, folder_name)
 
 
 def unmount_drive_folder_interactive():
     """Interactive interface for unmounting a Drive folder."""
     print("\n--- 🔌 Unmount Google Drive Folder ---")
-
+    
     if not MOUNTED_FOLDERS:
         print("  No folders are currently mounted.")
         return
-
+    
     print("  Currently mounted folders:")
     for i, name in enumerate(MOUNTED_FOLDERS.keys(), 1):
         print(f"    [{i}] {name}")
-
+    
     choice = input("  Enter folder name or number to unmount: ").strip()
-
+    
     # Handle numeric choice
     if choice.isdigit():
         idx = int(choice) - 1
         folder_list = list(MOUNTED_FOLDERS.keys())
         if 0 <= idx < len(folder_list):
             choice = folder_list[idx]
-
+    
     unmount_drive_folder(choice)
 
 
 def show_mounted_folders():
     """Displays all currently mounted folders."""
     print("\n--- 📋 Currently Mounted Folders ---")
-
+    
     if not MOUNTED_FOLDERS:
         print("  No folders are currently mounted.")
     else:
@@ -602,7 +646,7 @@ def show_mounted_folders():
             print(f"  {status} {folder_name}")
             print(f"      Local path: {info['local_path']}")
             print(f"      Drive ID: {info['folder_id']}")
-
+    
     print("------------------------------------")
 
 
