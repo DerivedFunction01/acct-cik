@@ -134,21 +134,22 @@ class LabelMapper:
         self.config = config
 
         # Define hedge type mappings - current, historical, speculative
+        # (current, historic, spec, terminated)
         self.hedge_map = {
-            "ir": (3, 4, 5),
-            "fx": (6, 7, 8),
-            "cp": (9, 10, 11),
-            "eq": (12, 13, 14),
-            "gen": (0, 1, 2),
+            "ir": (4, 5, 6, 7),
+            "fx": (8, 9, 10, 11),
+            "cp": (12, 13, 14, 15),
+            "eq": (16, 17, 18, 19),
+            "gen": (0, 1, 2, 3),
         }
 
         # Context-only mentions (no use indicated)
         self.context_map = {
-            "gen": 15,
-            "ir": 16,
-            "fx": 17,
-            "cp": 18,
-            "eq": 19,
+            "gen": 20,
+            "ir": 21,
+            "fx": 22,
+            "cp": 23,
+            "eq": 24,
         }
 
     def get_primary_labels_with_confidence(
@@ -207,7 +208,8 @@ class LabelMapper:
         7. Context-only mentions
         8. Irrelevant
         """
-        threshold = getattr(self.config, "confidence_threshold", 0.35)
+        threshold = getattr(self.config, "confidence_threshold", 0.45)
+        term_threshold = 0.7  # Higher threshold for termination flag
 
         # Collect all labels with scores for prioritization
         all_labels = []  # (priority_rank, confidence, label_id)
@@ -231,7 +233,7 @@ class LabelMapper:
         active_times = {}
         # Termination (`term`) takes precedence over current (`curr`).
         # If a hedge is terminated, it is considered a historical event for classification purposes.
-        if labels_dict.get("term", 0) >= threshold:
+        if labels_dict.get("term", 0) >= term_threshold:
             active_times["term"] = labels_dict.get("term", 0)
         elif labels_dict.get("curr", 0) >= threshold:
             active_times["curr"] = labels_dict.get("curr", 0)
@@ -266,7 +268,7 @@ class LabelMapper:
                 if best_specific:
                     resolved_type = best_specific
 
-            curr_id, hist_id, spec_id = self.hedge_map[resolved_type]
+            curr_id, hist_id, spec_id, term_id = self.hedge_map[resolved_type]
 
             # If hedge has USAGE
             if hedge["has_use"] and active_times:
@@ -276,7 +278,7 @@ class LabelMapper:
 
                     if time_dim == "term":  # Priority 0: Termination
                         all_labels.append(
-                            (priority_penalty, combined_score, hist_id)
+                            (priority_penalty, combined_score, term_id)
                         )
                     elif time_dim == "curr":
                         # Priority 1: Current usage (highest)
@@ -287,18 +289,21 @@ class LabelMapper:
                     elif time_dim == "spec":
                         # Priority 3: Speculative usage
                         all_labels.append((3 + priority_penalty, combined_score, spec_id))
-            # Fallback: If usage is detected but no time dimension is active, default to "current"
+            # Fallback: If usage is detected but no time dimension is active, default to "historic"
             elif hedge["has_use"] and not active_times:
-                # Priority 1.5: Usage with inferred current time
+                # Priority 1.5: Usage with inferred historic time
                 # The score is just the usage score, as there's no time_score to multiply
-                all_labels.append((1.5 + priority_penalty, hedge["usage"], curr_id))
+                all_labels.append((1.5 + priority_penalty, hedge["usage"], hist_id))
 
             # Soft hedge: context + time but no usage flag
             elif add_soft_hedges and not hedge["has_use"] and active_times and hedge["context"] >= threshold:
                 for time_dim, time_score in active_times.items():
                     combined_score = hedge["context"] * time_score
 
-                    if time_dim in ["curr", "hist"]:
+                    if time_dim in "term":
+                        # Priority 4: Context with termination
+                        all_labels.append((4 + priority_penalty, combined_score, term_id))
+                    elif time_dim in ["curr", "hist"]:
                         # Priority 5: Context with current/historical time
                         all_labels.append((5 + priority_penalty, combined_score, curr_id if time_dim == "curr" else hist_id))
                     elif time_dim == "spec": # This is speculative context
@@ -312,18 +317,18 @@ class LabelMapper:
         if warr_score >= threshold:
             if "curr" in active_times:
                 # Priority 4: Current warrant (after usage, before soft context)
-                all_labels.append((4, warr_score * active_times["curr"], 20))
+                all_labels.append((4, warr_score * active_times["curr"], 25))
             else:
                 # Priority 6: Historical warrant
-                all_labels.append((7, warr_score, 21))
+                all_labels.append((7, warr_score, 26))
 
         if emb_score >= threshold:
             if "curr" in active_times:
                 # Priority 4: Current embedded
-                all_labels.append((4, emb_score * active_times["curr"], 22))
+                all_labels.append((4, emb_score * active_times["curr"], 27))
             else:
                 # Priority 6: Historical embedded
-                all_labels.append((7, emb_score, 23))
+                all_labels.append((7, emb_score, 28))
 
         # === Pure context-only mentions (no usage anywhere) ===
         if not any_use:
@@ -351,7 +356,7 @@ class LabelMapper:
         irr_score = labels_dict.get("irr", 0)
         if irr_score >= threshold:
             # Priority 9: Explicitly irrelevant
-            all_labels.append((9, irr_score, 24))
+            all_labels.append((9, irr_score, 29))
 
         # === Sort by priority (ascending) then confidence (descending) ===
         all_labels.sort(key=lambda x: (x[0], -x[1]))
@@ -366,7 +371,7 @@ class LabelMapper:
 
         # Fallback to irrelevant if nothing found
         if not results:
-            results.append((24, 0.0))
+            results.append((29, 0.0))
 
         return [(self.primary_id2label[label_id], confidence) for label_id, confidence in results]
 

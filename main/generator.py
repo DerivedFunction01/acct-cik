@@ -151,34 +151,36 @@ def get_primary_label(labels: dict) -> int:
 
     # --- Warrant ---
     if labels.get("warr"):
-        return 21 if labels.get("hist") else 20
+        return 26 if labels.get("hist") else 25
 
     # --- Embedded Derivative ---
     if labels.get("emb"):
-        return 23 if labels.get("hist") else 22
+        return 28 if labels.get("hist") else 27
 
-    # --- Hedge type label map (current, historic, spec) ---
+    # --- Hedge type label map (current, historic, spec, terminated) ---
     hedge_map = {
-        "ir": (3, 4, 5),
-        "fx": (6, 7, 8),
-        "cp": (9, 10, 11),
-        "eq": (12, 13, 14),
-        "gen": (0, 1, 2),
+        "ir": (4, 5, 6, 7),
+        "fx": (8, 9, 10, 11),
+        "cp": (12, 13, 14, 15),
+        "eq": (16, 17, 18, 19),
+        "gen": (0, 1, 2, 3),
     }
 
     # --- Context-only label map (no _use, not spec) ---
     context_map = {
-        "gen": 15,
-        "ir": 16,
-        "fx": 17,
-        "cp": 18,
-        "eq": 19,
+        "gen": 20,
+        "ir": 21,
+        "fx": 22,
+        "cp": 23,
+        "eq": 24,
     }
 
     # --- 1. Check for actual use (_use) ---
     for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:  # prioritized order
         if labels.get(f"{hedge_type}_use"):
-            curr_id, hist_id, spec_id = hedge_map[hedge_type]
+            curr_id, hist_id, spec_id, term_id = hedge_map[hedge_type]
+            if labels.get("term"):
+                return term_id
             if labels.get("curr"):
                 return curr_id
             if labels.get("hist"):
@@ -191,7 +193,9 @@ def get_primary_label(labels: dict) -> int:
     # --- 2. Speculative mention (no actual use) ---
     for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:
         if labels.get(hedge_type) and labels.get("spec"):
-            return hedge_map[hedge_type][2]
+            # Return spec_id from the map
+            _, _, spec_id, _ = hedge_map[hedge_type]
+            return spec_id
 
     # --- 3. Context-only (non-use, non-speculative) ---
     for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:
@@ -200,10 +204,10 @@ def get_primary_label(labels: dict) -> int:
 
     # --- 4. Irrelevant (only if nothing else matched) ---
     if labels.get("irr"):
-        return 24
+        return 29
 
     # --- 5. Default fallback ---
-    return 24
+    return 29
 
 def new_label() -> dict[str, float]:
     return {

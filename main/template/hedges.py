@@ -215,6 +215,7 @@ gen_specific_mitigation = [
     "to maintain a balanced risk position",
     "to manage enterprise-wide risk exposures",
     "to reduce volatility in consolidated financial results",
+    "to hedge against risk"
 ]
 
 # Generic accounting reasons (shared across all hedge types)
@@ -426,6 +427,7 @@ cp_specific_mitigation = [
     "to hedge {commodity} procurement risks",
     "to hedge {commodity} procurement risk",
     "to limit its exposure to {commodity} price increases",
+    "to commit to purchase {commodity} at an agreed-upon price at a specified future date",
 ]
 
 # Commodity — realized/factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
@@ -438,7 +440,7 @@ cp_specific_results = [
     "effectively hedged volatility in {commodity} costs",
     "mitigating exposure to {commodity} price fluctuations",
     "protecting against changes in {commodity} prices",
-    "protecting against {commodity} market volatility",    
+    "protecting against {commodity} market volatility",
     "protecting against {commodity} price volatility",
     "hedging against {commodity} price increases",
     "hedging against {commodity} price decreases",
@@ -450,6 +452,7 @@ cp_specific_results = [
     "mitigating exposure to {commodity} market fluctuations",
     "stabilizing input costs despite {commodity} price movements",
     "and may be settled upon receipt or deliery of {commodity}",
+    "committing to purchase {commodity} at an agreed-upon price at a specified future date",
 ]
 
 # Special templates for accounting impact
@@ -934,6 +937,7 @@ hedge_discontinuation_templates = [
     "When a hedge is discontinued because it is no longer effective, the derivative is no longer designated as a hedge, and subsequent changes in fair value are recognized in earnings",
     "For discontinued {hedge_type} hedges, any gains or losses previously deferred in other comprehensive income are recognized in earnings when the hedged transaction affects earnings",
     "{company} may terminate or de-designate a {swap_type} at any time, at which point hedge accounting is discontinued prospectively",
+    "If a {swap_type} or derivative terminates or is sold, the gain or loss is deferred and amortized",
 ]
 
 hedge_no_trading_templates = [
