@@ -412,7 +412,7 @@ def force_remove_file(file_path):
     return False
 
 
-def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
+def listen_for_changes(service, folder_id, local_path, folder_name, stop_event, initial_sync_mode='from_drive'):
     """
     Background thread that periodically checks for changes in the Drive folder
     and syncs them to the local path. Also detects local changes (additions,
@@ -420,7 +420,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     """
     print(f"🔊 Listener started for '{folder_name}'")
     debug_print(f"   Watching local path: {local_path}")
-    # Track files we've seen (file_id -> {"modified_time": time, "local_path": path, "title": name})
+    # Track files we've seen (file_id -> {"modified_time": time, "local_path": path, "title": name, "local_mtime": mtime, "local_size": size})
     known_files = {}
     # Track local files by their path (local_path -> file_id)
     local_to_drive = {}
@@ -428,10 +428,16 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     check_interval = 10  # Check every 10 seconds
     update_mount_state(folder_name, "IDLE", "Awaiting changes...")
     
+    is_first_run = True
+
     while not stop_event.is_set():
         try:
             current_file_ids = set()
             folders_to_scan = [(folder_id, Path(local_path))] # Queue of (folder_id, local_path)
+
+            # On first run for a reactivated listener, respect the sync mode
+            sync_from_drive = (is_first_run and initial_sync_mode == 'from_drive') or not is_first_run
+
             # --- Recursively scan Drive for remote changes ---
             while folders_to_scan:
                 parent_id, parent_local_path = folders_to_scan.pop(0)
@@ -451,24 +457,31 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                         # This is a folder, ensure it exists locally and add to scan queue
                         item_local_path.mkdir(parents=True, exist_ok=True)
                         folders_to_scan.append((item_id, item_local_path))
-                        known_files[item_id] = {
-                            "modified_time": modified_time,
-                            "local_path": str(item_local_path),
-                            "title": item_title
-                        }
+                        if item_id not in known_files:
+                            known_files[item_id] = {
+                                "modified_time": modified_time,
+                                "local_path": str(item_local_path),
+                                "title": item_title,
+                                "local_mtime": 0,
+                                "local_size": 0
+                            }
                         local_to_drive[str(item_local_path)] = item_id
                     else:
                         # This is a file, check if it needs downloading
-                        if item_id not in known_files or known_files[item_id]["modified_time"] != modified_time:
+                        if sync_from_drive and (item_id not in known_files or known_files[item_id]["modified_time"] != modified_time):
                             debug_print(f"  📥 Syncing from Drive: {item_local_path.relative_to(local_path)}")
                             update_mount_state(folder_name, "SYNCING_DOWN", f"Downloading {item_title}")
                             gfile = service.CreateFile({"id": item_id})
                             gfile.GetContentFile(str(item_local_path))
+                            local_mtime = os.path.getmtime(item_local_path)
+                            local_size = os.path.getsize(item_local_path)
                             # Update known files with the new state
                             known_files[item_id] = {
                                 "modified_time": modified_time,
                                 "local_path": str(item_local_path),
-                                "title": item_title
+                                "title": item_title,
+                                "local_mtime": local_mtime,
+                                "local_size": local_size
                             }
                             local_to_drive[str(item_local_path)] = item_id
                         else:
@@ -476,10 +489,15 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                             # This helps build the initial state on reactivate
                             known_files[item_id] = {
                                 "modified_time": modified_time,
-                                "local_path": str(item_local_path),
-                                "title": item_title
+                                "local_path": str(item_local_path), # Ensure path is correct
+                                "title": item_title,
+                                "local_mtime": known_files.get(item_id, {}).get("local_mtime", 0),
+                                "local_size": known_files.get(item_id, {}).get("local_size", 0)
                             }
                             local_to_drive[str(item_local_path)] = item_id
+                            if not item_local_path.exists():
+                                # File was deleted locally, but we are in "sync to drive" mode, so we will re-upload it later.
+                                pass
             
             # Check for deleted files in Drive (files that were known but aren't in current list)
             deleted_ids = set(known_files.keys()) - current_file_ids
@@ -525,6 +543,40 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                 except Exception as e:
                     debug_print(f"      Failed to delete from Drive: {e}")
             
+            # --- Check for local modifications and upload them ---
+            for local_path_str, file_id in list(local_to_drive.items()):
+                local_file = Path(local_path_str)
+                if local_file.is_file() and local_file.exists():
+                    try:
+                        current_mtime = os.path.getmtime(local_file)
+                        current_size = os.path.getsize(local_file)
+
+                        known_info = known_files.get(file_id)
+                        if not known_info:
+                            continue
+
+                        # Check for modification
+                        if current_mtime > known_info.get("local_mtime", 0) or current_size != known_info.get("local_size", 0):
+                            debug_print(f"  📤 Syncing to Drive (local modification): {local_file.name}")
+                            update_mount_state(folder_name, "SYNCING_UP", f"Uploading {local_file.name}")
+
+                            gfile = service.CreateFile({'id': file_id})
+                            gfile.SetContentFile(str(local_file))
+                            gfile.Upload()
+                            if gfile.content: gfile.content.close()
+
+                            # Update tracking info after successful upload
+                            known_files[file_id]["modified_time"] = gfile.get("modifiedDate")
+                            known_files[file_id]["local_mtime"] = current_mtime
+                            known_files[file_id]["local_size"] = current_size
+
+                    except FileNotFoundError:
+                        # File might have been deleted in the meantime, will be handled in the next cycle
+                        pass
+                    except Exception as e:
+                        debug_print(f"      Error checking local file {local_file.name}: {e}")
+
+
             # Check for new local files (files that exist locally but not in Drive)
             local_folder = Path(local_path)
             if not local_folder.exists():
@@ -596,8 +648,13 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                             gfile.Upload()
                             if gfile.content: gfile.content.close()
                             
+                            local_mtime = os.path.getmtime(local_item_str)
+                            local_size = os.path.getsize(local_item_str)
                             new_file_id = gfile["id"]
-                            known_files[new_file_id] = {"modified_time": gfile.get("modifiedDate", ""), "local_path": local_item_str, "title": item_name}
+                            known_files[new_file_id] = {
+                                "modified_time": gfile.get("modifiedDate", ""), "local_path": local_item_str, "title": item_name,
+                                "local_mtime": local_mtime, "local_size": local_size
+                            }
                             local_to_drive[local_item_str] = new_file_id
                             debug_print(f"      Successfully uploaded: {item_name}")
                         except Exception as e:
@@ -607,6 +664,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
             print(f"  ⚠️ Listener error for '{folder_name}': {e}")
         
         update_mount_state(folder_name, "IDLE", "Awaiting changes...")
+        is_first_run = False # Subsequent runs are normal sync
         # Wait before next check (with ability to interrupt)
         stop_event.wait(check_interval)
     
@@ -655,7 +713,7 @@ def mount_drive_folder(service, folder_name, folder_id=None):
         stop_event = threading.Event()
         listener_thread = threading.Thread(
             target=listen_for_changes,
-            args=(service, folder_id, local_path, folder_name, stop_event),
+            args=(service, folder_id, local_path, folder_name, stop_event, 'from_drive'),
             daemon=True
         )
         listener_thread.start()
@@ -677,7 +735,7 @@ def mount_drive_folder(service, folder_name, folder_id=None):
         return False
 
 
-def reactivate_listener(service, folder_name):
+def reactivate_listener(service, folder_name, sync_mode='from_drive'):
     """
     Reactivates the background listener for an existing local folder without re-downloading.
     Useful after a restart when the folder is already on disk.
@@ -720,7 +778,7 @@ def reactivate_listener(service, folder_name):
         stop_event = threading.Event()
         listener_thread = threading.Thread(
             target=listen_for_changes,
-            args=(service, folder_id, local_path, folder_name, stop_event),
+            args=(service, folder_id, local_path, folder_name, stop_event, sync_mode),
             daemon=True
         )
         listener_thread.start()
@@ -757,13 +815,29 @@ def reactivate_listener_interactive(service):
                 print(f"    [{i}] {status} {name}")
         else:
             print("  No local folders found.")
+            print("  Use option 3 (Mount Drive Folder) to download a folder first.")
             return
     else:
         print("  No mount directory found.")
+        print("  Use option 3 (Mount Drive Folder) to download a folder first.")
         return
     
-    folder_name = input("\n  Enter folder name or number to reactivate: ").strip()
+    folder_name = input("\n  Enter folder name or number to reactivate: ").strip().lower()
     
+    # Sync mode prompt
+    print("\n  Choose a sync strategy for reactivation:")
+    print("    [1] Sync to Drive (upload local changes)")
+    print("    [2] Sync from Drive (overwrite local changes)")
+    sync_choice = input("  > ").strip()
+
+    if sync_choice == '1':
+        sync_mode = 'to_drive'
+    elif sync_choice == '2':
+        sync_mode = 'from_drive'
+    else:
+        print("  Invalid choice. Defaulting to 'Sync from Drive'.")
+        sync_mode = 'from_drive'
+
     # Handle numeric choice
     if folder_name.isdigit():
         idx = int(folder_name) - 1
@@ -777,7 +851,7 @@ def reactivate_listener_interactive(service):
         print("  Error: Folder name cannot be empty.")
         return
     
-    reactivate_listener(service, folder_name)
+    reactivate_listener(service, folder_name, sync_mode)
 
 
 def unmount_drive_folder(folder_name):
@@ -878,6 +952,10 @@ def main():
     # Reactivate command
     reactivate_parser = subparsers.add_parser('reactivate', help='Reactivate listener for an existing local folder.')
     reactivate_parser.add_argument('folder_name', type=str, help='The name of the local folder to reactivate.')
+    reactivate_parser.add_argument(
+        '--sync-mode', choices=['to_drive', 'from_drive'], default='from_drive',
+        help="Sync direction on reactivation: 'to_drive' (upload local changes) or 'from_drive' (overwrite local)."
+    )
 
     # Add debug flag to all subparsers and the main parser
     for p in [parser, mount_parser, unmount_parser, reactivate_parser]:
@@ -900,7 +978,7 @@ def main():
             if args.command == 'mount':
                 success = mount_drive_folder(service, args.folder_name)
             else:  # reactivate
-                success = reactivate_listener(service, args.folder_name)
+                success = reactivate_listener(service, args.folder_name, args.sync_mode)
 
             if success:
                 print(f"\n🚀 Command '{args.command} {args.folder_name}' successful.")
