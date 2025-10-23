@@ -669,14 +669,14 @@ def extract_content(data: str, asHTML=True, max_len=600) -> str:
         soup = BeautifulSoup(data, "html.parser")
         
         # Extract and convert HTML tables to array, then to text
-        tables = soup.find_all("table")
-        for table in tables:
-            rows = parse_html_table(str(table))
-            if rows:
-                # Convert array to tab-separated text
-                table_text = "\n".join(["\t".join(row) for row in rows])
-                # Replace the table with the text representation
-                table.replace_with(soup.new_string(f"\n\n{table_text}\n\n"))
+        # tables = soup.find_all("table")
+        # for table in tables:
+        #     rows = parse_html_table(str(table))
+        #     if rows:
+        #         # Convert array to tab-separated text
+        #         table_text = "\n".join(["\t".join(row) for row in rows])
+        #         # Replace the table with the text representation
+        #         table.replace_with(soup.new_string(f"\n\n{table_text}\n\n"))
         text = soup.get_text(separator="\n\n", strip=True)
         text = keep_allowed_chars(text, True)
         paragraphs = [p.strip()
