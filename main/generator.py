@@ -558,7 +558,7 @@ def generate_hedge_paragraph(
                     notional = generate_value(haveZero=False, lowerlimit=1)
             else:
                 # Use the more comprehensive template list for "no outstanding" disclosures
-                template = random.choice(zero_hedge_position_templates)
+                template = random.choice(hedge_zero_templates)
                 notional = 0
                 labels["term"] = 1 # This is also a termination/zero-out event
                 prev_notional = generate_value(haveZero=False, lowerlimit=1)
@@ -642,7 +642,7 @@ def generate_hedge_paragraph(
     def zero_outstanding() -> str:
         labels["hist"] = 1
         labels["term"] = 1
-        template = random.choice(zero_any_templates)
+        template = random.choice(hedge_zero_templates)
         year = current_year 
         prev_year = current_year - 1
         prev2_year = current_year - 2
