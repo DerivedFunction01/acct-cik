@@ -1,4 +1,4 @@
-money_unit_list = ["thousand", "million", "billion"]
+money_unit_list = ["thousand", "million", "billion", ""]
 months = [
     "January",
     "February",
