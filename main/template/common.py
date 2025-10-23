@@ -164,6 +164,7 @@ volume_units = [
     "pound",
     "bushel",
     "board foot",
+    "Dts/d",
 ]
 balance_sheet_locations = [
     "other income (expense), net",

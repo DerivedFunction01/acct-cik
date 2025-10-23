@@ -581,7 +581,7 @@ def generate_hedge_paragraph(
         code = currency_code
         if swapType == "cp" and random.random() < 0.35:
             # If it is a cp, we can have a small chance to ditch the currency and use volume units
-            unit = random.choice(volume_units)
+            unit = money_units + " " + random.choice(volume_units)
             code = ""
         # --- Build main sentence ---
         sentence = template.format(
