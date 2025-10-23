@@ -1011,6 +1011,7 @@ def filter_by_keywords(
         current_idx: int,
         merged_sentences: list,
         used_indices: set,
+        sentence_to_para_map: list,
         target_category: str,
         all_sentences: list,
         seen_counts: dict,
@@ -1020,8 +1021,10 @@ def filter_by_keywords(
         next_idx = current_idx - 1 if is_left else current_idx + 1
 
         if (
-            not (0 <= next_idx < len(all_sentences))
-            or seen_counts.get(next_idx, 0) >= OVERLAP_COUNT
+            not (0 <= next_idx < len(all_sentences)) # Out of bounds
+            or seen_counts.get(next_idx, 0) >= OVERLAP_COUNT # Already used too many times
+            # New check: Stop if the next sentence is in a different paragraph
+            or sentence_to_para_map[next_idx] != sentence_to_para_map[current_idx]
         ):
             return False, -1 if is_left else len(all_sentences), False
 
@@ -1070,11 +1073,15 @@ def filter_by_keywords(
             return True, -1 if is_left else len(all_sentences), True  # Was truncated
 
     def should_allow(text: str) -> bool:
-        normalized = text.lower()
+        # Optimization: check length first
+        if len(text) > 500: # Very long sentences are unlikely to be simple keywords
+            return False
+        
+        normalized = text.lower() # Now perform the more expensive check
         return any(kw in normalized for kw in allowed_keywords)
 
     def expand_context(
-        all_sentences: list, target_idx: int, target_category: str, seen_counts: dict
+        all_sentences: list, target_idx: int, target_category: str, seen_counts: dict, sentence_to_paragraph_map: list
     ) -> tuple[str, set, set]:
         # The seed sentence is always included, so we check its count in the main loop.
         merged = [all_sentences[target_idx]]  # This is a full sentence
@@ -1092,6 +1099,7 @@ def filter_by_keywords(
                 left_idx,
                 merged,
                 used_indices_in_this_expansion,
+                sentence_to_paragraph_map,
                 target_category,
                 all_sentences,
                 seen_counts,
@@ -1105,6 +1113,7 @@ def filter_by_keywords(
                 right_idx,
                 merged,
                 used_indices_in_this_expansion,
+                sentence_to_paragraph_map,
                 target_category,
                 all_sentences,
                 seen_counts,
@@ -1121,11 +1130,16 @@ def filter_by_keywords(
         return final_text, used_indices_in_this_expansion, truncated_indices
 
     # --- Sentence preprocessing ---
-    text = re.sub(r"\s+", " ", content.strip())
-    raw_sentences = [
-        s.strip() for s in re.split(SENTENCE_SPLIT_PATTERN, text) if s.strip()
-    ]
-    all_sentences = [clean_sentence(sentence) for sentence in raw_sentences]
+    # Split content into paragraphs first, then sentences, to respect boundaries.
+    paragraphs = content.split('\n\n')
+    all_sentences = []
+    sentence_to_paragraph_map = [] # maps sentence_index -> paragraph_index
+
+    for para_idx, para_text in enumerate(paragraphs):
+        para_sentences = [s.strip() for s in re.split(SENTENCE_SPLIT_PATTERN, para_text) if s.strip()]
+        cleaned_para_sentences = [clean_sentence(s) for s in para_sentences]
+        all_sentences.extend(cleaned_para_sentences)
+        sentence_to_paragraph_map.extend([para_idx] * len(cleaned_para_sentences))
 
     # --- Pre-categorize ---
     sentence_categories = []
@@ -1152,7 +1166,7 @@ def filter_by_keywords(
                 continue
 
             final_sentence, used_indices, truncated_indices = expand_context(
-                all_sentences, i, category, seen_sentences_global
+                all_sentences, i, category, seen_sentences_global, sentence_to_paragraph_map
             )
             normalized = final_sentence.lower().strip()
 
@@ -1182,7 +1196,7 @@ def filter_by_keywords(
 
             # ✅ Will expand freely due to logic above
             final_sentence, used_indices, truncated_indices = expand_context(
-                all_sentences, i, "gen", seen_sentences_global
+                all_sentences, i, "gen", seen_sentences_global, sentence_to_paragraph_map
             )
             normalized = final_sentence.lower().strip()
 
