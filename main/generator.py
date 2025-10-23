@@ -638,7 +638,7 @@ def generate_hedge_paragraph(
             verb=verb,
         )
         return sentence
-    
+
     def zero_outstanding() -> str:
         labels["hist"] = 1
         labels["term"] = 1
@@ -646,6 +646,9 @@ def generate_hedge_paragraph(
         year = current_year 
         prev_year = current_year - 1
         prev2_year = current_year - 2
+        notional = 0
+        prev_notional = generate_value(haveZero=False, lowerlimit=1)
+        prev2_notional = generate_value(haveZero=False, lowerlimit=1)
         verb = random.choice(hedge_use_verbs)
         sentence = template.format(
             company=pick_company_name(company_name),
@@ -657,10 +660,13 @@ def generate_hedge_paragraph(
             prev2_year=prev2_year,
             end_day=random.randint(28, 31),
             verb=verb,
+            currency_code=currency_code,
+            money_unit=money_units,
+            notional=notional,
+            prev_notional=prev_notional,
+            prev2_notional=prev2_notional,
         )
         return sentence
-    
-        
 
     def hedge_payment() -> str:
         # pick a random template from payment
@@ -706,7 +712,7 @@ def generate_hedge_paragraph(
                     year=year,
                 )
             )
-            
+
             # For historical use, discuss actual ineffectiveness and discontinuation.
             ineff_template = random.choice(hedge_ineffectiveness_actual_templates)
             sentences.append(
@@ -982,7 +988,7 @@ def generate_hedge_paragraph(
                 adoption_year=random.randint(current_year, current_year + 3),
             ) # Corrected from hedge_adoption_year
             sentences.append(pronouncement)
-            
+
         if random.random() < 0.2: # Add hedge definitions
             def_sent = []
             template = random.choice(hedge_definition_templates)
