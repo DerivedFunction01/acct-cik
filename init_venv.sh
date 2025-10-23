@@ -22,8 +22,6 @@ if [ ! -d "$VENV_DIR" ]; then
     source "$VENV_DIR/bin/activate"
   fi
 
-  echo "Upgrading pip..."
-  pip install --upgrade pip
 
   # Define packages
   BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn"
