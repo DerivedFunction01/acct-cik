@@ -545,20 +545,22 @@ def generate_hedge_paragraph(
             prev_notional = generate_value()
             prev2_notional = generate_value()
         else:
-            if random.random() < 0.75:
+            if random.random() < 0.65:
                 template = random.choice(hedge_position_templates[swapType])
                 prev_notional = generate_value()
                 prev2_notional = generate_value()
                 if random.random() < 0.5: # no notional amount if we pick a current year and not active
                     year = current_year 
                     notional = 0 
-                    labels["term"] = 0 # No active derivative amount/terminated
+                    labels["term"] = 1 # This is a termination/zero-out event
                 else: # If we pick a past year, we can have a notional amount
                     year = random.choice(past_years)
                     notional = generate_value(haveZero=False, lowerlimit=1)
             else:
-                template = random.choice(zero_current_vs_prior_notional_templates)
+                # Use the more comprehensive template list for "no outstanding" disclosures
+                template = random.choice(zero_hedge_position_templates)
                 notional = 0
+                labels["term"] = 1 # This is also a termination/zero-out event
                 prev_notional = generate_value(haveZero=False, lowerlimit=1)
                 prev2_notional = generate_value(haveZero=False, lowerlimit=1)
                 year = current_year
@@ -617,6 +619,8 @@ def generate_hedge_paragraph(
 
     def expire_hedge(use_current_year=False) -> str:
         labels["hist"] = 1
+        if use_current_year:
+            labels["term"] = 1
         template = random.choice(hedge_termination_templates)
         term_year = random.choice(past_years) if not use_current_year else current_year 
         prev_year = term_year - 1
@@ -634,6 +638,29 @@ def generate_hedge_paragraph(
             verb=verb,
         )
         return sentence
+    
+    def zero_outstanding() -> str:
+        labels["hist"] = 1
+        labels["term"] = 1
+        template = random.choice(zero_any_templates)
+        year = current_year 
+        prev_year = current_year - 1
+        prev2_year = current_year - 2
+        verb = random.choice(hedge_use_verbs)
+        sentence = template.format(
+            company=pick_company_name(company_name),
+            swap_type=swap_type,
+            month=random.choice(months),
+            quarter=quarter,
+            year=year,
+            prev_year=prev_year,
+            prev2_year=prev2_year,
+            end_day=random.randint(28, 31),
+            verb=verb,
+        )
+        return sentence
+    
+        
 
     def hedge_payment() -> str:
         # pick a random template from payment
@@ -807,7 +834,7 @@ def generate_hedge_paragraph(
         )
         # If we don't have an active derivative, add a no such outstanding sentence
         if not has_active_derivative and random.random() < 0.25:
-            sentences.append(expire_hedge(use_current_year=True))
+            sentences.append(expire_hedge(use_current_year=True) if random.random() < 0.5 else zero_outstanding())
         random.shuffle(sentences)
         return sentences
 
