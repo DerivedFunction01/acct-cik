@@ -105,6 +105,7 @@ class Config:
                 "gen_use",
                 "curr",
                 "hist",
+                "term",
                 "spec",
                 "warr",
                 "emb",
@@ -168,7 +169,7 @@ class LabelMapper:
         - Understanding model certainty per label
         """
         results = self._get_labels_with_scores(labels_dict)
-        
+
         output = []
         for label_name, confidence in results:
             if confidence >= 0.75:
@@ -178,7 +179,7 @@ class LabelMapper:
             else:
                 tier = "low"
             output.append((label_name, confidence, tier))
-        
+
         return output
 
     def get_primary_labels(self, labels_dict: Dict[str, float]) -> List[str]:
@@ -196,6 +197,7 @@ class LabelMapper:
         - All labels = used for counter increments
         
         Priority for primary label (optimized for detecting CURRENT derivative usage):
+        0. Terminated hedge (IR/FX/CP/EQ - by confidence)
         1. Current hedge usage (IR/FX/CP/EQ - by confidence)
         2. Historical hedge usage (IR/FX/CP/EQ - by confidence)
         3. Speculative hedge usage
@@ -206,16 +208,16 @@ class LabelMapper:
         8. Irrelevant
         """
         threshold = getattr(self.config, "confidence_threshold", 0.35)
-        
+
         # Collect all labels with scores for prioritization
         all_labels = []  # (priority_rank, confidence, label_id)
-        
+
         # === Identify active hedge types ===
         active_hedges = []
         for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:
             context_score = labels_dict.get(hedge_type, 0)
             usage_score = labels_dict.get(f"{hedge_type}_use", 0)
-            
+
             if context_score >= threshold or usage_score >= threshold:
                 active_hedges.append({
                     "type": hedge_type,
@@ -224,28 +226,33 @@ class LabelMapper:
                     "usage": usage_score,
                     "max_score": max(context_score, usage_score)
                 })
-        
+
         # === Identify active time dimensions ===
         active_times = {}
-        if labels_dict.get("curr", 0) >= threshold:
+        # Termination (`term`) takes precedence over current (`curr`).
+        # If a hedge is terminated, it is considered a historical event for classification purposes.
+        if labels_dict.get("term", 0) >= threshold:
+            active_times["term"] = labels_dict.get("term", 0)
+        elif labels_dict.get("curr", 0) >= threshold:
             active_times["curr"] = labels_dict.get("curr", 0)
+
         if labels_dict.get("hist", 0) >= threshold:
             active_times["hist"] = labels_dict.get("hist", 0)
         if labels_dict.get("spec", 0) >= threshold:
             active_times["spec"] = labels_dict.get("spec", 0)
-        
+
         # === Build hedge labels (usage) ===
         any_use = any(h["has_use"] for h in active_hedges)
         is_speculative = "spec" in active_times
         # Condition for adding soft hedges: no explicit usage and not speculative
         add_soft_hedges = not any_use and not is_speculative
-        
+
         for hedge in active_hedges:
             hedge_type = hedge["type"]
-            
+
             # Initialize priority_penalty for each hedge type
             priority_penalty = 0.0
-            
+
             # Resolve "gen" to specific type if possible
             resolved_type = hedge_type
             if hedge_type == "gen":
@@ -258,16 +265,20 @@ class LabelMapper:
                         best_specific = specific
                 if best_specific:
                     resolved_type = best_specific
-            
+
             curr_id, hist_id, spec_id = self.hedge_map[resolved_type]
-            
+
             # If hedge has USAGE
             if hedge["has_use"] and active_times:
                 for time_dim, time_score in active_times.items():
                     # Combined score for prioritization
                     combined_score = hedge["usage"] * time_score
-                    
-                    if time_dim == "curr":
+
+                    if time_dim == "term":  # Priority 0: Termination
+                        all_labels.append(
+                            (priority_penalty, combined_score, hist_id)
+                        )
+                    elif time_dim == "curr":
                         # Priority 1: Current usage (highest)
                         all_labels.append((1 + priority_penalty, combined_score, curr_id))
                     elif time_dim == "hist":
@@ -281,23 +292,23 @@ class LabelMapper:
                 # Priority 1.5: Usage with inferred current time
                 # The score is just the usage score, as there's no time_score to multiply
                 all_labels.append((1.5 + priority_penalty, hedge["usage"], curr_id))
-            
+
             # Soft hedge: context + time but no usage flag
             elif add_soft_hedges and not hedge["has_use"] and active_times and hedge["context"] >= threshold:
                 for time_dim, time_score in active_times.items():
                     combined_score = hedge["context"] * time_score
-                    
+
                     if time_dim in ["curr", "hist"]:
                         # Priority 5: Context with current/historical time
                         all_labels.append((5 + priority_penalty, combined_score, curr_id if time_dim == "curr" else hist_id))
                     elif time_dim == "spec": # This is speculative context
                         # Priority 5: Speculative context
                         all_labels.append((6 + priority_penalty, combined_score, spec_id))
-        
+
         # === Warrant / Embedded (lower priority - limited training data) ===
         warr_score = labels_dict.get("warr", 0)
         emb_score = labels_dict.get("emb", 0)
-        
+
         if warr_score >= threshold:
             if "curr" in active_times:
                 # Priority 4: Current warrant (after usage, before soft context)
@@ -305,7 +316,7 @@ class LabelMapper:
             else:
                 # Priority 6: Historical warrant
                 all_labels.append((7, warr_score, 21))
-        
+
         if emb_score >= threshold:
             if "curr" in active_times:
                 # Priority 4: Current embedded
@@ -313,7 +324,7 @@ class LabelMapper:
             else:
                 # Priority 6: Historical embedded
                 all_labels.append((7, emb_score, 23))
-        
+
         # === Pure context-only mentions (no usage anywhere) ===
         if not any_use:
             for hedge in active_hedges:
@@ -330,21 +341,21 @@ class LabelMapper:
                                 best_specific = specific
                         if best_specific:
                             resolved_type = best_specific
-                    
+
                     # Add a small penalty to equity to deprioritize it
                     priority_penalty = 0.1 if resolved_type == "eq" else 0.0
                     # Priority 8: Context-only mention
                     all_labels.append((8 + priority_penalty, hedge["context"], self.context_map[resolved_type]))
-        
+
         # === Irrelevant ===
         irr_score = labels_dict.get("irr", 0)
         if irr_score >= threshold:
             # Priority 9: Explicitly irrelevant
             all_labels.append((9, irr_score, 24))
-        
+
         # === Sort by priority (ascending) then confidence (descending) ===
         all_labels.sort(key=lambda x: (x[0], -x[1]))
-        
+
         # Extract unique labels with their confidence scores (preserve order)
         results = []
         seen = set()
@@ -352,11 +363,11 @@ class LabelMapper:
             if label_id not in seen:
                 results.append((label_id, confidence))
                 seen.add(label_id)
-        
+
         # Fallback to irrelevant if nothing found
         if not results:
             results.append((24, 0.0))
-        
+
         return [(self.primary_id2label[label_id], confidence) for label_id, confidence in results]
 
     def get_label_category(self, label_id: int) -> str:
