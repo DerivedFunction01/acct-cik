@@ -938,6 +938,7 @@ hedge_discontinuation_templates = [
     "For discontinued {hedge_type} hedges, any gains or losses previously deferred in other comprehensive income are recognized in earnings when the hedged transaction affects earnings",
     "{company} may terminate or de-designate a {swap_type} at any time, at which point hedge accounting is discontinued prospectively",
     "If a {swap_type} or derivative terminates or is sold, the gain or loss is deferred and amortized",
+    "Termination or expiration of a {swap_type} or derivative prior to expiration generally result in gains and losses",
 ]
 
 hedge_no_trading_templates = [
