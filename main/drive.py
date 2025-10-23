@@ -529,8 +529,7 @@ def mount_drive_folder(service, folder_name, folder_id=None):
         stop_event = threading.Event()
         listener_thread = threading.Thread(
             target=listen_for_changes,
-            args=(service, folder_id, local_path, folder_name, stop_event),
-            daemon=True
+            args=(service, folder_id, local_path, folder_name, stop_event)
         )
         listener_thread.start()
         
@@ -593,8 +592,7 @@ def reactivate_listener(service, folder_name):
         stop_event = threading.Event()
         listener_thread = threading.Thread(
             target=listen_for_changes,
-            args=(service, folder_id, local_path, folder_name, stop_event),
-            daemon=True
+            args=(service, folder_id, local_path, folder_name, stop_event)
         )
         listener_thread.start()
         
