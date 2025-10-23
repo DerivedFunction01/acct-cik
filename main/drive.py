@@ -256,11 +256,12 @@ def download_folder_recursive(service, folder_id, local_path):
 def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     """
     Background thread that periodically checks for changes in the Drive folder
-    and syncs them to the local path.
+    and syncs them to the local path. Also detects local deletions and removes
+    them from Drive.
     """
     print(f"🔊 Listener started for '{folder_name}'")
 
-    # Track files we've seen (file_id -> modified_time)
+    # Track files we've seen (file_id -> {"modified_time": time, "local_path": path, "title": name})
     known_files = {}
     check_interval = 30  # Check every 30 seconds
 
@@ -276,29 +277,80 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                 file_id = item["id"]
                 current_file_ids.add(file_id)
                 modified_time = item.get("modifiedDate", "")
+                file_title = item["title"]
 
                 if item["mimeType"] == "application/vnd.google-apps.folder":
                     # Ensure subfolder exists
-                    subfolder_path = Path(local_path) / item["title"]
+                    subfolder_path = Path(local_path) / file_title
                     subfolder_path.mkdir(parents=True, exist_ok=True)
-                    known_files[file_id] = modified_time
+                    known_files[file_id] = {
+                        "modified_time": modified_time,
+                        "local_path": str(subfolder_path),
+                        "title": file_title,
+                    }
                 else:
+                    file_path = Path(local_path) / file_title
                     # Check if file is new or modified
                     if (
                         file_id not in known_files
-                        or known_files[file_id] != modified_time
+                        or known_files[file_id]["modified_time"] != modified_time
                     ):
-                        file_path = Path(local_path) / item["title"]
-                        print(f"  📥 Syncing: {item['title']}")
+                        print(f"  📥 Syncing from Drive: {file_title}")
                         gfile = service.CreateFile({"id": file_id})
                         gfile.GetContentFile(str(file_path))
-                        known_files[file_id] = modified_time
+                        known_files[file_id] = {
+                            "modified_time": modified_time,
+                            "local_path": str(file_path),
+                            "title": file_title,
+                        }
+                    else:
+                        # File exists in Drive, update tracking info
+                        known_files[file_id] = {
+                            "modified_time": modified_time,
+                            "local_path": str(file_path),
+                            "title": file_title,
+                        }
 
-            # Check for deleted files (files that were known but aren't in current list)
+            # Check for deleted files in Drive (files that were known but aren't in current list)
             deleted_ids = set(known_files.keys()) - current_file_ids
             for deleted_id in deleted_ids:
-                print(f"  🗑️  Detected deletion in Drive (file ID: {deleted_id})")
+                file_info = known_files[deleted_id]
+                print(f"  🗑️  Detected deletion in Drive: {file_info['title']}")
+                # Remove local file if it exists
+                local_file_path = Path(file_info["local_path"])
+                if local_file_path.exists():
+                    try:
+                        if local_file_path.is_dir():
+                            import shutil
+
+                            shutil.rmtree(local_file_path)
+                        else:
+                            local_file_path.unlink()
+                        print(f"      Removed local file: {file_info['title']}")
+                    except Exception as e:
+                        print(f"      Failed to remove local file: {e}")
                 del known_files[deleted_id]
+
+            # Check for local deletions (files we're tracking that no longer exist locally)
+            files_to_delete_from_drive = []
+            for file_id, file_info in list(known_files.items()):
+                local_file_path = Path(file_info["local_path"])
+                if not local_file_path.exists() and file_id in current_file_ids:
+                    # File was deleted locally but still exists in Drive
+                    files_to_delete_from_drive.append((file_id, file_info["title"]))
+
+            # Delete files from Drive
+            for file_id, file_title in files_to_delete_from_drive:
+                try:
+                    print(
+                        f"  🗑️  Deleting from Drive (local deletion detected): {file_title}"
+                    )
+                    gfile = service.CreateFile({"id": file_id})
+                    gfile.Delete()
+                    if file_id in known_files:
+                        del known_files[file_id]
+                except Exception as e:
+                    print(f"      Failed to delete from Drive: {e}")
 
         except Exception as e:
             print(f"  ⚠️ Listener error for '{folder_name}': {e}")
