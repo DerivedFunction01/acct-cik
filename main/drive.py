@@ -3,6 +3,7 @@ import time
 import threading
 import subprocess
 import platform
+import argparse
 from pathlib import Path
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
@@ -737,58 +738,94 @@ def show_mounted_folders():
     print("------------------------------------")
 
 
-def main_menu():
+def main():
     """Displays the main interactive menu for Google Drive utilities."""
-    while True:
-        print("\n====== 📁 Google Drive Utility ======")
-        print("  [1] Browse/Download from Google Drive")
-        print("  [2] Upload file to Google Drive")
-        print("  [3] Mount Drive Folder (sync & watch)")
-        print("  [4] Unmount Drive Folder")
-        print("  [5] Reactivate Folder Listener")
-        print("  [6] Show Mounted Folders")
-        print("  [7] Exit")
-        print("=====================================")
+    parser = argparse.ArgumentParser(description="Google Drive Utility with command-line support.")
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-        choice = input("Enter your choice (1-7): ").strip()
+    # Mount command
+    mount_parser = subparsers.add_parser('mount', help='Mount a Google Drive folder and start syncing.')
+    mount_parser.add_argument('folder_name', type=str, help='The name of the Drive folder to mount.')
 
-        if choice == "1":
-            drive_service = get_drive_service()
-            if drive_service:
-                browse_google_drive(drive_service)
+    # Unmount command
+    unmount_parser = subparsers.add_parser('unmount', help='Unmount a folder and stop syncing. (Requires running process)')
+    unmount_parser.add_argument('folder_name', type=str, help='The name of the mounted folder to unmount.')
 
-        elif choice == "2":
-            drive_service = get_drive_service()
-            if drive_service:
-                upload_to_drive_interactive(drive_service)
+    # Reactivate command
+    reactivate_parser = subparsers.add_parser('reactivate', help='Reactivate listener for an existing local folder.')
+    reactivate_parser.add_argument('folder_name', type=str, help='The name of the local folder to reactivate.')
 
-        elif choice == "3":
-            drive_service = get_drive_service()
-            if drive_service:
-                mount_drive_folder_interactive(drive_service)
+    args = parser.parse_args()
 
-        elif choice == "4":
-            unmount_drive_folder_interactive()
+    if args.command:
+        # --- Command-Line Mode ---
+        if args.command in ['mount', 'reactivate']:
+            service = get_drive_service()
+            if not service:
+                return  # Exit if auth fails
 
-        elif choice == "5":
-            drive_service = get_drive_service()
-            if drive_service:
-                reactivate_listener_interactive(drive_service)
+            if args.command == 'mount':
+                success = mount_drive_folder(service, args.folder_name)
+            else:  # reactivate
+                success = reactivate_listener(service, args.folder_name)
 
-        elif choice == "6":
-            show_mounted_folders()
+            if success:
+                print(f"\n🚀 Command '{args.command} {args.folder_name}' successful.")
+                print("   The script will continue running to keep the sync active.")
+                print("   Press Ctrl+C to stop all listeners and exit.")
+                try:
+                    # Keep the main thread alive so daemon threads can run
+                    while True:
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    print("\n🛑 Keyboard interrupt received. Shutting down...")
+                    for folder_name in list(MOUNTED_FOLDERS.keys()):
+                        unmount_drive_folder(folder_name)
+                    print("Exiting. Goodbye! 👋")
+            else:
+                print(f"\n❌ Command '{args.command} {args.folder_name}' failed.")
+        
+        elif args.command == 'unmount':
+            print("\nNOTE: The 'unmount' command only works if this script is already running and managing the mount.")
+            print("It cannot stop a separate, running process. Use the interactive menu for that.")
+            # This command is a bit of a no-op from a cold start, but we include it for completeness.
+            # A more advanced implementation would use IPC (e.g., sockets) to signal a running process.
 
-        elif choice == "7":
-            # Stop all listeners before exiting
-            print("\nStopping all folder listeners...")
-            for folder_name in list(MOUNTED_FOLDERS.keys()):
-                unmount_drive_folder(folder_name)
-            print("Exiting. Goodbye! 👋")
-            break
+    else:
+        # --- Interactive Mode ---
+        while True:
+            print("\n====== 📁 Google Drive Utility ======")
+            print("  [1] Browse/Download from Google Drive")
+            print("  [2] Upload file to Google Drive")
+            print("  [3] Mount Drive Folder (sync & watch)")
+            print("  [4] Unmount Drive Folder")
+            print("  [5] Reactivate Folder Listener")
+            print("  [6] Show Mounted Folders")
+            print("  [7] Exit")
+            print("=====================================")
 
-        else:
-            print("\nInvalid choice. Please enter a number between 1 and 7.")
+            choice = input("Enter your choice (1-7): ").strip()
+            drive_service = None # Reset service
+
+            if choice in ["1", "2", "3", "5"]:
+                drive_service = get_drive_service()
+                if not drive_service: continue
+
+            if choice == "1": browse_google_drive(drive_service)
+            elif choice == "2": upload_to_drive_interactive(drive_service)
+            elif choice == "3": mount_drive_folder_interactive(drive_service)
+            elif choice == "4": unmount_drive_folder_interactive()
+            elif choice == "5": reactivate_listener_interactive(drive_service)
+            elif choice == "6": show_mounted_folders()
+            elif choice == "7":
+                print("\nStopping all folder listeners...")
+                for folder_name in list(MOUNTED_FOLDERS.keys()):
+                    unmount_drive_folder(folder_name)
+                print("Exiting. Goodbye! 👋")
+                break
+            else:
+                print("\nInvalid choice. Please enter a number between 1 and 7.")
 
 
 if __name__ == "__main__":
-    main_menu()
+    main()
