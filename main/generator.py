@@ -826,7 +826,7 @@ def generate_hedge_paragraph(
             else random.choice(hedge_may_use_verbs)
         )
         if has_active_derivative:
-            verb = random.choice(["currently", "actively", "presently", "now", "also", ""]) + " " + verb
+            verb = random.choice(["currently", "actively", "presently", "now", "also", "primarily", ""]) + " " + verb
         else:
             verb = random.choice(["in the past", ",from time to time, ", ""]) + " " + verb
         sentences.append(
