@@ -173,6 +173,22 @@ def check_waitress():
         return shutil.which("waitress-serve") is not None
     return False
 
+def check_gunicorn():
+    """Checks if gunicorn is installed."""
+    if shutil.which("gunicorn") is not None:
+        return True
+
+    print("⚠️  'gunicorn' command not found.")
+    install_prompt = (
+        input("   It's needed for server management. Install it now? (pip install gunicorn) [y/N]: ")
+        .lower()
+        .strip()
+    )
+    if install_prompt == "y":
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "gunicorn"])
+        return shutil.which("gunicorn") is not None
+    return False
+
 
 def is_windows():
     """Check if the operating system is Windows."""
@@ -426,6 +442,10 @@ def start_servers():
 
     # Check for Nginx before proceeding
     if not check_nginx():
+        return
+    
+    # Check for gunicorn
+    if not check_gunicorn():
         return
 
     # Pre-download the model and get GPU info
