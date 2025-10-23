@@ -430,56 +430,62 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     
     while not stop_event.is_set():
         try:
-            # Get all files in the folder (and subfolders)
-            query = f"'{folder_id}' in parents and trashed=false"
-            file_list = service.ListFile({"q": query}).GetList()
-            
             current_file_ids = set()
-            drive_file_names = set()
-            
-            for item in file_list:
-                file_id = item["id"]
-                current_file_ids.add(file_id)
-                modified_time = item.get("modifiedDate", "")
-                file_title = item["title"]
-                drive_file_names.add(file_title)
+            folders_to_scan = [(folder_id, Path(local_path))] # Queue of (folder_id, local_path)
+            # --- Recursively scan Drive for remote changes ---
+            while folders_to_scan:
+                parent_id, parent_local_path = folders_to_scan.pop(0)
                 
-                if item["mimeType"] == "application/vnd.google-apps.folder":
-                    # Ensure subfolder exists
-                    subfolder_path = Path(local_path) / file_title
-                    subfolder_path.mkdir(parents=True, exist_ok=True)
-                    known_files[file_id] = {
-                        "modified_time": modified_time,
-                        "local_path": str(subfolder_path),
-                        "title": file_title
-                    }
-                    local_to_drive[str(subfolder_path)] = file_id
-                else:
-                    file_path = Path(local_path) / file_title
-                    # Check if file is new or modified
-                    if file_id not in known_files or known_files[file_id]["modified_time"] != modified_time:
-                        debug_print(f"  📥 Syncing from Drive: {file_title}")
-                        update_mount_state(folder_name, "SYNCING_DOWN", f"Downloading {file_title}")
-                        gfile = service.CreateFile({"id": file_id})
-                        gfile.GetContentFile(str(file_path))
+                query = f"'{parent_id}' in parents and trashed=false"
+                file_list = service.ListFile({"q": query}).GetList()
+
+                for item in file_list:
+                    item_id = item["id"]
+                    current_file_ids.add(item_id)
+                    modified_time = item.get("modifiedDate", "")
+                    item_title = item["title"]
+                    
+                    item_local_path = parent_local_path / item_title
+
+                    if item["mimeType"] == "application/vnd.google-apps.folder":
+                        # This is a folder, ensure it exists locally and add to scan queue
+                        item_local_path.mkdir(parents=True, exist_ok=True)
+                        folders_to_scan.append((item_id, item_local_path))
                         known_files[file_id] = {
                             "modified_time": modified_time,
-                            "local_path": str(file_path),
-                            "title": file_title
+                            "local_path": str(item_local_path),
+                            "title": item_title
                         }
-                        local_to_drive[str(file_path)] = file_id
+                        local_to_drive[str(item_local_path)] = item_id
                     else:
-                        # File exists in Drive, update tracking info
-                        known_files[file_id] = {
-                            "modified_time": modified_time,
-                            "local_path": str(file_path),
-                            "title": file_title
-                        }
-                        local_to_drive[str(file_path)] = file_id
+                        # This is a file, check if it needs downloading
+                        if item_id not in known_files or known_files[item_id]["modified_time"] != modified_time:
+                            debug_print(f"  📥 Syncing from Drive: {item_local_path.relative_to(local_path)}")
+                            update_mount_state(folder_name, "SYNCING_DOWN", f"Downloading {item_title}")
+                            gfile = service.CreateFile({"id": item_id})
+                            gfile.GetContentFile(str(item_local_path))
+                            # Update known files with the new state
+                            known_files[item_id] = {
+                                "modified_time": modified_time,
+                                "local_path": str(item_local_path),
+                                "title": item_title
+                            }
+                            local_to_drive[str(item_local_path)] = item_id
+                        else:
+                            # File is unchanged, but ensure tracking is up-to-date
+                            # This helps build the initial state on reactivate
+                            known_files[item_id] = {
+                                "modified_time": modified_time,
+                                "local_path": str(item_local_path),
+                                "title": item_title
+                            }
+                            local_to_drive[str(item_local_path)] = item_id
             
             # Check for deleted files in Drive (files that were known but aren't in current list)
             deleted_ids = set(known_files.keys()) - current_file_ids
             for deleted_id in deleted_ids:
+                if deleted_id == folder_id: continue # Don't delete the root mount folder
+
                 file_info = known_files[deleted_id]
                 debug_print(f"  🗑️  Detected deletion in Drive: {file_info['title']}")
                 update_mount_state(folder_name, "DELETING", f"Removing local copy of {file_info['title']}")
