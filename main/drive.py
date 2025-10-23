@@ -738,16 +738,17 @@ def main_menu():
     """Displays the main interactive menu for Google Drive utilities."""
     while True:
         print("\n====== 📁 Google Drive Utility ======")
-        print("  [1] Browse/Download from Google Drive")
-        print("  [2] Upload file to Google Drive")
-        print("  [3] Mount Drive Folder (sync & watch)")
-        print("  [4] Unmount Drive Folder")
-        print("  [5] Reactivate Folder Listener")
+        print("  [1] Browse & Download from Google Drive")
+        print("  [2] Upload a file to Google Drive")
+        print("  [3] Mount a Drive Folder (sync & watch)")
+        print("  [4] Unmount a Drive Folder")
+        print("  [5] Reactivate a Folder Listener")
         print("  [6] Show Mounted Folders")
-        print("  [7] Exit")
+        print("  [7] Stop all & Exit")
+        print("  [8] Exit (keep listeners running)")
         print("=====================================")
 
-        choice = input("Enter your choice (1-7): ").strip()
+        choice = input("Enter your choice (1-8): ").strip()
 
         if choice == "1":
             drive_service = get_drive_service()
@@ -780,11 +781,17 @@ def main_menu():
             print("\nStopping all folder listeners...")
             for folder_name in list(MOUNTED_FOLDERS.keys()):
                 unmount_drive_folder(folder_name)
-            print("Exiting. Goodbye! 👋")
+            print("All services stopped. Exiting. Goodbye! 👋")
+            break
+
+        elif choice == "8":
+            print("\nExiting menu. Background listeners will continue to run.")
+            print("To stop them, restart the script and select 'Stop all & Exit'.")
+            print("Goodbye! 👋")
             break
 
         else:
-            print("\nInvalid choice. Please enter a number between 1 and 7.")
+            print("\nInvalid choice. Please enter a number between 1 and 8.")
 
 
 if __name__ == "__main__":
