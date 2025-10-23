@@ -500,7 +500,12 @@ def process_reports_in_chunks():
         # Save to Google Drive if in Colab
         if IS_COLAB:
             print(f"  -> Saving to Google Drive...")
-            subprocess.run(SAVE_SHELL_CMD, shell=True)
+            subprocess.run(
+                SAVE_SHELL_CMD,
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
 
         # Progress summary
         processed_so_far = chunk_idx * CHUNK_SIZE
