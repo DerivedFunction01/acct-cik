@@ -263,7 +263,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
 
     # Track files we've seen (file_id -> {"modified_time": time, "local_path": path, "title": name})
     known_files = {}
-    check_interval = 30  # Check every 30 seconds
+    check_interval = 10  # Check every 10 seconds
 
     while not stop_event.is_set():
         try:
