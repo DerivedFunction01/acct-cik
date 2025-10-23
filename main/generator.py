@@ -620,6 +620,8 @@ def generate_hedge_paragraph(
         labels["term"] = 1.0
         template = random.choice(hedge_termination_templates)
         term_year = random.choice(past_years) if not use_current_year else current_year 
+        prev_year = term_year - 1
+        prev2_year = term_year - 2
         verb = random.choice(hedge_use_verbs)
         sentence = template.format(
             company=pick_company_name(company_name),
@@ -627,6 +629,8 @@ def generate_hedge_paragraph(
             month=random.choice(months),
             quarter=quarter,
             year=term_year,
+            prev_year=prev_year,
+            prev2_year=prev2_year,
             end_day=random.randint(28, 31),
             verb=verb,
         )
