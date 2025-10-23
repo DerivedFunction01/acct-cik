@@ -502,6 +502,8 @@ def create_db():
         c.execute("CREATE INDEX IF NOT EXISTS url_idx ON report_data (url)")
         c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
         c.execute("CREATE INDEX IF NOT EXISTS name_idx ON names (name)")
+        # WAL
+        c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError:
         print("Something went wrong creating the database")
     finally:
