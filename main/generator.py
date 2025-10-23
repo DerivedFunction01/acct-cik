@@ -128,8 +128,8 @@ def get_primary_label(labels: dict) -> int:
 
     2. **Actual use of a hedge (_use flags)**  
        - Hedge types are prioritized: IR > FX > CP > EQ > GEN.  
-       - Time context (`curr`, `hist`, `spec`) determines which label is returned.  
-       - Defaults to current (`curr`) if no time context is specified.
+       - Time context (`term`, `curr`, `hist`, `spec`) determines which label is returned.  
+       - Defaults to current (`hist`) if no time context is specified.
 
     3. **Speculative mention (spec)**  
        - For hedge types flagged but not actually used (`_use` not set).  
@@ -140,7 +140,7 @@ def get_primary_label(labels: dict) -> int:
        - Returns a context-only label.
 
     5. **Irrelevant**  
-       - Returns the irrelevant label (24) if no other conditions are met.
+       - Returns the irrelevant label if no other conditions are met.
 
     Notes:
     - Only a single label is returned.
