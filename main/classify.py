@@ -158,6 +158,23 @@ def create_db():
         conn.close()
 
 
+def cleanup_error_responses():
+    """Removes records from server_result where the response indicates an error."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        # The server now returns JSON objects like {"error": "network_error"}
+        # We can search for the substring '"error":' to find these.
+        sql = "DELETE FROM server_result WHERE server_response LIKE '%\"error\":%'"
+        c.execute(sql)
+        rows_deleted = c.rowcount
+        conn.commit()
+        if rows_deleted > 0:
+            print(f"🧹 Cleaned up {rows_deleted} error responses from the database.")
+    finally:
+        conn.close()
+
+
 def get_matches(url):
     """
     Fetch matches from webpage_result, which has (url, matches).
@@ -419,10 +436,10 @@ def process_report_fully(report):
 # =============================================================================
 
 
-def process_reports_in_chunks():
+def process_reports_in_chunks(min_chunk_size: int = 1):
     """Process reports in chunks with periodic saves and statistics."""
     processed_set = get_processed_server_urls()
-
+    
     # Find reports in webpage_result that are not yet in server_result
     reports_to_process_df = get_unprocessed_reports()
     reports_to_process = list(reports_to_process_df.itertuples(index=False))
@@ -430,6 +447,11 @@ def process_reports_in_chunks():
     total_reports = len(reports_to_process)
     print(f"Processing {total_reports:,} new reports")
     print(f"Already processed: {len(processed_set):,} reports")
+
+    # Check if the number of reports meets the minimum chunk size
+    if total_reports < min_chunk_size:
+        print(f"Skipping run: Found {total_reports} reports, which is less than the minimum of {min_chunk_size}.")
+        return 0
 
     # Create chunks
     chunks = [
@@ -553,26 +575,36 @@ if __name__ == "__main__":
     print("This script will run continuously, checking for new data to classify.")
     print("Press Ctrl+C to stop.")
 
+    is_first_run = True
+
     try:
         while True:
             # Initialize database schema if it doesn't exist
             create_db()
 
+            # Set minimum chunk size. On first run, process anything available.
+            # On subsequent runs, wait for at least 20 reports to accumulate.
+            min_size_for_run = 1 if is_first_run else 20
+
             # The process_reports_in_chunks function already finds unprocessed reports.
             # It will return 0 if there's nothing new to process.
-            total_processed_in_run = process_reports_in_chunks()
+            total_processed_in_run = process_reports_in_chunks(min_chunk_size=min_size_for_run)
 
             if total_processed_in_run > 0:
                 print(f"\n✅ Run complete. Processed {total_processed_in_run} new reports.")
                 # Final save to Drive if in Colab after a successful run
                 if IS_COLAB:
                     print("\nFinal database sync to Google Drive...")
-                    subprocess.run(SAVE_SHELL_CMD, shell=True)
+                    subprocess.run(SAVE_SHELL_CMD, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
                 # If no reports were processed, wait before checking again.
                 wait_time = 60
                 print(f"\nNo new reports to process. Waiting for {wait_time} seconds...")
                 time.sleep(wait_time)
+
+            # Cleanup error responses after every loop (successful or not)
+            cleanup_error_responses()
+            is_first_run = False # Subsequent runs are not the first run
 
     except KeyboardInterrupt:
         print("\n\n🛑 Service stopped by user.")
