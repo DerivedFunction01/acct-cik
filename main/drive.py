@@ -16,6 +16,14 @@ DRIVE_SERVICE = None
 MOUNTED_FOLDERS = {}  # {folder_name: {"folder_id": id, "local_path": path, "listener_thread": thread, "stop_event": event}}
 MOUNT_BASE_PATH = Path("./drive/MyDrive")
 
+# Global debug flag
+DEBUG = False
+
+def debug_print(*args, **kwargs):
+    """Prints only if the global DEBUG flag is set to True."""
+    if DEBUG:
+        print(*args, **kwargs)
+
 
 def get_drive_service():
     """
@@ -27,18 +35,18 @@ def get_drive_service():
         return DRIVE_SERVICE
 
     try:
-        print("\n  Authenticating with Google Drive...")
+        debug_print("\n  Authenticating with Google Drive...")
         gauth = GoogleAuth()
         # Try to load saved credentials
         gauth.LoadCredentialsFile("mycreds.txt")
 
         if gauth.credentials is None:
             # Authenticate if they're not there
-            print("  Please follow the link in your browser to authorize:")
+            print("  No valid credentials found. Please follow the link in your browser to authorize:")
             gauth.CommandLineAuth()
         elif gauth.access_token_expired:
             # Refresh them if expired
-            print("  Refreshing expired credentials...")
+            debug_print("  Refreshing expired credentials...")
             gauth.Refresh()
         else:
             # Initialize the saved creds
@@ -48,7 +56,7 @@ def get_drive_service():
         gauth.SaveCredentialsFile("mycreds.txt")
 
         DRIVE_SERVICE = GoogleDrive(gauth)
-        print("  Authentication successful.")
+        debug_print("  Authentication successful.")
         return DRIVE_SERVICE
 
     except Exception as e:
@@ -183,7 +191,7 @@ def upload_to_drive_interactive(service):
             return
 
         # 3. Find or create the folder ID
-        print(f"  Searching for folder '{folder_name}' in your Google Drive...")
+        debug_print(f"  Searching for folder '{folder_name}' in your Google Drive...")
 
         file_list = service.ListFile(
             {
@@ -194,9 +202,9 @@ def upload_to_drive_interactive(service):
         folder_id = None
         if len(file_list) > 0:
             folder_id = file_list[0]["id"]
-            print(f"  Found folder '{folder_name}' with ID: {folder_id}")
+            debug_print(f"  Found folder '{folder_name}' with ID: {folder_id}")
         else:
-            print(f"  Folder '{folder_name}' not found, creating it...")
+            debug_print(f"  Folder '{folder_name}' not found, creating it...")
             folder_metadata = {
                 "title": folder_name,
                 "mimeType": "application/vnd.google-apps.folder",
@@ -205,11 +213,11 @@ def upload_to_drive_interactive(service):
             folder = service.CreateFile(folder_metadata)
             folder.Upload()
             folder_id = folder["id"]
-            print(f"  Created folder '{folder_name}' with ID: {folder_id}")
+            debug_print(f"  Created folder '{folder_name}' with ID: {folder_id}")
 
         # 4. Upload the file into that folder
         file_title = os.path.basename(local_file_path)
-        print(f"  Uploading '{file_title}' to folder '{folder_name}'...")
+        debug_print(f"  Uploading '{file_title}' to folder '{folder_name}'...")
 
         gfile = service.CreateFile(
             {"title": file_title, "parents": [{"id": folder_id}]}
@@ -241,12 +249,12 @@ def download_folder_recursive(service, folder_id, local_path):
             if item["mimeType"] == "application/vnd.google-apps.folder":
                 # It's a folder - recurse
                 subfolder_path = local_path / item["title"]
-                print(f"  Creating subfolder: {subfolder_path}")
+                debug_print(f"  Creating subfolder: {subfolder_path}")
                 download_folder_recursive(service, item["id"], subfolder_path)
             else:
                 # It's a file - download it
                 file_path = local_path / item["title"]
-                print(f"  Downloading: {item['title']}")
+                debug_print(f"  Downloading: {item['title']}")
                 gfile = service.CreateFile({"id": item["id"]})
                 gfile.GetContentFile(str(file_path))
                 
@@ -273,7 +281,7 @@ def force_remove_file(file_path):
             file_path.unlink()
         return True
     except Exception as e:
-        print(f"      Standard removal failed: {e}")
+        debug_print(f"      Standard removal failed: {e}")
     
     # Method 2: Try to close any file handles and retry
     try:
@@ -288,7 +296,7 @@ def force_remove_file(file_path):
             file_path.unlink()
         return True
     except Exception as e:
-        print(f"      Retry after GC failed: {e}")
+        debug_print(f"      Retry after GC failed: {e}")
     
     # Method 3: Use OS-specific commands
     try:
@@ -318,10 +326,10 @@ def force_remove_file(file_path):
                 capture_output=True
             )
         
-        print(f"      Removed using system command")
+        debug_print(f"      Removed using system command")
         return True
     except Exception as e:
-        print(f"      System command failed: {e}")
+        debug_print(f"      System command failed: {e}")
     
     # Method 4: Mark for deletion on next restart (Windows only)
     if platform.system() == "Windows":
@@ -333,10 +341,10 @@ def force_remove_file(file_path):
                 None,
                 0x4  # MOVEFILE_DELAY_UNTIL_REBOOT
             )
-            print(f"      File marked for deletion on next restart")
+            debug_print(f"      File marked for deletion on next restart")
             return True
         except Exception as e:
-            print(f"      Delayed deletion failed: {e}")
+            debug_print(f"      Delayed deletion failed: {e}")
     
     return False
 
@@ -348,7 +356,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     deletions, modifications) and syncs them to Drive.
     """
     print(f"🔊 Listener started for '{folder_name}'")
-    
+    debug_print(f"   Watching local path: {local_path}")
     # Track files we've seen (file_id -> {"modified_time": time, "local_path": path, "title": name})
     known_files = {}
     # Track local files by their path (local_path -> file_id)
@@ -386,7 +394,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                     file_path = Path(local_path) / file_title
                     # Check if file is new or modified
                     if file_id not in known_files or known_files[file_id]["modified_time"] != modified_time:
-                        print(f"  📥 Syncing from Drive: {file_title}")
+                        debug_print(f"  📥 Syncing from Drive: {file_title}")
                         gfile = service.CreateFile({"id": file_id})
                         gfile.GetContentFile(str(file_path))
                         known_files[file_id] = {
@@ -408,12 +416,12 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
             deleted_ids = set(known_files.keys()) - current_file_ids
             for deleted_id in deleted_ids:
                 file_info = known_files[deleted_id]
-                print(f"  🗑️  Detected deletion in Drive: {file_info['title']}")
+                debug_print(f"  🗑️  Detected deletion in Drive: {file_info['title']}")
                 # Remove local file if it exists
                 local_file_path = Path(file_info["local_path"])
                 if local_file_path.exists():
                     if force_remove_file(local_file_path):
-                        print(f"      Removed local file: {file_info['title']}")
+                        debug_print(f"      Removed local file: {file_info['title']}")
                     else:
                         print(f"      ⚠️ Could not remove local file (in use): {file_info['title']}")
                         continue  # Skip cleanup if we couldn't delete
@@ -433,7 +441,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
             # Delete files from Drive
             for file_id, file_title in files_to_delete_from_drive:
                 try:
-                    print(f"  🗑️  Deleting from Drive (local deletion detected): {file_title}")
+                    debug_print(f"  🗑️  Deleting from Drive (local deletion detected): {file_title}")
                     gfile = service.CreateFile({"id": file_id})
                     gfile.Delete()
                     if file_id in known_files:
@@ -442,7 +450,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                             del local_to_drive[local_path_str]
                         del known_files[file_id]
                 except Exception as e:
-                    print(f"      Failed to delete from Drive: {e}")
+                    debug_print(f"      Failed to delete from Drive: {e}")
             
             # Check for new local files (files that exist locally but not in Drive)
             local_folder = Path(local_path)
@@ -462,7 +470,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                     # This is a new local file - upload it
                     if local_file.is_file():
                         try:
-                            print(f"  📤 Uploading new local file to Drive: {file_name}")
+                            debug_print(f"  📤 Uploading new local file to Drive: {file_name}")
                             gfile = service.CreateFile(
                                 {"title": file_name, "parents": [{"id": folder_id}]}
                             )
@@ -480,9 +488,9 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                                 "title": file_name
                             }
                             local_to_drive[local_file_str] = new_file_id
-                            print(f"      Successfully uploaded: {file_name}")
+                            debug_print(f"      Successfully uploaded: {file_name}")
                         except Exception as e:
-                            print(f"      Failed to upload {file_name}: {e}")
+                            debug_print(f"      Failed to upload {file_name}: {e}")
             
         except Exception as e:
             print(f"  ⚠️ Listener error for '{folder_name}': {e}")
@@ -505,7 +513,7 @@ def mount_drive_folder(service, folder_name, folder_id=None):
     try:
         # If folder_id not provided, search for it
         if not folder_id:
-            print(f"  Searching for folder '{folder_name}' in Google Drive...")
+            debug_print(f"  Searching for folder '{folder_name}' in Google Drive...")
             file_list = service.ListFile(
                 {
                     "q": f"title='{folder_name}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false"
@@ -517,11 +525,11 @@ def mount_drive_folder(service, folder_name, folder_id=None):
                 return False
             
             folder_id = file_list[0]["id"]
-            print(f"  Found folder with ID: {folder_id}")
+            debug_print(f"  Found folder with ID: {folder_id}")
         
         # Create local mount path
         local_path = MOUNT_BASE_PATH / folder_name
-        print(f"  Creating local directory: {local_path}")
+        debug_print(f"  Creating local directory: {local_path}")
         local_path.mkdir(parents=True, exist_ok=True)
         
         # Download all contents
@@ -567,7 +575,7 @@ def reactivate_listener(service, folder_name):
             return False
         else:
             # Thread exists but is dead, clean it up
-            print(f"  Cleaning up dead listener for '{folder_name}'...")
+            debug_print(f"  Cleaning up dead listener for '{folder_name}'...")
             del MOUNTED_FOLDERS[folder_name]
     
     try:
@@ -579,7 +587,7 @@ def reactivate_listener(service, folder_name):
             return False
         
         # Search for folder in Drive
-        print(f"  Searching for folder '{folder_name}' in Google Drive...")
+        debug_print(f"  Searching for folder '{folder_name}' in Google Drive...")
         file_list = service.ListFile(
             {
                 "q": f"title='{folder_name}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false"
@@ -591,7 +599,7 @@ def reactivate_listener(service, folder_name):
             return False
         
         folder_id = file_list[0]["id"]
-        print(f"  Found folder with ID: {folder_id}")
+        debug_print(f"  Found folder with ID: {folder_id}")
         
         # Start listener thread
         stop_event = threading.Event()
@@ -755,7 +763,16 @@ def main():
     reactivate_parser = subparsers.add_parser('reactivate', help='Reactivate listener for an existing local folder.')
     reactivate_parser.add_argument('folder_name', type=str, help='The name of the local folder to reactivate.')
 
+    # Add debug flag to all subparsers and the main parser
+    for p in [parser, mount_parser, unmount_parser, reactivate_parser]:
+        p.add_argument('-d', '--debug', action='store_true', help='Enable detailed debug logging.')
+
     args = parser.parse_args()
+
+    if args.debug:
+        global DEBUG
+        DEBUG = True
+        debug_print("--- 🐞 Debug mode enabled ---")
 
     if args.command:
         # --- Command-Line Mode ---
