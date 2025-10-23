@@ -68,6 +68,8 @@ def create_unified_schema(conn):
     c.execute("CREATE INDEX IF NOT EXISTS url_idx_webpage ON webpage_result (url)")
     c.execute("CREATE INDEX IF NOT EXISTS url_idx_server ON server_result (url)")
     c.execute("CREATE INDEX IF NOT EXISTS name_idx ON names (name)")
+    # WAL
+    c.execute("PRAGMA journal_mode=WAL")
 
     conn.commit()
     print("Schema creation complete.")
