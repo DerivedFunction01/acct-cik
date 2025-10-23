@@ -988,18 +988,14 @@ def filter_by_keywords(
     """
     allowed_keywords = [kw.lower() for kw in ALLOWED_KEYWORDS]
 
-    def get_keyword_category(text: str) -> str:
-        try:
-            for category, regex in CATEGORY_REGEX_ORDER:
-                if regex.search(text):
-                    return category
-        except Exception as e:
-            print(f"Regex error in category '{category}': {e}")
-            print(f"Regex pattern: {regex.pattern}")
+    def get_keyword_category(text: str) -> str | None:
+        for category, regex in CATEGORY_REGEX_ORDER:
+            if regex.search(text):
+                return category
         return None
 
     def clean_sentence(sentence: str) -> str:
-        return re.sub(r"\s+", " ", sentence.strip())
+        return re.sub(r"[.!?]$", "", re.sub(r"\s+", " ", sentence.strip()))
 
     def measure_merged_length(sentences: list) -> int:
         return len(". ".join(sentences).strip() + ".")
