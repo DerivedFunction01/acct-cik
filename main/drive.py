@@ -3,6 +3,7 @@ import time
 import threading
 import subprocess
 import platform
+import json
 import argparse
 from pathlib import Path
 from pydrive2.auth import GoogleAuth
@@ -15,6 +16,8 @@ DRIVE_SERVICE = None
 # Global mounting state
 MOUNTED_FOLDERS = {}  # {folder_name: {"folder_id": id, "local_path": path, "listener_thread": thread, "stop_event": event}}
 MOUNT_BASE_PATH = Path("./drive/MyDrive")
+STATE_FILE = Path(".mount_state.json")
+STATE_LOCK = threading.Lock()
 
 # Global debug flag
 DEBUG = False
@@ -23,6 +26,66 @@ def debug_print(*args, **kwargs):
     """Prints only if the global DEBUG flag is set to True."""
     if DEBUG:
         print(*args, **kwargs)
+
+
+def update_mount_state(folder_name, status, message=""):
+    """Updates the status of a folder in the .mount_state.json file."""
+    with STATE_LOCK:
+        state = {}
+        if STATE_FILE.exists():
+            try:
+                with open(STATE_FILE, "r") as f:
+                    state = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass  # Overwrite if corrupt or unreadable
+        
+        if folder_name in state:
+            state[folder_name]["status"] = status
+            state[folder_name]["status_message"] = message
+            state[folder_name]["pid"] = os.getpid() # Update PID in case it's a reactivation
+            
+            with open(STATE_FILE, "w") as f:
+                json.dump(state, f, indent=4)
+
+
+def add_mount_to_state(folder_name, folder_id, local_path):
+    """Adds a new folder to the .mount_state.json file."""
+    with STATE_LOCK:
+        state = {}
+        if STATE_FILE.exists():
+            try:
+                with open(STATE_FILE, "r") as f:
+                    state = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        
+        state[folder_name] = {
+            "folder_id": folder_id,
+            "local_path": str(local_path),
+            "pid": os.getpid(),
+            "status": "INITIALIZING",
+            "status_message": "Starting mount process..."
+        }
+        
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f, indent=4)
+
+def remove_mount_from_state(folder_name):
+    """Removes a folder from the .mount_state.json file."""
+    with STATE_LOCK:
+        state = {}
+        if STATE_FILE.exists():
+            try:
+                with open(STATE_FILE, "r") as f:
+                    state = json.load(f)
+                
+                if folder_name in state:
+                    del state[folder_name]
+                    
+                    with open(STATE_FILE, "w") as f:
+                        json.dump(state, f, indent=4)
+            except (json.JSONDecodeError, IOError):
+                pass # File is gone or corrupt, nothing to do
 
 
 def get_drive_service():
@@ -363,6 +426,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     local_to_drive = {}
     
     check_interval = 10  # Check every 10 seconds
+    update_mount_state(folder_name, "IDLE", "Awaiting changes...")
     
     while not stop_event.is_set():
         try:
@@ -395,6 +459,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                     # Check if file is new or modified
                     if file_id not in known_files or known_files[file_id]["modified_time"] != modified_time:
                         debug_print(f"  📥 Syncing from Drive: {file_title}")
+                        update_mount_state(folder_name, "SYNCING_DOWN", f"Downloading {file_title}")
                         gfile = service.CreateFile({"id": file_id})
                         gfile.GetContentFile(str(file_path))
                         known_files[file_id] = {
@@ -417,6 +482,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
             for deleted_id in deleted_ids:
                 file_info = known_files[deleted_id]
                 debug_print(f"  🗑️  Detected deletion in Drive: {file_info['title']}")
+                update_mount_state(folder_name, "DELETING", f"Removing local copy of {file_info['title']}")
                 # Remove local file if it exists
                 local_file_path = Path(file_info["local_path"])
                 if local_file_path.exists():
@@ -442,6 +508,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
             for file_id, file_title in files_to_delete_from_drive:
                 try:
                     debug_print(f"  🗑️  Deleting from Drive (local deletion detected): {file_title}")
+                    update_mount_state(folder_name, "DELETING", f"Deleting {file_title} from Drive")
                     gfile = service.CreateFile({"id": file_id})
                     gfile.Delete()
                     if file_id in known_files:
@@ -471,6 +538,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
                     if local_file.is_file():
                         try:
                             debug_print(f"  📤 Uploading new local file to Drive: {file_name}")
+                            update_mount_state(folder_name, "SYNCING_UP", f"Uploading {file_name}")
                             gfile = service.CreateFile(
                                 {"title": file_name, "parents": [{"id": folder_id}]}
                             )
@@ -495,6 +563,7 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
         except Exception as e:
             print(f"  ⚠️ Listener error for '{folder_name}': {e}")
         
+        update_mount_state(folder_name, "IDLE", "Awaiting changes...")
         # Wait before next check (with ability to interrupt)
         stop_event.wait(check_interval)
     
@@ -531,10 +600,12 @@ def mount_drive_folder(service, folder_name, folder_id=None):
         local_path = MOUNT_BASE_PATH / folder_name
         debug_print(f"  Creating local directory: {local_path}")
         local_path.mkdir(parents=True, exist_ok=True)
+        add_mount_to_state(folder_name, folder_id, local_path)
         
         # Download all contents
         print(f"  📦 Downloading all files from '{folder_name}'...")
         download_folder_recursive(service, folder_id, local_path)
+        update_mount_state(folder_name, "IDLE", "Initial download complete.")
         print(f"  ✅ Initial download complete!")
         
         # Start listener thread
@@ -600,6 +671,7 @@ def reactivate_listener(service, folder_name):
         
         folder_id = file_list[0]["id"]
         debug_print(f"  Found folder with ID: {folder_id}")
+        add_mount_to_state(folder_name, folder_id, local_path)
         
         # Start listener thread
         stop_event = threading.Event()
@@ -684,6 +756,7 @@ def unmount_drive_folder(folder_name):
         
         # Remove from mounted folders
         del MOUNTED_FOLDERS[folder_name]
+        remove_mount_from_state(folder_name)
         
         print(f"✅ Unmounted '{folder_name}'")
         print(f"   Local files remain at: {mount_info['local_path']}")
@@ -798,6 +871,7 @@ def main():
                     print("\n🛑 Keyboard interrupt received. Shutting down...")
                     for folder_name in list(MOUNTED_FOLDERS.keys()):
                         unmount_drive_folder(folder_name)
+                    remove_mount_from_state(args.folder_name) # Ensure state is clean on exit
                     print("Exiting. Goodbye! 👋")
             else:
                 print(f"\n❌ Command '{args.command} {args.folder_name}' failed.")
@@ -838,6 +912,8 @@ def main():
                 print("\nStopping all folder listeners...")
                 for folder_name in list(MOUNTED_FOLDERS.keys()):
                     unmount_drive_folder(folder_name)
+                if STATE_FILE.exists(): # Clean up state file on graceful exit
+                    STATE_FILE.unlink()
                 print("Exiting. Goodbye! 👋")
                 break
             else:
@@ -846,3 +922,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # Final cleanup of state file on exit, in case of non-interactive exit
+    # or if main() returns without cleaning up.
+    with STATE_LOCK:
+        if STATE_FILE.exists() and not MOUNTED_FOLDERS:
+            debug_print("Final cleanup: Removing state file as no folders are mounted.")
+            STATE_FILE.unlink()
