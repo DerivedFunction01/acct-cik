@@ -228,6 +228,7 @@ def new_label() -> dict[str, float]:
         # -----------------
         "curr": 0.0,  # Current derivative user
         "hist": 0.0,  # Historic/past derivative user
+        "term": 0.0,  # Derivative termination
         "spec": 0.0,  # Speculative mention (not confirmed use)
         # -----------------
         # Special derivative types
@@ -616,6 +617,7 @@ def generate_hedge_paragraph(
     def expire_hedge(use_current_year=False) -> str:
         labels["hist"] = 1
         # pick a random template from termination
+        labels["term"] = 1.0
         template = random.choice(hedge_termination_templates)
         term_year = random.choice(past_years) if not use_current_year else current_year 
         verb = random.choice(hedge_use_verbs)
