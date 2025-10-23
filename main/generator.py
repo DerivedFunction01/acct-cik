@@ -1797,7 +1797,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         hedge_sentence, _, _ = generate_hedge_paragraph(True, swapType if swapType != 'mixed' else "gen", year_range=[current_year, current_year])
         # Remove the all text between < and >
         hedge_sentence = re.sub(r'<.*?>', '', hedge_sentence)
-        hedge_sentence = hedge_sentence.strip()
+        hedge_sentence = hedge_sentence.strip()[:-1] # Ditch the period at the end
         lines.append(hedge_sentence)
     random.shuffle(lines)
     # Create paragraph and get primary label
