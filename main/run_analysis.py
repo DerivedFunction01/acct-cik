@@ -34,6 +34,7 @@ class RunOptions:
     generate_sentence_files: bool = True
     run_qualitative_sampler: bool = True
     run_key_firms_sampler: bool = True
+    backup_server_results: bool = True
 
 
 # =============================================================================
@@ -60,6 +61,7 @@ class AnalysisPipeline:
 
         # Map run options to pipeline methods for modular execution
         self._step_map = {
+            "backup_server_results": self._backup_server_results,
             # Fast analysis goes first
             "run_qualitative_sampler": self._run_qualitative_sampler,
             "run_firm_inspector": self._run_firm_inspector,
@@ -161,6 +163,18 @@ class AnalysisPipeline:
         # This analyzer is now a standalone component with its own run method.
         comparison_analyzer = ComparisonAnalyzer(self.config, self.label_mapper)
         comparison_analyzer.run()
+
+    def _backup_server_results(self):
+        """Backs up the entire server_result table to an Excel file."""
+        print("\n[Extra] Backing up server_result table...")
+        try:
+            # The existing data loader can fetch all model predictions, which is what we need.
+            server_results_df = self.data_loader.load_model_predictions()
+            output_path = self.config.output_dir / "server_results_backup.xlsx"
+            server_results_df.to_excel(output_path, index=False)
+            print(f"   ✅ Server results backed up to: {output_path}")
+        except Exception as e:
+            print(f"     ❌ Error during server results backup: {e}")
 
     def _run_qualitative_sampler(self):
         """Runs the qualitative review sampler."""
@@ -283,6 +297,7 @@ if __name__ == "__main__":
         run_custom_analyzers=False,
         run_qualitative_sampler=True,
         run_key_firms_sampler=False,
+        backup_server_results=True,
     )
 
     # Execute the pipeline with the chosen options
