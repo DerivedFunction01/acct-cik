@@ -706,33 +706,19 @@ termination_event_results =  no_position_results + dedesignation_specific_result
 
 # Templates for zero notional in current year vs. non-zero in prior years
 zero_current_vs_prior_notional_templates = [
-    "As of {end_of_year}, {company} had no outstanding {swap_type}, compared to notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year}",
-    "At {end_of_year}, there were no such {swap_type} outstanding, whereas in {prev_year} and {prev2_year}, notional amounts were {currency_code}{prev_notional} {money_unit} and {currency_code}{prev2_notional} {money_unit}, respectively",
+    "{time_period}, {company} had no outstanding {swap_type}, compared to notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year}",
+    "{time_period}, there were no such {swap_type} outstanding, whereas in {prev_year} and {prev2_year}, notional amounts were {currency_code}{prev_notional} {money_unit} and {currency_code}{prev2_notional} {money_unit}, respectively",
     "{company} held no {swap_type} at the end of {year}, in contrast to {currency_code}{prev_notional} {money_unit} at the end of {prev_year}",
-    "The notional amount of {swap_type} was zero as of {end_of_year}; however, the company {verb} {currency_code}{prev_notional} {money_unit} of such instruments in {prev_year}",
-    "While {company} {verb} {swap_type} with notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year}, there were no such derivatives outstanding as of {end_of_year}",    
-    "As of {end_of_year}, {company} had no outstanding {swap_type}, compared to notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year} and {currency_code}{prev2_notional} {money_unit} in {prev2_year}",
-    "At {end_of_year}, there were no {swap_type} outstanding, whereas in {prev_year} and {prev2_year}, notional amounts were {currency_code}{prev_notional} {money_unit} and {currency_code}{prev2_notional} {money_unit}, respectively",
+    "The notional amount of {swap_type} was zero {time_period}; however, the company {verb} {currency_code}{prev_notional} {money_unit} of such instruments in {prev_year}",
+    "While {company} {verb} {swap_type} with notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year}, there were no such derivatives outstanding {time_period}",    
+    "{time_period}, {company} had no outstanding {swap_type}, compared to notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year} and {currency_code}{prev2_notional} {money_unit} in {prev2_year}",
+    "{time_period}, there were no {swap_type} outstanding, whereas in {prev_year} and {prev2_year}, notional amounts were {currency_code}{prev_notional} {money_unit} and {currency_code}{prev2_notional} {money_unit}, respectively",
     "{company} held no {swap_type} at the end of {year}, in contrast to {currency_code}{prev_notional} {money_unit} at the end of {prev_year} and {currency_code}{prev2_notional} {money_unit} at the end of {prev2_year}",
-    "The notional amount of {swap_type} was zero as of {end_of_year}; however, {company} {verb} {currency_code}{prev_notional} {money_unit} of such instruments in {prev_year} and {currency_code}{prev2_notional} {money_unit} in {prev2_year}",
-    "While {company} {verb} {swap_type} with notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year} and {currency_code}{prev2_notional} {money_unit} in {prev2_year}, there were no such derivatives outstanding as of {end_of_year}",
-    
+    "The notional amount of {swap_type} was zero {time_period}; however, {company} {verb} {currency_code}{prev_notional} {money_unit} of such instruments in {prev_year} and {currency_code}{prev2_notional} {money_unit} in {prev2_year}",
+    "While {company} {verb} {swap_type} with notional amounts of {currency_code}{prev_notional} {money_unit} in {prev_year} and {currency_code}{prev2_notional} {money_unit} in {prev2_year}, there were no such derivatives outstanding {time_period}",
 ]
 
-# Merged event template patterns (termination, expiration, dedesignation, settlement)
-merged_event_patterns = [
-    # Termination patterns
-    "{time_period}, {company} {termination_verb} all remaining {swap_type} agreements. {term_result}",
-    "{time_period}, all previously designated {swap_type} were {termination_verb}, {term_result}",
-    "{company} {termination_verb} all {swap_type} positions {time_period}, {term_result}",
-    "All outstanding {swap_type} matured or were {termination_verb} {time_period}, {term_result}",
-    "{time_period}, {company} {termination_verb} all {swap_type} agreements, {term_result}",
-    "{time_period}, {company} {termination_verb} {swap_type} positions, {term_result}",
-    "{time_period}, all {swap_type} were {termination_verb}, {term_result}",
-    "{company} {termination_verb} all outstanding {swap_type} {time_period}, {term_result}",
-    "{time_period}, {company} {termination_verb} its {swap_type} portfolio, {term_result}",
-    "{time_period}, all {swap_type} agreements were {termination_verb}, {term_result}",
-    # No such outstanding patterms
+zero_any_templates = [# No such outstanding patterms
     "{time_period}, there were no such {swap_type} outstanding",  # One year
     "{time_period} and {prev_year}, there were no such {swap_type} outstanding",  # Two year
     "{time_period}, {prev_year}, and {prev2_year}, there were no such {swap_type} outstanding",  # Three year
@@ -751,6 +737,24 @@ merged_event_patterns = [
     "{company} does not {verb} any {swap_type} {time_period}",  # One year
     "{company} does not {verb} any {swap_type} {time_period} and {prev_year}",  # Two year
     "{company} does not {verb} any {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
+]
+
+zero_hedge_position_templates = zero_current_vs_prior_notional_templates + zero_any_templates
+
+# Merged event template patterns (termination, expiration, dedesignation, settlement)
+merged_event_patterns = [
+    # Termination patterns
+    "{time_period}, {company} {termination_verb} all remaining {swap_type} agreements. {term_result}",
+    "{time_period}, all previously designated {swap_type} were {termination_verb}, {term_result}",
+    "{company} {termination_verb} all {swap_type} positions {time_period}, {term_result}",
+    "All outstanding {swap_type} matured or were {termination_verb} {time_period}, {term_result}",
+    "{time_period}, {company} {termination_verb} all {swap_type} agreements, {term_result}",
+    "{time_period}, {company} {termination_verb} {swap_type} positions, {term_result}",
+    "{time_period}, all {swap_type} were {termination_verb}, {term_result}",
+    "{company} {termination_verb} all outstanding {swap_type} {time_period}, {term_result}",
+    "{time_period}, {company} {termination_verb} its {swap_type} portfolio, {term_result}",
+    "{time_period}, all {swap_type} agreements were {termination_verb}, {term_result}",
+    
     # Expiration patterns
     "All previously outstanding derivatives {termination_verb} {time_period}, {no_replacement}",
     "{company}'s derivative portfolio was fully {termination_verb} {time_period} {no_replacement}",
@@ -1148,6 +1152,14 @@ def generate_termination_templates():
         templates.extend([to_sentence_case(t) for t in expanded])
     return templates
 
+def generate_zero_hedge_positon_templates():
+    """Generate zero-hedge position templates."""
+    templates = []
+    for pattern in zero_hedge_position_templates:
+        expanded = _expand_pattern(pattern)
+        templates.extend([to_sentence_case(t) for t in expanded])
+    return templates
+        
 
 def generate_payment_templates():
     """Generate payment-related templates."""
@@ -1453,6 +1465,8 @@ derivative_keywords = {
 tasks = {
     "hedge_payment_templates": (generate_payment_templates, []),
     "hedge_termination_templates": (generate_termination_templates, []),
+    "hedge_zero_templates": (generate_zero_hedge_positon_templates, [])
+
 }
 swap_t = ["ir", "fx", "cp", "eq", "gen"]
 for ht in swap_t:
@@ -1473,6 +1487,7 @@ with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
 
 hedge_payment_templates = results["hedge_payment_templates"]
 hedge_termination_templates = results["hedge_termination_templates"]
+hedge_zero_templates = results["hedge_zero_templates"]
 
 hedge_position_templates = {}
 hedge_mitigation_templates = {}
