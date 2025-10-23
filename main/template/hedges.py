@@ -732,7 +732,25 @@ merged_event_patterns = [
     "{company} {termination_verb} all outstanding {swap_type} {time_period}, {term_result}",
     "{time_period}, {company} {termination_verb} its {swap_type} portfolio, {term_result}",
     "{time_period}, all {swap_type} agreements were {termination_verb}, {term_result}",
-    "As of {month} {end_day}, {year}, there were no such {swap_type} outstanding",
+    # No such outstanding patterms
+    "{time_period}, there were no such {swap_type} outstanding",  # One year
+    "{time_period} and {prev_year}, there were no such {swap_type} outstanding",  # Two year
+    "{time_period}, {prev_year}, and {prev2_year}, there were no such {swap_type} outstanding",  # Three year
+    "{time_period}, {company} {verb} no such {swap_type}",  # One year
+    "{time_period} and {prev_year},{company} {Verb} no such {swap_type}",  # Two year
+    "{time_period}, {prev_year}, and {prev2_year}, {company} {verb} no such {swap_type}",  # Three year
+    "{time_period}, {company} does not {verb} any {swap_type}",  # One year
+    "{time_period} and {prev_year}, {company} does not {verb} any {swap_type}",  # Two year
+    "{time_period}, {prev_year}, and {prev2_year}, {company} does not {verb} any {swap_type}",  # Three year
+    "There were no such {swap_type} outstanding {time_period}",  # One year
+    "There were no such {swap_type} outstanding {time_period} and {prev_year}",  # Two year
+    "There were no such {swap_type} outstanding {time_period}, {prev_year}, and {prev2_year}",  # Three year
+    "{company} {verb} no such {swap_type} {time_period}",  # One year
+    "{company} {Verb} no such {swap_type} {time_period} and {prev_year}",  # Two year
+    "{company} {verb} no such {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
+    "{company} does not {verb} any {swap_type} {time_period}",  # One year
+    "{company} does not {verb} any {swap_type} {time_period} and {prev_year}",  # Two year
+    "{company} does not {verb} any {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
     # Expiration patterns
     "All previously outstanding derivatives {termination_verb} {time_period}, {no_replacement}",
     "{company}'s derivative portfolio was fully {termination_verb} {time_period} {no_replacement}",

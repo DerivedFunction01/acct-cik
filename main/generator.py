@@ -782,6 +782,8 @@ def generate_hedge_paragraph(
         )
         if has_active_derivative:
             verb = random.choice(["currently", "actively", "presently", "now", ""]) + " " + verb
+        else:
+            verb = random.choice(["in the past", ",from time to time, ", ""]) + " " + verb
         sentences.append(
             beg_ctx_template.format(
                 company=pick_company_name(company_name),
