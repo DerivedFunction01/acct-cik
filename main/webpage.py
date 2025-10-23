@@ -1388,7 +1388,7 @@ def adjust_rate_in_background(
     min_time_since_429 = 5
 
     while not stop_event.is_set():
-        time.sleep(0.25)  # Check 4 times per second
+        time.sleep(0.10)  # Check 10 times per second
 
         # Estimate current rate (requests/sec) from progress increments
         try:
