@@ -1,11 +1,8 @@
 import os
 import time
 import threading
-import multiprocessing
 import subprocess
 import platform
-import json
-import sys
 from pathlib import Path
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
@@ -15,9 +12,8 @@ from pydrive2.drive import GoogleDrive
 DRIVE_SERVICE = None
 
 # Global mounting state
-MOUNT_STATE_FILE = ".mount_state.json"
+MOUNTED_FOLDERS = {}  # {folder_name: {"folder_id": id, "local_path": path, "listener_thread": thread, "stop_event": event}}
 MOUNT_BASE_PATH = Path("./drive/MyDrive")
-MOUNTED_FOLDERS = {} # In-memory cache of state file
 
 
 def get_drive_service():
@@ -61,34 +57,6 @@ def get_drive_service():
         print("  You may need to install pydrive2: pip install pydrive2")
         return None
 
-def save_mount_state():
-    """Saves the current state of mounted folders to a file."""
-    with open(MOUNT_STATE_FILE, "w") as f:
-        json.dump(MOUNTED_FOLDERS, f, indent=4)
-
-def load_mount_state():
-    """Loads the state of mounted folders from a file."""
-    global MOUNTED_FOLDERS
-    if not Path(MOUNT_STATE_FILE).exists():
-        MOUNTED_FOLDERS = {}
-        return
-
-    try:
-        with open(MOUNT_STATE_FILE, "r") as f:
-            loaded_state = json.load(f)
-            # Clean up any processes that are no longer running
-            for folder_name, info in list(loaded_state.items()):
-                pid = info.get("pid")
-                if pid:
-                    try:
-                        # Check if process exists
-                        os.kill(pid, 0)
-                    except OSError:
-                        print(f"  Cleaning up stale listener process for '{folder_name}' (PID: {pid})")
-                        del loaded_state[folder_name]
-            MOUNTED_FOLDERS = loaded_state
-    except (json.JSONDecodeError, IOError):
-        MOUNTED_FOLDERS = {}
 
 def download_drive_file(service, file_id, file_title):
     """Downloads a file from Google Drive using PyDrive2."""
@@ -372,7 +340,7 @@ def force_remove_file(file_path):
     return False
 
 
-def listen_for_changes(folder_id, local_path, folder_name):
+def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
     """
     Background thread that periodically checks for changes in the Drive folder
     and syncs them to the local path. Also detects local changes (additions,
@@ -380,9 +348,6 @@ def listen_for_changes(folder_id, local_path, folder_name):
     """
     print(f"🔊 Listener started for '{folder_name}'")
     
-    # Each process needs its own service object
-    service = get_drive_service()
-
     # Track files we've seen (file_id -> {"modified_time": time, "local_path": path, "title": name})
     known_files = {}
     # Track local files by their path (local_path -> file_id)
@@ -390,7 +355,7 @@ def listen_for_changes(folder_id, local_path, folder_name):
     
     check_interval = 10  # Check every 10 seconds
     
-    while True: # This process will be killed externally
+    while not stop_event.is_set():
         try:
             # Get all files in the folder (and subfolders)
             query = f"'{folder_id}' in parents and trashed=false"
@@ -518,8 +483,8 @@ def listen_for_changes(folder_id, local_path, folder_name):
         except Exception as e:
             print(f"  ⚠️ Listener error for '{folder_name}': {e}")
         
-        # Wait before next check
-        time.sleep(check_interval)
+        # Wait before next check (with ability to interrupt)
+        stop_event.wait(check_interval)
     
     print(f"🔇 Listener stopped for '{folder_name}'")
 
@@ -560,35 +525,22 @@ def mount_drive_folder(service, folder_name, folder_id=None):
         download_folder_recursive(service, folder_id, local_path)
         print(f"  ✅ Initial download complete!")
         
-        # --- Launch listener as a detached background process ---
-        python_executable = sys.executable
-        script_path = os.path.abspath(__file__)
-        
-        # Use subprocess.Popen to run the script in the background
-        # On Windows, DETACHED_PROCESS creates a new process without a console window.
-        # On Linux/macOS, start_new_session=True detaches it from the current terminal.
-        creation_flags = 0
-        preexec_fn = None
-        if platform.system() == "Windows":
-            creation_flags = subprocess.DETACHED_PROCESS
-        else: # Linux/macOS
-            preexec_fn = os.setsid
-
-        process = subprocess.Popen(
-            [python_executable, script_path, "--listen-folder", folder_name, "--folder-id", folder_id, "--local-path", str(local_path)],
-            creationflags=creation_flags,
-            preexec_fn=preexec_fn,
-            stdout=subprocess.DEVNULL, # Redirect stdout
-            stderr=subprocess.DEVNULL  # Redirect stderr
+        # Start listener thread
+        stop_event = threading.Event()
+        listener_thread = threading.Thread(
+            target=listen_for_changes,
+            args=(service, folder_id, local_path, folder_name, stop_event),
+            daemon=True
         )
+        listener_thread.start()
         
         # Store mount info
         MOUNTED_FOLDERS[folder_name] = {
             "folder_id": folder_id,
             "local_path": str(local_path),
-            "pid": process.pid
+            "listener_thread": listener_thread,
+            "stop_event": stop_event
         }
-        save_mount_state()
         
         print(f"\n✅ Successfully mounted '{folder_name}' to {local_path}")
         print(f"   Background sync is now active.")
@@ -606,8 +558,7 @@ def reactivate_listener(service, folder_name):
     """
     # Check if already active
     if folder_name in MOUNTED_FOLDERS:
-        pid = MOUNTED_FOLDERS[folder_name].get("pid")
-        if pid:
+        if MOUNTED_FOLDERS[folder_name]["listener_thread"].is_alive():
             print(f"⚠️  Listener for '{folder_name}' is already active.")
             return False
         else:
@@ -638,32 +589,22 @@ def reactivate_listener(service, folder_name):
         folder_id = file_list[0]["id"]
         print(f"  Found folder with ID: {folder_id}")
         
-        # --- Launch listener as a detached background process ---
-        python_executable = sys.executable
-        script_path = os.path.abspath(__file__)
-
-        creation_flags = 0
-        preexec_fn = None
-        if platform.system() == "Windows":
-            creation_flags = subprocess.DETACHED_PROCESS
-        else: # Linux/macOS
-            preexec_fn = os.setsid
-
-        process = subprocess.Popen(
-            [python_executable, script_path, "--listen-folder", folder_name, "--folder-id", folder_id, "--local-path", str(local_path)],
-            creationflags=creation_flags,
-            preexec_fn=preexec_fn,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+        # Start listener thread
+        stop_event = threading.Event()
+        listener_thread = threading.Thread(
+            target=listen_for_changes,
+            args=(service, folder_id, local_path, folder_name, stop_event),
+            daemon=True
         )
+        listener_thread.start()
         
         # Store mount info
         MOUNTED_FOLDERS[folder_name] = {
             "folder_id": folder_id,
             "local_path": str(local_path),
-            "pid": process.pid
+            "listener_thread": listener_thread,
+            "stop_event": stop_event
         }
-        save_mount_state()
         
         print(f"\n✅ Successfully reactivated listener for '{folder_name}'")
         print(f"   Local path: {local_path}")
@@ -723,20 +664,14 @@ def unmount_drive_folder(folder_name):
     try:
         mount_info = MOUNTED_FOLDERS[folder_name]
         
-        # Terminate the listener process
-        pid = mount_info.get("pid")
-        if pid:
-            print(f"  Stopping listener process for '{folder_name}' (PID: {pid})...")
-            try:
-                proc = multiprocessing.Process(pid=pid)
-                proc.terminate()
-                proc.join(timeout=5)
-            except Exception as e:
-                print(f"    Could not terminate process {pid}. It may already be stopped. Error: {e}")
+        # Signal the listener to stop
+        mount_info["stop_event"].set()
+        
+        # Wait for thread to finish (with timeout)
+        mount_info["listener_thread"].join(timeout=5)
         
         # Remove from mounted folders
         del MOUNTED_FOLDERS[folder_name]
-        save_mount_state()
         
         print(f"✅ Unmounted '{folder_name}'")
         print(f"   Local files remain at: {mount_info['local_path']}")
@@ -789,9 +724,6 @@ def show_mounted_folders():
     
     if not MOUNTED_FOLDERS:
         print("  No folders are currently mounted.")
-        # Also check the file in case the script was just started
-        if Path(MOUNT_STATE_FILE).exists():
-            print("  (Run 'Show Mounted Folders' to load state from disk)")
     else:
         for folder_name, info in MOUNTED_FOLDERS.items():
             status = "🟢 Active" if info["listener_thread"].is_alive() else "🔴 Stopped"
@@ -804,20 +736,18 @@ def show_mounted_folders():
 
 def main_menu():
     """Displays the main interactive menu for Google Drive utilities."""
-    load_mount_state() # Load state on startup
     while True:
         print("\n====== 📁 Google Drive Utility ======")
-        print("  [1] Browse & Download from Google Drive")
-        print("  [2] Upload a file to Google Drive")
-        print("  [3] Mount a Drive Folder (sync & watch)")
-        print("  [4] Unmount a Drive Folder")
-        print("  [5] Reactivate a Folder Listener")
+        print("  [1] Browse/Download from Google Drive")
+        print("  [2] Upload file to Google Drive")
+        print("  [3] Mount Drive Folder (sync & watch)")
+        print("  [4] Unmount Drive Folder")
+        print("  [5] Reactivate Folder Listener")
         print("  [6] Show Mounted Folders")
-        print("  [7] Stop all & Exit")
-        print("  [8] Exit (keep listeners running)")
+        print("  [7] Exit")
         print("=====================================")
 
-        choice = input("Enter your choice (1-8): ").strip()
+        choice = input("Enter your choice (1-7): ").strip()
 
         if choice == "1":
             drive_service = get_drive_service()
@@ -843,7 +773,6 @@ def main_menu():
                 reactivate_listener_interactive(drive_service)
 
         elif choice == "6":
-            load_mount_state() # Refresh state from disk
             show_mounted_folders()
 
         elif choice == "7":
@@ -851,36 +780,12 @@ def main_menu():
             print("\nStopping all folder listeners...")
             for folder_name in list(MOUNTED_FOLDERS.keys()):
                 unmount_drive_folder(folder_name)
-            print("All services stopped. Exiting. Goodbye! 👋")
-            break
-
-        elif choice == "8":
-            print("\nExiting menu. Background listeners will continue to run.")
-            print("To stop them, restart the script and select 'Stop all & Exit'.")
-            print("Goodbye! 👋")
+            print("Exiting. Goodbye! 👋")
             break
 
         else:
-            print("\nInvalid choice. Please enter a number between 1 and 8.")
+            print("\nInvalid choice. Please enter a number between 1 and 7.")
 
 
 if __name__ == "__main__":
-    # Check for listener-only mode
-    if "--listen-folder" in sys.argv:
-        try:
-            folder_name_index = sys.argv.index("--listen-folder") + 1
-            folder_id_index = sys.argv.index("--folder-id") + 1
-            local_path_index = sys.argv.index("--local-path") + 1
-
-            folder_name = sys.argv[folder_name_index]
-            folder_id = sys.argv[folder_id_index]
-            local_path = sys.argv[local_path_index]
-
-            # This call will run forever until the process is terminated
-            listen_for_changes(folder_id, local_path, folder_name)
-        except (ValueError, IndexError) as e:
-            # This will be written to a log file if output is redirected
-            print(f"Listener mode error: Missing or invalid arguments. {e}")
-    else:
-        # Run the interactive menu
-        main_menu()
+    main_menu()
