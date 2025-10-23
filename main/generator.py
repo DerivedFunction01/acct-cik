@@ -828,7 +828,10 @@ def generate_hedge_paragraph(
         if has_active_derivative:
             verb = random.choice(["currently", "actively", "presently", "now", "also", "primarily", ""]) + " " + verb
         else:
-            verb = random.choice(["in the past", ",from time to time, ", ""]) + " " + verb
+            if random.random() < 0.85: # may use
+                verb = random.choice(["in the past", ",from time to time, ", ""]) + " " + verb
+            else: # will not use
+                verb = random.choice(["does not", "will not", "does not plan to", "does not intend to", "has no plans to", "will not seek to"]) + " " + random.choice(hedge_use_verbs)
         sentences.append(
             beg_ctx_template.format(
                 company=pick_company_name(company_name),
