@@ -13,7 +13,7 @@ DRIVE_SERVICE = None
 MOUNTED_FOLDERS = (
     {}
 )  # {folder_name: {"folder_id": id, "local_path": path, "listener_thread": thread, "stop_event": event}}
-MOUNT_BASE_PATH = Path("/content/drive/MyDrive")
+MOUNT_BASE_PATH = Path("./drive/MyDrive")
 
 
 def get_drive_service():

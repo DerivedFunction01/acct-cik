@@ -30,7 +30,7 @@ class Config:
     sentences_dir: str = "labeled_sentences"
 
     # Google Colab / Drive settings
-    drive_path: str = "/content/drive/MyDrive/db"
+    drive_path: str = "./drive/MyDrive/db"
     is_colab: Optional[bool] = None
 
     # Model settings
