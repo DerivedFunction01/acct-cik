@@ -552,6 +552,7 @@ def generate_hedge_paragraph(
                 if random.random() < 0.5: # no notional amount if we pick a current year and not active
                     year = current_year 
                     notional = 0 
+                    labels["term"] = 0 # No active derivative amount/terminated
                 else: # If we pick a past year, we can have a notional amount
                     year = random.choice(past_years)
                     notional = generate_value(haveZero=False, lowerlimit=1)
@@ -616,8 +617,6 @@ def generate_hedge_paragraph(
 
     def expire_hedge(use_current_year=False) -> str:
         labels["hist"] = 1
-        # pick a random template from termination
-        labels["term"] = 1.0
         template = random.choice(hedge_termination_templates)
         term_year = random.choice(past_years) if not use_current_year else current_year 
         prev_year = term_year - 1
