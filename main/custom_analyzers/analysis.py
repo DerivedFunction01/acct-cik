@@ -78,7 +78,7 @@ class Config:
                 import subprocess
 
                 subprocess.run(f"cp {self.drive_path}/{self.db_path} .", shell=True)
-            drive_root = Path(self.drive_path).parent
+            drive_root = Path(self.drive_path)
             self.output_dir = drive_root / "analysis_output"
             print(f"💾 Setting output directory to Google Drive: {self.output_dir}")
         else:
