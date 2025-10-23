@@ -157,6 +157,23 @@ def check_nginx():
     return False
 
 
+def check_waitress():
+    """Checks if waitress is installed, which is needed for Windows."""
+    if shutil.which("waitress-serve") is not None:
+        return True
+
+    print("⚠️  'waitress-serve' command not found.")
+    install_prompt = (
+        input("   It's needed for Windows support. Install it now? (pip install waitress) [y/N]: ")
+        .lower()
+        .strip()
+    )
+    if install_prompt == "y":
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "waitress"])
+        return shutil.which("waitress-serve") is not None
+    return False
+
+
 def is_windows():
     """Check if the operating system is Windows."""
     return platform.system() == "Windows"
@@ -371,11 +388,41 @@ http {{
 
 def start_servers():
     """Starts the Gunicorn and Nginx servers."""
+    # --- Windows-Specific Handling ---
     if is_windows():
         print(
-            "❌ ERROR: Gunicorn is not supported on Windows. Please use WSL (Windows Subsystem for Linux)."
+            "ℹ️  Windows detected. Using 'waitress' server instead of Gunicorn/Nginx."
         )
-        return
+        if not check_waitress():
+            print("❌ Cannot start server on Windows without 'waitress'.")
+            return
+
+        model_available = pre_download_model()
+        gpu_ram_gb = get_gpu_ram()
+        save_cache(model_available, gpu_ram_gb)
+
+        server_env = os.environ.copy()
+        if gpu_ram_gb > 0:
+            print(f"🚀 Starting server in GPU mode on http://127.0.0.1:{NGINX_PORT}")
+            server_env["DEVICE_TYPE"] = "gpu"
+        else:
+            print(f"🚀 Starting server in CPU mode on http://127.0.0.1:{NGINX_PORT}")
+            server_env["DEVICE_TYPE"] = "cpu"
+
+        # Use waitress-serve on Windows. It runs in the foreground.
+        waitress_cmd = f"waitress-serve --host 127.0.0.1 --port {NGINX_PORT} {SERVER_SCRIPT}"
+        print("   To stop the server, press Ctrl+C in this window.")
+        try:
+            subprocess.run(waitress_cmd.split(), env=server_env)
+        except KeyboardInterrupt:
+            print("\n✅ Server stopped by user.")
+        except FileNotFoundError:
+            print("❌ 'waitress-serve' not found. Please run 'pip install waitress'.")
+        except Exception as e:
+            print(f"❌ An error occurred while running the server: {e}")
+        return  # End of Windows-specific logic
+
+    # --- Linux/macOS Handling ---
 
     # Check for Nginx before proceeding
     if not check_nginx():
@@ -442,10 +489,9 @@ def start_servers():
 
 def stop_servers():
     """Stops the Gunicorn and Nginx servers."""
+    # On Windows, the server runs in the foreground, so it's stopped with Ctrl+C.
     if is_windows():
-        print(
-            "❌ ERROR: This script cannot manage processes on Windows. Please stop them manually."
-        )
+        print("ℹ️  On Windows, the server runs in the foreground. To stop it, press Ctrl+C in the terminal where it is running.")
         return
 
     print("🛑 Stopping all services...")
