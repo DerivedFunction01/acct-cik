@@ -521,45 +521,63 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event):
             
             # Check for new local files (files that exist locally but not in Drive)
             local_folder = Path(local_path)
-            if local_folder.exists():
-                for local_file in local_folder.iterdir():
-                    local_file_str = str(local_file)
-                    file_name = local_file.name
-                    
-                    # Skip if already tracked or if it's a system file
-                    if local_file_str in local_to_drive or file_name.startswith('.'):
-                        continue
-                    
-                    # Skip if file exists in Drive with same name
-                    if file_name in drive_file_names:
-                        continue
-                    
+            if not local_folder.exists():
+                continue
+
+            # Use rglob to recursively find all files and directories
+            for local_item in local_folder.rglob('*'):
+                local_item_str = str(local_item)
+                item_name = local_item.name
+
+                # Skip if already tracked or if it's a system/state file
+                if local_item_str in local_to_drive or item_name.startswith('.'):
+                    continue
+
+                # Determine the parent folder ID for the upload
+                relative_path = local_item.relative_to(local_folder)
+                parent_path_str = str(local_folder / relative_path.parent)
+                parent_folder_id = local_to_drive.get(parent_path_str, folder_id)
+
+                if local_item.is_dir():
+                    # This is a new local directory - create it on Drive
+                    try:
+                        debug_print(f"  📤 Creating new remote directory: {item_name}")
+                        update_mount_state(folder_name, "SYNCING_UP", f"Creating directory {item_name}")
+                        folder_metadata = {
+                            "title": item_name,
+                            "mimeType": "application/vnd.google-apps.folder",
+                            "parents": [{"id": parent_folder_id}],
+                        }
+                        gfolder = service.CreateFile(folder_metadata)
+                        gfolder.Upload()
+                        
+                        # Add to tracking
+                        new_folder_id = gfolder["id"]
+                        known_files[new_folder_id] = {"modified_time": gfolder.get("modifiedDate", ""), "local_path": local_item_str, "title": item_name}
+                        local_to_drive[local_item_str] = new_folder_id
+                        debug_print(f"      Successfully created remote directory: {item_name}")
+                    except Exception as e:
+                        debug_print(f"      Failed to create remote directory {item_name}: {e}")
+
+                elif local_item.is_file():
                     # This is a new local file - upload it
-                    if local_file.is_file():
-                        try:
-                            debug_print(f"  📤 Uploading new local file to Drive: {file_name}")
-                            update_mount_state(folder_name, "SYNCING_UP", f"Uploading {file_name}")
-                            gfile = service.CreateFile(
-                                {"title": file_name, "parents": [{"id": folder_id}]}
-                            )
-                            gfile.SetContentFile(local_file_str)
-                            gfile.Upload()
-                            # Explicitly close the file handle to prevent locking issues
-                            if gfile.content:
-                                gfile.content.close()
-                            
-                            # Add to tracking
-                            new_file_id = gfile["id"]
-                            known_files[new_file_id] = {
-                                "modified_time": gfile.get("modifiedDate", ""),
-                                "local_path": local_file_str,
-                                "title": file_name
-                            }
-                            local_to_drive[local_file_str] = new_file_id
-                            debug_print(f"      Successfully uploaded: {file_name}")
-                        except Exception as e:
-                            debug_print(f"      Failed to upload {file_name}: {e}")
-            
+                    try:
+                        debug_print(f"  📤 Uploading new local file to Drive: {item_name}")
+                        update_mount_state(folder_name, "SYNCING_UP", f"Uploading {item_name}")
+                        gfile = service.CreateFile({"title": item_name, "parents": [{"id": parent_folder_id}]})
+                        gfile.SetContentFile(local_item_str)
+                        gfile.Upload()
+                        if gfile.content:
+                            gfile.content.close()
+                        
+                        # Add to tracking
+                        new_file_id = gfile["id"]
+                        known_files[new_file_id] = {"modified_time": gfile.get("modifiedDate", ""), "local_path": local_item_str, "title": item_name}
+                        local_to_drive[local_item_str] = new_file_id
+                        debug_print(f"      Successfully uploaded: {item_name}")
+                    except Exception as e:
+                        debug_print(f"      Failed to upload {item_name}: {e}")
+                    
         except Exception as e:
             print(f"  ⚠️ Listener error for '{folder_name}': {e}")
         
