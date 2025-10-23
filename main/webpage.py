@@ -58,7 +58,7 @@ def get_system_config():
 
     # Set worker counts based on CPU cores
     num_fetchers =  SEC_RATE  # I/O bound
-    num_parsers = cpu_cores  # CPU bound
+    num_parsers = cpu_cores - 1  if cpu_cores > 2 else  cpu_cores # CPU bound
 
     # Set CHUNK_SIZE based on RAM
     if ram_gb > 32:  # High-RAM machine
