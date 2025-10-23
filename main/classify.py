@@ -149,6 +149,8 @@ def create_db():
             CREATE INDEX IF NOT EXISTS url_idx ON server_result (url)
             """
         )
+        # WAL
+        c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError:
         debug_print("Something went wrong creating the database")
     finally:
