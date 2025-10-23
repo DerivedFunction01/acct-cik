@@ -20,7 +20,7 @@ if [ ! -d "$VENV_DIR" ]; then
   fi
 
   # Define packages
-  BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2"
+  BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn"
   ML_PACKAGES="torch scikit-learn datasets transformers accelerate"
 
   if [[ "$1" == "--ml" ]]; then
