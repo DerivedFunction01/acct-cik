@@ -105,8 +105,10 @@ def backup_monitor_thread(local_path, folder_name, stop_event):
 
             # Scan all files recursively
             for local_file in local_folder.rglob("*"):
-                # Skip directories and hidden/system files
-                if not local_file.is_file() or local_file.name.startswith("."):
+                # Skip directories, hidden/system files, and temporary files
+                if (not local_file.is_file()
+                    or local_file.name.startswith(".")
+                    or local_file.name.endswith(".tmp")):
                     continue
 
                 try:
