@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime
 import threading
 import subprocess
 import platform
@@ -1248,12 +1249,83 @@ def show_mounted_folders():
     print("------------------------------------")
 
 def toggle_debug_mode():
-    """Toggles the debug mode."""
+    """Toggles the debug mode with an interactive monitoring dashboard."""
     global DEBUG
     DEBUG = not DEBUG
     print(f"  Debug mode is now {'ON' if DEBUG else 'OFF'}")
-    while DEBUG: # If Debug is On, we will just sit here and see the debug log until we press a key
-        input("  Press Enter to continue...")
+    
+    if not DEBUG:
+        return
+    
+    while DEBUG:
+        try:
+            # Clear screen (cross-platform)
+            os.system('cls' if os.name == 'nt' else 'clear')
+            
+            # Header
+            print("\n=== 🔍 Drive Sync Monitor ===")
+            print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print("=" * 50)
+            
+            # Mounted Folders Status
+            print("\n📂 Mounted Folders:")
+            if not MOUNTED_FOLDERS:
+                print("  No folders currently mounted")
+            else:
+                for folder_name, info in MOUNTED_FOLDERS.items():
+                    drive_thread = info["listener_thread"]
+                    backup_thread = info.get("backup_thread")
+                    
+                    # Thread status indicators
+                    drive_status = "🟢" if drive_thread.is_alive() else "🔴"
+                    backup_status = "🟢" if backup_thread and backup_thread.is_alive() else "🔴"
+                    
+                    print(f"\n  📁 {folder_name}:")
+                    print(f"    Drive Sync Thread: {drive_status} {'Active' if drive_thread.is_alive() else 'Stopped'}")
+                    print(f"    Backup Thread:     {backup_status} {'Active' if backup_thread and backup_thread.is_alive() else 'Stopped'}")
+                    print(f"    Local Path:        {info['local_path']}")
+                    print(f"    Drive Folder ID:   {info['folder_id']}")
+                    
+                    # Count files in local directory
+                    try:
+                        local_path = Path(info['local_path'])
+                        file_count = sum(1 for _ in local_path.rglob('*') if _.is_file())
+                        print(f"    Files Watched:     {file_count}")
+                    except Exception:
+                        print("    Files Watched:     Unable to count")
+            
+            # Mount State Info
+            print("\n📊 Mount State:")
+            if STATE_FILE.exists():
+                try:
+                    with open(STATE_FILE, 'r') as f:
+                        state = json.load(f)
+                        for folder, status in state.items():
+                            status_icon = "🟢" if status.get('status') == 'IDLE' else "🔄"
+                            print(f"  {status_icon} {folder}: {status.get('status', 'Unknown')} - {status.get('status_message', '')}")
+                except Exception:
+                    print("  Unable to read mount state file")
+            else:
+                print("  No mount state file exists")
+            
+            # Backup Info
+            print(f"\n💾 Backup Location: {BACKUP_PATH}")
+            
+            print("\nPress Ctrl+C to exit debug mode, Enter to refresh...")
+            input()  # Wait for user input
+            
+        except KeyboardInterrupt:
+            DEBUG = False
+            print("\nExiting debug mode...")
+            break
+        except Exception as e:
+            print(f"\nError in debug display: {e}")
+            print("Press Enter to retry, Ctrl+C to exit...")
+            try:
+                input()
+            except KeyboardInterrupt:
+                DEBUG = False
+                break
         
 
 def main():
