@@ -104,6 +104,8 @@ amount_connectors = [
     "with fair market value of",
     "with net gains of",
     "with net gains totaling",
+    "with net loss of",
+    "with net losses totaling",
 ]
 
 # Amount patterns (order of amount vs swap)
