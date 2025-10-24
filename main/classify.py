@@ -598,7 +598,7 @@ if __name__ == "__main__":
                     subprocess.run(SAVE_SHELL_CMD, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
                 # If no reports were processed, wait before checking again.
-                wait_time = 60
+                wait_time = 60 * 5  # 5 minutes
                 print(f"\nNo new reports to process. Waiting for {wait_time} seconds...")
                 time.sleep(wait_time)
 
