@@ -436,7 +436,7 @@ def process_report_fully(report):
 # =============================================================================
 
 
-def process_reports_in_chunks(min_chunk_size: int = 1):
+def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
     """Process reports in chunks with periodic saves and statistics."""
     processed_set = get_processed_server_urls()
     
@@ -546,7 +546,7 @@ def process_reports_in_chunks(min_chunk_size: int = 1):
         )
     print("=" * 70)
 
-    return total_results
+    return total_results, len(chunks)
 
 
 # =============================================================================
@@ -588,12 +588,12 @@ if __name__ == "__main__":
 
             # The process_reports_in_chunks function already finds unprocessed reports.
             # It will return 0 if there's nothing new to process.
-            total_processed_in_run = process_reports_in_chunks(min_chunk_size=min_size_for_run)
+            total_processed_in_run, total_chunks = process_reports_in_chunks(min_chunk_size=min_size_for_run)
 
             if total_processed_in_run > 0:
                 print(f"\n✅ Run complete. Processed {total_processed_in_run} new reports.")
-                # Final save to Drive if in Colab after a successful run
-                if IS_COLAB:
+                # Final save to Drive if in Colab after a successful run, and avoid saving twice
+                if IS_COLAB and total_processed_in_run > 1: 
                     print("\nFinal database sync to Google Drive...")
                     subprocess.run(SAVE_SHELL_CMD, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
