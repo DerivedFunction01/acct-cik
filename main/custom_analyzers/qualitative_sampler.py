@@ -240,7 +240,7 @@ class QualitativeSampler(BaseAnalyzer):
                         # Create a list of 'label (score)' for those above threshold
                         for label, score in pred_vector.items():
                             try:
-                                if float(score) > self.config.confidence_threshold:
+                                if float(score) >= self.config.display_threshold:
                                     pred_labels.append(f"{label} ({float(score):.2f})")
                             except Exception:
                                 continue

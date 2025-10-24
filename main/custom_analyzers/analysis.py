@@ -35,6 +35,9 @@ class Config:
 
     # Model settings
     confidence_threshold: float = 0.65
+    soft_confidence_threshold: float = 0.50
+    termination_threshold: float = 0.80
+    display_threshold: float = 0.30 # For display purposes
 
     # Multi-label names (from training)
     labels: Optional[List[str]] = None
@@ -208,8 +211,8 @@ class LabelMapper:
         7. Context-only mentions
         8. Irrelevant
         """
-        threshold = getattr(self.config, "confidence_threshold", 0.45)
-        term_threshold = 0.7  # Higher threshold for termination flag
+        threshold = getattr(self.config, "confidence_threshold", 0.65)
+        term_threshold = getattr(self.config, "termination_threshold", 0.80)
 
         # Collect all labels with scores for prioritization
         all_labels = []  # (priority_rank, confidence, label_id)
