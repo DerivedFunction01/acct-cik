@@ -1779,7 +1779,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             ))
     
     # Add summary/total lines with more numbers
-    if random.random() < 0.7:
+    if random.random() < 0.25:
         total_template = random.choice(table_totals)
         line_item = random.choice(derivative_keywords.get(swapType, derivative_keywords['gen']))
         amount = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
