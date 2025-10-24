@@ -94,7 +94,7 @@ class URLAnalyzer:
             binary_labels = {
                 label: (
                     1
-                    if prob_dict.get(label, 0.0) >= self.config.confidence_threshold
+                    if prob_dict.get(label, 0.0) >= self.config.display_threshold
                     else 0
                 )
                 for label in self.config.labels
