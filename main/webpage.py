@@ -69,7 +69,7 @@ def get_system_config():
         chunk_multiplier = 2
     else:  # Low-RAM machine
         chunk_multiplier = 1
-    chunk_size = min(CHUNK_SIZE * chunk_multiplier * cpu_cores, 10000)
+    chunk_size = min(CHUNK_SIZE * chunk_multiplier * cpu_cores, 1000)
 
     # Adjust SEC rate limit based on the number of fetchers
     sec_rate_limit = num_fetchers / SEC_RATE
