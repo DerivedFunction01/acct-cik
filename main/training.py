@@ -173,6 +173,10 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     print(f"\nStarting training for {num_epochs} epochs with batch size {batch_size}...")
     trainer.train(resume_from_checkpoint=RESUME_FROM_CHECKPOINT)
 
+    # --- Save the best model explicitly ---
+    print("\n--- Saving final best model ---")
+    trainer.save_model(config['MODEL_PATH'])
+
     # --- Save and Push to Hub ---
     push_to_hub = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ")
     if push_to_hub.lower().strip() == 'y':
@@ -266,12 +270,15 @@ def upload_model():
     # --- Find available checkpoints ---
     checkpoints = sorted(
         [p for p in output_dir.glob("checkpoint-*") if p.is_dir()],
-        key=lambda p: int(re.search(r"(\d+)", str(p)).group(1)),
+        key=lambda p: int(re.search(r"(\d+)", str(p)).group(1)) if re.search(r"(\d+)", str(p)) else -1,
     )
 
     best_checkpoint_path, last_checkpoint_path = None, None
 
     # Find best checkpoint from trainer state
+    # The best model is now saved at the root of the output directory after training completes.
+    if (output_dir / "pytorch_model.bin").exists():
+        best_checkpoint_path = output_dir
     state_path = output_dir / "trainer_state.json"
     if state_path.exists():
         with open(state_path, "r") as f:
@@ -293,7 +300,7 @@ def upload_model():
     options = {}
     i = 1
     if best_checkpoint_path:
-        print(f"{i}. Best Checkpoint: {best_checkpoint_path.name} (Recommended)")
+        print(f"{i}. Best Model (from last training): {best_checkpoint_path.name} (Recommended)")
         options[str(i)] = best_checkpoint_path
         i += 1
     if last_checkpoint_path:
