@@ -29,6 +29,7 @@ DEBUG = False
 DEBUG_BUFFER = []
 DEBUG_BUFFER_SIZE = 1000
 DEBUG_BUFFER_LOCK = threading.Lock()
+DASHBOARD_MODE = False  # Flag to indicate if dashboard is active
 
 # ANSI escape codes for cursor movement and screen manipulation
 CURSOR_UP = '\033[A'
@@ -43,7 +44,7 @@ SHOW_CURSOR = '\033[?25h'
 
 
 def debug_print(*args, **kwargs):
-    """Prints only if the global DEBUG flag is set to True and stores in buffer."""
+    """Stores debug messages in buffer and prints only if not in dashboard mode."""
     if DEBUG:
         message = " ".join(str(arg) for arg in args)
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -55,7 +56,9 @@ def debug_print(*args, **kwargs):
             if len(DEBUG_BUFFER) > DEBUG_BUFFER_SIZE:
                 DEBUG_BUFFER.pop(0)
         
-        print(*args, **kwargs)
+        # Only print if not in dashboard mode
+        if not DASHBOARD_MODE:
+            print(*args, **kwargs)
 
 
 def load_config():
@@ -1274,8 +1277,9 @@ def show_mounted_folders():
 
 def toggle_debug_mode():
     """Toggles the debug mode with an interactive monitoring dashboard."""
-    global DEBUG
+    global DEBUG, DASHBOARD_MODE
     DEBUG = not DEBUG
+    DASHBOARD_MODE = DEBUG  # Enable dashboard mode when debug is on
     print(f"  Debug mode is now {'ON' if DEBUG else 'OFF'}")
     
     if not DEBUG:
@@ -1357,9 +1361,10 @@ def toggle_debug_mode():
             if current_time - last_full_refresh >= full_refresh_interval:
                 print(CLEAR_SCREEN + MOVE_TO_TOP)
                 
-                # Header
+                # Header with controls
                 write_at("=== 🔍 Drive Sync Monitor ===\n")
                 write_at(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                write_at("Controls: Ctrl+C to exit, Enter to force refresh\n")
                 write_at("=" * 50 + "\n")
                 
                 # Mounted Folders Status
@@ -1417,11 +1422,11 @@ def toggle_debug_mode():
                 last_debug_size = update_debug_log(last_debug_size)  # Only updates if there are new messages
                 last_refresh = current_time
                 
-                # Show controls at bottom
+                # Clear the bottom area
                 print(RESTORE_CURSOR, end='')
                 for _ in range(30):  # Move to bottom
                     print(CURSOR_DOWN, end='')
-                print(CLEAR_LINE + "Press Ctrl+C to exit debug mode, Enter to force refresh...")
+                print(CLEAR_LINE)  # Clear any previous text at the bottom
             
             # Check for user input (non-blocking)
             if os.name == 'nt':
