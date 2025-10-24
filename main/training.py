@@ -31,6 +31,8 @@ config = {
 }
 IS_AUTHENTICATED = False
 
+#%%
+
 def is_in_notebook():
     """Checks if the script is running in a notebook environment."""
     try:
@@ -44,6 +46,8 @@ def is_in_notebook():
             return False  # Other type (?)
     except NameError:
         return False      # Probably standard Python interpreter
+
+#%%
 
 labels = [
     "ir",
@@ -66,6 +70,8 @@ labels = [
 ]
 id2label = {i: label for i, label in enumerate(labels)}
 label2id = {label: i for i, label in enumerate(labels)}
+
+#%%
 
 def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     """Main function to run the training process with given parameters."""
@@ -176,6 +182,8 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     else:
         print(f"Skipping push to Hub. The model is saved locally in the '{config['MODEL_PATH']}' directory.")
 
+#%%
+
 def run_training_interactive():
     """Handles the interactive prompts for training configuration."""
     print("\n--- Model Training Configuration ---")
@@ -191,6 +199,8 @@ def run_training_interactive():
     num_epochs = int(input("Enter number of training epochs [default: 4]: ") or 4)
     batch_size = int(input("Enter training batch size [default: 8]: ") or 8)
     run_training(model_name, num_epochs, batch_size)
+
+#%%
 
 def edit_config():
     """Allows interactive editing of the script's configuration."""
@@ -216,6 +226,8 @@ def edit_config():
         except ValueError:
             print("Invalid input. Please enter a number or 'done'.")
 
+#%%
+
 def huggingface_auth():
     """Handles Hugging Face authentication."""
     global IS_AUTHENTICATED
@@ -232,6 +244,8 @@ def huggingface_auth():
         except Exception as e:
             print(f"❌ Authentication failed: {e}")
             IS_AUTHENTICATED = False
+
+#%%
 
 def upload_model():
     """Uploads a trained model from the local model path to the Hub."""
@@ -251,6 +265,8 @@ def upload_model():
     model.push_to_hub(f"{config['MODEL_USER']}/{config['MODEL_PATH']}", commit_message=commit_message)
     tokenizer.push_to_hub(f"{config['MODEL_USER']}/{config['MODEL_PATH']}", commit_message=commit_message)
     print(f"✅ Model successfully pushed to {config['MODEL_USER']}/{config['MODEL_PATH']}")
+
+#%%
 
 if __name__ == "__main__":
     if is_in_notebook():
