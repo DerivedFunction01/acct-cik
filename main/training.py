@@ -31,7 +31,7 @@ config = {
 }
 IS_AUTHENTICATED = False
 
-#%%
+# %%
 
 def is_in_notebook():
     """Checks if the script is running in a notebook environment."""
@@ -47,7 +47,7 @@ def is_in_notebook():
     except NameError:
         return False      # Probably standard Python interpreter
 
-#%%
+# %%
 
 labels = [
     "ir",
@@ -71,7 +71,7 @@ labels = [
 id2label = {i: label for i, label in enumerate(labels)}
 label2id = {label: i for i, label in enumerate(labels)}
 
-#%%
+# %%
 
 def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     """Main function to run the training process with given parameters."""
@@ -182,7 +182,7 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     else:
         print(f"Skipping push to Hub. The model is saved locally in the '{config['MODEL_PATH']}' directory.")
 
-#%%
+# %%
 
 def run_training_interactive():
     """Handles the interactive prompts for training configuration."""
@@ -200,7 +200,7 @@ def run_training_interactive():
     batch_size = int(input("Enter training batch size [default: 8]: ") or 8)
     run_training(model_name, num_epochs, batch_size)
 
-#%%
+# %%
 
 def edit_config():
     """Allows interactive editing of the script's configuration."""
@@ -226,7 +226,7 @@ def edit_config():
         except ValueError:
             print("Invalid input. Please enter a number or 'done'.")
 
-#%%
+# %%
 
 def huggingface_auth():
     """Handles Hugging Face authentication."""
@@ -245,7 +245,8 @@ def huggingface_auth():
             print(f"❌ Authentication failed: {e}")
             IS_AUTHENTICATED = False
 
-#%%
+# %%
+
 
 def upload_model():
     """Uploads a trained model from the local model path to the Hub."""
@@ -253,20 +254,87 @@ def upload_model():
         print("\n⚠️ Please authenticate with Hugging Face first (Option 3).")
         return
 
-    model_dir = Path(config['MODEL_PATH'])
-    if not model_dir.exists() or not (model_dir / "pytorch_model.bin").exists():
-        print(f"\n❌ Model not found in '{model_dir}'. Please train a model first.")
+    import re
+
+    output_dir = Path(config["MODEL_PATH"])
+    if not output_dir.exists():
+        print(
+            f"\n❌ Model directory not found at '{output_dir}'. Please train a model first."
+        )
         return
 
-    print(f"\n--- Uploading Model from '{model_dir}' ---")
-    commit_message = input("Enter a commit message for the upload: ")
-    model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
-    model.push_to_hub(f"{config['MODEL_USER']}/{config['MODEL_PATH']}", commit_message=commit_message)
-    tokenizer.push_to_hub(f"{config['MODEL_USER']}/{config['MODEL_PATH']}", commit_message=commit_message)
-    print(f"✅ Model successfully pushed to {config['MODEL_USER']}/{config['MODEL_PATH']}")
+    # --- Find available checkpoints ---
+    checkpoints = sorted(
+        [p for p in output_dir.glob("checkpoint-*") if p.is_dir()],
+        key=lambda p: int(re.search(r"(\d+)", str(p)).group(1)),
+    )
 
-#%%
+    best_checkpoint_path, last_checkpoint_path = None, None
+
+    # Find best checkpoint from trainer state
+    state_path = output_dir / "trainer_state.json"
+    if state_path.exists():
+        with open(state_path, "r") as f:
+            state = json.load(f)
+        best_path_str = state.get("best_model_checkpoint")
+        if best_path_str and Path(best_path_str).exists():
+            best_checkpoint_path = Path(best_path_str)
+
+    # Find last checkpoint by step number
+    if checkpoints:
+        last_checkpoint_path = checkpoints[-1]
+
+    if not checkpoints and not (output_dir / "pytorch_model.bin").exists():
+        print(f"\n❌ No trained model or checkpoints found in '{output_dir}'.")
+        return
+
+    # --- Interactive Selection ---
+    print("\n--- Select a Model to Upload ---")
+    options = {}
+    i = 1
+    if best_checkpoint_path:
+        print(f"{i}. Best Checkpoint: {best_checkpoint_path.name} (Recommended)")
+        options[str(i)] = best_checkpoint_path
+        i += 1
+    if last_checkpoint_path:
+        print(f"{i}. Last Checkpoint: {last_checkpoint_path.name}")
+        options[str(i)] = last_checkpoint_path
+        i += 1
+    print(f"{i}. Enter a specific checkpoint number")
+    options[str(i)] = "manual"
+
+    choice = input("> ").strip()
+    model_to_upload_path = options.get(choice)
+
+    if model_to_upload_path == "manual":
+        print(
+            "\nAvailable checkpoint numbers:",
+            ", ".join([re.search(r"(\d+)", c.name).group(1) for c in checkpoints]),
+        )
+        chkpt_num = input("Enter checkpoint number: ").strip()
+        model_to_upload_path = output_dir / f"checkpoint-{chkpt_num}"
+        if not model_to_upload_path.exists():
+            print(f"❌ Checkpoint '{model_to_upload_path.name}' not found.")
+            return
+
+    if not model_to_upload_path:
+        print("❌ Invalid selection.")
+        return
+
+    print(f"\n--- Uploading Model from '{model_to_upload_path}' ---")
+    commit_message = input("Enter a commit message for the upload: ")
+    try:
+        model = AutoModelForSequenceClassification.from_pretrained(model_to_upload_path)
+        tokenizer = AutoTokenizer.from_pretrained(model_to_upload_path)
+
+        repo_name = f"{config['MODEL_USER']}/{config['MODEL_PATH']}"
+        model.push_to_hub(repo_name, commit_message=commit_message)
+        tokenizer.push_to_hub(repo_name, commit_message=commit_message)
+        print(f"✅ Model successfully pushed to {repo_name}")
+    except Exception as e:
+        print(f"❌ An error occurred during upload: {e}")
+
+# %%
 
 if __name__ == "__main__":
     if is_in_notebook():
