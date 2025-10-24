@@ -592,10 +592,6 @@ if __name__ == "__main__":
 
             if total_processed_in_run > 0:
                 print(f"\n✅ Run complete. Processed {total_processed_in_run} new reports.")
-                # Final save to Drive if in Colab after a successful run, and avoid saving twice
-                if IS_COLAB and total_chunks > 1:
-                    print("\nFinal database sync to Google Drive...")
-                    subprocess.run(SAVE_SHELL_CMD, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
                 # If no reports were processed, wait before checking again.
                 wait_time = 60 * 5  # 5 minutes
