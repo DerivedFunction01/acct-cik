@@ -2,25 +2,32 @@
 set -e
 
 VENV_DIR="venv-acct-cik"
+TORCH_LOCK_FILE="$VENV_DIR/torch.lock"
 
-# --- Parse command-line arguments ---
+# --- Parse arguments ---
 REINSTALL=false
 BASE_ONLY=false
+INSTALL_ONLY=false
+REINSTALL_TORCH=false
 
 for arg in "$@"; do
   case $arg in
     --reinstall)
       REINSTALL=true
-      shift
       ;;
     --base)
       BASE_ONLY=true
-      shift
+      ;;
+    --install)
+      INSTALL_ONLY=true
+      ;;
+    --reinstall-torch)
+      REINSTALL_TORCH=true
       ;;
   esac
 done
 
-# --- Create virtual environment if needed ---
+# --- Create venv if needed ---
 if [ ! -d "$VENV_DIR" ]; then
   echo "Creating virtual environment '$VENV_DIR'..."
   if command -v python3 &> /dev/null; then
@@ -33,50 +40,55 @@ if [ ! -d "$VENV_DIR" ]; then
   fi
 else
   echo "Virtual environment '$VENV_DIR' already exists."
-  if [ "$REINSTALL" = true ]; then
-    echo "Reinstall flag detected — proceeding with package installation anyway."
-  else
-    echo "Skipping installation. Use --reinstall to force reinstallation."
+  if [ "$REINSTALL" = false ] && [ "$INSTALL_ONLY" = false ]; then
+    echo "Skipping package install. Use --install, --reinstall, or --reinstall-torch."
     exit 0
   fi
 fi
 
-# --- Activate the environment ---
+# --- Activate venv ---
 if [ -f "$VENV_DIR/Scripts/activate" ]; then
   source "$VENV_DIR/Scripts/activate"
 else
   source "$VENV_DIR/bin/activate"
 fi
 
-# --- Package lists ---
+# --- Packages ---
 BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn"
 ML_PACKAGES="scikit-learn datasets transformers accelerate IPython"
 
-# --- Detect GPU & CUDA ---
-if command -v nvidia-smi &> /dev/null; then
-  echo "NVIDIA GPU detected!"
-  CUDA_VERSION=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+')
-  echo "Detected CUDA version: $CUDA_VERSION"
+# --- Handle PyTorch (skip if locked unless --reinstall-torch) ---
+if [ -f "$TORCH_LOCK_FILE" ] && [ "$REINSTALL_TORCH" = false ]; then
+  echo "🧱 PyTorch is locked. Skipping reinstall."
+  echo "  (Run with --reinstall-torch to reinstall or upgrade)"
+else
+  echo "🔄 Installing or updating PyTorch..."
+  if command -v nvidia-smi &> /dev/null; then
+    echo "NVIDIA GPU detected."
+    CUDA_VERSION=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+')
+    echo "Detected CUDA version: $CUDA_VERSION"
 
-  if [[ "$CUDA_VERSION" == 12.4* ]]; then
-    CUDA_TAG="cu124"
-  elif [[ "$CUDA_VERSION" == 12.1* ]]; then
-    CUDA_TAG="cu121"
-  elif [[ "$CUDA_VERSION" == 11.* ]]; then
-    CUDA_TAG="cu118"
+    if [[ "$CUDA_VERSION" == 12.4* ]]; then
+      CUDA_TAG="cu124"
+    elif [[ "$CUDA_VERSION" == 12.1* ]]; then
+      CUDA_TAG="cu121"
+    elif [[ "$CUDA_VERSION" == 11.* ]]; then
+      CUDA_TAG="cu118"
+    else
+      echo "Unknown CUDA version ($CUDA_VERSION), defaulting to cu121"
+      CUDA_TAG="cu121"
+    fi
+
+    pip install torch==2.6.0+${CUDA_TAG} torchvision==0.21.0+${CUDA_TAG} torchaudio==2.6.0 \
+      --index-url https://download.pytorch.org/whl/${CUDA_TAG}
   else
-    echo "Unknown CUDA version ($CUDA_VERSION), defaulting to cu121"
-    CUDA_TAG="cu121"
+    echo "No NVIDIA GPU detected. Installing CPU-only PyTorch..."
+    pip install torch==2.6.0+cpu torchvision==0.21.0+cpu torchaudio==2.6.0 \
+      --index-url https://download.pytorch.org/whl/cpu
   fi
 
-  echo "Installing PyTorch 2.6.0 ($CUDA_TAG build)..."
-  pip install torch==2.6.0+${CUDA_TAG} torchvision==0.21.0+${CUDA_TAG} torchaudio==2.6.0 \
-    --index-url https://download.pytorch.org/whl/${CUDA_TAG}
-
-else
-  echo "No NVIDIA GPU detected. Installing CPU-only PyTorch 2.6.0..."
-  pip install torch==2.6.0+cpu torchvision==0.21.0+cpu torchaudio==2.6.0 \
-    --index-url https://download.pytorch.org/whl/cpu
+  echo "PyTorch $(python -c 'import torch; print(torch.__version__)') installed successfully."
+  echo "$(python -c 'import torch; print(torch.__version__)')" > "$TORCH_LOCK_FILE"
 fi
 
 # --- Install other packages ---
