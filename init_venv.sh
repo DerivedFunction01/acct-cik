@@ -3,7 +3,7 @@ set -e
 
 VENV_DIR="venv-acct-cik"
 
-# Create and set up the virtual environment only if it doesn't exist
+# --- Create and activate virtual environment ---
 if [ ! -d "$VENV_DIR" ]; then
   echo "Creating virtual environment '$VENV_DIR'..."
   if command -v python3 &> /dev/null; then
@@ -15,32 +15,46 @@ if [ ! -d "$VENV_DIR" ]; then
     exit 1
   fi
 
-  # Activate the new environment
   if [ -f "$VENV_DIR/Scripts/activate" ]; then
     source "$VENV_DIR/Scripts/activate"
   else
     source "$VENV_DIR/bin/activate"
   fi
 
-  # Define packages
+  # --- Base packages ---
   BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn"
   ML_PACKAGES="scikit-learn datasets transformers accelerate IPython"
 
-  # --- Detect NVIDIA GPU ---
+  # --- Detect NVIDIA GPU and CUDA version ---
   if command -v nvidia-smi &> /dev/null; then
-    echo "NVIDIA GPU detected! Installing CUDA-enabled PyTorch 2.6..."
-    # ⚙️ Adjust the CUDA version if needed: cu124, cu121, cu118, etc.
-    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
-      --index-url https://download.pytorch.org/whl/cu121
+    echo "NVIDIA GPU detected!"
+    CUDA_VERSION=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+')
+    echo "Detected CUDA version: $CUDA_VERSION"
+
+    if [[ "$CUDA_VERSION" == 12.4* ]]; then
+      CUDA_TAG="cu124"
+    elif [[ "$CUDA_VERSION" == 12.1* ]]; then
+      CUDA_TAG="cu121"
+    elif [[ "$CUDA_VERSION" == 11.* ]]; then
+      CUDA_TAG="cu118"
+    else
+      echo "Unknown CUDA version ($CUDA_VERSION), defaulting to cu121"
+      CUDA_TAG="cu121"
+    fi
+
+    echo "Installing PyTorch 2.6.0 ($CUDA_TAG build)..."
+    pip install torch==2.6.0+${CUDA_TAG} torchvision==0.21.0+${CUDA_TAG} torchaudio==2.6.0 \
+      --index-url https://download.pytorch.org/whl/${CUDA_TAG}
+
   else
-    echo "No NVIDIA GPU detected. Installing CPU-only PyTorch 2.6..."
-    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+    echo "No NVIDIA GPU detected. Installing CPU-only PyTorch 2.6.0..."
+    pip install torch==2.6.0+cpu torchvision==0.21.0+cpu torchaudio==2.6.0 \
       --index-url https://download.pytorch.org/whl/cpu
   fi
 
-  # Install other packages
+  # --- Install other packages ---
   if [[ "$1" == "--base" ]]; then
-    echo "Installing base packages for fetching only..."
+    echo "Installing base packages only..."
     pip install $BASE_PACKAGES
   else
     echo "Installing all packages (including ML)..."
