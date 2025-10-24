@@ -16,7 +16,9 @@ DRIVE_SERVICE = None
 # Global mounting state
 MOUNTED_FOLDERS = {}  # {folder_name: {"folder_id": id, "local_path": path, "listener_thread": thread, "stop_event": event}}
 MOUNT_BASE_PATH = Path("./drive/MyDrive")
+BACKUP_PATH = Path("./backup")  # Default path, will be loaded from config
 STATE_FILE = Path(".mount_state.json")
+CONFIG_FILE = Path(".drive_config.json")
 STATE_LOCK = threading.Lock()
 
 # Global debug flag
@@ -26,6 +28,36 @@ def debug_print(*args, **kwargs):
     """Prints only if the global DEBUG flag is set to True."""
     if DEBUG:
         print(*args, **kwargs)
+
+
+def load_config():
+    """Loads configuration from the JSON file, such as the backup path."""
+    global BACKUP_PATH
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                config_data = json.load(f)
+            
+            new_path = config_data.get("backup_path")
+            if new_path:
+                BACKUP_PATH = Path(new_path)
+                debug_print(f"  Loaded backup path from config: {BACKUP_PATH}")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"  ⚠️  Could not read config file, using defaults. Error: {e}")
+    else:
+        debug_print(f"  No config file found, using default backup path: {BACKUP_PATH}")
+
+
+def save_config():
+    """Saves the current configuration to the JSON file."""
+    config_data = {
+        "backup_path": str(BACKUP_PATH)
+    }
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(config_data, f, indent=4)
+    except IOError as e:
+        print(f"  ❌ Error saving config file: {e}")
 
 
 def update_mount_state(folder_name, status, message=""):
@@ -565,6 +597,19 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event, 
                             gfile.Upload()
                             if gfile.content: gfile.content.close()
 
+                            # --- Backup the changed file ---
+                            try:
+                                relative_path = local_file.relative_to(local_path)
+                                backup_dest = BACKUP_PATH / folder_name / relative_path
+                                backup_dest.parent.mkdir(parents=True, exist_ok=True)
+                                import shutil
+                                shutil.copy2(local_file, backup_dest)
+                                debug_print(f"      🗄️ Backed up to: {backup_dest}")
+                            except Exception as backup_e:
+                                print(f"      ⚠️ Backup failed for {local_file.name}: {backup_e}")
+                            # --- End of backup logic ---
+
+
                             # Update tracking info after successful upload
                             known_files[file_id]["modified_time"] = gfile.get("modifiedDate")
                             known_files[file_id]["local_mtime"] = current_mtime
@@ -920,6 +965,21 @@ def unmount_drive_folder_interactive():
     unmount_drive_folder(choice)
 
 
+def change_backup_path_interactive():
+    """Interactive interface for changing the backup path."""
+    global BACKUP_PATH
+    print("\n--- 💾 Change Backup Path ---")
+    print(f"  Current backup path: {BACKUP_PATH}")
+    new_path_str = input("  Enter new backup path (or leave blank to cancel): ").strip()
+
+    if new_path_str:
+        BACKUP_PATH = Path(new_path_str)
+        save_config()
+        print(f"  ✅ Backup path updated to: {BACKUP_PATH}")
+    else:
+        print("  Backup path change cancelled.")
+
+
 def show_mounted_folders():
     """Displays all currently mounted folders."""
     print("\n--- 📋 Currently Mounted Folders ---")
@@ -938,6 +998,9 @@ def show_mounted_folders():
 
 def main():
     """Displays the main interactive menu for Google Drive utilities."""
+    # Load configuration at startup
+    load_config()
+
     parser = argparse.ArgumentParser(description="Google Drive Utility with command-line support.")
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
@@ -1013,10 +1076,11 @@ def main():
             print("  [4] Unmount Drive Folder")
             print("  [5] Reactivate Folder Listener")
             print("  [6] Show Mounted Folders")
-            print("  [7] Exit")
+            print("  [7] Change Backup Path")
+            print("  [8] Exit")
             print("=====================================")
 
-            choice = input("Enter your choice (1-7): ").strip()
+            choice = input("Enter your choice (1-8): ").strip()
             drive_service = None # Reset service
 
             if choice in ["1", "2", "3", "5"]:
@@ -1029,7 +1093,8 @@ def main():
             elif choice == "4": unmount_drive_folder_interactive()
             elif choice == "5": reactivate_listener_interactive(drive_service)
             elif choice == "6": show_mounted_folders()
-            elif choice == "7":
+            elif choice == "7": change_backup_path_interactive()
+            elif choice == "8":
                 print("\nStopping all folder listeners...")
                 for folder_name in list(MOUNTED_FOLDERS.keys()):
                     unmount_drive_folder(folder_name)
@@ -1038,7 +1103,7 @@ def main():
                 print("Exiting. Goodbye! 👋")
                 break
             else:
-                print("\nInvalid choice. Please enter a number between 1 and 7.")
+                print("\nInvalid choice. Please enter a number between 1 and 8.")
 
 
 if __name__ == "__main__":
