@@ -260,7 +260,7 @@ def get_drive_service():
 
     try:
         debug_print("\n  Authenticating with Google Drive...")
-        gauth = GoogleAuth()
+        gauth = GoogleAuth(settings_file="drive.yaml")
         # Try to load saved credentials
         gauth.LoadCredentialsFile("mycreds.txt")
 
