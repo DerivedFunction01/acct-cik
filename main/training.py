@@ -49,7 +49,10 @@ def is_in_notebook():
 if is_in_notebook():
     notebook_login()
 else:
-    login()
+    print("Please paste your Hugging Face token below to log in.")
+    print("The token will be visible as you paste it.")
+    token = input("HF Token: ")
+    login(token=token.strip())
 
 labels = [
     "ir",
