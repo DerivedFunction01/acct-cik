@@ -69,12 +69,16 @@ def backup_file_threaded(local_file: Path, base_path: Path, folder_name: str):
     def do_backup():
         try:
             relative_path = local_file.relative_to(base_path)
-            backup_dest = BACKUP_PATH / folder_name / relative_path
-            backup_dest.parent.mkdir(parents=True, exist_ok=True)
-            import shutil
+            backup_dir = BACKUP_PATH / folder_name / relative_path.parent
+            backup_dir.mkdir(parents=True, exist_ok=True)
 
-            shutil.copy2(local_file, backup_dest)
-            debug_print(f"      🗄️  Backup successful: {backup_dest}")
+            temp_backup_dest = backup_dir / f".{local_file.name}.tmp"
+            final_backup_dest = backup_dir / local_file.name
+
+            import shutil
+            shutil.copy2(local_file, temp_backup_dest)
+            os.rename(temp_backup_dest, final_backup_dest) # Atomic operation on the same filesystem
+            debug_print(f"      🗄️  Backup successful: {final_backup_dest}")
         except Exception as backup_e:
             print(f"      ⚠️ Backup failed for {local_file.name}: {backup_e}")
 
