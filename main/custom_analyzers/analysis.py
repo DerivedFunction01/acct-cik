@@ -522,67 +522,65 @@ class PredictionsProcessor:
         """Check if prediction dictionary is valid"""
         return isinstance(prob_dict, dict) and "error" not in prob_dict
 
-    def _count_labels(self, predictions: List[dict]) -> Dict[str, int]:
-        """Count label occurrences across all predictions"""
-        label_counts = {label: 0 for label in self.config.labels}
+    def _get_sentence_flags(self, prob_dict: Dict[str, float]) -> Dict[str, bool]:
+        """
+        Determine active labels for a single sentence based on the confidence threshold.
+        """
+        flags = {label: False for label in self.config.labels}
+        if not self._is_valid_prediction(prob_dict):
+            return flags
+
+        for label in self.config.labels:
+            if prob_dict.get(label, 0.0) >= self.config.confidence_threshold:
+                flags[label] = True
+        return flags
+
+    def _determine_user_flags(self, predictions: List[dict]) -> Dict[str, int]:
+        """
+        Determine firm-year user flags by analyzing sentence-level predictions.
+        This allows for more granular logic, like associating 'term' with specific hedges.
+        """
+        # Initialize flags that will be aggregated across all sentences
+        firm_year_flags = {
+            "model_ir_user": 0,
+            "model_fx_user": 0,
+            "model_cp_user": 0,
+            "model_eq_user": 0,
+            "model_warr_user": 0,
+            "model_emb_user": 0,
+            "model_user": 0,
+            "model_user_all": 0,
+        }
+        
+        # Track if any use label is found for the "any_use" flag
+        any_use_found = False
 
         for prob_dict in predictions:
-            if not self._is_valid_prediction(prob_dict):
-                continue
+            sentence_flags = self._get_sentence_flags(prob_dict)
 
-            # Apply confidence threshold
-            for label in self.config.labels:
-                if prob_dict.get(label, 0.0) >= self.config.confidence_threshold:
-                    label_counts[label] += 1
+            # A sentence indicates "current use" if 'curr' is present and 'term' is not.
+            is_current_context = sentence_flags["curr"] and not sentence_flags["term"]
 
-        return label_counts
+            # Check for current hedge usage. Once a firm is flagged as a user, it stays flagged.
+            if is_current_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_user"] = 1
+            if is_current_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_user"] = 1
+            if is_current_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_user"] = 1
+            if is_current_context and sentence_flags["eq_use"]: firm_year_flags["model_eq_user"] = 1
+            if is_current_context and sentence_flags["warr"]: firm_year_flags["model_warr_user"] = 1
+            if is_current_context and sentence_flags["emb"]: firm_year_flags["model_emb_user"] = 1
 
-    def _determine_user_flags(self, label_counts: Dict[str, int]) -> Dict[str, int]:
-        """Determine user flags based on label counts"""
+            # Check for any derivative use (current or historic) for the 'model_user_all' flag
+            if not any_use_found:
+                if any(sentence_flags.get(use_label) for use_label in ["ir_use", "fx_use", "cp_use", "eq_use", "warr", "emb"]):
+                    any_use_found = True
 
-        # Helper to check if label exists with current context
-        def has_current_use(use_label: str) -> bool:
-            # A firm is a "current" user only if a `_use` label and a `curr` label are present,
-            # AND a `term` (termination) label is NOT present anywhere in the document.
-            # The presence of `term` overrides `curr` for the entire firm-year aggregation.
-            return (
-                label_counts.get(use_label, 0) > 0 and 
-                label_counts.get("curr", 0) > 0 and 
-                label_counts.get("term", 0) == 0
-            )
-
-        # Specific hedge types (must have current usage)
-        has_ir = has_current_use("ir_use")
-        has_fx = has_current_use("fx_use")
-        has_cp = has_current_use("cp_use")
-        has_eq = has_current_use("eq_use")
-        has_warr = label_counts.get("warr", 0) > 0 and label_counts.get("curr", 0) > 0
-        has_emb = label_counts.get("emb", 0) > 0 and label_counts.get("curr", 0) > 0
-
-        # Any use (current or historic)
-        any_use = any(
-            [
-                label_counts.get("ir_use", 0) > 0,
-                label_counts.get("fx_use", 0) > 0,
-                label_counts.get("cp_use", 0) > 0,
-                label_counts.get("eq_use", 0) > 0,
-                label_counts.get("warr", 0) > 0,
-                label_counts.get("emb", 0) > 0,
-            ]
+        # Set the final aggregated flags
+        firm_year_flags["model_user"] = int(
+            firm_year_flags["model_ir_user"] or firm_year_flags["model_fx_user"] or firm_year_flags["model_cp_user"]
         )
+        firm_year_flags["model_user_all"] = int(any_use_found)
 
-        return {
-            "model_ir_user": int(has_ir),
-            "model_fx_user": int(has_fx),
-            "model_cp_user": int(has_cp),
-            "model_eq_user": int(has_eq),
-            "model_warr_user": int(has_warr),
-            "model_emb_user": int(has_emb),
-            "model_user": int(
-                has_ir or has_fx or has_cp
-            ),  # Original: Any hedge (IR/FX/CP)
-            "model_user_all": int(any_use),  # All derivatives
-        }
+        return firm_year_flags
 
     def process_predictions(self, model_df: pd.DataFrame) -> pd.DataFrame:
         """Aggregate model predictions to firm-year level"""
@@ -600,11 +598,8 @@ class PredictionsProcessor:
                 skipped_count += 1
                 continue
 
-            # Count labels across all sentences
-            label_counts = self._count_labels(predictions)
-
-            # Determine user flags
-            user_flags = self._determine_user_flags(label_counts)
+            # Determine user flags by processing sentence-level predictions
+            user_flags = self._determine_user_flags(predictions)
 
             results.append(
                 {
