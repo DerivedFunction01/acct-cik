@@ -24,13 +24,26 @@ STATE_FILE = Path(".mount_state.json")
 CONFIG_FILE = Path(".drive_config.json")
 STATE_LOCK = threading.Lock()
 
-# Global debug flag
+# Global debug flag and log buffer
 DEBUG = False
+DEBUG_BUFFER = []
+DEBUG_BUFFER_SIZE = 1000
+DEBUG_BUFFER_LOCK = threading.Lock()
 
 
 def debug_print(*args, **kwargs):
-    """Prints only if the global DEBUG flag is set to True."""
+    """Prints only if the global DEBUG flag is set to True and stores in buffer."""
     if DEBUG:
+        message = " ".join(str(arg) for arg in args)
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log_entry = f"{timestamp} | {message}"
+        
+        # Add to circular buffer
+        with DEBUG_BUFFER_LOCK:
+            DEBUG_BUFFER.append(log_entry)
+            if len(DEBUG_BUFFER) > DEBUG_BUFFER_SIZE:
+                DEBUG_BUFFER.pop(0)
+        
         print(*args, **kwargs)
 
 
@@ -1256,63 +1269,103 @@ def toggle_debug_mode():
     
     if not DEBUG:
         return
+
+    import os
+    import time
+    import select
+    import sys
+    from datetime import datetime
+    
+    refresh_interval = 2.0  # Refresh every 2 seconds
+    last_refresh = 0
     
     while DEBUG:
         try:
-            # Clear screen (cross-platform)
-            os.system('cls' if os.name == 'nt' else 'clear')
+            current_time = time.time()
             
-            # Header
-            print("\n=== 🔍 Drive Sync Monitor ===")
-            print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print("=" * 50)
-            
-            # Mounted Folders Status
-            print("\n📂 Mounted Folders:")
-            if not MOUNTED_FOLDERS:
-                print("  No folders currently mounted")
-            else:
-                for folder_name, info in MOUNTED_FOLDERS.items():
-                    drive_thread = info["listener_thread"]
-                    backup_thread = info.get("backup_thread")
-                    
-                    # Thread status indicators
-                    drive_status = "🟢" if drive_thread.is_alive() else "🔴"
-                    backup_status = "🟢" if backup_thread and backup_thread.is_alive() else "🔴"
-                    
-                    print(f"\n  📁 {folder_name}:")
-                    print(f"    Drive Sync Thread: {drive_status} {'Active' if drive_thread.is_alive() else 'Stopped'}")
-                    print(f"    Backup Thread:     {backup_status} {'Active' if backup_thread and backup_thread.is_alive() else 'Stopped'}")
-                    print(f"    Local Path:        {info['local_path']}")
-                    print(f"    Drive Folder ID:   {info['folder_id']}")
-                    
-                    # Count files in local directory
+            # Auto refresh if interval has passed
+            if current_time - last_refresh >= refresh_interval:
+                # Clear screen (cross-platform)
+                os.system('cls' if os.name == 'nt' else 'clear')
+                
+                # Header
+                print("\n=== 🔍 Drive Sync Monitor ===")
+                current_datetime = datetime.now()
+                print(f"Time: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"Auto-refresh: Every {refresh_interval} seconds")
+                print("=" * 50)
+                
+                # Mounted Folders Status
+                print("\n📂 Mounted Folders:")
+                if not MOUNTED_FOLDERS:
+                    print("  No folders currently mounted")
+                else:
+                    for folder_name, info in MOUNTED_FOLDERS.items():
+                        drive_thread = info["listener_thread"]
+                        backup_thread = info.get("backup_thread")
+                        
+                        # Thread status indicators
+                        drive_status = "🟢" if drive_thread.is_alive() else "🔴"
+                        backup_status = "🟢" if backup_thread and backup_thread.is_alive() else "🔴"
+                        
+                        print(f"\n  📁 {folder_name}:")
+                        print(f"    Drive Sync Thread: {drive_status} {'Active' if drive_thread.is_alive() else 'Stopped'}")
+                        print(f"    Backup Thread:     {backup_status} {'Active' if backup_thread and backup_thread.is_alive() else 'Stopped'}")
+                        print(f"    Local Path:        {info['local_path']}")
+                        print(f"    Drive Folder ID:   {info['folder_id']}")
+                        
+                        # Count files in local directory
+                        try:
+                            local_path = Path(info['local_path'])
+                            file_count = sum(1 for _ in local_path.rglob('*') if _.is_file())
+                            print(f"    Files Watched:     {file_count}")
+                        except Exception:
+                            print("    Files Watched:     Unable to count")
+                
+                # Mount State Info
+                print("\n📊 Mount State:")
+                if STATE_FILE.exists():
                     try:
-                        local_path = Path(info['local_path'])
-                        file_count = sum(1 for _ in local_path.rglob('*') if _.is_file())
-                        print(f"    Files Watched:     {file_count}")
+                        with open(STATE_FILE, 'r') as f:
+                            state = json.load(f)
+                            for folder, status in state.items():
+                                status_icon = "🟢" if status.get('status') == 'IDLE' else "🔄"
+                                print(f"  {status_icon} {folder}: {status.get('status', 'Unknown')} - {status.get('status_message', '')}")
                     except Exception:
-                        print("    Files Watched:     Unable to count")
+                        print("  Unable to read mount state file")
+                else:
+                    print("  No mount state file exists")
+                
+                # Backup Info
+                print(f"\n💾 Backup Location: {BACKUP_PATH}")
+                
+                # Debug Log (last 10 messages)
+                print("\n📝 Recent Debug Messages:")
+                print("-" * 50)
+                with DEBUG_BUFFER_LOCK:
+                    start_idx = max(0, len(DEBUG_BUFFER) - 10)
+                    for log_entry in DEBUG_BUFFER[start_idx:]:
+                        print(f"  {log_entry}")
+                
+                last_refresh = current_time
+                
+                print(f"\nAuto-refresh in {refresh_interval - (time.time() - last_refresh):.1f}s")
+                print("Press Ctrl+C to exit debug mode, Enter to force refresh...")
             
-            # Mount State Info
-            print("\n📊 Mount State:")
-            if STATE_FILE.exists():
-                try:
-                    with open(STATE_FILE, 'r') as f:
-                        state = json.load(f)
-                        for folder, status in state.items():
-                            status_icon = "🟢" if status.get('status') == 'IDLE' else "🔄"
-                            print(f"  {status_icon} {folder}: {status.get('status', 'Unknown')} - {status.get('status_message', '')}")
-                except Exception:
-                    print("  Unable to read mount state file")
+            # Check for user input (non-blocking)
+            if os.name == 'nt':
+                import msvcrt
+                if msvcrt.kbhit():
+                    if msvcrt.getch() == b'\r':
+                        last_refresh = 0  # Force refresh
             else:
-                print("  No mount state file exists")
+                # Unix-like systems
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                if rlist:
+                    sys.stdin.readline()
+                    last_refresh = 0  # Force refresh
             
-            # Backup Info
-            print(f"\n💾 Backup Location: {BACKUP_PATH}")
-            
-            print("\nPress Ctrl+C to exit debug mode, Enter to refresh...")
-            input()  # Wait for user input
+            time.sleep(0.1)  # Prevent CPU overuse
             
         except KeyboardInterrupt:
             DEBUG = False
