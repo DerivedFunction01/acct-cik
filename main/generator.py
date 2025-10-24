@@ -1752,7 +1752,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         cat_lines = random.sample(derivative_keywords["gen"], k=random.randint(3, 5))
         
         # Add multiple line items with lots of numbers
-        num_lines = random.randint(4, 6)
+        num_lines = random.randint(2, 3)
         
         for _ in range(num_lines):
             template = random.choice(table_line_templates)
