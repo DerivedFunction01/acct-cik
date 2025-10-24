@@ -81,6 +81,12 @@ else
 
     pip install torch==2.6.0+${CUDA_TAG} torchvision==0.21.0+${CUDA_TAG} torchaudio==2.6.0 \
       --index-url https://download.pytorch.org/whl/${CUDA_TAG}
+    echo "✅ PyTorch with CUDA $CUDA_VERSION installed."
+  elif command -v rocm-smi &> /dev/null; then
+    echo "✅ AMD GPU with ROCm detected."
+    pip install torch==2.6.0+rocm6.1 torchvision==0.21.0+rocm6.1 torchaudio==2.6.0 \
+      --index-url https://download.pytorch.org/whl/rocm6.1
+    echo "✅ PyTorch with ROCm installed."
   else
     echo "No NVIDIA GPU detected. Installing CPU-only PyTorch..."
     pip install torch==2.6.0+cpu torchvision==0.21.0+cpu torchaudio==2.6.0 \
