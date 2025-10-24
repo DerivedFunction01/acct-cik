@@ -1247,6 +1247,14 @@ def show_mounted_folders():
 
     print("------------------------------------")
 
+def toggle_debug_mode():
+    """Toggles the debug mode."""
+    global DEBUG
+    DEBUG = not DEBUG
+    print(f"  Debug mode is now {'ON' if DEBUG else 'OFF'}")
+    while DEBUG: # If Debug is On, we will just sit here and see the debug log until we press a key
+        input("  Press Enter to continue...")
+        
 
 def main():
     """Displays the main interactive menu for Google Drive utilities."""
@@ -1351,7 +1359,8 @@ def main():
             print("  [5] Reactivate Folder Listener")
             print("  [6] Show Mounted Folders")
             print("  [7] Change Backup Path")
-            print("  [8] Exit")
+            print("  [8] Debug/Log Mode")
+            print("  [9] Exit")
             print("=====================================")
 
             choice = input("Enter your choice (1-8): ").strip()
@@ -1377,6 +1386,8 @@ def main():
             elif choice == "7":
                 change_backup_path_interactive()
             elif choice == "8":
+                toggle_debug_mode()
+            elif choice == "9":
                 print("\nStopping all folder listeners...")
                 for folder_name in list(MOUNTED_FOLDERS.keys()):
                     unmount_drive_folder(folder_name)
