@@ -22,18 +22,20 @@ if [ ! -d "$VENV_DIR" ]; then
     source "$VENV_DIR/bin/activate"
   fi
 
-
   # Define packages
   BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn"
   ML_PACKAGES="scikit-learn datasets transformers accelerate IPython"
 
   # --- Detect NVIDIA GPU ---
   if command -v nvidia-smi &> /dev/null; then
-    echo "NVIDIA GPU detected! Installing CUDA-enabled PyTorch..."
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    echo "NVIDIA GPU detected! Installing CUDA-enabled PyTorch 2.6..."
+    # ⚙️ Adjust the CUDA version if needed: cu124, cu121, cu118, etc.
+    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+      --index-url https://download.pytorch.org/whl/cu121
   else
-    echo "No NVIDIA GPU detected. Installing CPU-only PyTorch..."
-    pip install torch torchvision torchaudio
+    echo "No NVIDIA GPU detected. Installing CPU-only PyTorch 2.6..."
+    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+      --index-url https://download.pytorch.org/whl/cpu
   fi
 
   # Install other packages
