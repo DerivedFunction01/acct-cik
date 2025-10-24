@@ -614,6 +614,7 @@ def generate_hedge_paragraph(
             hedge_type=hedge_type,
             gain_loss=gain_loss,
             location=random.choice(balance_sheet_locations),
+            debt_type=random.choice(debt_types_list),
         )
         sentences.append(sentence)
 
