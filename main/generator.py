@@ -179,9 +179,9 @@ def get_primary_label(labels: dict) -> int:
     for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:  # prioritized order
         if labels.get(f"{hedge_type}_use"):
             curr_id, hist_id, spec_id, term_id = hedge_map[hedge_type]
-            if labels.get("term"):
+            if labels.get("term"):  
                 return term_id
-            if labels.get("curr"):
+            elif labels.get("curr"):
                 return curr_id
             if labels.get("hist"):
                 return hist_id
