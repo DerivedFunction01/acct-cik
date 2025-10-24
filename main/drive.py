@@ -772,8 +772,10 @@ def listen_for_changes(
                 local_item_str = str(local_item)
                 item_name = local_item.name
 
-                # Skip if already tracked or if it's a system/state file
-                if local_item_str in local_to_drive or item_name.startswith("."):
+                # Skip if already tracked, a system/state file, or a temporary file
+                if (local_item_str in local_to_drive
+                    or item_name.startswith(".")
+                    or item_name.endswith(".tmp")):
                     continue
 
                 # Determine the parent folder ID for the upload
