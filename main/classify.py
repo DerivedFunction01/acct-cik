@@ -451,7 +451,7 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
     # Check if the number of reports meets the minimum chunk size
     if total_reports < min_chunk_size:
         print(f"Skipping run: Found {total_reports} reports, which is less than the minimum of {min_chunk_size}.")
-        return 0
+        return 0, 0
 
     # Create chunks
     chunks = [
