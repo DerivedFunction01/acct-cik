@@ -16,11 +16,13 @@ from transformers import (
     Trainer,
     DataCollatorWithPadding,
 )
+from huggingface_hub import login, notebook_login
 import numpy as np
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 from transformers import EvalPrediction
 import json
 from pathlib import Path
+from IPython import get_ipython
 
 EXCEL_PATH = "./training_data.xlsx"
 MODEL_PATH = "derivative-classifier"
@@ -29,6 +31,25 @@ FINE_TUNE_MODEL = "ProsusAI/finbert"
 MODEL_NAME = f"{MODEL_USER}/{MODEL_PATH}" if not FINE_TUNE_MODEL else FINE_TUNE_MODEL
 KEYWORDS_FILE = "./keywords_find.json"
 RESUME_FROM_CHECKPOINT = Path(MODEL_PATH).exists()
+
+def is_in_notebook():
+    """Checks if the script is running in a notebook environment."""
+    try:
+        # Using get_ipython is more robust
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False      # Probably standard Python interpreter
+
+if is_in_notebook():
+    notebook_login()
+else:
+    login()
 
 labels = [
     "ir",
@@ -181,13 +202,12 @@ trainer.train(resume_from_checkpoint=RESUME_FROM_CHECKPOINT)  # resume_from_chec
 
 
 # %%
-# Save the model %pip install -U "huggingface_hub[cli]"
-## hf auth login
-## hf upload DerivedFunction/finbert-derivative-usage-classifier [folder-path]
-try:
-    from huggingface_hub import notebook_login
-    notebook_login()
-except:
-    print("Not in huggingface notebook environment")
-finally:
-    trainer.push_to_hub()
+# Save the model and push to the hub
+# Ask for confirmation before pushing to the hub
+push_to_hub = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ")
+if push_to_hub.lower().strip() == 'y':
+    print("Pushing model to the Hub...")
+    trainer.push_to_hub(commit_message="End of training")
+    print("Model pushed successfully!")
+else:
+    print(f"Skipping push to Hub. The model is saved locally in the '{MODEL_PATH}' directory.")
