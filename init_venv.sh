@@ -30,10 +30,10 @@ done
 # --- Create venv if needed ---
 if [ ! -d "$VENV_DIR" ]; then
   echo "Creating virtual environment '$VENV_DIR'..."
-  if command -v python3 &> /dev/null; then
-    python3 -m venv "$VENV_DIR"
-  elif command -v python &> /dev/null; then
+  if command -v python &> /dev/null; then
     python -m venv "$VENV_DIR"
+  elif command -v python3 &> /dev/null; then
+    python3 -m venv "$VENV_DIR"
   else
     echo "Error: Neither python3 nor python is available"
     exit 1
