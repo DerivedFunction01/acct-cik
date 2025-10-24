@@ -34,7 +34,7 @@ class Config:
     is_colab: Optional[bool] = None
 
     # Model settings
-    confidence_threshold: float = 0.45
+    confidence_threshold: float = 0.65
 
     # Multi-label names (from training)
     labels: Optional[List[str]] = None
