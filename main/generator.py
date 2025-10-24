@@ -1680,7 +1680,7 @@ def generate_noise_paragraph(
     paragraph = cleanup(all_sentences, reporting_year, fullCheck=False)
     return paragraph, labels, label
 
-def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), company_name=None):
+def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), company_name=None, use_case: str = 'current'):
     """
     Generate raw tabular text with lots of numbers (like table converted to text).
     Not meant to be cohesive narrative - mimics tabular data in text form.
@@ -1698,9 +1698,22 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     
     money_units = random.choice(money_unit_list)
     currency_code = random.choice(currency_codes)
-    current_year = random.randint(year_range[0], year_range[1])
-    reporting_year = current_year
-    prev_year = current_year - 1
+    
+    # Determine the primary year for the table content based on use_case
+    reporting_year = random.randint(year_range[0], year_range[1]) # Overall reporting year for the paragraph
+    
+    if use_case == 'current':
+        table_display_year = reporting_year
+        table_display_prev_year = reporting_year - 1
+    elif use_case == 'historical':
+        # For historical, pick a year from the past relative to the reporting_year
+        past_years_range = list(range(year_range[0], reporting_year))
+        table_display_year = random.choice(past_years_range) if past_years_range else reporting_year - 1
+        table_display_prev_year = table_display_year - 1
+    else: # Default or 'mixed'
+        table_display_year = reporting_year
+        table_display_prev_year = reporting_year - 1
+
     month = random.choice(months)
     end_day = random.randint(28, 31)
     
@@ -1723,22 +1736,25 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     lines = []
     
     # Table header (optional)
-    if random.random() < 0.5:
+    if use_case == 'current':
+        labels["curr"] = 1.0
+    elif use_case == 'historical':
+        labels["hist"] = 1.0
+    
+    if random.random() < 0.5: # Randomly include a header
         header = random.choice(table_headers).format(
             number=random.randint(1, 10),
             month=month,
             end_day=end_day,
-            year=current_year,
-            prev_year=prev_year,
+            year=table_display_year,
+            prev_year=table_display_prev_year,
             money_unit=money_units,
             currency_code=currency_code
         )
-        lines.append(header)
-        
-    # Set up initial labels  
-    labels["gen_use"] = 1.0
-    labels["gen"] = 1.0
-    labels["curr"] = 1.0  # Assume current use from table data
+        lines.append(header) # Add the header to the lines
+
+    labels["gen_use"] = 1.0 # Always assume some general use for tabular data
+    labels["gen"] = 1.0 # Always assume general context
 
     # Generate raw tabular lines for each swap type
     for swap in swap_types_to_use:
@@ -1752,14 +1768,14 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         cat_lines = random.sample(derivative_keywords["gen"], k=random.randint(3, 5))
         
         # Add multiple line items with lots of numbers
-        num_lines = random.randint(2, 3)
+        num_lines = random.randint(1, 2)
         
         for _ in range(num_lines):
             template = random.choice(table_line_templates)
             
             # Create a concatenated line item from random swap types
-            num_concat = random.randint(1, 3)
-            line_item = ", ".join(random.sample(cat_lines, k=min(num_concat, len(cat_lines))))
+            num_concat = random.randint(1, min(3, len(cat_lines)))
+            line_item = ", ".join(random.sample(cat_lines, k=num_concat))
             
             notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
             prev_notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
@@ -1767,9 +1783,9 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             amount2 = generate_value(haveZero=True, lowerlimit=10, upperlimit=5000)
             
             lines.append(template.format(
-                line_item=line_item,
-                year=current_year,
-                prev_year=prev_year,
+                line_item=line_item, # Use the generated line item
+                year=table_display_year, # Use the dynamically determined year
+                prev_year=table_display_prev_year, # Use the dynamically determined previous year
                 notional=notional,
                 prev_notional=prev_notional,
                 amount=amount,
@@ -1786,8 +1802,8 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         amount2 = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
         
         lines.append(total_template.format(
-            year=current_year,
-            prev_year=prev_year,
+            year=table_display_year, # Use the dynamically determined year
+            prev_year=table_display_prev_year, # Use the dynamically determined previous year
             amount=amount,
             line_item=line_item,
             amount2=amount2,
@@ -1795,7 +1811,11 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             currency_code=currency_code
         ))
     if random.random() < 0.5:
-        hedge_sentence, _, _ = generate_hedge_paragraph(True, swapType if swapType != 'mixed' else "gen", year_range=[current_year, current_year])
+        hedge_sentence, _, _ = generate_hedge_paragraph(
+            has_active_derivative=(use_case == 'current'), # Pass True if current, False if historical
+            swapType=swapType if swapType != 'mixed' else "gen",
+            year_range=[table_display_year, table_display_year] # Use the determined year
+        )
         # Remove the all text between < and >
         hedge_sentence = re.sub(r'<.*?>', '', hedge_sentence)
         hedge_sentence = hedge_sentence.strip()[:-1] # Ditch the period at the end
@@ -1956,10 +1976,11 @@ def generate(size_per_label=100):
         # Table text
         table_count = count  // 2 # Generate same amount as other categories
         table_types = ['ir', 'fx', 'cp', 'eq', 'gen', 'mixed']
+        table_use_cases = ['current', 'historical'] # Add use cases for tabular data
         for _ in range(table_count):
             for swap_type in table_types:
-                futures.append(executor.submit(generate_derivative_table_text, swapType=swap_type))
-
+                for use_case in table_use_cases:
+                    futures.append(executor.submit(generate_derivative_table_text, swapType=swap_type, use_case=use_case))
         # Noise table text
         noise_table_count = count * 2
         noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT', 'SUPPLY']
