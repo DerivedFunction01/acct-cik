@@ -101,6 +101,7 @@ amount_connectors = [
     "with a total of",
     "with fair value of",
     "with fair values totaling",
+    "with fair market value of",
 ]
 
 # Amount patterns (order of amount vs swap)
@@ -215,7 +216,8 @@ gen_specific_mitigation = [
     "to maintain a balanced risk position",
     "to manage enterprise-wide risk exposures",
     "to reduce volatility in consolidated financial results",
-    "to hedge against risk"
+    "to hedge against risk",
+    "as part of a risk management program"
 ]
 
 # Generic accounting reasons (shared across all hedge types)
@@ -285,6 +287,8 @@ ir_specific_mitigation = [
     "to manage variable interest rate exposure over a medium- to long-term period",
     "to manage variable interest rate exposure",
     "to manage interest costs by using a mix of fixed- and floating-rate debt",
+    "to reduce the interest rate risk associated with these borrowings",
+    "to reduce the interest rate risk associated with {debt_type}",
 ]
 
 # Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")
@@ -303,9 +307,11 @@ ir_specific_results = [
     "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {future_year}",
     "resulting in a decrease in interest expense of {currency_code}{notional} {money_unit}",
     "resulting in an increase in interest expense of {currency_code}{notional} {money_unit}",
-    "recognizing the gains and losses on derivative instruments as an adjustment to interest expense in the period the hedged interest payment affects earnings",
+    "recognizing the gains and losses on derivative instruments as an adjustment to interest expense",
     "reducing the potential impact of increases in interest rates on its interest-bearing liabilities",
+    "which effectively converts the variable rate debt into a fixed rate of debt",
 ]
+
 
 # Foreign Exchange (FX) specific accounting reasons
 # FX — general or policy intent ("to ...")
@@ -327,6 +333,7 @@ fx_specific_mitigation = [
     "to hedge intercompany transactions",
     "to hedge intercompany exposures",
     "to manage currency-denominated cash flows",
+    "to hedge receivables and payables for foreign currencies",
 ]
 
 # FX — realized / factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)

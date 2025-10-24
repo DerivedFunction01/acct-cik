@@ -1818,11 +1818,14 @@ def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_
     labels["irr"] = 1.0  # Mark as irrelevant for the hedge model
 
     # Define line item sources from other.py for different noise types
+    commod = commodities
+    commod.remove("commodity")
     line_item_sources = {
         "B_S": balance_sheet_list,
         "EQ": stock_list,
         "PPE": ppe_list,
         "DEBT": debt_types_list,
+        "SUPPLY": [f"{commodity} {suffix}" for commodity in random.sample(commod, k=10) for suffix in DEFAULT_SUFFIXES] # Create a random selection of commodoties + suffixes, such as natural gas agreement
     }
 
     if noise_type is None:
@@ -1959,7 +1962,7 @@ def generate(size_per_label=100):
 
         # Noise table text
         noise_table_count = count * 2
-        noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT']
+        noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT', 'SUPPLY']
         for _ in range(noise_table_count):
             futures.append(executor.submit(generate_noise_table_text, noise_type=random.choice(noise_table_types)))
                 
