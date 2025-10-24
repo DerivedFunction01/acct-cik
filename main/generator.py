@@ -1849,7 +1849,8 @@ def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_
 
     # Define line item sources from other.py for different noise types
     commod = commodities
-    commod.remove("commodity")
+    if "commodity" in commod:
+        commod.remove("commodity")
     line_item_sources = {
         "B_S": balance_sheet_list,
         "EQ": stock_list,
