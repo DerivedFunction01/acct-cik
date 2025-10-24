@@ -1301,12 +1301,15 @@ def toggle_debug_mode():
         else:
             print(text, end='', flush=True)
 
-    def update_time_section():
+    def update_time_section(time_line_number=2):
         """Update just the time section."""
-        print(RESTORE_CURSOR + CLEAR_LINE, end='')
+        # Move to the specific line where time is displayed
+        print(MOVE_TO_TOP, end='')
+        for _ in range(time_line_number):
+            print(CURSOR_DOWN, end='')
+        print(CLEAR_LINE, end='')
         current_datetime = datetime.now()
-        write_at(f"Time: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
-        print()  # New line after time
+        write_at(f"Time: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     def update_debug_log(last_size):
         """Update debug log section only if there are new messages.
@@ -1354,10 +1357,9 @@ def toggle_debug_mode():
             if current_time - last_full_refresh >= full_refresh_interval:
                 print(CLEAR_SCREEN + MOVE_TO_TOP)
                 
-                # Header (save position after header for time updates)
-                write_at("\n=== 🔍 Drive Sync Monitor ===\n", save_pos=True)
+                # Header
+                write_at("=== 🔍 Drive Sync Monitor ===\n")
                 write_at(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                write_at(f"Auto-refresh: Every {refresh_interval} seconds\n")
                 write_at("=" * 50 + "\n")
                 
                 # Mounted Folders Status
@@ -1415,11 +1417,10 @@ def toggle_debug_mode():
                 last_debug_size = update_debug_log(last_debug_size)  # Only updates if there are new messages
                 last_refresh = current_time
                 
-                # Update countdown
+                # Show controls at bottom
                 print(RESTORE_CURSOR, end='')
                 for _ in range(30):  # Move to bottom
                     print(CURSOR_DOWN, end='')
-                print(CLEAR_LINE + f"Auto-refresh in {refresh_interval - (time.time() - last_refresh):.1f}s")
                 print(CLEAR_LINE + "Press Ctrl+C to exit debug mode, Enter to force refresh...")
             
             # Check for user input (non-blocking)
