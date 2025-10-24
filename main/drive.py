@@ -968,14 +968,22 @@ def unmount_drive_folder_interactive():
 def change_backup_path_interactive():
     """Interactive interface for changing the backup path."""
     global BACKUP_PATH
+    # Ensure the current backup path exists for resolving
+    BACKUP_PATH.mkdir(parents=True, exist_ok=True)
+
     print("\n--- 💾 Change Backup Path ---")
-    print(f"  Current backup path: {BACKUP_PATH}")
-    new_path_str = input("  Enter new backup path (or leave blank to cancel): ").strip()
+    print(f"  Current backup path is: {BACKUP_PATH.resolve()}")
+    new_path_str = input("  Enter new path (e.g., H:/my_backups or ./backups) (leave blank to cancel): ").strip()
 
     if new_path_str:
-        BACKUP_PATH = Path(new_path_str)
-        save_config()
-        print(f"  ✅ Backup path updated to: {BACKUP_PATH}")
+        try:
+            new_path = Path(new_path_str)
+            new_path.mkdir(parents=True, exist_ok=True) # Create dir to ensure it's valid
+            BACKUP_PATH = new_path
+            save_config()
+            print(f"  ✅ Backup path updated. Files will be saved to: {BACKUP_PATH.resolve()}")
+        except Exception as e:
+            print(f"  ❌ Invalid path. Could not set backup location. Error: {e}")
     else:
         print("  Backup path change cancelled.")
 
