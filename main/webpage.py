@@ -43,8 +43,8 @@ NUM_THREADS = 5
 # COLAB CONFIGURATION
 # =============================================================================
 DRIVE_PATH = "./drive/MyDrive/db"
-LOAD_SHELL_CMD = f"cp {DRIVE_PATH}/{DB_PATH} ."
-SAVE_SHELL_CMD = f"cp {DB_PATH} {DRIVE_PATH}/{DB_PATH}.tmp && mv {DRIVE_PATH}/{DB_PATH}.tmp {DRIVE_PATH}/{DB_PATH}"
+LOAD_SHELL_CMD = f"cp -f {DRIVE_PATH}/{DB_PATH} ."
+SAVE_SHELL_CMD = f"cp -f {DB_PATH} {DRIVE_PATH}/{DB_PATH}.tmp && mv -f {DRIVE_PATH}/{DB_PATH}.tmp {DRIVE_PATH}/{DB_PATH}"
 IS_COLAB = Path(DRIVE_PATH).exists()
 
 # Auto-detect system capabilities

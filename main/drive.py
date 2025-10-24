@@ -77,7 +77,7 @@ def backup_file_threaded(local_file: Path, base_path: Path, folder_name: str):
 
             import shutil
             shutil.copy2(local_file, temp_backup_dest)
-            os.rename(temp_backup_dest, final_backup_dest) # Atomic operation on the same filesystem
+            os.replace(temp_backup_dest, final_backup_dest) # Atomic operation on the same filesystem
             debug_print(f"      🗄️  Backup successful: {final_backup_dest}")
         except Exception as backup_e:
             print(f"      ⚠️ Backup failed for {local_file.name}: {backup_e}")
