@@ -589,6 +589,19 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event, 
 
                         # Check for modification
                         if current_mtime > known_info.get("local_mtime", 0) or current_size != known_info.get("local_size", 0):
+                            # --- Backup the changed file ---
+                            try:
+                                relative_path = local_file.relative_to(local_path)
+                                backup_dest = BACKUP_PATH / folder_name / relative_path
+                                backup_dest.parent.mkdir(parents=True, exist_ok=True)
+                                import shutil
+                                debug_print(f"  💾 Backing up local modification: {local_file.name}")
+                                shutil.copy2(local_file, backup_dest)
+                                debug_print(f"      🗄️ Backed up to: {backup_dest}")
+                            except Exception as backup_e:
+                                print(f"      ⚠️ Backup failed for {local_file.name}: {backup_e}")
+                            # --- End of backup logic ---
+
                             debug_print(f"  📤 Syncing to Drive (local modification): {local_file.name}")
                             update_mount_state(folder_name, "SYNCING_UP", f"Uploading {local_file.name}")
 
@@ -596,19 +609,6 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event, 
                             gfile.SetContentFile(str(local_file))
                             gfile.Upload()
                             if gfile.content: gfile.content.close()
-
-                            # --- Backup the changed file ---
-                            try:
-                                relative_path = local_file.relative_to(local_path)
-                                backup_dest = BACKUP_PATH / folder_name / relative_path
-                                backup_dest.parent.mkdir(parents=True, exist_ok=True)
-                                import shutil
-                                shutil.copy2(local_file, backup_dest)
-                                debug_print(f"      🗄️ Backed up to: {backup_dest}")
-                            except Exception as backup_e:
-                                print(f"      ⚠️ Backup failed for {local_file.name}: {backup_e}")
-                            # --- End of backup logic ---
-
 
                             # Update tracking info after successful upload
                             known_files[file_id]["modified_time"] = gfile.get("modifiedDate")
