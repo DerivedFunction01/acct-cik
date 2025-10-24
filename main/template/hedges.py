@@ -700,16 +700,16 @@ dedesignation_actions = [
 ]
 
 # De-designation results (in addition to shared no_position_results)
-dedesignation_specific_results = [
-    "removing hedge accounting treatment for these instruments",
-    "discontinuing hedge accounting",
-    "with no hedge accounting applied at year-end",
-    "removing their hedge accounting status",
-    "ending their hedge accounting status",
-]
+# dedesignation_specific_results = [
+#     "removing hedge accounting treatment for these instruments",
+#     "discontinuing hedge accounting",
+#     "with no hedge accounting applied at year-end",
+#     "removing their hedge accounting status",
+#     "ending their hedge accounting status",
+# ]
 
 # All event results (combined settlement_results, no_position_results, dedesignation_specific_results)
-termination_event_results =  no_position_results + dedesignation_specific_results
+termination_event_results =  no_position_results # + dedesignation_specific_results
 
 # Templates for zero notional in current year vs. non-zero in prior years
 zero_current_vs_prior_notional_templates = [
