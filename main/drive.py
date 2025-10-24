@@ -30,6 +30,17 @@ DEBUG_BUFFER = []
 DEBUG_BUFFER_SIZE = 1000
 DEBUG_BUFFER_LOCK = threading.Lock()
 
+# ANSI escape codes for cursor movement and screen manipulation
+CURSOR_UP = '\033[A'
+CURSOR_DOWN = '\033[B'
+CLEAR_LINE = '\033[2K'
+SAVE_CURSOR = '\033[s'
+RESTORE_CURSOR = '\033[u'
+MOVE_TO_TOP = '\033[H'
+CLEAR_SCREEN = '\033[2J'
+HIDE_CURSOR = '\033[?25l'
+SHOW_CURSOR = '\033[?25h'
+
 
 def debug_print(*args, **kwargs):
     """Prints only if the global DEBUG flag is set to True and stores in buffer."""
@@ -1275,30 +1286,76 @@ def toggle_debug_mode():
     import select
     import sys
     from datetime import datetime
+
+    def enable_ansi_support():
+        """Enable ANSI escape sequence support for Windows."""
+        if os.name == 'nt':
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+
+    def write_at(text, save_pos=False):
+        """Write text and optionally save cursor position."""
+        if save_pos:
+            print(SAVE_CURSOR + text, end='', flush=True)
+        else:
+            print(text, end='', flush=True)
+
+    def update_time_section():
+        """Update just the time section."""
+        print(RESTORE_CURSOR + CLEAR_LINE, end='')
+        current_datetime = datetime.now()
+        write_at(f"Time: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
+        print()  # New line after time
+
+    def update_debug_log():
+        """Update just the debug log section."""
+        with DEBUG_BUFFER_LOCK:
+            start_idx = max(0, len(DEBUG_BUFFER) - 10)
+            logs = DEBUG_BUFFER[start_idx:]
+        
+        # Move to debug log section (saved position + offset)
+        print(RESTORE_CURSOR, end='')
+        for _ in range(20):  # Approximate number of lines to debug section
+            print(CURSOR_DOWN, end='')
+        
+        # Clear and rewrite debug logs
+        for _ in range(12):  # Clear area for logs (10 logs + header + separator)
+            print(CLEAR_LINE + CURSOR_DOWN, end='')
+        print(CURSOR_UP * 12, end='')  # Move back up
+        
+        print(CLEAR_LINE + "📝 Recent Debug Messages:")
+        print(CLEAR_LINE + "-" * 50)
+        for log_entry in logs:
+            print(CLEAR_LINE + f"  {log_entry}")
+
+    # Enable ANSI support and setup display
+    enable_ansi_support()
+    print(HIDE_CURSOR + CLEAR_SCREEN)  # Initial clear and hide cursor
     
     refresh_interval = 2.0  # Refresh every 2 seconds
     last_refresh = 0
+    full_refresh_interval = 10.0  # Full refresh every 10 seconds
+    last_full_refresh = 0
     
     while DEBUG:
         try:
             current_time = time.time()
             
-            # Auto refresh if interval has passed
-            if current_time - last_refresh >= refresh_interval:
-                # Clear screen (cross-platform)
-                os.system('cls' if os.name == 'nt' else 'clear')
+            # Full refresh periodically to prevent display corruption
+            if current_time - last_full_refresh >= full_refresh_interval:
+                print(CLEAR_SCREEN + MOVE_TO_TOP)
                 
-                # Header
-                print("\n=== 🔍 Drive Sync Monitor ===")
-                current_datetime = datetime.now()
-                print(f"Time: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
-                print(f"Auto-refresh: Every {refresh_interval} seconds")
-                print("=" * 50)
+                # Header (save position after header for time updates)
+                write_at("\n=== 🔍 Drive Sync Monitor ===\n", save_pos=True)
+                write_at(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                write_at(f"Auto-refresh: Every {refresh_interval} seconds\n")
+                write_at("=" * 50 + "\n")
                 
                 # Mounted Folders Status
-                print("\n📂 Mounted Folders:")
+                write_at("\n📂 Mounted Folders:\n")
                 if not MOUNTED_FOLDERS:
-                    print("  No folders currently mounted")
+                    write_at("  No folders currently mounted\n")
                 else:
                     for folder_name, info in MOUNTED_FOLDERS.items():
                         drive_thread = info["listener_thread"]
@@ -1308,49 +1365,54 @@ def toggle_debug_mode():
                         drive_status = "🟢" if drive_thread.is_alive() else "🔴"
                         backup_status = "🟢" if backup_thread and backup_thread.is_alive() else "🔴"
                         
-                        print(f"\n  📁 {folder_name}:")
-                        print(f"    Drive Sync Thread: {drive_status} {'Active' if drive_thread.is_alive() else 'Stopped'}")
-                        print(f"    Backup Thread:     {backup_status} {'Active' if backup_thread and backup_thread.is_alive() else 'Stopped'}")
-                        print(f"    Local Path:        {info['local_path']}")
-                        print(f"    Drive Folder ID:   {info['folder_id']}")
+                        write_at(f"\n  📁 {folder_name}:\n")
+                        write_at(f"    Drive Sync Thread: {drive_status} {'Active' if drive_thread.is_alive() else 'Stopped'}\n")
+                        write_at(f"    Backup Thread:     {backup_status} {'Active' if backup_thread and backup_thread.is_alive() else 'Stopped'}\n")
+                        write_at(f"    Local Path:        {info['local_path']}\n")
+                        write_at(f"    Drive Folder ID:   {info['folder_id']}\n")
                         
                         # Count files in local directory
                         try:
                             local_path = Path(info['local_path'])
                             file_count = sum(1 for _ in local_path.rglob('*') if _.is_file())
-                            print(f"    Files Watched:     {file_count}")
+                            write_at(f"    Files Watched:     {file_count}\n")
                         except Exception:
-                            print("    Files Watched:     Unable to count")
+                            write_at("    Files Watched:     Unable to count\n")
                 
                 # Mount State Info
-                print("\n📊 Mount State:")
+                write_at("\n📊 Mount State:\n")
                 if STATE_FILE.exists():
                     try:
                         with open(STATE_FILE, 'r') as f:
                             state = json.load(f)
                             for folder, status in state.items():
                                 status_icon = "🟢" if status.get('status') == 'IDLE' else "🔄"
-                                print(f"  {status_icon} {folder}: {status.get('status', 'Unknown')} - {status.get('status_message', '')}")
+                                write_at(f"  {status_icon} {folder}: {status.get('status', 'Unknown')} - {status.get('status_message', '')}\n")
                     except Exception:
-                        print("  Unable to read mount state file")
+                        write_at("  Unable to read mount state file\n")
                 else:
-                    print("  No mount state file exists")
+                    write_at("  No mount state file exists\n")
                 
                 # Backup Info
-                print(f"\n💾 Backup Location: {BACKUP_PATH}")
+                write_at(f"\n💾 Backup Location: {BACKUP_PATH}\n")
                 
-                # Debug Log (last 10 messages)
-                print("\n📝 Recent Debug Messages:")
-                print("-" * 50)
-                with DEBUG_BUFFER_LOCK:
-                    start_idx = max(0, len(DEBUG_BUFFER) - 10)
-                    for log_entry in DEBUG_BUFFER[start_idx:]:
-                        print(f"  {log_entry}")
+                # Initial debug log display
+                update_debug_log()
                 
+                last_full_refresh = current_time
+            
+            # Regular refresh for time and logs
+            if current_time - last_refresh >= refresh_interval:
+                update_time_section()
+                update_debug_log()
                 last_refresh = current_time
                 
-                print(f"\nAuto-refresh in {refresh_interval - (time.time() - last_refresh):.1f}s")
-                print("Press Ctrl+C to exit debug mode, Enter to force refresh...")
+                # Update countdown
+                print(RESTORE_CURSOR, end='')
+                for _ in range(30):  # Move to bottom
+                    print(CURSOR_DOWN, end='')
+                print(CLEAR_LINE + f"Auto-refresh in {refresh_interval - (time.time() - last_refresh):.1f}s")
+                print(CLEAR_LINE + "Press Ctrl+C to exit debug mode, Enter to force refresh...")
             
             # Check for user input (non-blocking)
             if os.name == 'nt':
@@ -1369,15 +1431,16 @@ def toggle_debug_mode():
             
         except KeyboardInterrupt:
             DEBUG = False
-            print("\nExiting debug mode...")
+            print(SHOW_CURSOR + "\nExiting debug mode...")
             break
         except Exception as e:
-            print(f"\nError in debug display: {e}")
+            print(SHOW_CURSOR + f"\nError in debug display: {e}")
             print("Press Enter to retry, Ctrl+C to exit...")
             try:
                 input()
             except KeyboardInterrupt:
                 DEBUG = False
+                print(SHOW_CURSOR)  # Ensure cursor is visible
                 break
         
 
