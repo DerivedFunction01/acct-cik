@@ -60,6 +60,23 @@ def save_config():
         print(f"  ❌ Error saving config file: {e}")
 
 
+def backup_file_threaded(local_file: Path, base_path: Path, folder_name: str):
+    """
+    Copies a file to the backup location in a separate thread.
+    """
+    def do_backup():
+        try:
+            relative_path = local_file.relative_to(base_path)
+            backup_dest = BACKUP_PATH / folder_name / relative_path
+            backup_dest.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy2(local_file, backup_dest)
+            debug_print(f"      🗄️  Backup successful: {backup_dest}")
+        except Exception as backup_e:
+            print(f"      ⚠️ Backup failed for {local_file.name}: {backup_e}")
+    threading.Thread(target=do_backup, daemon=True).start()
+
+
 def update_mount_state(folder_name, status, message=""):
     """Updates the status of a folder in the .mount_state.json file."""
     with STATE_LOCK:
@@ -589,18 +606,9 @@ def listen_for_changes(service, folder_id, local_path, folder_name, stop_event, 
 
                         # Check for modification
                         if current_mtime > known_info.get("local_mtime", 0) or current_size != known_info.get("local_size", 0):
-                            # --- Backup the changed file ---
-                            try:
-                                relative_path = local_file.relative_to(local_path)
-                                backup_dest = BACKUP_PATH / folder_name / relative_path
-                                backup_dest.parent.mkdir(parents=True, exist_ok=True)
-                                import shutil
-                                debug_print(f"  💾 Backing up local modification: {local_file.name}")
-                                shutil.copy2(local_file, backup_dest)
-                                debug_print(f"      🗄️ Backed up to: {backup_dest}")
-                            except Exception as backup_e:
-                                print(f"      ⚠️ Backup failed for {local_file.name}: {backup_e}")
-                            # --- End of backup logic ---
+                            # --- Asynchronously backup the changed file ---
+                            debug_print(f"  💾 Queuing backup for local modification: {local_file.name}")
+                            backup_file_threaded(local_file, Path(local_path), folder_name)
 
                             debug_print(f"  📤 Syncing to Drive (local modification): {local_file.name}")
                             update_mount_state(folder_name, "SYNCING_UP", f"Uploading {local_file.name}")
