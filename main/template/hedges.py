@@ -11,7 +11,7 @@ hedge_mitigation_verbs = ["attempt","seek","pursue","undertake"]
 hedge_may_mitigation_verbs = ["may attempt","may seek","may pursue","may undertake"]
 
 hedge_use_verbs = ["entered into", "executed", "utilized", "employed", "used", "had", "reported", "maintained", "committed", "implemented", 
-                   "applied", "engaged in", "pursued", "utilizes", "employs", "uses", "maintains", "has", "have", "applies", "reports", "is a party to", "recognizes", "recognize"]
+                   "applied", "engaged in", "pursued", "utilizes", "employs", "uses", "maintains", "has", "have", "applies", "reports", "is a party to", "recognizes", "recognize", "hedges with"]
 hedge_may_use_verbs = [ "may engage in", "may commit in", "may implement", "may enter into", "may utilize", "may employ", "may use", "may apply", "may have", "may pursue", "may be a party in" ]
 
 hedge_change_verbs = ["increase", "decrease", "affect", "impact", "change"]
