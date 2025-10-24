@@ -25,7 +25,7 @@ if [ ! -d "$VENV_DIR" ]; then
 
   # Define packages
   BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn"
-  ML_PACKAGES="scikit-learn datasets transformers accelerate"
+  ML_PACKAGES="scikit-learn datasets transformers accelerate IPython"
 
   # --- Detect NVIDIA GPU ---
   if command -v nvidia-smi &> /dev/null; then
