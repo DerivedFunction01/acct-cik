@@ -358,13 +358,22 @@ class QualitativeSampler(BaseAnalyzer):
         # Using Jinja2 for safer and cleaner template rendering
         from jinja2 import Template
         template = Template(self.html_template)
+
+        # Define temporary and final paths
+        temp_html_path = self.output_filename.with_suffix('.html.tmp')
+        temp_csv_path = self.sampled_urls_csv.with_suffix('.csv.tmp')
+
         # Pass reports as JSON to embed into the SPA template
         reports_json = json.dumps(reports_data, ensure_ascii=False)
         html_content = template.render(reports=reports_data, num_samples=len(reports_data), reports_json=reports_json)
 
-        # Save the HTML file
-        with open(self.output_filename, "w", encoding="utf-8") as f:
+        # Save the HTML file to a temporary location
+        with open(temp_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
+
+        # Atomically rename the temporary file to the final destination
+        import os
+        os.rename(temp_html_path, self.output_filename)
 
         print(f"   ✅ Qualitative sample saved to: {self.output_filename}")
 

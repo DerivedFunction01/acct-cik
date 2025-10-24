@@ -336,7 +336,14 @@ class AccuracySampler:
 
         output_path = self.config.output_dir / self.config.output_filename
         print(f"Saving sample to {output_path}...")
-        df.to_excel(output_path, index=False, engine="xlsxwriter")
+
+        # Write to a temporary file first
+        temp_output_path = output_path.with_suffix('.xlsx.tmp')
+        df.to_excel(temp_output_path, index=False, engine="xlsxwriter")
+
+        # Atomically rename the temp file to the final path
+        import os
+        os.rename(temp_output_path, output_path)
         print(f"✅ Sampled data saved successfully.")
 
     def _chunkify(self, data: list) -> List[list]:

@@ -221,6 +221,7 @@ class DisagreementSampler:
 
         # In-memory accumulators for each sheet
         sheet_accumulators = {}
+        sampled_sheets_data = {} # New: Store final sampled data for each sheet
         total_processed = 0
 
         pbar = tqdm(
@@ -272,20 +273,50 @@ class DisagreementSampler:
 
                     sheet_accumulators[sheet_name]["data"].append(group_df)
 
-                    # Flush if this sheet gets too large
-                    total_in_sheet = sum(
-                        len(df) for df in sheet_accumulators[sheet_name]["data"]
-                    )
-                    if total_in_sheet > 10000:
-                        self._flush_sheet(sheet_name, sheet_accumulators[sheet_name])
-                        sheet_accumulators[sheet_name]["data"] = []
-
-        # Flush remaining sheets
-        print("\n💾 Writing final batches to Excel workbook...")
+        # After processing all batches, perform the sampling and prepare for writing
+        print("\n🔬 Consolidating and sampling disagreement data...")
         for sheet_name, sheet_info in sheet_accumulators.items():
-            if sheet_info["data"]:
-                self._flush_sheet(sheet_name, sheet_info)
+            combined_df = pd.concat(sheet_info["data"], ignore_index=True)
+            if not combined_df.empty:
+                sample_df = combined_df.sample(
+                    n=min(len(combined_df), self.samples_per_category),
+                    random_state=self.random_state,
+                )
+                sampled_sheets_data[sheet_name] = {
+                    "data": sample_df,
+                    "info": sheet_info
+                }
 
+        # Now, write all sampled sheets to a single Excel file atomically
+        print("\n💾 Writing final sampled data to Excel workbook...")
+        output_path = self.config.output_dir / self.output_filename
+        temp_output_path = output_path.with_suffix('.xlsx.tmp')
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with pd.ExcelWriter(temp_output_path, engine="openpyxl") as writer:
+            for sheet_name, sheet_data in sampled_sheets_data.items():
+                sample_df = sheet_data["data"]
+                sheet_info = sheet_data["info"]
+                keyword_col = sheet_info["keyword_col"]
+                model_col = sheet_info["model_col"]
+                display_cols = [
+                    "cik", "year", "url", keyword_col, model_col, "relevant_sentences"
+                ]
+                display_cols = [c for c in display_cols if c in sample_df.columns]
+
+                sample_df[display_cols].to_excel(writer, sheet_name=sheet_name, index=False)
+
+                # Format columns
+                worksheet = writer.sheets[sheet_name]
+                worksheet.column_dimensions["A"].width = 10
+                worksheet.column_dimensions["B"].width = 10
+                worksheet.column_dimensions["C"].width = 60
+                worksheet.column_dimensions["D"].width = 15
+                worksheet.column_dimensions["E"].width = 15
+                worksheet.column_dimensions["F"].width = 100
+                print(f"  ✓ Prepared sheet: {sheet_name} ({len(sample_df)} samples)")
+
+        os.rename(temp_output_path, output_path)
         print(
             f"✅ Disagreement analysis complete ({total_processed:,} records processed)"
         )
@@ -320,59 +351,3 @@ class DisagreementSampler:
 
         # 3. Run the sampler with the disagreement data
         self._analyze_from_comparison(comparison_results["detailed"])
-
-    def _flush_sheet(self, sheet_name: str, sheet_info: Dict):
-        """Write a sheet's accumulated data to Excel"""
-        if not sheet_info["data"]:
-            return
-
-        dfs = sheet_info["data"]
-        combined_df = pd.concat(dfs, ignore_index=True)
-
-        if combined_df.empty:
-            return
-
-        # Sample from combined data
-        sample_df = combined_df.sample(
-            n=min(len(combined_df), self.samples_per_category),
-            random_state=self.random_state,
-        )
-
-        # Prepare columns for display
-        keyword_col = sheet_info["keyword_col"]
-        model_col = sheet_info["model_col"]
-        display_cols = [
-            "cik",
-            "year",
-            "url",
-            keyword_col,
-            model_col,
-            "relevant_sentences",
-        ]
-        display_cols = [c for c in display_cols if c in sample_df.columns]
-
-        output_path = self.config.output_dir / self.output_filename
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Use openpyxl for append mode, as xlsxwriter does not support it.
-        # Determine mode based on file existence.
-        mode = "a" if output_path.exists() else "w"
-
-        with pd.ExcelWriter(
-            output_path,
-            engine="openpyxl",
-            mode=mode,
-            if_sheet_exists="replace" if mode == "a" else None,
-        ) as writer:
-            sample_df[display_cols].to_excel(writer, sheet_name=sheet_name, index=False)
-
-            # Format columns using openpyxl's syntax
-            worksheet = writer.sheets[sheet_name]
-            worksheet.column_dimensions["A"].width = 10  # cik
-            worksheet.column_dimensions["B"].width = 10  # year
-            worksheet.column_dimensions["C"].width = 60  # url
-            worksheet.column_dimensions["D"].width = 15  # flag 1
-            worksheet.column_dimensions["E"].width = 15  # flag 2
-            worksheet.column_dimensions["F"].width = 100 # sentences
-
-        print(f"  ✓ {sheet_name} ({len(sample_df)} samples)")
