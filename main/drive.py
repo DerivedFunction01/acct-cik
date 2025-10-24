@@ -1308,8 +1308,13 @@ def toggle_debug_mode():
         write_at(f"Time: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
         print()  # New line after time
 
-    def update_debug_log():
-        """Update just the debug log section."""
+    def update_debug_log(last_size):
+        """Update debug log section only if there are new messages.
+        Returns the new buffer size."""
+        current_size = len(DEBUG_BUFFER)
+        if current_size == last_size:
+            return last_size
+            
         with DEBUG_BUFFER_LOCK:
             start_idx = max(0, len(DEBUG_BUFFER) - 10)
             logs = DEBUG_BUFFER[start_idx:]
@@ -1328,6 +1333,8 @@ def toggle_debug_mode():
         print(CLEAR_LINE + "-" * 50)
         for log_entry in logs:
             print(CLEAR_LINE + f"  {log_entry}")
+            
+        return current_size
 
     # Enable ANSI support and setup display
     enable_ansi_support()
@@ -1335,8 +1342,9 @@ def toggle_debug_mode():
     
     refresh_interval = 2.0  # Refresh every 2 seconds
     last_refresh = 0
-    full_refresh_interval = 10.0  # Full refresh every 10 seconds
+    full_refresh_interval = 30.0  # Full refresh every 30 seconds
     last_full_refresh = 0
+    last_debug_size = 0  # Track size of debug buffer
     
     while DEBUG:
         try:
@@ -1397,14 +1405,14 @@ def toggle_debug_mode():
                 write_at(f"\n💾 Backup Location: {BACKUP_PATH}\n")
                 
                 # Initial debug log display
-                update_debug_log()
+                last_debug_size = update_debug_log(0)  # Force full update on initial display
                 
                 last_full_refresh = current_time
             
             # Regular refresh for time and logs
             if current_time - last_refresh >= refresh_interval:
                 update_time_section()
-                update_debug_log()
+                last_debug_size = update_debug_log(last_debug_size)  # Only updates if there are new messages
                 last_refresh = current_time
                 
                 # Update countdown
