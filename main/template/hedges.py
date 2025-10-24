@@ -11,7 +11,7 @@ hedge_mitigation_verbs = ["attempt","seek","pursue","undertake"]
 hedge_may_mitigation_verbs = ["may attempt","may seek","may pursue","may undertake"]
 
 hedge_use_verbs = ["entered into", "executed", "utilized", "employed", "used", "had", "reported", "maintained", "committed", "implemented", 
-                   "applied", "engaged in", "pursued", "utilizes", "employs", "uses", "maintains", "has", "have", "applies", "reports", "is a party to"]
+                   "applied", "engaged in", "pursued", "utilizes", "employs", "uses", "maintains", "has", "have", "applies", "reports", "is a party to", "recognizes", "recognize"]
 hedge_may_use_verbs = [ "may engage in", "may commit in", "may implement", "may enter into", "may utilize", "may employ", "may use", "may apply", "may have", "may pursue", "may be a party in" ]
 
 hedge_change_verbs = ["increase", "decrease", "affect", "impact", "change"]
@@ -102,6 +102,8 @@ amount_connectors = [
     "with fair value of",
     "with fair values totaling",
     "with fair market value of",
+    "with net gains of",
+    "with net gains totaling",
 ]
 
 # Amount patterns (order of amount vs swap)
@@ -301,6 +303,7 @@ ir_specific_results = [
     "with quarterly settlements based on the differential between fixed and floating rates on notional amounts",
     "with quarterly net settlements calculated on agreed notional principal amounts",
     "scheduled to expire in {month} {future_year}",
+    "for the outstanding amount under the {debt_type} at approximately {pct}% rate"
     "to hedge debt obligations, with an initial notional of {currency_code}{old_notional} {money_unit}, maturing in {future_year}",
     "which carry notional amounts of {currency_code}{old_notional} {money_unit} and terminate in {future_year}",
     "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {month} {future_year}",

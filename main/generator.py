@@ -848,6 +848,7 @@ def generate_hedge_paragraph(
                 verb=verb,
                 swap_type=swaps,
                 commodity=selected_cps,
+                debt_type=random.choice(debt_types_list),
             )
         )
         # If we don't have an active derivative, add a no such outstanding sentence
