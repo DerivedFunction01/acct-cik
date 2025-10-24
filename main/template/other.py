@@ -520,7 +520,7 @@ debt_templates = [
     "During {year}, {company} repaid {currency_code}{amount} {money_unit} of its outstanding {debt_type} prior to maturity",
     "{company} repaid {currency_code}{amount} {money_unit} of outstanding {debt_type} during {year} using cash from operations",
     "In {year}, {company} refinanced {currency_code}{amount} {money_unit} of existing {debt_type} at interest rate of {pct}%, extending the maturity to {maturity_year}",
-    "The notional amount on the {debt_type} reduces monthly from approximately {currency_code}{amount} {money_unit} at {month} {end_day}, {year} to {currency_code}{amount2} {money_unit} prior to expiration of the agreement",    
+    "The notional amount on the {debt_type} reduces monthly from approximately {currency_code}{amount} {money_unit} at {month} {end_day}, {year} to {currency_code}{amount2} {money_unit} prior to expiration of the agreement",
     "The {debt_type} has a principal amount of {currency_code}{amount} {money_unit} and matures in {maturity_year}",
     # Interest rate and maturity details
     "As of year-end {year}, {company} {verb} total {debt_type} of {currency_code}{amount} {money_unit}, {currency_code}{amount2} {money_unit} of which was fixed rate debt with a weighted average interest rate of {pct}% to {pct2}%",
@@ -536,6 +536,7 @@ debt_templates = [
     "In {year}, {company} retired {currency_code}{amount} {money_unit} of {debt_type} upon maturity",
     "At {month} {end_day}, {year}, unamortized debt issuance costs related to {debt_type} totaled {currency_code}{amount} {money_unit}",
     "The fair value of {company}'s {debt_type} was estimated at {currency_code}{amount2} {money_unit} as of {month} {end_day}, {year}",
+    "{company}'s {debt_type} which is subject to a floating rate of interest and is not hedged by {swap_type} is valued at {currency_code}{amount} {money_unit} at {month} {end_day}, {year}",
 ]
 
 debt_types_list = [
@@ -3324,4 +3325,3 @@ ppe_list = [
     "electrical systems",
     "lighting fixtures",
 ]
-

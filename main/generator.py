@@ -420,6 +420,7 @@ def generate_hedge_paragraph(
                 "{short_int2}": str(random.randint(60, 270)),
                 "{hedge_type}": hedge_type,
                 "{verb}": random.choice(hedge_use_verbs),
+                "{swap_type}": random.choice(swap_types)
             }
 
             sentence = template
@@ -827,7 +828,7 @@ def generate_hedge_paragraph(
             verb = random.choice(["currently", "actively", "presently", "now", "also", "primarily", ""]) + " " + verb
         else:
             if random.random() < 0.85: # may use
-                verb = random.choice(["in the past", ",from time to time, ", "periodically", ""]) + " " + verb
+                verb = random.choice(["in the past", ", from time to time, ", "periodically", "occasionally", ", in the future,", ""]) + " " + verb
             else: # will not use
                 verb = random.choice(["does not", "will not", "does not plan to", "does not intend to", "has no plans to", "will not seek to"]) + " " + random.choice(hedge_use_verbs)
         sentences.append(
@@ -836,6 +837,7 @@ def generate_hedge_paragraph(
                 verb=verb,
                 swap_type=swaps,
                 commodity=selected_cps,
+                debt_type=random.choice(debt_types_list),
             )
         )
         # mitigation template
@@ -1495,6 +1497,12 @@ def generate_noise_paragraph(
         sentences.append(sentence)
         return sentences
 
+    # swaps setup
+    if noise_type in ["eq", "cp", "ir", "fx"]:
+        swap_type = random.choice(derivative_keywords[noise_type])
+    else:
+        swap_type = random.choice(derivative_keywords["gen"])
+    
     template_pool = []
     all_sentences = []
     if noise_type == "eq" or noise_type == "warr":  # ex. equity, warrant, stock
@@ -1583,6 +1591,7 @@ def generate_noise_paragraph(
         "{commodities}": selected_cps,
         "{vesting_period}": random.choice(vesting_periods),
         "{perq_type}": random.choice(perq_types),
+        "{swap_type}": swap_type,
 
         # Balance sheet and financial reasons
         "{bs_reason}": random.choice(balance_sheet_reasons),
