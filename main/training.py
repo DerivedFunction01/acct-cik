@@ -24,13 +24,12 @@ import json
 from pathlib import Path
 from IPython import get_ipython
 
-EXCEL_PATH = "./training_data.xlsx"
-MODEL_PATH = "derivative-classifier"
-MODEL_USER = "DerivedFunction"
-FINE_TUNE_MODEL = "ProsusAI/finbert"
-MODEL_NAME = f"{MODEL_USER}/{MODEL_PATH}" if not FINE_TUNE_MODEL else FINE_TUNE_MODEL
-KEYWORDS_FILE = "./keywords_find.json"
-RESUME_FROM_CHECKPOINT = Path(MODEL_PATH).exists()
+config = {
+    "EXCEL_PATH": "./training_data.xlsx",
+    "MODEL_PATH": "derivative-classifier",
+    "MODEL_USER": "DerivedFunction",
+}
+IS_AUTHENTICATED = False
 
 def is_in_notebook():
     """Checks if the script is running in a notebook environment."""
@@ -45,14 +44,6 @@ def is_in_notebook():
             return False  # Other type (?)
     except NameError:
         return False      # Probably standard Python interpreter
-
-if is_in_notebook():
-    notebook_login()
-else:
-    print("Please paste your Hugging Face token below to log in.")
-    print("The token will be visible as you paste it.")
-    token = input("HF Token: ")
-    login(token=token.strip())
 
 labels = [
     "ir",
@@ -76,141 +67,218 @@ labels = [
 id2label = {i: label for i, label in enumerate(labels)}
 label2id = {label: i for i, label in enumerate(labels)}
 
-# %%
-# Load and preprocess data
-df = pd.read_excel(EXCEL_PATH)
-df.dropna(subset=["sentence", "labels"], inplace=True)
+def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
+    """Main function to run the training process with given parameters."""
+    MODEL_NAME = model_name
+    RESUME_FROM_CHECKPOINT = Path(config['MODEL_PATH']).exists()
+    print(f"\n--- Starting Training ---")
+    print(f"Model: {MODEL_NAME}, Epochs: {num_epochs}, Batch Size: {batch_size}")
 
+    # --- Load and preprocess data ---
+    print("\n--- Loading and Preprocessing Data ---")
+    df = pd.read_excel(config['EXCEL_PATH'])
+    df.dropna(subset=["sentence", "labels"], inplace=True)
 
-def format_labels(row):
-    label_dict = json.loads(row["labels"])
-    return [label_dict.get(label, 0) for label in labels]
+    def format_labels(row):
+        label_dict = json.loads(row["labels"])
+        return [label_dict.get(label, 0) for label in labels]
 
+    df["labels"] = df.apply(format_labels, axis=1)
+    train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
+    train_dataset = Dataset.from_pandas(train_df)
+    val_dataset = Dataset.from_pandas(val_df)
 
-df["labels"] = df.apply(format_labels, axis=1)
-train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
-train_dataset = Dataset.from_pandas(train_df)
-val_dataset = Dataset.from_pandas(val_df)
+    # --- Tokenization ---
+    print("Tokenizing dataset...")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    def tokenize_function(examples):
+        tokenized_input = tokenizer(examples["sentence"], truncation=True, max_length=512)
+        tokenized_input["labels"] = [[float(x) for x in label] for label in examples["labels"]]
+        return tokenized_input
 
-batch_size = 8
-num_epochs = 4
+    tokenized_train_dataset = train_dataset.map(tokenize_function, batched=True)
+    tokenized_val_dataset = val_dataset.map(tokenize_function, batched=True)
+    tokenized_train_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
+    tokenized_val_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
+    # --- Custom Data Collator ---
+    class CustomDataCollatorWithPadding(DataCollatorWithPadding):
+        def __call__(self, features):
+            batch = super().__call__(features)
+            batch["labels"] = torch.stack([torch.tensor(f["labels"], dtype=torch.float32) for f in features])
+            return batch
 
-# %%
-# Tokenization
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-def tokenize_function(examples):
-    tokenized_input = tokenizer(examples["sentence"], truncation=True, max_length=512)
-    tokenized_input["labels"] = [
-        [float(x) for x in label] for label in examples["labels"]
-    ]
-    return tokenized_input
+    collator = CustomDataCollatorWithPadding(tokenizer=tokenizer)
 
+    # --- Metrics ---
+    def multi_label_metrics(predictions, labels, threshold=0.5):
+        sigmoid = torch.nn.Sigmoid()
+        probs = sigmoid(torch.Tensor(predictions))
+        y_pred = np.zeros(probs.shape)
+        y_pred[np.where(probs >= threshold)] = 1
+        y_true = np.zeros(labels.shape)
+        y_true[np.where(labels >= threshold)] = 1
+        f1_micro_average = f1_score(y_true=y_true, y_pred=y_pred, average="micro")
+        roc_auc = roc_auc_score(y_true, probs, average="micro")
+        accuracy = accuracy_score(y_true, y_pred)
+        return {"f1": f1_micro_average, "roc_auc": roc_auc, "accuracy": accuracy}
 
-tokenized_train_dataset = train_dataset.map(tokenize_function, batched=True)
-tokenized_val_dataset = val_dataset.map(tokenize_function, batched=True)
-tokenized_train_dataset.set_format(
-    "torch", columns=["input_ids", "attention_mask", "labels"]
-)
-tokenized_val_dataset.set_format(
-    "torch", columns=["input_ids", "attention_mask", "labels"]
-)
+    def compute_metrics(p: EvalPrediction):
+        preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+        return multi_label_metrics(predictions=preds, labels=p.label_ids)
 
+    # --- Model and Training ---
+    print("\n--- Initializing Model and Trainer ---")
+    model = AutoModelForSequenceClassification.from_pretrained(
+        MODEL_NAME,
+        problem_type="multi_label_classification",
+        num_labels=len(labels),
+        id2label=id2label,
+        label2id=label2id,
+        ignore_mismatched_sizes=True,
+    )
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    model.to(device)
 
-# Custom data collator
-class CustomDataCollatorWithPadding(DataCollatorWithPadding):
-    def __call__(self, features):
-        batch = super().__call__(features)
-        batch["labels"] = torch.stack(
-            [torch.tensor(f["labels"], dtype=torch.float32) for f in features]
-        )
-        return batch
+    training_args = TrainingArguments(
+        output_dir=config['MODEL_PATH'],
+        num_train_epochs=num_epochs,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=1,
+        warmup_steps=500,
+        weight_decay=0.01,
+        logging_dir="./logs",
+        logging_steps=10,
+        eval_strategy="epoch",
+        save_strategy="epoch",
+        load_best_model_at_end=True,
+        metric_for_best_model="f1",
+    )
 
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_train_dataset,
+        eval_dataset=tokenized_val_dataset,
+        compute_metrics=compute_metrics,
+        data_collator=collator,
+    )
 
-collator = CustomDataCollatorWithPadding(tokenizer=tokenizer)
+    print(f"\nStarting training for {num_epochs} epochs with batch size {batch_size}...")
+    trainer.train(resume_from_checkpoint=RESUME_FROM_CHECKPOINT)
 
-# %%
-# Metrics
-def multi_label_metrics(predictions, labels, threshold=0.5):
-    sigmoid = torch.nn.Sigmoid()
-    probs = sigmoid(torch.Tensor(predictions))
-    y_pred = np.zeros(probs.shape)
-    y_pred[np.where(probs >= threshold)] = 1
-    # Threshold the true labels to convert soft labels (floats) to binary (0 or 1)
-    y_true = np.zeros(labels.shape)
-    y_true[np.where(labels >= threshold)] = 1
+    # --- Save and Push to Hub ---
+    push_to_hub = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ")
+    if push_to_hub.lower().strip() == 'y':
+        print("Pushing model to the Hub...")
+        trainer.push_to_hub(commit_message="End of training")
+        print("Model pushed successfully!")
+    else:
+        print(f"Skipping push to Hub. The model is saved locally in the '{config['MODEL_PATH']}' directory.")
 
-    f1_micro_average = f1_score(y_true=y_true, y_pred=y_pred, average="micro")
-    roc_auc = roc_auc_score(y_true, probs, average="micro")
-    accuracy = accuracy_score(y_true, y_pred)
-    return {"f1": f1_micro_average, "roc_auc": roc_auc, "accuracy": accuracy}
+def run_training_interactive():
+    """Handles the interactive prompts for training configuration."""
+    print("\n--- Model Training Configuration ---")
+    fine_tune_input = input("Fine-tune a new model from the Hub? (y/n) [default: y]: ").lower().strip()
+    default_model = "ProsusAI/finbert"
+    if fine_tune_input in ('y', ''):
+        model_input = input(f"Enter model name to fine-tune [default: {default_model}]: ").strip()
+        model_name = model_input if model_input else default_model
+    else:
+        model_name = f"{config['MODEL_USER']}/{config['MODEL_PATH']}"
+        print(f"Using local model path: {model_name}")
 
+    num_epochs = int(input("Enter number of training epochs [default: 4]: ") or 4)
+    batch_size = int(input("Enter training batch size [default: 8]: ") or 8)
+    run_training(model_name, num_epochs, batch_size)
 
-def compute_metrics(p: EvalPrediction):
-    preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-    return multi_label_metrics(predictions=preds, labels=p.label_ids)
+def edit_config():
+    """Allows interactive editing of the script's configuration."""
+    global config
+    while True:
+        print("\n--- Edit Configuration ---")
+        for i, (key, value) in enumerate(config.items(), 1):
+            print(f"{i}. {key}: {value}")
+        print("Enter a number to edit a value, or 'done' to return to the main menu.")
 
-# %%
-## Training
-"""Here, we define the training parameters and launch the fine-tuning process. 🚀 """
-model = AutoModelForSequenceClassification.from_pretrained(
-    MODEL_NAME,
-    problem_type="multi_label_classification",
-    num_labels=len(labels),
-    id2label=id2label,
-    label2id=label2id,
-    ignore_mismatched_sizes=True,
-)
-device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-model.to(device)
+        choice = input("> ").strip().lower()
+        if choice == 'done':
+            break
+        try:
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(config):
+                key_to_edit = list(config.keys())[choice_idx]
+                new_value = input(f"Enter new value for {key_to_edit}: ").strip()
+                config[key_to_edit] = new_value
+                print(f"Updated {key_to_edit} to '{new_value}'")
+            else:
+                print("Invalid number. Please try again.")
+        except ValueError:
+            print("Invalid input. Please enter a number or 'done'.")
 
-# %%
-# Training arguments
-training_args = TrainingArguments(
-    output_dir=MODEL_PATH,
-    num_train_epochs=num_epochs,
-    per_device_train_batch_size=batch_size,
-    per_device_eval_batch_size=1,
-    warmup_steps=500,
-    weight_decay=0.01,
-    logging_dir="./logs",
-    logging_steps=10,
-    eval_strategy="epoch",
-    save_strategy="epoch",
-    load_best_model_at_end=True,
-    metric_for_best_model="f1",
-)
-# Debug batch shape
-sample_batch = collator([tokenized_train_dataset[i] for i in range(batch_size)])
-print("Input IDs shape:", sample_batch["input_ids"].shape)
-print("Attention Mask shape:", sample_batch["attention_mask"].shape)
-print("Labels shape:", sample_batch["labels"].shape)
-print(f"Training set size: {len(train_df)}")
-print(f"Validation set size: {len(val_df)}")
+def huggingface_auth():
+    """Handles Hugging Face authentication."""
+    global IS_AUTHENTICATED
+    if is_in_notebook():
+        notebook_login()
+    else:
+        print("\nPlease paste your Hugging Face token below to log in.")
+        print("The token will be visible as you paste it.")
+        token = input("HF Token: ")
+        try:
+            login(token=token.strip())
+            IS_AUTHENTICATED = True
+            print("✅ Successfully authenticated with Hugging Face.")
+        except Exception as e:
+            print(f"❌ Authentication failed: {e}")
+            IS_AUTHENTICATED = False
 
+def upload_model():
+    """Uploads a trained model from the local model path to the Hub."""
+    if not IS_AUTHENTICATED:
+        print("\n⚠️ Please authenticate with Hugging Face first (Option 3).")
+        return
 
-# %%
-# Initialize the Trainer
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_train_dataset,
-    eval_dataset=tokenized_val_dataset,
-    compute_metrics=compute_metrics,
-    data_collator=collator,  # Pass the data collator
-)
+    model_dir = Path(config['MODEL_PATH'])
+    if not model_dir.exists() or not (model_dir / "pytorch_model.bin").exists():
+        print(f"\n❌ Model not found in '{model_dir}'. Please train a model first.")
+        return
 
-# Start training!
-trainer.train(resume_from_checkpoint=RESUME_FROM_CHECKPOINT)  # resume_from_checkpoint=True
+    print(f"\n--- Uploading Model from '{model_dir}' ---")
+    commit_message = input("Enter a commit message for the upload: ")
+    model = AutoModelForSequenceClassification.from_pretrained(model_dir)
+    tokenizer = AutoTokenizer.from_pretrained(model_dir)
+    model.push_to_hub(f"{config['MODEL_USER']}/{config['MODEL_PATH']}", commit_message=commit_message)
+    tokenizer.push_to_hub(f"{config['MODEL_USER']}/{config['MODEL_PATH']}", commit_message=commit_message)
+    print(f"✅ Model successfully pushed to {config['MODEL_USER']}/{config['MODEL_PATH']}")
 
+if __name__ == "__main__":
+    if is_in_notebook():
+        # --- Notebook/Colab Mode: Authenticate and run directly ---
+        print("Notebook environment detected. Running in automatic mode.")
+        notebook_login()
+        run_training() # Runs with default parameters
+    else:
+        # --- Terminal Mode: Show the interactive menu ---
+        while True:
+            print("\n--- Main Menu ---")
+            print("1. Train Model")
+            print("2. Edit Configuration")
+            print("3. Hugging Face Login")
+            print("4. Upload Model to Hub")
+            print("5. Exit")
+            choice = input("> ").strip()
 
-# %%
-# Save the model and push to the hub
-# Ask for confirmation before pushing to the hub
-push_to_hub = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ")
-if push_to_hub.lower().strip() == 'y':
-    print("Pushing model to the Hub...")
-    trainer.push_to_hub(commit_message="End of training")
-    print("Model pushed successfully!")
-else:
-    print(f"Skipping push to Hub. The model is saved locally in the '{MODEL_PATH}' directory.")
+            if choice == '1':
+                run_training_interactive()
+            elif choice == '2':
+                edit_config()
+            elif choice == '3':
+                huggingface_auth()
+            elif choice == '4':
+                upload_model()
+            elif choice == '5':
+                print("Exiting.")
+                break
+            else:
+                print("Invalid choice, please try again.")
