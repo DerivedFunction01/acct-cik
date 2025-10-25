@@ -559,6 +559,9 @@ class PredictionsProcessor:
             "model_ir_hist_count": 0,
             "model_fx_hist_count": 0,
             "model_cp_hist_count": 0,
+            "model_ir_soft_count": 0,
+            "model_fx_soft_count": 0,
+            "model_cp_soft_count": 0,
             "model_eq_user": 0,
             "model_ir_terminated": 0,
             "model_fx_terminated": 0,
@@ -579,6 +582,7 @@ class PredictionsProcessor:
             is_current_context = sentence_flags["curr"] and not sentence_flags["term"]
             is_terminated_context = sentence_flags["term"] and not sentence_flags["curr"]
             is_historical_context = sentence_flags["hist"] and not sentence_flags["curr"] and not sentence_flags["term"]
+            is_soft_context = not sentence_flags["ir_use"] and not sentence_flags["fx_use"] and not sentence_flags["cp_use"]
 
             # Count current vs terminated mentions for each hedge type
             if is_current_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_current_count"] += 1
@@ -593,6 +597,11 @@ class PredictionsProcessor:
             if is_historical_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_hist_count"] += 1
             if is_historical_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_hist_count"] += 1
             if is_historical_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_hist_count"] += 1
+
+            # Count "soft" mentions (context without explicit use)
+            if is_soft_context and sentence_flags["ir"]: firm_year_flags["model_ir_soft_count"] += 1
+            if is_soft_context and sentence_flags["fx"]: firm_year_flags["model_fx_soft_count"] += 1
+            if is_soft_context and sentence_flags["cp"]: firm_year_flags["model_cp_soft_count"] += 1
 
             # Handle other derivative types as before
             if is_current_context and sentence_flags["eq_use"]: firm_year_flags["model_eq_user"] = 1
