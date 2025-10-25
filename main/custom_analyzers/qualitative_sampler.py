@@ -2,6 +2,7 @@ import pandas as pd
 import json
 from .analysis import Config, LabelMapper, DataLoader, BaseAnalyzer
 from typing import List, Dict, Any
+from pathlib import Path
 
 class QualitativeSampler(BaseAnalyzer):
     """
@@ -25,272 +26,7 @@ class QualitativeSampler(BaseAnalyzer):
         self.only_terminated = only_terminated
         self.sampled_urls_csv = self.config.output_dir / "qualitative_review_sampled_urls.csv"
         self.json_output_filename = self.config.output_dir / "qualitative_review_sample.json"
-        # Basic HTML template for the report
-        self.html_template = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qualitative Review Sample</title>
-    <style>
-        :root { --sidebar-width: 320px; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #222; background: #f6f7fb; }
-        .app { display: flex; height: 100vh; }
-        .sidebar { width: var(--sidebar-width); background: #0f1724; color: #e6eef8; overflow-y: auto; padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; }
-        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .sidebar h2 { margin: 8px 0 12px; font-size: 16px; }
-        .sidebar h4 { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; color: #94a3b8; }
-        .report-link { display: block; padding: 8px; border-radius: 6px; margin-bottom: 6px; color: inherit; text-decoration: none; }
-        .report-link.hidden { display: none; }
-        .report-link:hover { background: rgba(255,255,255,0.03); }
-        .report-link.active { background: rgba(255,255,255,0.06); font-weight: 600; }
-        .main { flex: 1; overflow: auto; padding: 20px; box-sizing: border-box; background: #f6f7fb; }
-        .header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-        .card { background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 6px 18px rgba(18, 38, 63, 0.06); margin-top: 12px; }
-        .filter-group { margin-bottom: 12px; }
-        #filter-controls.collapsed { display: none; }
-        .filter-group label { display: block; font-size: 0.9em; margin-bottom: 4px; color: #cbd5e1; }
-        .filter-group input, .filter-group select { width: 100%; padding: 8px; box-sizing: border-box; background: #2c3a4f; border: 1px solid #475569; color: white; border-radius: 4px; }
-        .flag-filter-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; margin-top: 4px; }
-        .flag-filter-group label { grid-column: 1 / -1; font-size: 0.9em; margin-bottom: 0; }
-
-        table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-        th, td { border: 1px solid #eee; padding: 8px; text-align: left; }
-        .text-content { background-color: #fcfdff; border-left: 3px solid #2b6cb0; padding: 12px; white-space: pre-wrap; }
-        .sentence { margin-bottom: 12px; }
-        .sentence-labels { font-size: 0.82em; color: #444; background: #eef2ff; padding: 6px 8px; border-radius: 8px; display:inline-block; }
-        .controls { display:flex; gap:8px; align-items:center; }
-        .btn { background:#2b6cb0; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; cursor:pointer; border:none; font-family: inherit; }
-        #toggle-filters-btn { background: #334155; color: #cbd5e1; padding: 4px 10px; font-size: 12px; }
-        .btn.secondary { background:#edf2ff; color:#1e293b; }        
-        .meta { color:#475569; font-size:0.95em; }
-        .small { font-size:0.85em; color:#64748b; }
-    </style>
-</head>
-<body>
-    <div class="app">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h2>Qualitative Review ({{ num_samples }} reports)</h2>
-                <button id="toggle-filters-btn" class="btn" title="Toggle Filters">Collapse</button>
-            </div>
-            <div id="filter-controls">
-                <div class="filter-group">
-                    <label for="filter-cik">Filter by CIK</label>
-                    <input type="text" id="filter-cik" placeholder="e.g., 12345">
-                </div>
-                <div class="filter-group">
-                    <label for="filter-content">Search in Report Text</label>
-                    <input type="text" id="filter-content" placeholder="e.g., swap agreement">
-                </div>
-
-                <h4>Filter by Flags</h4>
-                <div class="filter-group">
-                    <div class="flag-filter-group">
-                        <label>IR Hedge</label>
-                        <select id="filter-ir-model"><option value="">Any Model</option><option value="YES">YES</option><option value="NO">NO</option><option value="TERMINATED">TERMINATED</option></select>
-                        <select id="filter-ir-keyword"><option value="">Any Keyword</option><option value="1">Yes</option><option value="0">No</option></select>
-                    </div>
-                    <div class="flag-filter-group"><label>FX Hedge</label><select id="filter-fx-model"><option value="">Any Model</option><option value="YES">YES</option><option value="NO">NO</option><option value="TERMINATED">TERMINATED</option></select><select id="filter-fx-keyword"><option value="">Any Keyword</option><option value="1">Yes</option><option value="0">No</option></select></div>
-                    <div class="flag-filter-group"><label>CP Hedge</label><select id="filter-cp-model"><option value="">Any Model</option><option value="YES">YES</option><option value="NO">NO</option><option value="TERMINATED">TERMINATED</option></select><select id="filter-cp-keyword"><option value="">Any Keyword</option><option value="1">Yes</option><option value="0">No</option></select></div>
-                </div>
-                <button id="reset-filters" class="btn secondary" style="width:100%; margin-top:10px;">Reset Filters</button>
-            </div>
-            <hr style="border-color: #334155; margin: 20px 0;">
-            <div id="report-list"></div>
-        </aside>
-        <main class="main">
-            <div class="header">
-                <div>
-                    <h1 id="report-title">Report</h1>
-                    <div class="meta" id="report-meta"></div>
-                </div>
-                <div class="controls">
-                    <button class="btn" id="prev-btn">Previous</button>
-                    <button class="btn" id="next-btn">Next</button>
-                    <a id="open-url" class="btn secondary" target="_blank">Open URL</a>
-                </div>
-            </div>
-
-            <div id="report-content" class="card">
-                <!-- Flags -->
-                <h3>Comparison Flags</h3>
-                <table id="flags-table"><thead><tr><th>Category</th><th>Keyword Flag</th><th>Model Flag</th><th>Curr Cnt</th><th>Hist Cnt</th><th>Term Cnt</th><th>Term/Curr Ratio</th></tr></thead><tbody></tbody></table>
-
-                <!-- Extracted text -->
-                <h3 style="margin-top:18px">Extracted Text</h3>
-                <div id="sentences" class="text-content"></div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Embedded data -->
-    <script id="reports-data" type="application/json">{{ reports_json | safe }}</script>
-
-    <script>
-        // Small SPA to render each report on its own "page"
-        const reports = JSON.parse(document.getElementById('reports-data').textContent || 'null') || [];
-        const listEl = document.getElementById('report-list');
-        const titleEl = document.getElementById('report-title');
-        const metaEl = document.getElementById('report-meta');
-        const flagsTableBody = document.querySelector('#flags-table tbody');
-        const sentencesEl = document.getElementById('sentences');
-        const openUrlEl = document.getElementById('open-url');
-
-        function makeList() {
-            reports.forEach((r, idx) => {
-                const a = document.createElement('a');
-                a.href = `#${idx}`;
-                a.className = 'report-link';
-                a.textContent = `CIK ${r.cik} (${r.year})`;
-                a.dataset.idx = idx;
-                listEl.appendChild(a);
-            });
-        }
-
-        function renderReport(idx) {
-            const r = reports[idx];
-            if (!r) return;
-            
-            // Highlight the active link in the sidebar
-            Array.from(document.querySelectorAll('.report-link')).forEach(el => el.classList.toggle('active', el.dataset.idx == idx));
-
-            titleEl.textContent = `CIK ${r.cik} — ${r.year}`;
-            metaEl.textContent = r.url;
-            openUrlEl.href = r.url;
-            openUrlEl.textContent = 'Open URL';
-
-            // flags table
-            flagsTableBody.innerHTML = '';
-            r.flags.forEach(f => {
-                const tr = document.createElement('tr');
-                const tdName = document.createElement('td'); tdName.textContent = f.name;
-                const tdKw = document.createElement('td');
-                tdKw.textContent = f.keyword ? 'Yes' : 'No';
-                tdKw.style.color = f.keyword ? 'green' : 'red';
-
-                const tdModel = document.createElement('td');
-                tdModel.textContent = f.model; // Now a string: 'YES', 'NO', 'TERMINATED'
-                if (f.model === 'YES') tdModel.style.color = 'green';
-                else if (f.model === 'NO') tdModel.style.color = 'red';
-                else if (f.model === 'TERMINATED') tdModel.style.color = 'orange';
-                else tdModel.style.color = 'grey';
-
-                const tdCurrCount = document.createElement('td');
-                tdCurrCount.textContent = f.current_count;
-
-                const tdTermCount = document.createElement('td');
-                tdTermCount.textContent = f.terminated_count;
-
-                const tdHistCount = document.createElement('td');
-                tdHistCount.textContent = f.hist_count;
-
-                const tdRatio = document.createElement('td');
-                tdRatio.textContent = f.ratio;
-
-                tr.appendChild(tdName); tr.appendChild(tdKw); tr.appendChild(tdModel);
-                tr.appendChild(tdCurrCount);
-                tr.appendChild(tdHistCount);
-                tr.appendChild(tdTermCount);
-                tr.appendChild(tdRatio);
-                flagsTableBody.appendChild(tr);
-            });
-
-            // sentences
-            sentencesEl.innerHTML = '';
-            (r.sentences || []).forEach(s => {
-                const div = document.createElement('div'); div.className = 'sentence';
-                const p = document.createElement('p'); p.textContent = s.text;
-                const labelsDiv = document.createElement('div'); labelsDiv.className = 'sentence-labels';
-                const primary = s.primary_label || 'None';
-                const allPrimary = (s.all_primary_labels && s.all_primary_labels.length) ? s.all_primary_labels.join(', ') : 'None';
-                const active = (s.labels && s.labels.length) ? s.labels.join(', ') : 'None';
-                labelsDiv.innerHTML = `<strong>Primary:</strong> ${primary} &nbsp;|&nbsp; <strong>All Primary:</strong> ${allPrimary} &nbsp;|&nbsp; <strong>Active Scores:</strong> ${active}`;
-                div.appendChild(p); div.appendChild(labelsDiv);
-                sentencesEl.appendChild(div);
-            });
-        }
-
-        function filterList() {
-            const cikFilter = document.getElementById('filter-cik').value.toLowerCase();
-            const contentFilter = document.getElementById('filter-content').value.toLowerCase();
-            
-            const irModelFilter = document.getElementById('filter-ir-model').value;
-            const irKeywordFilter = document.getElementById('filter-ir-keyword').value;
-            const fxModelFilter = document.getElementById('filter-fx-model').value;
-            const fxKeywordFilter = document.getElementById('filter-fx-keyword').value;
-            const cpModelFilter = document.getElementById('filter-cp-model').value;
-            const cpKeywordFilter = document.getElementById('filter-cp-keyword').value;
-
-            const links = document.querySelectorAll('.report-link');
-            
-            reports.forEach((report, idx) => {
-                let isVisible = true;
-
-                // CIK filter
-                if (cikFilter && !report.cik.toString().includes(cikFilter)) isVisible = false;
-
-                // Content search
-                if (isVisible && contentFilter) {
-                    const reportText = report.sentences.map(s => s.text).join(' ').toLowerCase();
-                    if (!reportText.includes(contentFilter)) isVisible = false;
-                }
-
-                // Flag filters
-                if (isVisible && irModelFilter && report.flags[0].model !== irModelFilter) isVisible = false;
-                if (isVisible && irKeywordFilter && report.flags[0].keyword.toString() !== irKeywordFilter) isVisible = false;
-                if (isVisible && fxModelFilter && report.flags[1].model !== fxModelFilter) isVisible = false;
-                if (isVisible && fxKeywordFilter && report.flags[1].keyword.toString() !== fxKeywordFilter) isVisible = false;
-                if (isVisible && cpModelFilter && report.flags[2].model !== cpModelFilter) isVisible = false;
-                if (isVisible && cpKeywordFilter && report.flags[2].keyword.toString() !== cpKeywordFilter) isVisible = false;
-
-                links[idx].classList.toggle('hidden', !isVisible);
-            });
-        }
-
-        function resetFilters() {
-            document.querySelectorAll('#filter-controls input, #filter-controls select').forEach(el => el.value = '');
-            filterList();
-        }
-
-        function route() {
-            const hash = window.location.hash.replace('#','');
-            let idx = parseInt(hash, 10);
-            if (Number.isNaN(idx) || idx < 0 || idx >= reports.length) idx = 0;
-            renderReport(idx);
-            // update prev/next buttons
-            const prevBtn = document.getElementById('prev-btn');
-            const nextBtn = document.getElementById('next-btn');
-            prevBtn.disabled = idx === 0; nextBtn.disabled = idx === reports.length - 1;
-            prevBtn.onclick = () => { window.location.hash = Math.max(0, idx - 1); };
-            nextBtn.onclick = () => { window.location.hash = Math.min(reports.length - 1, idx + 1); };
-        }
-        
-        function setupFilterToggle() {
-            const toggleBtn = document.getElementById('toggle-filters-btn');
-            const filterControls = document.getElementById('filter-controls');
-            toggleBtn.addEventListener('click', () => {
-                const isCollapsed = filterControls.classList.toggle('collapsed');
-                toggleBtn.textContent = isCollapsed ? 'Expand' : 'Collapse';
-            });
-        }
-
-        window.addEventListener('hashchange', route);
-        document.getElementById('filter-cik').addEventListener('keyup', filterList);
-        document.getElementById('filter-content').addEventListener('keyup', filterList);
-        document.querySelectorAll('#filter-controls select').forEach(el => el.addEventListener('change', filterList));
-        document.getElementById('reset-filters').addEventListener('click', resetFilters);
-
-        // init
-        makeList();
-        setupFilterToggle();
-        if (!window.location.hash) window.location.hash = '#0';
-        route();
-    </script>
-</body>
-</html>
-"""
+        self.template_path = Path(__file__).parent / "qualitative_sampler_template.html"
 
     def _get_sentence_data(self, url: str, year: int) -> List[Dict[str, Any]]:
         """
@@ -520,7 +256,13 @@ class QualitativeSampler(BaseAnalyzer):
         # Using Jinja2 for safer and cleaner template rendering
         from jinja2 import Template
         import os
-        template = Template(self.html_template)
+
+        try:
+            with open(self.template_path, "r", encoding="utf-8") as f:
+                template = Template(f.read())
+        except FileNotFoundError:
+            print(f"   ❌ Error: Template file not found at {self.template_path}")
+            return {}
 
         # Define temporary and final paths
         temp_html_path = self.output_filename.with_suffix('.html.tmp')
