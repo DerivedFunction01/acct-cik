@@ -111,7 +111,8 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     class CustomDataCollatorWithPadding(DataCollatorWithPadding):
         def __call__(self, features):
             batch = super().__call__(features)
-            batch["labels"] = torch.stack([torch.tensor(f["labels"], dtype=torch.float32) for f in features])
+            # batch["labels"] = torch.stack([torch.tensor(f["labels"], dtype=torch.float32) for f in features])
+            batch["labels"] = torch.stack([f["labels"].clone().detach() for f in features])
             return batch
 
     collator = CustomDataCollatorWithPadding(tokenizer=tokenizer)
