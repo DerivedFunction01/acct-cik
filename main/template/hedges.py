@@ -136,6 +136,8 @@ hedge_designations = [
     "",
     "designated as hedges",
     "designated as hedging instruments",
+    "not designated as hedges",
+    "not designated as hedging instruments",
     "designated as {hedge_type} hedges",
     "used for hedging purposes",
     "remaining designated as hedges",
@@ -567,27 +569,11 @@ trend_descriptors = [
     "had a value of",
 ]
 
-# Optional hedge purposes
-optional_purposes = [
-    "to hedge forecasted revenue which were not part of a collar strategy",
-    "to hedge forecasted transactions",
-    "to hedge revenue streams",
-    "for hedging forecasted revenue",
-    "for transaction hedging",
-    "for revenue hedging",
-    "for hedging",
-]
-
-# Base optional template patterns
-optional_template_patterns = [
-    "{company} also have {verb} {swap_type} {purpose}. Such {swap_type} had a fair value of {currency_code}{notional1} {money_unit} and {currency_code}{notional2} {money_unit} as of {month} {end_day}, {year} and {month} {end_day}, {prev_year}, respectively",
-    "{company} {verb} {swap_type} with notional values of {currency_code}{notional1} {money_unit} as of {month} {end_day}, {year} {comparison} {currency_code}{notional2} {money_unit} as of {month} {end_day}, {prev_year}",
-    "As of {month} {end_day}, {year}, {company} {verb} {swap_type} with a fair value of {currency_code}{notional1} {money_unit}, {comparison} {currency_code}{notional2} {money_unit} in the prior year",
-    "{company} {verb} {swap_type} {purpose}, {trend} {currency_code}{notional2} {money_unit} as of {month} {end_day}, {prev_year} to {currency_code}{notional1} {money_unit} as of {month} {end_day}, {year}",
-    "As of {month} {end_day}, {year}, {swap_type} with a fair value of {currency_code}{notional1} {money_unit} were in place, {comparison} {currency_code}{notional2} {money_unit} as of {month} {end_day}, {prev_year}",
-    "In {year}, {swap_type} with a notional value of {currency_code}{notional1} {money_unit} were active, {comparison} {currency_code}{notional2} {money_unit} in {prev_year}",
-    "As of {month} {end_day}, {year}, {company}'s {swap_type} portfolio had a fair value of {currency_code}{notional1} {money_unit}, {comparison} {currency_code}{notional2} {money_unit} in {prev_year}",
-    "At year-end {year}, {swap_type} with a fair value of {currency_code}{notional1} {money_unit} were {verb} {purpose}, {comparison} {currency_code}{notional2} {money_unit} in {prev_year}",
+# Additional template patterns, giving additional info
+additional_template_patterns = [
+    "There was no such activity at {year} related to {swap_type} {hedge_designation}",
+    "There was {materiality} activity at {month} {end_day}, {year} related to {swap_type} {hedge_designation}",
+    "{company} does not {verb} any other {gen_swap}", # To not get confused with termination
 ]
 
 # ------------------------------------------------------------------------------
@@ -1137,7 +1123,6 @@ def _expand_pattern(pattern):
         "{termination_verb}": termination_verbs,
         "{comparison}": comparison_phrases,
         "{trend}": trend_descriptors,
-        "{purpose}": optional_purposes,
         "{time_period}": time_periods,
         "{no_replacement}": no_replacement_phrases,
         "{dedesignation_action}": dedesignation_actions,
@@ -1159,15 +1144,6 @@ def _expand_pattern(pattern):
             new_pattern = new_pattern.replace(key, val)
         expanded.append(new_pattern)
     return expanded
-
-
-def generate_optional_templates():
-    """Generate all optional/comparative templates."""
-    templates = []
-    for pattern in optional_template_patterns:
-        expanded = _expand_pattern(pattern)
-        templates.extend([to_sentence_case(t) for t in expanded])
-    return templates
 
 
 def generate_termination_templates():
