@@ -58,6 +58,7 @@ If the model is wrong for a specific sentence, that is okay, as long it gets it 
 | 98765 | 2023 | CP | YES | TERMINATED | The text explicitly states termination: "All commodity contracts were settled in Q2 2023 with no outstanding positions." |
 
 | Type | Accuracy|
+|---|---|
 | IR | A% |
 | FX | B% |
 | CP | C% |
