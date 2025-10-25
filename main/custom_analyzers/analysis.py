@@ -625,7 +625,7 @@ class PredictionsProcessor:
 
             # A firm's usage is "terminated" if terminated mentions outweigh current ones based on the ratio.
             # If ratio is 0.0, any terminated mention ( > 0) will set the flag.
-            if terminated_count > 0 and terminated_count > (current_count * self.config.term_curr_ratio):
+            if terminated_count > 0 and (current_count == 0 or (terminated_count / current_count) > self.config.term_curr_ratio):
                 firm_year_flags[f"model_{hedge_type}_terminated"] = 1
         
         # Final check: If a hedge is terminated, it cannot also be a current user.
