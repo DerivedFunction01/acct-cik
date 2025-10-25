@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Optional, TYPE_CHECKING
+from typing import Dict, Optional
 
 from .analysis import BaseAnalyzer, Config, LabelMapper
 
