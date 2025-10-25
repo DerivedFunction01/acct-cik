@@ -193,10 +193,10 @@ class ClassificationEngine:
             context_score = prob_dict.get(hedge_type, 0)
             usage_score = prob_dict.get(f"{hedge_type}_use", 0)
             
-            if active_flags.get(hedge_type) or active_flags.get(f"{hedge_type}_use"):
+            if context_score >= self.display_threshold or usage_score >= self.display_threshold:
                 active_hedges.append({
                     "type": hedge_type,
-                    "has_use": active_flags.get(f"{hedge_type}_use", False),
+                    "has_use": usage_score >= self.confidence_threshold, # Use the main confidence threshold for a definitive 'use' flag
                     "context": context_score,
                     "usage": usage_score,
                     "max_score": max(context_score, usage_score)
