@@ -627,6 +627,12 @@ class PredictionsProcessor:
             # If ratio is 0.0, any terminated mention ( > 0) will set the flag.
             if terminated_count > 0 and terminated_count > (current_count * self.config.term_curr_ratio):
                 firm_year_flags[f"model_{hedge_type}_terminated"] = 1
+        
+        # Final check: If a hedge is terminated, it cannot also be a current user.
+        # This ensures mutual exclusivity for downstream analyzers.
+        for hedge_type in ["ir", "fx", "cp"]:
+            if firm_year_flags[f"model_{hedge_type}_terminated"] == 1:
+                firm_year_flags[f"model_{hedge_type}_user"] = 0
 
         # Set the final aggregated flags
         firm_year_flags["model_user"] = int(
