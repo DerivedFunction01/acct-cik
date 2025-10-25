@@ -315,8 +315,13 @@ class DisagreementSampler:
                 worksheet.column_dimensions["E"].width = 15
                 worksheet.column_dimensions["F"].width = 100
                 print(f"  ✓ Prepared sheet: {sheet_name} ({len(sample_df)} samples)")
-
-        os.rename(temp_output_path, output_path)
+        
+        # Atomically rename the temporary file to the final destination
+        import os
+        try:
+            os.rename(temp_output_path, output_path)
+        except: # Try replaceing
+            os.replace(temp_output_path, output_path)
         print(
             f"✅ Disagreement analysis complete ({total_processed:,} records processed)"
         )

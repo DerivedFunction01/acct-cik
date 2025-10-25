@@ -373,7 +373,10 @@ class QualitativeSampler(BaseAnalyzer):
 
         # Atomically rename the temporary file to the final destination
         import os
-        os.rename(temp_html_path, self.output_filename)
+        try:
+            os.rename(temp_html_path, self.output_filename)
+        except: # Try replaceing
+            os.replace(temp_html_path, self.output_filename)
 
         print(f"   ✅ Qualitative sample saved to: {self.output_filename}")
 

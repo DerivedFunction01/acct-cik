@@ -343,7 +343,11 @@ class AccuracySampler:
 
         # Atomically rename the temp file to the final path
         import os
-        os.rename(temp_output_path, output_path)
+        try:
+            os.rename(temp_output_path, output_path)
+        except: # Try replaceing
+            os.replace(temp_output_path, output_path)
+
         print(f"✅ Sampled data saved successfully.")
 
     def _chunkify(self, data: list) -> List[list]:

@@ -177,9 +177,13 @@ class AnalysisPipeline:
                 # Disable automatic URL conversion to prevent Excel's hyperlink limit error.
                 writer.book.strings_to_urls = False
                 server_results_df.to_excel(writer, index=False)
-
+                
+            # Atomically rename the temporary file to the final destination
             import os
-            os.rename(temp_output_path, output_path)
+            try:
+                os.rename(temp_output_path, output_path)
+            except: # Try replaceing
+                os.replace(temp_output_path, output_path)
             print(f"   ✅ Server results backed up to: {output_path}")
         except Exception as e:
             print(f"     ❌ Error during server results backup: {e}")
