@@ -308,6 +308,24 @@ class QualitativeSampler(BaseAnalyzer):
             print("   ❌ 'url' column not found in input data. Skipping.")
             return {}
 
+        # If 'only_terminated' is set, the sampling pool should be just the terminated reports.
+        if self.only_terminated:
+            print("   -> Filtering for terminated reports to create the sampling pool...")
+            terminated_mask = (data['model_ir_terminated'] == 1) | \
+                              (data['model_fx_terminated'] == 1) | \
+                              (data['model_cp_terminated'] == 1)
+            
+            # The sampling pool is now the subset of reports that are terminated.
+            sampling_pool_df = data[terminated_mask].copy()
+            
+            if sampling_pool_df.empty:
+                print("   ⚠️  No terminated reports found to sample from. Aborting qualitative sampler.")
+                return {}
+            
+            print(f"   -> Found {len(sampling_pool_df)} terminated reports to sample from.")
+            sample_df = sampling_pool_df.sample(n=min(self.sample_size, len(sampling_pool_df)), random_state=self.random_state)
+            final_sample_df = sample_df # The sample is already merged with flag data.
+
         # Fetch all available reports from the database to use as the sampling pool
         print("   -> Fetching all available reports from server_result for sampling...")
         with self.data_loader._get_connection() as conn:
@@ -321,39 +339,30 @@ class QualitativeSampler(BaseAnalyzer):
             )
         print(f"   -> Found {len(all_reports_df)} total reports available for sampling.")
 
-        # Check if a file with sampled URLs already exists.
-        if self.sampled_urls_csv.exists():
-            print(f"   -> Found existing sample file: {self.sampled_urls_csv}. Reusing URLs.")
-            try:
-                sampled_keys_df = pd.read_csv(self.sampled_urls_csv)
-                # Use an inner merge to select only the rows from the full report list that match the saved sample.
-                sample_df = pd.merge(all_reports_df, sampled_keys_df[['cik', 'year']], on=['cik', 'year'], how='inner')
-                if len(sample_df) != len(sampled_keys_df):
-                    print(f"   ⚠️  Warning: Mismatch between sampled URLs file and available data. Found {len(sample_df)} of {len(sampled_keys_df)} reports.")
-            except Exception as e:
-                print(f"   ❌ Error reading sample file: {e}. Generating a new random sample.")
+        if not self.only_terminated:
+            # Check if a file with sampled URLs already exists.
+            if self.sampled_urls_csv.exists():
+                print(f"   -> Found existing sample file: {self.sampled_urls_csv}. Reusing URLs.")
+                try:
+                    sampled_keys_df = pd.read_csv(self.sampled_urls_csv)
+                    # Use an inner merge to select only the rows from the full report list that match the saved sample.
+                    sample_df = pd.merge(all_reports_df, sampled_keys_df[['cik', 'year']], on=['cik', 'year'], how='inner')
+                    if len(sample_df) != len(sampled_keys_df):
+                        print(f"   ⚠️  Warning: Mismatch between sampled URLs file and available data. Found {len(sample_df)} of {len(sampled_keys_df)} reports.")
+                except Exception as e:
+                    print(f"   ❌ Error reading sample file: {e}. Generating a new random sample.")
+                    sample_df = all_reports_df.sample(n=min(self.sample_size, len(all_reports_df)), random_state=self.random_state)
+                    # Save the new sample's keys for future runs
+                    sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
+                    print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
+            else:
+                print("   -> No existing sample file found. Generating a new random sample.")
                 sample_df = all_reports_df.sample(n=min(self.sample_size, len(all_reports_df)), random_state=self.random_state)
                 # Save the new sample's keys for future runs
                 sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
                 print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
-        else:
-            print("   -> No existing sample file found. Generating a new random sample.")
-            sample_df = all_reports_df.sample(n=min(self.sample_size, len(all_reports_df)), random_state=self.random_state)
-            # Save the new sample's keys for future runs
-            sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
-            print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
-
-        # Now, merge the sampled data with the pre-aggregated flags.
-        # Use a left merge to keep all sampled reports, even if they don't have flags yet.
-        final_sample_df = pd.merge(sample_df, data, on=['cik', 'year', 'url'], how='left').fillna(0)
-
-        # If the 'only_terminated' flag is set, filter the DataFrame.
-        if self.only_terminated:
-            terminated_mask = (final_sample_df['model_ir_terminated'] == 1) | \
-                              (final_sample_df['model_fx_terminated'] == 1) | \
-                              (final_sample_df['model_cp_terminated'] == 1)
-            final_sample_df = final_sample_df[terminated_mask].copy()
-            print(f"   -> Filtering for terminated positions only. Found {len(final_sample_df)} reports.")
+            # Now, merge the sampled data with the pre-aggregated flags.
+            final_sample_df = pd.merge(sample_df, data, on=['cik', 'year', 'url'], how='left').fillna(0)
 
         reports_data = []
         for _, row in final_sample_df.iterrows():
