@@ -18,12 +18,14 @@ class QualitativeSampler(BaseAnalyzer):
         label_mapper: LabelMapper,
         sample_size: int = 100,
         random_state: int = 42,
+        only_terminated: bool = False,
     ):
         super().__init__(config, label_mapper)
         self.data_loader = DataLoader(config)
         self.sample_size = sample_size
         self.random_state = random_state
         self.output_filename = self.config.output_dir / "qualitative_review_sample.html"
+        self.only_terminated = only_terminated
         self.sampled_urls_csv = self.config.output_dir / "qualitative_review_sampled_urls.csv"
         self.json_output_filename = self.config.output_dir / "qualitative_review_sample.json"
         # Basic HTML template for the report
@@ -80,7 +82,7 @@ class QualitativeSampler(BaseAnalyzer):
             <div id="report-content" class="card">
                 <!-- Flags -->
                 <h3>Comparison Flags</h3>
-                <table id="flags-table"><thead><tr><th>Category</th><th>Keyword Flag</th><th>Model Flag</th><th>Current Count</th><th>Terminated Count</th></tr></thead><tbody></tbody></table>
+                <table id="flags-table"><thead><tr><th>Category</th><th>Keyword Flag</th><th>Model Flag</th><th>Curr Cnt</th><th>Hist Cnt</th><th>Term Cnt</th><th>Term/Curr Ratio</th></tr></thead><tbody></tbody></table>
 
                 <!-- Extracted text -->
                 <h3 style="margin-top:18px">Extracted Text</h3>
@@ -146,8 +148,17 @@ class QualitativeSampler(BaseAnalyzer):
                 const tdTermCount = document.createElement('td');
                 tdTermCount.textContent = f.terminated_count;
 
+                const tdHistCount = document.createElement('td');
+                tdHistCount.textContent = f.hist_count;
+
+                const tdRatio = document.createElement('td');
+                tdRatio.textContent = f.ratio;
+
                 tr.appendChild(tdName); tr.appendChild(tdKw); tr.appendChild(tdModel);
-                tr.appendChild(tdCurrCount); tr.appendChild(tdTermCount);
+                tr.appendChild(tdCurrCount);
+                tr.appendChild(tdHistCount);
+                tr.appendChild(tdTermCount);
+                tr.appendChild(tdRatio);
                 flagsTableBody.appendChild(tr);
             });
 
@@ -339,6 +350,14 @@ class QualitativeSampler(BaseAnalyzer):
         # Use a left merge to keep all sampled reports, even if they don't have flags yet.
         final_sample_df = pd.merge(sample_df, data, on=['cik', 'year', 'url'], how='left').fillna(0)
 
+        # If the 'only_terminated' flag is set, filter the DataFrame.
+        if self.only_terminated:
+            terminated_mask = (final_sample_df['model_ir_terminated'] == 1) | \
+                              (final_sample_df['model_fx_terminated'] == 1) | \
+                              (final_sample_df['model_cp_terminated'] == 1)
+            final_sample_df = final_sample_df[terminated_mask].copy()
+            print(f"   -> Filtering for terminated positions only. Found {len(final_sample_df)} reports.")
+
         reports_data = []
         for _, row in final_sample_df.iterrows():
             def get_flag_status(use_flag, term_flag):
@@ -349,6 +368,13 @@ class QualitativeSampler(BaseAnalyzer):
                     return "YES"
                 else:
                     return "NO"
+
+            def get_ratio_str(current_count, terminated_count):
+                if current_count > 0:
+                    return f"{(terminated_count / current_count):.2f}"
+                elif terminated_count > 0:
+                    return "Inf"
+                return "N/A"
 
             report = {
                 "cik": row["cik"],
@@ -364,22 +390,28 @@ class QualitativeSampler(BaseAnalyzer):
                         "name": "IR Hedge",
                         "keyword": row.get("ir_user", 0),
                         "model": get_flag_status(row.get("model_ir_user", 0), row.get("model_ir_terminated", 0)),
+                        "hist_count": int(row.get("model_ir_hist_count", 0)),
                         "current_count": int(row.get("model_ir_current_count", 0)),
                         "terminated_count": int(row.get("model_ir_terminated_count", 0)),
+                        "ratio": get_ratio_str(row.get("model_ir_current_count", 0), row.get("model_ir_terminated_count", 0)),
                     },
                     {
                         "name": "FX Hedge",
                         "keyword": row.get("fx_user", 0),
                         "model": get_flag_status(row.get("model_fx_user", 0), row.get("model_fx_terminated", 0)),
+                        "hist_count": int(row.get("model_fx_hist_count", 0)),
                         "current_count": int(row.get("model_fx_current_count", 0)),
                         "terminated_count": int(row.get("model_fx_terminated_count", 0)),
+                        "ratio": get_ratio_str(row.get("model_fx_current_count", 0), row.get("model_fx_terminated_count", 0)),
                     },
                     {
                         "name": "CP Hedge",
                         "keyword": row.get("cp_user", 0),
                         "model": get_flag_status(row.get("model_cp_user", 0), row.get("model_cp_terminated", 0)),
+                        "hist_count": int(row.get("model_cp_hist_count", 0)),
                         "current_count": int(row.get("model_cp_current_count", 0)),
                         "terminated_count": int(row.get("model_cp_terminated_count", 0)),
+                        "ratio": get_ratio_str(row.get("model_cp_current_count", 0), row.get("model_cp_terminated_count", 0)),
                     },
                 ],
             }

@@ -562,6 +562,9 @@ class PredictionsProcessor:
             "model_ir_terminated_count": 0,
             "model_fx_terminated_count": 0,
             "model_cp_terminated_count": 0,
+            "model_ir_hist_count": 0,
+            "model_fx_hist_count": 0,
+            "model_cp_hist_count": 0,
             "model_eq_user": 0,
             "model_ir_terminated": 0,
             "model_fx_terminated": 0,
@@ -581,6 +584,7 @@ class PredictionsProcessor:
             # A sentence indicates "current use" if 'curr' is present and 'term' is not.
             is_current_context = sentence_flags["curr"] and not sentence_flags["term"]
             is_terminated_context = sentence_flags["term"] and not sentence_flags["curr"]
+            is_historical_context = sentence_flags["hist"] and not sentence_flags["curr"] and not sentence_flags["term"]
 
             # Count current vs terminated mentions for each hedge type
             if is_current_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_current_count"] += 1
@@ -590,6 +594,11 @@ class PredictionsProcessor:
             if is_terminated_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_terminated_count"] += 1
             if is_terminated_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_terminated_count"] += 1
             if is_terminated_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_terminated_count"] += 1
+
+            # Count historical mentions for each hedge type
+            if is_historical_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_hist_count"] += 1
+            if is_historical_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_hist_count"] += 1
+            if is_historical_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_hist_count"] += 1
 
             # Handle other derivative types as before
             if is_current_context and sentence_flags["eq_use"]: firm_year_flags["model_eq_user"] = 1
