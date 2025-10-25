@@ -555,6 +555,12 @@ class PredictionsProcessor:
             "model_ir_user": 0,
             "model_fx_user": 0,
             "model_cp_user": 0,
+            "model_ir_current_count": 0,
+            "model_fx_current_count": 0,
+            "model_cp_current_count": 0,
+            "model_ir_terminated_count": 0,
+            "model_fx_terminated_count": 0,
+            "model_cp_terminated_count": 0,
             "model_eq_user": 0,
             "model_ir_terminated": 0,
             "model_fx_terminated": 0,
@@ -573,20 +579,31 @@ class PredictionsProcessor:
 
             # A sentence indicates "current use" if 'curr' is present and 'term' is not.
             is_current_context = sentence_flags["curr"] and not sentence_flags["term"]
-            is_terminated_context = sentence_flags["term"]
+            is_terminated_context = sentence_flags["term"] and not sentence_flags["curr"]
 
-            # Check for current hedge usage. Once a firm is flagged as a user, it stays flagged.
-            if is_current_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_user"] = 1
-            if is_current_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_user"] = 1
-            if is_current_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_user"] = 1
+            # Count current vs terminated mentions for each hedge type
+            if is_current_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_current_count"] += 1
+            if is_current_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_current_count"] += 1
+            if is_current_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_current_count"] += 1
+
+            if is_terminated_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_terminated_count"] += 1
+            if is_terminated_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_terminated_count"] += 1
+            if is_terminated_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_terminated_count"] += 1
+
+            # Set binary flags based on counts (you can adjust this logic later)
+            # For now, any mention is enough to set the flag.
+            if firm_year_flags["model_ir_current_count"] > 0: firm_year_flags["model_ir_user"] = 1
+            if firm_year_flags["model_fx_current_count"] > 0: firm_year_flags["model_fx_user"] = 1
+            if firm_year_flags["model_cp_current_count"] > 0: firm_year_flags["model_cp_user"] = 1
+
+            if firm_year_flags["model_ir_terminated_count"] > 0: firm_year_flags["model_ir_terminated"] = 1
+            if firm_year_flags["model_fx_terminated_count"] > 0: firm_year_flags["model_fx_terminated"] = 1
+            if firm_year_flags["model_cp_terminated_count"] > 0: firm_year_flags["model_cp_terminated"] = 1
+
+            # Handle other derivative types as before
             if is_current_context and sentence_flags["eq_use"]: firm_year_flags["model_eq_user"] = 1
             if is_current_context and sentence_flags["warr"]: firm_year_flags["model_warr_user"] = 1
             if is_current_context and sentence_flags["emb"]: firm_year_flags["model_emb_user"] = 1
-
-            # Check for terminated hedge usage
-            if is_terminated_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_terminated"] = 1
-            if is_terminated_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_terminated"] = 1
-            if is_terminated_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_terminated"] = 1
 
             # Check for any derivative use (current or historic) for the 'model_user_all' flag
             if not any_use_found:
