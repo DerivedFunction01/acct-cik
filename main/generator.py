@@ -541,6 +541,22 @@ def generate_hedge_paragraph(
             sentences.extend(generate_commodity())
         elif swapType == "fx" and random.random() < 0.15:
             sentences.extend(generate_fx())
+        
+        # Add a small chance of addtional sentences
+        if random.random() < 0.05:
+            sentences.append(
+                random.choice(additional_template_patterns).format(
+                    company=pick_company_name(company_name),
+                    verb=random.choice(hedge_use_verbs),
+                    month=month,
+                    end_day=end_day,
+                    year=current_year,
+                    swap_type=swap_type,
+                    gen_swap=random.choice(derivative_keywords["gen"]),
+                    materiality=random.choice(materiality),
+                    hedge_designation=random.choice(hedge_designations),
+                )
+            )
 
         # --- Time logic & Template Selection ---
         if has_active_derivative:
