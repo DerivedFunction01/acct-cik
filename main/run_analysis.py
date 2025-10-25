@@ -33,9 +33,9 @@ class RunOptions:
     run_firm_inspector: bool = False
     run_custom_analyzers: bool = False
     run_disagreement_sampler: bool = False
-    generate_sentence_files: bool = True
+    generate_sentence_files: bool = False
     run_qualitative_sampler: bool = True
-    run_key_firms_sampler: bool = True
+    run_key_firms_sampler: bool = False
     backup_server_results: bool = True
 
 # =============================================================================
