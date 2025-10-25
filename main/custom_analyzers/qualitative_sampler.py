@@ -37,7 +37,8 @@ class QualitativeSampler(BaseAnalyzer):
         :root { --sidebar-width: 320px; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #222; background: #f6f7fb; }
         .app { display: flex; height: 100vh; }
-        .sidebar { width: var(--sidebar-width); background: #0f1724; color: #e6eef8; overflow: auto; padding: 12px; box-sizing: border-box; }
+        .sidebar { width: var(--sidebar-width); background: #0f1724; color: #e6eef8; overflow-y: auto; padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; }
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .sidebar h2 { margin: 8px 0 12px; font-size: 16px; }
         .sidebar h4 { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; color: #94a3b8; }
         .report-link { display: block; padding: 8px; border-radius: 6px; margin-bottom: 6px; color: inherit; text-decoration: none; }
@@ -48,6 +49,7 @@ class QualitativeSampler(BaseAnalyzer):
         .header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
         .card { background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 6px 18px rgba(18, 38, 63, 0.06); margin-top: 12px; }
         .filter-group { margin-bottom: 12px; }
+        #filter-controls.collapsed { display: none; }
         .filter-group label { display: block; font-size: 0.9em; margin-bottom: 4px; color: #cbd5e1; }
         .filter-group input, .filter-group select { width: 100%; padding: 8px; box-sizing: border-box; background: #2c3a4f; border: 1px solid #475569; color: white; border-radius: 4px; }
         .flag-filter-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; margin-top: 4px; }
@@ -59,7 +61,8 @@ class QualitativeSampler(BaseAnalyzer):
         .sentence { margin-bottom: 12px; }
         .sentence-labels { font-size: 0.82em; color: #444; background: #eef2ff; padding: 6px 8px; border-radius: 8px; display:inline-block; }
         .controls { display:flex; gap:8px; align-items:center; }
-        .btn { background:#2b6cb0; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; cursor:pointer; border:none; }
+        .btn { background:#2b6cb0; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; cursor:pointer; border:none; font-family: inherit; }
+        #toggle-filters-btn { background: #334155; color: #cbd5e1; padding: 4px 10px; font-size: 12px; }
         .btn.secondary { background:#edf2ff; color:#1e293b; }        
         .meta { color:#475569; font-size:0.95em; }
         .small { font-size:0.85em; color:#64748b; }
@@ -68,7 +71,10 @@ class QualitativeSampler(BaseAnalyzer):
 <body>
     <div class="app">
         <aside class="sidebar">
-            <h2>Qualitative Review ({{ num_samples }} reports)</h2>
+            <div class="sidebar-header">
+                <h2>Qualitative Review ({{ num_samples }} reports)</h2>
+                <button id="toggle-filters-btn" class="btn" title="Toggle Filters">Collapse</button>
+            </div>
             <div id="filter-controls">
                 <div class="filter-group">
                     <label for="filter-cik">Filter by CIK</label>
@@ -260,6 +266,15 @@ class QualitativeSampler(BaseAnalyzer):
             prevBtn.onclick = () => { window.location.hash = Math.max(0, idx - 1); };
             nextBtn.onclick = () => { window.location.hash = Math.min(reports.length - 1, idx + 1); };
         }
+        
+        function setupFilterToggle() {
+            const toggleBtn = document.getElementById('toggle-filters-btn');
+            const filterControls = document.getElementById('filter-controls');
+            toggleBtn.addEventListener('click', () => {
+                const isCollapsed = filterControls.classList.toggle('collapsed');
+                toggleBtn.textContent = isCollapsed ? 'Expand' : 'Collapse';
+            });
+        }
 
         window.addEventListener('hashchange', route);
         document.getElementById('filter-cik').addEventListener('keyup', filterList);
@@ -269,6 +284,7 @@ class QualitativeSampler(BaseAnalyzer):
 
         // init
         makeList();
+        setupFilterToggle();
         if (!window.location.hash) window.location.hash = '#0';
         route();
     </script>
