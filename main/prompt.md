@@ -57,6 +57,12 @@ If the model is wrong for a specific sentence, that is okay, as long it gets it 
 | 54321 | 2022 | FX | NO | YES | The text shows current use: "As of December 31, 2022, we held foreign currency forwards with a notional of $50 million." |
 | 98765 | 2023 | CP | YES | TERMINATED | The text explicitly states termination: "All commodity contracts were settled in Q2 2023 with no outstanding positions." |
 
+| Type | Accuracy|
+| IR | A% |
+| FX | B% |
+| CP | C% |
+| Firm-year (X samples) | D% |
+
 If no disagreements are found after reviewing all reports, your entire output should be:
 `No disagreements found between my analysis and the model's flags.`
 
