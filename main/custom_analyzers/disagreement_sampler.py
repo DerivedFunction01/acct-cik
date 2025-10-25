@@ -1,7 +1,5 @@
 import pandas as pd
-from pathlib import Path
-from typing import Dict, List, Optional, Iterator
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Dict, List, Iterator
 from tqdm import tqdm
 import sqlite3
 from contextlib import contextmanager

@@ -1,10 +1,7 @@
 import pandas as pd
-from pathlib import Path
-import random
 import json
-from jinja2 import Environment, FileSystemLoader
 from .analysis import Config, LabelMapper, DataLoader, BaseAnalyzer
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 
 class QualitativeSampler(BaseAnalyzer):
     """

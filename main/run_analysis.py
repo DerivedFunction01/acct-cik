@@ -15,7 +15,7 @@ from custom_analyzers.disagreement_sampler import DisagreementSampler
 from custom_analyzers.firm_inspector import URLAnalyzer, URLAnalysisConfig
 from custom_analyzers.qualitative_sampler import QualitativeSampler
 from custom_analyzers.key_firms_sampler import KeyFirmsSampler
-from typing import Dict, Optional
+from typing import Dict
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 

@@ -3,8 +3,7 @@ import pandas as pd
 import json
 from dataclasses import dataclass
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import List, Iterator, Optional
+from typing import List, Iterator
 import sqlite3
 from contextlib import contextmanager
 
