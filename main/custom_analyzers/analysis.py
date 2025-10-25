@@ -546,6 +546,9 @@ class PredictionsProcessor:
             "model_fx_user": 0,
             "model_cp_user": 0,
             "model_eq_user": 0,
+            "model_ir_terminated": 0,
+            "model_fx_terminated": 0,
+            "model_cp_terminated": 0,
             "model_warr_user": 0,
             "model_emb_user": 0,
             "model_user": 0,
@@ -560,6 +563,7 @@ class PredictionsProcessor:
 
             # A sentence indicates "current use" if 'curr' is present and 'term' is not.
             is_current_context = sentence_flags["curr"] and not sentence_flags["term"]
+            is_terminated_context = sentence_flags["term"]
 
             # Check for current hedge usage. Once a firm is flagged as a user, it stays flagged.
             if is_current_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_user"] = 1
@@ -568,6 +572,11 @@ class PredictionsProcessor:
             if is_current_context and sentence_flags["eq_use"]: firm_year_flags["model_eq_user"] = 1
             if is_current_context and sentence_flags["warr"]: firm_year_flags["model_warr_user"] = 1
             if is_current_context and sentence_flags["emb"]: firm_year_flags["model_emb_user"] = 1
+
+            # Check for terminated hedge usage
+            if is_terminated_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_terminated"] = 1
+            if is_terminated_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_terminated"] = 1
+            if is_terminated_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_terminated"] = 1
 
             # Check for any derivative use (current or historic) for the 'model_user_all' flag
             if not any_use_found:
