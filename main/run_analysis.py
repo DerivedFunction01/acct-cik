@@ -372,45 +372,18 @@ if __name__ == "__main__":
 
         print("\nSelect an action:")
         print("  1. Run pipeline with current options")
-        print("  2. Modify run options")
-        print("  3. Modify analyzer arguments")
-        print("  4. Exit")
+        print("  2. Reload options from pipeline_config.json")
+        print("  3. Exit")
         choice = input("Enter your choice (1-3): ") or "1"
 
         if choice == "1":
             pipeline.run()
         elif choice == "2":
-            print("\n--- Modify Run Options ---")
-            for attr in dir(run_options):
-                if not attr.startswith("_") and not callable(getattr(run_options, attr)):
-                    current_value = getattr(run_options, attr)
-                    new_value_str = input(
-                        f"  {attr} (current: {current_value}) [y/n/skip]: "
-                    ).lower()
-                    if new_value_str == "y":
-                        setattr(run_options, attr, True)
-                    elif new_value_str == "n":
-                        setattr(run_options, attr, False)
-                    # else: skip, keep current value
-            pipeline.config_manager.save_config()
-            print("Run options updated.")
+            # The config is already reloaded at the top of the loop.
+            # This choice just forces the loop to reiterate and display the new config.
+            print("\nConfiguration reloaded from 'pipeline_config.json'.")
+            continue
         elif choice == "3":
-            print("\n--- Modify Analyzer Arguments ---")
-            analyzer_args = pipeline.config_manager.config_data.get("analyzer_args", {})
-            for analyzer, args in analyzer_args.items():
-                print(f"\n  Analyzer: {analyzer}")
-                if not args:
-                    print("    (No configurable arguments)")
-                    continue
-                for arg, value in args.items():
-                    new_val_str = input(f"    {arg} (current: {value}) [new value or skip]: ")
-                    if new_val_str:
-                        try: # Try to cast to the original type
-                            args[arg] = type(value)(new_val_str)
-                        except (ValueError, TypeError):
-                            args[arg] = new_val_str # Keep as string if cast fails
-            pipeline.config_manager.save_config()
-        elif choice == "4":
             print("Exiting analysis pipeline.")
             break
         else:
