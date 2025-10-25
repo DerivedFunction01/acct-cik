@@ -230,7 +230,7 @@ class ComparisonAnalyzer(BaseAnalyzer):
         print(f"✅ Comparison analysis complete ({len(merged_df):,} firm-years)")
         return results
     
-    def run(self):
+    def run(self, **kwargs):
         """
         Main execution method. Loads data, runs the comparison, and saves the
         results to a dedicated Excel workbook.

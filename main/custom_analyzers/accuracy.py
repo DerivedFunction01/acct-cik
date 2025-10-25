@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 # Import existing classes from the analysis module
 from .analysis import Config
-from .analysis import DataLoader, LabelMapper
+from .analysis import DataLoader, LabelMapper, BaseAnalyzer
 
 # =============================================================================
 # CONFIGURATION
@@ -144,22 +144,22 @@ class StreamingDataLoader:
 # =============================================================================
 
 
-class AccuracySampler:
+class AccuracySampler(BaseAnalyzer):
     """Handles loading, processing, and sampling data for accuracy checks."""
 
     def __init__(
         self,
-        config: Config,
-        data_loader: DataLoader,
+        config: AccuracyConfig,
         label_mapper: LabelMapper,
-        sentence_df: pd.DataFrame = None,
-        model_agg_df: pd.DataFrame = None,
+        samples_per_label: int = 50,
+        random_state: int = 42,
     ):
-        self.config = config
-        self.data_loader = data_loader
-        self.label_mapper = label_mapper
-        self.sentence_df = sentence_df
-        self.model_agg_df = model_agg_df
+        super().__init__(config, label_mapper)
+        self.data_loader = DataLoader(config)
+        # Parameters for sampling logic
+        self.samples_per_label = samples_per_label
+        self.random_state = random_state
+        # Streaming loader for memory efficiency
         self.streaming_loader = StreamingDataLoader(config.db_path, chunk_size=5000)
 
     def get_highest_priority_label(self, prob_dict: dict) -> str:
@@ -254,14 +254,10 @@ class AccuracySampler:
                 if label not in label_accumulator:
                     label_accumulator[label] = []
 
-                available_slots = max(
-                    0, self.config.samples_per_label - len(label_accumulator[label])
-                )
+                available_slots = max(0, self.samples_per_label - len(label_accumulator[label]))
                 if available_slots > 0:
                     sample_size = min(available_slots, len(group))
-                    sample = group.sample(
-                        n=sample_size, random_state=self.config.random_state
-                    )
+                    sample = group.sample(n=sample_size, random_state=self.random_state)
                     label_accumulator[label].extend(sample.to_dict("records"))
 
         # Combine all accumulated samples
@@ -283,14 +279,13 @@ class AccuracySampler:
             return pd.DataFrame()
 
         print(
-            f"Creating stratified sample with {self.config.samples_per_label} examples per label..."
+            f"Creating stratified sample with {self.samples_per_label} examples per label..."
         )
 
         # Already stratified from streaming, but ensure we have exactly samples_per_label per group
         sampled_df = df.groupby("predicted_primary_label", group_keys=False).apply(
             lambda x: x.sample(
-                n=min(len(x), self.config.samples_per_label),
-                random_state=self.config.random_state,
+                n=min(len(x), self.samples_per_label), random_state=self.random_state
             )
         )
 

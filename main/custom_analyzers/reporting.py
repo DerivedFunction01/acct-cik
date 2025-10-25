@@ -9,7 +9,7 @@ from contextlib import contextmanager
 import json
 
 # Import from analysis module
-from .analysis import Config, LabelMapper, DataLoader
+from .analysis import Config, LabelMapper, DataLoader, BaseAnalyzer
 
 
 # =============================================================================
@@ -124,12 +124,11 @@ class StreamingDataLoader:
 # =============================================================================
 
 
-class SentenceLabeler:
+class SentenceLabeler(BaseAnalyzer):
     """Creates sentence-level labeled files with user flags using streaming"""
 
     def __init__(self, config: Config, label_mapper: LabelMapper):
-        self.config = config
-        self.label_mapper = label_mapper
+        super().__init__(config, label_mapper)
         self.streaming_loader = StreamingDataLoader(config.db_path, chunk_size=5000)
 
     def process_sentence_batch(
@@ -285,7 +284,7 @@ class SentenceLabeler:
 
         print(f"  ✓ Wrote {workbook_name} workbook ({len(combined_df):,} sentences)")
 
-    def run(self):
+    def run(self, **kwargs):
         """
         Main execution method. Loads necessary data and runs the labeling process.
         """

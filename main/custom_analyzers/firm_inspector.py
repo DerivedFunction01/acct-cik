@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from tqdm import tqdm
 
 # Import from existing modules
-from custom_analyzers.analysis import Config, LabelMapper, DataLoader
+from custom_analyzers.analysis import Config, LabelMapper, DataLoader, BaseAnalyzer
 
 # =============================================================================
 # URL ANALYZER
@@ -18,13 +18,12 @@ class URLAnalysisConfig(Config):
     input_csv: str = "firm_urls.csv"
     output_excel: str = "url_sentence_analysis.xlsx"
 
-class URLAnalyzer:
+class URLAnalyzer(BaseAnalyzer):
     """Analyzes sentences for specific URLs"""
 
     def __init__(self, config: URLAnalysisConfig, label_mapper: LabelMapper):
-        self.config = config
-        self.label_mapper = label_mapper
-        self.data_loader = DataLoader(config)
+        super().__init__(config, label_mapper)
+        self.data_loader = DataLoader(self.config)
 
     def load_urls_from_excel(self) -> pd.DataFrame:
         """Load URLs from the input Excel file"""

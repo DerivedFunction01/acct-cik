@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import json
 
 from .analysis import Config, LabelMapper, DataLoader
-
+from .analysis import BaseAnalyzer
 
 # =============================================================================
 # STREAMING DATA LOADER (shared)
@@ -122,7 +122,7 @@ class StreamingDataLoader:
 # =============================================================================
 
 
-class DisagreementSampler:
+class DisagreementSampler(BaseAnalyzer):
     """
     Samples sentences from firm-year reports based on agreement/disagreement
     between keyword-based and model-based flags using streaming.
@@ -135,15 +135,11 @@ class DisagreementSampler:
         self,
         config: Config,
         label_mapper: LabelMapper,
-        data_loader: DataLoader,
-        sentence_df: Optional[pd.DataFrame] = None,
         samples_per_category: int = 25,
         random_state: int = 42,
     ):
-        self.config = config
-        self.label_mapper = label_mapper
-        self.data_loader = data_loader
-        self.sentence_df = sentence_df  # No longer used - for backward compatibility
+        super().__init__(config, label_mapper)
+        self.data_loader = DataLoader(config)
         self.samples_per_category = samples_per_category
         self.random_state = random_state
         self.output_filename = "disagreement_analysis_sample.xlsx"
@@ -327,7 +323,7 @@ class DisagreementSampler:
         )
         print("-" * 70)
 
-    def run(self):
+    def run(self, **kwargs):
         """
         Main execution method. Loads data, runs comparison, and then samples disagreements.
         """
