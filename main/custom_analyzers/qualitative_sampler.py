@@ -394,19 +394,12 @@ class QualitativeSampler(BaseAnalyzer):
         for report in reports_data:
             # The AI needs the raw text and the model's flags for comparison.
             extracted_text = [s.get("text", "") for s in report.get("sentences", [])]
-
-            def get_flag_status(use_flag, term_flag):
-                if term_flag:
-                    return "TERMINATED"
-                elif use_flag:
-                    return "YES"
-                else:
-                    return "NO"
-
+            # The 'model' value is already the correct string ('YES', 'NO', 'TERMINATED')
+            # from when reports_data was created. We can use it directly.
             model_flags = {
-                "IR": get_flag_status(report["flags"][0]["model"], report.get("model_ir_terminated", 0)),
-                "FX": get_flag_status(report["flags"][1]["model"], report.get("model_fx_terminated", 0)),
-                "CP": get_flag_status(report["flags"][2]["model"], report.get("model_cp_terminated", 0)),
+                "IR": report["flags"][0]["model"],
+                "FX": report["flags"][1]["model"],
+                "CP": report["flags"][2]["model"],
             }
 
             agent_reports_data.append({
