@@ -125,11 +125,11 @@ class AnalysisPipeline:
 
         # Map run options to pipeline methods for modular execution
         self._step_map = {
-            "backup_server_results": self._backup_server_results,
             # Fast analysis goes first
             "run_qualitative_sampler": self._run_qualitative_sampler,
             "run_firm_inspector": self._run_firm_inspector,
             "run_key_firms_sampler": self._run_key_firms_sampler,
+            "backup_server_results": self._backup_server_results,
             # Then slower ones
             "run_comparison": self._run_comparison_analysis,
             "run_custom_analyzers": self._run_custom_analyzers,
@@ -232,7 +232,7 @@ class AnalysisPipeline:
                 # Disable automatic URL conversion to prevent Excel's hyperlink limit error.
                 writer.book.strings_to_urls = False
                 server_results_df.to_excel(writer, index=False)
-                
+
             # Atomically rename the temporary file to the final destination
             import os
             try:
