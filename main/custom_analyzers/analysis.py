@@ -236,8 +236,6 @@ class LabelMapper:
         # === Identify active time dimensions ===
         active_times = {}
         if labels_dict.get("term", 0) >= term_threshold:
-            active_times["term"] = labels_dict.get("term", 0)
-        if labels_dict.get("curr", 0) >= threshold:
             active_times["curr"] = labels_dict.get("curr", 0)
         if labels_dict.get("hist", 0) >= threshold:
             active_times["hist"] = labels_dict.get("hist", 0)
@@ -276,15 +274,11 @@ class LabelMapper:
                 for time_dim, time_score in active_times.items():
                     # Combined score for prioritization
                     combined_score = hedge["usage"] * time_score
-                    if time_dim == "curr":
-                        # Priority 1: Current usage (highest)
-                        all_labels.append((1 + priority_penalty, combined_score, curr_id))
-                    elif time_dim == "hist":
-                        # Priority 2: Historical usage
-                        all_labels.append((2 + priority_penalty, combined_score, hist_id))
-                    elif time_dim == "spec":
-                        # Priority 3: Speculative usage
-                        all_labels.append((3 + priority_penalty, combined_score, spec_id))
+                    # The 'term' dimension is handled by the PredictionsProcessor's ratio logic.
+                    # LabelMapper now only considers current, historical, and speculative use.
+                    if time_dim == "curr": all_labels.append((1 + priority_penalty, combined_score, curr_id))
+                    elif time_dim == "hist": all_labels.append((2 + priority_penalty, combined_score, hist_id))
+                    elif time_dim == "spec": all_labels.append((3 + priority_penalty, combined_score, spec_id))
             # Fallback: If usage is detected but no time dimension is active, default to the highest time score
             elif hedge["has_use"] and not active_times:
                 # Priority 1.5: Choose between current or historical based on their raw scores,
