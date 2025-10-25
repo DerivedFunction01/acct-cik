@@ -60,4 +60,6 @@ If the model is wrong for a specific sentence, that is okay, as long it gets it 
 If no disagreements are found after reviewing all reports, your entire output should be:
 `No disagreements found between my analysis and the model's flags.`
 
+State the overall accuracy for each hedge type independent of firm-year (fx, cp, ir), as well as the accuracy for each firm-year at the very end.
+
 Now, please begin your analysis of the following JSON file.
