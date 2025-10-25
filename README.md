@@ -45,9 +45,9 @@ Run via `python run_analysis.py` with `RunOptions`:
 
 ## Text Extraction Methodology
 
-The `colab.py` script orchestrates the initial data gathering and text extraction from SEC filings. To avoid processing unrelated text, a strict keyword search filters content before model classification. The filtering uses specific regular expressions and then expands the context around each match to create a meaningful paragraph.
+The `webpage.py` script orchestrates the initial data gathering and text extraction from SEC filings. To avoid processing unrelated text, a strict keyword search filters content before model classification. The filtering uses specific regular expressions and then expands the context around each match to create a meaningful paragraph.
 
-**Key Steps in `colab.py`**:
+**Key Steps in `webpage.py`**:
 1.  **Fetch**: Downloads filing URLs from the SEC EDGAR API.
 2.  **Parse**: Extracts clean text content from the raw HTML/text filings.
 3.  **Filter & Expand**: Uses the regex patterns below to find relevant sentences and then expands the context around them to a length of ~1200 characters, ensuring the model has enough information.
@@ -114,7 +114,7 @@ Database: SQLite `web_data.db` (tables: `report_data`, `webpage_result`, `server
 
 The model processing pipeline consists of two main stages:
 
-1.  **Classification (`classify-new.py`)**: This script reads the extracted sentences from the database, sends them in batches to a running model server (e.g., Flask API), and stores the raw probability predictions back into the `server_result` table in the database.
+1.  **Classification (`classify.py`)**: This script reads the extracted sentences from the database, sends them in batches to a running model server (e.g., Flask API), and stores the raw probability predictions back into the `server_result` table in the database.
 2.  **Analysis (`analysis.py`)**:
     - **Load**: `DataLoader` queries the DB for the raw sentence predictions.
     - **Aggregate**: `PredictionsProcessor` counts labels that are above the confidence threshold for each firm-year to create summary flags (e.g., `model_ir_user`).
