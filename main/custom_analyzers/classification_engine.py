@@ -193,10 +193,10 @@ class ClassificationEngine:
             context_score = prob_dict.get(hedge_type, 0)
             usage_score = prob_dict.get(f"{hedge_type}_use", 0)
             
-            if context_score >= self.display_threshold or usage_score >= self.display_threshold:
+            if active_flags.get(hedge_type) or active_flags.get(f"{hedge_type}_use"):
                 active_hedges.append({
                     "type": hedge_type,
-                    "has_use": usage_score >= self.confidence_threshold, # Use the main confidence threshold for a definitive 'use' flag
+                    "has_use": active_flags.get(f"{hedge_type}_use", False),
                     "context": context_score,
                     "usage": usage_score,
                     "max_score": max(context_score, usage_score)
@@ -273,10 +273,9 @@ class ClassificationEngine:
         results = []
         seen = set()
         for _, confidence, label_id in all_labels:
-            label_name = self.primary_id2label.get(str(label_id))
-            if label_name and label_name not in seen:
-                results.append((label_name, confidence))
-                seen.add(label_name)
+            if label_id not in seen:
+                results.append((self.primary_id2label[label_id], confidence))
+                seen.add(label_id)
         
         # Fallback to irrelevant
         if not results:
@@ -333,9 +332,8 @@ class ClassificationEngine:
             if hedge["context"] >= self.confidence_threshold:
                 resolved_type = self._resolve_gen_type(prob_dict, hedge["type"])
                 priority_penalty = 0.1 if resolved_type == "eq" else 0.0
-                label_id = self.context_map.get(resolved_type)
-                if label_id is not None:
-                    all_labels.append((9 + priority_penalty, hedge["context"], label_id))
+                all_labels.append((9 + priority_penalty, hedge["context"], 
+                                 self.context_map[resolved_type]))
     
     # =========================================================================
     # FIRM-YEAR AGGREGATION (source of truth for final classification)
