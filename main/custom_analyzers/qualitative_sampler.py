@@ -129,8 +129,17 @@ class QualitativeSampler(BaseAnalyzer):
             r.flags.forEach(f => {
                 const tr = document.createElement('tr');
                 const tdName = document.createElement('td'); tdName.textContent = f.name;
-                const tdKw = document.createElement('td'); tdKw.textContent = f.keyword ? 'Yes' : 'No'; tdKw.style.color = f.keyword ? 'green' : 'red';
-                const tdModel = document.createElement('td'); tdModel.textContent = f.model ? 'Yes' : 'No'; tdModel.style.color = f.model ? 'green' : 'red';
+                const tdKw = document.createElement('td');
+                tdKw.textContent = f.keyword ? 'Yes' : 'No';
+                tdKw.style.color = f.keyword ? 'green' : 'red';
+
+                const tdModel = document.createElement('td');
+                tdModel.textContent = f.model; // Now a string: 'YES', 'NO', 'TERMINATED'
+                if (f.model === 'YES') tdModel.style.color = 'green';
+                else if (f.model === 'NO') tdModel.style.color = 'red';
+                else if (f.model === 'TERMINATED') tdModel.style.color = 'orange';
+                else tdModel.style.color = 'grey';
+
                 tr.appendChild(tdName); tr.appendChild(tdKw); tr.appendChild(tdModel);
                 flagsTableBody.appendChild(tr);
             });
@@ -325,31 +334,38 @@ class QualitativeSampler(BaseAnalyzer):
 
         reports_data = []
         for _, row in final_sample_df.iterrows():
+            def get_flag_status(use_flag, term_flag):
+                if term_flag:
+                    return "TERMINATED"
+                elif use_flag:
+                    return "YES"
+                else:
+                    return "NO"
+
             report = {
                 "cik": row["cik"],
                 "year": row["year"],
                 "url": row["url"],
                 "sentences": self._get_sentence_data(row["url"], row["year"]),
+                # Pass the terminated flags to the report data for the JSON generation later
+                "model_ir_terminated": row.get("model_ir_terminated", 0),
+                "model_fx_terminated": row.get("model_fx_terminated", 0),
+                "model_cp_terminated": row.get("model_cp_terminated", 0),
                 "flags": [
                     {
                         "name": "IR Hedge",
                         "keyword": row.get("ir_user", 0),
-                        "model": row.get("model_ir_user", 0),
+                        "model": get_flag_status(row.get("model_ir_user", 0), row.get("model_ir_terminated", 0)),
                     },
                     {
                         "name": "FX Hedge",
                         "keyword": row.get("fx_user", 0),
-                        "model": row.get("model_fx_user", 0),
+                        "model": get_flag_status(row.get("model_fx_user", 0), row.get("model_fx_terminated", 0)),
                     },
                     {
                         "name": "CP Hedge",
                         "keyword": row.get("cp_user", 0),
-                        "model": row.get("model_cp_user", 0),
-                    },
-                    {
-                        "name": "Any Hedge (IR/FX/CP)",
-                        "keyword": row.get("user", 0),
-                        "model": row.get("model_user", 0),
+                        "model": get_flag_status(row.get("model_cp_user", 0), row.get("model_cp_terminated", 0)),
                     },
                 ],
             }
