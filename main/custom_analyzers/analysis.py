@@ -37,6 +37,7 @@ class Config:
     confidence_threshold: float = 0.65
     soft_confidence_threshold: float = 0.50
     termination_threshold: float = 0.80
+    term_curr_ratio: float = 0.0
     display_threshold: float = 0.30 # For display purposes
 
     # Multi-label names (from training)
@@ -590,16 +591,6 @@ class PredictionsProcessor:
             if is_terminated_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_terminated_count"] += 1
             if is_terminated_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_terminated_count"] += 1
 
-            # Set binary flags based on counts (you can adjust this logic later)
-            # For now, any mention is enough to set the flag.
-            if firm_year_flags["model_ir_current_count"] > 0: firm_year_flags["model_ir_user"] = 1
-            if firm_year_flags["model_fx_current_count"] > 0: firm_year_flags["model_fx_user"] = 1
-            if firm_year_flags["model_cp_current_count"] > 0: firm_year_flags["model_cp_user"] = 1
-
-            if firm_year_flags["model_ir_terminated_count"] > 0: firm_year_flags["model_ir_terminated"] = 1
-            if firm_year_flags["model_fx_terminated_count"] > 0: firm_year_flags["model_fx_terminated"] = 1
-            if firm_year_flags["model_cp_terminated_count"] > 0: firm_year_flags["model_cp_terminated"] = 1
-
             # Handle other derivative types as before
             if is_current_context and sentence_flags["eq_use"]: firm_year_flags["model_eq_user"] = 1
             if is_current_context and sentence_flags["warr"]: firm_year_flags["model_warr_user"] = 1
@@ -609,6 +600,21 @@ class PredictionsProcessor:
             if not any_use_found:
                 if any(sentence_flags.get(use_label) for use_label in ["ir_use", "fx_use", "cp_use", "eq_use", "warr", "emb"]):
                     any_use_found = True
+
+        # After counting all sentences, apply the ratio logic to set final flags.
+        # This ensures the decision is based on the entire report's context.
+        for hedge_type in ["ir", "fx", "cp"]:
+            current_count = firm_year_flags[f"model_{hedge_type}_current_count"]
+            terminated_count = firm_year_flags[f"model_{hedge_type}_terminated_count"]
+
+            # A firm is a "user" if there's at least one current mention.
+            if current_count > 0:
+                firm_year_flags[f"model_{hedge_type}_user"] = 1
+
+            # A firm's usage is "terminated" if terminated mentions outweigh current ones based on the ratio.
+            # If ratio is 0.0, any terminated mention ( > 0) will set the flag.
+            if terminated_count > 0 and terminated_count > (current_count * self.config.term_curr_ratio):
+                firm_year_flags[f"model_{hedge_type}_terminated"] = 1
 
         # Set the final aggregated flags
         firm_year_flags["model_user"] = int(

@@ -202,7 +202,7 @@ class AnalysisPipeline:
             ).fillna(0)
             self._pipeline_data["merged_df"] = merged_df
 
-        sampler = QualitativeSampler(self.config, self.label_mapper)
+        sampler = QualitativeSampler(self.config, self.label_mapper) # term_curr_ratio is now in config
         # The analyze method is called with the merged data
         sampler.analyze(data=self._pipeline_data["merged_df"])
 

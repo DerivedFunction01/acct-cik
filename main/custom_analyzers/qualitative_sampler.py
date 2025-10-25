@@ -80,7 +80,7 @@ class QualitativeSampler(BaseAnalyzer):
             <div id="report-content" class="card">
                 <!-- Flags -->
                 <h3>Comparison Flags</h3>
-                <table id="flags-table"><thead><tr><th>Category</th><th>Keyword Flag</th><th>Model Flag</th></tr></thead><tbody></tbody></table>
+                <table id="flags-table"><thead><tr><th>Category</th><th>Keyword Flag</th><th>Model Flag</th><th>Current Count</th><th>Terminated Count</th></tr></thead><tbody></tbody></table>
 
                 <!-- Extracted text -->
                 <h3 style="margin-top:18px">Extracted Text</h3>
@@ -140,7 +140,14 @@ class QualitativeSampler(BaseAnalyzer):
                 else if (f.model === 'TERMINATED') tdModel.style.color = 'orange';
                 else tdModel.style.color = 'grey';
 
+                const tdCurrCount = document.createElement('td');
+                tdCurrCount.textContent = f.current_count;
+
+                const tdTermCount = document.createElement('td');
+                tdTermCount.textContent = f.terminated_count;
+
                 tr.appendChild(tdName); tr.appendChild(tdKw); tr.appendChild(tdModel);
+                tr.appendChild(tdCurrCount); tr.appendChild(tdTermCount);
                 flagsTableBody.appendChild(tr);
             });
 
@@ -335,6 +342,7 @@ class QualitativeSampler(BaseAnalyzer):
         reports_data = []
         for _, row in final_sample_df.iterrows():
             def get_flag_status(use_flag, term_flag):
+                # This logic now reads the pre-calculated flags from analysis.py
                 if term_flag:
                     return "TERMINATED"
                 elif use_flag:
@@ -356,16 +364,22 @@ class QualitativeSampler(BaseAnalyzer):
                         "name": "IR Hedge",
                         "keyword": row.get("ir_user", 0),
                         "model": get_flag_status(row.get("model_ir_user", 0), row.get("model_ir_terminated", 0)),
+                        "current_count": int(row.get("model_ir_current_count", 0)),
+                        "terminated_count": int(row.get("model_ir_terminated_count", 0)),
                     },
                     {
                         "name": "FX Hedge",
                         "keyword": row.get("fx_user", 0),
                         "model": get_flag_status(row.get("model_fx_user", 0), row.get("model_fx_terminated", 0)),
+                        "current_count": int(row.get("model_fx_current_count", 0)),
+                        "terminated_count": int(row.get("model_fx_terminated_count", 0)),
                     },
                     {
                         "name": "CP Hedge",
                         "keyword": row.get("cp_user", 0),
                         "model": get_flag_status(row.get("model_cp_user", 0), row.get("model_cp_terminated", 0)),
+                        "current_count": int(row.get("model_cp_current_count", 0)),
+                        "terminated_count": int(row.get("model_cp_terminated_count", 0)),
                     },
                 ],
             }
