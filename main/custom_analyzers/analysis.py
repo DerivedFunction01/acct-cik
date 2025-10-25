@@ -195,22 +195,27 @@ class LabelMapper:
         self, labels_dict: Dict[str, float]
     ) -> List[Tuple[str, float]]:
         """
-        Convert multi-label predictions to primary categorical labels.
+        Interprets and prioritizes multi-label predictions for a SINGLE SENTENCE.
+
+        This method's primary role is for DISPLAY and SAMPLING. It translates the
+        model's raw probability vector for one sentence into a human-readable,
+        prioritized list of labels (e.g., for the qualitative review report).
         
-        Returns list of labels with HIGHEST PRIORITY FIRST:
-        - First label = primary (for inspection)
-        - All labels = used for counter increments
+        It does NOT make the final firm-year classification. That is the
+        responsibility of the PredictionsProcessor, which aggregates across all
+        sentences in a report.
         
-        Priority for primary label (optimized for detecting CURRENT derivative usage):
-        0. Terminated hedge (IR/FX/CP/EQ - by confidence)
-        1. Current hedge usage (IR/FX/CP/EQ - by confidence)
-        2. Historical hedge usage (IR/FX/CP/EQ - by confidence)
+        Therefore, this method will only produce labels like "(Current)" or
+        "(Historic)" and will NOT produce a "(Terminated)" label, as that
+        decision requires report-level context (e.g., term_curr_ratio).
+        
+        Priority Logic (for a single sentence):
+        1. Current hedge usage (e.g., 'ir_use' + 'curr')
+        2. Historical hedge usage
         3. Speculative hedge usage
-        4. Warrant/Embedded (explicit usage signal, despite limited training data)
-        5. Context with time indicators (soft hedges - ambiguous, no usage flag)
-        6. Speculative context
-        7. Context-only mentions
-        8. Irrelevant
+        4. Warrants / Embedded Derivatives
+        5. Context-only mentions (e.g., 'ir' without '_use')
+        6. Irrelevant
         """
         threshold = getattr(self.config, "confidence_threshold", 0.65)
         term_threshold = getattr(self.config, "termination_threshold", 0.80)
@@ -235,7 +240,7 @@ class LabelMapper:
 
         # === Identify active time dimensions ===
         active_times = {}
-        if labels_dict.get("term", 0) >= term_threshold:
+        if labels_dict.get("curr", 0) >= threshold:
             active_times["curr"] = labels_dict.get("curr", 0)
         if labels_dict.get("hist", 0) >= threshold:
             active_times["hist"] = labels_dict.get("hist", 0)
@@ -274,11 +279,9 @@ class LabelMapper:
                 for time_dim, time_score in active_times.items():
                     # Combined score for prioritization
                     combined_score = hedge["usage"] * time_score
-                    # The 'term' dimension is handled by the PredictionsProcessor's ratio logic.
-                    # LabelMapper now only considers current, historical, and speculative use.
-                    if time_dim == "curr": all_labels.append((1 + priority_penalty, combined_score, curr_id))
-                    elif time_dim == "hist": all_labels.append((2 + priority_penalty, combined_score, hist_id))
-                    elif time_dim == "spec": all_labels.append((3 + priority_penalty, combined_score, spec_id))
+                    if time_dim == "curr": all_labels.append((1 + priority_penalty, combined_score, curr_id)) # Priority 1: Current
+                    elif time_dim == "hist": all_labels.append((2 + priority_penalty, combined_score, hist_id)) # Priority 2: Historical
+                    elif time_dim == "spec": all_labels.append((3 + priority_penalty, combined_score, spec_id)) # Priority 3: Speculative
             # Fallback: If usage is detected but no time dimension is active, default to the highest time score
             elif hedge["has_use"] and not active_times:
                 # Priority 1.5: Choose between current or historical based on their raw scores,
@@ -534,8 +537,13 @@ class PredictionsProcessor:
 
     def _determine_user_flags(self, predictions: List[dict]) -> Dict[str, int]:
         """
-        Determine firm-year user flags by analyzing sentence-level predictions.
-        This allows for more granular logic, like associating 'term' with specific hedges.
+        Aggregates all sentence-level predictions into final FIRM-YEAR flags.
+
+        This is the "source of truth" for the final classification of a firm-year.
+        It operates at the REPORT LEVEL by iterating through all sentences in a
+        single report. It counts all 'current' and 'terminated' mentions and then
+        applies report-wide logic (like the term_curr_ratio) to make a final,
+        binding decision on the status of each derivative type.
         """
         # Initialize flags that will be aggregated across all sentences
         firm_year_flags = {
