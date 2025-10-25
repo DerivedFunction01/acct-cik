@@ -316,7 +316,7 @@ if __name__ == "__main__":
         print("  1. Run pipeline with current options")
         print("  2. Modify run options")
         print("  3. Exit")
-        choice = input("Enter your choice (1-3): ")
+        choice = input("Enter your choice (1-3): ") or "1"
 
         if choice == "1":
             pipeline.run(options=run_options)
