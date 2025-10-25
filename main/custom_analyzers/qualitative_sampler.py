@@ -16,7 +16,7 @@ class QualitativeSampler(BaseAnalyzer):
         self,
         config: Config,
         label_mapper: LabelMapper,
-        sample_size: int = 50,
+        sample_size: int = 100,
         random_state: int = 42,
     ):
         super().__init__(config, label_mapper)
