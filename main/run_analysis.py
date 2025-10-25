@@ -308,7 +308,36 @@ if __name__ == "__main__":
         backup_server_results=True,
     )
 
-    # Execute the pipeline with the chosen options
-    pipeline.run(options=run_options)
+    # %%
+    # Interactive environment menu to load the run_options, run pipeline, or exit
+    while True:
+        print("=" * 70)   
+        print("\nSelect an action:")
+        print("  1. Run pipeline with current options")
+        print("  2. Modify run options")
+        print("  3. Exit")
+        choice = input("Enter your choice (1-3): ")
+
+        if choice == "1":
+            pipeline.run(options=run_options)
+        elif choice == "2":
+            print("\n--- Modify Run Options ---")
+            for attr in dir(run_options):
+                if not attr.startswith("_") and not callable(getattr(run_options, attr)):
+                    current_value = getattr(run_options, attr)
+                    new_value_str = input(
+                        f"  {attr} (current: {current_value}) [y/n/skip]: "
+                    ).lower()
+                    if new_value_str == "y":
+                        setattr(run_options, attr, True)
+                    elif new_value_str == "n":
+                        setattr(run_options, attr, False)
+                    # else: skip, keep current value
+            print("Run options updated.")
+        elif choice == "3":
+            print("Exiting analysis pipeline.")
+            break
+        else:
+            print("Invalid choice. Please enter 1, 2, or 3.")        
 
 # %%
