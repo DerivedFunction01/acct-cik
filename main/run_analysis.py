@@ -1,5 +1,6 @@
 # %%
 from custom_analyzers.analysis import (
+    json,
     BaseAnalyzer,
     Config,
     DataLoader,
@@ -15,7 +16,8 @@ from custom_analyzers.firm_inspector import URLAnalyzer, URLAnalysisConfig
 from custom_analyzers.qualitative_sampler import QualitativeSampler
 from custom_analyzers.key_firms_sampler import KeyFirmsSampler
 from typing import Dict, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
 
 # =============================================================================
 # PIPELINE CONFIGURATION
@@ -36,11 +38,66 @@ class RunOptions:
     run_key_firms_sampler: bool = True
     backup_server_results: bool = True
 
+# =============================================================================
+# CONFIGURATION MANAGER (NEW)
+# =============================================================================
+
+class PipelineConfigManager:
+    """Handles loading and saving of the pipeline_config.json file."""
+
+    def __init__(self, config_path="pipeline_config.json"):
+        self.config_path = Path(config_path)
+        self.config_data = self._load_config()
+
+    def _create_default_config(self):
+        """Creates a default configuration file if one doesn't exist."""
+        print(f"-> No config file found. Creating default '{self.config_path}'...")
+
+        # Dynamically get arguments from each analyzer class
+        analyzer_classes = {
+            "qualitative_sampler": QualitativeSampler,
+            "accuracy_sampler": AccuracySampler,
+            "disagreement_sampler": DisagreementSampler,
+            "firm_inspector": URLAnalyzer,
+            "key_firms_sampler": KeyFirmsSampler,
+        }
+        analyzer_args = {name: cls.get_configurable_args() for name, cls in analyzer_classes.items()}
+
+        # Dynamically create global_config from the Config dataclass defaults
+        # This makes Config the single source of truth for default values.
+        global_config_defaults = {
+            field.name: field.default
+            for field in Config.__dataclass_fields__.values()
+            if field.name in ["confidence_threshold", "soft_confidence_threshold", "termination_threshold", "term_curr_ratio", "display_threshold"]
+        }
+
+        default_config = {
+            "run_options": asdict(RunOptions()),
+            "analyzer_args": analyzer_args,
+            "global_config": global_config_defaults,
+        }
+        self.save_config(default_config)
+        return default_config
+
+    def _load_config(self):
+        """Loads the configuration from the JSON file."""
+        if not self.config_path.exists():
+            return self._create_default_config()
+        
+        with open(self.config_path, "r") as f:
+            return json.load(f)
+
+    def save_config(self, config_data=None):
+        """Saves the current configuration to the JSON file."""
+        data_to_save = config_data if config_data is not None else self.config_data
+        with open(self.config_path, "w") as f:
+            json.dump(data_to_save, f, indent=2)
+        print(f"   ✅ Configuration saved to '{self.config_path}'")
+
 
 # =============================================================================
 # ANALYSIS PIPELINE
 # =============================================================================
-
 
 class AnalysisPipeline:
     """Main analysis pipeline orchestrator"""
@@ -51,6 +108,13 @@ class AnalysisPipeline:
         self.data_loader = DataLoader(config)
         self.predictions_processor = PredictionsProcessor(config, self.label_mapper)
         self.sentence_labeler = SentenceLabeler(config, self.label_mapper)
+        self.config_manager = PipelineConfigManager()
+
+        # Apply global settings from the config file to the main Config object
+        global_settings = self.config_manager.config_data.get("global_config", {})
+        for key, value in global_settings.items():
+            if hasattr(self.config, key):
+                setattr(self.config, key, value)
 
         # Create AccuracyConfig from base Config
         self.accuracy_config = self._create_accuracy_config()
@@ -94,11 +158,13 @@ class AnalysisPipeline:
         self.custom_analyzers[name] = analyzer
         print(f"✓ Registered custom analyzer: {name}")
 
-    def run(self, options: Optional[RunOptions] = None):
+    def run(self):
         """Execute full analysis pipeline based on the provided run options."""
         print("=" * 70)
         print("MODULAR CLASSIFICATION ANALYSIS PIPELINE")
         print("=" * 70)
+
+        options = self.config_manager.config_data.get("run_options", {})
 
         if not self._data_loaded:
             print(
@@ -106,20 +172,9 @@ class AnalysisPipeline:
             )
             return
 
-        if options is None:
-            options = RunOptions()
-
-        # Reset comparison results if comparison is not being run
-        if not options.run_comparison and "merged_df" in self._pipeline_data.get(
-            "comparison_results", {}
-        ):
-            self._pipeline_data["model_agg_df"] = self._pipeline_data[
-                "original_model_agg_df"
-            ]
-
         # Execute optional steps based on RunOptions
         for step_name, step_func in self._step_map.items():
-            if getattr(options, step_name, False):
+            if options.get(step_name, False):
                 try:
                     step_func()
                 except Exception as e:
@@ -202,12 +257,10 @@ class AnalysisPipeline:
             ).fillna(0)
             self._pipeline_data["merged_df"] = merged_df
 
-        sampler = QualitativeSampler(
-            self.config,
-            self.label_mapper,
-            only_terminated=False, # Set to True to filter for terminated reports
-        )
-        # The analyze method is called with the merged data
+        # Get arguments from the config file
+        sampler_args = self.config_manager.config_data.get("analyzer_args", {}).get("qualitative_sampler", {})
+        sampler = QualitativeSampler(self.config, self.label_mapper, **sampler_args)
+
         sampler.analyze(data=self._pipeline_data["merged_df"])
 
     def _run_disagreement_sampler(self):
@@ -303,31 +356,29 @@ if __name__ == "__main__":
     # --- Step 2: Run the analysis with specific options ---
     # You can now re-run this cell with different options without reloading data.
 
-    # Define which parts of the pipeline to run
-    run_options = RunOptions(
-        run_comparison=False,
-        run_disagreement_sampler=False,
-        generate_sentence_files=False,  # Now uses streaming - much faster!
-        run_accuracy_check=False,  # Now uses streaming - much faster!
-        run_firm_inspector=False,
-        run_custom_analyzers=False,
-        run_qualitative_sampler=True,
-        run_key_firms_sampler=False,
-        backup_server_results=True,
-    )
-
     # %%
     # Interactive environment menu to load the run_options, run pipeline, or exit
     while True:
-        print("=" * 70)   
+        # Reload config at the start of each loop to catch manual edits
+        pipeline.config_manager.config_data = pipeline.config_manager._load_config()
+        run_options = pipeline.config_manager.config_data.get("run_options", {})
+
+        print("\n" + "=" * 70)
+        print("Current Run Options:")
+        for key, value in run_options.items():
+            status = "✅ Enabled" if value else "❌ Disabled"
+            print(f"  - {key:<25}: {status}")
+        print("=" * 70)
+
         print("\nSelect an action:")
         print("  1. Run pipeline with current options")
         print("  2. Modify run options")
-        print("  3. Exit")
+        print("  3. Modify analyzer arguments")
+        print("  4. Exit")
         choice = input("Enter your choice (1-3): ") or "1"
 
         if choice == "1":
-            pipeline.run(options=run_options)
+            pipeline.run()
         elif choice == "2":
             print("\n--- Modify Run Options ---")
             for attr in dir(run_options):
@@ -341,8 +392,25 @@ if __name__ == "__main__":
                     elif new_value_str == "n":
                         setattr(run_options, attr, False)
                     # else: skip, keep current value
+            pipeline.config_manager.save_config()
             print("Run options updated.")
         elif choice == "3":
+            print("\n--- Modify Analyzer Arguments ---")
+            analyzer_args = pipeline.config_manager.config_data.get("analyzer_args", {})
+            for analyzer, args in analyzer_args.items():
+                print(f"\n  Analyzer: {analyzer}")
+                if not args:
+                    print("    (No configurable arguments)")
+                    continue
+                for arg, value in args.items():
+                    new_val_str = input(f"    {arg} (current: {value}) [new value or skip]: ")
+                    if new_val_str:
+                        try: # Try to cast to the original type
+                            args[arg] = type(value)(new_val_str)
+                        except (ValueError, TypeError):
+                            args[arg] = new_val_str # Keep as string if cast fails
+            pipeline.config_manager.save_config()
+        elif choice == "4":
             print("Exiting analysis pipeline.")
             break
         else:
