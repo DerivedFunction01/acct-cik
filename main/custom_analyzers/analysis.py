@@ -541,8 +541,11 @@ class PredictionsProcessor:
         if not self._is_valid_prediction(prob_dict):
             return flags
 
+        term_threshold = getattr(self.config, "termination_threshold", 0.80)
+
         for label in self.config.labels:
-            if prob_dict.get(label, 0.0) >= self.config.confidence_threshold:
+            threshold = term_threshold if label == "term" else self.config.confidence_threshold
+            if prob_dict.get(label, 0.0) >= threshold:
                 flags[label] = True
         return flags
 
