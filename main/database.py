@@ -114,7 +114,7 @@ if __name__ == "__main__":
                     print(result)
                     print("-" * 30)
                     print("Statistics:")
-                    print(df.describe())
+                    print(last_df.describe())
                     print("-" * 30)
                 else:
                     print(f"Query executed successfully, {result} rows affected.")
