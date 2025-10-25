@@ -9,6 +9,7 @@ from tqdm import tqdm
 import multiprocessing as mp
 import psutil
 from contextlib import contextmanager
+from .classification_engine import ClassificationEngine
 
 # =============================================================================
 # CONFIGURATION
@@ -121,8 +122,13 @@ class Config:
 # LABEL MAPPING
 # =============================================================================
 
+
 class LabelMapper:
-    """Handles label ID to name mapping and primary label logic"""
+    """
+    Backward-compatibility shim for LabelMapper.
+    This class now delegates all classification logic to the centralized
+    ClassificationEngine to ensure consistency.
+    """
 
     def __init__(
         self,
@@ -130,53 +136,21 @@ class LabelMapper:
         multi_labels: List[str],
         config: Optional[Config] = None,
     ):
-        with open(keywords_json_path, "r", encoding="utf-8") as f:
-            self.primary_id2label = {int(k): v for k, v in json.load(f).items()}
-
-        self.primary_label2id = {v: k for k, v in self.primary_id2label.items()}
-        self.multi_labels = multi_labels
+        print("⚠️  LabelMapper is now using ClassificationEngine internally.")
+        print("    Consider migrating to ClassificationEngine directly for new code.")
         self.config = config
-
-        # Define hedge type mappings - current, historical, speculative
-        # (current, historic, spec, terminated)
-        self.hedge_map = {
-            "ir": (4, 5, 6, 7),
-            "fx": (8, 9, 10, 11),
-            "cp": (12, 13, 14, 15),
-            "eq": (16, 17, 18, 19),
-            "gen": (0, 1, 2, 3),
-        }
-
-        # Context-only mentions (no use indicated)
-        self.context_map = {
-            "gen": 20,
-            "ir": 21,
-            "fx": 22,
-            "cp": 23,
-            "eq": 24,
-        }
+        self.engine = ClassificationEngine(config)
+        self.primary_id2label = self.engine.primary_id2label
+        self.primary_label2id = {v: k for k, v in self.primary_id2label.items()}
 
     def get_primary_labels_with_confidence(
         self, labels_dict: Dict[str, float]
     ) -> List[Tuple[str, float, str]]:
-        """
-        Convert multi-label predictions to primary categorical labels with confidence scores.
-        
-        Returns:
-            List of tuples: (label_name, confidence_score, confidence_tier)
-            - label_name: Primary label string
-            - confidence_score: Combined score (0.0 to 1.0)
-            - confidence_tier: "high" (>0.75), "medium" (0.5-0.75), "low" (threshold-0.5)
-        
-        Use this for:
-        - Selecting high-confidence examples for retraining
-        - Flagging low-confidence predictions for manual review
-        - Understanding model certainty per label
-        """
-        results = self._get_labels_with_scores(labels_dict)
-
+        display_labels = self.engine._get_display_labels(
+            labels_dict, self.engine._get_active_flags(labels_dict)
+        )
         output = []
-        for label_name, confidence in results:
+        for label_name, confidence in display_labels:
             if confidence >= 0.75:
                 tier = "high"
             elif confidence >= 0.5:
@@ -184,196 +158,12 @@ class LabelMapper:
             else:
                 tier = "low"
             output.append((label_name, confidence, tier))
-
         return output
 
     def get_primary_labels(self, labels_dict: Dict[str, float]) -> List[str]:
         """Returns a prioritized list of primary label names."""
-        return [label for label, score in self._get_labels_with_scores(labels_dict)]
-
-    def _get_labels_with_scores(
-        self, labels_dict: Dict[str, float]
-    ) -> List[Tuple[str, float]]:
-        """
-        Interprets and prioritizes multi-label predictions for a SINGLE SENTENCE.
-
-        This method's primary role is for DISPLAY and SAMPLING. It translates the
-        model's raw probability vector for one sentence into a human-readable,
-        prioritized list of labels (e.g., for the qualitative review report).
-        
-        It does NOT make the final firm-year classification. That is the
-        responsibility of the PredictionsProcessor, which aggregates across all
-        sentences in a report.
-        
-        Priority Logic (for a single sentence):
-        1.  Current hedge usage (e.g., 'ir_use' + 'curr')
-        2.  Terminated hedge usage (e.g., 'ir_use' + 'term')
-        3.  Historical hedge usage
-        4.  Speculative hedge usage
-        5.  Warrants / Embedded Derivatives
-        6.  Context-only mentions (e.g., 'ir' without '_use')
-        7.  Irrelevant
-        """
-        threshold = getattr(self.config, "confidence_threshold", 0.65)
-        term_threshold = getattr(self.config, "termination_threshold", 0.80)
-
-        # Collect all labels with scores for prioritization
-        all_labels = []  # (priority_rank, confidence, label_id)
-
-        # === Identify active hedge types ===
-        active_hedges = []
-        for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:
-            context_score = labels_dict.get(hedge_type, 0)
-            usage_score = labels_dict.get(f"{hedge_type}_use", 0)
-
-            if context_score >= threshold or usage_score >= threshold:
-                active_hedges.append({
-                    "type": hedge_type,
-                    "has_use": usage_score >= threshold,
-                    "context": context_score,
-                    "usage": usage_score,
-                    "max_score": max(context_score, usage_score)
-                })
-
-        # === Identify active time dimensions ===
-        active_times = {}
-        if labels_dict.get("term", 0) >= term_threshold:
-            active_times["term"] = labels_dict.get("term", 0)
-        if labels_dict.get("curr", 0) >= threshold:
-            active_times["curr"] = labels_dict.get("curr", 0)
-        if labels_dict.get("hist", 0) >= threshold:
-            active_times["hist"] = labels_dict.get("hist", 0)
-        if labels_dict.get("spec", 0) >= threshold:
-            active_times["spec"] = labels_dict.get("spec", 0)
-
-        # === Build hedge labels (usage) ===
-        any_use = any(h["has_use"] for h in active_hedges)
-        is_speculative = "spec" in active_times
-        # Condition for adding soft hedges: no explicit usage and not speculative
-        add_soft_hedges = not any_use and not is_speculative
-
-        for hedge in active_hedges:
-            hedge_type = hedge["type"]
-
-            # Initialize priority_penalty for each hedge type
-            priority_penalty = 0.0
-
-            # Resolve "gen" to specific type if possible
-            resolved_type = hedge_type
-            if hedge_type == "gen":
-                best_specific = None
-                best_score = 0
-                for specific in ["ir", "fx", "cp", "eq"]:
-                    score = labels_dict.get(specific, 0) + labels_dict.get(f"{specific}_use", 0)
-                    if score > best_score and score >= (threshold * 0.7):
-                        best_score = score
-                        best_specific = specific
-                if best_specific:
-                    resolved_type = best_specific
-
-            curr_id, hist_id, spec_id, term_id = self.hedge_map[resolved_type]
-
-            # If hedge has USAGE
-            if hedge["has_use"] and active_times:
-                for time_dim, time_score in active_times.items():
-                    # Combined score for prioritization
-                    combined_score = hedge["usage"] * time_score
-                    if time_dim == "curr": all_labels.append((1 + priority_penalty, combined_score, curr_id))
-                    elif time_dim == "term": all_labels.append((2 + priority_penalty, combined_score, term_id))
-                    elif time_dim == "hist": all_labels.append((3 + priority_penalty, combined_score, hist_id))
-                    elif time_dim == "spec": all_labels.append((4 + priority_penalty, combined_score, spec_id))
-            # Fallback: If usage is detected but no time dimension is active, default to the highest time score
-            elif hedge["has_use"] and not active_times:
-                # Priority 1.5: Choose between current or historical based on their raw scores,
-                # even if they are below the main threshold. This handles ambiguous cases.
-                curr_score = labels_dict.get("curr", 0)
-                hist_score = labels_dict.get("hist", 0)
-                display_threshold = getattr(self.config, "display_threshold", 0.30)
-                
-                curr_id, hist_id, _, _ = self.hedge_map[resolved_type]
-                
-                # Default to historical if both are weak.
-                chosen_id = hist_id
-                if curr_score > hist_score and curr_score >= display_threshold:
-                    chosen_id = curr_id
-                
-                all_labels.append((1.5 + priority_penalty, hedge["usage"], chosen_id))
-            # Soft hedge: context + time but no usage flag
-            elif add_soft_hedges and not hedge["has_use"] and active_times and hedge["context"] >= threshold:
-                for time_dim, time_score in active_times.items():
-                    combined_score = hedge["context"] * time_score
-
-                    if time_dim == "curr" or time_dim == "hist":
-                        all_labels.append((6 + priority_penalty, combined_score, curr_id if time_dim == "curr" else hist_id))
-                    elif time_dim == "term":
-                        all_labels.append((6 + priority_penalty, combined_score, term_id))
-                    elif time_dim == "spec": # This is speculative context
-                        all_labels.append((7 + priority_penalty, combined_score, spec_id))
-
-        # === Warrant / Embedded (lower priority - limited training data) ===
-        warr_score = labels_dict.get("warr", 0)
-        emb_score = labels_dict.get("emb", 0)
-
-        if warr_score >= threshold:
-            if "curr" in active_times:
-                # Priority 5: Current warrant (after usage, before soft context)
-                all_labels.append((5, warr_score * active_times["curr"], 25))
-            else:
-                # Priority 8: Historical warrant
-                all_labels.append((8, warr_score, 26))
-
-        if emb_score >= threshold:
-            if "curr" in active_times:
-                # Priority 5: Current embedded
-                all_labels.append((5, emb_score * active_times["curr"], 27))
-            else:
-                # Priority 8: Historical embedded
-                all_labels.append((8, emb_score, 28))
-
-        # === Pure context-only mentions (no usage anywhere) ===
-        if not any_use:
-            for hedge in active_hedges:
-                if hedge["context"] >= threshold:
-                    resolved_type = hedge["type"]
-                    # Resolve gen if possible
-                    if hedge["type"] == "gen":
-                        best_specific = None
-                        best_score = 0
-                        for specific in ["ir", "fx", "cp", "eq"]:
-                            score = labels_dict.get(specific, 0)
-                            if score > best_score and score >= (threshold * 0.7):
-                                best_score = score
-                                best_specific = specific
-                        if best_specific:
-                            resolved_type = best_specific
-
-                    # Add a small penalty to equity to deprioritize it
-                    priority_penalty = 0.1 if resolved_type == "eq" else 0.0
-                    # Priority 9: Context-only mention
-                    all_labels.append((9 + priority_penalty, hedge["context"], self.context_map[resolved_type]))
-
-        # === Irrelevant ===
-        irr_score = labels_dict.get("irr", 0)
-        if irr_score >= threshold:
-            # Priority 10: Explicitly irrelevant
-            all_labels.append((10, irr_score, 29))
-
-        # === Sort by priority (ascending) then confidence (descending) ===
-        all_labels.sort(key=lambda x: (x[0], -x[1]))
-
-        # Extract unique labels with their confidence scores (preserve order)
-        results = []
-        seen = set()
-        for _, confidence, label_id in all_labels:
-            if label_id not in seen:
-                results.append((label_id, confidence))
-                seen.add(label_id)
-
-        # Fallback to irrelevant if nothing found
-        if not results:
-            results.append((29, 0.0))
-
-        return [(self.primary_id2label[label_id], confidence) for label_id, confidence in results]
+        sent_class = self.engine.classify_sentence(labels_dict)
+        return [label for label, _ in sent_class.display_labels]
 
     def get_label_category(self, label_id: int) -> str:
         """Get category name for a label ID"""
@@ -509,138 +299,16 @@ class DataLoader:
 
 
 class PredictionsProcessor:
-    """Processes model predictions and aggregates to firm-year level"""
+    """
+    Backward-compatibility shim for PredictionsProcessor.
+    Delegates all logic to the centralized ClassificationEngine.
+    """
 
     def __init__(self, config: Config, label_mapper: LabelMapper):
         self.config = config
         self.label_mapper = label_mapper
-
-    def _is_valid_prediction(self, prob_dict) -> bool:
-        """Check if prediction dictionary is valid"""
-        return isinstance(prob_dict, dict) and "error" not in prob_dict
-
-    def _get_sentence_flags(self, prob_dict: Dict[str, float]) -> Dict[str, bool]:
-        """
-        Determine active labels for a single sentence based on the confidence threshold.
-        """
-        flags = {label: False for label in self.config.labels}
-        if not self._is_valid_prediction(prob_dict):
-            return flags
-
-        term_threshold = getattr(self.config, "termination_threshold", 0.80)
-
-        for label in self.config.labels:
-            threshold = term_threshold if label == "term" else self.config.confidence_threshold
-            if prob_dict.get(label, 0.0) >= threshold:
-                flags[label] = True
-        return flags
-
-    def _determine_user_flags(self, predictions: List[dict]) -> Dict[str, int]:
-        """
-        Aggregates all sentence-level predictions into final FIRM-YEAR flags.
-
-        This is the "source of truth" for the final classification of a firm-year.
-        It operates at the REPORT LEVEL by iterating through all sentences in a
-        single report. It counts all 'current' and 'terminated' mentions and then
-        applies report-wide logic (like the term_curr_ratio) to make a final,
-        binding decision on the status of each derivative type.
-        """
-        # Initialize flags that will be aggregated across all sentences
-        firm_year_flags = {
-            "model_ir_user": 0,
-            "model_fx_user": 0,
-            "model_cp_user": 0,
-            "model_ir_current_count": 0,
-            "model_fx_current_count": 0,
-            "model_cp_current_count": 0,
-            "model_ir_terminated_count": 0,
-            "model_fx_terminated_count": 0,
-            "model_cp_terminated_count": 0,
-            "model_ir_hist_count": 0,
-            "model_fx_hist_count": 0,
-            "model_cp_hist_count": 0,
-            "model_ir_soft_count": 0,
-            "model_fx_soft_count": 0,
-            "model_cp_soft_count": 0,
-            "model_eq_user": 0,
-            "model_ir_terminated": 0,
-            "model_fx_terminated": 0,
-            "model_cp_terminated": 0,
-            "model_warr_user": 0,
-            "model_emb_user": 0,
-            "model_user": 0,
-            "model_user_all": 0,
-        }
-        
-        # Track if any use label is found for the "any_use" flag
-        any_use_found = False
-
-        for prob_dict in predictions:
-            sentence_flags = self._get_sentence_flags(prob_dict)
-
-            # A sentence indicates "current use" if 'curr' is present and 'term' is not.
-            is_current_context = sentence_flags["curr"] and not sentence_flags["term"]
-            is_terminated_context = sentence_flags["term"] and not sentence_flags["curr"]
-            is_historical_context = sentence_flags["hist"] and not sentence_flags["curr"] and not sentence_flags["term"]
-            is_soft_context = not sentence_flags["ir_use"] and not sentence_flags["fx_use"] and not sentence_flags["cp_use"]
-
-            # Count current vs terminated mentions for each hedge type
-            if is_current_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_current_count"] += 1
-            if is_current_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_current_count"] += 1
-            if is_current_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_current_count"] += 1
-
-            if is_terminated_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_terminated_count"] += 1
-            if is_terminated_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_terminated_count"] += 1
-            if is_terminated_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_terminated_count"] += 1
-
-            # Count historical mentions for each hedge type
-            if is_historical_context and sentence_flags["ir_use"]: firm_year_flags["model_ir_hist_count"] += 1
-            if is_historical_context and sentence_flags["fx_use"]: firm_year_flags["model_fx_hist_count"] += 1
-            if is_historical_context and sentence_flags["cp_use"]: firm_year_flags["model_cp_hist_count"] += 1
-
-            # Count "soft" mentions (context without explicit use)
-            if is_soft_context and sentence_flags["ir"]: firm_year_flags["model_ir_soft_count"] += 1
-            if is_soft_context and sentence_flags["fx"]: firm_year_flags["model_fx_soft_count"] += 1
-            if is_soft_context and sentence_flags["cp"]: firm_year_flags["model_cp_soft_count"] += 1
-
-            # Handle other derivative types as before
-            if is_current_context and sentence_flags["eq_use"]: firm_year_flags["model_eq_user"] = 1
-            if is_current_context and sentence_flags["warr"]: firm_year_flags["model_warr_user"] = 1
-            if is_current_context and sentence_flags["emb"]: firm_year_flags["model_emb_user"] = 1
-
-            # Check for any derivative use (current or historic) for the 'model_user_all' flag
-            if not any_use_found:
-                if any(sentence_flags.get(use_label) for use_label in ["ir_use", "fx_use", "cp_use", "eq_use", "warr", "emb"]):
-                    any_use_found = True
-
-        # After counting all sentences, apply the ratio logic to set final flags.
-        # This ensures the decision is based on the entire report's context.
-        for hedge_type in ["ir", "fx", "cp"]:
-            current_count = firm_year_flags[f"model_{hedge_type}_current_count"]
-            terminated_count = firm_year_flags[f"model_{hedge_type}_terminated_count"]
-
-            # A firm is a "user" if there's at least one current mention.
-            if current_count > 0:
-                firm_year_flags[f"model_{hedge_type}_user"] = 1
-
-            # A firm's usage is "terminated" if terminated mentions outweigh current ones based on the ratio.
-            # If ratio is 0.0, any terminated mention ( > 0) will set the flag.
-            if terminated_count > 0 and (current_count == 0 or (terminated_count / current_count) > self.config.term_curr_ratio):
-                firm_year_flags[f"model_{hedge_type}_terminated"] = 1
-        
-        # Final check: If a hedge is terminated, it cannot also be a current user.
-        # This ensures mutual exclusivity for downstream analyzers.
-        for hedge_type in ["ir", "fx", "cp"]:
-            if firm_year_flags[f"model_{hedge_type}_terminated"] == 1:
-                firm_year_flags[f"model_{hedge_type}_user"] = 0
-
-        # Set the final aggregated flags
-        firm_year_flags["model_user"] = int(
-            firm_year_flags["model_ir_user"] or firm_year_flags["model_fx_user"] or firm_year_flags["model_cp_user"]
-        )
-        firm_year_flags["model_user_all"] = int(any_use_found)
-
-        return firm_year_flags
+        print("✅ PredictionsProcessor now using ClassificationEngine")
+        self.engine = ClassificationEngine(config)
 
     def process_predictions(self, model_df: pd.DataFrame) -> pd.DataFrame:
         """Aggregate model predictions to firm-year level"""
@@ -654,19 +322,20 @@ class PredictionsProcessor:
         ):
             predictions = row["server_response"]
 
-            if not predictions:
+            if not predictions or not isinstance(predictions, list):
                 skipped_count += 1
                 continue
 
-            # Determine user flags by processing sentence-level predictions
-            user_flags = self._determine_user_flags(predictions)
+            # Use the new engine for classification
+            sentence_classes = [self.engine.classify_sentence(p) for p in predictions]
+            firm_year_class = self.engine.aggregate_to_firm_year(sentence_classes)
 
             results.append(
                 {
                     "cik": row["cik"],
                     "year": row["year"],
                     "url": row["url"],
-                    **user_flags,
+                    **firm_year_class.to_dict(),
                 }
             )
 
