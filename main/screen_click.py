@@ -1,23 +1,4 @@
 import importlib
-import subprocess
-import sys
-
-# --- Auto-install missing packages ---
-required_packages = [
-    "pyautogui",
-    "opencv-python",
-    "Pillow",
-    "numpy"
-]
-
-for pkg in required_packages:
-    try:
-        importlib.import_module(pkg)
-    except ImportError:
-        print(f"Package '{pkg}' not found. Installing...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
-
-# --- Now safely import them ---
 import pyautogui
 import random
 import time
