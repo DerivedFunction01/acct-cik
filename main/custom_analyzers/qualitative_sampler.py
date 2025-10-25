@@ -376,12 +376,18 @@ class QualitativeSampler(BaseAnalyzer):
         # --- Create and save the JSON output for the AI agent ---
         agent_reports_data = []
         for report in reports_data:
-            # The AI only needs the raw text of the sentences.
+            # The AI needs the raw text and the model's flags for comparison.
             extracted_text = [s.get("text", "") for s in report.get("sentences", [])]
+            model_flags = {
+                "IR": "YES" if report["flags"][0]["model"] else "NO",
+                "FX": "YES" if report["flags"][1]["model"] else "NO",
+                "CP": "YES" if report["flags"][2]["model"] else "NO",
+            }
             agent_reports_data.append({
                 "cik": report["cik"],
                 "year": report["year"],
                 "url": report["url"],
+                "model_flags": model_flags,
                 "extracted_text": extracted_text
             })
 
