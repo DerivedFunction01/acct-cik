@@ -292,12 +292,22 @@ class LabelMapper:
                     elif time_dim == "spec":
                         # Priority 3: Speculative usage
                         all_labels.append((3 + priority_penalty, combined_score, spec_id))
-            # Fallback: If usage is detected but no time dimension is active, default to "historic"
+            # Fallback: If usage is detected but no time dimension is active, default to the highest time score
             elif hedge["has_use"] and not active_times:
-                # Priority 1.5: Usage with inferred historic time
-                # The score is just the usage score, as there's no time_score to multiply
-                all_labels.append((1.5 + priority_penalty, hedge["usage"], hist_id))
-
+                # Priority 1.5: Choose between current or historical based on their raw scores,
+                # even if they are below the main threshold. This handles ambiguous cases.
+                curr_score = labels_dict.get("curr", 0)
+                hist_score = labels_dict.get("hist", 0)
+                display_threshold = getattr(self.config, "display_threshold", 0.30)
+                
+                curr_id, hist_id, _, _ = self.hedge_map[resolved_type]
+                
+                # Default to historical if both are weak.
+                chosen_id = hist_id
+                if curr_score > hist_score and curr_score >= display_threshold:
+                    chosen_id = curr_id
+                
+                all_labels.append((1.5 + priority_penalty, hedge["usage"], chosen_id))
             # Soft hedge: context + time but no usage flag
             elif add_soft_hedges and not hedge["has_use"] and active_times and hedge["context"] >= threshold:
                 for time_dim, time_score in active_times.items():
