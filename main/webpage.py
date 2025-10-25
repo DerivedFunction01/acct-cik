@@ -566,7 +566,7 @@ def get_processed_urls() -> set:
     c.execute("SELECT url FROM webpage_result")
     rows = c.fetchall()
     conn.close()
-    return {row[0] for row in rows}
+    return set(rows)
 
 
 def save_process_result(df):
@@ -1586,7 +1586,7 @@ def process_all_reports_fully():
     reports_to_process = [
         (r.url)
         for r in existing_report_df.itertuples(index=False)
-        if r.url not in processed_set and r.url
+        if (r.url,) not in processed_set and r.url
     ]
 
     total_reports = len(reports_to_process)
