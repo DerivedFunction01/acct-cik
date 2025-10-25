@@ -6,14 +6,24 @@ table_headers = [
     "Derivative Instruments {year} {prev_year} ({currency_code} in {money_unit})",
 ]
 
-# Raw tabular line templates (lots of numbers, minimal words)
+# Raw tabular line templates (lots of numbers, minimal words, only notional, prev_notiona, amout, and amount2)
 table_line_templates = [
-    "{line_item} {notional} {prev_notional} {amount}",
-    "{line_item} {notional} {amount} {prev_notional} {amount2}",
-    "{line_item} {currency_code} {notional} {money_unit} {prev_notional} {money_unit}",
+    "{line_item} {notional} ({prev_notional}) {amount}",
+    "{line_item} {notional} {amount} {prev_notional} ({amount2})",
+    "{line_item} {currency_code} ({notional}) {money_unit} {prev_notional} {money_unit}",
     "{line_item} {notional} {amount} {prev_notional} {amount2}",
     "{line_item} {year} {notional} {prev_year} {prev_notional}",
-    "{line_item} {amount} {amount2}",
+    "{line_item} {amount} ({amount2})",
+    "{line_item} {notional} {prev_notional} ({amount})",
+    "{line_item} ({notional}) {amount} {prev_notional} ({amount2})",
+    "{line_item} {currency_code} ({notional}) {money_unit} {prev_notional} {money_unit}",
+    "{line_item} ({notional}) {amount} {prev_notional} {amount2}",
+    "{line_item} {year} {notional} {prev_year} ({prev_notional})",
+    "{line_item} ({amount}) {amount2}",    
+    "{line_item} {notional} {prev_notional}",
+    "{line_item} ({amount})",
+    "{line_item} {notional}",
+    "{line_item} {amount} ({amount2})",
 ]
 
 # Headers for non-derivative tables
