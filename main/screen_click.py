@@ -25,8 +25,8 @@ import cv2
 import numpy as np
 
 # Settings
-min_delay = 0.5        # minimum delay between clicks
-max_delay = 2.0        # maximum delay between clicks
+min_delay = 60        # minimum delay between clicks
+max_delay = 60 * 10        # maximum delay between clicks
 
 # Take a screenshot to show your screen
 screenshot = pyautogui.screenshot()
