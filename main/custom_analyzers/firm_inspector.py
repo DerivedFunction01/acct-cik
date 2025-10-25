@@ -84,10 +84,10 @@ class URLAnalyzer:
                 else primary_label_str
             )
 
-            # Get top 5 predictions with scores
-            top_preds = sorted(prob_dict.items(), key=lambda x: x[1], reverse=True)[:5]
+            # Get top predictions with scores
+            top_preds = sorted(prob_dict.items(), key=lambda x: x[1], reverse=True)
             top_preds_str = ", ".join(
-                [f"{label}:{score:.3f}" for label, score in top_preds]
+                [f"{label}:{score:.3f}" for label, score in top_preds if score > self.config.display_threshold]
             )
 
             # Get all active binary labels (for column reporting)
@@ -113,7 +113,7 @@ class URLAnalyzer:
                     "primary_label": primary_label_str,
                     "all_primary_labels": all_primary_labels,
                     "active_multilabels": active_labels_str,
-                    "top_5_predictions": top_preds_str,
+                    "top_predictions": top_preds_str,
                     **binary_labels,  # Include all binary labels as columns
                     **{
                         f"prob_{label}": prob_dict.get(label, 0.0)
