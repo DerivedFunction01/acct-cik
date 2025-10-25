@@ -1,4 +1,23 @@
-#!pip install pyautogui opencv-python pillow numpy
+import importlib
+import subprocess
+import sys
+
+# --- Auto-install missing packages ---
+required_packages = [
+    "pyautogui",
+    "opencv-python",
+    "Pillow",
+    "numpy"
+]
+
+for pkg in required_packages:
+    try:
+        importlib.import_module(pkg)
+    except ImportError:
+        print(f"Package '{pkg}' not found. Installing...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+
+# --- Now safely import them ---
 import pyautogui
 import random
 import time
@@ -6,7 +25,6 @@ import cv2
 import numpy as np
 
 # Settings
-run_time = 30          # seconds to run
 min_delay = 0.5        # minimum delay between clicks
 max_delay = 2.0        # maximum delay between clicks
 
@@ -71,7 +89,7 @@ print("Starting random autoclicker... Press Ctrl+C to stop.")
 start_time = time.time()
 
 try:
-    while time.time() - start_time < run_time:
+    while True:
         x = random.randint(bounds[0], bounds[2])
         y = random.randint(bounds[1], bounds[3])
 
