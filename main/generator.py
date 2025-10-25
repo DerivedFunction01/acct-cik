@@ -543,7 +543,7 @@ def generate_hedge_paragraph(
             sentences.extend(generate_fx())
         
         # Add a small chance of addtional sentences
-        if random.random() < 0.05:
+        if random.random() < 0.10:
             sentences.append(
                 random.choice(additional_template_patterns).format(
                     company=pick_company_name(company_name),
