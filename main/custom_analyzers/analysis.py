@@ -205,17 +205,14 @@ class LabelMapper:
         responsibility of the PredictionsProcessor, which aggregates across all
         sentences in a report.
         
-        Therefore, this method will only produce labels like "(Current)" or
-        "(Historic)" and will NOT produce a "(Terminated)" label, as that
-        decision requires report-level context (e.g., term_curr_ratio).
-        
         Priority Logic (for a single sentence):
-        1. Current hedge usage (e.g., 'ir_use' + 'curr')
-        2. Historical hedge usage
-        3. Speculative hedge usage
-        4. Warrants / Embedded Derivatives
-        5. Context-only mentions (e.g., 'ir' without '_use')
-        6. Irrelevant
+        1.  Current hedge usage (e.g., 'ir_use' + 'curr')
+        2.  Terminated hedge usage (e.g., 'ir_use' + 'term')
+        3.  Historical hedge usage
+        4.  Speculative hedge usage
+        5.  Warrants / Embedded Derivatives
+        6.  Context-only mentions (e.g., 'ir' without '_use')
+        7.  Irrelevant
         """
         threshold = getattr(self.config, "confidence_threshold", 0.65)
         term_threshold = getattr(self.config, "termination_threshold", 0.80)
@@ -240,6 +237,8 @@ class LabelMapper:
 
         # === Identify active time dimensions ===
         active_times = {}
+        if labels_dict.get("term", 0) >= term_threshold:
+            active_times["term"] = labels_dict.get("term", 0)
         if labels_dict.get("curr", 0) >= threshold:
             active_times["curr"] = labels_dict.get("curr", 0)
         if labels_dict.get("hist", 0) >= threshold:
@@ -279,9 +278,10 @@ class LabelMapper:
                 for time_dim, time_score in active_times.items():
                     # Combined score for prioritization
                     combined_score = hedge["usage"] * time_score
-                    if time_dim == "curr": all_labels.append((1 + priority_penalty, combined_score, curr_id)) # Priority 1: Current
-                    elif time_dim == "hist": all_labels.append((2 + priority_penalty, combined_score, hist_id)) # Priority 2: Historical
-                    elif time_dim == "spec": all_labels.append((3 + priority_penalty, combined_score, spec_id)) # Priority 3: Speculative
+                    if time_dim == "curr": all_labels.append((1 + priority_penalty, combined_score, curr_id))
+                    elif time_dim == "term": all_labels.append((2 + priority_penalty, combined_score, term_id))
+                    elif time_dim == "hist": all_labels.append((3 + priority_penalty, combined_score, hist_id))
+                    elif time_dim == "spec": all_labels.append((4 + priority_penalty, combined_score, spec_id))
             # Fallback: If usage is detected but no time dimension is active, default to the highest time score
             elif hedge["has_use"] and not active_times:
                 # Priority 1.5: Choose between current or historical based on their raw scores,
@@ -303,12 +303,12 @@ class LabelMapper:
                 for time_dim, time_score in active_times.items():
                     combined_score = hedge["context"] * time_score
 
-                    if time_dim in ["curr", "hist"]:
-                        # Priority 5: Context with current/historical time
-                        all_labels.append((5 + priority_penalty, combined_score, curr_id if time_dim == "curr" else hist_id))
+                    if time_dim == "curr" or time_dim == "hist":
+                        all_labels.append((6 + priority_penalty, combined_score, curr_id if time_dim == "curr" else hist_id))
+                    elif time_dim == "term":
+                        all_labels.append((6 + priority_penalty, combined_score, term_id))
                     elif time_dim == "spec": # This is speculative context
-                        # Priority 5: Speculative context
-                        all_labels.append((6 + priority_penalty, combined_score, spec_id))
+                        all_labels.append((7 + priority_penalty, combined_score, spec_id))
 
         # === Warrant / Embedded (lower priority - limited training data) ===
         warr_score = labels_dict.get("warr", 0)
@@ -316,19 +316,19 @@ class LabelMapper:
 
         if warr_score >= threshold:
             if "curr" in active_times:
-                # Priority 4: Current warrant (after usage, before soft context)
-                all_labels.append((4, warr_score * active_times["curr"], 25))
+                # Priority 5: Current warrant (after usage, before soft context)
+                all_labels.append((5, warr_score * active_times["curr"], 25))
             else:
-                # Priority 6: Historical warrant
-                all_labels.append((7, warr_score, 26))
+                # Priority 8: Historical warrant
+                all_labels.append((8, warr_score, 26))
 
         if emb_score >= threshold:
             if "curr" in active_times:
-                # Priority 4: Current embedded
-                all_labels.append((4, emb_score * active_times["curr"], 27))
+                # Priority 5: Current embedded
+                all_labels.append((5, emb_score * active_times["curr"], 27))
             else:
-                # Priority 6: Historical embedded
-                all_labels.append((7, emb_score, 28))
+                # Priority 8: Historical embedded
+                all_labels.append((8, emb_score, 28))
 
         # === Pure context-only mentions (no usage anywhere) ===
         if not any_use:
@@ -349,14 +349,14 @@ class LabelMapper:
 
                     # Add a small penalty to equity to deprioritize it
                     priority_penalty = 0.1 if resolved_type == "eq" else 0.0
-                    # Priority 8: Context-only mention
-                    all_labels.append((8 + priority_penalty, hedge["context"], self.context_map[resolved_type]))
+                    # Priority 9: Context-only mention
+                    all_labels.append((9 + priority_penalty, hedge["context"], self.context_map[resolved_type]))
 
         # === Irrelevant ===
         irr_score = labels_dict.get("irr", 0)
         if irr_score >= threshold:
-            # Priority 9: Explicitly irrelevant
-            all_labels.append((9, irr_score, 29))
+            # Priority 10: Explicitly irrelevant
+            all_labels.append((10, irr_score, 29))
 
         # === Sort by priority (ascending) then confidence (descending) ===
         all_labels.sort(key=lambda x: (x[0], -x[1]))
