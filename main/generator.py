@@ -554,7 +554,8 @@ def generate_hedge_paragraph(
                     swap_type=swap_type,
                     gen_swap=random.choice(derivative_keywords["gen"]),
                     materiality=random.choice(materiality),
-                    hedge_designation=random.choice(hedge_designations),
+                    hedge_designation=random.choice(hedge_designations).format(
+                        hedge_type=random.choice(hedge_types),
                 )
             )
 
