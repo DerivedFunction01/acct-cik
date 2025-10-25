@@ -7,12 +7,14 @@ Automated pipeline analyzes SEC filings (10-Ks, 20-Fs) for derivatives/hedging v
 **Pipeline**: Modular `AnalysisPipeline` in `run_analysis.py` orchestrates data loading, processing, and optional steps (comparison, accuracy sampling, firm inspector, custom analyzers, sentence labeling).
 
 ## Key Outputs
+The pipeline generates several key artifacts in the `analysis_output/` directory:
 
-- **Keyword-Model Comparison**: `keyword_model_comparison.xlsx` (summary, detailed, confusion matrices).
-- **Labeled Sentences**: `./analysis_output/labeled_sentences/` (per-category Excel: e.g., `sentences_IR_Hedge.xlsx`).
-- **Accuracy Sample**: `accuracy_check_sample.xlsx` (stratified by predicted label for manual review).
-- **URL Inspector**: `url_sentence_analysis.xlsx` (detailed per-firm sentences from `firm_urls.csv`).
-- **Synthetic Training Data**: `training_data.xlsx` / `.parquet` (generated via `generator.py`).
+- **Qualitative Review Sample**: `qualitative_review_sample.html` is an interactive static web page for in-depth review of sampled reports. It features advanced filtering by CIK, text search, and model/keyword flags. An accompanying `qualitative_review_sample.json` is generated for programmatic analysis or for use with an external AI agent.
+- **Keyword-Model Comparison**: `keyword_model_comparison.xlsx` provides a detailed breakdown of agreements and disagreements between the keyword and model-based flags, including a summary, detailed firm-year data, and confusion matrices.
+- **Disagreement Samples**: `disagreement_analysis_sample.xlsx` contains sampled reports where the keyword and model flags disagree, facilitating targeted review of discrepancies (e.g., False Positives, False Negatives).
+- **Accuracy Check Sample**: `accuracy_check_sample.xlsx` offers a stratified random sample of sentences, grouped by their primary predicted label, for manual validation of model accuracy.
+- **Labeled Sentence Reports**: The `labeled_sentences/` subdirectory contains Excel files where sentences are grouped by their primary classification (e.g., `sentences_IR_Hedge.xlsx`), providing a comprehensive view of all text related to a specific category.
+- **Firm Inspector**: `url_sentence_analysis.xlsx` delivers a deep-dive analysis for a specific list of URLs provided in `firm_urls.csv`, showing sentence-by-sentence classifications for each firm.
 
 ## Limitations
 
@@ -23,16 +25,20 @@ Automated pipeline analyzes SEC filings (10-Ks, 20-Fs) for derivatives/hedging v
 ⚠️ **Model Scope**: Research-grade; not for audits. ~5% data gaps from extraction failures.  
 ⚠️ **Synthetic Data**: Template-based; limited novelty but captures patterns.
 
-## Pipeline Execution
+### Configurable Steps (`run_options`):
+- **`run_qualitative_sampler`**: Generates the interactive HTML report for manual review.
+- **`run_firm_inspector`**: Analyzes a specific list of URLs from `firm_urls.csv`.
+- **`run_key_firms_sampler`**: Samples reports from a predefined list of key firms.
+- **`run_comparison`**: Generates the `keyword_model_comparison.xlsx` report.
+- **`run_disagreement_sampler`**: Creates samples based on keyword/model disagreements.
+- **`run_accuracy_check`**: Creates the stratified `accuracy_check_sample.xlsx`.
+- **`generate_sentence_files`**: Creates the detailed `labeled_sentences/` reports.
+- **`backup_server_results`**: Backs up the raw model predictions from the database to an Excel file.
 
-Run via `python run_analysis.py` with `RunOptions`:
-- `run_comparison=True`: Merges keyword/model flags; generates metrics.
-- `run_accuracy_check=True`: Samples 50 sentences/label for review.
-- `run_firm_inspector=True`: Analyzes URLs in `firm_urls.csv`.
-- `run_custom_analyzers=True`: Executes registered `BaseAnalyzer` subclasses.
-- `generate_sentence_files=True`: Creates category-specific labeled Excels.
+### Configuration
+- **`pipeline_config.json`**: Controls which steps run and allows for tweaking analyzer-specific arguments (e.g., `sample_size`).
+- **`analysis.py` (`Config` class)**: Automatically detects system resources (CPU cores, RAM) to optimize parallel processing and data chunk sizes. It also handles Google Colab environment detection and setup.
 
-**Config**: `Config` class auto-detects resources (CPU/RAM/Colab); sets thresholds (e.g., 0.25 confidence).
 
 ## Data Generation
 
