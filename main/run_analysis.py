@@ -34,9 +34,9 @@ class RunOptions:
     run_custom_analyzers: bool = False
     run_disagreement_sampler: bool = False
     generate_sentence_files: bool = False
-    run_qualitative_sampler: bool = True
+    run_qualitative_sampler: bool = False
     run_key_firms_sampler: bool = False
-    backup_server_results: bool = True
+    backup_server_results: bool = False
 
 # =============================================================================
 # CONFIGURATION MANAGER (NEW)
