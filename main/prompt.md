@@ -39,7 +39,7 @@ If the criteria for "YES" or "TERMINATED" are not met, you must answer "NO". Thi
 *   **No Mention:** The text does not mention derivatives at all, or is jumbled text that does not provide clear information from bad extraction.
 
 **4. What happens if the model is wrong:**
-If the model is wrong for a specific sentence, that is okay, as long it gets it right at some point for that firm year. Just flag it in a separate table if the model is wrong and did not get it right overall.
+If the model is wrong for a specific sentence, that is okay, as long it gets it right at some point for that firm year. Just flag it in a separate table if the model is wrong and did not get it right overall. Most of the time, "TERMINATED" and "NO" mean the same thing.
 
 **Your Step-by-Step Instructions:**
 
