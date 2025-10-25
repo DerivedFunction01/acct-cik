@@ -235,13 +235,10 @@ class LabelMapper:
 
         # === Identify active time dimensions ===
         active_times = {}
-        # Termination (`term`) takes precedence over current (`curr`).
-        # If a hedge is terminated, it is considered a historical event for classification purposes.
         if labels_dict.get("term", 0) >= term_threshold:
             active_times["term"] = labels_dict.get("term", 0)
-        elif labels_dict.get("curr", 0) >= threshold:
+        if labels_dict.get("curr", 0) >= threshold:
             active_times["curr"] = labels_dict.get("curr", 0)
-
         if labels_dict.get("hist", 0) >= threshold:
             active_times["hist"] = labels_dict.get("hist", 0)
         if labels_dict.get("spec", 0) >= threshold:
@@ -279,12 +276,7 @@ class LabelMapper:
                 for time_dim, time_score in active_times.items():
                     # Combined score for prioritization
                     combined_score = hedge["usage"] * time_score
-
-                    if time_dim == "term":  # Priority 0: Termination
-                        all_labels.append(
-                            (priority_penalty, combined_score, term_id)
-                        )
-                    elif time_dim == "curr":
+                    if time_dim == "curr":
                         # Priority 1: Current usage (highest)
                         all_labels.append((1 + priority_penalty, combined_score, curr_id))
                     elif time_dim == "hist":
@@ -314,10 +306,7 @@ class LabelMapper:
                 for time_dim, time_score in active_times.items():
                     combined_score = hedge["context"] * time_score
 
-                    if time_dim in "term":
-                        # Priority 4: Context with termination
-                        all_labels.append((4 + priority_penalty, combined_score, term_id))
-                    elif time_dim in ["curr", "hist"]:
+                    if time_dim in ["curr", "hist"]:
                         # Priority 5: Context with current/historical time
                         all_labels.append((5 + priority_penalty, combined_score, curr_id if time_dim == "curr" else hist_id))
                     elif time_dim == "spec": # This is speculative context
