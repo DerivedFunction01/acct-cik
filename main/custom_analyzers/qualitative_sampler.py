@@ -35,10 +35,11 @@ class QualitativeSampler(BaseAnalyzer):
     <title>Qualitative Review Sample</title>
     <style>
         :root { --sidebar-width: 320px; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 0; color: #222; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #222; background: #f6f7fb; }
         .app { display: flex; height: 100vh; }
         .sidebar { width: var(--sidebar-width); background: #0f1724; color: #e6eef8; overflow: auto; padding: 12px; box-sizing: border-box; }
         .sidebar h2 { margin: 8px 0 12px; font-size: 16px; }
+        .sidebar h4 { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; color: #94a3b8; }
         .report-link { display: block; padding: 8px; border-radius: 6px; margin-bottom: 6px; color: inherit; text-decoration: none; }
         .report-link.hidden { display: none; }
         .report-link:hover { background: rgba(255,255,255,0.03); }
@@ -46,6 +47,12 @@ class QualitativeSampler(BaseAnalyzer):
         .main { flex: 1; overflow: auto; padding: 20px; box-sizing: border-box; background: #f6f7fb; }
         .header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
         .card { background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 6px 18px rgba(18, 38, 63, 0.06); margin-top: 12px; }
+        .filter-group { margin-bottom: 12px; }
+        .filter-group label { display: block; font-size: 0.9em; margin-bottom: 4px; color: #cbd5e1; }
+        .filter-group input, .filter-group select { width: 100%; padding: 8px; box-sizing: border-box; background: #2c3a4f; border: 1px solid #475569; color: white; border-radius: 4px; }
+        .flag-filter-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; margin-top: 4px; }
+        .flag-filter-group label { grid-column: 1 / -1; font-size: 0.9em; margin-bottom: 0; }
+
         table { border-collapse: collapse; width: 100%; margin-top: 8px; }
         th, td { border: 1px solid #eee; padding: 8px; text-align: left; }
         .text-content { background-color: #fcfdff; border-left: 3px solid #2b6cb0; padding: 12px; white-space: pre-wrap; }
@@ -53,8 +60,7 @@ class QualitativeSampler(BaseAnalyzer):
         .sentence-labels { font-size: 0.82em; color: #444; background: #eef2ff; padding: 6px 8px; border-radius: 8px; display:inline-block; }
         .controls { display:flex; gap:8px; align-items:center; }
         .btn { background:#2b6cb0; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; cursor:pointer; border:none; }
-        .btn.secondary { background:#edf2ff; color:#1e293b; }
-        #filter-input { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; background: #2c3a4f; border: 1px solid #475569; color: white; border-radius: 4px; }
+        .btn.secondary { background:#edf2ff; color:#1e293b; }        
         .meta { color:#475569; font-size:0.95em; }
         .small { font-size:0.85em; color:#64748b; }
     </style>
@@ -63,7 +69,29 @@ class QualitativeSampler(BaseAnalyzer):
     <div class="app">
         <aside class="sidebar">
             <h2>Qualitative Review ({{ num_samples }} reports)</h2>
-            <input type="text" id="filter-input" placeholder="Filter by CIK...">
+            <div id="filter-controls">
+                <div class="filter-group">
+                    <label for="filter-cik">Filter by CIK</label>
+                    <input type="text" id="filter-cik" placeholder="e.g., 12345">
+                </div>
+                <div class="filter-group">
+                    <label for="filter-content">Search in Report Text</label>
+                    <input type="text" id="filter-content" placeholder="e.g., swap agreement">
+                </div>
+
+                <h4>Filter by Flags</h4>
+                <div class="filter-group">
+                    <div class="flag-filter-group">
+                        <label>IR Hedge</label>
+                        <select id="filter-ir-model"><option value="">Any Model</option><option value="YES">YES</option><option value="NO">NO</option><option value="TERMINATED">TERMINATED</option></select>
+                        <select id="filter-ir-keyword"><option value="">Any Keyword</option><option value="1">Yes</option><option value="0">No</option></select>
+                    </div>
+                    <div class="flag-filter-group"><label>FX Hedge</label><select id="filter-fx-model"><option value="">Any Model</option><option value="YES">YES</option><option value="NO">NO</option><option value="TERMINATED">TERMINATED</option></select><select id="filter-fx-keyword"><option value="">Any Keyword</option><option value="1">Yes</option><option value="0">No</option></select></div>
+                    <div class="flag-filter-group"><label>CP Hedge</label><select id="filter-cp-model"><option value="">Any Model</option><option value="YES">YES</option><option value="NO">NO</option><option value="TERMINATED">TERMINATED</option></select><select id="filter-cp-keyword"><option value="">Any Keyword</option><option value="1">Yes</option><option value="0">No</option></select></div>
+                </div>
+                <button id="reset-filters" class="btn secondary" style="width:100%; margin-top:10px;">Reset Filters</button>
+            </div>
+            <hr style="border-color: #334155; margin: 20px 0;">
             <div id="report-list"></div>
         </aside>
         <main class="main">
@@ -179,12 +207,45 @@ class QualitativeSampler(BaseAnalyzer):
         }
 
         function filterList() {
-            const filterValue = document.getElementById('filter-input').value.toLowerCase();
+            const cikFilter = document.getElementById('filter-cik').value.toLowerCase();
+            const contentFilter = document.getElementById('filter-content').value.toLowerCase();
+            
+            const irModelFilter = document.getElementById('filter-ir-model').value;
+            const irKeywordFilter = document.getElementById('filter-ir-keyword').value;
+            const fxModelFilter = document.getElementById('filter-fx-model').value;
+            const fxKeywordFilter = document.getElementById('filter-fx-keyword').value;
+            const cpModelFilter = document.getElementById('filter-cp-model').value;
+            const cpKeywordFilter = document.getElementById('filter-cp-keyword').value;
+
             const links = document.querySelectorAll('.report-link');
-            links.forEach(link => {
-                const text = link.textContent.toLowerCase();
-                link.classList.toggle('hidden', !text.includes(filterValue));
+            
+            reports.forEach((report, idx) => {
+                let isVisible = true;
+
+                // CIK filter
+                if (cikFilter && !report.cik.toString().includes(cikFilter)) isVisible = false;
+
+                // Content search
+                if (isVisible && contentFilter) {
+                    const reportText = report.sentences.map(s => s.text).join(' ').toLowerCase();
+                    if (!reportText.includes(contentFilter)) isVisible = false;
+                }
+
+                // Flag filters
+                if (isVisible && irModelFilter && report.flags[0].model !== irModelFilter) isVisible = false;
+                if (isVisible && irKeywordFilter && report.flags[0].keyword.toString() !== irKeywordFilter) isVisible = false;
+                if (isVisible && fxModelFilter && report.flags[1].model !== fxModelFilter) isVisible = false;
+                if (isVisible && fxKeywordFilter && report.flags[1].keyword.toString() !== fxKeywordFilter) isVisible = false;
+                if (isVisible && cpModelFilter && report.flags[2].model !== cpModelFilter) isVisible = false;
+                if (isVisible && cpKeywordFilter && report.flags[2].keyword.toString() !== cpKeywordFilter) isVisible = false;
+
+                links[idx].classList.toggle('hidden', !isVisible);
             });
+        }
+
+        function resetFilters() {
+            document.querySelectorAll('#filter-controls input, #filter-controls select').forEach(el => el.value = '');
+            filterList();
         }
 
         function route() {
@@ -201,7 +262,10 @@ class QualitativeSampler(BaseAnalyzer):
         }
 
         window.addEventListener('hashchange', route);
-        document.getElementById('filter-input').addEventListener('keyup', filterList);
+        document.getElementById('filter-cik').addEventListener('keyup', filterList);
+        document.getElementById('filter-content').addEventListener('keyup', filterList);
+        document.querySelectorAll('#filter-controls select').forEach(el => el.addEventListener('change', filterList));
+        document.getElementById('reset-filters').addEventListener('click', resetFilters);
 
         // init
         makeList();
@@ -245,7 +309,6 @@ class QualitativeSampler(BaseAnalyzer):
                 sentences = matches_dict
             else:
                 return [{"text": "Matches data is not in a recognized format.", "labels": []}]
-
 
             sentence_data = []
             for i, text in enumerate(sentences):
@@ -328,14 +391,14 @@ class QualitativeSampler(BaseAnalyzer):
             terminated_mask = (data['model_ir_terminated'] == 1) | \
                               (data['model_fx_terminated'] == 1) | \
                               (data['model_cp_terminated'] == 1)
-            
+
             # The sampling pool is now the subset of reports that are terminated.
             sampling_pool_df = data[terminated_mask].copy()
-            
+
             if sampling_pool_df.empty:
                 print("   ⚠️  No terminated reports found to sample from. Aborting qualitative sampler.")
                 return {}
-            
+
             print(f"   -> Found {len(sampling_pool_df)} terminated reports to sample from.")
             sample_df = sampling_pool_df.sample(n=min(self.sample_size, len(sampling_pool_df)), random_state=self.random_state)
             final_sample_df = sample_df # The sample is already merged with flag data.
