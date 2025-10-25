@@ -37,7 +37,7 @@ class Config:
     confidence_threshold: float = 0.65
     soft_confidence_threshold: float = 0.50
     termination_threshold: float = 0.80
-    term_curr_ratio: float = 0.0
+    term_curr_ratio: float = 1.0 # More mentions of termination than current means terminated
     display_threshold: float = 0.30 # For display purposes
 
     # Multi-label names (from training)
