@@ -2906,16 +2906,6 @@ risk_items_other = [
     "exposure to sovereign or institutional counterparties",
 ]
 
-# Optional
-materiality = [
-    "immaterial",
-    "not significant",
-    "limited",
-    "material",
-    "significant",
-    "not material",
-]
-
 cfs_reasons = [
     "acquisitions of businesses",
     "purchases of property, plant, and equipment",
