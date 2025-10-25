@@ -25,6 +25,7 @@ class QualitativeSampler(BaseAnalyzer):
         self.random_state = random_state
         self.output_filename = self.config.output_dir / "qualitative_review_sample.html"
         self.sampled_urls_csv = self.config.output_dir / "qualitative_review_sampled_urls.csv"
+        self.json_output_filename = self.config.output_dir / "qualitative_review_sample.json"
         # Basic HTML template for the report
         self.html_template = """
 <!DOCTYPE html>
@@ -357,6 +358,7 @@ class QualitativeSampler(BaseAnalyzer):
         # Render the HTML
         # Using Jinja2 for safer and cleaner template rendering
         from jinja2 import Template
+        import os
         template = Template(self.html_template)
 
         # Define temporary and final paths
@@ -371,14 +373,32 @@ class QualitativeSampler(BaseAnalyzer):
         with open(temp_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
+        # --- Create and save the JSON output for the AI agent ---
+        agent_reports_data = []
+        for report in reports_data:
+            # The AI only needs the raw text of the sentences.
+            extracted_text = [s.get("text", "") for s in report.get("sentences", [])]
+            agent_reports_data.append({
+                "cik": report["cik"],
+                "year": report["year"],
+                "url": report["url"],
+                "extracted_text": extracted_text
+            })
+
+        temp_json_path = self.json_output_filename.with_suffix('.json.tmp')
+        with open(temp_json_path, "w", encoding="utf-8") as f:
+            json.dump(agent_reports_data, f, indent=2, ensure_ascii=False)
+
         # Atomically rename the temporary file to the final destination
-        import os
         try:
             os.rename(temp_html_path, self.output_filename)
+            os.rename(temp_json_path, self.json_output_filename)
         except: # Try replaceing
             os.replace(temp_html_path, self.output_filename)
+            os.replace(temp_json_path, self.json_output_filename)
 
         print(f"   ✅ Qualitative sample saved to: {self.output_filename}")
+        print(f"   ✅ JSON data saved to: {self.json_output_filename}")
 
         # This analyzer doesn't produce a DataFrame, so return an empty dict
         return {}
