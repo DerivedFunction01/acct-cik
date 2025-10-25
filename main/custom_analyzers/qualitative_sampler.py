@@ -40,6 +40,7 @@ class QualitativeSampler(BaseAnalyzer):
         .sidebar { width: var(--sidebar-width); background: #0f1724; color: #e6eef8; overflow: auto; padding: 12px; box-sizing: border-box; }
         .sidebar h2 { margin: 8px 0 12px; font-size: 16px; }
         .report-link { display: block; padding: 8px; border-radius: 6px; margin-bottom: 6px; color: inherit; text-decoration: none; }
+        .report-link.hidden { display: none; }
         .report-link:hover { background: rgba(255,255,255,0.03); }
         .report-link.active { background: rgba(255,255,255,0.06); font-weight: 600; }
         .main { flex: 1; overflow: auto; padding: 20px; box-sizing: border-box; background: #f6f7fb; }
@@ -53,6 +54,7 @@ class QualitativeSampler(BaseAnalyzer):
         .controls { display:flex; gap:8px; align-items:center; }
         .btn { background:#2b6cb0; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; cursor:pointer; border:none; }
         .btn.secondary { background:#edf2ff; color:#1e293b; }
+        #filter-input { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; background: #2c3a4f; border: 1px solid #475569; color: white; border-radius: 4px; }
         .meta { color:#475569; font-size:0.95em; }
         .small { font-size:0.85em; color:#64748b; }
     </style>
@@ -61,6 +63,7 @@ class QualitativeSampler(BaseAnalyzer):
     <div class="app">
         <aside class="sidebar">
             <h2>Qualitative Review ({{ num_samples }} reports)</h2>
+            <input type="text" id="filter-input" placeholder="Filter by CIK...">
             <div id="report-list"></div>
         </aside>
         <main class="main">
@@ -93,7 +96,7 @@ class QualitativeSampler(BaseAnalyzer):
 
     <script>
         // Small SPA to render each report on its own "page"
-        const reports = JSON.parse(document.getElementById('reports-data').textContent || '[]');
+        const reports = JSON.parse(document.getElementById('reports-data').textContent || 'null') || [];
         const listEl = document.getElementById('report-list');
         const titleEl = document.getElementById('report-title');
         const metaEl = document.getElementById('report-meta');
@@ -115,7 +118,8 @@ class QualitativeSampler(BaseAnalyzer):
         function renderReport(idx) {
             const r = reports[idx];
             if (!r) return;
-            // highlight
+            
+            // Highlight the active link in the sidebar
             Array.from(document.querySelectorAll('.report-link')).forEach(el => el.classList.toggle('active', el.dataset.idx == idx));
 
             titleEl.textContent = `CIK ${r.cik} — ${r.year}`;
@@ -174,6 +178,15 @@ class QualitativeSampler(BaseAnalyzer):
             });
         }
 
+        function filterList() {
+            const filterValue = document.getElementById('filter-input').value.toLowerCase();
+            const links = document.querySelectorAll('.report-link');
+            links.forEach(link => {
+                const text = link.textContent.toLowerCase();
+                link.classList.toggle('hidden', !text.includes(filterValue));
+            });
+        }
+
         function route() {
             const hash = window.location.hash.replace('#','');
             let idx = parseInt(hash, 10);
@@ -188,6 +201,7 @@ class QualitativeSampler(BaseAnalyzer):
         }
 
         window.addEventListener('hashchange', route);
+        document.getElementById('filter-input').addEventListener('keyup', filterList);
 
         // init
         makeList();
