@@ -456,6 +456,7 @@ cp_specific_mitigation = [
     "to hedge {commodity} procurement risk",
     "to limit its exposure to {commodity} price increases",
     "to commit to purchase {commodity} at an agreed-upon price at a specified future date",
+    "to manage fluctuations in {commodity} prices",
 ]
 
 # Commodity — realized/factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
@@ -482,6 +483,7 @@ cp_specific_results = [
     "and may be settled upon receipt or deliery of {commodity}",
     "committing to purchase {commodity} at an agreed-upon price at a specified future date",
     "at an average price of {currency_code} {amount} per {unit}",
+    "for the sale or purchase of {commodity} with other parties"
 ]
 
 # Special templates for accounting impact
