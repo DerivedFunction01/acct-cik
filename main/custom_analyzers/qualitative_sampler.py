@@ -268,9 +268,14 @@ class QualitativeSampler(BaseAnalyzer):
         temp_html_path = self.output_filename.with_suffix('.html.tmp')
         temp_csv_path = self.sampled_urls_csv.with_suffix('.csv.tmp')
 
+        # Get all primary labels for the filter UI
+        all_labels = []
+        if self.label_mapper and self.label_mapper.primary_id2label:
+            all_labels = sorted(list(self.label_mapper.primary_id2label.values()))
+
         # Pass reports as JSON to embed into the SPA template
         reports_json = json.dumps(reports_data, ensure_ascii=False)
-        html_content = template.render(reports=reports_data, num_samples=len(reports_data), reports_json=reports_json)
+        html_content = template.render(reports=reports_data, num_samples=len(reports_data), reports_json=reports_json, all_labels=all_labels)
 
         # Save the HTML file to a temporary location
         with open(temp_html_path, "w", encoding="utf-8") as f:
