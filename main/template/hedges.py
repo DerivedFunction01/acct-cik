@@ -228,15 +228,18 @@ gen_specific_mitigation = [
 
 # Generic accounting reasons (shared across all hedge types)
 gen_specific_results = [
-    "resulting in {currency_code}{notional} {money_unit} of unrealized losses recorded in accumulated OCI",
+    "resulting in {currency_code}{amount} {money_unit} of unrealized losses recorded in accumulated OCI",
     "resulting in fair value losses recorded in equity",
-    "resulting in {currency_code}{notional} {money_unit} of unrealized gains recorded in accumulated OCI",
+    "resulting in {currency_code}{amount} {money_unit} of unrealized gains recorded in accumulated OCI",
     "resulting in fair value gains recorded in equity",
-    "with net unrealized losses of {currency_code}{notional} {money_unit} reflected in accumulated other comprehensive income",
-    "with net unrealized gains of {currency_code}{notional} {money_unit} reflected in accumulated other comprehensive income",
+    "with net unrealized losses of {currency_code}{amount} {money_unit} reflected in accumulated other comprehensive income",
+    "with net unrealized gains of {currency_code}{amount} {money_unit} reflected in accumulated other comprehensive income",
     "leading to mark-to-market adjustments recorded in other comprehensive income",
     "with changes in fair value recognized in equity",
     "with changes in fair value recognized in earnings",
+    "receiving variable amounts and paying fixed amounts",
+    "receiving fixed amounts and paying variable amounts",
+    "receiving {currency_code}{old_notional} {money_unit} and paying {currency_code}{amount} {money_unit}",
 ]
 
 # Interest Rate (IR) — general/policy intent phrases ("to ...")
@@ -312,11 +315,12 @@ ir_specific_results = [
     "which carry notional amounts of {currency_code}{old_notional} {money_unit} and terminate in {future_year}",
     "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {month} {future_year}",
     "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {future_year}",
-    "resulting in a decrease in interest expense of {currency_code}{notional} {money_unit}",
-    "resulting in an increase in interest expense of {currency_code}{notional} {money_unit}",
+    "resulting in a decrease in interest expense of {currency_code}{amount} {money_unit}",
+    "resulting in an increase in interest expense of {currency_code}{amount} {money_unit}",
     "recognizing the gains and losses on derivative instruments as an adjustment to interest expense",
     "reducing the potential impact of increases in interest rates on its interest-bearing liabilities",
     "which effectively converts the variable rate debt into a fixed rate of debt",
+    "to hedge {currency_code}{amount} {money_unit} of various {debt_type}",
 ]
 
 

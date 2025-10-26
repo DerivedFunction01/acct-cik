@@ -597,6 +597,7 @@ def generate_hedge_paragraph(
         )
 
         old_notional = generate_value(False)
+        amount = generate_value(False)
         gain_loss = random.choice(["gain", "loss"])
         unit = money_units
         code = currency_code
@@ -625,6 +626,7 @@ def generate_hedge_paragraph(
             prev_notional=prev_notional,
             prev2_notional=prev2_notional,
             old_notional=old_notional,
+            amount=amount,
             money_unit=unit,
             cost_type=cost_type,
             hedge_type=hedge_type,
