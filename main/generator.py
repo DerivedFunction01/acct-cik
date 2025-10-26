@@ -653,8 +653,6 @@ def generate_hedge_paragraph(
         if use_current_year:
             labels["term"] = 1
         template = random.choice(hedge_termination_templates)
-        if template in hedge_zero_templates:
-            labels["term"] = 1
         term_year = random.choice(past_years) if not use_current_year else current_year 
         prev_year = term_year - 1
         prev2_year = term_year - 2
