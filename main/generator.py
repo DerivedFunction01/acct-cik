@@ -825,7 +825,8 @@ def generate_hedge_paragraph(
             counterparty_template = random.choice(hedge_counterparty_templates)
             sentences.append(
                 counterparty_template.format(company=pick_company_name(company_name),
-                                             swap_type=swap_type)
+                                             swap_type=swap_type,
+                                             materiality=random.choice(material if random.random() < 0.5 else immaterial))
             )
 
             random.shuffle(sentences)
