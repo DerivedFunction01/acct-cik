@@ -748,9 +748,8 @@ zero_any_templates = [  # No such outstanding patterms
     "{time_period}, the amounts of {swap_type} outstanding were {materiality_level}",
     "At {month} {end_day}, {year}, the amounts of {swap_type} outstanding were {materiality_level}",
     "The amounts of {swap_type} outstanding, as well as the amounts of gains and losses recorded during the year, were {materiality_level} {time_period}",
-    "{company} did not have any {materiality_level} {swap_type} outstanding {time_period}",
-    "As of {month} {end_day}, {year}, any outstanding {swap_type} were {materiality_level} in amount",
-
+    "{company} did not {verb} any {materiality_level} {swap_type} outstanding {time_period}",
+    "{time_period}, any outstanding {swap_type} were {materiality_level} in amount",
 ]
 
 zero_hedge_position_templates = zero_current_vs_prior_notional_templates + zero_any_templates
@@ -921,8 +920,8 @@ hedge_ineffectiveness_actual_templates = [
     "Hedge ineffectiveness of {currency_code}{amount} {money_unit} was recognized in earnings for the year ended {month} {end_day}, {year}",
     "The ineffective portion of the {hedge_type} hedge resulted in a {gain_loss} of {currency_code}{amount} {money_unit} recorded in the consolidated statements of operations",
     "For the {quarter} quarter of {year}, ineffectiveness on certain {swap_type} hedges amounted to {currency_code}{amount} {money_unit}",
-    "An insignificant amount of hedge ineffectiveness was recorded in earnings during {year}",
-    "The amount of hedge ineffectiveness recognized in earnings for {year} and {prev_year} was not material",
+    "An {materiality} amount of hedge ineffectiveness was recorded in earnings during {year}",
+    "The amount of hedge ineffectiveness recognized in earnings for {year} and {prev_year} was {materiality}",
 ]
 
 hedge_discontinuation_templates = [

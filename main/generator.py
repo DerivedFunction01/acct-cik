@@ -761,6 +761,7 @@ def generate_hedge_paragraph(
                     gain_loss=random.choice(["gain", "loss"]),
                     swap_type=swap_type,
                     hedge_type=hedge_type,
+                    materiality=random.choice(immaterial)
                 )
             )
             sentences = random.sample(sentences, random.randint(2,3))
