@@ -632,6 +632,7 @@ def generate_hedge_paragraph(
             location=random.choice(balance_sheet_locations),
             debt_type=random.choice(debt_types_list),
             pct=generate_value(False, 1, 20),
+            materiality=random.choice(material if random.random() < 0.5 else immaterial)
         )
         sentences.append(sentence)
 
