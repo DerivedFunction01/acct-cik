@@ -3,66 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qualitative Review Sample ({{ num_samples }} Reports)</title>
+    <title>Qualitative Review Sample</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f8f9fa; }
-        .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1, h2 { color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
-        .report { border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; padding: 15px; background-color: #fff; }
-        .report-header { font-weight: bold; margin-bottom: 10px; font-size: 1.1em; }
-        .report-header a { text-decoration: none; color: #3498db; }
-        .report-header a:hover { text-decoration: underline; }
-        .flag-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        .flag-table th, .flag-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .flag-table th { background-color: #f2f2f2; }
-        .flag-status-YES { background-color: #d4edda; color: #155724; }
-        .flag-status-TERMINATED { background-color: #f8d7da; color: #721c24; font-weight: bold; }
-        .flag-status-NO { background-color: #e9ecef; color: #495057; }
-        .sentence { margin-bottom: 10px; padding: 10px; border-left: 3px solid #3498db; background-color: #fdfdfe; }
-        .sentence-labels { font-size: 0.9em; color: #555; margin-top: 5px; }
-        .sentence-labels .primary { font-weight: bold; color: #c0392b; }
-        .sentence-labels .secondary { color: #7f8c8d; }
-        .label-tag { display: inline-block; background-color: #ecf0f1; color: #34495e; padding: 2px 8px; border-radius: 12px; margin-right: 5px; font-size: 0.85em; }
-        .controls { background-color: #f1f5f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        .controls details { border: 1px solid #ccc; border-radius: 4px; padding: 10px; }
-        .controls summary { font-weight: bold; cursor: pointer; }
-        .controls input, .controls select { margin-right: 10px; padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
-        .controls button { padding: 8px 15px; border: none; background-color: #3498db; color: white; border-radius: 4px; cursor: pointer; }
-        .controls button:hover { background-color: #2980b9; }
-        .filter-group { margin-bottom: 10px; }
-        .filter-group legend { font-weight: bold; margin-bottom: 5px; }
-        .filter-group label { margin-right: 15px; font-weight: normal; }
-        .label-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 5px; margin-top: 10px; }
-        #report-count { margin-top: 10px; font-weight: bold; }
+        :root { --sidebar-width: 350px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #222; background: #f6f7fb; }
+        .app { display: flex; height: 100vh; }
+        .sidebar { width: var(--sidebar-width); background: #0f1724; color: #e6eef8; overflow-y: auto; padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; }
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .sidebar h2 { margin: 8px 0 12px; font-size: 16px; }
+        .sidebar h4 { margin: 16px 0 8px; font-size: 12px; text-transform: uppercase; color: #94a3b8; }
+        .report-link { display: block; padding: 8px; border-radius: 6px; margin-bottom: 6px; color: inherit; text-decoration: none; font-size: 0.9em; }
+        .report-link.hidden { display: none; }
+        .report-link:hover { background: rgba(255,255,255,0.03); }
+        .report-link.active { background: rgba(255,255,255,0.06); font-weight: 600; }
+        .main { flex: 1; overflow: auto; padding: 20px; box-sizing: border-box; background: #f6f7fb; }
+        .header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+        .card { background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 6px 18px rgba(18, 38, 63, 0.06); margin-top: 12px; }
+        
+        /* Filters */
+        .sidebar details { border: 1px solid #334155; border-radius: 4px; padding: 10px; margin-bottom: 15px; }
+        .sidebar summary { font-weight: bold; cursor: pointer; }
+        .filter-group { margin-bottom: 12px; }
+        .filter-group label { display: block; font-size: 0.9em; margin-bottom: 4px; color: #cbd5e1; }
+        .filter-group input, .filter-group select { width: 100%; padding: 8px; box-sizing: border-box; background: #2c3a4f; border: 1px solid #475569; color: white; border-radius: 4px; }
+        .checkbox-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; margin-top: 4px; }
+        .checkbox-group legend { grid-column: 1 / -1; font-size: 0.9em; margin-bottom: 0; color: #cbd5e1; font-weight: bold;}
+        .checkbox-group label { font-size: 0.85em; color: #e2e8f0; display: flex; align-items: center; gap: 6px; }
+        .label-filters { display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 10px; }
+
+        /* Main Content */
+        table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 0.9em; }
+        th, td { border: 1px solid #eee; padding: 8px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .text-content { background-color: #fcfdff; border-left: 3px solid #2b6cb0; padding: 12px; }
+        .sentence { margin-bottom: 12px; }
+        .sentence-labels { font-size: 0.85em; color: #555; margin-top: 5px; }
+        .label-tag { display: inline-block; background-color: #ecf0f1; color: #34495e; padding: 2px 8px; border-radius: 12px; margin-right: 5px; font-size: 0.9em; }
+        .label-tag.primary { font-weight: bold; color: #c0392b; background-color: #fbe9e7; }
+        .label-tag.secondary { color: #7f8c8d; }
+        .controls { display:flex; gap:8px; align-items:center; }
+        .btn { background:#2b6cb0; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; cursor:pointer; border:none; font-family: inherit; }
+        .btn:disabled { background: #a0aec0; cursor: not-allowed; }
+        .btn.secondary { background:#edf2ff; color:#1e293b; }        
+        .meta { color:#475569; font-size:0.95em; }
+        .small { font-size:0.85em; color:#64748b; }
+        #report-count { font-size: 0.85em; color: #94a3b8; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Qualitative Review Sample</h1>
-        <p>A random sample of <strong>{{ num_samples }}</strong> reports for qualitative review.</p>
-
-        <div class="controls">
+    <div class="app">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Review Sample</h2>
+            </div>
+            
             <details>
                 <summary>Filters</summary>
                 <div style="padding-top: 15px;">
                     <div class="filter-group">
-                        <label for="cik-filter">CIK:</label>
-                        <input type="text" id="cik-filter" placeholder="Enter CIK">
-                        <label for="text-filter">Text Search:</label>
-                        <input type="text" id="text-filter" placeholder="Search sentence text...">
+                        <label for="filter-cik">Filter by CIK</label>
+                        <input type="text" id="filter-cik" placeholder="e.g., 12345">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-content">Search in Report Text</label>
+                        <input type="text" id="filter-content" placeholder="e.g., swap agreement">
                     </div>
 
-                    <fieldset class="filter-group">
+                    <fieldset class="checkbox-group">
                         <legend>Flag Status:</legend>
                         <label><input type="checkbox" class="flag-filter" value="model_ir_user"> IR (Model)</label>
-                        <label><input type="checkbox" class="flag-filter" value="model_fx_user"> FX (Model)</label>
-                        <label><input type="checkbox" class="flag-filter" value="model_cp_user"> CP (Model)</label>
                         <label><input type="checkbox" class="flag-filter" value="ir_user"> IR (Keyword)</label>
+                        <label><input type="checkbox" class="flag-filter" value="model_fx_user"> FX (Model)</label>
                         <label><input type="checkbox" class="flag-filter" value="fx_user"> FX (Keyword)</label>
+                        <label><input type="checkbox" class="flag-filter" value="model_cp_user"> CP (Model)</label>
                         <label><input type="checkbox" class="flag-filter" value="cp_user"> CP (Keyword)</label>
                     </fieldset>
 
-                    <fieldset class="filter-group">
+                    <fieldset class="checkbox-group" style="margin-top: 12px;">
                         <legend>Termination Status:</legend>
                         <label><input type="checkbox" class="term-filter" value="model_ir_terminated"> IR Terminated</label>
                         <label><input type="checkbox" class="term-filter" value="model_fx_terminated"> FX Terminated</label>
@@ -70,8 +87,8 @@
                     </fieldset>
 
                     {% if all_labels %}
-                    <fieldset class="filter-group">
-                        <legend>Primary Sentence Labels:</legend>
+                    <fieldset class="filter-group" style="margin-top: 12px;">
+                        <legend style="color: #cbd5e1; font-weight: bold;">Primary Sentence Labels:</legend>
                         <div class="label-filters">
                             {% for label in all_labels %}
                             <label><input type="checkbox" class="label-filter" value="{{ label }}"> {{ label }}</label>
@@ -79,148 +96,220 @@
                         </div>
                     </fieldset>
                     {% endif %}
-
-                    <button onclick="applyFilters()">Apply Filters</button>
-                    <button onclick="resetFilters()">Reset</button>
+                    <button id="reset-filters" class="btn secondary" style="width:100%; margin-top:15px;">Reset Filters</button>
                 </div>
             </details>
-        </div>
+            <hr style="border-color: #334155; margin: 20px 0;">
+            <div id="report-count">Showing {{ num_samples }} reports</div>
+            <div id="report-list"></div>
+        </aside>
+        <main class="main">
+            <div class="header">
+                <div>
+                    <h1 id="report-title">Report</h1>
+                    <div class="meta" id="report-meta"></div>
+                </div>
+                <div class="controls">
+                    <button class="btn" id="prev-btn">Previous</button>
+                    <button class="btn" id="next-btn">Next</button>
+                    <a id="open-url" class="btn secondary" target="_blank">Open URL</a>
+                </div>
+            </div>
 
-        <div id="report-count">Displaying {{ num_samples }} of {{ num_samples }} reports.</div>
-        <div id="reports-container">
-            <!-- Reports will be injected here by JavaScript -->
-        </div>
+            <div id="report-content" class="card">
+                <h3>Comparison Flags</h3>
+                <table id="flags-table"><thead><tr><th>Category</th><th>Keyword Flag</th><th>Model Flag</th><th>Curr Cnt</th><th>Hist Cnt</th><th>Term Cnt</th><th>Term/Curr Ratio</th></tr></thead><tbody></tbody></table>
+
+                <h3 style="margin-top:18px">Extracted Text</h3>
+                <div id="sentences" class="text-content"></div>
+            </div>
+        </main>
     </div>
 
+    <!-- Embedded data -->
+    <script id="reports-data" type="application/json">{{ reports_json | safe }}</script>
+
     <script>
+        // Small SPA to render each report on its own "page"
         const reportsData = {{ reports_json | safe }};
+        const listEl = document.getElementById('report-list');
+        const titleEl = document.getElementById('report-title');
+        const metaEl = document.getElementById('report-meta');
+        const flagsTableBody = document.querySelector('#flags-table tbody');
+        const sentencesEl = document.getElementById('sentences');
+        const openUrlEl = document.getElementById('open-url');
+        const reportCountEl = document.getElementById('report-count');
 
-        function getFlagStatusClass(status) {
-            if (status === 'YES') return 'flag-status-YES';
-            if (status === 'TERMINATED') return 'flag-status-TERMINATED';
-            return 'flag-status-NO';
-        }
+        let visibleReportIndices = [];
 
-        function createReportElement(report) {
-            const reportDiv = document.createElement('div');
-            reportDiv.className = 'report';
-            reportDiv.setAttribute('data-cik', report.cik);
-
-            let flagsHtml = `
-                <div class="report-header">
-                    CIK: ${report.cik} | Year: ${report.year} | <a href="${report.url}" target="_blank">View Filing</a>
-                </div>
-                <table class="flag-table">
-                    <tr>
-                        <th>Hedge Type</th>
-                        <th>Keyword Flag</th>
-                        <th>Model Flag</th>
-                        <th>Hist. Count</th>
-                        <th>Current Count</th>
-                        <th>Term. Count</th>
-                        <th>Term/Current Ratio</th>
-                    </tr>
-            `;
-            report.flags.forEach(flag => {
-                flagsHtml += `
-                    <tr>
-                        <td>${flag.name}</td>
-                        <td class="${flag.keyword ? 'flag-status-YES' : 'flag-status-NO'}">${flag.keyword ? 'YES' : 'NO'}</td>
-                        <td class="${getFlagStatusClass(flag.model)}">${flag.model}</td>
-                        <td>${flag.hist_count}</td>
-                        <td>${flag.current_count}</td>
-                        <td>${flag.terminated_count}</td>
-                        <td>${flag.ratio}</td>
-                    </tr>
-                `;
-            });
-            flagsHtml += '</table>';
-
-            let sentencesHtml = '<div>';
-            report.sentences.forEach(sentence => {
-                const primaryLabel = sentence.primary_label ? `<span class="label-tag primary">${sentence.primary_label}</span>` : '';
-                const secondaryLabels = sentence.all_primary_labels.slice(1).map(l => `<span class="label-tag secondary">${l}</span>`).join(' ');
-                const scoreLabels = sentence.labels.map(l => `<span class="label-tag">${l}</span>`).join(' ');
-
-                sentencesHtml += `
-                    <div class="sentence">
-                        <p>${sentence.text}</p>
-                        <div class="sentence-labels">
-                            ${primaryLabel}
-                            ${secondaryLabels}
-                            ${scoreLabels}
-                        </div>
-                    </div>
-                `;
-            });
-            sentencesHtml += '</div>';
-
-            reportDiv.innerHTML = flagsHtml + sentencesHtml;
-            return reportDiv;
-        }
-
-        function renderReports(reports) {
-            const container = document.getElementById('reports-container');
-            container.innerHTML = '';
-            reports.forEach(report => {
-                container.appendChild(createReportElement(report));
-            });
-            document.getElementById('report-count').textContent = `Displaying ${reports.length} of ${reportsData.length} reports.`;
-        }
-
-        function applyFilters() {
-            const cikFilter = document.getElementById('cik-filter').value.toLowerCase();
-            const textFilter = document.getElementById('text-filter').value.toLowerCase();
-
+        function makeList() {
+            listEl.innerHTML = ''; // Clear existing list
+            visibleReportIndices = [];
+            
+            const cikFilter = document.getElementById('filter-cik').value.toLowerCase();
+            const contentFilter = document.getElementById('filter-content').value.toLowerCase();
             const selectedFlags = Array.from(document.querySelectorAll('.flag-filter:checked')).map(cb => cb.value);
             const selectedTermFlags = Array.from(document.querySelectorAll('.term-filter:checked')).map(cb => cb.value);
             const selectedLabels = Array.from(document.querySelectorAll('.label-filter:checked')).map(cb => cb.value);
 
-            const filteredReports = reportsData.filter(report => {
-                const cikMatch = !cikFilter || report.cik.toString().toLowerCase().includes(cikFilter);
+            reportsData.forEach((report, idx) => {
+                let isVisible = true;
 
-                const textMatch = !textFilter || report.sentences.some(s => s.text.toLowerCase().includes(textFilter));
+                // CIK filter
+                if (cikFilter && !report.cik.toString().includes(cikFilter)) isVisible = false;
 
+                // Content search
+                if (isVisible && contentFilter) {
+                    const reportText = report.sentences.map(s => s.text).join(' ').toLowerCase();
+                    if (!reportText.includes(contentFilter)) isVisible = false;
+                }
+
+                // Flag filters
                 const flagMatch = selectedFlags.length === 0 || selectedFlags.every(flag => {
                     if (flag.startsWith('model_')) {
                         const type = flag.split('_')[1]; // ir, fx, cp
                         const flagData = report.flags.find(f => f.name.toLowerCase().startsWith(type));
                         return flagData && flagData.model === 'YES';
                     } else {
-                        const type = flag.split('_')[0]; // ir, fx, cp
+                        const type = flag; // ir_user, fx_user, cp_user
                         const flagData = report.flags.find(f => f.name.toLowerCase().startsWith(type));
                         return flagData && flagData.keyword === 1;
                     }
                 });
+                if (!flagMatch) isVisible = false;
 
-                const termMatch = selectedTermFlags.length === 0 || selectedTermFlags.some(flag => report[flag] === 1);
+                // Termination filter
+                const termMatch = selectedTermFlags.length === 0 || selectedTermFlags.some(flag => {
+                    const type = flag.split('_')[1]; // ir, fx, cp
+                    const flagData = report.flags.find(f => f.name.toLowerCase().startsWith(type));
+                    return flagData && flagData.model === 'TERMINATED';
+                });
+                if (!termMatch) isVisible = false;
 
+                // Label filter
                 const labelMatch = selectedLabels.length === 0 || report.sentences.some(s => selectedLabels.includes(s.primary_label));
+                if (!labelMatch) isVisible = false;
 
-                return cikMatch && textMatch && flagMatch && termMatch && labelMatch;
+                const a = document.createElement('a');
+                a.href = `#${idx}`;
+                a.className = 'report-link';
+                a.textContent = `CIK ${report.cik} (${report.year})`;
+                a.dataset.idx = idx;
+                if (!isVisible) {
+                    a.classList.add('hidden');
+                } else {
+                    visibleReportIndices.push(idx);
+                }
+                listEl.appendChild(a);
+            });
+            reportCountEl.textContent = `Showing ${visibleReportIndices.length} of ${reportsData.length} reports`;
+        }
+
+        function renderReport(idx) {
+            const r = reportsData[idx];
+            if (!r) return;
+            
+            // Highlight the active link in the sidebar
+            Array.from(document.querySelectorAll('.report-link')).forEach(el => el.classList.toggle('active', el.dataset.idx == idx));
+
+            titleEl.textContent = `CIK ${r.cik} — ${r.year}`;
+            metaEl.textContent = r.url;
+            openUrlEl.href = r.url;
+
+            // flags table
+            flagsTableBody.innerHTML = '';
+            r.flags.forEach(f => {
+                const tr = document.createElement('tr');
+                const modelColor = f.model === 'YES' ? 'green' : (f.model === 'TERMINATED' ? 'orange' : 'red');
+                tr.innerHTML = `
+                    <td>${f.name}</td>
+                    <td style="color: ${f.keyword ? 'green' : 'red'}">${f.keyword ? 'Yes' : 'No'}</td>
+                    <td style="color: ${modelColor}">${f.model}</td>
+                    <td>${f.current_count}</td>
+                    <td>${f.hist_count}</td>
+                    <td>${f.terminated_count}</td>
+                    <td>${f.ratio}</td>
+                `;
+                flagsTableBody.appendChild(tr);
             });
 
-            renderReports(filteredReports);
+            // sentences
+            sentencesEl.innerHTML = '';
+            (r.sentences || []).forEach(s => {
+                const div = document.createElement('div');
+                div.className = 'sentence';
+                const p = document.createElement('p');
+                p.textContent = s.text;
+
+                const labelsDiv = document.createElement('div');
+                labelsDiv.className = 'sentence-labels';
+                
+                const primaryLabel = s.primary_label ? `<span class="label-tag primary">${s.primary_label}</span>` : '';
+                const secondaryLabels = s.all_primary_labels.slice(1).map(l => `<span class="label-tag secondary">${l}</span>`).join(' ');
+                const scoreLabels = s.labels.map(l => `<span class="label-tag">${l}</span>`).join(' ');
+
+                labelsDiv.innerHTML = `${primaryLabel} ${secondaryLabels} ${scoreLabels}`;
+                div.appendChild(p);
+                div.appendChild(labelsDiv);
+                sentencesEl.appendChild(div);
+            });
         }
 
         function resetFilters() {
-            document.getElementById('cik-filter').value = '';
-            document.getElementById('text-filter').value = '';
+            document.querySelectorAll('#filter-cik, #filter-content').forEach(el => el.value = '');
             document.querySelectorAll('.flag-filter, .term-filter, .label-filter').forEach(cb => cb.checked = false);
-            renderReports(reportsData);
+            makeList();
         }
 
-        // Initial render
-        document.addEventListener('DOMContentLoaded', () => {
-            renderReports(reportsData);
+        function route() {
+            const hash = window.location.hash.replace('#','');
+            let currentIdx = parseInt(hash, 10);
+            if (Number.isNaN(currentIdx) || currentIdx < 0 || currentIdx >= reportsData.length) {
+                currentIdx = visibleReportIndices.length > 0 ? visibleReportIndices[0] : 0;
+            }
+            renderReport(currentIdx);
 
-            // Add event listeners for real-time filtering
-            document.getElementById('cik-filter').addEventListener('input', applyFilters);
-            document.getElementById('text-filter').addEventListener('input', applyFilters);
-            document.querySelectorAll('.flag-filter, .term-filter, .label-filter').forEach(cb => {
-                cb.addEventListener('change', applyFilters);
-            });
+            // update prev/next buttons based on visible reports
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            
+            const currentVisibleIndex = visibleReportIndices.indexOf(currentIdx);
+            
+            prevBtn.disabled = currentVisibleIndex <= 0;
+            nextBtn.disabled = currentVisibleIndex < 0 || currentVisibleIndex >= visibleReportIndices.length - 1;
+
+            prevBtn.onclick = () => {
+                if (currentVisibleIndex > 0) {
+                    window.location.hash = visibleReportIndices[currentVisibleIndex - 1];
+                }
+            };
+            nextBtn.onclick = () => {
+                if (currentVisibleIndex < visibleReportIndices.length - 1) {
+                    window.location.hash = visibleReportIndices[currentVisibleIndex + 1];
+                }
+            };
+        }
+        
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+            makeList();
+            
+            // Set initial view
+            if (!window.location.hash || window.location.hash === '#') {
+                const firstVisible = visibleReportIndices.length > 0 ? visibleReportIndices[0] : 0;
+                window.location.hash = `#${firstVisible}`;
+            } else {
+                route();
+            }
+
+            // Event Listeners
+            window.addEventListener('hashchange', route);
+            document.getElementById('filter-cik').addEventListener('input', makeList);
+            document.getElementById('filter-content').addEventListener('input', makeList);
+            document.querySelectorAll('.flag-filter, .term-filter, .label-filter').forEach(el => el.addEventListener('change', makeList));
+            document.getElementById('reset-filters').addEventListener('click', resetFilters);
         });
+
     </script>
 </body>
 </html>
