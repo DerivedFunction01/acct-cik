@@ -1052,6 +1052,8 @@ begin_fx_context_templates = [
     "As part of its global operations, {company} is subject to risks arising from changes in currency values",
     "Foreign currency movements impact {company}'s consolidated financial position and cash flows",
     "{company} faces currency-related risks due to its extensive international operations",
+    "{company}'s international operations are subject to certain risks, including currency exchange rate fluctuations"
+    "There is a risk that currency fluctuations could affect the dollar value of future cash flows generated in foreign currencies",
 ]
 
 # --- IR-specific context ---
