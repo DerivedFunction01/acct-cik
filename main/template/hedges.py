@@ -1100,6 +1100,7 @@ begin_cp_context_templates = [
     "{company} faces risks related to volatility in {commodity} markets that affect its operating results",
     "{company} is exposed to {commodity} price risk. {company} may not be successful in balancing our {commodity} purchases and sales",
     "{company} is exposed commodity price risk when market prices for {commodity} deviate from fixed contract prices",
+    "{commodity} price changes would then have an immediate significant adverse affect on {company}'s profitability and revenues"
 ]
 
 # --- Shared placeholders for extension ---
