@@ -38,9 +38,23 @@
         .text-content { background-color: #fcfdff; border-left: 3px solid #2b6cb0; padding: 12px; }
         .sentence { margin-bottom: 12px; }
         .sentence-labels { font-size: 0.85em; color: #555; margin-top: 5px; }
-        .label-tag { display: inline-block; background-color: #ecf0f1; color: #34495e; padding: 2px 8px; border-radius: 12px; margin-right: 5px; font-size: 0.9em; }
-        .label-tag.primary { font-weight: bold; color: #c0392b; background-color: #fbe9e7; }
-        .label-tag.secondary { color: #7f8c8d; }
+        .label-tag { display: inline-block; background-color: #ecf0f1; color: #34495e; padding: 2px 8px; border-radius: 12px; margin-right: 5px; font-size: 0.9em; white-space: nowrap; }
+        .label-tag.primary { font-weight: bold; }
+        .label-tag.secondary { opacity: 0.8; }
+        .label-part.main { font-weight: bold; }
+        .label-part.status { font-style: italic; }
+        .label-part.status-current { color: #276749; background-color: #c6f6d5; padding: 1px 5px; border-radius: 8px; font-weight: bold; }
+        .label-part.status-historical { color: #718096; background-color: #e2e8f0; padding: 1px 5px; border-radius: 8px; }
+        .label-part.status-speculative { color: #975a16; background-color: #feebc8; padding: 1px 5px; border-radius: 8px; }
+        .label-part.status-terminated { color: #9b2c2c; background-color: #fed7d7; padding: 1px 5px; border-radius: 8px; }
+        .label-part.type-ir { color: #2c5282; }
+        .label-part.type-fx { color: #2c7a7b; }
+        .label-part.type-cp { color: #805ad5; }
+        .label-part.type-eq { color: #b83280; }
+        .label-part.type-gen { color: #5a67d8; }
+        .label-part.type-warrant { color: #d69e2e; }
+        .label-part.type-embedded { color: #dd6b20; }
+        .label-part.type-irrelevant { color: #718096; }
         .controls { display:flex; gap:8px; align-items:center; }
         .btn { background:#2b6cb0; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; cursor:pointer; border:none; font-family: inherit; }
         .btn:disabled { background: #a0aec0; cursor: not-allowed; }
@@ -205,6 +219,40 @@
             reportCountEl.textContent = `Showing ${visibleReportIndices.length} of ${reportsData.length} reports`;
         }
 
+        function formatLabel(labelStr, isPrimary) {
+            if (!labelStr) return '';
+
+            let mainPart = labelStr;
+            let statusPart = '';
+            let typeClass = 'type-irrelevant';
+
+            // Keywords for status
+            const statuses = ['Current', 'Historical', 'Speculative', 'Terminated'];
+            for (const status of statuses) {
+                if (mainPart.endsWith(status)) {
+                    mainPart = mainPart.replace(status, '').trim();
+                    statusPart = ` <span class="label-part status status-${status.toLowerCase()}">(${status.toLowerCase()})</span>`;
+                    break;
+                }
+            }
+
+            // Keywords for type
+            if (labelStr.startsWith('IR')) typeClass = 'type-ir';
+            else if (labelStr.startsWith('FX')) typeClass = 'type-fx';
+            else if (labelStr.startsWith('CP')) typeClass = 'type-cp';
+            else if (labelStr.startsWith('EQ')) typeClass = 'type-eq';
+            else if (labelStr.startsWith('GEN')) typeClass = 'type-gen';
+            else if (labelStr.startsWith('Warrant')) typeClass = 'type-warrant';
+            else if (labelStr.startsWith('Embedded')) typeClass = 'type-embedded';
+
+            const mainClass = isPrimary ? 'label-part main' : 'label-part';
+            const tagClass = isPrimary ? 'label-tag primary' : 'label-tag secondary';
+
+            return `<span class="${tagClass}">
+                        <span class="${mainClass} ${typeClass}">${mainPart}</span>${statusPart}
+                    </span>`;
+        }
+
         function renderReport(idx) {
             const r = reportsData[idx];
             if (!r) return;
@@ -244,11 +292,10 @@
                 const labelsDiv = document.createElement('div');
                 labelsDiv.className = 'sentence-labels';
                 
-                const primaryLabel = s.primary_label ? `<span class="label-tag primary">${s.primary_label}</span>` : '';
-                const secondaryLabels = s.all_primary_labels.slice(1).map(l => `<span class="label-tag secondary">${l}</span>`).join(' ');
+                const primaryLabel = formatLabel(s.primary_label, true);
+                const secondaryLabels = s.all_primary_labels.slice(1).map(l => formatLabel(l, false)).join(' ');
                 const scoreLabels = s.labels.map(l => `<span class="label-tag">${l}</span>`).join(' ');
-
-                labelsDiv.innerHTML = `${primaryLabel} ${secondaryLabels} ${scoreLabels}`;
+                labelsDiv.innerHTML = [primaryLabel, secondaryLabels, scoreLabels].filter(Boolean).join(' ');
                 div.appendChild(p);
                 div.appendChild(labelsDiv);
                 sentencesEl.appendChild(div);
