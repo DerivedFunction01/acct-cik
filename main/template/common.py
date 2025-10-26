@@ -408,11 +408,19 @@ states = [
 
 
 # Optional
-materiality = [
+immaterial = [
     "immaterial",
     "not significant",
     "limited",
+    "not material",    
+    "negligible",
+    "minimal",
+    "insignificant",
+    "not substantial",
+    "minor",
+    
+]
+material = [
     "material",
     "significant",
-    "not material",
 ]

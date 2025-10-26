@@ -745,6 +745,12 @@ zero_any_templates = [  # No such outstanding patterms
     "{company} does not {verb} any {swap_type} {time_period}",  # One year
     "{company} does not {verb} any {swap_type} {time_period} and {prev_year}",  # Two year
     "{company} does not {verb} any {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
+    "{time_period}, the amounts of {swap_type} outstanding were not material", # New
+    "At {month} {end_day}, {year}, the amounts of {swap_type} outstanding were not material", # New
+    "The amounts of {swap_type} outstanding, as well as the amounts of gains and losses recorded during the year, were not material {time_period}", # New
+    "{company} did not have any material {swap_type} outstanding {time_period}", # New
+    "As of {month} {end_day}, {year}, any outstanding {swap_type} were not material in amount", # New
+
 ]
 
 zero_hedge_position_templates = zero_current_vs_prior_notional_templates + zero_any_templates

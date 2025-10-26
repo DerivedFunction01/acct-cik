@@ -553,7 +553,7 @@ def generate_hedge_paragraph(
                     year=current_year,
                     swap_type=swap_type,
                     gen_swap=random.choice(derivative_keywords["gen"]),
-                    materiality=random.choice(materiality),
+                    materiality=random.choice(material if random.random() < 0.5 else immaterial),
                     hedge_designation=random.choice(hedge_designations).format(
                         hedge_type=random.choice(hedge_types),
                     )
@@ -1359,8 +1359,8 @@ def generate_noise_paragraph(
     rating1 = ratings[0] if len(ratings) > 0 else random.choice(credit_ratings)
     rating2 = ratings[1] if len(ratings) > 1 else random.choice(credit_ratings)
     rating3 = ratings[2] if len(ratings) > 2 else random.choice(credit_ratings)
-    
-    # Debt combo 
+
+    # Debt combo
     debt_type_list = []
     # Build the debt type combination
     for _ in range(3):
@@ -1372,7 +1372,7 @@ def generate_noise_paragraph(
         if len(debt_type_list) > 1
         else debt_type_list[0]
     ) 
-    
+
     def generate_other_policy_update():
         sentences = []
         labels["spec"] = 1 # It is a speculative, but not related to derivatives
@@ -1507,7 +1507,7 @@ def generate_noise_paragraph(
             sentences.append(pronouncement)
 
         # Risk
-        materiality_choice = random.choice(materiality)
+        materiality_choice = random.choice(material if random.random() < 0.5 else immaterial)
         template = random.choice(risk_templates)
         item = random.choice(risk_items_other)
         sentence = template.format(
@@ -1523,7 +1523,7 @@ def generate_noise_paragraph(
         swap_type = random.choice(derivative_keywords[noise_type])
     else:
         swap_type = random.choice(derivative_keywords["gen"])
-    
+
     template_pool = []
     all_sentences = []
     if noise_type == "eq" or noise_type == "warr":  # ex. equity, warrant, stock
@@ -1568,7 +1568,6 @@ def generate_noise_paragraph(
         "{company}": pick_company_name(company1),
         "{company2}": pick_company_name(company2),
         "{company3}": pick_company_name(company3),
-
         # Numeric and financial values
         "{integer}": str(random.randint(10000, 100000)),
         "{small_int}": str(small_int),
@@ -1583,14 +1582,12 @@ def generate_noise_paragraph(
         "{net_shares}": str(net_shares),
         "{pct}": str(pct),
         "{pct2}": str(pct2),
-        
         # Currency-related
         "{currency_code}": currency_code,
         "{money_unit}": money_units,
         "{major_currency}": major_currency,
         "{currency2}": currency2,
         "{currency3}": currency3,
-
         # Time-related
         "{year}": str(current_year),
         "{prev_year}": str(prev_year),
@@ -1600,7 +1597,6 @@ def generate_noise_paragraph(
         "{month}": month,
         "{end_day}": str(end_day),
         "{quarter}": quarter,
-
         # Financial instruments and events
         "{debt_type}": debt_type,
         "{debt_types}": selected_debt,
@@ -1613,7 +1609,6 @@ def generate_noise_paragraph(
         "{vesting_period}": random.choice(vesting_periods),
         "{perq_type}": random.choice(perq_types),
         "{swap_type}": swap_type,
-
         # Balance sheet and financial reasons
         "{bs_reason}": random.choice(balance_sheet_reasons),
         "{accrued_reason}": random.choice(accrued_reasons),
@@ -1629,7 +1624,6 @@ def generate_noise_paragraph(
         "{guarantee_type}": random.choice(guarantee_types),
         "{intangible_type_examples}": random.choice(intangible_types),
         "{tax_sources_examples}": random.choice(tax_sources),
-
         # Legal and regulatory
         "{litigation_examples}": random.choice(case_types),
         "{lawsuit_allegation}": random.choice(allegations),
@@ -1638,7 +1632,6 @@ def generate_noise_paragraph(
         "{regulatory_areas}": random.choice(regulatory_areas),
         "{regulatory_approvals}": random.choice(regulatory_approvals),
         "{regulatory_matters}": random.choice(regulatory_matters),
-
         # Credit ratings
         "{rating}": rating1,
         "{rating2}": rating2,
@@ -1648,7 +1641,6 @@ def generate_noise_paragraph(
         "{agency3}": agency3,
         "{outlook}": random.choice(rating_outlooks),
         "{rating_action}": random.choice(rating_actions),
-
         # Accounting and policy
         "{standard_purpose}": random.choice(shared_purposes),
         "{standard_description}": random.choice(general_descriptions),
@@ -1657,7 +1649,6 @@ def generate_noise_paragraph(
         "{adoption_method}": random.choice(shared_adoption_methods),
         "{transition_feature}": random.choice(shared_transition_features),
         "{adoption_impact}": random.choice(adoption_impacts),
-
         # Hedging and risk
         "{hedge_description}": random.choice(hedging_descriptions),
         "{hedge_feature}": random.choice(hedging_additional_features),
@@ -1666,14 +1657,15 @@ def generate_noise_paragraph(
         "{insurance_coverage_types}": random.choice(coverage_types),
         "{risk_factors}": random.choice(risk_factors_examples),
         "{risk_item}": random.choice(risk_items_other),
-
         # Competitive and market
         "{competitive_characteristics}": random.choice(competitive_characteristics),
         "{competitive_factors}": random.choice(competitive_factors),
         "{competitive_pressure_reasons}": random.choice(competitive_pressure_reasons),
         "{competitive_advantages}": random.choice(competitive_advantages),
         "{volatility}": random.choice(volatility_levels),
-
+        "{materiality_level}": random.choice(
+            material if random.random() < 0.5 else immaterial
+        ),
         # Miscellaneous
         "{location}": random.choice(balance_sheet_locations),
         "{unit}": random.choice(volume_units),
@@ -1686,10 +1678,14 @@ def generate_noise_paragraph(
         "{city}": random.choice(cities),
         "{p_metric}": random.choice(performance_metrics),
         "{model}": random.choice(valuation_models),
-        "{ticker}": "".join(random.choices(string.ascii_uppercase, k=random.randint(3, 4))),
+        "{ticker}": "".join(
+            random.choices(string.ascii_uppercase, k=random.randint(3, 4))
+        ),
         "{words}": random.choice(forward_looking_words),
         "{topics}": random.choice(forward_looking_topics),
-        "{increase_decrease}": random.choice(["increase", "decrease", "improved", "decreased"]),
+        "{increase_decrease}": random.choice(
+            ["increase", "decrease", "improved", "decreased"]
+        ),
         "{assess_verb}": random.choice(assessment_verbs),
         "{verb}": random.choice(hedge_use_verbs),
     }
