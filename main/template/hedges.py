@@ -808,6 +808,7 @@ fx_currency_templates = [
     "Foreign currency risk primarily relates to exposures in {currencies}",
     "Our most significant currency exposures are to {currencies}",
     "{company} faces foreign exchange risk primarily from {currencies}",
+    "{company}'s {swap_type} are denominated in {currencies}",
     "In order to reduce foreign currency translation exposure from {currencies}, {company} seeks to denominate borrowings in the currencies of our principal assets and cash flows. These are primarily denominated in {currencies}",
     "To minimize translation exposure, {company} aligns the currency composition of its debt with the currencies of its operating assets, primarily {currencies}",
     "{company} reduces foreign currency translation risk by borrowing in the same currencies as its principal assets and cash flows, which are mainly {currencies}",

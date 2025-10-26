@@ -531,6 +531,7 @@ def generate_hedge_paragraph(
                 random.choice(fx_currency_templates).format(
                     company=pick_company_name(company_name),
                     currencies=currency_list,
+                    swap_type=swap_type,
                 )
             )
 
