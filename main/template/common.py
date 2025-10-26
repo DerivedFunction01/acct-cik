@@ -407,20 +407,42 @@ states = [
 ]
 
 
-# Optional
+# Optional / Immaterial terms
 immaterial = [
     "immaterial",
     "not significant",
     "limited",
-    "not material",    
+    "not material",
     "negligible",
     "minimal",
     "insignificant",
     "not substantial",
     "minor",
-    
+    "trivial",
+    "inconsequential",
+    "small-scale",
+    "marginal",
+    "petty",
+    "nominal",
+    "slight",
+    "unimportant",
 ]
+
+# Material / Significant terms
 material = [
     "material",
     "significant",
+    "substantial",
+    "considerable",
+    "important",
+    "consequential",
+    "critical",
+    "major",
+    "notable",
+    "relevant",
+    "weighty",
+    "meaningful",
+    "prominent",
+    "pivotal",
+    "essential",
 ]
