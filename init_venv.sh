@@ -69,30 +69,23 @@ else
     CUDA_VERSION=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+')
     echo "Detected CUDA version: $CUDA_VERSION"
     
-    # Dynamically determine CUDA tag
+    # Dynamically construct the CUDA tag from the version, e.g., 12.1 -> cu121
     CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
     CUDA_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f2)
     
-    if [[ "$CUDA_MAJOR" -eq 12 ]]; then
-      # For CUDA 12.x, use cu121 for all versions 12.1+
-      # PyTorch's cu121 wheel is forward-compatible with newer CUDA 12.x versions
-      if [[ "$CUDA_MINOR" -ge 1 ]]; then
-        CUDA_TAG="cu121"
-        echo "Using cu121 wheel (compatible with CUDA 12.1+)"
-      else
-        echo "Warning: CUDA 12.0 detected. Using cu121 wheel."
-        CUDA_TAG="cu121"
-      fi
-    elif [[ "$CUDA_MAJOR" -eq 11 ]]; then
-      # For CUDA 11.x, use cu118
-      CUDA_TAG="cu118"
-      echo "Using cu118 wheel (compatible with CUDA 11.x)"
+    # This assumes a PyTorch wheel exists for the detected CUDA version.
+    # This is generally true for recent versions, but may fail if a wheel for
+    # a specific minor version (e.g., cu125) is not published.
+    # In that case, the previous if/elif logic for version ranges is safer.
+    if [[ "$CUDA_MAJOR" -ge 11 ]]; then
+      CUDA_TAG="cu${CUDA_MAJOR}${CUDA_MINOR}"
+      echo "Attempting to use PyTorch wheel for CUDA tag: $CUDA_TAG"
     else
-      echo "Warning: Unsupported CUDA major version ($CUDA_MAJOR). Falling back to CPU."
+      echo "Warning: Unsupported or very old CUDA major version ($CUDA_MAJOR). Falling back to CPU."
       CUDA_TAG="cpu"
     fi
 
-    # Install PyTorch 2.6.0
+    # Install the latest PyTorch for the detected CUDA version
     pip install torch torchvision torchaudio \
       --index-url https://download.pytorch.org/whl/${CUDA_TAG}
     echo "✅ PyTorch with CUDA $CUDA_VERSION installed."
