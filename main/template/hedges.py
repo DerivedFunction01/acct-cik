@@ -481,6 +481,7 @@ cp_specific_results = [
     "stabilizing input costs despite {commodity} price movements",
     "and may be settled upon receipt or deliery of {commodity}",
     "committing to purchase {commodity} at an agreed-upon price at a specified future date",
+    "at an average price of {currency_code} {amount} per {unit}",
 ]
 
 # Special templates for accounting impact
