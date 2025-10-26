@@ -3,6 +3,7 @@
 import sqlite3
 import pandas as pd
 
+# Default path, can be updated if needed
 db_path = "./web_data.db"
 
 
@@ -46,6 +47,43 @@ def execute_sql(sql: str, head: int = 0) -> pd.DataFrame | int:
     finally:
         conn.close()
 
+def import_server_backup(backup_path: str = "./server_results_backup.xlsx"):
+    """
+    Imports data from the server backup Excel file into the server_result table.
+    Uses INSERT OR REPLACE to handle duplicates, updating existing entries.
+    """
+    print(f"Attempting to import from '{backup_path}'...")
+    try:
+        backup_df = pd.read_excel(backup_path)
+    except FileNotFoundError:
+        print(f"❌ Error: Backup file not found at '{backup_path}'.")
+        print("   Please run the 'backup_server_results' step in the analysis pipeline first.")
+        return
+
+    # The backup contains cik, year, url, server_response. We only need url and server_response.
+    if "url" not in backup_df.columns or "server_response" not in backup_df.columns:
+        print("❌ Error: Backup file is missing 'url' or 'server_response' columns.")
+        return
+
+    records_to_insert = backup_df[["url", "server_response"]].to_records(index=False)
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    try:
+        # Use executemany for efficient batch insertion.
+        # INSERT OR REPLACE will update existing rows if the URL (PRIMARY KEY) matches.
+        cursor.executemany(
+            "INSERT OR REPLACE INTO server_result (url, server_response) VALUES (?, ?)",
+            records_to_insert,
+        )
+        conn.commit()
+        print(f"✅ Successfully imported/updated {cursor.rowcount} records into 'server_result'.")
+    except sqlite3.Error as e:
+        print(f"❌ A database error occurred during import: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
 
 # %%
 ## Execute SELECT Statements
@@ -82,12 +120,13 @@ if __name__ == "__main__":
     print("1. SELECT * FROM webpage_result")
     print("2. SELECT * FROM server_result")
     print("3. Custom SQL Query")
-    print("4. Inspect last DataFrame")
-    print("5. Exit")
+    print("4. Import server_result from backup")
+    print("5. Inspect last DataFrame")
+    print("6. Exit")
     print("-" * 30)
 
     while True:
-        choice = input("Enter your choice (1/2/3/4/5): ").strip()
+        choice = input("Enter your choice (1-6): ").strip()
         if choice == "1":
             df = execute_sql("SELECT * FROM webpage_result")
             last_df = df
@@ -121,7 +160,9 @@ if __name__ == "__main__":
             else:
                 print("No SQL query entered.")
         elif choice == "4":
-            if last_df is not None:
+            import_server_backup()
+        elif choice == "5":
+            if last_df is not None and not last_df.empty:
                 print("Last DataFrame is available as 'last_df'.")
                 print("You can perform operations like 'last_df.iloc[0]' or 'last_df.info()'.")
                 print("Type 'exit' or press Ctrl+Z (Windows) / Ctrl+D (Unix) to return to the menu.")
@@ -129,7 +170,7 @@ if __name__ == "__main__":
                 code.interact(local=locals())
             else:
                 print("No DataFrame has been loaded yet. Please run a query first.")
-        elif choice == "5":
+        elif choice == "6":
             print("Exiting the program.")
             break
         else:
