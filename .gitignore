@@ -17,3 +17,4 @@ venv-acct-cik/
 drive
 .mount_state.json
 pipeline_config.json
+hf_token
