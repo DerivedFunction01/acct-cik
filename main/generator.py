@@ -575,15 +575,13 @@ def generate_hedge_paragraph(
                 if random.random() < 0.5: # no notional amount if we pick a current year and not active
                     year = current_year 
                     notional = 0 
-                    labels["term"] = 1 # This is a termination/zero-out event
                 else: # If we pick a past year, we can have a notional amount
                     year = random.choice(past_years)
                     notional = generate_value(haveZero=False, lowerlimit=1)
             else:
                 # Use the more comprehensive template list for "no outstanding" disclosures
                 template = random.choice(hedge_zero_templates)
-                notional = 0
-                labels["term"] = 1 # This is also a termination/zero-out event
+                notional = 0 # A zero-out event implies termination
                 prev_notional = generate_value(haveZero=False, lowerlimit=1)
                 prev2_notional = generate_value(haveZero=False, lowerlimit=1)
                 year = current_year
@@ -652,6 +650,8 @@ def generate_hedge_paragraph(
         if use_current_year:
             labels["term"] = 1
         template = random.choice(hedge_termination_templates)
+        if template in hedge_zero_templates:
+            labels["term"] = 1
         term_year = random.choice(past_years) if not use_current_year else current_year 
         prev_year = term_year - 1
         prev2_year = term_year - 2
