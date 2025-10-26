@@ -40,8 +40,9 @@ if [ ! -d "$VENV_DIR" ]; then
   fi
 else
   echo "Virtual environment '$VENV_DIR' already exists."
-  if [ "$REINSTALL" = false ] && [ "$INSTALL_ONLY" = false ]; then
-    echo "Skipping package install. Use --install, --reinstall, or --reinstall-torch."
+  # If no install/reinstall flags are provided, exit.
+  if [ "$REINSTALL" = false ] && [ "$INSTALL_ONLY" = false ] && [ "$REINSTALL_TORCH" = false ]; then
+    echo "Skipping package install. Use --install, --reinstall, or --reinstall-torch to force."
     exit 0
   fi
 fi
