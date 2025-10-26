@@ -2861,14 +2861,14 @@ general_policy_templates = [
 # Counterparty / Credit Risk Templates
 # ==============================
 risk_templates = [
-    "Based upon certain factors, including a review of the {risk_item} for {company}\'s counterparties, {company} determined its counterparty credit risk to be {materiality_level}",
-    "After assessing {risk_item} and other indicators for {company}\'s derivative counterparties, management concluded that counterparty exposure is {materiality_level}",
-    "{company} periodically reviews {risk_item} and other market data to evaluate counterparty credit risk, which was determined to be {materiality_level}",
-    "Based on a review of {risk_item} and internal assessments, {company} concluded that exposure to counterparty credit risk is {materiality_level}",
+    "Based upon certain factors, including a review of the {risk_item} for {company}\'s counterparties, {company} determined its counterparty credit risk to be {materiality}",
+    "After assessing {risk_item} and other indicators for {company}\'s derivative counterparties, management concluded that counterparty exposure is {materiality}",
+    "{company} periodically reviews {risk_item} and other market data to evaluate counterparty credit risk, which was determined to be {materiality}",
+    "Based on a review of {risk_item} and internal assessments, {company} concluded that exposure to counterparty credit risk is {materiality}",
     "{company} monitors {risk_item} as part of its evaluation of counterparty credit exposure associated with derivative contracts",
-    "Considering {risk_item}, credit ratings, and exposure limits, {company} determined that counterparty risk is {materiality_level}",
-    "{company} evaluates {risk_item} to assess potential credit exposure under its derivative contracts and considers such exposure to be {materiality_level}",
-    "Taking into account {risk_item} and the financial strength of counterparties, {company} considers the overall counterparty credit risk to be {materiality_level}",
+    "Considering {risk_item}, credit ratings, and exposure limits, {company} determined that counterparty risk is {materiality}",
+    "{company} evaluates {risk_item} to assess potential credit exposure under its derivative contracts and considers such exposure to be {materiality}",
+    "Taking into account {risk_item} and the financial strength of counterparties, {company} considers the overall counterparty credit risk to be {materiality}",
 ]
 
 # ==============================

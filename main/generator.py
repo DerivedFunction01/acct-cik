@@ -1668,7 +1668,7 @@ def generate_noise_paragraph(
         "{competitive_pressure_reasons}": random.choice(competitive_pressure_reasons),
         "{competitive_advantages}": random.choice(competitive_advantages),
         "{volatility}": random.choice(volatility_levels),
-        "{materiality_level}": random.choice(
+        "{materiality}": random.choice(
             material if random.random() < 0.5 else immaterial
         ),
         # Miscellaneous
