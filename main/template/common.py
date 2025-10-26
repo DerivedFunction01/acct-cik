@@ -155,18 +155,87 @@ frequencies = [
     "annually",
 ]
 volume_units = [
+    # Energy
     "barrels",
+    "bbl",  # crude oil
+    "barrels per day",
+    "bbl/d",  # production rate
     "MMBtu",
+    "MMBtu/h",  # natural gas, energy content
+    "BTU",
+    "Btu",  # single BTU
+    "gigajoules",
+    "GJ",  # energy content
     "MWh",
+    "megawatt-hour",  # electricity
+    # Bulk solids / metals / minerals
     "metric tons",
+    "tonne",
+    "MT",  # general bulk
+    "tons",
+    "t",  # alternative
+    "long tons",
+    "LT",
+    "short tons",
+    "ST",
+    "hundredweights",
+    "cwt",
+    "pounds",
+    "lb",
+    "ounces",
+    "oz",  # troy ounces for metals
+    # Agriculture
     "bushels",
+    "bu",
+    "sacks",
+    "bales",
+    "pecks",
+    # Liquids
     "gallons",
-    "ton",
-    "pound",
-    "bushel",
+    "gal",
+    "liters",
+    "L",
+    "ltr",
+    "cubic meters",
+    "m3",
+    "cubic feet",
+    "ft3",
+    "hectoliters",
+    "hL",
+    "kiloliters",
+    "kL",
+    "megaliters",
+    "ML",
+    "gigaliters",
+    "GL",
+    # Precious stones / metals
+    "carats",
+    "ingots",
+    "bars",
+    # Lumber / construction materials
     "board foot",
-    "Dts/d",
+    "bf",
+    "sheets",
+    "coils",
+    "bundles",
+    "pallets",
+    # Land / area (sometimes in agricultural contracts)
+    "acres",
+    "hectares",
+    "square meters",
+    "square feet",
+    # Countable units for livestock or manufactured goods
+    "units",
+    "head",
+    "crates",
+    "boxes",
+    "cartons",
+    "totes",
+    "drums",
+    "rolls",
+    "loaves",
 ]
+
 
 balance_sheet_locations = [
     "other income (expense), net",
