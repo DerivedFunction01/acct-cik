@@ -680,6 +680,7 @@ def generate_hedge_paragraph(
         prev_notional = generate_value(haveZero=False, lowerlimit=1)
         prev2_notional = generate_value(haveZero=False, lowerlimit=1)
         verb = random.choice(hedge_use_verbs)
+        materiality_level = random.choice(immaterial)
         sentence = template.format(
             company=pick_company_name(company_name),
             swap_type=swap_type,
@@ -695,6 +696,7 @@ def generate_hedge_paragraph(
             notional=notional,
             prev_notional=prev_notional,
             prev2_notional=prev2_notional,
+            materiality_level=materiality_level,
         )
         return sentence
 

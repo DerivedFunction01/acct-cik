@@ -745,11 +745,11 @@ zero_any_templates = [  # No such outstanding patterms
     "{company} does not {verb} any {swap_type} {time_period}",  # One year
     "{company} does not {verb} any {swap_type} {time_period} and {prev_year}",  # Two year
     "{company} does not {verb} any {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
-    "{time_period}, the amounts of {swap_type} outstanding were not material", # New
-    "At {month} {end_day}, {year}, the amounts of {swap_type} outstanding were not material", # New
-    "The amounts of {swap_type} outstanding, as well as the amounts of gains and losses recorded during the year, were not material {time_period}", # New
-    "{company} did not have any material {swap_type} outstanding {time_period}", # New
-    "As of {month} {end_day}, {year}, any outstanding {swap_type} were not material in amount", # New
+    "{time_period}, the amounts of {swap_type} outstanding were {materiality_level}",
+    "At {month} {end_day}, {year}, the amounts of {swap_type} outstanding were {materiality_level}",
+    "The amounts of {swap_type} outstanding, as well as the amounts of gains and losses recorded during the year, were {materiality_level} {time_period}",
+    "{company} did not have any {materiality_level} {swap_type} outstanding {time_period}",
+    "As of {month} {end_day}, {year}, any outstanding {swap_type} were {materiality_level} in amount",
 
 ]
 
@@ -993,8 +993,7 @@ hedge_counterparty_templates = [
     "{company} ensures counterparty credit risk is minimized by diversifying derivative contracts among multiple highly-rated financial institutions",
     "The majority of {company}'s derivative counterparties are major banks, and credit risk is actively monitored",
     "{company} engages with major financial institutions for derivatives and continuously assesses counterparty credit risk", 
-    "Based upon certain factors, including a review of the {swap_type} for {company}'s counterparties, {company} determined its counterparty credit risk to be immaterial",
-    "Based upon certain factors, including a review of the {swap_type} for {company}'s counterparties, {company} determined its counterparty credit risk to be material",
+    "Based upon certain factors, including a review of the {swap_type} for {company}'s counterparties, {company} determined its counterparty credit risk to be {materiality}",
 ]
 
 # --- Generic context
