@@ -697,7 +697,7 @@ def generate_hedge_paragraph(
             notional=notional,
             prev_notional=prev_notional,
             prev2_notional=prev2_notional,
-            materiality_level=materiality_level,
+            materiality=materiality_level,
         )
         return sentence
 
