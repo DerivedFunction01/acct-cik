@@ -311,16 +311,16 @@ ir_specific_mitigation = [
 
 # Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")
 ir_specific_results = [
-    "effectively converting fixed-rate debt to floating-rate debt",
-    "effectively converting floating-rate debt to fixed-rate debt",
-    "effectively converting portions of fixed-rate debt to floating rates",
-    "effectively convert the hedged portion of debt to floating rates",
+    "effectively converting fixed-rate to floating-rate {debt_type}",
+    "effectively converting floating-rate to fixed-rate {debt_type}",
+    "effectively converting portions of fixed-rate {debt_type} to floating rates",
+    "effectively convert the hedged portion of {debt_type} to floating rates",
     "converting floating rate exposure to fixed rates, with quarterly exchange of payment differentials based on notional values",
     "with quarterly settlements based on the differential between fixed and floating rates on notional amounts",
     "with quarterly net settlements calculated on agreed notional principal amounts",
     "scheduled to expire in {month} {future_year}",
     "for the outstanding amount under the {debt_type} at approximately {pct}% rate"
-    "to hedge debt obligations, with an initial notional of {currency_code}{old_notional} {money_unit}, maturing in {future_year}",
+    "to hedge {debt_type} obligations, with an initial notional of {currency_code}{old_notional} {money_unit}, maturing in {future_year}",
     "which carry notional amounts of {currency_code}{old_notional} {money_unit} and terminate in {future_year}",
     "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {month} {future_year}",
     "with a starting notional value of {currency_code}{old_notional} {money_unit}, declining annually until expiration in {future_year}",
@@ -328,7 +328,7 @@ ir_specific_results = [
     "resulting in an increase in interest expense of {currency_code}{amount} {money_unit}",
     "recognizing the gains and losses on derivative instruments as an adjustment to interest expense",
     "reducing the potential impact of increases in interest rates on its interest-bearing liabilities",
-    "which effectively converts the variable rate debt into a fixed rate of debt",
+    "which effectively converts the variable rate into a fixed rate of {debt_type}",
     "to hedge {currency_code}{amount} {money_unit} of various {debt_type}",
 ]
 
@@ -369,6 +369,7 @@ fx_specific_results = [
     "mitigating foreign exchange risk",
     "protecting against currency fluctuations",
     "protecting against exchange rate movements",
+    "denominated in {currencies}",
 ]
 
 # Equity — general or policy intent ("to ...", "for ...", "intended ...", "as ...")
