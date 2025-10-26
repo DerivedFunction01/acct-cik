@@ -155,7 +155,7 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
         warmup_steps=500,
         weight_decay=0.01,
         logging_dir="./logs",
-        logging_steps=10,
+        logging_steps=100,
         eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
