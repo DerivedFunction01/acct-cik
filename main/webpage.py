@@ -69,7 +69,7 @@ def get_system_config():
         chunk_multiplier = 2
     else:  # Low-RAM machine
         chunk_multiplier = 1
-    chunk_size = min(CHUNK_SIZE * chunk_multiplier * cpu_cores, 1000)
+    chunk_size = min(CHUNK_SIZE * chunk_multiplier * cpu_cores, 400)
 
     # Adjust SEC rate limit based on the number of fetchers
     sec_rate_limit = num_fetchers / SEC_RATE
@@ -1636,7 +1636,7 @@ def process_all_reports_fully():
             adjuster_thread = threading.Thread(
                 target=adjust_rate_in_background,
                 args=(tqdm_bar, rate_limiter, SEC_RATE, stop_event),
-                daemon=True,  # Allows main program to exit even if thread is running
+                daemon=False,  # Must be False to ensure clean shutdown with .join()
             )
             adjuster_thread.start()
 
