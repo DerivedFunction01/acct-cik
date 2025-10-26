@@ -38,10 +38,10 @@
         .text-content { background-color: #fcfdff; border-left: 3px solid #2b6cb0; padding: 12px; }
         .sentence { margin-bottom: 12px; }
         .sentence-labels { font-size: 0.85em; color: #555; margin-top: 5px; }
-        .label-tag { display: inline-block; background-color: #ecf0f1; color: #34495e; padding: 2px 8px; border-radius: 12px; margin-right: 5px; font-size: 0.9em; white-space: nowrap; }
+        .label-tag { display: inline-block; margin-right: 5px; font-size: 0.9em; white-space: nowrap; }
         .label-tag.primary { font-weight: bold; }
         .label-tag.secondary { opacity: 0.8; }
-        .label-part.main { font-weight: bold; }
+        .label-part.main { font-weight: bold; background-color: #ecf0f1; padding: 2px 8px; border-radius: 12px; }
         .label-part.status { font-style: italic; }
         .label-part.status-current { color: #276749; background-color: #c6f6d5; padding: 1px 5px; border-radius: 8px; font-weight: bold; }
         .label-part.status-historical { color: #718096; background-color: #e2e8f0; padding: 1px 5px; border-radius: 8px; }
@@ -249,7 +249,7 @@
             const tagClass = isPrimary ? 'label-tag primary' : 'label-tag secondary';
 
             return `<span class="${tagClass}">
-                        <span class="${mainClass} ${typeClass}">${mainPart}</span>${statusPart}
+                        <span class="${mainClass} ${typeClass}">${mainPart}</span> ${statusPart}
                     </span>`;
         }
 
