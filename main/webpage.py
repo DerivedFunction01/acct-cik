@@ -1636,7 +1636,7 @@ def process_all_reports_fully():
             adjuster_thread = threading.Thread(
                 target=adjust_rate_in_background,
                 args=(tqdm_bar, rate_limiter, SEC_RATE, stop_event),
-                daemon=True,  # Allows main program to exit even if thread is running
+                daemon=False,  # Must be False to ensure clean shutdown with .join()
             )
             adjuster_thread.start()
 
