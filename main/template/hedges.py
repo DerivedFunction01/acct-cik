@@ -1425,7 +1425,7 @@ PLACEHOLDERS = {
         "FX",
         "dollar call",
     ],
-    "cp": ["commodity price", "commodity-related", "fixed commodity"],
+    "cp": ["commodity price", "commodity-related", "fixed commodity", "commodity-based"],
     "eq": ["equity", "equity-related"],
     "gen": [""],
 }
