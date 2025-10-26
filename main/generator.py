@@ -638,6 +638,7 @@ def generate_hedge_paragraph(
             pct=generate_value(False, 1, 20),
             materiality=random.choice(material if random.random() < 0.5 else immaterial),
             currencies=currency_list,
+            unit=random.choice(volume_units),
         )
         sentences.append(sentence)
 
