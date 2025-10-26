@@ -163,7 +163,12 @@ portfolio_terms = [
 portfolio_verbs = [
     "consists of",
     "includes",
-    "included",
+    "included",    
+    "are comprised of",
+    "are composed of",
+    "consisted of",
+    "comprised of",
+    "composed of",
 ]
 
 # Outstanding/active state descriptors
