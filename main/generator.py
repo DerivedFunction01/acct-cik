@@ -637,7 +637,7 @@ def generate_hedge_paragraph(
             debt_type=random.choice(debt_types_list),
             pct=generate_value(False, 1, 20),
             materiality=random.choice(material if random.random() < 0.5 else immaterial),
-            currencies=currency_list,
+            currencies=", ".join(random.sample(major_currencies, random.randint(1, 3))) + " and " + random.choice(all_currencies),
             unit=random.choice(volume_units),
         )
         sentences.append(sentence)
