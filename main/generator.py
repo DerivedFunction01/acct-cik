@@ -511,6 +511,7 @@ def generate_hedge_paragraph(
         verb = random.choice(hedge_use_verbs)
 
         # --- FX: add currency description sentence (0-1 chance) ---
+        currency_list = ""
         if swapType == "fx" and random.random() < 0.6:
             selected = random.sample(major_currencies, random.randint(2, 3))
             if random.random() < 0.5:
@@ -635,7 +636,8 @@ def generate_hedge_paragraph(
             location=random.choice(balance_sheet_locations),
             debt_type=random.choice(debt_types_list),
             pct=generate_value(False, 1, 20),
-            materiality=random.choice(material if random.random() < 0.5 else immaterial)
+            materiality=random.choice(material if random.random() < 0.5 else immaterial),
+            currencies=currency_list,
         )
         sentences.append(sentence)
 
