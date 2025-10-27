@@ -416,6 +416,67 @@ http {{
         f.write(config)
 
 
+def interactive_config_editor(
+    gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server, gpu_ram_gb
+):
+    """Allows the user to interactively modify the server configuration."""
+    while True:
+        print("\n" + "=" * 70)
+        print("🤖 Auto-Detected Server Configuration:")
+
+        # Display GPU options only if a GPU is present
+        if gpu_ram_gb > 0:
+            print(f"   [1] GPU Weight:   {gpu_weight}")
+            print(f"   [2] GPU Threads:  {gpu_threads}")
+        else:
+            print("   - GPU Server:     Disabled (No GPU detected)")
+
+        # Display CPU options
+        cpu_status = "✅ Enabled" if start_cpu_server else "❌ Disabled"
+        print(f"   [3] CPU Weight:   {cpu_weight if start_cpu_server else 'N/A'}")
+        print(f"   [4] CPU Threads:  {cpu_threads if start_cpu_server else 'N/A'}")
+        print(f"   [5] CPU Server:   {cpu_status}")
+
+        print("=" * 70)
+
+        prompt = "Accept this configuration and start servers? [Y/n] or enter a number to edit: "
+        choice = input(prompt).lower().strip()
+
+        if choice in ["y", "yes", ""]:
+            break  # Accept and exit loop
+
+        if choice == "n":
+            print("Please enter the number of the setting you want to change.")
+            continue
+
+        try:
+            choice_num = int(choice)
+            if gpu_ram_gb > 0:
+                if choice_num == 1:
+                    gpu_weight = int(input(f"   Enter new GPU weight (current: {gpu_weight}): "))
+                elif choice_num == 2:
+                    gpu_threads = int(input(f"   Enter new GPU threads (current: {gpu_threads}): "))
+
+            if choice_num == 3 and start_cpu_server:
+                cpu_weight = int(input(f"   Enter new CPU weight (current: {cpu_weight}): "))
+            elif choice_num == 4 and start_cpu_server:
+                cpu_threads = int(input(f"   Enter new CPU threads (current: {cpu_threads}): "))
+            elif choice_num == 5:
+                toggle = input(f"   Enable CPU server? [y/N]: ").lower().strip()
+                start_cpu_server = toggle == "y"
+                if not start_cpu_server:
+                    cpu_weight = 0 # Set weight to 0 if disabled
+            else:
+                # Handle cases where the number is out of range or not applicable
+                if not (1 <= choice_num <= 5):
+                     print(f"   Invalid number. Please enter a number from the list.")
+
+        except ValueError:
+            print(f"   Invalid input '{choice}'. Please enter 'y', 'n', or a number.")
+
+    return gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server
+
+
 def start_servers():
     """Starts the Gunicorn and Nginx servers."""
     # --- Windows-Specific Handling ---
@@ -473,6 +534,17 @@ def start_servers():
     # Calculate optimal configuration
     gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server = (
         calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb)
+    )
+
+    # --- Interactive Configuration Step ---
+    (
+        gpu_weight,
+        cpu_weight,
+        gpu_threads,
+        cpu_threads,
+        start_cpu_server,
+    ) = interactive_config_editor(
+        gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server, gpu_ram_gb
     )
 
     print("\n" + "=" * 70)
