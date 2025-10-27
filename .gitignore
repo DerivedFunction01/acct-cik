@@ -19,3 +19,4 @@ drive
 pipeline_config.json
 hf_token
 derivative-classifier
+.*.*
