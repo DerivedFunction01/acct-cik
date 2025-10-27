@@ -32,7 +32,7 @@ REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
 
 
-SEC_RATE = 5 # requests per second
+SEC_RATE = 8 # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
 NUM_FETCHERS = 1
@@ -1336,8 +1336,10 @@ class ThreadSafeRateLimiter:
 
             # --- Main Adjustment Logic ---
             if current_rate > target_rate_adjusted * 1.05:  # Over target
-                overshoot_factor = (current_rate - target_rate_adjusted) / target_rate_adjusted
-                self._rate_limit += 0.001 + (0.01 * overshoot_factor)
+                # Multiplicatively increase sleep time to slow down
+                increase_factor = 1.0 + min((current_rate - target_rate_adjusted) / target_rate_adjusted, 1.0) * 0.1
+                self._rate_limit *= increase_factor
+
             elif current_rate < target_rate_adjusted * 0.95:  # Under target
                 if not self._recovery_mode:
                     # Only decrease sleep time if not in recovery
