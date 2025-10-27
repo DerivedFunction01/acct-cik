@@ -30,13 +30,12 @@ DEBUG_BUFFER = []
 DEBUG_BUFFER_SIZE = 1000
 DEBUG_BUFFER_LOCK = threading.Lock()
 DASHBOARD_MODE = False  # Flag to indicate if dashboard is active
+DEBUG_EVENT = threading.Event() # Signal for new debug messages
 
 # ANSI escape codes for cursor movement and screen manipulation
 CURSOR_UP = '\033[A'
 CURSOR_DOWN = '\033[B'
 CLEAR_LINE = '\033[2K'
-SAVE_CURSOR = '\033[s'
-RESTORE_CURSOR = '\033[u'
 MOVE_TO_TOP = '\033[H'
 CLEAR_SCREEN = '\033[2J'
 HIDE_CURSOR = '\033[?25l'
@@ -55,6 +54,7 @@ def debug_print(*args, **kwargs):
             DEBUG_BUFFER.append(log_entry)
             if len(DEBUG_BUFFER) > DEBUG_BUFFER_SIZE:
                 DEBUG_BUFFER.pop(0)
+            DEBUG_EVENT.set() # Signal that a new message is available
         
         # Only print if not in dashboard mode
         if not DASHBOARD_MODE:
@@ -1298,12 +1298,6 @@ def toggle_debug_mode():
             kernel32 = ctypes.windll.kernel32
             kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
 
-    def write_at(text, save_pos=False):
-        """Write text and optionally save cursor position."""
-        if save_pos:
-            print(SAVE_CURSOR + text, end='', flush=True)
-        else:
-            print(text, end='', flush=True)
 
     def update_debug_log(last_size):
         """Update debug log section only if there are new messages.
@@ -1317,10 +1311,6 @@ def toggle_debug_mode():
             logs = DEBUG_BUFFER[start_idx:]
         
         # Move to debug log section (saved position + offset)
-        print(RESTORE_CURSOR, end='')
-        for _ in range(20):  # Approximate number of lines to debug section
-            print(CURSOR_DOWN, end='')
-        
         # Clear and rewrite debug logs
         for _ in range(12):  # Clear area for logs (10 logs + header + separator)
             print(CLEAR_LINE + CURSOR_DOWN, end='')
@@ -1336,10 +1326,10 @@ def toggle_debug_mode():
     # Enable ANSI support and setup display
     enable_ansi_support()
     print(HIDE_CURSOR + CLEAR_SCREEN)  # Initial clear and hide cursor
-    
-    refresh_interval = 2.0  # Refresh every 2 seconds
-    last_refresh = 0
+
     full_refresh_interval = 30.0  # Full refresh every 30 seconds
+    # Start with a negative value to trigger an immediate first refresh
+    last_full_refresh = -full_refresh_interval
     last_full_refresh = 0
     last_debug_size = 0  # Track size of debug buffer
     
@@ -1348,18 +1338,18 @@ def toggle_debug_mode():
             current_time = time.time()
             
             # Full refresh periodically to prevent display corruption
-            if current_time - last_full_refresh >= full_refresh_interval:
+            if current_time - last_full_refresh >= full_refresh_interval or last_full_refresh < 0:
                 print(CLEAR_SCREEN + MOVE_TO_TOP)
                 
                 # Header with controls
-                write_at(f"=== 🔍 Drive Sync Monitor ({datetime.now().strftime('%H:%M:%S')}) ===\n")
-                write_at("Controls: Ctrl+C to exit, Enter to force refresh\n")
-                write_at("=" * 50 + "\n")
+                print(f"=== 🔍 Drive Sync Monitor ({datetime.now().strftime('%H:%M:%S')}) ===\n")
+                print("Controls: Ctrl+C to exit, Enter to force refresh\n")
+                print("=" * 50 + "\n")
                 
                 # Mounted Folders Status
-                write_at("\n📂 Mounted Folders:\n")
+                print("\n📂 Mounted Folders:\n")
                 if not MOUNTED_FOLDERS:
-                    write_at("  No folders currently mounted\n")
+                    print("  No folders currently mounted\n")
                 else:
                     for folder_name, info in MOUNTED_FOLDERS.items():
                         drive_thread = info["listener_thread"]
@@ -1369,67 +1359,60 @@ def toggle_debug_mode():
                         drive_status = "🟢" if drive_thread.is_alive() else "🔴"
                         backup_status = "🟢" if backup_thread and backup_thread.is_alive() else "🔴"
                         
-                        write_at(f"\n  📁 {folder_name}:\n")
-                        write_at(f"    Drive Sync Thread: {drive_status} {'Active' if drive_thread.is_alive() else 'Stopped'}\n")
-                        write_at(f"    Backup Thread:     {backup_status} {'Active' if backup_thread and backup_thread.is_alive() else 'Stopped'}\n")
-                        write_at(f"    Local Path:        {info['local_path']}\n")
-                        write_at(f"    Drive Folder ID:   {info['folder_id']}\n")
+                        print(f"\n  📁 {folder_name}:\n")
+                        print(f"    Drive Sync Thread: {drive_status} {'Active' if drive_thread.is_alive() else 'Stopped'}\n")
+                        print(f"    Backup Thread:     {backup_status} {'Active' if backup_thread and backup_thread.is_alive() else 'Stopped'}\n")
+                        print(f"    Local Path:        {info['local_path']}\n")
+                        print(f"    Drive Folder ID:   {info['folder_id']}\n")
                         
                         # Count files in local directory
                         try:
                             local_path = Path(info['local_path'])
                             file_count = sum(1 for _ in local_path.rglob('*') if _.is_file())
-                            write_at(f"    Files Watched:     {file_count}\n")
+                            print(f"    Files Watched:     {file_count}\n")
                         except Exception:
-                            write_at("    Files Watched:     Unable to count\n")
+                            print("    Files Watched:     Unable to count\n")
                 
                 # Mount State Info
-                write_at("\n📊 Mount State:\n")
+                print("\n📊 Mount State:\n")
                 if STATE_FILE.exists():
                     try:
                         with open(STATE_FILE, 'r') as f:
                             state = json.load(f)
                             for folder, status in state.items():
                                 status_icon = "🟢" if status.get('status') == 'IDLE' else "🔄"
-                                write_at(f"  {status_icon} {folder}: {status.get('status', 'Unknown')} - {status.get('status_message', '')}\n")
+                                print(f"  {status_icon} {folder}: {status.get('status', 'Unknown')} - {status.get('status_message', '')}\n")
                     except Exception:
-                        write_at("  Unable to read mount state file\n")
+                        print("  Unable to read mount state file\n")
                 else:
-                    write_at("  No mount state file exists\n")
+                    print("  No mount state file exists\n")
                 
                 # Backup Info
-                write_at(f"\n💾 Backup Location: {BACKUP_PATH}\n")
+                print(f"\n💾 Backup Location: {BACKUP_PATH}\n")
                 
                 # Initial debug log display
                 last_debug_size = update_debug_log(0)  # Force full update on initial display
                 
                 last_full_refresh = current_time
             
-            # Regular refresh for time and logs
-            if current_time - last_refresh >= refresh_interval:
-                last_debug_size = update_debug_log(last_debug_size)  # Only updates if there are new messages
-                last_refresh = current_time
-                
-                # Clear the bottom area
-                print(RESTORE_CURSOR, end='')
-                for _ in range(30):  # Move to bottom
-                    print(CURSOR_DOWN, end='')
-                print(CLEAR_LINE)  # Clear any previous text at the bottom
-            
             # Check for user input (non-blocking)
             if os.name == 'nt':
                 import msvcrt
                 if msvcrt.kbhit():
                     if msvcrt.getch() == b'\r':
-                        last_refresh = 0  # Force refresh
+                        last_full_refresh = -1  # Force full refresh
             else:
                 # Unix-like systems
-                rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                # Wait for either a new debug message or user input
+                rlist, _, _ = select.select([sys.stdin], [], [], 0)
                 if rlist:
                     sys.stdin.readline()
-                    last_refresh = 0  # Force refresh
+                    last_full_refresh = -1 # Force full refresh
             
-            time.sleep(0.1)  # Prevent CPU overuse
+            # Wait for a new debug message, with a timeout to allow for periodic checks
+            if DEBUG_EVENT.wait(timeout=1.0):
+                last_debug_size = update_debug_log(last_debug_size)
+                DEBUG_EVENT.clear() # Reset the event
             
         except KeyboardInterrupt:
             DEBUG = False
