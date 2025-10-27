@@ -1525,7 +1525,7 @@ def process_all_reports_fully():
             adjuster_thread = threading.Thread(
                 target=adjust_rate_in_background,
                 args=(tqdm_bar, rate_limiter, SEC_RATE, stop_event),
-                daemon=False,  # Must be False to ensure clean shutdown with .join()
+                daemon=True,  # Must be True to prevent deadlock on exit
             )
             adjuster_thread.start()
 
@@ -1548,7 +1548,6 @@ def process_all_reports_fully():
             finally:
                 # Ensure the background thread is stopped when the loop is done
                 stop_event.set()
-                adjuster_thread.join(timeout=2)
 
 
         print(f"  ✓ Fetched {len(fetched_data)} reports.")
