@@ -36,3 +36,43 @@ python3 --version
 
 echo "Done. python3 now points to:"
 readlink -f "$(command -v python3)"
+
+#!/usr/bin/env bash
+set -e  # exit on error
+
+# 1. Go to base directory
+cd /c/Users/del226
+
+# 2. Clone the repo (skip if already exists)
+if [ ! -d "acct-cik" ]; then
+    git clone https://github.com/DerivedFunction/acct-cik
+fi
+
+# 3. Go into the main project folder
+cd acct-cik/main
+
+# 4. Copy secrets file
+cp /h/client_secrets.json .
+
+# 5. Install WinPython (optional if already installed)
+# NOTE: This line will run the installer and block until it completes.
+#       It only needs to run once ever.
+/h/winpython/Winpython64-3.12.4.1.exe
+
+# 6. Initialize virtual environment (waits until finished)
+cd /c/Users/del226/acct-cik
+bash ./init_venv.sh
+
+# 7. Launch 4 Git Bash terminals using WinPython’s Python from venv
+# Each window activates the venv and stays open
+for ((i=1; i<=4; i++)); do
+    setsid "C:/Program Files/Git/bin/bash.exe" -c "
+        cd /c/Users/del226/acct-cik &&
+        source venv_acct_cik/Scripts/activate &&
+        cd main &&
+        echo 'Worker $i started and venv activated.' &&
+        exec bash
+    " &
+done
+
+echo "✅ All workers launched in Git Bash terminals."
