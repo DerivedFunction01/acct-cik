@@ -1305,16 +1305,6 @@ def toggle_debug_mode():
         else:
             print(text, end='', flush=True)
 
-    def update_time_section(time_line_number=2):
-        """Update just the time section."""
-        # Move to the specific line where time is displayed
-        print(MOVE_TO_TOP, end='')
-        for _ in range(time_line_number):
-            print(CURSOR_DOWN, end='')
-        print(CLEAR_LINE, end='')
-        current_datetime = datetime.now()
-        write_at(f"Time: {current_datetime.strftime('%Y-%m-%d %H:%M:%S')}\n")
-
     def update_debug_log(last_size):
         """Update debug log section only if there are new messages.
         Returns the new buffer size."""
@@ -1362,8 +1352,7 @@ def toggle_debug_mode():
                 print(CLEAR_SCREEN + MOVE_TO_TOP)
                 
                 # Header with controls
-                write_at("=== 🔍 Drive Sync Monitor ===\n")
-                write_at(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                write_at(f"=== 🔍 Drive Sync Monitor ({datetime.now().strftime('%H:%M:%S')}) ===\n")
                 write_at("Controls: Ctrl+C to exit, Enter to force refresh\n")
                 write_at("=" * 50 + "\n")
                 
@@ -1418,7 +1407,6 @@ def toggle_debug_mode():
             
             # Regular refresh for time and logs
             if current_time - last_refresh >= refresh_interval:
-                update_time_section()
                 last_debug_size = update_debug_log(last_debug_size)  # Only updates if there are new messages
                 last_refresh = current_time
                 
