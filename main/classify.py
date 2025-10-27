@@ -27,6 +27,9 @@ KEYWORDS_FILE = "./keywords_find.json"
 DEBUG = False  # Debug printing
 CHUNK_SIZE = 100  # Base chunk size, will be adjusted based on RAM
 
+DRIVE_SAVE_INTERVAL_SECONDS = 30 * 60  # 30 minutes
+DRIVE_SAVE_INTERVAL_RESULTS = 4000
+
 # =============================================================================
 # COLAB CONFIGURATION
 # =============================================================================
@@ -467,6 +470,9 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
     total_results = 0
     total_empty = 0
 
+    last_drive_save_time = time.time()
+    results_since_last_save = 0
+
     for chunk_idx, chunk in enumerate(chunks, 1):
         start_chunk_time = time.time()
         print(f"\n📦 Chunk {chunk_idx}/{len(chunks)} ({len(chunk)} reports)")
@@ -506,21 +512,18 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
         total_time += chunk_time
         total_results += chunk_results
         total_empty += chunk_empty
+        results_since_last_save += chunk_results
 
         # Calculate statistics
         avg_chunk_time = sum(chunk_times) / len(chunk_times)
         remaining_chunks = len(chunks) - chunk_idx
         est_time_remaining = avg_chunk_time * remaining_chunks
 
-        print(f"  ✓ Processed {chunk_results} reports successfully")
-        print(f"  ✗ Empty/failed: {chunk_empty} reports")
-        print(f"  Time taken: {format_time(chunk_time)}")
-        print(f"  Avg chunk time: {format_time(avg_chunk_time)}")
-        print(f"  Est. time remaining: {format_time(est_time_remaining)}")
-        print(f"  Total time: {format_time(total_time)}")
-
-        # Save to Google Drive if in Colab
-        if IS_COLAB:
+        time_since_last_save = time.time() - last_drive_save_time
+        if IS_COLAB and (
+            time_since_last_save >= DRIVE_SAVE_INTERVAL_SECONDS
+            or results_since_last_save >= DRIVE_SAVE_INTERVAL_RESULTS
+        ):
             print(f"  -> Saving to Google Drive...")
             subprocess.run(
                 SAVE_SHELL_CMD,
@@ -528,6 +531,15 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            last_drive_save_time = time.time()
+            results_since_last_save = 0
+
+        print(f"  ✓ Processed {chunk_results} reports successfully")
+        print(f"  ✗ Empty/failed: {chunk_empty} reports")
+        print(f"  Time taken: {format_time(chunk_time)}")
+        print(f"  Avg chunk time: {format_time(avg_chunk_time)}")
+        print(f"  Est. time remaining: {format_time(est_time_remaining)}")
+        print(f"  Total time: {format_time(total_time)}")
 
         # Progress summary
         processed_so_far = chunk_idx * CHUNK_SIZE
