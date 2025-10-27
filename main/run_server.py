@@ -400,6 +400,11 @@ http {{
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+
+            # Failover logic: if a server fails, try the next one.
+            # This is crucial for redirecting from a failed CPU server to the GPU server.
+            proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+
             proxy_connect_timeout {GUNICORN_TIMEOUT};
             proxy_send_timeout {GUNICORN_TIMEOUT};
             proxy_read_timeout {GUNICORN_TIMEOUT};
