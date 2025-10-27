@@ -355,6 +355,11 @@ def generate_nginx_config(gpu_weight, cpu_weight, cpu_server_enabled):
     """
     Generates the nginx.conf file with calculated weights.
     """
+    # Create a local logs directory to avoid permission issues with /var/log/nginx
+    log_dir = os.path.abspath("logs")
+    os.makedirs(log_dir, exist_ok=True)
+    access_log_path = os.path.join(log_dir, "nginx_access.log").replace(os.sep, '/')
+    error_log_path = os.path.join(log_dir, "nginx_error.log").replace(os.sep, '/')
     # Build the upstream block
     if cpu_server_enabled:
         upstream_block = f"""
@@ -378,6 +383,9 @@ events {{
 }}
 
 http {{
+    access_log {access_log_path};
+    error_log {error_log_path};
+
     upstream model_servers {{
         {upstream_block}
     }}
