@@ -566,8 +566,8 @@ additional_template_patterns = [
     "There was {materiality} activity at {month} {end_day}, {year} related to {swap_type} {hedge_designation}",
     "{company} did not {verb} any other {gen_swap}",  # To not get confused with termination
     "{company} did not {verb} any new {gen_swap}",  # To not get confused with termination
-    "{company} terminated some of its {swap_type}",  #
-    "{company} terminated one of its {swap_type}",  #
+    "{company} {terminated_verbs} some of its {swap_type} as of {month}, {year}",  #
+    "{company} {terminated_verbs} one of its {swap_type} during {month}, {year}",  #
     "The hedge effectiveness on {swap_type} was {materiality}",
     "The net gain on {swap_type} was {materiality}",
     "The net loss on {swap_type} was {materiality}",
