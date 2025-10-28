@@ -250,6 +250,7 @@ gen_specific_results = [
     "receiving fixed amounts and paying variable amounts",
     "receiving {currency_code}{old_notional} {money_unit} and paying {currency_code}{amount} {money_unit}",
     "with changes in value for our {future_year} {swap_type}",
+    "and expire at various dates the longest expiring in {month} {future_year}",
 ]
 
 # Interest Rate (IR) — general/policy intent phrases ("to ...")
