@@ -37,6 +37,12 @@ noise_table_headers = [
     "Consolidated Balance Sheets ({currency_code} in {money_unit})",
     "Statement of Stockholders' Equity {year} and {prev_year}",
     "Schedule of Capital Expenditures",
+    "Cash Flow from Operations",
+    "Cash Flow from Investing Activities",
+    "Cash Flow from Financing Activities",
+    "Total Assets",
+    "Total Liabilities and Equity",
+    "Consolidated Income Statement for the year ended {year} {prev_year}",
 ]
 
 # Total lines (raw table style)
