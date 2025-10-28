@@ -8,8 +8,8 @@ table_headers = [
     "Derivatives designated as hedging instruments {year} {prev_year} ({currency_code} in {money_unit})",
     "Derivatives not designated as hedging instruments {year} {prev_year} ({currency_code} in {money_unit})",
     "Realized and unrealized derivative gains and losses  {year} {prev_year} ({currency_code} in {money_unit})",
-    "Fair value of derivatives {year} {prev_year}",
-    "Derivative Liabilties {year} {prev_year}",
+    "Fair value of derivatives {year} {prev_year} ({currency_code} in {money_unit})",
+    "Derivative Liabilties {year} {prev_year} ({currency_code} in {money_unit})",
 ]
 
 # Raw tabular line templates (lots of numbers, minimal words, only notional, prev_notiona, amout, and amount2)
