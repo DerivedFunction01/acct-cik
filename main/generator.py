@@ -1736,16 +1736,16 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     """
     if swapType is None:
         swapType = random.choice(['ir', 'fx', 'cp', 'eq', 'gen', 'mixed'])
-    
+
     labels = new_label()
-    
+
     # Setup common variables
     if company_name is None:
         company_name = random.choice(company_names) if random.random() < 0.95 else "The Company"
-    
+
     money_units = random.choice(money_unit_list)
     currency_code = random.choice(currency_codes)
-    
+
     # Determine the primary year for the table content based on the use_case
     # This is the single source of truth for the year in this function.
     reporting_year = random.randint(year_range[0], year_range[1])
@@ -1759,7 +1759,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
 
     month = random.choice(months)
     end_day = random.randint(28, 31)
-    
+
     category_map =  {
         'ir': "Interest Rate " + random.choice(DEFAULT_SUFFIXES),
         'fx': "Foreign Exchange " + random.choice(DEFAULT_SUFFIXES),
@@ -1767,7 +1767,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         'eq': "Equity "+ random.choice(DEFAULT_SUFFIXES),
         'gen': "Derivatives "+ random.choice(DEFAULT_SUFFIXES),
     }
-    
+
     # Determine which swap types to include
     if swapType == 'mixed':
         # Mixed: include multiple swap types
@@ -1775,15 +1775,15 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     else:
         # Single swap type
         swap_types_to_use = [swapType]
-    
+
     lines = []
-    
+
     # Table header (optional)
     if use_case == 'current':
         labels["curr"] = 1.0
     elif use_case == 'historical':
         labels["hist"] = 1.0
-    
+
     if random.random() < 0.5: # Randomly include a header
         header = random.choice(table_headers).format(
             number=random.randint(1, 10),
@@ -1804,27 +1804,27 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         # Set labels for this swap type
         labels[swap] = 1.0  
         labels[f"{swap}_use"] = 1.0 
-        
+
         # Add a header from the category map
         lines.append(category_map[swap])
-        
+
         cat_lines = random.sample(derivative_keywords["gen"], k=random.randint(3, 5))
-        
+
         # Add multiple line items with lots of numbers
         num_lines = random.randint(1, 2)
-        
+
         for _ in range(num_lines):
             template = random.choice(table_line_templates)
-            
+
             # Create a concatenated line item from random swap types
             num_concat = random.randint(1, min(3, len(cat_lines)))
             line_item = ", ".join(random.sample(cat_lines, k=num_concat))
-            
-            notional = generate_value(haveZero=False, lowerlimit=1000, upperlimit=50000) if has_active else 0
+
+            notional = generate_value(haveZero=has_active, lowerlimit=1000, upperlimit=50000)
             prev_notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
-            amount = generate_value(haveZero=False, lowerlimit=10, upperlimit=5000) if has_active else 0
+            amount = generate_value(haveZero=has_active, lowerlimit=10, upperlimit=5000)
             amount2 = generate_value(haveZero=True, lowerlimit=10, upperlimit=5000)
-            
+
             lines.append(template.format(
                 line_item=line_item, # Use the generated line item
                 year=reporting_year,
@@ -1836,14 +1836,14 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
                 money_unit=money_units,
                 currency_code=currency_code
             ))
-    
+
     # Add summary/total lines with more numbers
     if random.random() < 0.25:
         total_template = random.choice(table_totals)
         line_item = random.choice(derivative_keywords.get(swapType, derivative_keywords['gen']))
         amount = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
         amount2 = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
-        
+
         lines.append(total_template.format(
             year=reporting_year,
             prev_year=reporting_year - 1,
@@ -1867,7 +1867,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     paragraph = cleanup(lines, reporting_year, fullCheck=False)
     labels = label_paragraph(paragraph, labels)
     label = get_primary_label(labels)
-    
+
     return paragraph, labels, label
 
 def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_name=None):
