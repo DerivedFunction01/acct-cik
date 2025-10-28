@@ -16,13 +16,12 @@ from transformers import (
     Trainer,
     DataCollatorWithPadding,
 )
-from huggingface_hub import login, notebook_login
+from huggingface_hub import login
 import numpy as np
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 from transformers import EvalPrediction
 import json
 from pathlib import Path
-from IPython import get_ipython
 
 config = {
     "EXCEL_PATH": "./training_data.xlsx",
@@ -32,23 +31,6 @@ config = {
 IS_AUTHENTICATED = False
 
 # %%
-
-def is_in_notebook():
-    """Checks if the script is running in a notebook environment."""
-    try:
-        # Using get_ipython is more robust
-        shell = get_ipython().__class__.__name__
-        if shell == 'ZMQInteractiveShell':
-            return True   # Jupyter notebook or qtconsole
-        elif shell == 'TerminalInteractiveShell':
-            return False  # Terminal running IPython
-        else:
-            return False  # Other type (?)
-    except NameError:
-        return False      # Probably standard Python interpreter
-
-# %%
-
 labels = [
     "ir",
     "fx",
@@ -236,19 +218,16 @@ def edit_config():
 def huggingface_auth():
     """Handles Hugging Face authentication."""
     global IS_AUTHENTICATED
-    if is_in_notebook():
-        notebook_login()
-    else:
-        print("\nPlease paste your Hugging Face token below to log in.")
-        print("The token will be visible as you paste it.")
-        token = input("HF Token: ")
-        try:
-            login(token=token.strip())
-            IS_AUTHENTICATED = True
-            print("✅ Successfully authenticated with Hugging Face.")
-        except Exception as e:
-            print(f"❌ Authentication failed: {e}")
-            IS_AUTHENTICATED = False
+    print("\nPlease paste your Hugging Face token below to log in.")
+    print("The token will be visible as you paste it.")
+    token = input("HF Token: ")
+    try:
+        login(token=token.strip())
+        IS_AUTHENTICATED = True
+        print("✅ Successfully authenticated with Hugging Face.")
+    except Exception as e:
+        print(f"❌ Authentication failed: {e}")
+        IS_AUTHENTICATED = False
 
 # %%
 
@@ -345,32 +324,28 @@ def upload_model():
 # %%
 
 if __name__ == "__main__":
-    if is_in_notebook():
-        # --- Notebook/Colab Mode: Authenticate and run directly ---
-        print("Notebook environment detected. Running in automatic mode.")
-        notebook_login()
-        run_training() # Runs with default parameters
-    else:
-        # --- Terminal Mode: Show the interactive menu ---
-        while True:
-            print("\n--- Main Menu ---")
-            print("1. Train Model")
-            print("2. Edit Configuration")
-            print("3. Hugging Face Login")
-            print("4. Upload Model to Hub")
-            print("5. Exit")
-            choice = input("> ").strip()
+    # --- Terminal Mode: Show the interactive menu ---
+    while True:
+        print("\n--- Main Menu ---")
+        print("1. Train Model")
+        print("2. Edit Configuration")
+        print("3. Hugging Face Login")
+        print("4. Upload Model to Hub")
+        print("5. Exit")
+        choice = input("> ").strip()
 
-            if choice == '1':
-                run_training_interactive()
-            elif choice == '2':
-                edit_config()
-            elif choice == '3':
-                huggingface_auth()
-            elif choice == '4':
-                upload_model()
-            elif choice == '5':
-                print("Exiting.")
-                break
-            else:
-                print("Invalid choice, please try again.")
+        if choice == '1':
+            run_training_interactive()
+        elif choice == '2':
+            edit_config()
+        elif choice == '3':
+            huggingface_auth()
+        elif choice == '4':
+            upload_model()
+        elif choice == '5':
+            print("Exiting.")
+            break
+        else:
+            print("Invalid choice, please try again.")
+
+# %%
