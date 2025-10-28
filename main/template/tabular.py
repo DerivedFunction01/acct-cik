@@ -43,6 +43,7 @@ noise_table_headers = [
     "Total Assets",
     "Total Liabilities and Equity",
     "Consolidated Income Statement for the year ended {year} {prev_year}",
+    "Number of shares outstanding (in {money_unit}) {year} {prev_year}",
 ]
 
 # Total lines (raw table style)
