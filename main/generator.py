@@ -901,42 +901,6 @@ def generate_hedge_paragraph(
             sentences.append(expire_hedge(use_current_year=True) if random.random() < 0.5 else zero_outstanding())
         random.shuffle(sentences)
         return sentences
-            random.choice(hedge_use_verbs)
-            if has_active_derivative
-            else random.choice(hedge_may_use_verbs)
-        )
-        if has_active_derivative:
-            verb = random.choice(current_adverbs) + " " + verb
-        else:
-            if random.random() < 0.85: # may use
-                verb = random.choice(past_adverbs) + " " + verb
-            else: # will not use
-                verb = random.choice(not_adverbs) + " " + random.choice(hedge_use_verbs)
-        sentences.append(
-            beg_ctx_template.format(
-                company=pick_company_name(company_name),
-                verb=verb,
-                swap_type=swaps,
-                commodity=selected_cps,
-                debt_type=random.choice(debt_types_list),
-            )
-        )
-        # mitigation template
-        ctx_template = random.choice(hedge_mitigation_templates[swapType])
-        sentences.append(
-            ctx_template.format(
-                company=pick_company_name(company_name),
-                verb=verb,
-                swap_type=swaps,
-                commodity=selected_cps,
-                debt_type=random.choice(debt_types_list),
-            )
-        )
-        # If we don't have an active derivative, add a no such outstanding sentence
-        if not has_active_derivative and random.random() < 0.25:
-            sentences.append(expire_hedge(use_current_year=True) if random.random() < 0.5 else zero_outstanding())
-        random.shuffle(sentences)
-        return sentences
 
     def generate_hedge_policy_update():
         sentences = []
