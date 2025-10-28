@@ -579,11 +579,6 @@ debt_types_list = [
 
     # --- International Bonds ---
     "eurobonds",
-    "yankee bonds",
-    "samurai bonds",
-    "panda bonds",
-    "bulldog bonds",
-    "global bonds",
 
     # --- Short-Term & Money Market Instruments ---
     "commercial paper",
@@ -610,21 +605,7 @@ debt_types_list = [
     "real estate loans",
     "construction loans",
     "development loans",
-    "auto loans",
-    "student loans",
-    "personal loans",
-    "credit card receivables",
-    "agricultural loans",
-    "small business loans",
-    "microloans",
-
-    # --- Thematic / ESG Instruments ---
-    "green bonds",
-    "social bonds",
-    "sustainability bonds",
-    "catastrophe bonds",
-    "war bonds",
-    "savings bonds",
+    "mortgage loans"
 
     # --- Other / Hybrid ---
     "lease obligations",
