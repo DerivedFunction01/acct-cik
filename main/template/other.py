@@ -611,6 +611,7 @@ debt_types_list = [
     "lease obligations",
     "capital lease liabilities",
     "convertible preferred shares",
+    "credit agreement",
 ]
 
 debt_covenant_templates = [
