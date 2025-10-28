@@ -154,7 +154,10 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     )
 
     print(f"\nStarting training for {num_epochs} epochs with batch size {batch_size}...")
-    trainer.train(resume_from_checkpoint=RESUME_FROM_CHECKPOINT)
+    try:
+        trainer.train(resume_from_checkpoint=RESUME_FROM_CHECKPOINT)
+    except:
+        trainer.train() # Don't use checkpoint
 
     # --- Save the best model explicitly ---
     print("\n--- Saving final best model ---")
