@@ -37,7 +37,7 @@ def pick_company_name(company_name: str) -> str:
     return random.choices([company_name, "The Company"], weights=[0.75, 0.25], k=1)[0]
 
 
-def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000):
+def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000, dashed=False):
     """Generate a random previous notional value with chance of being zero,
     and optional rounding for variability. Returns int if whole, else float."""
     if haveZero:
@@ -51,6 +51,9 @@ def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000):
         if random.random() < chance
         else (1 if upperlimit <= 1 else random.randint(lowerlimit, upperlimit))
     )
+    
+    if value == 0.0 and dashed and random.random() < 0.05:
+        return "--"
 
     if random.random() < 0.5:
         divisor = random.choice([10, 100])
@@ -1771,13 +1774,6 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     # This is the single source of truth for the year in this function.
     reporting_year = random.randint(year_range[0], year_range[1])
 
-    if use_case == 'current':
-        has_active = True
-    elif use_case == 'historical':
-        has_active = False
-    else:
-        has_active = False
-
     month = random.choice(months)
     end_day = random.randint(28, 31)
 
@@ -1804,6 +1800,8 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         labels["curr"] = 1.0
     elif use_case == 'historical':
         labels["hist"] = 1.0
+
+    has_active = use_case == 'current'
 
     if random.random() < 0.5: # Randomly include a header
         header = random.choice(table_headers).format(
@@ -1841,10 +1839,18 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             num_concat = random.randint(1, min(3, len(cat_lines)))
             line_item = ", ".join(random.sample(cat_lines, k=num_concat))
 
-            notional = generate_value(haveZero=has_active, lowerlimit=1000, upperlimit=50000)
-            prev_notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
-            amount = generate_value(haveZero=has_active, lowerlimit=10, upperlimit=5000)
-            amount2 = generate_value(haveZero=True, lowerlimit=10, upperlimit=5000)
+            notional = generate_value(
+                haveZero=has_active, lowerlimit=1000, upperlimit=50000, dashed=True
+            )
+            prev_notional = generate_value(
+                haveZero=True, lowerlimit=1000, upperlimit=50000, dashed=True
+            )
+            amount = generate_value(
+                haveZero=has_active, lowerlimit=10, upperlimit=5000, dashed=True
+            )
+            amount2 = generate_value(
+                haveZero=True, lowerlimit=10, upperlimit=5000, dashed=True
+            )
 
             lines.append(template.format(
                 line_item=line_item, # Use the generated line item
@@ -1941,8 +1947,8 @@ def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_
         line_item = re.sub(r'\{.*?\}', '', line_item).strip().capitalize()
 
         # Use amounts suitable for balance sheet items
-        amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
-        prev_amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
+        amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000, dashed=True)
+        prev_amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000, dashed=True)
 
         # Format the line using a simple amount/prev_amount structure
         lines.append(f"{line_item} {amount} {prev_amount}")
