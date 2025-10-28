@@ -1299,6 +1299,7 @@ def generate_hedge_mitigation_templates(hedge_type="gen"):
     for template in hedge_context_template: # Contains {context} to map
         for context in specific_mitigation:
             full = template.replace("{context}", context)
+            full = template.replace("{verb}", "{verb1}", 1)
             templates.append(to_sentence_case(full))
     return templates
 

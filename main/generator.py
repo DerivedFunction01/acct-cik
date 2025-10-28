@@ -890,6 +890,7 @@ def generate_hedge_paragraph(
                 ctx_template.format(
                     company=pick_company_name(company_name),
                     verb=verb2,
+                    verb1=verb1,
                     swap_type=swaps,
                     commodity=selected_cps,
                     debt_type=random.choice(debt_types_list),
