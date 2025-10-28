@@ -119,6 +119,7 @@ one_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit} in net {swap_type}",
     "{connector} {currency_code}{notional} {money_unit} in various {swap_type}",
     "{swap_type}",
+    "{swap_type} {currency_code}{notional} {money_unit}"
 ]
 
 
@@ -126,7 +127,8 @@ one_year_amount_patterns = [
 two_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively",
     "{connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively, in {swap_type}",
-    "{swap_type}"
+    "{swap_type}",
+    "{swap_type} {currency_code}{notional} {money_unit} {currency_code}{prev_notional} {money_unit}",
 ]
 
 
@@ -134,7 +136,8 @@ two_year_amount_patterns = [
 three_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively",
     "{connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively, in {swap_type}",
-    "{swap_type}"
+    "{swap_type}",
+    "{swap_type} {connector} {currency_code}{notional} {money_unit} {currency_code}{prev_notional} {money_unit} {currency_code}{prev2_notional} {money_unit}",
 ]
 
 # Hedge designation phrases (optional endings)
