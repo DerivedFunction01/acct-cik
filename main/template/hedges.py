@@ -566,6 +566,8 @@ additional_template_patterns = [
     "There was {materiality} activity at {month} {end_day}, {year} related to {swap_type} {hedge_designation}",
     "{company} did not {verb} any other {gen_swap}",  # To not get confused with termination
     "{company} did not {verb} any new {gen_swap}",  # To not get confused with termination
+    "{company} terminated some of its {swap_type}",  #
+    "{company} terminated one of its {swap_type}",  #
     "The hedge effectiveness on {swap_type} was {materiality}",
     "The net gain on {swap_type} was {materiality}",
     "The net loss on {swap_type} was {materiality}",
@@ -592,18 +594,20 @@ time_periods = [
 ]
 
 # Action verbs (shared across all events)
-termination_verbs = [
+terminated_verbs = [
     "terminated",
     "settled",
     "closed out",
     "ended",
     "unwound",
+    "liquidated",
+]
+termination_verbs = [
     "expired",
     "matured",
     "reached maturity",
-    "reached their expiration date",
-    "liquidated",
-]
+    "reached their expiration date",  
+] + terminated_verbs
 
 # Settlement frequencies
 settlement_frequencies = [
