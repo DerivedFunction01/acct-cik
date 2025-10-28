@@ -1794,14 +1794,9 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         swap_types_to_use = [swapType]
 
     lines = []
-
-    # Table header (optional)
-    if use_case == 'current':
-        labels["curr"] = 1.0
-    elif use_case == 'historical':
-        labels["hist"] = 1.0
-
+    
     has_active = use_case == 'current'
+    labels["curr" if has_active else "hist"] = 1.0
 
     if random.random() < 0.5: # Randomly include a header
         header = random.choice(table_headers).format(
