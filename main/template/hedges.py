@@ -235,7 +235,7 @@ gen_specific_mitigation = [
     "to reduce volatility in consolidated financial results",
     "to hedge against risk",
     "as part of a risk management program",
-    "as the only derivative instrument",
+    "as the derivative instrument",
 ]
 
 # Generic accounting reasons (shared across all hedge types)
@@ -279,7 +279,7 @@ ir_specific_mitigation = [
     "to manage market risk in investment purchases and sales",
     "to manage interest costs and overall financing risk",
     "to manage credit exposure",
-    "as the only derivative instrument",
+    "as the derivative instrument",
 ]
 
 # Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")
@@ -330,7 +330,7 @@ fx_specific_mitigation = [
     "to manage currency-denominated cash flows",
     "to hedge receivables and payables for foreign currencies",
     "to manage exposure related to certain foreign currency commitments",
-    "as the only derivative instrument",
+    "as the derivative instrument",
 ]
 
 # FX — realized / factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
@@ -398,7 +398,7 @@ eq_specific_mitigation = [
     "to manage equity market risk",
     "to manage stock-based compensation costs",
     "to hedge equity-linked risks",
-    "as the only derivative instrument",
+    "as the derivative instrument",
 ]
 
 # Equity — realized/factual results ("hedging ...", "offsetting ...", "mitigating ...", etc.)
@@ -435,7 +435,7 @@ cp_specific_mitigation = [
     "to limit its exposure to {commodity} price increases",
     "to commit to purchase {commodity} at an agreed-upon price at a specified future date",
     "to manage fluctuations in {commodity} prices",
-    "as the only derivative instrument",
+    "as the derivative instrument",
 ]
 
 # Commodity — realized/factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
