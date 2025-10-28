@@ -73,7 +73,10 @@ def cleanup(all_sentences: list[str], reporting_year: int, fullCheck: bool = Tru
     # Capitalize the first letter
     for i in range(len(all_sentences)):
         sentence = all_sentences[i]
-        sentence = sentence[0].upper() + sentence[1:]
+        if sentence:
+            sentence = sentence[0].upper() + sentence[1:]
+        else:
+            print("Something went wrong", all_sentences)
         all_sentences[i] = sentence
     try:
         paragraph = ". ".join(all_sentences)
@@ -910,7 +913,7 @@ def generate_hedge_paragraph(
             )
 
         # If we don't have an active derivative, add a no such outstanding sentence
-        if not has_active_derivative and random.random() < 0.25:
+        if not has_active_derivative and random.random() < 0.25 and not mixed:
             sentences.append(expire_hedge(use_current_year=True) if random.random() < 0.5 else zero_outstanding())
         random.shuffle(sentences)
         return sentences
