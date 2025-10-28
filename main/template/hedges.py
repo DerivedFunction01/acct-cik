@@ -108,7 +108,8 @@ amount_connectors = [
     "with net losses totaling",
     "in net notional",
     "in net value",
-    "was due"
+    "was due",
+    "approximately",
 ]
 
 # Amount patterns (order of amount vs swap)
