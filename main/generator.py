@@ -1101,10 +1101,11 @@ def generate_hedge_paragraph(
             # Generate a policy update disclosure (e.g., ASU 2017-12)
             all_sentences.extend(generate_hedge_policy_update())
     else: # Current or Historical Use
-        all_sentences.extend(generate_derivative_sentences())
-        if include_policy:
+        if not mixed:
+            all_sentences.extend(generate_derivative_sentences())
+        if include_policy or mixed:
             # Randomly add either a general policy or a type-specific policy
-            if random.random() < 0.5:
+            if random.random() < 0.5 or mixed:
                 all_sentences.extend(hedge_type_policy())
             else:
                 all_sentences.extend(hedge_policy())
