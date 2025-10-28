@@ -848,8 +848,59 @@ def generate_hedge_paragraph(
         labels["gen_use"] = 1
         sentences = []
         # begin context template (company, verb)
-        beg_ctx_template = random.choice(hedge_begin_context_templates[swapType])
-        verb = (
+        def get_verb():
+            """Helper to generate a verb based on context."""
+            base_verb = (
+                random.choice(hedge_use_verbs)
+                if has_active_derivative
+                else random.choice(hedge_may_use_verbs)
+            )
+            if has_active_derivative:
+                return (random.choice(current_adverbs) + " " + base_verb).strip()
+            else:
+                if random.random() < 0.85:  # may use
+                    return (random.choice(past_adverbs) + " " + base_verb).strip()
+                else:  # will not use
+                    return (random.choice(not_adverbs) + " " + random.choice(hedge_use_verbs)).strip()
+
+        # Generate two different verbs
+        verb1 = get_verb()
+        verb2 = get_verb()
+        # Ensure they are not identical
+        while verb2 == verb1:
+            verb2 = get_verb()
+
+        # Sentence 1: Begin context
+        beg_ctx_template = random.choice(hedge_begin_context_templates.get(swapType, []))
+        if beg_ctx_template:
+            sentences.append(
+                beg_ctx_template.format(
+                    company=pick_company_name(company_name),
+                    verb=verb1,
+                    swap_type=swaps,
+                    commodity=selected_cps,
+                    debt_type=random.choice(debt_types_list),
+                )
+            )
+
+        # Sentence 2: Mitigation template
+        ctx_template = random.choice(hedge_mitigation_templates.get(swapType, []))
+        if ctx_template:
+            sentences.append(
+                ctx_template.format(
+                    company=pick_company_name(company_name),
+                    verb=verb2,
+                    swap_type=swaps,
+                    commodity=selected_cps,
+                    debt_type=random.choice(debt_types_list),
+                )
+            )
+
+        # If we don't have an active derivative, add a no such outstanding sentence
+        if not has_active_derivative and random.random() < 0.25:
+            sentences.append(expire_hedge(use_current_year=True) if random.random() < 0.5 else zero_outstanding())
+        random.shuffle(sentences)
+        return sentences
             random.choice(hedge_use_verbs)
             if has_active_derivative
             else random.choice(hedge_may_use_verbs)
