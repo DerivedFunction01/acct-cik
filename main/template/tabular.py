@@ -2,14 +2,14 @@
 table_headers = [
     "Derivatives ({number}) {month} {end_day} {year} {prev_year} ({currency_code} in {money_unit})",
     "Derivative Instruments {year} {prev_year} (Currency) ({currency_code} in {money_unit})",
-    "Contract/Notional Credit Risk Contract/Notional Credit Risk",
+    "Contract/Notional Credit Risk Contract/Notional Credit Risk {year} {prev_year}",
     "Derivative Instruments {year} {prev_year} ({currency_code} in {money_unit})",
     "Fair values recorded in Accumulated Other Comprehensive Income (Loss) ({currency_code} in {money_unit})",
-    "Derivatives designated as hedging instruments ({currency_code} in {money_unit})",
-    "Derivatives not designated as hedging instruments ({currency_code} in {money_unit})",
-    "Realized and unrealized derivative gains and losses ({currency_code} in {money_unit})",
-    "Fair value of derivatives",
-    "Derivative Liabilties",
+    "Derivatives designated as hedging instruments {year} {prev_year} ({currency_code} in {money_unit})",
+    "Derivatives not designated as hedging instruments {year} {prev_year} ({currency_code} in {money_unit})",
+    "Realized and unrealized derivative gains and losses  {year} {prev_year} ({currency_code} in {money_unit})",
+    "Fair value of derivatives {year} {prev_year}",
+    "Derivative Liabilties {year} {prev_year}",
 ]
 
 # Raw tabular line templates (lots of numbers, minimal words, only notional, prev_notiona, amout, and amount2)
