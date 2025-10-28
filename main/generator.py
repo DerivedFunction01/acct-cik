@@ -1820,9 +1820,9 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             num_concat = random.randint(1, min(3, len(cat_lines)))
             line_item = ", ".join(random.sample(cat_lines, k=num_concat))
             
-            notional = generate_value(haveZero=use_case == 'current', lowerlimit=1000, upperlimit=50000)
+            notional = generate_value(haveZero=False, lowerlimit=1000, upperlimit=50000) if has_active else 0
             prev_notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
-            amount = generate_value(haveZero=use_case == 'current', lowerlimit=10, upperlimit=5000)
+            amount = generate_value(haveZero=False, lowerlimit=10, upperlimit=5000) if has_active else 0
             amount2 = generate_value(haveZero=True, lowerlimit=10, upperlimit=5000)
             
             lines.append(template.format(
