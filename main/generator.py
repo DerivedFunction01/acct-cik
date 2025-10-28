@@ -672,6 +672,9 @@ def generate_hedge_paragraph(
             prev2_year=prev2_year,
             end_day=random.randint(28, 31),
             verb=verb,
+            currency_code=currency_code,
+            money_unit=money_units,
+            notional=generate_value(haveZero=False, lowerlimit=1),
         )
         return sentence
 
