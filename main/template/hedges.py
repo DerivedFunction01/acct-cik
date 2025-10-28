@@ -249,6 +249,7 @@ gen_specific_results = [
     "receiving variable amounts and paying fixed amounts",
     "receiving fixed amounts and paying variable amounts",
     "receiving {currency_code}{old_notional} {money_unit} and paying {currency_code}{amount} {money_unit}",
+    "with changes in value for our {future_year} {swap_type}",
 ]
 
 # Interest Rate (IR) — general/policy intent phrases ("to ...")
@@ -307,6 +308,9 @@ ir_specific_mitigation = [
     "to manage interest costs by using a mix of fixed- and floating-rate debt",
     "to reduce the interest rate risk associated with these borrowings",
     "to reduce the interest rate risk associated with {debt_type}",
+    "to manage market risk in investment purchases and sales",
+    "to manage credit risk related to {debt_type}",
+    "to commit to future {debt_type} fundings at a predetermined interest rate",
 ]
 
 # Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")

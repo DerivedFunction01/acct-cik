@@ -515,3 +515,32 @@ material = [
     "pivotal",
     "essential",
 ]
+
+current_adverbs = [
+    "currently",
+    "actively",
+    "presently",
+    "now",
+    "also",
+    "primarily",
+    "only",
+    "",
+]
+
+past_adverbs = [
+    "in the past",
+    ", from time to time, ",
+    "periodically",
+    "occasionally",
+    ", in the future,",
+    "",
+]
+
+not_adverbs = [
+    "does not",
+    "will not",
+    "does not plan to",
+    "does not intend to",
+    "has no plans to",
+    "will not seek to",
+]
