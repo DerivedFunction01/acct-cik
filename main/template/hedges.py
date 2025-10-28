@@ -1193,11 +1193,11 @@ def generate_hedge_position_templates(hedge_type="gen"):
         List of all generated templates
     """
     accounting_results_map = {
-        "ir": gen_specific_results + ir_specific_results + ir_specific_mitigation,
-        "fx": gen_specific_results + fx_specific_results + fx_specific_mitigation,
-        "eq": gen_specific_results + eq_specific_results + eq_specific_mitigation,
-        "cp": gen_specific_results + cp_specific_results + cp_specific_mitigation,
-        "gen": gen_specific_results + gen_specific_mitigation,
+        "ir":  ir_specific_results,
+        "fx":  fx_specific_results,
+        "eq":  eq_specific_results,
+        "cp":  cp_specific_results,
+        "gen": gen_specific_results,
     }
     accounting_results = accounting_results_map.get(
         hedge_type.lower(), gen_specific_results
