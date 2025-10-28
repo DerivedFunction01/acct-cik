@@ -27,6 +27,7 @@ config = {
     "EXCEL_PATH": "./training_data.xlsx",
     "MODEL_PATH": "derivative-classifier",
     "MODEL_USER": "DerivedFunction",
+    "HF_TOKEN": "hf_token"
 }
 IS_AUTHENTICATED = False
 
@@ -223,11 +224,18 @@ def huggingface_auth():
     global IS_AUTHENTICATED
     print("\nPlease paste your Hugging Face token below to log in.")
     print("The token will be visible as you paste it.")
-    token = input("HF Token: ")
+    # See if "hf_token" file exists for asking for input
+    if not IS_AUTHENTICATED and Path(config["HF_TOKEN"]).exists():
+        token = Path(config["HF_TOKEN"]).read_text().strip()
+    else:
+        token = input("HF Token: ")
     try:
         login(token=token.strip())
         IS_AUTHENTICATED = True
         print("✅ Successfully authenticated with Hugging Face.")
+        # Save the token to "hf_token" file
+        with open(config["HF_TOKEN"], "w") as f:
+            f.write(token)
     except Exception as e:
         print(f"❌ Authentication failed: {e}")
         IS_AUTHENTICATED = False
