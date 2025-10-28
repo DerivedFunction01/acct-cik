@@ -302,6 +302,7 @@ ir_specific_results = [
     "which effectively converts the variable rate into a fixed rate of {debt_type}",
     "to hedge {currency_code}{amount} {money_unit} of various {debt_type}",
     "recognizing interest income (expense) of {currency_code}{amount} {money_unit} related to these {swap_type}",
+    "to cap or fix {company}'s interest rate at {pct}% on an agreed upon principal amount of {currency_code}{amount} {money_unit}",
 ]
 
 
