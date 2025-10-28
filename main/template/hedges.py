@@ -323,6 +323,7 @@ fx_specific_mitigation = [
     "to hedge intercompany exposures",
     "to manage currency-denominated cash flows",
     "to hedge receivables and payables for foreign currencies",
+    "to manage exposure related to certain foreign currency commitments",
 ]
 
 # FX — realized / factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
@@ -565,6 +566,8 @@ additional_template_patterns = [
     "The net gain on {swap_type} was {materiality}",
     "The net loss on {swap_type} was {materiality}",
     "The difference between the fair and recorded value of {swap_type} was {materiality} at {month} {end_day}, {year}",
+    "The fair value of these {swap_type} is determined using Level 2 inputs, such as quoted prices for similar assets or liabilities in active markets",
+    "Credit risk for {swap_type} is considered {materiality} due to collateral posting arrangements with counterparties",
 ]
 
 # ------------------------------------------------------------------------------
@@ -1180,11 +1183,11 @@ def generate_hedge_position_templates(hedge_type="gen"):
         List of all generated templates
     """
     accounting_results_map = {
-        "ir": gen_specific_results + ir_specific_results,
-        "fx": gen_specific_results + fx_specific_results,
-        "eq": gen_specific_results + eq_specific_results,
-        "cp": gen_specific_results + cp_specific_results,
-        "gen": gen_specific_results,
+        "ir": gen_specific_results + ir_specific_results + ir_specific_mitigation,
+        "fx": gen_specific_results + fx_specific_results + fx_specific_mitigation,
+        "eq": gen_specific_results + eq_specific_results + eq_specific_mitigation,
+        "cp": gen_specific_results + cp_specific_results + cp_specific_mitigation,
+        "gen": gen_specific_results + gen_specific_mitigation,
     }
     accounting_results = accounting_results_map.get(
         hedge_type.lower(), gen_specific_results

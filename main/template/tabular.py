@@ -1,7 +1,7 @@
 # Raw table-style headers
 table_headers = [
     "Derivatives ({number}) {month} {end_day} {year} {prev_year} ({currency_code} in {money_unit})",
-    "Derivative Instruments {year} {prev_year} ({currency_code} in {money_unit})",
+    "Derivative Instruments {year} {prev_year} (Currency) ({currency_code} in {money_unit})",
     "Contract/Notional Credit Risk Contract/Notional Credit Risk",
     "Derivative Instruments {year} {prev_year} ({currency_code} in {money_unit})",
     "Fair values recorded in Accumulated Other Comprehensive Income (Loss) ({currency_code} in {money_unit})",
