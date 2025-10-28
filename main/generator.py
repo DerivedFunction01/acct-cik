@@ -339,19 +339,6 @@ def generate_hedge_paragraph(
         else swaps_list[0] if swaps_list else ""
     )
 
-    mixed_swaps = ""
-    mixed = False
-    swap_choices = random.sample(["ir", "fx", "cp", "eq"], random.randint(2, 3))
-    # special case: gen. random chance to have differing swap types (ir, fx, cp, eq)
-    if swapType == "gen" and random.random() < 0.25:
-        mixed = True
-        mixed_list = []
-        for choice in swap_choices:
-            mixed_list.append(random.choice(derivative_keywords[choice]))
-            labels[choice] = 1
-            labels[f"{choice}_use"] = 1
-        mixed_swaps = ", ".join(mixed_list[:-1]) + " and " + mixed_list[-1]
-
     # Commodity setup
     commodity = random.choice(commodities)
     selected_cps = ""
@@ -398,6 +385,19 @@ def generate_hedge_paragraph(
     if include_policy:
         # Only set spec if not actively using (optional, depends on your logic)
         labels["spec"] = 1
+
+    mixed_swaps = ""
+    mixed = False
+    swap_choices = random.sample(["ir", "fx", "cp", "eq"], random.randint(2, 3))
+    # special case: gen. random chance to have differing swap types (ir, fx, cp, eq)
+    if swapType == "gen" and random.random() < 0.25:
+        mixed = True
+        mixed_list = []
+        for choice in swap_choices:
+            mixed_list.append(random.choice(derivative_keywords[choice]))
+            labels[choice] = 1
+            labels[f"{choice}_use"] = 1
+        mixed_swaps = ", ".join(mixed_list[:-1]) + " and " + mixed_list[-1]
 
     def generate_debt() -> list[str]:
         sentences = []
