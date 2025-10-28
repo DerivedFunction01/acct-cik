@@ -116,9 +116,9 @@ amount_connectors = [
 one_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}",
     "{connector} {currency_code}{notional} {money_unit} in {swap_type}",
-    "{currency_code}{notional} {money_unit} in net {swap_type}",
-    "{currency_code}{notional} {money_unit} in various {swap_type}",
-    "{swap_type}"   
+    "{connector} {currency_code}{notional} {money_unit} in net {swap_type}",
+    "{connector} {currency_code}{notional} {money_unit} in various {swap_type}",
+    "{swap_type}",
 ]
 
 
