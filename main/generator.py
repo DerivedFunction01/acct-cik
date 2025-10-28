@@ -550,6 +550,7 @@ def generate_hedge_paragraph(
                 random.choice(additional_template_patterns).format(
                     company=pick_company_name(company_name),
                     verb=random.choice(hedge_use_verbs),
+                    terminated_verb=random.choice(terminated_verbs),
                     month=month,
                     end_day=end_day,
                     year=current_year,
