@@ -1727,234 +1727,234 @@ def generate_noise_paragraph(
     paragraph = cleanup(all_sentences, reporting_year, fullCheck=False)
     return paragraph, labels, label
 
-def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), company_name=None, use_case: str = 'current'):
-    """
-    Generate raw tabular text with lots of numbers (like table converted to text).
-    Not meant to be cohesive narrative - mimics tabular data in text form.
-    Fully independent function.
-    Returns: (paragraph, labels, label)
-    """
-    if swapType is None:
-        swapType = random.choice(['ir', 'fx', 'cp', 'eq', 'gen', 'mixed'])
+# def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), company_name=None, use_case: str = 'current'):
+#     """
+#     Generate raw tabular text with lots of numbers (like table converted to text).
+#     Not meant to be cohesive narrative - mimics tabular data in text form.
+#     Fully independent function.
+#     Returns: (paragraph, labels, label)
+#     """
+#     if swapType is None:
+#         swapType = random.choice(['ir', 'fx', 'cp', 'eq', 'gen', 'mixed'])
 
-    labels = new_label()
+#     labels = new_label()
 
-    # Setup common variables
-    if company_name is None:
-        company_name = random.choice(company_names) if random.random() < 0.95 else "The Company"
+#     # Setup common variables
+#     if company_name is None:
+#         company_name = random.choice(company_names) if random.random() < 0.95 else "The Company"
 
-    money_units = random.choice(money_unit_list)
-    currency_code = random.choice(currency_codes)
+#     money_units = random.choice(money_unit_list)
+#     currency_code = random.choice(currency_codes)
 
-    # Determine the primary year for the table content based on the use_case
-    # This is the single source of truth for the year in this function.
-    reporting_year = random.randint(year_range[0], year_range[1])
+#     # Determine the primary year for the table content based on the use_case
+#     # This is the single source of truth for the year in this function.
+#     reporting_year = random.randint(year_range[0], year_range[1])
 
-    if use_case == 'current':
-        has_active = True
-    elif use_case == 'historical':
-        has_active = False
-    else:
-        has_active = False
+#     if use_case == 'current':
+#         has_active = True
+#     elif use_case == 'historical':
+#         has_active = False
+#     else:
+#         has_active = False
 
-    month = random.choice(months)
-    end_day = random.randint(28, 31)
+#     month = random.choice(months)
+#     end_day = random.randint(28, 31)
 
-    category_map =  {
-        'ir': "Interest Rate " + random.choice(DEFAULT_SUFFIXES),
-        'fx': "Foreign Exchange " + random.choice(DEFAULT_SUFFIXES),
-        'cp': "Commodity " if random.random() < 0.25 else random.choice(commodities) + " " + random.choice(DEFAULT_SUFFIXES),
-        'eq': "Equity "+ random.choice(DEFAULT_SUFFIXES),
-        'gen': "Derivatives "+ random.choice(DEFAULT_SUFFIXES),
-    }
+#     category_map =  {
+#         'ir': "Interest Rate " + random.choice(DEFAULT_SUFFIXES),
+#         'fx': "Foreign Exchange " + random.choice(DEFAULT_SUFFIXES),
+#         'cp': "Commodity " if random.random() < 0.25 else random.choice(commodities) + " " + random.choice(DEFAULT_SUFFIXES),
+#         'eq': "Equity "+ random.choice(DEFAULT_SUFFIXES),
+#         'gen': "Derivatives "+ random.choice(DEFAULT_SUFFIXES),
+#     }
 
-    # Determine which swap types to include
-    if swapType == 'mixed':
-        # Mixed: include multiple swap types
-        swap_types_to_use = random.sample(['ir', 'fx', 'cp', 'eq'], k=random.randint(2, 4))
-    else:
-        # Single swap type
-        swap_types_to_use = [swapType]
+#     # Determine which swap types to include
+#     if swapType == 'mixed':
+#         # Mixed: include multiple swap types
+#         swap_types_to_use = random.sample(['ir', 'fx', 'cp', 'eq'], k=random.randint(2, 4))
+#     else:
+#         # Single swap type
+#         swap_types_to_use = [swapType]
 
-    lines = []
+#     lines = []
 
-    # Table header (optional)
-    if use_case == 'current':
-        labels["curr"] = 1.0
-    elif use_case == 'historical':
-        labels["hist"] = 1.0
+#     # Table header (optional)
+#     if use_case == 'current':
+#         labels["curr"] = 1.0
+#     elif use_case == 'historical':
+#         labels["hist"] = 1.0
 
-    if random.random() < 0.5: # Randomly include a header
-        header = random.choice(table_headers).format(
-            number=random.randint(1, 10),
-            month=month,
-            end_day=end_day,
-            year=reporting_year,
-            prev_year=reporting_year - 1,
-            money_unit=money_units,
-            currency_code=currency_code
-        )
-        lines.append(header) # Add the header to the lines
+#     if random.random() < 0.5: # Randomly include a header
+#         header = random.choice(table_headers).format(
+#             number=random.randint(1, 10),
+#             month=month,
+#             end_day=end_day,
+#             year=reporting_year,
+#             prev_year=reporting_year - 1,
+#             money_unit=money_units,
+#             currency_code=currency_code
+#         )
+#         lines.append(header) # Add the header to the lines
 
-    labels["gen_use"] = 1.0 # Always assume some general use for tabular data
-    labels["gen"] = 1.0 # Always assume general context
+#     labels["gen_use"] = 1.0 # Always assume some general use for tabular data
+#     labels["gen"] = 1.0 # Always assume general context
 
-    # Generate raw tabular lines for each swap type
-    for swap in swap_types_to_use:
-        # Set labels for this swap type
-        labels[swap] = 1.0  
-        labels[f"{swap}_use"] = 1.0 
+#     # Generate raw tabular lines for each swap type
+#     for swap in swap_types_to_use:
+#         # Set labels for this swap type
+#         labels[swap] = 1.0  
+#         labels[f"{swap}_use"] = 1.0 
 
-        # Add a header from the category map
-        lines.append(category_map[swap])
+#         # Add a header from the category map
+#         lines.append(category_map[swap])
 
-        cat_lines = random.sample(derivative_keywords["gen"], k=random.randint(3, 5))
+#         cat_lines = random.sample(derivative_keywords["gen"], k=random.randint(3, 5))
 
-        # Add multiple line items with lots of numbers
-        num_lines = random.randint(1, 2)
+#         # Add multiple line items with lots of numbers
+#         num_lines = random.randint(1, 2)
 
-        for _ in range(num_lines):
-            template = random.choice(table_line_templates)
+#         for _ in range(num_lines):
+#             template = random.choice(table_line_templates)
 
-            # Create a concatenated line item from random swap types
-            num_concat = random.randint(1, min(3, len(cat_lines)))
-            line_item = ", ".join(random.sample(cat_lines, k=num_concat))
+#             # Create a concatenated line item from random swap types
+#             num_concat = random.randint(1, min(3, len(cat_lines)))
+#             line_item = ", ".join(random.sample(cat_lines, k=num_concat))
 
-            notional = generate_value(haveZero=has_active, lowerlimit=1000, upperlimit=50000)
-            prev_notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
-            amount = generate_value(haveZero=has_active, lowerlimit=10, upperlimit=5000)
-            amount2 = generate_value(haveZero=True, lowerlimit=10, upperlimit=5000)
+#             notional = generate_value(haveZero=has_active, lowerlimit=1000, upperlimit=50000)
+#             prev_notional = generate_value(haveZero=True, lowerlimit=1000, upperlimit=50000)
+#             amount = generate_value(haveZero=has_active, lowerlimit=10, upperlimit=5000)
+#             amount2 = generate_value(haveZero=True, lowerlimit=10, upperlimit=5000)
 
-            lines.append(template.format(
-                line_item=line_item, # Use the generated line item
-                year=reporting_year,
-                prev_year=reporting_year - 1,
-                notional=notional,
-                prev_notional=prev_notional,
-                amount=amount,
-                amount2=amount2,
-                money_unit=money_units,
-                currency_code=currency_code
-            ))
+#             lines.append(template.format(
+#                 line_item=line_item, # Use the generated line item
+#                 year=reporting_year,
+#                 prev_year=reporting_year - 1,
+#                 notional=notional,
+#                 prev_notional=prev_notional,
+#                 amount=amount,
+#                 amount2=amount2,
+#                 money_unit=money_units,
+#                 currency_code=currency_code
+#             ))
 
-    # Add summary/total lines with more numbers
-    if random.random() < 0.25:
-        total_template = random.choice(table_totals)
-        line_item = random.choice(derivative_keywords.get(swapType, derivative_keywords['gen']))
-        amount = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
-        amount2 = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
+#     # Add summary/total lines with more numbers
+#     if random.random() < 0.25:
+#         total_template = random.choice(table_totals)
+#         line_item = random.choice(derivative_keywords.get(swapType, derivative_keywords['gen']))
+#         amount = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
+#         amount2 = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
 
-        lines.append(total_template.format(
-            year=reporting_year,
-            prev_year=reporting_year - 1,
-            amount=amount,
-            line_item=line_item,
-            amount2=amount2,
-            money_unit=money_units,
-            currency_code=currency_code
-        ))
-    if random.random() < 0.5:
-        hedge_sentence, _, _ = generate_hedge_paragraph(
-            has_active_derivative=has_active,
-            swapType=swapType if swapType != 'mixed' else "gen",
-            year_range=[reporting_year, reporting_year] # Pass the correct reporting year
-        )
-        # Remove the all text between < and >
-        hedge_sentence = re.sub(r'<.*?>', '', hedge_sentence)
-        hedge_sentence = hedge_sentence.strip()[:-1] # Ditch the period at the end
-        lines.append(hedge_sentence)
-    # Create paragraph and get primary label
-    paragraph = cleanup(lines, reporting_year, fullCheck=False)
-    labels = label_paragraph(paragraph, labels)
-    label = get_primary_label(labels)
+#         lines.append(total_template.format(
+#             year=reporting_year,
+#             prev_year=reporting_year - 1,
+#             amount=amount,
+#             line_item=line_item,
+#             amount2=amount2,
+#             money_unit=money_units,
+#             currency_code=currency_code
+#         ))
+#     if random.random() < 0.5:
+#         hedge_sentence, _, _ = generate_hedge_paragraph(
+#             has_active_derivative=has_active,
+#             swapType=swapType if swapType != 'mixed' else "gen",
+#             year_range=[reporting_year, reporting_year] # Pass the correct reporting year
+#         )
+#         # Remove the all text between < and >
+#         hedge_sentence = re.sub(r'<.*?>', '', hedge_sentence)
+#         hedge_sentence = hedge_sentence.strip()[:-1] # Ditch the period at the end
+#         lines.append(hedge_sentence)
+#     # Create paragraph and get primary label
+#     paragraph = cleanup(lines, reporting_year, fullCheck=False)
+#     labels = label_paragraph(paragraph, labels)
+#     label = get_primary_label(labels)
 
-    return paragraph, labels, label
+#     return paragraph, labels, label
 
-def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_name=None):
-    """
-    Generate raw tabular text for non-derivative financial topics.
-    Mimics table data converted to text, serving as a counter-example to derivative tables.
-    Returns: (paragraph, labels, label)
-    """
-    labels = new_label()
-    labels["irr"] = 1.0  # Mark as irrelevant for the hedge model
+# def generate_noise_table_text(noise_type=None, year_range=(1990, 2025), company_name=None):
+#     """
+#     Generate raw tabular text for non-derivative financial topics.
+#     Mimics table data converted to text, serving as a counter-example to derivative tables.
+#     Returns: (paragraph, labels, label)
+#     """
+#     labels = new_label()
+#     labels["irr"] = 1.0  # Mark as irrelevant for the hedge model
 
-    # Define line item sources from other.py for different noise types
-    commod = commodities
-    if "commodity" in commod:
-        commod.remove("commodity")
-    line_item_sources = {
-        "B_S": balance_sheet_list,
-        "EQ": stock_list,
-        "PPE": ppe_list,
-        "DEBT": debt_types_list,
-        "SUPPLY": [f"{commodity} {suffix}" for commodity in random.sample(commod, k=10) for suffix in DEFAULT_SUFFIXES] # Create a random selection of commodoties + suffixes, such as natural gas agreement
-    }
+#     # Define line item sources from other.py for different noise types
+#     commod = commodities
+#     if "commodity" in commod:
+#         commod.remove("commodity")
+#     line_item_sources = {
+#         "B_S": balance_sheet_list,
+#         "EQ": stock_list,
+#         "PPE": ppe_list,
+#         "DEBT": debt_types_list,
+#         "SUPPLY": [f"{commodity} {suffix}" for commodity in random.sample(commod, k=10) for suffix in DEFAULT_SUFFIXES] # Create a random selection of commodoties + suffixes, such as natural gas agreement
+#     }
 
-    if noise_type is None:
-        noise_type = random.choice(list(line_item_sources.keys()))
+#     if noise_type is None:
+#         noise_type = random.choice(list(line_item_sources.keys()))
 
-    # Setup common variables
-    if company_name is None:
-        company_name = random.choice(company_names) if random.random() < 0.95 else "The Company"
+#     # Setup common variables
+#     if company_name is None:
+#         company_name = random.choice(company_names) if random.random() < 0.95 else "The Company"
 
-    money_units = random.choice(money_unit_list)
-    currency_code = random.choice(currency_codes)
-    current_year = random.randint(year_range[0], year_range[1])
-    reporting_year = current_year
-    prev_year = current_year - 1
+#     money_units = random.choice(money_unit_list)
+#     currency_code = random.choice(currency_codes)
+#     current_year = random.randint(year_range[0], year_range[1])
+#     reporting_year = current_year
+#     prev_year = current_year - 1
 
-    lines = []
+#     lines = []
 
-    # Table header (optional)
-    if random.random() < 0.6:
-        header = random.choice(noise_table_headers).format(
-            year=current_year,
-            prev_year=prev_year,
-            money_unit=money_units,
-            currency_code=currency_code
-        )
-        lines.append(header)
+#     # Table header (optional)
+#     if random.random() < 0.6:
+#         header = random.choice(noise_table_headers).format(
+#             year=current_year,
+#             prev_year=prev_year,
+#             money_unit=money_units,
+#             currency_code=currency_code
+#         )
+#         lines.append(header)
 
-    # Generate raw tabular lines
-    source_list = line_item_sources.get(noise_type, [])
-    if not source_list:
-        # Fallback if noise_type is invalid
-        source_list = balance_sheet_reasons
+#     # Generate raw tabular lines
+#     source_list = line_item_sources.get(noise_type, [])
+#     if not source_list:
+#         # Fallback if noise_type is invalid
+#         source_list = balance_sheet_reasons
 
-    num_lines = random.randint(5, 8)
-    selected_lines = random.sample(source_list, k=min(num_lines, len(source_list)))
+#     num_lines = random.randint(5, 8)
+#     selected_lines = random.sample(source_list, k=min(num_lines, len(source_list)))
 
-    for line_item in selected_lines:
-        # Clean up the line item text
-        line_item = re.sub(r'\{.*?\}', '', line_item).strip().capitalize()
+#     for line_item in selected_lines:
+#         # Clean up the line item text
+#         line_item = re.sub(r'\{.*?\}', '', line_item).strip().capitalize()
 
-        # Use amounts suitable for balance sheet items
-        amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
-        prev_amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
+#         # Use amounts suitable for balance sheet items
+#         amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
+#         prev_amount = generate_value(haveZero=True, lowerlimit=1000, upperlimit=100000)
 
-        # Format the line using a simple amount/prev_amount structure
-        lines.append(f"{line_item} {amount} {prev_amount}")
+#         # Format the line using a simple amount/prev_amount structure
+#         lines.append(f"{line_item} {amount} {prev_amount}")
 
-    # Add summary/total lines
-    if random.random() < 0.8:
-        total_template = random.choice(noise_table_totals)
-        total_amount = generate_value(haveZero=False, lowerlimit=500000, upperlimit=5000000)
-        total_prev_amount = generate_value(haveZero=False, lowerlimit=500000, upperlimit=5000000)
+#     # Add summary/total lines
+#     if random.random() < 0.8:
+#         total_template = random.choice(noise_table_totals)
+#         total_amount = generate_value(haveZero=False, lowerlimit=500000, upperlimit=5000000)
+#         total_prev_amount = generate_value(haveZero=False, lowerlimit=500000, upperlimit=5000000)
 
-        lines.append(total_template.format(
-            line_item=random.choice(["Assets", "Liabilities", "Equity", "Expenditures"]),
-            amount=total_amount,
-            amount2=total_prev_amount,
-            currency_code=currency_code,
-            money_unit=money_units
-        ))
+#         lines.append(total_template.format(
+#             line_item=random.choice(["Assets", "Liabilities", "Equity", "Expenditures"]),
+#             amount=total_amount,
+#             amount2=total_prev_amount,
+#             currency_code=currency_code,
+#             money_unit=money_units
+#         ))
 
-    # Create paragraph and get primary label
-    paragraph = cleanup(lines, reporting_year, fullCheck=False)
-    label = get_primary_label(labels)
+#     # Create paragraph and get primary label
+#     paragraph = cleanup(lines, reporting_year, fullCheck=False)
+#     label = get_primary_label(labels)
 
-    return paragraph, labels, label
+#     return paragraph, labels, label
 
 def generate(size_per_label=100):
     """
@@ -2017,18 +2017,18 @@ def generate(size_per_label=100):
             futures.append(executor.submit(generate_emb_paragraph, use_case='speculative'))
 
         # Table text
-        table_count = count  // 2 # Generate same amount as other categories
-        table_types = ['ir', 'fx', 'cp', 'eq', 'gen', 'mixed']
-        table_use_cases = ['current', 'historical'] # Add use cases for tabular data
-        for _ in range(table_count):
-            for swap_type in table_types:
-                for use_case in table_use_cases:
-                    futures.append(executor.submit(generate_derivative_table_text, swapType=swap_type, use_case=use_case))
-        # Noise table text
-        noise_table_count = count * 2
-        noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT', 'SUPPLY']
-        for _ in range(noise_table_count):
-            futures.append(executor.submit(generate_noise_table_text, noise_type=random.choice(noise_table_types)))
+        # table_count = count  // 2 # Generate same amount as other categories
+        # table_types = ['ir', 'fx', 'cp', 'eq', 'gen', 'mixed']
+        # table_use_cases = ['current', 'historical'] # Add use cases for tabular data
+        # for _ in range(table_count):
+        #     for swap_type in table_types:
+        #         for use_case in table_use_cases:
+        #             futures.append(executor.submit(generate_derivative_table_text, swapType=swap_type, use_case=use_case))
+        # # Noise table text
+        # noise_table_count = count * 2
+        # noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT', 'SUPPLY']
+        # for _ in range(noise_table_count):
+        #     futures.append(executor.submit(generate_noise_table_text, noise_type=random.choice(noise_table_types)))
                 
         # Noise Generation
         noise_count = count * 2
