@@ -776,6 +776,7 @@ merged_event_patterns = [
     "{time_period}, {company}'s {swap_type} positions {termination_verb}, {no_replacement}",
     "All {swap_type} {termination_verb} {time_period}, {no_replacement}",
     "{time_period}, {company}'s derivative portfolio of {swap_type} was fully settled, {no_replacement}",
+    "At the expiration of {swap_type}, {currency_code} {notional} {money_unit} were owed {time_period}",
     # De-designation patterns
     "{company} {dedesignation_action} all of our {swap_type} {time_period}",
     "{company} {dedesignation_action} {swap_type} {time_period}, {term_result}",
