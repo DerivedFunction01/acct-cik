@@ -32,7 +32,7 @@ pattern_dots = re.compile(r"\. +")
 company_name_df = pd.read_excel(company_name_file)
 company_names = list(company_name_df["name"])
 
-category_weights = 0.01
+category_weights = 0.08
 
 def pick_company_name(company_name: str) -> str:
     return random.choices([company_name, "The Company"], weights=[0.75, 0.25], k=1)[0]
