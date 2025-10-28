@@ -311,6 +311,7 @@ ir_specific_mitigation = [
     "to manage market risk in investment purchases and sales",
     "to manage credit risk related to {debt_type}",
     "to commit to future {debt_type} fundings at a predetermined interest rate",
+    "to specifically reduce exposure to interest rate risk",
 ]
 
 # Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")
