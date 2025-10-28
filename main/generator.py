@@ -25,7 +25,6 @@ parquet_file = "./training_data.parquet"
 pattern_we_s = re.compile(r"We's", flags=re.IGNORECASE)
 pattern_we_is = re.compile(r"We is", flags=re.IGNORECASE)
 pattern_nil = re.compile(r" (0|0.0) (thousand|million|billion)", flags=re.IGNORECASE)
-pattern_notional = re.compile(f"notional", flags=re.IGNORECASE)
 pattern_spaces = re.compile(r"\s+")
 pattern_dots = re.compile(r"\. +")
 
@@ -90,9 +89,6 @@ def cleanup(all_sentences: list[str], reporting_year: int, fullCheck: bool = Tru
             random.choice([" nil", " 0", " 0.0", " 0.00"]),
             paragraph,
         )
-
-    if random.random() < 0.5:
-        paragraph = pattern_notional.sub("", paragraph)
         
     paragraph = pattern_dots.sub(". ", paragraph)  # Remove double periods
     paragraph = pattern_spaces.sub(" ", paragraph)  # Remove extra whitespace
