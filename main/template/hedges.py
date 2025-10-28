@@ -558,10 +558,11 @@ trend_descriptors = [
 additional_template_patterns = [
     "There was no such activity at {year} related to {swap_type} {hedge_designation}",
     "There was {materiality} activity at {month} {end_day}, {year} related to {swap_type} {hedge_designation}",
-    "{company} did not {verb} any other {gen_swap}", # To not get confused with termination
+    "{company} did not {verb} any other {gen_swap}",  # To not get confused with termination
+    "{company} did not {verb} any new {gen_swap}",  # To not get confused with termination
     "The hedge effectiveness on {swap_type} was {materiality}",
     "The net gain on {swap_type} was {materiality}",
-    "The net loss on {swap_type} was {materiality}"
+    "The net loss on {swap_type} was {materiality}",
 ]
 
 # ------------------------------------------------------------------------------
