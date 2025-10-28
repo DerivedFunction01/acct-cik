@@ -1363,7 +1363,7 @@ CATEGORY_EXTRAS = {
     "fx": ["NDF"],
     "cp": [],
     "eq": ["index future"],
-    "gen": ["over-the-counter contract", "collar strategies", "total return swap"],
+    "gen": ["over-the-counter contract", "collar strategies", "total return swap", "derivative financial instrument"],
 }
 
 PLACEHOLDERS = {
