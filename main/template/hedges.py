@@ -235,7 +235,6 @@ gen_specific_mitigation = [
     "to reduce volatility in consolidated financial results",
     "to hedge against risk",
     "as part of a risk management program",
-    "as the only derivative instrument {verb} by {company}",
 ]
 
 # Generic accounting reasons (shared across all hedge types)
@@ -1299,7 +1298,6 @@ def generate_hedge_mitigation_templates(hedge_type="gen"):
     for template in hedge_context_template: # Contains {context} to map
         for context in specific_mitigation:
             full = template.replace("{context}", context)
-            full = full.replace("{verb}", "{verb1}", 1)
             templates.append(to_sentence_case(full))
     return templates
 
@@ -1314,14 +1312,14 @@ def generate_hedge_begin_context_templates(hedge_type="gen"):
     }
 
     # Select the correct context set; fallback to generic if unknown
-    specific_mitigation = hedge_context_map.get(
+    specific_context = hedge_context_map.get(
         hedge_type.lower(), begin_gen_context_templates
     )
 
     templates = []
 
     # Combine context with placeholder endings
-    for context in specific_mitigation:
+    for context in specific_context:
         for placeholder in begin_context_placeholders:
             templates.append(f"{context}, {placeholder}")
     return templates
