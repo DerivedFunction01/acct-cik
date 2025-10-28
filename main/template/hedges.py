@@ -563,6 +563,7 @@ additional_template_patterns = [
     "The hedge effectiveness on {swap_type} was {materiality}",
     "The net gain on {swap_type} was {materiality}",
     "The net loss on {swap_type} was {materiality}",
+    "The difference between the fair and recorded value of {swap_type} was {materiality} at {month} {end_day}, {year}",
 ]
 
 # ------------------------------------------------------------------------------

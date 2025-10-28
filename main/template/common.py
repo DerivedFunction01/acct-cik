@@ -495,6 +495,8 @@ immaterial = [
     "nominal",
     "slight",
     "unimportant",
+    "zero",
+    "none",
 ]
 
 # Material / Significant terms
