@@ -1414,7 +1414,7 @@ PLACEHOLDERS = {
         "cross-currency",
         "cross currency interest rate",
         "forward currency",
-        "foreign currency forward",
+        "foreign currency",
         "FX",
         "dollar call",
     ],
