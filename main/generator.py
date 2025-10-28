@@ -1744,20 +1744,16 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     money_units = random.choice(money_unit_list)
     currency_code = random.choice(currency_codes)
     
-    # Determine the primary year for the table content based on use_case
-    reporting_year = random.randint(year_range[0], year_range[1]) # Overall reporting year for the paragraph
-    
+    # Determine the primary year for the table content based on the use_case
+    # This is the single source of truth for the year in this function.
+    reporting_year = random.randint(year_range[0], year_range[1])
+
     if use_case == 'current':
-        table_display_year = reporting_year
-        table_display_prev_year = reporting_year - 1
+        has_active = True
     elif use_case == 'historical':
-        # For historical, pick a year from the past relative to the reporting_year
-        past_years_range = list(range(year_range[0], reporting_year))
-        table_display_year = random.choice(past_years_range) if past_years_range else reporting_year - 1
-        table_display_prev_year = table_display_year - 1
-    else: # Default or 'mixed'
-        table_display_year = reporting_year
-        table_display_prev_year = reporting_year - 1
+        has_active = False
+    else:
+        has_active = False
 
     month = random.choice(months)
     end_day = random.randint(28, 31)
@@ -1791,8 +1787,8 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             number=random.randint(1, 10),
             month=month,
             end_day=end_day,
-            year=table_display_year,
-            prev_year=table_display_prev_year,
+            year=reporting_year,
+            prev_year=reporting_year - 1,
             money_unit=money_units,
             currency_code=currency_code
         )
@@ -1829,8 +1825,8 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             
             lines.append(template.format(
                 line_item=line_item, # Use the generated line item
-                year=table_display_year, # Use the dynamically determined year
-                prev_year=table_display_prev_year, # Use the dynamically determined previous year
+                year=reporting_year,
+                prev_year=reporting_year - 1,
                 notional=notional,
                 prev_notional=prev_notional,
                 amount=amount,
@@ -1847,8 +1843,8 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         amount2 = generate_value(haveZero=False, lowerlimit=10000, upperlimit=100000)
         
         lines.append(total_template.format(
-            year=table_display_year, # Use the dynamically determined year
-            prev_year=table_display_prev_year, # Use the dynamically determined previous year
+            year=reporting_year,
+            prev_year=reporting_year - 1,
             amount=amount,
             line_item=line_item,
             amount2=amount2,
@@ -1857,9 +1853,9 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
         ))
     if random.random() < 0.5:
         hedge_sentence, _, _ = generate_hedge_paragraph(
-            has_active_derivative=(use_case == 'current'), # Pass True if current, False if historical
+            has_active_derivative=has_active,
             swapType=swapType if swapType != 'mixed' else "gen",
-            year_range=[table_display_year, table_display_year] # Use the determined year
+            year_range=[reporting_year, reporting_year] # Pass the correct reporting year
         )
         # Remove the all text between < and >
         hedge_sentence = re.sub(r'<.*?>', '', hedge_sentence)
