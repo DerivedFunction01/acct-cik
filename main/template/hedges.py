@@ -234,7 +234,8 @@ gen_specific_mitigation = [
     "to manage enterprise-wide risk exposures",
     "to reduce volatility in consolidated financial results",
     "to hedge against risk",
-    "as part of a risk management program"
+    "as part of a risk management program",
+    "as the only derivative instrument {verb} by {company}",
 ]
 
 # Generic accounting reasons (shared across all hedge types)
