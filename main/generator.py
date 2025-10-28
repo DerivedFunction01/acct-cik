@@ -886,7 +886,6 @@ def generate_hedge_paragraph(
                 ctx_template.format(
                     company=pick_company_name(company_name),
                     verb=get_verb(),
-                    verb1=get_verb(),
                     swap_type=swaps,
                     commodity=selected_cps,
                     debt_type=random.choice(debt_types_list),
@@ -1764,7 +1763,7 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
     category_map =  {
         'ir': "Interest Rate " + random.choice(DEFAULT_SUFFIXES),
         'fx': "Foreign Exchange " + random.choice(DEFAULT_SUFFIXES),
-        'cp': "Commodity " if random.random() < 0.25 else random.choice(commodities) + random.choice(DEFAULT_SUFFIXES),
+        'cp': "Commodity " if random.random() < 0.25 else random.choice(commodities) + " " + random.choice(DEFAULT_SUFFIXES),
         'eq': "Equity "+ random.choice(DEFAULT_SUFFIXES),
         'gen': "Derivatives "+ random.choice(DEFAULT_SUFFIXES),
     }
