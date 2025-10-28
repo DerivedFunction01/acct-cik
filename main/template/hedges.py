@@ -108,6 +108,7 @@ amount_connectors = [
     "with net losses totaling",
     "in net notional",
     "in net value",
+    "was due"
 ]
 
 # Amount patterns (order of amount vs swap)
@@ -299,6 +300,7 @@ ir_specific_results = [
     "reducing the potential impact of increases in interest rates on its interest-bearing liabilities",
     "which effectively converts the variable rate into a fixed rate of {debt_type}",
     "to hedge {currency_code}{amount} {money_unit} of various {debt_type}",
+    "recognizing interest income (expense) of {currency_code}{amount} {money_unit} related to these {swap_type}",
 ]
 
 
@@ -761,7 +763,7 @@ merged_event_patterns = [
     "{company} {termination_verb} all outstanding {swap_type} {time_period}, {term_result}",
     "{time_period}, {company} {termination_verb} its {swap_type} portfolio, {term_result}",
     "{time_period}, all {swap_type} agreements were {termination_verb}, {term_result}",
-    
+    "At the termination of {swap_type}, {currency_code} {notional} {money_unit} were owed {time_period}",
     # Expiration patterns
     "All previously outstanding derivatives {termination_verb} {time_period}, {no_replacement}",
     "{company}'s derivative portfolio was fully {termination_verb} {time_period} {no_replacement}",
