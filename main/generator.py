@@ -596,7 +596,7 @@ def generate_hedge_paragraph(
         future_year = (
             random.randint(current_year + 1, current_year + 20)
             if has_active_derivative
-            else random.randint(old_year - 1, current_year)
+            else random.randint(old_year - 1, prev_year)
         )
 
         old_notional = generate_value(False)
