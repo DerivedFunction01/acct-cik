@@ -543,7 +543,7 @@ def generate_hedge_paragraph(
             sentences.extend(generate_commodity())
         elif swapType == "fx" and random.random() < 0.15:
             sentences.extend(generate_fx())
-        
+
         # Add a small chance of addtional sentences
         if random.random() < 0.10:
             sentences.append(
@@ -863,20 +863,13 @@ def generate_hedge_paragraph(
                 else:  # will not use
                     return (random.choice(not_adverbs) + " " + random.choice(hedge_use_verbs)).strip()
 
-        # Generate two different verbs
-        verb1 = get_verb()
-        verb2 = get_verb()
-        # Ensure they are not identical
-        while verb2 == verb1:
-            verb2 = get_verb()
-
         # Sentence 1: Begin context
         beg_ctx_template = random.choice(hedge_begin_context_templates.get(swapType, []))
         if beg_ctx_template:
             sentences.append(
                 beg_ctx_template.format(
                     company=pick_company_name(company_name),
-                    verb=verb1,
+                    verb=get_verb(),
                     swap_type=swaps,
                     commodity=selected_cps,
                     debt_type=random.choice(debt_types_list),
@@ -889,8 +882,8 @@ def generate_hedge_paragraph(
             sentences.append(
                 ctx_template.format(
                     company=pick_company_name(company_name),
-                    verb=verb2,
-                    verb1=verb1,
+                    verb=get_verb(),
+                    verb1=get_verb(),
                     swap_type=swaps,
                     commodity=selected_cps,
                     debt_type=random.choice(debt_types_list),
