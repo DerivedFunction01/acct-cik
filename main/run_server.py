@@ -43,7 +43,7 @@ def load_cache():
 
         # Check if cache is less than 24 hours old
         cache_age = time.time() - cache.get("timestamp", 0)
-        if cache_age < 86400 * 7:  # 7 days in seconds
+        if cache_age < 60 * 60 * 24:  # 12 hours in seconds
             return cache
     except (json.JSONDecodeError, IOError):
         pass
