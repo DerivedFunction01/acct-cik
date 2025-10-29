@@ -497,6 +497,7 @@ current_adverbs = [
     "also",
     "primarily",
     "only",
+    "expect to continue to"
     "",
 ]
 
