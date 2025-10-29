@@ -172,11 +172,15 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     trainer.save_model(config['MODEL_PATH'])
 
     # --- Save and Push to Hub ---
-    push_to_hub = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ")
-    if push_to_hub.lower().strip() == 'y':
-        print("Pushing model to the Hub...")
-        trainer.push_to_hub(commit_message="End of training")
-        print("Model pushed successfully!")
+    if not IS_AUTHENTICATED:
+        huggingface_auth()
+    # Check to see if we are authenticated
+    if IS_AUTHENTICATED:
+        push_to_hub = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ")
+        if push_to_hub.lower().strip() == 'y':
+            print("Pushing model to the Hub...")
+            trainer.push_to_hub(commit_message="End of training")
+            print("Model pushed successfully!")
     else:
         print(f"Skipping push to Hub. The model is saved locally in the '{config['MODEL_PATH']}' directory.")
 
