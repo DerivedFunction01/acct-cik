@@ -38,7 +38,6 @@ DRIVE_PATH = "./drive/MyDrive/db"
 DRIVE_SENTENCE_PATH = "sentence_results"
 DRIVE_KEYWORDS_PATH = "keywords_results"
 LOAD_SHELL_CMD = f"cp -f {DRIVE_PATH}/{DB_PATH} ."
-SAVE_SHELL_CMD = f"cp -f {DB_PATH} {DRIVE_PATH}/{DB_PATH}.tmp && mv -f {DRIVE_PATH}/{DB_PATH}.tmp {DRIVE_PATH}/{DB_PATH}"
 IS_COLAB = Path(DRIVE_PATH).exists()
 
 def get_system_config():
@@ -552,8 +551,10 @@ def process_reports_in_chunks(
             or results_since_last_save >= DRIVE_SAVE_INTERVAL_RESULTS
         ):
             print(f"  -> Saving to Google Drive...")
+            # Dynamically create the save command for the current parquet file
+            save_cmd = f"cp -f {output_parquet_file} {DRIVE_PATH}/{output_parquet_file}.tmp && mv -f {DRIVE_PATH}/{output_parquet_file}.tmp {DRIVE_PATH}/{output_parquet_file}"
             subprocess.run(
-                SAVE_SHELL_CMD,
+                save_cmd,
                 shell=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
