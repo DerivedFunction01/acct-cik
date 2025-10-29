@@ -18,7 +18,6 @@ from template.tabular import *
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
-parquet_file = "./training_data.parquet"
 
 # %%
 # Precompile regex patterns
@@ -2097,9 +2096,5 @@ def generate(size_per_label=100):
 
 # %%
 generate(1000)
-
-# %%
-df = pd.read_excel(output_file)
-df.to_parquet(parquet_file, index=False)
 
 # %%

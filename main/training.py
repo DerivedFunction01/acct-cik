@@ -66,6 +66,12 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     # --- Load and preprocess data ---
     print("\n--- Loading and Preprocessing Data ---")
     df = pd.read_excel(config['EXCEL_PATH'])
+
+    # Convert the Excel file to a parquet file with timestamp in *_MO_DD_YY_HHMM.parquet
+    timestamp = pd.Timestamp.now().strftime("%m_%d_%y_%H%M")
+    parquet_filename = config["EXCEL_PATH"].replace(".xlsx", f"_{timestamp}.parquet")
+    df.to_parquet(parquet_filename, index=False)
+    print(f"Data saved to {parquet_filename}")
     df.dropna(subset=["sentence", "labels"], inplace=True)
 
     def format_labels(row):
@@ -89,6 +95,7 @@ def run_training(model_name="ProsusAI/finbert", num_epochs=4, batch_size=8):
     tokenized_val_dataset = val_dataset.map(tokenize_function, batched=True)
     tokenized_train_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
     tokenized_val_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
+    print("Tokenization complete.")
 
     # --- Custom Data Collator ---
     class CustomDataCollatorWithPadding(DataCollatorWithPadding):
