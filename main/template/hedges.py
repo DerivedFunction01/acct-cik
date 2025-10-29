@@ -585,8 +585,8 @@ additional_template_patterns = [
     "{company} {terminated_verb} some of its {swap_type} as of {month}, {year}",  #
     "{company} {terminated_verb} one of its {swap_type} during {month}, {year}",  #
     "The hedge effectiveness on {swap_type} was {materiality}",
-    "The net gain on {swap_type} was {materiality}",
-    "The net loss on {swap_type} was {materiality}",
+    "The net {gain_loss} on {swap_type} was {materiality}",
+    "The fair value {gain_loss} on {swap_type} was {currency_code}{amount} {money_unit} at {month} {year}, and is reflected in accumulated other comprehensive income",
     "The difference between the fair and recorded value of {swap_type} was {materiality} at {month} {end_day}, {year}",
     "The fair value of these {swap_type} is determined using Level 2 inputs, such as quoted prices for similar assets or liabilities in active markets",
     "Credit risk for {swap_type} is considered {materiality} due to collateral posting arrangements with counterparties",
@@ -595,7 +595,6 @@ additional_template_patterns = [
     "A {pct}% change will have a {materiality} effect on {swap_type}",
     "The {swap_type} is settled {frequency} and will expire in {future_year}",
     "These {swap_types} are accounted for at fair value with changes in fair value recognized as they occur",
-    
 ]
 
 # ------------------------------------------------------------------------------
