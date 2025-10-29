@@ -277,13 +277,6 @@ def upload_model():
     # The best model is now saved at the root of the output directory after training completes.
     if (output_dir / "pytorch_model.bin").exists():
         best_checkpoint_path = output_dir
-    state_path = output_dir / "trainer_state.json"
-    if state_path.exists():
-        with open(state_path, "r") as f:
-            state = json.load(f)
-        best_path_str = state.get("best_model_checkpoint")
-        if best_path_str and Path(best_path_str).exists():
-            best_checkpoint_path = Path(best_path_str)
 
     # Find last checkpoint by step number
     if checkpoints:
@@ -298,7 +291,7 @@ def upload_model():
     options = {}
     i = 1
     if best_checkpoint_path:
-        print(f"{i}. Best Model (from last training): {best_checkpoint_path.name} (Recommended)")
+        print(f"{i}. Best Model: {best_checkpoint_path.name} (Recommended)")
         options[str(i)] = best_checkpoint_path
         i += 1
     if last_checkpoint_path:
