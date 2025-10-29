@@ -575,7 +575,10 @@ def generate_hedge_paragraph(
                     materiality=random.choice(material if random.random() < 0.5 else immaterial),
                     hedge_designation=random.choice(hedge_designations).format(
                         hedge_type=random.choice(hedge_types),
-                    )
+                    ),
+                    amount=generate_value(False),
+                    money_unit=money_units,
+                    currency_code=currency_code,
                 )
             )
 

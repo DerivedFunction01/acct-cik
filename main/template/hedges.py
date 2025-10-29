@@ -291,6 +291,7 @@ ir_specific_mitigation = [
     "to manage interest costs and overall financing risk",
     "to manage credit exposure",
     "as the derivative instrument",
+    "to protect against sudden and severe interest rate fluctuations on {debt_type} obligations",
 ]
 
 # Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")
@@ -320,6 +321,7 @@ ir_specific_results = [
     "to hedge against the possible negative effects of interest rate fluctuations on {debt_type} obligations",
     "to exchange fixed and variable rate interest payment obligations",
     "related to the anticipated issuance of {debt_type}",
+    "manage its interest rate and cash flow risks associated with its {debt_type}",
 ]
 
 
@@ -594,6 +596,8 @@ additional_template_patterns = [
     "The difference between the fair and recorded value of {swap_type} was {materiality} at {month} {end_day}, {year}",
     "The fair value of these {swap_type} is determined using Level 2 inputs, such as quoted prices for similar assets or liabilities in active markets",
     "Credit risk for {swap_type} is considered {materiality} due to collateral posting arrangements with counterparties",
+    "The remaining unrealized gain (loss) associated with the {swap_type} was reclassified out of accumulated other comprehensive income",
+    "The {gen_swap} covers a notional amount of {currency_code}{amount} {money_unit}",
 ]
 
 # ------------------------------------------------------------------------------
