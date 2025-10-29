@@ -894,6 +894,7 @@ hedge_policy_templates = [
     "The derivatives that {company} uses to hedge these risks are governed by our risk management policies include {swap_type}",
     "The goal of the hedging program such as using {swap_type} is to mitigate financial risks",
     "If the derivative such as {swap_type} is a hedge, changes in the fair value of derivatives may be recognized in other comprehensive income until the hedged item is recognized in earnings",
+    "Fair value of {swap_type} and other derivatives generally reflects the estimated amounts {company} would have received (paid) had the contract been terminated on the reporting date",
 ]
 
 hedge_documentation_templates = [
