@@ -2055,19 +2055,19 @@ def generate(size_per_label=100):
             futures.append(executor.submit(generate_emb_paragraph, use_case='historical'))
             futures.append(executor.submit(generate_emb_paragraph, use_case='speculative'))
 
-        # # Table text
-        # table_count = count  // 2 # Generate same amount as other categories
-        # table_types = ['ir', 'fx', 'cp', 'eq', 'gen', 'mixed']
-        # table_use_cases = ['current', 'historical'] # Add use cases for tabular data
-        # for _ in range(table_count):
-        #     for swap_type in table_types:
-        #         for use_case in table_use_cases:
-        #             futures.append(executor.submit(generate_derivative_table_text, swapType=swap_type, use_case=use_case))
-        # # Noise table text
-        # noise_table_count = count * 2
-        # noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT', 'SUPPLY']
-        # for _ in range(noise_table_count):
-        #     futures.append(executor.submit(generate_noise_table_text, noise_type=random.choice(noise_table_types)))
+        # Table text
+        table_count = count  // 2 # Generate same amount as other categories
+        table_types = ['ir', 'fx', 'cp', 'eq', 'gen', 'mixed']
+        table_use_cases = ['current', 'historical'] # Add use cases for tabular data
+        for _ in range(table_count):
+            for swap_type in table_types:
+                for use_case in table_use_cases:
+                    futures.append(executor.submit(generate_derivative_table_text, swapType=swap_type, use_case=use_case))
+        # Noise table text
+        noise_table_count = count * 2
+        noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT', 'SUPPLY']
+        for _ in range(noise_table_count):
+            futures.append(executor.submit(generate_noise_table_text, noise_type=random.choice(noise_table_types)))
                 
         # Noise Generation
         noise_count = count * 2
