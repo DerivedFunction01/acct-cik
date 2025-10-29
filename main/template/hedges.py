@@ -119,7 +119,8 @@ one_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit} in net {swap_type}",
     "{connector} {currency_code}{notional} {money_unit} in various {swap_type}",
     "{swap_type}",
-    "{swap_type} {currency_code}{notional} {money_unit}"
+    "{swap_type} {currency_code}{notional} {money_unit}",
+    "{connector} {swap_type} was {currency_code}{notional} {money_unit}"
 ]
 
 
@@ -129,6 +130,7 @@ two_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively, in {swap_type}",
     "{swap_type}",
     "{swap_type} {currency_code}{notional} {money_unit} {currency_code}{prev_notional} {money_unit}",
+    "{connector} {swap_type} was {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively",
 ]
 
 
@@ -138,6 +140,7 @@ three_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively, in {swap_type}",
     "{swap_type}",
     "{swap_type} {connector} {currency_code}{notional} {money_unit} {currency_code}{prev_notional} {money_unit} {currency_code}{prev2_notional} {money_unit}",
+    "{connector} {swap_type} was {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively",
 ]
 
 # Hedge designation phrases (optional endings)
@@ -308,6 +311,7 @@ ir_specific_results = [
     "to hedge {currency_code}{amount} {money_unit} of various {debt_type}",
     "recognizing interest income (expense) of {currency_code}{amount} {money_unit} related to these {swap_type}",
     "to cap or fix {company}'s interest rate at {pct}% on an agreed upon principal amount of {currency_code}{amount} {money_unit}",
+    "to eliminate the incremental cost if the {debt_type} were to exceed {pct}%"
 ]
 
 
