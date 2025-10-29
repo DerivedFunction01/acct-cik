@@ -230,7 +230,7 @@ class AnalysisPipeline:
 
             with pd.ExcelWriter(temp_output_path, engine="xlsxwriter") as writer:
                 # Disable automatic URL conversion to prevent Excel's hyperlink limit error.
-                writer.book.strings_to_urls = False
+                writer.book.strings_to_urls = False # pyright: ignore[reportAttributeAccessIssue]
                 server_results_df.to_excel(writer, index=False)
 
             # Atomically rename the temporary file to the final destination
@@ -269,8 +269,6 @@ class AnalysisPipeline:
         sampler = DisagreementSampler(
             config=self.config,
             label_mapper=self.label_mapper,
-            data_loader=self.data_loader,
-            sentence_df=None,  # No longer needed - uses streaming internally
         )
         sampler.run()
 
@@ -307,10 +305,7 @@ class AnalysisPipeline:
         print("\n[Extra] Running Accuracy Check (streaming mode - memory efficient)...")
         sampler = AccuracySampler(
             config=self.accuracy_config,
-            data_loader=self.data_loader,
             label_mapper=self.label_mapper,
-            sentence_df=None,  # No longer needed - uses streaming internally
-            model_agg_df=None,  # Not used with streaming approach
         )
         sampler.run()
 

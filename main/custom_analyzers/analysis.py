@@ -133,7 +133,7 @@ class LabelMapper:
     def __init__(
         self,
         keywords_json_path: str,
-        multi_labels: List[str],
+        multi_labels: Optional[List[str]],
         config: Optional[Config] = None,
     ):
         print("⚠️  LabelMapper is now using ClassificationEngine internally.")
@@ -304,7 +304,7 @@ class PredictionsProcessor:
     Delegates all logic to the centralized ClassificationEngine.
     """
 
-    def __init__(self, config: Config, label_mapper: LabelMapper):
+    def __init__(self, config: Optional[Config], label_mapper: Optional[LabelMapper]):
         self.config = config
         self.label_mapper = label_mapper
         print("✅ PredictionsProcessor now using ClassificationEngine")
@@ -371,9 +371,10 @@ import inspect
 class BaseAnalyzer:
     """Base class for all analyzers - can be extended in custom modules"""
 
-    def __init__(self, config: Config, label_mapper: Optional[LabelMapper] = None):
+    def __init__(self, config: Config, label_mapper: Optional[LabelMapper] = None, data_loader: Optional[DataLoader] = None):
         self.config = config
         self.label_mapper = label_mapper
+        self.data_loader = data_loader
 
     @classmethod
     def get_configurable_args(cls) -> Dict:
