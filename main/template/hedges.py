@@ -1393,7 +1393,7 @@ SWAP_PREFIXES = [
     "pay fixed, receive variable",
 ]
 
-PAY_PREFIX_RATIO = 0.15  # ~15% of total swap-like combinations
+PAY_PREFIX_RATIO = 0.05  # ~5% of total swap-like combinations
 
 
 # =============================================================================
