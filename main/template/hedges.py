@@ -1284,9 +1284,9 @@ def generate_hedge_position_templates(hedge_type="gen"):
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
                 no_company = (
-                    f"{prefix}, {amount_order} {designation}"
+                    f"{prefix}, {amount_order} were {{verb}} {designation}"
                     if designation
-                    else f"{prefix}, {amount_order}"
+                    else f"{prefix}, {amount_order} were {{verb}}"
                 )
                 templates.append(to_sentence_case(full))
                 templates.append(to_sentence_case(no_company))
@@ -1301,9 +1301,9 @@ def generate_hedge_position_templates(hedge_type="gen"):
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
                 no_company = (
-                    f"{prefix}, {amount_order} {designation}"
+                    f"{prefix}, {amount_order} were {{verb}} {designation}"
                     if designation
-                    else f"{prefix}, {amount_order}"
+                    else f"{prefix}, {amount_order} were {{verb}}"
                 )
                 templates.append(to_sentence_case(full))
                 templates.append(to_sentence_case(no_company))
@@ -1318,9 +1318,9 @@ def generate_hedge_position_templates(hedge_type="gen"):
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
                 no_company = (
-                    f"{prefix}, {amount_order} {designation}"
+                    f"{prefix}, {amount_order} were {{verb}} {designation}"
                     if designation
-                    else f"{prefix}, {amount_order}"
+                    else f"{prefix}, {amount_order} were {{verb}}"
                 )
                 templates.append(to_sentence_case(full))
                 templates.append(to_sentence_case(no_company))
