@@ -549,7 +549,11 @@ def process_reports_in_chunks(
                     chunk_empty += 1
 
         # Periodically save the accumulated results to the parquet file
-        pd.DataFrame(all_chunk_results).to_parquet(output_parquet_file)
+        # This ensures progress is not lost on large runs.
+        # The file will be overwritten with the complete data up to this point.
+        if all_chunk_results:
+            pd.DataFrame(all_chunk_results).to_parquet(output_parquet_file)
+            print(f"  -> Saved {len(all_chunk_results)} results to '{output_parquet_file}'")
 
         chunk_time = time.time() - start_chunk_time
         chunk_times.append(chunk_time)
