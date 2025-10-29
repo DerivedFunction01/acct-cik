@@ -117,8 +117,6 @@ amount_connectors = [
     "with net losses totaling",
     "in net notional",
     "in net value",
-    "was due",
-    "approximately",
     "with fair value gains of",
     "with fair value losses of",
     "with unrealized gains of",
@@ -1324,9 +1322,7 @@ def append_to_template(templates, prefix, amount_order, designation):
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
     no_company = (
-                    f"{prefix}, {amount_order} were {{verb}} {designation}"
-                    if designation
-                    else f"{prefix}, {amount_order}"
+                    f"{prefix}, {amount_order}".replace("with", "the").replace("in", "the")
                 )
     simple = (
                     f"{prefix}, {{company}} {{verb}} {{swap_type}} {designation}"
