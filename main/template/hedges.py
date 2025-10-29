@@ -480,21 +480,6 @@ cp_specific_results = cp_specific_mitigation + [
     "for the sale or purchase of {commodity} with other parties"
 ]
 
-# Special templates for accounting impact
-hedge_impact_templates = [
-    "As of {month} {end_day}, {year}, {swap_type} were designated as {hedge_type} hedges, {impact_result}",
-    "At {end_day} {month}, {year}, {company} {verb} {swap_type} with a total notional amount of {currency_code}{notional} {money_unit}, {impact_result}",
-    "The net unrealized {gain_loss} on the {swap_type} was {currency_code}{notional} {money_unit} at {month} {end_day}, {year} and is reflected in accumulated other comprehensive income",
-    "The fair value of {gain_loss} on the {swap_type} was {currency_code}{notional} {money_unit} at {month} {end_day}, {year} and is reflected in accumulated other comprehensive income",
-    "The {gain_loss} on derivative instruments such as {swap_type} for the years ended {month} {end_day} were as follows: {year}, {prev_year}, and {prev2_year} (In {money_unit}), {notional}, {prev_notional} and {prev2_notional}, respectively",
-    "At {month} {year}, {company} {verb} {swap_type}, {swap_type} designated as {hedge_type} hedges: Amount of {gain_loss} recognized in accumulated other comprehensive loss (effective portion), net of tax {currency_code}{notional}, {impact_result}",
-    "At {month} {end_day}, {year}, {company} {verb} {swap_type}, {swap_type} designated as {hedge_type} hedges: Amount of {gain_loss} reclassified from accumulated other comprehensive loss into {location} (effective portion), net of tax {currency_code}{notional}",
-    "At {month} {year}, {company} {verb} {swap_type} designated as {hedge_type} hedges: Amount of {gain_loss} recognized in {location} (ineffective portion), before tax {currency_code}{notional}",
-    "{swap_type} not designated as hedging instruments at {year}: Amount of {gain_loss} recognized in {location}, before tax {currency_code}{notional}, {impact_result}",
-    "As of {month} {end_day}, {year}, {company} {verb} {swap_type}: Net {gain_loss}s of approximately {currency_code}{notional} ({money_unit}) (after tax)",
-    "{company} had a net {gain_loss} of {currency_code}{notional} {money_unit} on {swap_type} in {year}",
-    "Net {gain_loss} on {swap_type} were {currency_code}{notional} {money_unit} in {year} and {prev_year}, respectively",
-]
 
 hedge_context_template = [
     "{context}, {company} {verb} {swap_type}",
@@ -596,7 +581,7 @@ additional_template_patterns = [
     "The difference between the fair and recorded value of {swap_type} was {materiality} at {month} {end_day}, {year}",
     "The fair value of these {swap_type} is determined using Level 2 inputs, such as quoted prices for similar assets or liabilities in active markets",
     "Credit risk for {swap_type} is considered {materiality} due to collateral posting arrangements with counterparties",
-    "The remaining unrealized gain (loss) associated with the {swap_type} was reclassified out of accumulated other comprehensive income",
+    "The remaining unrealized {gain_loss} associated with the {swap_type} was reclassified out of accumulated other comprehensive income",
     "The {gen_swap} covers a notional amount of {currency_code}{amount} {money_unit}",
     "A {pct}% change will have a {materiality} effect on {swap_type}",
     "The {swap_type} is settled {frequency} and will expire in {future_year}",
@@ -1259,33 +1244,31 @@ def generate_hedge_position_templates(hedge_type="gen"):
     for prefix in one_year_prefixes:
         for amount_order in amount_swap_orders:
             for designation in hedge_designations:
-                append_to_template(templates, prefix, amount_order, designation)
+                for result in accounting_results:
+                    append_to_template(templates, prefix, amount_order, designation, result)
 
     # Two-year templates
     for prefix in two_year_prefixes:
         for amount_order in two_year_amounts:
             for designation in hedge_designations:
-                append_to_template(templates, prefix, amount_order, designation)
+                for result in accounting_results:
+                    append_to_template(
+                        templates, prefix, amount_order, designation, result
+                    )
 
     # Three-year templates
     for prefix in three_year_prefixes:
         for amount_order in three_year_amounts:
             for designation in hedge_designations:
-                append_to_template(templates, prefix, amount_order, designation)
+                for result in accounting_results:
+                    append_to_template(
+                        templates, prefix, amount_order, designation, result
+                    )
 
     # Historical templates
     for template in historical_templates:
         expanded = _expand_pattern(template)
         templates.extend([to_sentence_case(t) for t in expanded])
-
-    # Accounting impact templates
-    for template in hedge_impact_templates:
-        if "{impact_result}" in template:
-            for reason in accounting_results:
-                full = template.replace("{impact_result}", reason)
-                templates.append(to_sentence_case(full))
-        else:
-            templates.append(to_sentence_case(template))
 
     # Two-year   Three-year "no prior year" templates
     for template in two_year_no_prior_templates:
@@ -1301,23 +1284,21 @@ def generate_hedge_position_templates(hedge_type="gen"):
 
     return templates
 
-def append_to_template(templates, prefix, amount_order, designation):
+def append_to_template(templates, prefix, amount_order, designation, result):
     full = (
-                    f"{prefix}, {{company}} {{verb}} {amount_order} {designation}"
-                    if designation
-                    else f"{prefix}, {{company}} {{verb}} {amount_order}"
-                )
-    no_company = (
-                    no_company_pattern.sub("the", f"{prefix}, {amount_order}") 
-                )
+        f"{prefix}, {{company}} {{verb}} {amount_order} {designation}"
+        if designation
+        else f"{prefix}, {{company}} {{verb}} {amount_order} {result}"
+    )
     simple = (
-                    f"{prefix}, {{company}} {{verb}} {{swap_type}} {designation}"
-                    if designation
-                    else f"{prefix}, {{company}} {{verb}} {{swap_type}}"
-                )
+        f"{prefix}, {{company}} {{verb}} {{swap_type}} {designation}"
+        if designation
+        else f"{prefix}, {{company}} {{verb}} {{swap_type}} {result}"
+    )
+    plain = f"{prefix}, {{company}} {{verb}} {{swap_type}}"
     templates.append(to_sentence_case(full))
     templates.append(to_sentence_case(simple))
-    templates.append(to_sentence_case(no_company))
+    templates.append(to_sentence_case(plain))
 
 def generate_hedge_mitigation_templates(hedge_type="gen"):
     hedge_context_map = {
@@ -1335,7 +1316,6 @@ def generate_hedge_mitigation_templates(hedge_type="gen"):
             full = template.replace("{context}", context)
             templates.append(to_sentence_case(full))
     return templates
-
 
 def generate_hedge_begin_context_templates(hedge_type="gen"):
     hedge_context_map = {
