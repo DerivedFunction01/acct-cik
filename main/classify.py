@@ -28,7 +28,7 @@ KEYWORDS_FILE = "./keywords_find.json"
 DEBUG = False  # Debug printing
 CHUNK_SIZE = 100  # Base chunk size, will be adjusted based on RAM
 
-DRIVE_SAVE_INTERVAL_SECONDS = 30 * 60  # 30 minutes
+DRIVE_SAVE_INTERVAL_SECONDS = 10 * 60  # 10 minutes
 DRIVE_SAVE_INTERVAL_RESULTS = 4000
 
 # =============================================================================
