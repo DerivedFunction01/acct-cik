@@ -109,6 +109,19 @@ amount_connectors = [
     "in net value",
 ]
 
+amount_prefixes = [
+    "fair value",
+    "fair market value"
+    "notional value",
+    "total value",
+    "net value",
+    "net notional",
+    "aggregate value",
+]
+one_year_amount = "{currency_code}{notional} {money_unit}"
+two_year_amount = "{currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}"
+three_year_amount = "{currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}"
+
 # Amount patterns (order of amount vs swap)
 one_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}",
@@ -117,7 +130,6 @@ one_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit} in various {swap_type}",
     "{connector} {swap_type} was {currency_code}{notional} {money_unit}"
 ]
-
 
 # Two-year amount patterns
 two_year_amount_patterns = [
@@ -1243,6 +1255,13 @@ def generate_hedge_position_templates(hedge_type="gen"):
         for amount_order in amount_swap_orders:
             for reason in reasons:
                 append_to_template(templates, prefix, amount_order, reason)
+            for amount in amount_prefixes:
+                templates.append(
+                    f"{prefix}, the {amount} of {{swap_type}} is {one_year_amount}"
+                )
+                templates.append(
+                    f"The {amount} of {{swap_type}} is {one_year_amount}, {prefix}"
+                )
 
     # Two-year templates
     for prefix in two_year_prefixes:
@@ -1251,12 +1270,26 @@ def generate_hedge_position_templates(hedge_type="gen"):
                 append_to_template(
                     templates, prefix, amount_order, reason
                 )
+            for amount in amount_prefixes:
+                templates.append(
+                    f"{prefix}, the {amount} of {{swap_type}} is {two_year_amount}"
+                )
+                templates.append(
+                    f"The {amount} of {{swap_type}} is {two_year_amount}, {prefix}"
+                )
 
     # Three-year templates
     for prefix in three_year_prefixes:
         for amount_order in three_year_amounts:
             for reason in reasons:
                 append_to_template(templates, prefix, amount_order, reason)
+            for amount in amount_prefixes:
+                templates.append(
+                    f"{prefix}, the {amount} of {{swap_type}} is {three_year_amount}"
+                )
+                templates.append(
+                    f"The {amount} of {{swap_type}} is {three_year_amount}, {prefix}"
+                )
 
     # Historical templates
     for template in historical_templates:
