@@ -74,7 +74,7 @@ one_year_prefixes = [
     "In {month} {year}",
     "In the {quarter} quarter of {year}",
     "During the {quarter} quarter of {year}",
-    "At {month}/{day}/{year}",
+    "At {month}/{end_day}/{year}",
     "At {month}/{year}", 
 ]
 
@@ -83,7 +83,7 @@ two_year_prefixes = [
     "At {month} {end_day}, {year} and {prev_year}",
     "As of {month} {end_day}, {year} and {prev_year}",
     "At {month}/{year} and {month}/{prev_year}",
-    "As of {month}/{day}/{year} and {month}/{day}/{prev_year}",
+    "As of {month}/{end_day}/{year} and {month}/{end_day}/{prev_year}",
     "During {month} {year} and {prev_year}",
     
 ]
@@ -93,7 +93,7 @@ three_year_prefixes = [
     "At {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
     "As of {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
     "At {month}/{year}, {month}/{prev_year}, and {month}/{prev2_year}",
-    "As of {month}/{day}/{year}, {month}/{day}/{prev_year}, and {month}/{day}/{prev2_year}",
+    "As of {month}/{end_day}/{year}, {month}/{end_day}/{prev_year}, and {month}/{end_day}/{prev2_year}",
     "During {month} {year}, {prev_year}, and {prev2_year}",
 ]
 

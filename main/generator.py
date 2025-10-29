@@ -578,7 +578,9 @@ def generate_hedge_paragraph(
                     future_year=future_year,
                     swap_type=swap_type,
                     gen_swap=random.choice(derivative_keywords["gen"]),
-                    materiality=random.choice(material if random.random() < 0.5 else immaterial),
+                    materiality=random.choice(
+                        material if random.random() < 0.5 else immaterial
+                    ),
                     hedge_designation=random.choice(hedge_designations).format(
                         hedge_type=random.choice(hedge_types),
                     ),
@@ -586,6 +588,7 @@ def generate_hedge_paragraph(
                     money_unit=money_units,
                     currency_code=currency_code,
                     frequency=random.choice(frequencies),
+                    swap_types=swaps,
                 )
             )
 
