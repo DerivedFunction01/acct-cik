@@ -323,6 +323,7 @@ ir_specific_results = [
     "related to the anticipated issuance of {debt_type}",
     "manage its interest rate and cash flow risks associated with its {debt_type}",
     "and would receive payments on a {frequency} basis if the {debt_type}'s interest rate exceeds {pct}%",
+    "with an effective fixed rate of {pct}%"
 ]
 
 
