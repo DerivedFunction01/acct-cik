@@ -1391,7 +1391,7 @@ SWAP_PREFIXES = [
     "pay fixed, receive variable",
 ]
 
-PAY_PREFIX_RATIO = 0.01  # ~1% of total swap-like combinations
+PAY_PREFIX_RATIO = 0.05  # ~5% of total swap-like combinations
 
 
 # =============================================================================
@@ -1495,27 +1495,23 @@ def expand_derivative_terms(placeholders, types, extras):
             # Skip dependent types without a placeholder
             if len(ph) == 0 and t in DEPENDENT_TYPES:
                 continue
-            # Determine valid prefixes
-            prefixes = []
-            # Apply sampling to global prefixes
-            sampled = [p for p in GLOBAL_PREFIXES if random.random() < PAY_PREFIX_RATIO]
-            prefixes += sampled
+                
+            # Build the base term without any prefixes
+            base_term = " ".join(x for x in [ph, t] if x).strip()
+            results.append(base_term)
+            
+            # Rarely add global prefixes with 1% probability
+            if random.random() < PAY_PREFIX_RATIO:
+                for pre in GLOBAL_PREFIXES:
+                    if pre: # Only add non-empty prefixes
+                        term = " ".join(x for x in [pre, ph, t] if x).strip()
+                        results.append(term)
 
-            if any(x in t for x in ["swap", "swaption", "rate lock"]):
-                # Apply stochastic sampling to swap-style prefixes
-                sampled = [
-                    p for p in SWAP_PREFIXES if random.random() < PAY_PREFIX_RATIO
-                ]
-                prefixes += sampled
-
-            for pre in prefixes:
-                # If a placeholder exists (e.g., "interest-rate") and the type is a bare dependent type (e.g., "cap" with no suffix),
-                # skip it to avoid creating incomplete terms like "interest-rate cap".
-                # It will be correctly handled when the type is "cap agreement".
-                if ph and t in DEPENDENT_TYPES:
-                    continue
-                term = " ".join(x for x in [pre, ph, t] if x).strip()
-                results.append(term)
+            # For swap-like instruments, rarely add swap-specific prefixes
+            if any(x in t for x in ["swap", "swaption", "rate lock"]) and random.random() < PAY_PREFIX_RATIO:
+                for pre in SWAP_PREFIXES:
+                    term = " ".join(x for x in [pre, ph, t] if x).strip()
+                    results.append(term)
 
     results.extend(extras)
     return sorted(set(results))
