@@ -2123,6 +2123,6 @@ def generate(size_per_label=100):
     print(f"\n{len(all_samples)} samples written/appended to {output_file} (sorted)")
 
 # %%
-generate(1000)
+generate(1500)
 
 # %%
