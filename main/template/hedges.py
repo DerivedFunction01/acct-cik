@@ -1473,6 +1473,7 @@ PLACEHOLDERS = {
         "cross currency interest rate",
         "forward currency",
         "foreign currency",
+        "forward exchange rate",
         "currency exchange",
         "exchange rate",
         "FX",
