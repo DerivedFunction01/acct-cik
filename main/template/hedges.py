@@ -1257,10 +1257,10 @@ def generate_hedge_position_templates(hedge_type="gen"):
                 append_to_template(templates, prefix, amount_order, reason)
             for amount in amount_prefixes:
                 templates.append(
-                    f"{prefix}, the {amount} of {{swap_type}} is {one_year_amount}"
+                    to_sentence_case(f"{prefix}, the {amount} of {{swap_type}} is {one_year_amount}")
                 )
                 templates.append(
-                    f"The {amount} of {{swap_type}} is {one_year_amount}, {prefix}"
+                    to_sentence_case(f"The {amount} of {{swap_type}} is {one_year_amount}, {prefix}")
                 )
 
     # Two-year templates
@@ -1272,10 +1272,10 @@ def generate_hedge_position_templates(hedge_type="gen"):
                 )
             for amount in amount_prefixes:
                 templates.append(
-                    f"{prefix}, the {amount} of {{swap_type}} is {two_year_amount}"
+                    to_sentence_case(f"{prefix}, the {amount} of {{swap_type}} is {two_year_amount}")
                 )
                 templates.append(
-                    f"The {amount} of {{swap_type}} is {two_year_amount}, {prefix}"
+                    to_sentence_case(f"The {amount} of {{swap_type}} is {two_year_amount}, {prefix}")
                 )
 
     # Three-year templates
@@ -1285,10 +1285,10 @@ def generate_hedge_position_templates(hedge_type="gen"):
                 append_to_template(templates, prefix, amount_order, reason)
             for amount in amount_prefixes:
                 templates.append(
-                    f"{prefix}, the {amount} of {{swap_type}} is {three_year_amount}"
+                    to_sentence_case(f"{prefix}, the {amount} of {{swap_type}} is {three_year_amount}")
                 )
                 templates.append(
-                    f"The {amount} of {{swap_type}} is {three_year_amount}, {prefix}"
+                    to_sentence_case(f"The {amount} of {{swap_type}} is {three_year_amount}, {prefix}")
                 )
 
     # Historical templates
