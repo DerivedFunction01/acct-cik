@@ -123,23 +123,6 @@ def import_server_results_from_parquet(directory: str = "."):
 
     # Convert the server_response object to a JSON string for better portability
     # and to avoid storing it as a binary blob (pickle) in SQLite.
-    print("\n[DEBUG] Inspecting 'server_response' column before serialization:")
-    if not combined_df.empty:
-        # Get the first non-null value for inspection
-        first_valid_idx = combined_df["server_response"].first_valid_index()
-        if first_valid_idx is not None:
-            sample_value = combined_df["server_response"].loc[first_valid_idx]
-            print(f"  -> First valid element type: {type(sample_value)}")
-            print(f"  -> First valid element value (truncated): {str(sample_value)[:200]}...")
-        else:
-            print("  -> 'server_response' column is entirely null/empty.")
-        print(f"  -> Column dtype: {combined_df['server_response'].dtype}")
-        
-        # Check for problematic types in a sample of the column
-        # This will show if ndarray or bytes objects are prevalent
-        problematic_types = combined_df["server_response"].apply(type).value_counts()
-        print(f"  -> Value types distribution (top 5):\n{problematic_types.head()}")
-
     def safe_json_dumps(obj):
         if isinstance(obj, np.ndarray):
             return json.dumps(obj.tolist()) # Convert numpy array to a Python list
