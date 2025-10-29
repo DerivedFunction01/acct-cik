@@ -1,6 +1,8 @@
 import itertools
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
+import re
+no_company_pattern = re.compile(r"with|in", re.IGNORECASE)
 
 # Base variables
 hedge_types = ["cash flow", "fair value", "net investment"]
@@ -1322,7 +1324,7 @@ def append_to_template(templates, prefix, amount_order, designation):
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
     no_company = (
-                    f"{prefix}, {amount_order}".replace("with", "the").replace("in", "the")
+                    no_company_pattern.sub("the", f"{prefix}, {amount_order}") 
                 )
     simple = (
                     f"{prefix}, {{company}} {{verb}} {{swap_type}} {designation}"
