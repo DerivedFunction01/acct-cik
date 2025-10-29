@@ -16,7 +16,7 @@ DRIVE_PATH = "./drive/MyDrive/db"
 IS_COLAB = Path(DRIVE_PATH).exists()
 
 DB_PATH = "web_data.db"
-BACKUP_PATH = "server_results_backup.xlsx"
+BACKUP_PATH = "analysis_output/server_results_backup.xlsx"
 PARQUET_PATTERN = "server_result_chunk_*.parquet"
 
 # =============================================================================
