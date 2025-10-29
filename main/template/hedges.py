@@ -599,6 +599,7 @@ additional_template_patterns = [
     "Credit risk for {swap_type} is considered {materiality} due to collateral posting arrangements with counterparties",
     "The remaining unrealized gain (loss) associated with the {swap_type} was reclassified out of accumulated other comprehensive income",
     "The {gen_swap} covers a notional amount of {currency_code}{amount} {money_unit}",
+    "A {pct}% change will have a {materiality} effect on {swap_type}"
 ]
 
 # ------------------------------------------------------------------------------
