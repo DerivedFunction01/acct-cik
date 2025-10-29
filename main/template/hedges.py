@@ -301,6 +301,7 @@ ir_specific_mitigation = [
     "to manage credit exposure",
     "as the derivative instrument",
     "to protect against sudden and severe interest rate fluctuations on {debt_type} obligations",
+    "to convert the rate component to a fixed interest rate for the entire term of the {debt_type}",
 ]
 
 # Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")
@@ -332,7 +333,7 @@ ir_specific_results = ir_specific_mitigation + [
     "related to the anticipated issuance of {debt_type}",
     "manage its interest rate and cash flow risks associated with its {debt_type}",
     "and would receive payments on a {frequency} basis if the {debt_type}'s interest rate exceeds {pct}%",
-    "with an effective fixed rate of {pct}%"
+    "with an effective fixed rate of {pct}%",
 ]
 
 
