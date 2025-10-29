@@ -1,6 +1,7 @@
 # %%
 ## Initialization
 import sqlite3
+from tqdm import tqdm
 from pathlib import Path
 import pandas as pd
 import json
@@ -92,47 +93,59 @@ def import_server_results_from_parquet(directory: str = "."):
     Imports data from server_result_chunk_*.parquet files into the server_result table.
     Uses INSERT OR REPLACE to handle duplicates, updating existing entries.
     """
-    print(f"Searching for 'server_result_chunk_*.parquet' files in '{directory}'...")
+    print(f"\n[1/5] Searching for 'server_result_chunk_*.parquet' files in '{directory}'...")
     
     # Find all parquet files matching the pattern
     search_path = Path(directory)
     parquet_files = list(search_path.glob("server_result_chunk_*.parquet"))
 
     if not parquet_files:
-        print("❌ No 'server_result_chunk_*.parquet' files found to import.")
+        print("  -> ❌ No 'server_result_chunk_*.parquet' files found to import.")
         return
 
-    print(f"Found {len(parquet_files)} files to process.")
+    print(f"  -> Found {len(parquet_files)} files to process.")
 
     # Read and concatenate all parquet files
-    all_dfs = [pd.read_parquet(f) for f in parquet_files]
+    print("\n[2/5] Reading and concatenating Parquet files...")
+    all_dfs = [pd.read_parquet(f) for f in tqdm(parquet_files, desc="  Reading files")]
     combined_df = pd.concat(all_dfs, ignore_index=True)
+    print(f"  -> Concatenated to {len(combined_df):,} total records.")
 
     # Drop duplicates, keeping the last entry in case of overlap
+    print("\n[3/5] Dropping duplicate records...")
     combined_df.drop_duplicates(subset=["url"], keep="last", inplace=True)
+    print(f"  -> {len(combined_df):,} unique records remain.")
 
     if "url" not in combined_df.columns or "server_response" not in combined_df.columns:
-        print("❌ Error: Parquet files are missing 'url' or 'server_response' columns.")
+        print("  -> ❌ Error: Parquet files are missing 'url' or 'server_response' columns.")
         return
 
     # Convert the server_response object to a JSON string for better portability
     # and to avoid storing it as a binary blob (pickle) in SQLite.
-    print("   -> Serializing server_response column to JSON...")
-    combined_df["server_response"] = combined_df["server_response"].apply(json.dumps)
+    print("\n[4/5] Serializing 'server_response' column to JSON...")
+    tqdm.pandas(desc="  Serializing")
+    combined_df["server_response"] = combined_df["server_response"].progress_apply(json.dumps)
 
     records_to_insert = combined_df[["url", "server_response"]].to_records(index=False)
 
+    print(f"\n[5/5] Inserting {len(records_to_insert):,} records into the database...")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     try:
-        cursor.executemany(
-            "INSERT OR REPLACE INTO server_result (url, server_response) VALUES (?, ?)",
-            records_to_insert,
-        )
+        # Use tqdm to show progress for the database insertion
+        with tqdm(total=len(records_to_insert), desc="  Inserting") as pbar:
+            for i in range(0, len(records_to_insert), 10000): # Process in chunks of 10,000
+                chunk = records_to_insert[i:i+10000]
+                cursor.executemany(
+                    "INSERT OR REPLACE INTO server_result (url, server_response) VALUES (?, ?)",
+                    chunk,
+                )
+                pbar.update(len(chunk))
+
         conn.commit()
-        print(f"✅ Successfully imported/updated {cursor.rowcount} records into 'server_result' from {len(parquet_files)} files.")
+        print(f"\n✅ Successfully imported/updated {cursor.rowcount} records into 'server_result' from {len(parquet_files)} files.")
     except sqlite3.Error as e:
-        print(f"❌ A database error occurred during import: {e}")
+        print(f"  -> ❌ A database error occurred during import: {e}")
         conn.close()
 
 
