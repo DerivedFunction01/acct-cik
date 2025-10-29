@@ -624,7 +624,7 @@ def generate_hedge_paragraph(
         end_of_year = random.choice([f"{month} {end_day}, {year}", f"{year}", f"{end_day} {month}, {year}"])
 
         future_year = (
-            random.randint(current_year + 1, current_year + 20)
+            random.randint(year + 1, year + 20)
             if has_active_derivative
             else random.randint(old_year - 1, prev_year)
         )
