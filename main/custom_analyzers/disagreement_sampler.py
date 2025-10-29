@@ -251,6 +251,8 @@ class DisagreementSampler(BaseAnalyzer):
 
                 # Group by classification
                 for classification, group_df in merged_batch.groupby(class_col):
+                    if not isinstance(classification, str):
+                        return
                     sheet_name = (
                         f"{classification.replace(' ', '_')}_{user_type}".replace(
                             "/", ""
