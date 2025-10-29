@@ -1351,7 +1351,7 @@ import random
 # DERIVATIVES
 # =============================================================================
 
-GLOBAL_PREFIXES = [""]
+GLOBAL_PREFIXES = ["forward-starting"]
 
 SWAP_PREFIXES = [
     "pay-fixed, receive-floating",
