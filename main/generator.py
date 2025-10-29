@@ -671,6 +671,7 @@ def generate_hedge_paragraph(
             currencies=", ".join(random.sample(major_currencies, random.randint(1, 3))) + " and " + random.choice(all_currencies),
             unit=random.choice(volume_units),
             geography=random.choice(geographies),
+            frequency=random.choice(frequencies)
         )
         sentences.append(sentence)
 
