@@ -249,7 +249,7 @@ gen_specific_mitigation = [
 ]
 
 # Generic accounting reasons (shared across all hedge types)
-gen_specific_results = [
+gen_specific_results = gen_specific_mitigation + [
     "resulting in {currency_code}{amount} {money_unit} of unrealized losses recorded in accumulated OCI",
     "resulting in fair value losses recorded in equity",
     "resulting in {currency_code}{amount} {money_unit} of unrealized gains recorded in accumulated OCI",
@@ -295,7 +295,7 @@ ir_specific_mitigation = [
 ]
 
 # Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")
-ir_specific_results = [
+ir_specific_results = ir_specific_mitigation + [
     "effectively converting fixed-rate to floating-rate {debt_type}",
     "effectively converting floating-rate to fixed-rate {debt_type}",
     "effectively converting portions of fixed-rate {debt_type} to floating rates",
@@ -343,6 +343,7 @@ fx_specific_mitigation = [
     "to hedge currency-denominated obligations",
     "to hedge foreign currency exposures",
     "to hedge forecasted foreign currency transactions",
+    "to hedge forecasted foreign currency cash flows, expenditures, and transactions",
     "to hedge foreign exchange exposures in {currencies}",
     "to hedge intercompany transactions in {currencies}",
     "to hedge intercompany exposures from operations in {geography}",
@@ -353,7 +354,7 @@ fx_specific_mitigation = [
 ]
 
 # FX — realized / factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
-fx_specific_results = [
+fx_specific_results = fx_specific_mitigation + [
     "offsetting foreign currency translation adjustments",
     "mitigating {currencies} exchange rate fluctuations on foreign currency denominated transactions",
     "with translation gains of {currency_code}{notional} {money_unit} recognized in other comprehensive income",
@@ -421,7 +422,7 @@ eq_specific_mitigation = [
 ]
 
 # Equity — realized/factual results ("hedging ...", "offsetting ...", "mitigating ...", etc.)
-eq_specific_results = [
+eq_specific_results = eq_specific_mitigation + [
     "offsetting market value changes in the underlying equity positions",
     "mitigating exposure to equity market volatility",
     "offsetting losses on equity investments",
@@ -458,7 +459,7 @@ cp_specific_mitigation = [
 ]
 
 # Commodity — realized/factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
-cp_specific_results = [
+cp_specific_results = cp_specific_mitigation + [
     "offsetting {commodity} price fluctuations",
     "mitigating exposure to volatile {commodity} prices",
     "stabilizing cost of goods sold despite {commodity} price movements",
@@ -600,7 +601,8 @@ additional_template_patterns = [
     "Credit risk for {swap_type} is considered {materiality} due to collateral posting arrangements with counterparties",
     "The remaining unrealized gain (loss) associated with the {swap_type} was reclassified out of accumulated other comprehensive income",
     "The {gen_swap} covers a notional amount of {currency_code}{amount} {money_unit}",
-    "A {pct}% change will have a {materiality} effect on {swap_type}"
+    "A {pct}% change will have a {materiality} effect on {swap_type}",
+    "The {swap_type} is settled {frequency} and will expire in {future_year}",
 ]
 
 # ------------------------------------------------------------------------------

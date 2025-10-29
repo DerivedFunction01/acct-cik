@@ -562,6 +562,11 @@ def generate_hedge_paragraph(
 
         # Add a small chance of addtional sentences
         if random.random() < 0.10 and not mixed:
+            future_year = (
+                random.randint(current_year + 1, current_year + 20)
+                if has_active_derivative
+                else random.randint(current_year - 5, current_year - 1)
+            )
             sentences.append(
                 random.choice(additional_template_patterns).format(
                     company=pick_company_name(company_name),
@@ -570,6 +575,7 @@ def generate_hedge_paragraph(
                     month=month,
                     end_day=end_day,
                     year=current_year,
+                    future_year=future_year,
                     swap_type=swap_type,
                     gen_swap=random.choice(derivative_keywords["gen"]),
                     materiality=random.choice(material if random.random() < 0.5 else immaterial),
@@ -1806,7 +1812,7 @@ def generate_noise_paragraph(
 #         swap_types_to_use = [swapType]
 
 #     lines = []
-    
+
 #     has_active = use_case == 'current'
 #     labels["curr" if has_active else "hist"] = 1.0
 
