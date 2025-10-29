@@ -1863,10 +1863,10 @@ def generate_derivative_table_text(swapType=None, year_range=(1990, 2025), compa
             prev_notional = generate_value(
                 haveZero=True, lowerlimit=1000, upperlimit=50000, dashed=True
             )
-            amount = generate_value(
-                haveZero=False, lowerlimit=10, upperlimit=5000, dashed=True
+            amount2 = generate_value(
+                haveZero=True, lowerlimit=10, upperlimit=5000, dashed=True
             )
-            amount2 = (
+            amount = (
                 generate_value(
                     haveZero=False, lowerlimit=1000, upperlimit=50000, dashed=True
                 )
