@@ -516,6 +516,4 @@ not_adverbs = [
     "does not intend to",
     "has no plans to",
     "will not seek to",
-    "can not",
-    "could not",
 ]
