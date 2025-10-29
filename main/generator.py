@@ -541,7 +541,7 @@ def generate_hedge_paragraph(
                 else selected[0]
             )
             if random.random() < 0.3:
-                currency_list += " and other European and Latin American currencies"
+                currency_list += " and other major currencies"
             sentences.append(
                 random.choice(fx_currency_templates).format(
                     company=pick_company_name(company_name),
@@ -656,6 +656,7 @@ def generate_hedge_paragraph(
             materiality=random.choice(material if random.random() < 0.5 else immaterial),
             currencies=", ".join(random.sample(major_currencies, random.randint(1, 3))) + " and " + random.choice(all_currencies),
             unit=random.choice(volume_units),
+            geography=random.choice(geographies),
         )
         sentences.append(sentence)
 
@@ -905,6 +906,8 @@ def generate_hedge_paragraph(
         # Sentence 2: Mitigation template
         ctx_template = random.choice(hedge_mitigation_templates.get(swapType, []))
         if ctx_template:
+            _currencies = random.sample(all_currencies, min(3, len(all_currencies)))
+            currency_list = ", ".join(_currencies)
             sentences.append(
                 ctx_template.format(
                     company=pick_company_name(company_name),
@@ -912,6 +915,8 @@ def generate_hedge_paragraph(
                     swap_type=swap_local,
                     commodity=selected_cps,
                     debt_type=random.choice(debt_types_list),
+                    currencies=currency_list,
+                    geography=random.choice(geographies),
                 )
             )
 
