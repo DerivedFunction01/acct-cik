@@ -4,11 +4,79 @@ import sqlite3
 from tqdm import tqdm
 from pathlib import Path
 import pandas as pd
-import numpy as np # Added for np.ndarray type checking
+import numpy as np  # Added for np.ndarray type checking
 import json
+import subprocess
 
-# Default path, can be updated if needed
-db_path = "./web_data.db"
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+DRIVE_PATH = "./drive/MyDrive/db"
+IS_COLAB = Path(DRIVE_PATH).exists()
+
+DB_PATH = "web_data.db"
+BACKUP_PATH = "server_results_backup.xlsx"
+PARQUET_PATTERN = "server_result_chunk_*.parquet"
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+
+def _ensure_file_is_local(file_pattern: str) -> list[Path]:
+    """
+    Checks for files matching a pattern locally. If not found and in Colab,
+    copies them from Google Drive.
+
+    Args:
+        file_pattern (str): The file name or glob pattern to look for.
+
+    Returns:
+        list[Path]: A list of local paths to the found files, or an empty list if none are found.
+    """
+    local_files = list(Path(".").glob(file_pattern))
+
+    if local_files:
+        print(
+            f"  -> Found {len(local_files)} matching file(s) in the current directory."
+        )
+        return local_files
+
+    if IS_COLAB:
+        print(f"  -> No local files found. Checking Google Drive: '{DRIVE_PATH}'...")
+        drive_files = list(Path(DRIVE_PATH).glob(file_pattern))
+
+        if not drive_files:
+            print(f"  -> ❌ No matching files found in Google Drive either.")
+            return []
+
+        print(
+            f"  -> Found {len(drive_files)} file(s) in Google Drive. Copying to local directory..."
+        )
+        copied_files = []
+        for drive_file in tqdm(drive_files, desc="  Copying from Drive"):
+            local_dest = Path(".") / drive_file.name
+            try:
+                # Use subprocess for a more reliable copy
+                subprocess.run(
+                    ["cp", str(drive_file), str(local_dest)],
+                    check=True,
+                    capture_output=True,
+                )
+                copied_files.append(local_dest)
+            except subprocess.CalledProcessError as e:
+                print(f"  -> ❌ Error copying {drive_file.name}: {e.stderr.decode()}")
+            except Exception as e:
+                print(f"  -> ❌ Unexpected error copying {drive_file.name}: {e}")
+
+        if not copied_files:
+            print("  -> ❌ No files were successfully copied from Drive.")
+
+        return copied_files
+
+    # Not in Colab and no local files found
+    return []
 
 
 def execute_sql(sql: str, head: int = 0) -> pd.DataFrame | int:
@@ -29,7 +97,12 @@ def execute_sql(sql: str, head: int = 0) -> pd.DataFrame | int:
         - For SELECT queries, a pandas DataFrame containing the results.
         - For other queries (INSERT, UPDATE, DELETE, etc.), an integer representing the number of affected rows.
     """
-    conn = sqlite3.connect(db_path)
+    # Ensure the database file is available locally before connecting
+    if not _ensure_file_is_local(DB_PATH):
+        print(f"❌ Cannot execute SQL: Database file '{DB_PATH}' not found.")
+        return -1
+
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     # Automatically determine if the query is a SELECT statement
     is_select = sql.strip().upper().startswith("SELECT")
@@ -51,17 +124,28 @@ def execute_sql(sql: str, head: int = 0) -> pd.DataFrame | int:
     finally:
         conn.close()
 
-def import_server_backup(backup_path: str = "./server_results_backup.xlsx"):
+
+def import_server_backup():
     """
     Imports data from the server backup Excel file into the server_result table.
     Uses INSERT OR REPLACE to handle duplicates, updating existing entries.
     """
+    print(f"\nSearching for backup file '{BACKUP_PATH}'...")
+    backup_files = _ensure_file_is_local(BACKUP_PATH)
+    if not backup_files:
+        print(f"❌ Backup file not found.")
+        print(
+            "   Please run the 'backup_server_results' step in the analysis pipeline first."
+        )
+        return
+
+    backup_path = backup_files[0]  # Use the first found backup file
     print(f"Attempting to import from '{backup_path}'...")
+
     try:
         backup_df = pd.read_excel(backup_path)
-    except FileNotFoundError:
-        print(f"❌ Error: Backup file not found at '{backup_path}'.")
-        print("   Please run the 'backup_server_results' step in the analysis pipeline first.")
+    except Exception as e:
+        print(f"❌ Error reading Excel file: {e}")
         return
 
     # The backup contains cik, year, url, server_response. We only need url and server_response.
@@ -71,7 +155,7 @@ def import_server_backup(backup_path: str = "./server_results_backup.xlsx"):
 
     records_to_insert = backup_df[["url", "server_response"]].to_records(index=False)
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
         # Use executemany for efficient batch insertion.
@@ -81,7 +165,9 @@ def import_server_backup(backup_path: str = "./server_results_backup.xlsx"):
             records_to_insert,
         )
         conn.commit()
-        print(f"✅ Successfully imported/updated {cursor.rowcount} records into 'server_result'.")
+        print(
+            f"✅ Successfully imported/updated {cursor.rowcount} records into 'server_result'."
+        )
     except sqlite3.Error as e:
         print(f"❌ A database error occurred during import: {e}")
         conn.rollback()
@@ -89,27 +175,25 @@ def import_server_backup(backup_path: str = "./server_results_backup.xlsx"):
         conn.close()
 
 
-def import_server_results_from_parquet(directory: str = "."):
+def import_server_results_from_parquet():
     """
     Imports data from server_result_chunk_*.parquet files into the server_result table.
     Uses INSERT OR REPLACE to handle duplicates, updating existing entries.
     """
-    print(f"\n[1/5] Searching for 'server_result_chunk_*.parquet' files in '{directory}'...")
-    
-    # Find all parquet files matching the pattern
-    search_path = Path(directory)
-    parquet_files = list(search_path.glob("server_result_chunk_*.parquet"))
+    print(f"\n[1/5] Searching for '{PARQUET_PATTERN}' files...")
+    parquet_files_to_process = _ensure_file_is_local(PARQUET_PATTERN)
 
-    if not parquet_files:
+    if not parquet_files_to_process:
         print("  -> ❌ No 'server_result_chunk_*.parquet' files found to import.")
         return
 
-    print(f"  -> Found {len(parquet_files)} files to process.")
-
     # Read and concatenate all parquet files
     print("\n[2/5] Reading and concatenating Parquet files...")
-    all_dfs = [pd.read_parquet(f) for f in tqdm(parquet_files, desc="  Reading files")]
-    combined_df = pd.concat(all_dfs, ignore_index=True)
+    all_dfs = [
+        pd.read_parquet(f)
+        for f in tqdm(parquet_files_to_process, desc="  Reading files")
+    ]
+    combined_df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
     print(f"  -> Concatenated to {len(combined_df):,} total records.")
 
     # Drop duplicates, keeping the last entry in case of overlap
@@ -118,32 +202,40 @@ def import_server_results_from_parquet(directory: str = "."):
     print(f"  -> {len(combined_df):,} unique records remain.")
 
     if "url" not in combined_df.columns or "server_response" not in combined_df.columns:
-        print("  -> ❌ Error: Parquet files are missing 'url' or 'server_response' columns.")
+        print(
+            "  -> ❌ Error: Parquet files are missing 'url' or 'server_response' columns."
+        )
         return
 
     # Convert the server_response object to a JSON string for better portability
     # and to avoid storing it as a binary blob (pickle) in SQLite.
     def safe_json_dumps(obj):
         if isinstance(obj, np.ndarray):
-            return json.dumps(obj.tolist()) # Convert numpy array to a Python list
+            return json.dumps(obj.tolist())  # Convert numpy array to a Python list
         elif isinstance(obj, bytes):
             # Attempt to decode bytes to string, ignoring errors for robustness
-            return json.dumps(obj.decode('utf-8', errors='ignore'))
-        return json.dumps(obj) # For other types (list, dict, str, int, float, None), json.dumps handles them
+            return json.dumps(obj.decode("utf-8", errors="ignore"))
+        return json.dumps(
+            obj
+        )  # For other types (list, dict, str, int, float, None), json.dumps handles them
+
     print("\n[4/5] Serializing 'server_response' column to JSON...")
     tqdm.pandas(desc="  Serializing")
-    combined_df["server_response"] = combined_df["server_response"].progress_apply(safe_json_dumps)
+    combined_df["server_response"] = combined_df["server_response"].progress_apply(
+        safe_json_dumps
+    )
 
     records_to_insert = combined_df[["url", "server_response"]].to_records(index=False)
 
     print(f"\n[5/5] Inserting {len(records_to_insert):,} records into the database...")
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
         # Use tqdm to show progress for the database insertion
         with tqdm(total=len(records_to_insert), desc="  Inserting") as pbar:
-            for i in range(0, len(records_to_insert), 10000): # Process in chunks of 10,000
-                chunk = records_to_insert[i:i+10000]
+            # Process in chunks for memory efficiency and better progress reporting
+            for i in range(0, len(records_to_insert), 10000):
+                chunk = records_to_insert[i : i + 10000]
                 cursor.executemany(
                     "INSERT OR REPLACE INTO server_result (url, server_response) VALUES (?, ?)",
                     chunk,
@@ -151,72 +243,75 @@ def import_server_results_from_parquet(directory: str = "."):
                 pbar.update(len(chunk))
 
         conn.commit()
-        print(f"\n✅ Successfully imported/updated {cursor.rowcount} records into 'server_result' from {len(parquet_files)} files.")
+        print(
+            f"\n✅ Successfully imported/updated {cursor.rowcount} records into 'server_result' from {len(parquet_files_to_process)} files."
+        )
     except sqlite3.Error as e:
         print(f"  -> ❌ A database error occurred during import: {e}")
+    finally:
         conn.close()
 
 
-# %%
-## Execute SELECT Statements
-#ff = execute_sql("SELECT * FROM report_data WHERE NOT url=''")
-#ff.to_csv("./report_data.csv", index=False)
-#len(ff)
+def save_db_to_drive():
+    """
+    Saves the local web_data.db file to Google Drive if running in a Colab environment.
+    """
+    if not IS_COLAB:
+        print("❌ Not running in Google Colab environment. Skipping save to Drive.")
+        return
+
+    print(f"Attempting to save '{DB_PATH}' to Google Drive at '{DRIVE_PATH}'...")
+    # Use an atomic move operation to prevent corruption if the copy is interrupted
+    SAVE_SHELL_CMD = f"cp -f {DB_PATH} {DRIVE_PATH}/{DB_PATH}.tmp && mv -f {DRIVE_PATH}/{DB_PATH}.tmp {DRIVE_PATH}/{DB_PATH}"
+    try:
+        subprocess.run(SAVE_SHELL_CMD, shell=True, check=True, capture_output=True)
+        print(f"✅ Successfully saved '{DB_PATH}' to Google Drive.")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error saving to Google Drive: {e.stderr.decode()}")
+    except Exception as e:
+        print(f"❌ An unexpected error occurred while saving to Drive: {e}")
 
 
-# %%
-# ff = execute_sql("SELECT * FROM names", fetch=True)
-# # ff[["name"]].to_excel("./names.xlsx", index=False)
-# ff.head()
+# =============================================================================
+# MAIN INTERACTIVE MENU
+# =============================================================================
 
-# %%
-## Execute SELECT Statements on webpage result
-# ff = execute_sql("SELECT * FROM webpage_result")
-# ff.head()
-
-# %%
-## Execute SELECT Statements on server result
-#ff = execute_sql("SELECT * FROM server_result")
-#ff.head()
-
-# %%
-## Execute INSERT/DELETE/UPDATE Statements
-# ff = execute_sql("DELETE FROM server_result")
-# print(ff)
-
-#%%
 if __name__ == "__main__":
     last_df = None  # "Global" variable to hold the last queried DataFrame
-    # Create a menu for common operations
-    print("Database Operations Menu:")
+
+    print("\n" + "=" * 50)
+    print("Database Operations Menu")
+    print("=" * 50)
     print("1. SELECT * FROM webpage_result")
     print("2. SELECT * FROM server_result")
     print("3. Custom SQL Query")
     print("4. Import server_result from Excel backup")
     print("5. Import server_result from Parquet chunks")
-    print("6. Inspect last DataFrame")
-    print("7. Exit")
-    print("-" * 30)
+    print("6. Save database to Google Drive (Colab only)")
+    print("7. Inspect last DataFrame")
+    print("8. Exit")
+    print("-" * 50)
 
     while True:
-        choice = input("Enter your choice (1-7): ").strip()
+        choice = input("Enter your choice (1-8): ").strip()
         if choice == "1":
             df = execute_sql("SELECT * FROM webpage_result")
-            last_df = df
-            print(df.head(20))
-            # Print statistics
-            print("-" * 30)
-            print("Statistics:")
-            print(df.describe())
-            print("-" * 30)
+            if isinstance(df, pd.DataFrame):
+                last_df = df
+                print(df.head(20))
+                print("-" * 30)
+                print("Statistics:")
+                print(df.describe())
+                print("-" * 30)
         elif choice == "2":
             df = execute_sql("SELECT * FROM server_result")
-            last_df = df
-            print(df.head(20))
-            print("-" * 30)
-            print("Statistics:")
-            print(df.describe())
-            print("-" * 30)
+            if isinstance(df, pd.DataFrame):
+                last_df = df
+                print(df.head(20))
+                print("-" * 30)
+                print("Statistics:")
+                print(df.describe())
+                print("-" * 30)
         elif choice == "3":
             custom_sql = input("Enter your SQL query: ").strip()
             if custom_sql:
@@ -237,16 +332,26 @@ if __name__ == "__main__":
         elif choice == "5":
             import_server_results_from_parquet()
         elif choice == "6":
+            save_db_to_drive()
+        elif choice == "7":
             if last_df is not None and not last_df.empty:
                 print("Last DataFrame is available as 'last_df'.")
-                print("You can perform operations like 'last_df.iloc[0]' or 'last_df.info()'.")
-                print("Type 'exit' or press Ctrl+Z (Windows) / Ctrl+D (Unix) to return to the menu.")
+                print(
+                    "You can perform operations like 'last_df.iloc[0]' or 'last_df.info()'."
+                )
+                print(
+                    "Type 'exit' or press Ctrl+Z (Windows) / Ctrl+D (Unix) to return to the menu."
+                )
                 import code
+
                 code.interact(local=locals())
             else:
                 print("No DataFrame has been loaded yet. Please run a query first.")
-        elif choice == "7":
+        elif choice == "8":
             print("Exiting the program.")
             break
         else:
             print("Invalid choice. Please try again.")
+        print("-" * 50)
+
+#%%
