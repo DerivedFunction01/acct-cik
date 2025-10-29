@@ -322,6 +322,7 @@ ir_specific_results = [
     "to exchange fixed and variable rate interest payment obligations",
     "related to the anticipated issuance of {debt_type}",
     "manage its interest rate and cash flow risks associated with its {debt_type}",
+    "and would receive payments on a {frequency} basis if the {debt_type}'s interest rate exceeds {pct}%",
 ]
 
 

@@ -579,6 +579,7 @@ def generate_hedge_paragraph(
                     amount=generate_value(False),
                     money_unit=money_units,
                     currency_code=currency_code,
+                    frequency=random.choice(frequencies),
                 )
             )
 
