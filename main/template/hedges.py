@@ -105,16 +105,8 @@ amount_connectors = [
     "with fair value of",
     "with fair values totaling",
     "with fair market value of",
-    "with net gains of",
-    "with net gains totaling",
-    "with net loss of",
-    "with net losses totaling",
     "in net notional",
     "in net value",
-    "with fair value gains of",
-    "with fair value losses of",
-    "with unrealized gains of",
-    "with unrealized losses of",
 ]
 
 # Amount patterns (order of amount vs swap)
@@ -492,16 +484,16 @@ cp_specific_results = cp_specific_mitigation + [
 hedge_impact_templates = [
     "As of {month} {end_day}, {year}, {swap_type} were designated as {hedge_type} hedges, {impact_result}",
     "At {end_day} {month}, {year}, {company} {verb} {swap_type} with a total notional amount of {currency_code}{notional} {money_unit}, {impact_result}",
-    "The net unrealized loss on the {swap_type} was {currency_code}{notional} {money_unit} at {month} {end_day}, {year} and is reflected in accumulated other comprehensive income",
-    "The net unrealized gain on the {swap_type} was {currency_code}{notional} {money_unit} at {month} {end_day}, {year} and is reflected in accumulated other comprehensive income",
-    "The gains and losses on derivative instruments such as {swap_type} for the years ended {month} {end_day} were as follows: {year}, {prev_year}, and {prev2_year} (In {money_unit}), {notional}, {prev_notional} and {prev2_notional}, respectively",
+    "The net unrealized {gain_loss} on the {swap_type} was {currency_code}{notional} {money_unit} at {month} {end_day}, {year} and is reflected in accumulated other comprehensive income",
+    "The fair value of {gain_loss} on the {swap_type} was {currency_code}{notional} {money_unit} at {month} {end_day}, {year} and is reflected in accumulated other comprehensive income",
+    "The {gain_loss} on derivative instruments such as {swap_type} for the years ended {month} {end_day} were as follows: {year}, {prev_year}, and {prev2_year} (In {money_unit}), {notional}, {prev_notional} and {prev2_notional}, respectively",
     "At {month} {year}, {company} {verb} {swap_type}, {swap_type} designated as {hedge_type} hedges: Amount of {gain_loss} recognized in accumulated other comprehensive loss (effective portion), net of tax {currency_code}{notional}, {impact_result}",
     "At {month} {end_day}, {year}, {company} {verb} {swap_type}, {swap_type} designated as {hedge_type} hedges: Amount of {gain_loss} reclassified from accumulated other comprehensive loss into {location} (effective portion), net of tax {currency_code}{notional}",
     "At {month} {year}, {company} {verb} {swap_type} designated as {hedge_type} hedges: Amount of {gain_loss} recognized in {location} (ineffective portion), before tax {currency_code}{notional}",
     "{swap_type} not designated as hedging instruments at {year}: Amount of {gain_loss} recognized in {location}, before tax {currency_code}{notional}, {impact_result}",
     "As of {month} {end_day}, {year}, {company} {verb} {swap_type}: Net {gain_loss}s of approximately {currency_code}{notional} ({money_unit}) (after tax)",
-    "{company} had a net gain (loss) of {currency_code}{notional} {money_unit} on {swap_type} in {year}",
-    "Net gain or losses on {swap_type} were {currency_code}{notional} {money_unit} in {year} and {prev_year}, respectively",
+    "{company} had a net {gain_loss} of {currency_code}{notional} {money_unit} on {swap_type} in {year}",
+    "Net {gain_loss} on {swap_type} were {currency_code}{notional} {money_unit} in {year} and {prev_year}, respectively",
 ]
 
 hedge_context_template = [
