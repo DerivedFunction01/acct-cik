@@ -110,6 +110,8 @@ amount_connectors = [
     "in net value",
     "was due",
     "approximately",
+    "with fair value gains of",
+    "with fair value losses of",
 ]
 
 # Amount patterns (order of amount vs swap)
@@ -266,6 +268,7 @@ gen_specific_results = [
 ir_specific_mitigation = [
     "to modify the interest rate characteristics of outstanding {debt_type}",
     "to hedge interest rate exposure on a portion of its {debt_type}",
+    "to hedge against the possible negative effects of interest rate fluctuations on {debt_type} obligations",
     "to convert fixed-rate {debt_type} to variable-rate instruments",
     "to convert portions of {debt_type} to floating rates to optimize the debt profile",
     "to adjust the effective interest rate composition of outstanding {debt_type}",
@@ -311,7 +314,9 @@ ir_specific_results = [
     "to hedge {currency_code}{amount} {money_unit} of various {debt_type}",
     "recognizing interest income (expense) of {currency_code}{amount} {money_unit} related to these {swap_type}",
     "to cap or fix {company}'s interest rate at {pct}% on an agreed upon principal amount of {currency_code}{amount} {money_unit}",
-    "to eliminate the incremental cost if the {debt_type} were to exceed {pct}%"
+    "to eliminate the incremental cost if the {debt_type} were to exceed {pct}%",
+    "to hedge against the possible negative effects of interest rate fluctuations on {debt_type} obligations",
+    "to exchange fixed and variable rate interest payment obligations",
 ]
 
 
