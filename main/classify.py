@@ -15,6 +15,7 @@ from pathlib import Path
 import multiprocessing as mp
 import argparse
 import psutil
+import sys
 
 
 # =============================================================================
@@ -612,35 +613,9 @@ label2id = {v: k for k, v in id2label.items()}
 # MAIN EXECUTION
 # =============================================================================
 # %%
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run the classification script in standalone or chunked mode for parallel processing."
-    )
-    parser.add_argument(
-        "--total-chunks",
-        type=int,
-        default=1,
-        help="Total number of mega-chunks to split the workload into (e.g., number of PCs).",
-    )
-    parser.add_argument(
-        "--chunk-index",
-        type=int,
-        default=0,
-        help="The index of the mega-chunk this instance should process (0-based).",
-    )
-    args = parser.parse_args()
-    print("=" * 70)
-    if args.total_chunks > 1:
-        print("🚀 Starting Model Classification Service (Chunked Mode)")
-        print(f"   Will process chunk {args.chunk_index} of {args.total_chunks} and then exit.")
-    else:
-        print("🚀 Starting Model Classification Service (Standalone Mode)")
-        print("   This script will run continuously, checking for new data to classify.")
-        print("   Press Ctrl+C to stop.")
-    print("=" * 70)
-
+def run_classification(total_chunks=1, chunk_index=0):
+    """The main classification loop."""
     is_first_run = True
-
     try:
         while True:
             # Initialize database schema if it doesn't exist
@@ -654,11 +629,11 @@ if __name__ == "__main__":
             # filters them based on the chunk index.
             (
                 total_processed_in_run,
-                total_chunks,
+                _,
                 output_file,
             ) = process_reports_in_chunks(
-                total_mega_chunks=args.total_chunks,
-                chunk_index=args.chunk_index,
+                total_mega_chunks=total_chunks,
+                chunk_index=chunk_index,
                 min_chunk_size=min_size_for_run,
             )
 
@@ -666,9 +641,9 @@ if __name__ == "__main__":
                 print(
                     f"\n✅ Run complete. Processed {total_processed_in_run} new reports."
                 )
-                if args.total_chunks > 1:
+                if total_chunks > 1:
                     print(f"   Results for this chunk saved to: {output_file}")
-            elif args.total_chunks == 1:
+            elif total_chunks == 1:
                 # If no reports were processed in standalone mode, wait before checking again.
                 wait_time = 60 * 5  # 5 minutes
                 print(f"\nNo new reports to process. Waiting for {wait_time} seconds...")
@@ -679,7 +654,7 @@ if __name__ == "__main__":
             is_first_run = False  # Subsequent runs are not the first run
 
             # If running in chunked mode, exit after the first run.
-            if args.total_chunks > 1:
+            if total_chunks > 1:
                 print("\nChunk processing complete. Exiting.")
                 break
 
@@ -689,3 +664,73 @@ if __name__ == "__main__":
         print("=" * 70)
         print("All done! 👋")
         print("=" * 70)
+
+
+if __name__ == "__main__":
+    # Check if command-line arguments were provided
+    if len(sys.argv) > 1:
+        # --- Command-Line Mode ---
+        parser = argparse.ArgumentParser(
+            description="Run the classification script in standalone or chunked mode for parallel processing."
+        )
+        parser.add_argument(
+            "--total-chunks",
+            type=int,
+            default=1,
+            help="Total number of mega-chunks to split the workload into (e.g., number of PCs).",
+        )
+        parser.add_argument(
+            "--chunk-index",
+            type=int,
+            default=0,
+            help="The index of the mega-chunk this instance should process (0-based).",
+        )
+        args = parser.parse_args()
+        print("=" * 70)
+        if args.total_chunks > 1:
+            print("🚀 Starting Model Classification Service (Chunked Mode)")
+            print(f"   Will process chunk {args.chunk_index} of {args.total_chunks} and then exit.")
+        else:
+            print("🚀 Starting Model Classification Service (Standalone Mode)")
+            print("   This script will run continuously, checking for new data to classify.")
+            print("   Press Ctrl+C to stop.")
+        print("=" * 70)
+        run_classification(args.total_chunks, args.chunk_index)
+    else:
+        # --- Interactive Mode ---
+        while True:
+            print("\n" + "=" * 70)
+            print("🚀 Model Classification Service Menu")
+            print("=" * 70)
+            print("  1. Run in Standalone Mode (continuous)")
+            print("  2. Run in Chunked Mode (for parallel processing)")
+            print("  3. Exit")
+            choice = input("Enter your choice (1-3): ").strip()
+
+            if choice == "1":
+                print("\n🚀 Starting Model Classification Service (Standalone Mode)")
+                print("   This script will run continuously, checking for new data to classify.")
+                print("   Press Ctrl+C to stop.")
+                print("=" * 70)
+                run_classification(total_chunks=1, chunk_index=0)
+                break # Exit menu after standalone run finishes
+            elif choice == "2":
+                try:
+                    total_chunks = int(input("   Enter total number of chunks (e.g., 2 for 2 PCs): "))
+                    chunk_index = int(input(f"   Enter this machine's chunk index (0 to {total_chunks - 1}): "))
+                    if not (0 <= chunk_index < total_chunks):
+                        print("   ❌ Error: Chunk index is out of range.")
+                        continue
+                    
+                    print("\n🚀 Starting Model Classification Service (Chunked Mode)")
+                    print(f"   Will process chunk {chunk_index} of {total_chunks} and then exit.")
+                    print("=" * 70)
+                    run_classification(total_chunks, chunk_index)
+                    break # Exit menu after chunked run finishes
+                except ValueError:
+                    print("   ❌ Error: Please enter valid numbers for chunks.")
+            elif choice == "3":
+                print("Exiting.")
+                break
+            else:
+                print("Invalid choice. Please try again.")
