@@ -1275,52 +1275,19 @@ def generate_hedge_position_templates(hedge_type="gen"):
     for prefix in one_year_prefixes:
         for amount_order in amount_swap_orders:
             for designation in hedge_designations:
-                full = (
-                    f"{prefix}, {{company}} {{verb}} {amount_order} {designation}"
-                    if designation
-                    else f"{prefix}, {{company}} {{verb}} {amount_order}"
-                )
-                no_company = (
-                    f"{prefix}, {amount_order} were {{verb}} {designation}"
-                    if designation
-                    else f"{prefix}, {amount_order}"
-                )
-                templates.append(to_sentence_case(full))
-                templates.append(to_sentence_case(no_company))
+                append_to_template(templates, prefix, amount_order, designation)
 
     # Two-year templates
     for prefix in two_year_prefixes:
         for amount_order in two_year_amounts:
             for designation in hedge_designations:
-                full = (
-                    f"{prefix}, {{company}} {{verb}} {amount_order} {designation}"
-                    if designation
-                    else f"{prefix}, {{company}} {{verb}} {amount_order}"
-                )
-                no_company = (
-                    f"{prefix}, {amount_order} were {{verb}} {designation}"
-                    if designation
-                    else f"{prefix}, {amount_order}"
-                )
-                templates.append(to_sentence_case(full))
-                templates.append(to_sentence_case(no_company))
+                append_to_template(templates, prefix, amount_order, designation)
 
     # Three-year templates
     for prefix in three_year_prefixes:
         for amount_order in three_year_amounts:
             for designation in hedge_designations:
-                full = (
-                    f"{prefix}, {{company}} {{verb}} {amount_order} {designation}"
-                    if designation
-                    else f"{prefix}, {{company}} {{verb}} {amount_order}"
-                )
-                no_company = (
-                    f"{prefix}, {amount_order} were {{verb}} {designation}"
-                    if designation
-                    else f"{prefix}, {amount_order}"
-                )
-                templates.append(to_sentence_case(full))
-                templates.append(to_sentence_case(no_company))
+                append_to_template(templates, prefix, amount_order, designation)
 
     # Historical templates
     for template in historical_templates:
@@ -1349,6 +1316,26 @@ def generate_hedge_position_templates(hedge_type="gen"):
             )
 
     return templates
+
+def append_to_template(templates, prefix, amount_order, designation):
+    full = (
+                    f"{prefix}, {{company}} {{verb}} {amount_order} {designation}"
+                    if designation
+                    else f"{prefix}, {{company}} {{verb}} {amount_order}"
+                )
+    no_company = (
+                    f"{prefix}, {amount_order} were {{verb}} {designation}"
+                    if designation
+                    else f"{prefix}, {amount_order}"
+                )
+    simple = (
+                    f"{prefix}, {{company}} {{verb}} {{swap_type}} {designation}"
+                    if designation
+                    else f"{prefix}, {{company}} {{verb}} {{swap_type}}"
+                )
+    templates.append(to_sentence_case(full))
+    templates.append(to_sentence_case(simple))
+    templates.append(to_sentence_case(no_company))
 
 def generate_hedge_mitigation_templates(hedge_type="gen"):
     hedge_context_map = {
