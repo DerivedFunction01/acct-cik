@@ -1382,7 +1382,7 @@ import random
 # DERIVATIVES
 # =============================================================================
 
-GLOBAL_PREFIXES = ["forward-starting", "open", ""]
+GLOBAL_PREFIXES = ["forward-starting", ""]
 
 SWAP_PREFIXES = [
     "pay-fixed, receive-floating",
