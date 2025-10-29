@@ -367,6 +367,7 @@ fx_specific_results = fx_specific_mitigation + [
     "protecting against currency fluctuations of {currencies}",
     "protecting against exchange rate movements of {currencies}",
     "denominated in {currencies}",
+    "to sell foreign currencies to {currencies}"
 ]
 
 # Equity — general or policy intent ("to ...", "for ...", "intended ...", "as ...")
