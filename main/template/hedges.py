@@ -74,16 +74,16 @@ one_year_prefixes = [
     "In {month} {year}",
     "In the {quarter} quarter of {year}",
     "During the {quarter} quarter of {year}",
-    "At {month}/{end_day}/{year}",
-    "At {month}/{year}", 
+    "At {month} {end_day}, {year}",
+    "At {month} {year}", 
 ]
 
 # Two-year time prefixes
 two_year_prefixes = [
     "At {month} {end_day}, {year} and {prev_year}",
     "As of {month} {end_day}, {year} and {prev_year}",
-    "At {month}/{year} and {month}/{prev_year}",
-    "As of {month}/{end_day}/{year} and {month}/{end_day}/{prev_year}",
+    "At {month} {year} and {month} {prev_year}",
+    "As of {month} {end_day}, {year} and {month} {end_day}, {prev_year}",
     "During {month} {year} and {prev_year}",
     
 ]
@@ -92,8 +92,8 @@ two_year_prefixes = [
 three_year_prefixes = [
     "At {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
     "As of {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
-    "At {month}/{year}, {month}/{prev_year}, and {month}/{prev2_year}",
-    "As of {month}/{end_day}/{year}, {month}/{end_day}/{prev_year}, and {month}/{end_day}/{prev2_year}",
+    "At {month} {year}, {month} {prev_year}, and {month} {prev2_year}",
+    "As of {month} {end_day}, {year}, {month} {end_day}, {prev_year}, and {month} {end_day}, {prev2_year}",
     "During {month} {year}, {prev_year}, and {prev2_year}",
 ]
 
@@ -189,7 +189,7 @@ portfolio_verbs = [
     "composed of",
 ]
 
-# Outstanding/active state descriptors
+# Outstanding active state descriptors
 state_descriptors = [
     "outstanding",
     "active",
@@ -197,7 +197,7 @@ state_descriptors = [
     "",
 ]
 
-# Special templates for historical/maturity disclosures
+# Special templates for historical maturity disclosures
 historical_templates = [
     "{company}'s {swap_type} contracted in {old_year} remain {state} as of {year}, with a notional balance of {currency_code}{old_notional} {money_unit}, scheduled to mature in {future_year}",
     "{company}'s notional balance of {currency_code}{old_notional} {money_unit} in {swap_type} contracted in {old_year} remains {state} as of {year}, scheduled to mature in {future_year}",
@@ -272,7 +272,7 @@ gen_specific_results = gen_specific_mitigation + [
     "and expire at various dates the longest expiring in {month} {future_year}",
 ]
 
-# Interest Rate (IR) — general/policy intent phrases ("to ...")
+# Interest Rate (IR) — general policy intent phrases ("to ...")
 ir_specific_mitigation = [
     "to modify the interest rate characteristics of outstanding {debt_type}",
     "to hedge interest rate exposure on a portion of its {debt_type}",
@@ -301,7 +301,7 @@ ir_specific_mitigation = [
     "to convert the rate component to a fixed interest rate for the entire term of the {debt_type}",
 ]
 
-# Interest Rate (IR) — factual/realized results ("effectively...", "converting...", "hedging...")
+# Interest Rate (IR) — factual realized results ("effectively...", "converting...", "hedging...")
 ir_specific_results = ir_specific_mitigation + [
     "effectively converting fixed-rate to floating-rate {debt_type}",
     "effectively converting floating-rate to fixed-rate {debt_type}",
@@ -361,7 +361,7 @@ fx_specific_mitigation = [
     "as the derivative instrument",
 ]
 
-# FX — realized / factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
+# FX — realized   factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
 fx_specific_results = fx_specific_mitigation + [
     "offsetting foreign currency translation adjustments",
     "mitigating {currencies} exchange rate fluctuations on foreign currency denominated transactions",
@@ -431,7 +431,7 @@ eq_specific_mitigation = [
     "as the derivative instrument",
 ]
 
-# Equity — realized/factual results ("hedging ...", "offsetting ...", "mitigating ...", etc.)
+# Equity — realized factual results ("hedging ...", "offsetting ...", "mitigating ...", etc.)
 eq_specific_results = eq_specific_mitigation + [
     "offsetting market value changes in the underlying equity positions",
     "mitigating exposure to equity market volatility",
@@ -469,7 +469,7 @@ cp_specific_mitigation = [
     "as the derivative instrument",
 ]
 
-# Commodity — realized/factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
+# Commodity — realized factual results ("hedging ...", "mitigating ...", "offsetting ...", "protecting ...", etc.)
 cp_specific_results = cp_specific_mitigation + [
     "offsetting {commodity} price fluctuations",
     "mitigating exposure to volatile {commodity} prices",
@@ -571,10 +571,10 @@ three_year_no_prior_templates = [
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# OPTIONAL/COMPARATIVE TEMPLATES (Two-Year Comparisons)
+# OPTIONAL COMPARATIVE TEMPLATES (Two-Year Comparisons)
 # ------------------------------------------------------------------------------
 
-# Comparison verbs/phrases
+# Comparison verbs phrases
 comparison_phrases = [
     "compared to",
     "versus",
@@ -1336,7 +1336,7 @@ def generate_hedge_position_templates(hedge_type="gen"):
         else:
             templates.append(to_sentence_case(template))
 
-    # Two-year / Three-year "no prior year" templates
+    # Two-year   Three-year "no prior year" templates
     for template in two_year_no_prior_templates:
         for pattern in two_year_no_prior_patterns:
             templates.append(
