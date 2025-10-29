@@ -112,6 +112,8 @@ amount_connectors = [
     "approximately",
     "with fair value gains of",
     "with fair value losses of",
+    "with unrealized gains of",
+    "with unrealized losses of",
 ]
 
 # Amount patterns (order of amount vs swap)
@@ -317,6 +319,7 @@ ir_specific_results = [
     "to eliminate the incremental cost if the {debt_type} were to exceed {pct}%",
     "to hedge against the possible negative effects of interest rate fluctuations on {debt_type} obligations",
     "to exchange fixed and variable rate interest payment obligations",
+    "related to the anticipated issuance of {debt_type}",
 ]
 
 
