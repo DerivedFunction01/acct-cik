@@ -2,7 +2,7 @@ import itertools
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 import re
-no_company_pattern = re.compile(r"with|in", re.IGNORECASE)
+no_company_pattern = re.compile(r"\bwith|in\b", re.IGNORECASE)
 
 # Base variables
 hedge_types = ["cash flow", "fair value", "net investment"]
