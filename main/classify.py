@@ -444,11 +444,31 @@ def process_reports_in_chunks(
     total_mega_chunks: int, chunk_index: int, min_chunk_size: int = 1
 ) -> tuple[int, int, str]:
     """Process reports in chunks with periodic saves and statistics."""
-    processed_set = get_processed_server_urls()
+    output_parquet_file = f"server_result_chunk_{chunk_index}.parquet"
+    resumed_urls = set()
+    all_chunk_results = []  # This will hold results from the current run.
+
+    # --- Resume Logic ---
+    # Check if an intermediate parquet file exists from a previous, interrupted run.
+    if Path(output_parquet_file).exists():
+        print(f"🔄 Found existing output file '{output_parquet_file}'. Resuming session.")
+        try:
+            resume_df = pd.read_parquet(output_parquet_file)
+            resumed_urls = set(resume_df["url"])
+            all_chunk_results = resume_df.to_dict("records")
+            print(f"   -> Loaded {len(resumed_urls)} previously processed URLs to skip.")
+        except Exception as e:
+            print(f"   ⚠️  Could not read resume file, starting fresh. Error: {e}")
+            # If file is corrupt, start over.
+            all_chunk_results = []
+
+    # Get URLs that are already fully processed and stored in the main database.
+    db_processed_urls = get_processed_server_urls()
+    processed_set = db_processed_urls.union(resumed_urls)
 
     # Find reports in webpage_result that are not yet in server_result
     reports_to_process_df = get_unprocessed_reports()
-
+    reports_to_process_df = reports_to_process_df[~reports_to_process_df['url'].isin(processed_set)]
     # =========================================================================
     # NEW: Splitting the workload into mega-chunks for parallel processing
     # =========================================================================
@@ -465,8 +485,6 @@ def process_reports_in_chunks(
         print(
             f"  -> This machine's workload: {len(reports_to_process_df)} reports (from index {start_index} to {end_index})."
         )
-
-    output_parquet_file = f"server_result_chunk_{chunk_index}.parquet"
 
     reports_to_process = list(reports_to_process_df.itertuples(index=False))
 
@@ -498,7 +516,6 @@ def process_reports_in_chunks(
 
     last_drive_save_time = time.time()
     results_since_last_save = 0
-    all_chunk_results = []
 
     for chunk_idx, chunk in enumerate(chunks, 1):
         start_chunk_time = time.time()
