@@ -308,7 +308,7 @@ def generate_hedge_paragraph(
     # Determine swap type if not provided
     if swapType is None:
         swapType = random.choice(["ir", "fx", "cp", "eq", "gen"])
-    swap_types = derivative_keywords[swapType]
+    swap_types = list(set(derivative_keywords[swapType] + derivative_keywords["gen"]))
 
     # Currency and year setup
     money_units = random.choice(money_unit_list)
