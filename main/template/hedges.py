@@ -57,14 +57,6 @@ cost_types = [
     "extraction costs", "transportation costs", "storage costs", "commodity costs", "production costs", "lumber costs",
 ]
 
-# Base sentence structures
-base_structures = [
-    "{prefix}, {company} {verb} {amount_swap_order} {hedge_designation}",
-    "{prefix}, {amount_swap_order} {hedge_designation}",
-    "{company} {verb} {amount_swap_order} {time_phrase} {hedge_designation}",
-    "{company}'s {portfolio_term} {time_phrase} {portfolio_verb} {amount_swap_order}",
-]
-
 # Time prefix variations (single year)
 one_year_prefixes = [
     "As of {month} {end_day}, {year}",
