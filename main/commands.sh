@@ -40,39 +40,50 @@ readlink -f "$(command -v python3)"
 #!/usr/bin/env bash
 set -e  # exit on error
 
-# 1. Go to base directory
-cd /c/Users/del226
+echo "🔧 Starting setup process..."
 
-# 2. Clone the repo (skip if already exists)
+# 1. Go to base directory and clone repo
+cd /c/Users/del226
 if [ ! -d "acct-cik" ]; then
+    echo "📦 Cloning repository..."
     git clone https://github.com/DerivedFunction/acct-cik
+else
+    echo "✓ Repository already exists"
 fi
 
-# 3. Go into the main project folder
+# 2. Copy secrets file
 cd acct-cik/main
-
-# 4. Copy secrets file
+echo "📋 Copying secrets file..."
 cp /h/client_secrets.json .
 
-# 5. Install WinPython (optional if already installed)
-# NOTE: This line will run the installer and block until it completes.
-#       It only needs to run once ever.
-/h/winpython/Winpython64-3.12.4.1.exe
+# 3. Extract WinPython if needed
+if [ ! -d "/h/winpython/WPy64-31241" ]; then
+    echo "📦 Extracting WinPython..."
+    /h/winpython/Winpython64-3.12.4.1.exe
+fi
 
-# 6. Initialize virtual environment (waits until finished)
-cd /c/Users/del226/acct-cik
-bash ./init_venv.sh
+# 4. Run init_venv.sh AND launch workers - all inside WinPython PowerShell's sh environment
+echo "🐍 Initializing virtual environment and launching workers..."
 
-# 7. Launch 4 Git Bash terminals using WinPython’s Python from venv
-# Each window activates the venv and stays open
-for ((i=1; i<=4; i++)); do
-    setsid "C:/Program Files/Git/bin/bash.exe" -c "
-        cd /c/Users/del226/acct-cik &&
-        source venv_acct_cik/Scripts/activate &&
-        cd main &&
-        echo 'Worker $i started and venv activated.' &&
-        exec bash
-    " &
-done
+powershell.exe -NoProfile -Command "
+    & '/h/winpython/WPy64-31241/WinPython PowerShell Prompt.exe' -Command {
+        sh -c '
+            cd /c/Users/del226/acct-cik && 
+            ./init_venv.sh &&
+            echo \"🚀 Launching 4 worker terminals...\" &&
+            for i in 1 2 3 4; do
+                setsid \"C:/Program Files/Git/bin/bash.exe\" -c \"
+                    cd /c/Users/del226/acct-cik &&
+                    source venv_acct_cik/Scripts/activate &&
+                    cd main &&
+                    echo \\\"✅ Worker \$i started and venv activated.\\\" &&
+                    exec bash
+                \" &
+            done &&
+            echo \"✅ All workers launched in Git Bash terminals.\"
+        '
+    }
+"
 
-echo "✅ All workers launched in Git Bash terminals."
+echo ""
+echo "✅ Setup complete!"
