@@ -397,7 +397,7 @@ def generate_hedge_paragraph(
         mixed_list = []
         for choice in swap_choices:
             mixed_list.append(random.choice(derivative_keywords[choice]))
-            labels[choice] = 1
+            # No labels[choice] = 1 as it is contextless
             labels[f"{choice}_use"] = 1
         mixed_swaps = ", ".join(mixed_list[:-1]) + " and " + mixed_list[-1]
 
