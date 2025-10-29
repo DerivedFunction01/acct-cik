@@ -308,6 +308,7 @@ ir_specific_mitigation = [
 ir_specific_results = ir_specific_mitigation + [
     "effectively converting fixed-rate to floating-rate {debt_type}",
     "effectively converting floating-rate to fixed-rate {debt_type}",
+    "effectively changes {debt_type} of {company} from a fixed rate to a floating rate of interest",
     "effectively converting portions of fixed-rate {debt_type} to floating rates",
     "effectively convert the hedged portion of {debt_type} to floating rates",
     "converting floating rate exposure to fixed rates, with quarterly exchange of payment differentials based on notional values",
