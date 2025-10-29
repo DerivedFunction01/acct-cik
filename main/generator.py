@@ -1238,6 +1238,7 @@ def generate_emb_paragraph(
     amount = generate_value(False)
     prev_amount = generate_value(False)
     principal = generate_value(False, 100000, 5000000)
+    assert(isinstance(principal, int))
     embedded_fv = generate_value(False, int(principal/20), int(principal/10)) if principal > 0 else 0
 
     # Select template pool
@@ -1390,6 +1391,8 @@ def generate_noise_paragraph(
     shares = generate_value(False, 100000, 5000000)
     shares2 = generate_value(False, 100000, 5000000)
     event = random.choice(warrant_events)
+    assert(isinstance(shares, int))
+    assert(isinstance(shares2, int))
     net_shares = generate_value(False, int(shares/4), int(shares/2)) if shares > 0 else 0
     pct = generate_value(False, 5, 80)
     pct2 = generate_value(False, 5, 80)
