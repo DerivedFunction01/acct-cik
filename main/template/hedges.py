@@ -455,6 +455,7 @@ cp_specific_mitigation = [
     "to limit its exposure to {commodity} price increases",
     "to commit to purchase {commodity} at an agreed-upon price at a specified future date",
     "to manage fluctuations in {commodity} prices",
+    "to reduce the impact of fluctations for {commodity} sales from storage."
     "as the derivative instrument",
 ]
 
