@@ -13,6 +13,7 @@ from collections import Counter
 import subprocess
 from pathlib import Path
 import multiprocessing as mp
+import argparse
 import psutil
 
 
@@ -439,12 +440,34 @@ def process_report_fully(report):
 # =============================================================================
 
 
-def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
+def process_reports_in_chunks(
+    total_mega_chunks: int, chunk_index: int, min_chunk_size: int = 1
+) -> tuple[int, int, str]:
     """Process reports in chunks with periodic saves and statistics."""
     processed_set = get_processed_server_urls()
-    
+
     # Find reports in webpage_result that are not yet in server_result
     reports_to_process_df = get_unprocessed_reports()
+
+    # =========================================================================
+    # NEW: Splitting the workload into mega-chunks for parallel processing
+    # =========================================================================
+    if total_mega_chunks > 1:
+        print(
+            f"\nSplitting workload into {total_mega_chunks} mega-chunks. This machine will process index {chunk_index}."
+        )
+        num_reports = len(reports_to_process_df)
+        mega_chunk_size = (num_reports + total_mega_chunks - 1) // total_mega_chunks
+        start_index = chunk_index * mega_chunk_size
+        end_index = start_index + mega_chunk_size
+
+        reports_to_process_df = reports_to_process_df.iloc[start_index:end_index]
+        print(
+            f"  -> This machine's workload: {len(reports_to_process_df)} reports (from index {start_index} to {end_index})."
+        )
+
+    output_parquet_file = f"server_result_chunk_{chunk_index}.parquet"
+
     reports_to_process = list(reports_to_process_df.itertuples(index=False))
 
     total_reports = len(reports_to_process)
@@ -454,7 +477,10 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
     # Check if the number of reports meets the minimum chunk size
     if total_reports < min_chunk_size:
         print(f"Skipping run: Found {total_reports} reports, which is less than the minimum of {min_chunk_size}.")
-        return 0, 0
+        # If a parquet file exists from a previous run, remove it to avoid stale data
+        if Path(output_parquet_file).exists():
+            Path(output_parquet_file).unlink()
+        return 0, 0, ""
 
     # Create chunks
     chunks = [
@@ -472,6 +498,7 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
 
     last_drive_save_time = time.time()
     results_since_last_save = 0
+    all_chunk_results = []
 
     for chunk_idx, chunk in enumerate(chunks, 1):
         start_chunk_time = time.time()
@@ -479,7 +506,6 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
 
         chunk_results = 0
         chunk_empty = 0
-        results_buffer = []
 
         # Process chunk with ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
@@ -497,15 +523,16 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
                     res = future.result()
                     if res is not None:
                         chunk_results += 1
-                        results_buffer.append(res)
+                        # Append result dictionary to the main list
+                        all_chunk_results.append(res.to_dict())
                     else:
                         chunk_empty += 1
                 except Exception as e:
                     debug_print(f"Error processing {future_to_report[future].url}: {e}")
                     chunk_empty += 1
-        # Flush the results buffer
-        save_batch_results(results_buffer)
-        results_buffer.clear()
+
+        # Periodically save the accumulated results to the parquet file
+        pd.DataFrame(all_chunk_results).to_parquet(output_parquet_file)
 
         chunk_time = time.time() - start_chunk_time
         chunk_times.append(chunk_time)
@@ -548,6 +575,10 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
             f"  📊 Overall: {total_results:,}/{min(processed_so_far, total_reports):,} ({percent_complete:.1f}% complete)"
         )
 
+    # Final save of all results for this mega-chunk
+    if all_chunk_results:
+        pd.DataFrame(all_chunk_results).to_parquet(output_parquet_file)
+
     print("\n" + "=" * 70)
     print(f"🎉 FINAL RESULTS:")
     print(f"  ✓ Successfully processed: {total_results:,} reports")
@@ -558,7 +589,7 @@ def process_reports_in_chunks(min_chunk_size: int = 1) -> tuple[int, int]:
         )
     print("=" * 70)
 
-    return total_results, len(chunks)
+    return total_results, len(chunks), output_parquet_file
 
 
 # =============================================================================
@@ -581,11 +612,31 @@ label2id = {v: k for k, v in id2label.items()}
 # =============================================================================
 # %%
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run the classification script in standalone or chunked mode for parallel processing."
+    )
+    parser.add_argument(
+        "--total-chunks",
+        type=int,
+        default=1,
+        help="Total number of mega-chunks to split the workload into (e.g., number of PCs).",
+    )
+    parser.add_argument(
+        "--chunk-index",
+        type=int,
+        default=0,
+        help="The index of the mega-chunk this instance should process (0-based).",
+    )
+    args = parser.parse_args()
     print("=" * 70)
-    print("🚀 Starting Model Classification Service")
+    if args.total_chunks > 1:
+        print("🚀 Starting Model Classification Service (Chunked Mode)")
+        print(f"   Will process chunk {args.chunk_index} of {args.total_chunks} and then exit.")
+    else:
+        print("🚀 Starting Model Classification Service (Standalone Mode)")
+        print("   This script will run continuously, checking for new data to classify.")
+        print("   Press Ctrl+C to stop.")
     print("=" * 70)
-    print("This script will run continuously, checking for new data to classify.")
-    print("Press Ctrl+C to stop.")
 
     is_first_run = True
 
@@ -598,24 +649,42 @@ if __name__ == "__main__":
             # On subsequent runs, wait for at least 20 reports to accumulate.
             min_size_for_run = 1 if is_first_run else 20
 
-            # The process_reports_in_chunks function already finds unprocessed reports.
-            # It will return 0 if there's nothing new to process.
-            total_processed_in_run, total_chunks = process_reports_in_chunks(min_chunk_size=min_size_for_run)
+            # The process_reports_in_chunks function now finds unprocessed reports and
+            # filters them based on the chunk index.
+            (
+                total_processed_in_run,
+                total_chunks,
+                output_file,
+            ) = process_reports_in_chunks(
+                total_mega_chunks=args.total_chunks,
+                chunk_index=args.chunk_index,
+                min_chunk_size=min_size_for_run,
+            )
 
             if total_processed_in_run > 0:
-                print(f"\n✅ Run complete. Processed {total_processed_in_run} new reports.")
-            else:
-                # If no reports were processed, wait before checking again.
+                print(
+                    f"\n✅ Run complete. Processed {total_processed_in_run} new reports."
+                )
+                if args.total_chunks > 1:
+                    print(f"   Results for this chunk saved to: {output_file}")
+            elif args.total_chunks == 1:
+                # If no reports were processed in standalone mode, wait before checking again.
                 wait_time = 60 * 5  # 5 minutes
                 print(f"\nNo new reports to process. Waiting for {wait_time} seconds...")
                 time.sleep(wait_time)
 
             # Cleanup error responses after every loop (successful or not)
             cleanup_error_responses()
-            is_first_run = False # Subsequent runs are not the first run
+            is_first_run = False  # Subsequent runs are not the first run
+
+            # If running in chunked mode, exit after the first run.
+            if args.total_chunks > 1:
+                print("\nChunk processing complete. Exiting.")
+                break
 
     except KeyboardInterrupt:
         print("\n\n🛑 Service stopped by user.")
+    finally:
         print("=" * 70)
-        print("All done!")
+        print("All done! 👋")
         print("=" * 70)
