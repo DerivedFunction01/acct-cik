@@ -74,18 +74,27 @@ one_year_prefixes = [
     "In {month} {year}",
     "In the {quarter} quarter of {year}",
     "During the {quarter} quarter of {year}",
+    "At {month}/{day}/{year}",
+    "At {month}/{year}", 
 ]
 
 # Two-year time prefixes
 two_year_prefixes = [
     "At {month} {end_day}, {year} and {prev_year}",
     "As of {month} {end_day}, {year} and {prev_year}",
+    "At {month}/{year} and {month}/{prev_year}",
+    "As of {month}/{day}/{year} and {month}/{day}/{prev_year}",
+    "During {month} {year} and {prev_year}",
+    
 ]
 
 # Three-year time prefixes
 three_year_prefixes = [
     "At {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
     "As of {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
+    "At {month}/{year}, {month}/{prev_year}, and {month}/{prev2_year}",
+    "As of {month}/{day}/{year}, {month}/{day}/{prev_year}, and {month}/{day}/{prev2_year}",
+    "During {month} {year}, {prev_year}, and {prev2_year}",
 ]
 
 # Amount connectors (words that connect amounts to swap types)
@@ -344,7 +353,7 @@ fx_specific_mitigation = [
     "to hedge foreign currency exposures",
     "to hedge forecasted foreign currency transactions",
     "to hedge forecasted foreign currency cash flows, expenditures, and transactions",
-    "to hedge foreign exchange exposures in {currencies}",
+    "to hedge foreign exchange rate exposures in {currencies}",
     "to hedge intercompany transactions in {currencies}",
     "to hedge intercompany exposures from operations in {geography}",
     "to manage currency-denominated cash flows in {currencies}",
