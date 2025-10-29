@@ -1240,30 +1240,26 @@ def generate_hedge_position_templates(hedge_type="gen"):
         for connector in amount_connectors
     ]
 
+    reasons = hedge_designations + accounting_results
     # Single-year templates
     for prefix in one_year_prefixes:
         for amount_order in amount_swap_orders:
-            for designation in hedge_designations:
-                for result in accounting_results:
-                    append_to_template(templates, prefix, amount_order, designation, result)
+            for reason in reasons:
+                append_to_template(templates, prefix, amount_order, reason)
 
     # Two-year templates
     for prefix in two_year_prefixes:
         for amount_order in two_year_amounts:
-            for designation in hedge_designations:
-                for result in accounting_results:
-                    append_to_template(
-                        templates, prefix, amount_order, designation, result
-                    )
+            for reason in reasons:
+                append_to_template(
+                    templates, prefix, amount_order, reason
+                )
 
     # Three-year templates
     for prefix in three_year_prefixes:
         for amount_order in three_year_amounts:
-            for designation in hedge_designations:
-                for result in accounting_results:
-                    append_to_template(
-                        templates, prefix, amount_order, designation, result
-                    )
+            for reason in reasons:
+                append_to_template(templates, prefix, amount_order, reason)
 
     # Historical templates
     for template in historical_templates:
@@ -1284,20 +1280,17 @@ def generate_hedge_position_templates(hedge_type="gen"):
 
     return templates
 
-def append_to_template(templates, prefix, amount_order, designation, result):
-    full = (
-        f"{prefix}, {{company}} {{verb}} {amount_order} {designation}"
-        if designation
-        else f"{prefix}, {{company}} {{verb}} {amount_order} {result}"
-    )
-    simple = (
-        f"{prefix}, {{company}} {{verb}} {{swap_type}} {designation}"
-        if designation
-        else f"{prefix}, {{company}} {{verb}} {{swap_type}} {result}"
-    )
+def append_to_template(templates, prefix, amount_order, reason):
+    if reason:
+        full = (
+            f"{prefix}, {{company}} {{verb}} {amount_order} {reason}"
+        )
+        simple = (
+            f"{prefix}, {{company}} {{verb}} {{swap_type}} {reason}"
+        )
+        templates.append(to_sentence_case(full))
+        templates.append(to_sentence_case(simple))
     plain = f"{prefix}, {{company}} {{verb}} {{swap_type}}"
-    templates.append(to_sentence_case(full))
-    templates.append(to_sentence_case(simple))
     templates.append(to_sentence_case(plain))
 
 def generate_hedge_mitigation_templates(hedge_type="gen"):

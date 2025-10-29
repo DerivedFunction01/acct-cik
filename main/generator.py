@@ -590,6 +590,7 @@ def generate_hedge_paragraph(
                     frequency=random.choice(frequencies),
                     swap_types=swaps,
                     pct=generate_value(False, 1, 20),
+                    gain_loss=random.choice(["gain", "loss"]),
                 )
             )
 
