@@ -131,7 +131,6 @@ one_year_amount_patterns = [
     "{connector} {currency_code}{notional} {money_unit} in {swap_type}",
     "{connector} {currency_code}{notional} {money_unit} in net {swap_type}",
     "{connector} {currency_code}{notional} {money_unit} in various {swap_type}",
-    "{swap_type}",
     "{swap_type} {currency_code}{notional} {money_unit}",
     "{connector} {swap_type} was {currency_code}{notional} {money_unit}"
 ]
@@ -141,7 +140,6 @@ one_year_amount_patterns = [
 two_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively",
     "{connector} {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively, in {swap_type}",
-    "{swap_type}",
     "{swap_type} {currency_code}{notional} {money_unit} {currency_code}{prev_notional} {money_unit}",
     "{connector} {swap_type} was {currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}, respectively",
 ]
@@ -151,7 +149,6 @@ two_year_amount_patterns = [
 three_year_amount_patterns = [
     "{swap_type} {connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively",
     "{connector} {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively, in {swap_type}",
-    "{swap_type}",
     "{swap_type} {connector} {currency_code}{notional} {money_unit} {currency_code}{prev_notional} {money_unit} {currency_code}{prev2_notional} {money_unit}",
     "{connector} {swap_type} was {currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}, respectively",
 ]
@@ -1400,7 +1397,7 @@ import random
 # DERIVATIVES
 # =============================================================================
 
-GLOBAL_PREFIXES = ["forward-starting", "open", "active"]
+GLOBAL_PREFIXES = ["forward-starting", "open", ""]
 
 SWAP_PREFIXES = [
     "pay-fixed, receive-floating",
@@ -1514,7 +1511,11 @@ def expand_derivative_terms(placeholders, types, extras):
             if len(ph) == 0 and t in DEPENDENT_TYPES:
                 continue
             # Determine valid prefixes
-            prefixes = GLOBAL_PREFIXES.copy()
+            prefixes = []
+            # Apply sampling to global prefixes
+            sampled = [p for p in GLOBAL_PREFIXES if random.random() < PAY_PREFIX_RATIO]
+            prefixes += sampled
+
             if any(x in t for x in ["swap", "swaption", "rate lock"]):
                 # Apply stochastic sampling to swap-style prefixes
                 sampled = [
