@@ -508,6 +508,8 @@ hedge_impact_templates = [
     "At {month} {year}, {company} {verb} {swap_type} designated as {hedge_type} hedges: Amount of {gain_loss} recognized in {location} (ineffective portion), before tax {currency_code}{notional}",
     "{swap_type} not designated as hedging instruments at {year}: Amount of {gain_loss} recognized in {location}, before tax {currency_code}{notional}, {impact_result}",
     "As of {month} {end_day}, {year}, {company} {verb} {swap_type}: Net {gain_loss}s of approximately {currency_code}{notional} ({money_unit}) (after tax)",
+    "{company} had a net gain (loss) of {currency_code}{notional} {money_unit} on {swap_type} in {year}",
+    "Net gain or losses on {swap_type} were {currency_code}{notional} {money_unit} in {year} and {prev_year}, respectively",
 ]
 
 hedge_context_template = [
@@ -614,7 +616,8 @@ additional_template_patterns = [
     "The {gen_swap} covers a notional amount of {currency_code}{amount} {money_unit}",
     "A {pct}% change will have a {materiality} effect on {swap_type}",
     "The {swap_type} is settled {frequency} and will expire in {future_year}",
-    "These {swap_types} are accounted for at fair value with changes in fair value recognized as they occur"
+    "These {swap_types} are accounted for at fair value with changes in fair value recognized as they occur",
+    
 ]
 
 # ------------------------------------------------------------------------------
@@ -1279,7 +1282,7 @@ def generate_hedge_position_templates(hedge_type="gen"):
                 no_company = (
                     f"{prefix}, {amount_order} {designation}"
                     if designation
-                    else f"{prefix}, {amount_order}
+                    else f"{prefix}, {amount_order}"
                 )
                 templates.append(to_sentence_case(full))
                 templates.append(to_sentence_case(no_company))
@@ -1293,7 +1296,13 @@ def generate_hedge_position_templates(hedge_type="gen"):
                     if designation
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
+                no_company = (
+                    f"{prefix}, {amount_order} {designation}"
+                    if designation
+                    else f"{prefix}, {amount_order}"
+                )
                 templates.append(to_sentence_case(full))
+                templates.append(to_sentence_case(no_company))
 
     # Three-year templates
     for prefix in three_year_prefixes:
@@ -1304,7 +1313,13 @@ def generate_hedge_position_templates(hedge_type="gen"):
                     if designation
                     else f"{prefix}, {{company}} {{verb}} {amount_order}"
                 )
+                no_company = (
+                    f"{prefix}, {amount_order} {designation}"
+                    if designation
+                    else f"{prefix}, {amount_order}"
+                )
                 templates.append(to_sentence_case(full))
+                templates.append(to_sentence_case(no_company))
 
     # Historical templates
     for template in historical_templates:
@@ -1451,12 +1466,14 @@ PLACEHOLDERS = {
     ],
     "fx": [
         "foreign exchange",
+        "forward exchange",
         "foreign currency",
         "currency",
         "cross-currency",
         "cross currency interest rate",
         "forward currency",
         "foreign currency",
+        "currency exchange",
         "FX",
         "dollar call",
     ],
