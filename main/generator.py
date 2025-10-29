@@ -2046,7 +2046,7 @@ def generate(size_per_label=100):
             )
 
         # Warrant and Embedded Derivative Generation
-        warr_emb_count = count 
+        warr_emb_count = count // 4
         for _ in range(warr_emb_count):
             futures.append(executor.submit(generate_warrant_paragraph, use_case='current'))
             futures.append(executor.submit(generate_warrant_paragraph, use_case='historical'))
