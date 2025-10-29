@@ -602,7 +602,9 @@ def generate_hedge_paragraph(
             prev2_notional = generate_value()
         else:
             if random.random() < 0.65:
-                template = random.choice(hedge_position_templates[swapType])
+                template = ""
+                while "{notional}" not in template:
+                    template = random.choice(hedge_position_templates[swapType])
                 prev_notional = generate_value()
                 prev2_notional = generate_value()
                 if random.random() < 0.5 and "{notional}" in template: # no notional amount if we pick a current year and not active
