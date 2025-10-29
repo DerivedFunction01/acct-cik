@@ -240,6 +240,8 @@ def huggingface_auth():
         token = Path(config["HF_TOKEN"]).read_text().strip()
     else:
         token = input("HF Token: ")
+    if not token:
+        print("Skipping authentication")
     try:
         login(token=token.strip())
         IS_AUTHENTICATED = True
@@ -339,6 +341,7 @@ def upload_model():
 # %%
 
 if __name__ == "__main__":
+    huggingface_auth()
     # --- Terminal Mode: Show the interactive menu ---
     while True:
         print("\n--- Main Menu ---")
