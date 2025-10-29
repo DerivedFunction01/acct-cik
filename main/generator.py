@@ -517,7 +517,6 @@ def generate_hedge_paragraph(
         return sentences
 
     def generate_derivative_sentences() -> list[str]:
-        labels[swapType] = 1  # Context for the specific hedge type
         """Generate derivative-related sentences for FX, IR, CP, or generic types."""
         sentences = []
 
@@ -527,6 +526,7 @@ def generate_hedge_paragraph(
         # --- FX: add currency description sentence (0-1 chance) ---
         currency_list = ""
         if swapType == "fx" and random.random() < 0.6 and not mixed:
+            labels[swapType] = 1  # Context for the specific hedge type
             selected = random.sample(major_currencies, random.randint(2, 3))
             if random.random() < 0.5:
                 selected += random.sample(european_currencies, random.randint(1, 2))
@@ -551,12 +551,13 @@ def generate_hedge_paragraph(
             )
 
         # Add a chance of context sentences
-        if not mixed:
-            if swapType == "ir" and random.random() < 0.15:
+        if not mixed and random.random() < 0.15:
+            labels[swapType] = 1  # Context for the specific hedge type
+            if swapType == "ir":
                 sentences.extend(generate_debt())
-            elif swapType == "cp" and random.random() < 0.15:
+            elif swapType == "cp":
                 sentences.extend(generate_commodity())
-            elif swapType == "fx" and random.random() < 0.15:
+            elif swapType == "fx":
                 sentences.extend(generate_fx())
 
         # Add a small chance of addtional sentences
@@ -1571,16 +1572,16 @@ def generate_noise_paragraph(
     template_pool = []
     all_sentences = []
     if noise_type == "eq" or noise_type == "warr":  # ex. equity, warrant, stock
-        labels["eq"] = category_weights
+        labels["eq"] = category_weights * 4
         template_pool.extend(sum(noise_templates["EQ"], []))
     elif noise_type == "cp":  # ex. inventory
-        labels["cp"] = category_weights
+        labels["cp"] = category_weights * 4
         template_pool.extend(sum(noise_templates["CP"], []))
     elif noise_type == "ir":  # ex. debt
-        labels["ir"] = category_weights
+        labels["ir"] = category_weights * 4
         template_pool.extend(sum(noise_templates["IR"], []))
     elif noise_type == "fx":  # ex. currency
-        labels["fx"] = category_weights
+        labels["fx"] = category_weights * 4
         template_pool.extend(sum(noise_templates["FX"], []))
     elif noise_type == "law":  # ex. derivative lawsuits (irr)
         template_pool.extend(sum(noise_templates["LAW"], []))
