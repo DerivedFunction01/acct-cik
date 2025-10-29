@@ -3,6 +3,7 @@
 import sqlite3
 from pathlib import Path
 import pandas as pd
+import json
 
 # Default path, can be updated if needed
 db_path = "./web_data.db"
@@ -113,6 +114,11 @@ def import_server_results_from_parquet(directory: str = "."):
     if "url" not in combined_df.columns or "server_response" not in combined_df.columns:
         print("❌ Error: Parquet files are missing 'url' or 'server_response' columns.")
         return
+
+    # Convert the server_response object to a JSON string for better portability
+    # and to avoid storing it as a binary blob (pickle) in SQLite.
+    print("   -> Serializing server_response column to JSON...")
+    combined_df["server_response"] = combined_df["server_response"].apply(json.dumps)
 
     records_to_insert = combined_df[["url", "server_response"]].to_records(index=False)
 
