@@ -1474,6 +1474,7 @@ PLACEHOLDERS = {
         "forward currency",
         "foreign currency",
         "currency exchange",
+        "exchange rate",
         "FX",
         "dollar call",
     ],
