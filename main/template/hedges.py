@@ -42,7 +42,7 @@ hedge_topics = [
 commodities = [
     "agricultural products", "aluminum", "asphalt", "base metals", "biodiesel", "biomass",
     "bitumen", "cement", "chemicals", "coal", "cocoa", "coffee", "commodity", "concrete", "copper", "corn",
-    "cotton", "crude oil", "dairy", "diesel fuel", "electricity", "energy", "ethanol", "feedstock", "fertilizer", "fuel", "gas",
+    "cotton", "crude oil", "dairy", "diesel fuel", "electricity", "electric", "energy", "ethanol", "feedstock", "fertilizer", "fuel", "gas",
     "gasoline", "grain", "gravel", "hardwood lumber", "iron ore", "limestone", "livestock", "logs", "lumber", "metals", "minerals",
     "natural gas", "nitrogen", "paper", "petrochemicals", "petroleum", "phosphate", "plastics", "plywood", "polymers",
     "potash", "precious metals", "pulp", "raw materials", "resin", "rubber", "salt",
@@ -51,7 +51,7 @@ commodities = [
     "wood", "wood chips", "wood pellets", "wool",
 ]
 cost_types = [
-    "input costs", "energy costs", "fuel costs", "raw material costs", "manufacturing costs", "mining costs",
+    "input costs", "energy costs", "electricity costs", "fuel costs", "raw material costs", "manufacturing costs", "mining costs",
     "extraction costs", "transportation costs", "storage costs", "commodity costs", "production costs", "lumber costs",
 ]
 
@@ -603,6 +603,7 @@ additional_template_patterns = [
     "The {gen_swap} covers a notional amount of {currency_code}{amount} {money_unit}",
     "A {pct}% change will have a {materiality} effect on {swap_type}",
     "The {swap_type} is settled {frequency} and will expire in {future_year}",
+    "These {swap_types} are accounted for at fair value with changes in fair value recognized as they occur"
 ]
 
 # ------------------------------------------------------------------------------
