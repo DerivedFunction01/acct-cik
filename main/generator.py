@@ -904,10 +904,14 @@ def generate_hedge_paragraph(
             if has_active_derivative:
                 return (random.choice(current_adverbs) + " " + base_verb).strip()
             else:
-                if random.random() < 0.85:  # may use
-                    return (random.choice(past_adverbs) + " " + base_verb).strip()
+                if random.random() < 0.5:  # may use
+                    return (
+                        base_verb
+                        if random.random() < 0.5
+                        else (random.choice(past_adverbs) + " " + base_verb).strip()
+                    )
                 else:  # will not use
-                    return (random.choice(not_adverbs) + " " + random.choice(hedge_use_verbs)).strip()
+                    return (random.choice(not_adverbs) if random.random() < 0.5 else random.choice(past_adverbs) + " " + random.choice(hedge_use_verbs)).strip()
 
         # Sentence 1: Begin context
         beg_ctx_template = random.choice(hedge_begin_context_templates.get(swapType, []))

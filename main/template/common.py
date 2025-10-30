@@ -507,7 +507,6 @@ past_adverbs = [
     "periodically",
     "occasionally",
     ", in the future,",
-    "",
 ]
 
 not_adverbs = [
