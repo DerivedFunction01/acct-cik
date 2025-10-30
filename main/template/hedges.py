@@ -1293,6 +1293,10 @@ def generate_hedge_position_templates(hedge_type="gen"):
                 templates.append(
                     to_sentence_case(f"The {amount} of {{swap_type}} is {three_year_amount}, {prefix}")
                 )
+    
+    # Down sample the templates
+    random.shuffle(templates)
+    templates = templates[::2]
 
     # Two-year   Three-year "no prior year" templates
     for template in two_year_no_prior_templates:
