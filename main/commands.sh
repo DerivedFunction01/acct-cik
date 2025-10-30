@@ -73,17 +73,9 @@ powershell.exe -NoProfile -Command "& {
 echo ""
 echo "✅ Setup complete!"
 
-echo "sh && source /h/.bashrc && \
+echo "source /h/.bashrc && \
 cd /c/Users/del226/acct-cik && \
-./init_venv.sh && \
-echo \"🚀 Launching 4 worker terminals...\" && \
-for i in 1 2 3 4; do \
-    setsid \"/c/Program\ Files/Git/bin/bash.exe\" -c \" \
-        cd /c/Users/del226/acct-cik && \
-        source venv_acct_cik/Scripts/activate && \
-        cd main && \
-        echo \\\"✅ Worker \$i started and venv activated.\\\" && \
-        exec bash \
-    \" & \
-done && \
-echo \"✅ All workers launched in Git Bash terminals.\""
+./init_venv.sh"
+
+echo "Then run the following command to start the environment."
+echo "cd /c/Users/del226/acct-cik/main && source ../venv_acct_cik/Scripts/activate"
