@@ -725,7 +725,8 @@ def generate_hedge_paragraph(
         if mixed:
             return ""
         labels["hist"] = 1.0
-        labels["term"] = 1.0
+        if year_to_use == base_year:
+            labels["term"] = 1.0
         template = random.choice(hedge_zero_templates)
         year = year_to_use 
         prev_year = year_to_use - 1
