@@ -955,8 +955,8 @@ def generate_hedge_paragraph(
             )
 
         # If we don't have an active derivative, add a no such outstanding sentence
-        if not has_active_derivative and random.random() < 0.25 and not mixed:
-            if random.random() < 0.85:
+        if not has_active_derivative and random.random() < 0.25:
+            if random.random() < 0.65 and not mixed:
                 sentences.append(expire_hedge(year_to_use) if random.random() < 0.15 else zero_outstanding(year_to_use))
             else:
                 sentence = f"We {random.choice(["do not have", f"have not {random.choice(hedge_use_verbs_simple)}"])} {random.choice(["any", "any open"])} {swap_local} {random.choice(["outstanding","active","remaining"])} as of {year_to_use}"
