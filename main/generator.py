@@ -581,7 +581,7 @@ def generate_hedge_paragraph(
             future_year = (
                 random.randint(reporting_year + 1, reporting_year + 20)
                 if has_active_derivative
-                else random.randint(reporting_year - 5, reporting_year - 1)
+                else random.randint(base_year - 5, base_year - 1)
             )
             sentences.append(
                 random.choice(additional_template_patterns).format(
