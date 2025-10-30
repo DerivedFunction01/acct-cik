@@ -410,6 +410,11 @@ http {{
             proxy_send_timeout {GUNICORN_TIMEOUT};
             proxy_read_timeout {GUNICORN_TIMEOUT};
         }}
+
+        # Limit the number of simultaneous connections to prevent overwhelming the backend.
+        # This helps queue requests instead of dropping them.
+        limit_conn_zone $binary_remote_addr zone=addr:10m;
+        limit_conn addr 20; # Allow up to 20 concurrent connections from a single IP
     }}
 }}
 """
@@ -571,7 +576,7 @@ def start_servers():
     # --- Launch Processes ---
     # GPU Server (if available)
     if gpu_ram_gb > 0:
-        gpu_cmd = f"gunicorn --workers 1 --threads {gpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{GPU_SERVER_PORT} {SERVER_SCRIPT}"
+        gpu_cmd = f"gunicorn --workers 1 --threads {gpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{GPU_SERVER_PORT} --backlog 2048 {SERVER_SCRIPT}"
         gpu_env = os.environ.copy()
         gpu_env["DEVICE_TYPE"] = "gpu"
         subprocess.Popen(gpu_cmd.split(), env=gpu_env)
@@ -579,7 +584,7 @@ def start_servers():
 
     # CPU Server
     if start_cpu_server:
-        cpu_cmd = f"gunicorn --workers 1 --threads {cpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{CPU_SERVER_PORT} {SERVER_SCRIPT}"
+        cpu_cmd = f"gunicorn --workers 1 --threads {cpu_threads} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{CPU_SERVER_PORT} --backlog 2048 {SERVER_SCRIPT}"
         cpu_env = os.environ.copy()
         cpu_env["DEVICE_TYPE"] = "cpu"
         subprocess.Popen(cpu_cmd.split(), env=cpu_env)
