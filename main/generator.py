@@ -1388,17 +1388,25 @@ def generate_sec_noise():
         random.choices(string.ascii_lowercase + string.digits, k=random.randint(6, 12))
     ) + random.choice([".htm", ".txt"])
 
-    # Combine all parts and randomly sample
-    chunks = random.sample(
-        headers + phrases + [gibberish] + [generate_toc_line()], k=random.randint(1, 2)
-    )
+    # Combine all parts and build a more structured, shorter paragraph
+    # This will create a more realistic but still noisy snippet.
+    chunks = []
+    # 1. Start with a header or a gibberish filename
+    chunks.append(random.choice(headers + [gibberish]))
+
+    # 2. Add one or two random phrases
+    num_phrases = random.randint(1, 2)
+    chunks.extend(random.sample(phrases, k=num_phrases))
+
+    # 3. Optionally add a table of contents line
+    if random.random() < 0.3:
+        chunks.append(generate_toc_line())
 
     # Create paragraph and labels for compatibility
     labels = new_label()
     labels["irr"] = 1
     label = get_primary_label(labels)
 
-    # Cleanup and return
     return cleanup(chunks, reporting_year, fullCheck=False), labels, label
 
 
