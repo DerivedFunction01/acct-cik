@@ -37,6 +37,7 @@ python3 --version
 echo "Done. python3 now points to:"
 readlink -f "$(command -v python3)"
 
+
 #!/usr/bin/env bash
 set -e  # exit on error
 
@@ -57,7 +58,7 @@ echo "📋 Copying secrets file..."
 cp /h/client_secrets.json .
 
 # 3. Extract WinPython if needed
-if [ ! -d "/h/winpython/WPy64-31241" ]; then
+if [ ! -d "/c/Users/del226/WPy64-31241" ]; then
     echo "📦 Extracting WinPython..."
     /h/winpython/Winpython64-3.12.4.1.exe
 fi
@@ -65,25 +66,25 @@ fi
 # 4. Run init_venv.sh AND launch workers - all inside WinPython PowerShell's sh environment
 echo "🐍 Initializing virtual environment and launching workers..."
 
-powershell.exe -NoProfile -Command "
-    & '/h/winpython/WPy64-31241/WinPython PowerShell Prompt.exe' -Command {
-        sh -c '
-            cd /c/Users/del226/acct-cik && 
-            ./init_venv.sh &&
-            echo \"🚀 Launching 4 worker terminals...\" &&
-            for i in 1 2 3 4; do
-                setsid \"C:/Program Files/Git/bin/bash.exe\" -c \"
-                    cd /c/Users/del226/acct-cik &&
-                    source venv_acct_cik/Scripts/activate &&
-                    cd main &&
-                    echo \\\"✅ Worker \$i started and venv activated.\\\" &&
-                    exec bash
-                \" &
-            done &&
-            echo \"✅ All workers launched in Git Bash terminals.\"
-        '
-    }
-"
+powershell.exe -NoProfile -Command "& {
+    & 'C:\Users\del226\WPy64-31241\WinPython Powershell Prompt.exe'
+}"
 
 echo ""
 echo "✅ Setup complete!"
+
+echo " \
+sh \
+cd /c/Users/del226/acct-cik && \
+./init_venv.sh && \
+echo \"🚀 Launching 4 worker terminals...\" && \
+for i in 1 2 3 4; do \
+    setsid \"C:/Program Files/Git/bin/bash.exe\" -c \" \
+        cd /c/Users/del226/acct-cik && \
+        source venv_acct_cik/Scripts/activate && \
+        cd main && \
+        echo \\\"✅ Worker \$i started and venv activated.\\\" && \
+        exec bash \
+    \" & \
+done && \
+echo \"✅ All workers launched in Git Bash terminals.\""
