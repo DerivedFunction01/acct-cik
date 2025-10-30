@@ -423,7 +423,7 @@ def generate_hedge_paragraph(
 
         debt_templates_pool = debt_templates + sum(noise_templates.get("IR", []), [])
 
-        for _ in range(random.randint(2, 3)):
+        for _ in range(random.randint(1, 2)):
             template = random.choice(debt_templates_pool)
 
             replacements = {
