@@ -246,7 +246,7 @@ def new_label() -> dict[str, float]:
         "irr": 0.0,  # Irrelevant / not a hedge
     }
 
-def label_paragraph(paragraph: str, labels: dict) -> dict:
+def label_paragraph(paragraph: str, labels: dict) -> dict[str, float]:
     """
     Labels a paragraph by calculating a weighted score based on keyword mentions.
     This creates more realistic, non-binary labels for training data.
