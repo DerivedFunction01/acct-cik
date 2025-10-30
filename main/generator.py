@@ -1799,7 +1799,7 @@ def generate_noise_paragraph(
         "{verb}": random.choice(hedge_use_verbs),
     }
     if template_pool:
-        for _ in range(random.randint(3, 4)):
+        for _ in range(random.randint(2, 3)):
             template = random.choice(template_pool)
             sentence = template
             all_placeholders = re.findall(r'{\w+}', sentence)
