@@ -75,7 +75,6 @@ echo "✅ Setup complete!"
 
 echo "source /h/.bashrc && \
 cd /c/Users/del226/acct-cik && \
-./init_venv.sh"
-
-echo "Then run the following command to start the environment."
-echo "cd /c/Users/del226/acct-cik/main && source ../venv_acct_cik/Scripts/activate"
+./init_venv.sh && \
+&& source ./venv_acct_cik/Scripts/activate \
+&& cd main"
