@@ -2165,9 +2165,12 @@ def generate(size_per_label=100):
 
     # --- Generate Histogram ---
     from matplotlib import pyplot as plt
-    label_counts = df_new['label'].value_counts()
-    label_counts.plot(kind='bar', title='Label Distribution')
-    plt.xlabel('Labels')
+    # Plot histogram of sentence lengths
+    sentence_lengths = df_new['sentence'].str.len()
+    plt.figure(figsize=(10,6))
+    plt.hist(sentence_lengths, bins=50, edgecolor='black')
+    plt.title('Distribution of Sentence Lengths')
+    plt.xlabel('Length in Characters')
     plt.ylabel('Frequency')
     plt.show()
 
