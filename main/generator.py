@@ -624,7 +624,8 @@ def generate_hedge_paragraph(
         else:
             template = random.choice(hedge_position_templates[swapType] if random.random() < 0.85 else hedge_historical_templates)
             notional = 0 if year == base_year else generate_value(haveZero=False, lowerlimit=1)
-            while template.find("{notional}") != -1 and year == base_year: # FInd a template with notional
+            while year == base_year and template.find("{notional}") != -1:
+                # # FInd a template with notional
                 template = random.choice(hedge_position_templates[swapType])
 
         prev_notional = generate_value()
@@ -686,10 +687,6 @@ def generate_hedge_paragraph(
         )
         sentences.append(sentence)
 
-        # --- Expired hedges for non-active derivatives ---
-        if not has_active_derivative and random.random() < 0.05 and not mixed and not added:
-            added = True
-            sentences.append(expire_hedge(year))
         # --- Chance of payment
         if random.random() < 0.15 and not mixed and not added:
             sentences.append(hedge_payment())
