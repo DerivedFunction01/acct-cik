@@ -55,7 +55,7 @@ else
 fi
 
 # --- Packages ---
-BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn"
+BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn matplotlib"
 ML_PACKAGES="scikit-learn datasets transformers accelerate IPython ipywidgets ipykernel"
 
 # --- Handle PyTorch (skip if locked unless --reinstall-torch) ---
