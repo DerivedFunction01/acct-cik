@@ -628,8 +628,8 @@ def generate_hedge_paragraph(
                 # # FInd a template with notional
                 template = random.choice(hedge_position_templates[swapType])
         if notional == 0 and year == base_year:
-                added = True
-                labels["term"] = 1
+            added = True
+            labels["term"] = 1
 
         prev_notional = generate_value()
         prev2_notional = generate_value()
@@ -956,7 +956,13 @@ def generate_hedge_paragraph(
 
         # If we don't have an active derivative, add a no such outstanding sentence
         if not has_active_derivative and random.random() < 0.25 and not mixed:
-            sentences.append(expire_hedge(year_to_use) if random.random() < 0.15 else zero_outstanding(year_to_use))
+            if random.random() < 0.85:
+                sentences.append(expire_hedge(year_to_use) if random.random() < 0.15 else zero_outstanding(year_to_use))
+            else:
+                sentence = f"We {random.choice(["do not have", f"have not {random.choice(hedge_use_verbs_simple)}"])} {random.choice(["any", "any open"])} {swap_local} {random.choice(["outstanding","active","remaining"])} as of {year_to_use}"
+                sentences.append(sentence)
+                if year_to_use == base_year:
+                    labels["term"] = 1
         random.shuffle(sentences)
         return sentences
 
