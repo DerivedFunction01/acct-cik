@@ -1141,7 +1141,7 @@ def generate_hedge_paragraph(
     if has_active_derivative is None: # Speculative / Policy-only
         if swapType and random.random() < 0.5:
             # Generate a policy specific to a hedge type (e.g., "we may use IR swaps...")
-            all_sentences.extend(hedge_type_policy(reporting_year, random.choice([True, False])))
+            all_sentences.extend(hedge_type_policy(reporting_year, True))
         elif random.random() < 0.65:
             # Generate a general, non-specific hedge policy
             all_sentences.extend(hedge_policy(reporting_year))
