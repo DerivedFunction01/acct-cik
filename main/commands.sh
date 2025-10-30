@@ -71,10 +71,10 @@ powershell.exe -NoProfile -Command "& {
 }"
 
 echo ""
-echo "✅ Setup complete!"
+echo "✅ Setup complete! Command is copied to clipboard"
 
-echo "source /h/.bashrc && \
+printf "source /h/.bashrc && \
 cd /c/Users/del226/acct-cik && \
 ./init_venv.sh && \
-&& source ./venv_acct_cik/Scripts/activate \
-&& cd main"
+source ./venv_acct_cik/Scripts/activate && \
+cd main" | clip
