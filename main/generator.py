@@ -371,7 +371,6 @@ def generate_hedge_paragraph(
         )
         selected_cps = selected_cps if random.random() < 0.85 else "commodity"
     all_sentences = []
-
     # =====================
     # Assign multi-labels. The training data is only specific, but we need to watch out during actual model classification
     # =====================
@@ -400,8 +399,7 @@ def generate_hedge_paragraph(
     # -----------------------
     if include_policy:
         # Only set spec if not actively using (optional, depends on your logic)
-        labels["spec"] = 1
-
+        labels["spec"] = 1  
     mixed_swaps = ""
     mixed = False
     swap_choices = random.sample(["ir", "fx", "cp", "eq"], random.randint(2, 3))
@@ -1157,7 +1155,7 @@ def generate_hedge_paragraph(
                 all_sentences.extend(generate_derivative_sentences(reporting_year))
             else:
                 all_sentences.append(expire_hedge(reporting_year) if random.random() < 0.5 else zero_outstanding(reporting_year))
-        if include_policy or mixed:
+        if (include_policy or mixed) and len(cleanup(all_sentences, base_year)) < 800:
             # Randomly add either a general policy or a type-specific policy
             if random.random() < 0.5 or mixed:
                 all_sentences.extend(hedge_type_policy(reporting_year, False))
