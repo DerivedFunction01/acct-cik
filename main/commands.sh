@@ -73,9 +73,42 @@ powershell.exe -NoProfile -Command "& {
 echo ""
 echo "✅ Setup complete!"
 
-echo " \
-sh \
-cd /c/Users/del226/acct-cik && \
+#!/usr/bin/env bash
+set -e  # exit on error
+
+echo "🔧 Starting setup process..."
+
+# 1. Go to base directory and clone repo
+cd /c/Users/del226
+if [ ! -d "acct-cik" ]; then
+    echo "📦 Cloning repository..."
+    git clone https://github.com/DerivedFunction/acct-cik
+else
+    echo "✓ Repository already exists"
+fi
+
+# 2. Copy secrets file
+cd acct-cik/main
+echo "📋 Copying secrets file..."
+cp /h/client_secrets.json .
+
+# 3. Extract WinPython if needed
+if [ ! -d "/c/Users/del226/WPy64-31241" ]; then
+    echo "📦 Extracting WinPython..."
+    /h/winpython/Winpython64-3.12.4.1.exe
+fi
+
+# 4. Run init_venv.sh AND launch workers - all inside WinPython PowerShell's sh environment
+echo "🐍 Initializing virtual environment and launching workers..."
+
+powershell.exe -NoProfile -Command "& {
+    & 'C:\Users\del226\WPy64-31241\WinPython Powershell Prompt.exe'
+}"
+
+echo ""
+echo "✅ Setup complete!"
+
+echo "cd /c/Users/del226/acct-cik && \
 ./init_venv.sh && \
 echo \"🚀 Launching 4 worker terminals...\" && \
 for i in 1 2 3 4; do \
