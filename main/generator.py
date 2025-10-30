@@ -624,7 +624,7 @@ def generate_hedge_paragraph(
         else:
             template = random.choice(hedge_position_templates[swapType] if random.random() < 0.85 else hedge_historical_templates)
             notional = 0 if year == base_year else generate_value(haveZero=False, lowerlimit=1)
-            while year == base_year and template.find("{notional}") != -1:
+            while year == base_year and template.find("{notional}") == -1:
                 # # FInd a template with notional
                 template = random.choice(hedge_position_templates[swapType])
 
