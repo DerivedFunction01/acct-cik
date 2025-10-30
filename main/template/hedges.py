@@ -111,9 +111,12 @@ amount_connectors = [
 
 amount_prefixes = [
     "fair value",
-    "fair market value"
+    "fair market value",
+    "aggregate notional amount",
+    "aggregate amount",
     "notional value",
     "total value",
+    "total amount",
     "net value",
     "net notional",
     "aggregate value",
