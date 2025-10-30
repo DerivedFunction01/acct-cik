@@ -328,7 +328,7 @@ def generate_hedge_paragraph(
     elif has_active_derivative is False:
         # If it's historical, it could be about the current year (e.g., "we had no swaps this year")
         # or a past year ("in 2015, we terminated our swaps").
-        if random.random() < 0.5:
+        if random.random() < 0.25:
             reporting_year = base_year
         else:
             reporting_year = random.choice(past_years) if past_years else base_year - 1
