@@ -272,6 +272,11 @@ def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
             gpu_threads = 2
             gpu_weight = 4
 
+        # If a GPU is present, always set the CPU weight to a low value.
+        # This makes the CPU a backup/overflow server rather than a primary worker.
+        cpu_weight = 1
+        print("   Strategy: GPU detected. Setting CPU weight to 1 (backup mode).")
+
     # === CPU Configuration ===
     # CPU threads based on core count
     if cpu_cores >= 80:  # TPU or high-core server (treat as very powerful)
@@ -340,13 +345,6 @@ def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
         print("   Strategy: CPU-only mode")
         start_cpu_server = True
         gpu_weight = 0
-
-    # === Final adjustments ===
-    # Never make weights too extreme
-    if gpu_ram_gb > 0 and start_cpu_server:
-        ratio = gpu_weight / max(cpu_weight, 1)
-        if ratio > 10:  # GPU shouldn't dominate too much
-            gpu_weight = cpu_weight * 10
 
     return gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server
 
