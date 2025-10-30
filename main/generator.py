@@ -2056,7 +2056,7 @@ def generate(size_per_label=100):
                         swapType=prefix,
                     )
                 )
-            for _ in range(count):
+            for _ in range(count // 2):
                 futures.append(
                     executor.submit(
                         generate_hedge_paragraph,
@@ -2064,7 +2064,7 @@ def generate(size_per_label=100):
                         swapType=prefix,
                     )
                 )
-        for _ in range(count):
+        for _ in range(count // 2):
             futures.append(
                 executor.submit(
                     generate_hedge_paragraph,
@@ -2151,6 +2151,6 @@ def generate(size_per_label=100):
     print(f"\n{len(all_samples)} samples written/appended to {output_file} (sorted)")
 
 # %%
-generate(1500)
+generate(1000)
 
 # %%
