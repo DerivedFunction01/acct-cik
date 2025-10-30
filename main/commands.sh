@@ -77,5 +77,5 @@ echo "✅ Setup complete! Command is copied to clipboard"
 printf "source /h/.bashrc && \
 cd /c/Users/del226/acct-cik && \
 ./init_venv.sh && \
-source ./venv_acct_cik/Scripts/activate && \
+source ./venv-acct-cik/Scripts/activate && \
 cd main" | clip
