@@ -824,7 +824,7 @@ def generate_hedge_paragraph(
                     materiality=random.choice(immaterial)
                 )
             )
-            sentences = random.sample(sentences, random.randint(2,3))
+            sentences = random.sample(sentences, random.randint(1,2))
         else: # Speculative or historical
             # For speculative use, discuss policies for effectiveness, ineffectiveness, and general accounting.
             act_template = random.choice(hedge_policy_templates)
