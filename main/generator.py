@@ -1141,7 +1141,10 @@ def generate_hedge_paragraph(
             all_sentences.extend(generate_hedge_policy_update(reporting_year))
     else: # Current or Historical Use
         if not mixed:
-            all_sentences.extend(generate_derivative_sentences(reporting_year))
+            if random.random() < 0.75 or has_active_derivative:
+                all_sentences.extend(generate_derivative_sentences(reporting_year))
+            else:
+                all_sentences.append(expire_hedge(reporting_year) if random.random() < 0.5 else zero_outstanding(reporting_year))
         if include_policy or mixed:
             # Randomly add either a general policy or a type-specific policy
             if random.random() < 0.5 or mixed:
