@@ -993,7 +993,7 @@ def generate_hedge_paragraph(
             hedge_feature=extra,
             eff_month=eff_month,
             eff_day=eff_day,
-            year=effective_year,
+            eff_year=effective_year,
             company=pick_company_name(company_name),
         )
         sentences.append(issuance_sentence)
@@ -1095,8 +1095,8 @@ def generate_hedge_paragraph(
                 ),
                 month=random.choice(months),
                 year=year_to_use,
-                adoption_year=random.randint(current_year, current_year + 3),
-            ) # Corrected from hedge_adoption_year
+                adoption_year=random.randint(year_to_use, year_to_use + 3),
+            )  # Corrected from hedge_adoption_year
             sentences.append(pronouncement)
 
         if random.random() < 0.2: # Add hedge definitions
