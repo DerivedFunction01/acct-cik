@@ -604,7 +604,7 @@ def generate_hedge_paragraph(
             prev_notional = generate_value()
             prev2_notional = generate_value()
         else:
-            if random.random() < 0.65:
+            if random.random() < 0.75:
                 template = random.choice(hedge_position_templates[swapType])
                 prev_notional = generate_value()
                 prev2_notional = generate_value()
@@ -617,6 +617,7 @@ def generate_hedge_paragraph(
             else:
                 # Use the more comprehensive template list for "no outstanding" disclosures
                 labels["term"] = 1
+                added = True # do not add any more sentences
                 template = random.choice(hedge_zero_templates)
                 notional = 0 # A zero-out event implies termination
                 prev_notional = generate_value(haveZero=False, lowerlimit=1)
