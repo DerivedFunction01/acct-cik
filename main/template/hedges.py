@@ -1294,11 +1294,6 @@ def generate_hedge_position_templates(hedge_type="gen"):
                     to_sentence_case(f"The {amount} of {{swap_type}} is {three_year_amount}, {prefix}")
                 )
 
-    # Historical templates
-    for template in historical_templates:
-        expanded = _expand_pattern(template)
-        templates.extend([to_sentence_case(t) for t in expanded])
-
     # Two-year   Three-year "no prior year" templates
     for template in two_year_no_prior_templates:
         for pattern in two_year_no_prior_patterns:
@@ -1311,6 +1306,14 @@ def generate_hedge_position_templates(hedge_type="gen"):
                 to_sentence_case(template.replace("{no_prior_pattern}", pattern))
             )
 
+    return templates
+
+def generate_historical_templates() -> list[str]:
+    templates = []
+    # Historical templates
+    for template in historical_templates:
+        expanded = _expand_pattern(template)
+        templates.extend([to_sentence_case(t) for t in expanded])
     return templates
 
 def append_to_template(templates, prefix, amount_order, reason):
@@ -1547,8 +1550,9 @@ with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
 hedge_payment_templates = results["hedge_payment_templates"]
 hedge_termination_templates = results["hedge_termination_templates"]
 hedge_zero_templates = results["hedge_zero_templates"]
+hedge_historical_templates = generate_historical_templates()
 
-hedge_position_templates = {}
+hedge_position_templates: dict[str, list[str]] = {}
 hedge_mitigation_templates = {}
 hedge_begin_context_templates = {}
 for ht in swap_t:

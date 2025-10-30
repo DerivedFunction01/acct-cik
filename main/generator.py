@@ -599,13 +599,21 @@ def generate_hedge_paragraph(
         # --- Time logic & Template Selection ---
         if has_active_derivative:
             year = current_year
-            template = random.choice(hedge_position_templates[swapType])
+            template = random.choice(
+                hedge_position_templates[swapType]
+                if random.random() < 0.85
+                else hedge_historical_templates
+            )
             notional = generate_value(False)
             prev_notional = generate_value()
             prev2_notional = generate_value()
         else:
             if random.random() < 0.75:
-                template = random.choice(hedge_position_templates[swapType])
+                template = random.choice(
+                    hedge_position_templates[swapType]
+                    if random.random() < 0.85
+                    else hedge_historical_templates
+                )
                 prev_notional = generate_value()
                 prev2_notional = generate_value()
                 if random.random() < 0.5 and "{notional}" in template: # no notional amount if we pick a current year and not active
