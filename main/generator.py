@@ -627,6 +627,9 @@ def generate_hedge_paragraph(
             while year == base_year and template.find("{notional}") == -1:
                 # # FInd a template with notional
                 template = random.choice(hedge_position_templates[swapType])
+            if notional == 0 and year == base_year:
+                added = True
+                labels["term"] = 1
 
         prev_notional = generate_value()
         prev2_notional = generate_value()
