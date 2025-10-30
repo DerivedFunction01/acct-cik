@@ -200,7 +200,7 @@ def get_primary_label(labels: dict) -> int:
 
     # --- 3. Context-only (non-use, non-speculative) ---
     for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:
-        if labels.get(hedge_type):
+        if labels.get(hedge_type, 0) > 0.75:
             return context_map[hedge_type]
 
     # --- 4. Irrelevant (only if nothing else matched) ---
