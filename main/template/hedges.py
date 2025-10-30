@@ -1400,8 +1400,7 @@ DEPENDENT_TYPES = [
     "forward",
     "option",
     "future",
-    "hedging", 
-    "protection", 
+    "hedging",
 ]
 
 BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
