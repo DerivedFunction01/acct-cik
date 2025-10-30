@@ -313,14 +313,28 @@ def generate_hedge_paragraph(
     # Currency and year setup
     money_units = random.choice(money_unit_list)
     currency_code = random.choice(currency_codes)
-    major_currency = random.choice(all_currencies)
+    major_currency = random.choice(all_currencies)    
 
-    current_year = random.randint(year_range[0], year_range[1])
-    reporting_year = current_year
+    # --- Centralized Year Logic ---
+    # Establish the primary reporting year for the entire paragraph at the top level.
+    # This ensures all generated sentences are consistent.
+    base_year = random.randint(year_range[0], year_range[1])
     num_past_years = random.randint(1, max_past_years)
-    past_years = sorted(
-        random.sample(range(current_year - 30, current_year), num_past_years)
-    )
+    past_years = sorted(random.sample(range(base_year - 30, base_year), num_past_years))
+
+    if has_active_derivative:
+        # If there's an active derivative, the report is for the current year.
+        reporting_year = base_year
+    elif has_active_derivative is False:
+        # If it's historical, it could be about the current year (e.g., "we had no swaps this year")
+        # or a past year ("in 2015, we terminated our swaps").
+        if random.random() < 0.5:
+            reporting_year = base_year
+        else:
+            reporting_year = random.choice(past_years) if past_years else base_year - 1
+    else: # Speculative/Policy
+        reporting_year = base_year
+
     month = random.choice(months)
     end_day = random.randint(28, 31)
     quarter = random.choice(quarters)
@@ -401,7 +415,7 @@ def generate_hedge_paragraph(
             labels[f"{choice}_use"] = 1
         mixed_swaps = ", ".join(mixed_list[:-1]) + " and " + mixed_list[-1]
 
-    def generate_debt() -> list[str]:
+    def generate_debt(year_to_use: int) -> list[str]:
         sentences = []
         # Build the debt type combination
         debt_type_list = [random.choice(debt_types_list) for _ in range(random.randint(1, 3))]
@@ -416,10 +430,10 @@ def generate_hedge_paragraph(
                 "{amount}": str(generate_value(False)),
                 "{amount2}": str(generate_value(False)),
                 "{month}": month,
-                "{year}": str(current_year),
+                "{year}": str(year_to_use),
                 "{debt_types}": selected_debt,
                 "{debt_type}": random.choice(debt_types_list),
-                "{maturity_year}": str(current_year + random.randint(3, 10)),
+                "{maturity_year}": str(year_to_use + random.randint(3, 10)),
                 "{company}": pick_company_name(company_name),
                 "{currency_code}": currency_code,
                 "{major_currency}": major_currency,
@@ -442,7 +456,7 @@ def generate_hedge_paragraph(
             sentences.append(sentence)
         return sentences
 
-    def generate_commodity() -> list[str]:
+    def generate_commodity(year_to_use: int) -> list[str]:
         sentences = []
         cp_templates = sum(noise_templates.get("CP", []), [])
         if not cp_templates:
@@ -453,8 +467,8 @@ def generate_hedge_paragraph(
             replacements = {
                 "{amount}": str(generate_value(False)),
                 "{amount2}": str(generate_value(False)),
-                "{year}": str(current_year),
-                "{prev_year}": str(current_year - 1),
+                "{year}": str(year_to_use),
+                "{prev_year}": str(year_to_use - 1),
                 "{month}": month,
                 "{company}": pick_company_name(company_name),
                 "{currency_code}": currency_code,
@@ -480,7 +494,7 @@ def generate_hedge_paragraph(
             sentences.append(sentence)
         return sentences
 
-    def generate_fx() -> list[str]:
+    def generate_fx(year_to_use: int) -> list[str]:
         sentences = []
         fx_templates = sum(noise_templates.get("FX", []), [])
         if not fx_templates:
@@ -494,8 +508,8 @@ def generate_hedge_paragraph(
             replacements = {
                 "{amount}": str(generate_value(False)),
                 "{amount2}": str(generate_value(False)),
-                "{year}": str(current_year),
-                "{prev_year}": str(current_year - 1),
+                "{year}": str(year_to_use),
+                "{prev_year}": str(year_to_use - 1),
                 "{month}": month,
                 "{company}": pick_company_name(company_name),
                 "{currency_code}": currency_code,
@@ -515,7 +529,7 @@ def generate_hedge_paragraph(
             sentences.append(sentence)
         return sentences
 
-    def generate_derivative_sentences() -> list[str]:
+    def generate_derivative_sentences(year_to_use: int) -> list[str]:
         """Generate derivative-related sentences for FX, IR, CP, or generic types."""
         sentences = []
 
@@ -553,20 +567,21 @@ def generate_hedge_paragraph(
         if not mixed and random.random() < 0.15:
             added = True
             labels[swapType] = 1  # Context for the specific hedge type
+            # Pass the reporting_year to ensure consistency
             if swapType == "ir":
-                sentences.extend(generate_debt())
+                sentences.extend(generate_debt(reporting_year))
             elif swapType == "cp":
-                sentences.extend(generate_commodity())
+                sentences.extend(generate_commodity(reporting_year))
             elif swapType == "fx":
-                sentences.extend(generate_fx())
+                sentences.extend(generate_fx(reporting_year))
 
         # Add a small chance of addtional sentences
         if random.random() < 0.10 and not mixed and not added:
             added = True
             future_year = (
-                random.randint(current_year + 1, current_year + 20)
+                random.randint(reporting_year + 1, reporting_year + 20)
                 if has_active_derivative
-                else random.randint(current_year - 5, current_year - 1)
+                else random.randint(reporting_year - 5, reporting_year - 1)
             )
             sentences.append(
                 random.choice(additional_template_patterns).format(
@@ -575,7 +590,7 @@ def generate_hedge_paragraph(
                     terminated_verb=random.choice(terminated_verbs),
                     month=month,
                     end_day=end_day,
-                    year=current_year,
+                    year=reporting_year,
                     future_year=future_year,
                     swap_type=swap_type,
                     gen_swap=random.choice(derivative_keywords["gen"]),
@@ -596,40 +611,22 @@ def generate_hedge_paragraph(
             )
 
         # --- Time logic & Template Selection ---
+        # The reporting year is now passed in, so we just use it.
+        year = year_to_use
+
         if has_active_derivative:
-            year = current_year
             template = random.choice(
                 hedge_position_templates[swapType]
                 if random.random() < 0.85
                 else hedge_historical_templates
             )
             notional = generate_value(False)
-            prev_notional = generate_value()
-            prev2_notional = generate_value()
         else:
-            if random.random() < 0.75:
-                template = random.choice(
-                    hedge_position_templates[swapType]
-                    if random.random() < 0.85
-                    else hedge_historical_templates
-                )
-                prev_notional = generate_value()
-                prev2_notional = generate_value()
-                if random.random() < 0.5 and "{notional}" in template: # no notional amount if we pick a current year and not active
-                    year = current_year 
-                    notional = 0 
-                else: # If we pick a past year, we can have a notional amount
-                    year = random.choice(past_years)
-                    notional = generate_value(haveZero=False, lowerlimit=1)
-            else:
-                # Use the more comprehensive template list for "no outstanding" disclosures
-                labels["term"] = 1
-                added = True # do not add any more sentences
-                template = random.choice(hedge_zero_templates)
-                notional = 0 # A zero-out event implies termination
-                prev_notional = generate_value(haveZero=False, lowerlimit=1)
-                prev2_notional = generate_value(haveZero=False, lowerlimit=1)
-                year = current_year
+            template = random.choice(hedge_position_templates[swapType] if random.random() < 0.85 else hedge_historical_templates)
+            notional = 0 if year == base_year else generate_value(haveZero=False, lowerlimit=1)
+
+        prev_notional = generate_value()
+        prev2_notional = generate_value()
 
         prev_year, prev2_year = year - 1, year - 2
         old_year = year - random.randint(1, 20) if past_years else prev_year
@@ -637,7 +634,7 @@ def generate_hedge_paragraph(
 
         future_year = (
             random.randint(year + 1, year + 20)
-            if has_active_derivative
+            if has_active_derivative and year == base_year
             else random.randint(old_year - 1, prev_year)
         )
 
@@ -690,7 +687,7 @@ def generate_hedge_paragraph(
         # --- Expired hedges for non-active derivatives ---
         if not has_active_derivative and random.random() < 0.05 and not mixed and not added:
             added = True
-            sentences.append(expire_hedge(year == current_year))
+            sentences.append(expire_hedge(year))
         # --- Chance of payment
         if random.random() < 0.15 and not mixed and not added:
             sentences.append(hedge_payment())
@@ -698,14 +695,14 @@ def generate_hedge_paragraph(
         random.shuffle(sentences)
         return sentences
 
-    def expire_hedge(use_current_year=False) -> str:
+    def expire_hedge(year_to_use: int) -> str:
         if mixed:
             return ""
-        labels["hist"] = 1
-        if use_current_year:
+        labels["hist"] = 1.0
+        if year_to_use == base_year:
             labels["term"] = 1
         template = random.choice(hedge_termination_templates)
-        term_year = random.choice(past_years) - 1 if not use_current_year else current_year 
+        term_year = year_to_use
         prev_year = term_year - 1
         prev2_year = term_year - 2
         verb = random.choice(hedge_use_verbs)
@@ -725,15 +722,15 @@ def generate_hedge_paragraph(
         )
         return sentence
 
-    def zero_outstanding() -> str:
+    def zero_outstanding(year_to_use: int) -> str:
         if mixed:
             return ""
-        labels["hist"] = 1
-        labels["term"] = 1
+        labels["hist"] = 1.0
+        labels["term"] = 1.0
         template = random.choice(hedge_zero_templates)
-        year = current_year 
-        prev_year = current_year - 1
-        prev2_year = current_year - 2
+        year = base_year 
+        prev_year = base_year - 1
+        prev2_year = year_to_use - 2
         notional = 0
         prev_notional = generate_value(haveZero=False, lowerlimit=1)
         prev2_notional = generate_value(haveZero=False, lowerlimit=1)
@@ -743,7 +740,7 @@ def generate_hedge_paragraph(
             company=pick_company_name(company_name),
             swap_type=swap_type,
             month=random.choice(months),
-            quarter=quarter,
+            quarter=random.choice(quarters),
             year=year,
             prev_year=prev_year,
             prev2_year=prev2_year,
@@ -774,15 +771,15 @@ def generate_hedge_paragraph(
         )
         return sentence
 
-    def hedge_policy() -> list[str]:
+    def hedge_policy(year_to_use: int) -> list[str]:
         sentences = []
         hedge_type = random.choice(hedge_types)
         labels["spec"] = 1
         if swapType is not None:
             labels[swapType] = 1
-        year = current_year if has_active_derivative else random.choice(past_years)
+        year = base_year if has_active_derivative else random.choice(past_years)
         # --- Current Use Policy ---
-        if has_active_derivative is not None:
+        if has_active_derivative:
             # For current use, discuss actual effectiveness and documentation.
             doc_template = random.choice(hedge_documentation_templates)
             sentences.append(
@@ -801,7 +798,7 @@ def generate_hedge_paragraph(
                     hedge_type=hedge_type,
                     month=month,                    
                     end_day=end_day,
-                    year=year,
+                    year=year_to_use,
                 )
             )
 
@@ -810,8 +807,8 @@ def generate_hedge_paragraph(
             sentences.append(
                 ineff_template.format(
                     company=pick_company_name(company_name),                    
-                    year=year,
-                    prev_year=year - 1,
+                    year=year_to_use,
+                    prev_year=year_to_use - 1,
                     amount=generate_value(),
                     currency_code=currency_code,
                     money_unit=money_units,
@@ -825,8 +822,7 @@ def generate_hedge_paragraph(
                 )
             )
             sentences = random.sample(sentences, random.randint(2,3))
-        # --- Speculative / General Policy ---
-        else: # has_active_derivative is None
+        else: # Speculative or historical
             # For speculative use, discuss policies for effectiveness, ineffectiveness, and general accounting.
             act_template = random.choice(hedge_policy_templates)
             sentences.append(
@@ -895,7 +891,7 @@ def generate_hedge_paragraph(
             random.shuffle(sentences)
         return sentences
 
-    def hedge_type_policy() -> list[str]:
+    def hedge_type_policy(year_to_use: int) -> list[str]:
         labels[swapType] = 1
         labels["spec"] = 1
         labels[f"{swapType}_use"] = 1
@@ -954,11 +950,11 @@ def generate_hedge_paragraph(
 
         # If we don't have an active derivative, add a no such outstanding sentence
         if not has_active_derivative and random.random() < 0.25 and not mixed:
-            sentences.append(expire_hedge(use_current_year=True) if random.random() < 0.5 else zero_outstanding())
+            sentences.append(expire_hedge(year_to_use) if random.random() < 0.5 else zero_outstanding(year_to_use))
         random.shuffle(sentences)
         return sentences
 
-    def generate_hedge_policy_update():
+    def generate_hedge_policy_update(year_to_use: int):
         sentences = []
         labels["spec"] = 1
         labels[swapType] = 0 # Not related to any swap
@@ -981,7 +977,7 @@ def generate_hedge_paragraph(
         extra = random.choice(hedging_additional_features)
 
         issue_month = random.choice(months)
-        issue_year = random.randint(current_year - 8, current_year)
+        issue_year = random.randint(base_year - 8, base_year)
         effective_year = issue_year + random.randint(2, 4)
         eff_month = random.choice(months)
         eff_day = random.randint(15, 31)
@@ -997,7 +993,7 @@ def generate_hedge_paragraph(
             hedge_feature=extra,
             eff_month=eff_month,
             eff_day=eff_day,
-            eff_year=effective_year,
+            year=effective_year,
             company=pick_company_name(company_name),
         )
         sentences.append(issuance_sentence)
@@ -1050,7 +1046,7 @@ def generate_hedge_paragraph(
         adopt_method = random.choice(shared_adoption_methods)
         adopt_month = random.choice(months)
         adopt_day = random.randint(1, 28)
-        adopt_year = random.randint(current_year - 8, current_year + 4)
+        adopt_year = random.randint(base_year - 8, base_year + 4)
 
         adoption_sentence = adopt_template.format(
             company=pick_company_name(company_name),
@@ -1058,7 +1054,7 @@ def generate_hedge_paragraph(
             adoption_method=adopt_method,
             month=adopt_month,
             day=adopt_day,
-            year=adopt_year,
+            year=year_to_use,
         )
         sentences.append(adoption_sentence)
 
@@ -1098,7 +1094,7 @@ def generate_hedge_paragraph(
                     ]
                 ),
                 month=random.choice(months),
-                year=random.randint(current_year - 2, current_year),
+                year=year_to_use,
                 adoption_year=random.randint(current_year, current_year + 3),
             ) # Corrected from hedge_adoption_year
             sentences.append(pronouncement)
@@ -1133,24 +1129,24 @@ def generate_hedge_paragraph(
     if has_active_derivative is None: # Speculative / Policy-only
         if swapType and random.random() < 0.5:
             # Generate a policy specific to a hedge type (e.g., "we may use IR swaps...")
-            all_sentences.extend(hedge_type_policy())
+            all_sentences.extend(hedge_type_policy(reporting_year))
         elif random.random() < 0.65:
             # Generate a general, non-specific hedge policy
-            all_sentences.extend(hedge_policy())
+            all_sentences.extend(hedge_policy(reporting_year))
         else:
             # Generate a policy update disclosure (e.g., ASU 2017-12)
-            all_sentences.extend(generate_hedge_policy_update())
+            all_sentences.extend(generate_hedge_policy_update(reporting_year))
     else: # Current or Historical Use
         if not mixed:
-            all_sentences.extend(generate_derivative_sentences())
+            all_sentences.extend(generate_derivative_sentences(reporting_year))
         if include_policy or mixed:
             # Randomly add either a general policy or a type-specific policy
             if random.random() < 0.5 or mixed:
-                all_sentences.extend(hedge_type_policy())
+                all_sentences.extend(hedge_type_policy(reporting_year))
             else:
-                all_sentences.extend(hedge_policy())
+                all_sentences.extend(hedge_policy(reporting_year))
 
-    paragraph = cleanup(all_sentences, current_year)
+    paragraph = cleanup(all_sentences, reporting_year)
     labels = label_paragraph(paragraph, labels)
     label = get_primary_label(labels)
     return paragraph, labels, label
