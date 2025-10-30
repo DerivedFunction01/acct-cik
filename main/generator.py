@@ -40,7 +40,7 @@ def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000, dashed=False):
     """Generate a random previous notional value with chance of being zero,
     and optional rounding for variability. Returns int if whole, else float."""
     if haveZero:
-        chance = 0.1
+        chance = 0.15
     else:
         chance = 0
 
