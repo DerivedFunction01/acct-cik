@@ -894,7 +894,7 @@ def generate_hedge_paragraph(
             random.shuffle(sentences)
         return sentences
 
-    def hedge_type_policy(year_to_use: int) -> list[str]:
+    def hedge_type_policy(year_to_use: int, additional=False) -> list[str]:
         labels[swapType] = 1
         labels["spec"] = 1
         labels[f"{swapType}_use"] = 1
@@ -955,7 +955,7 @@ def generate_hedge_paragraph(
             )
 
         # If we don't have an active derivative, add a no such outstanding sentence
-        if not has_active_derivative and random.random() < 0.25:
+        if not has_active_derivative and random.random() < 0.25 and additional:
             if random.random() < 0.65 and not mixed:
                 sentences.append(expire_hedge(year_to_use) if random.random() < 0.15 else zero_outstanding(year_to_use))
             else:
@@ -1141,7 +1141,7 @@ def generate_hedge_paragraph(
     if has_active_derivative is None: # Speculative / Policy-only
         if swapType and random.random() < 0.5:
             # Generate a policy specific to a hedge type (e.g., "we may use IR swaps...")
-            all_sentences.extend(hedge_type_policy(reporting_year))
+            all_sentences.extend(hedge_type_policy(reporting_year, random.choice([True, False])))
         elif random.random() < 0.65:
             # Generate a general, non-specific hedge policy
             all_sentences.extend(hedge_policy(reporting_year))
@@ -1157,7 +1157,7 @@ def generate_hedge_paragraph(
         if include_policy or mixed:
             # Randomly add either a general policy or a type-specific policy
             if random.random() < 0.5 or mixed:
-                all_sentences.extend(hedge_type_policy(reporting_year))
+                all_sentences.extend(hedge_type_policy(reporting_year, False))
             else:
                 all_sentences.extend(hedge_policy(reporting_year))
 
