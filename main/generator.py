@@ -1219,7 +1219,7 @@ def generate_warrant_paragraph(
         return None, None, None
 
     all_sentences = []
-    for _ in range(random.randint(2, 3))
+    for _ in range(random.randint(2, 3)):
         template = random.choice(template_pool)
 
         # Format sentence
