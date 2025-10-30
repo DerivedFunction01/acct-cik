@@ -1380,25 +1380,26 @@ def generate_sec_noise():
         "page": random.randint(1, 200),
     }
 
-    # Format phrases from templates
-    phrases = [p.format(**placeholders) for p in sec_phrases]
-
     # Generate gibberish filename
     gibberish = "".join(
         random.choices(string.ascii_lowercase + string.digits, k=random.randint(6, 12))
     ) + random.choice([".htm", ".txt"])
 
-    # Combine all parts and build a more structured, shorter paragraph
-    # This will create a more realistic but still noisy snippet.
+    # Build a short, noisy paragraph from a few distinct, unmerged phrases.
     chunks = []
-    # 1. Start with a header or a gibberish filename
+
+    # 1. Select a few random phrase templates (not formatted yet)
+    selected_templates = random.sample(sec_phrases, k=random.randint(1, 2))
+    # 2. Format only the selected templates
+    phrases = [p.format(**placeholders) for p in selected_templates]
+
+    # 3. Start with a header or a gibberish filename
     chunks.append(random.choice(headers + [gibberish]))
 
-    # 2. Add one or two random phrases
-    num_phrases = random.randint(1, 2)
-    chunks.extend(random.sample(phrases, k=num_phrases))
+    # 4. Add the formatted phrases
+    chunks.extend(phrases)
 
-    # 3. Optionally add a table of contents line
+    # 5. Optionally add a table of contents line
     if random.random() < 0.3:
         chunks.append(generate_toc_line())
 
