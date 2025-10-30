@@ -680,7 +680,7 @@ def generate_hedge_paragraph(
 
         # --- Expired hedges for non-active derivatives ---
         if not has_active_derivative and random.random() < 0.05 and not mixed:
-            sentences.append(expire_hedge())
+            sentences.append(expire_hedge(year == current_year))
         # --- Chance of payment
         if random.random() < 0.15 and not mixed:
             sentences.append(hedge_payment())
