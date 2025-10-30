@@ -186,21 +186,21 @@ def get_primary_label(labels: dict) -> int:
                 return curr_id
             if labels.get("hist"):
                 return hist_id
-            if labels.get("spec"):
+            if labels.get("spec", 0):
                 return spec_id
             # Default to current if _use flagged but no time context
             return curr_id
 
     # --- 2. Speculative mention (no actual use) ---
     for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:
-        if labels.get(hedge_type) and labels.get("spec"):
+        if labels.get(hedge_type) and labels.get("spec", 0) > 0.75:
             # Return spec_id from the map
             _, _, spec_id, _ = hedge_map[hedge_type]
             return spec_id
 
     # --- 3. Context-only (non-use, non-speculative) ---
     for hedge_type in ["ir", "fx", "cp", "eq", "gen"]:
-        if labels.get(hedge_type, 0) > 0.75:
+        if labels.get(hedge_type, 0):
             return context_map[hedge_type]
 
     # --- 4. Irrelevant (only if nothing else matched) ---
