@@ -423,7 +423,7 @@ def generate_hedge_paragraph(
 
         debt_templates_pool = debt_templates + sum(noise_templates.get("IR", []), [])
 
-        for _ in range(random.randint(2, 4)):
+        for _ in range(random.randint(2, 3)):
             template = random.choice(debt_templates_pool)
 
             replacements = {
@@ -461,7 +461,7 @@ def generate_hedge_paragraph(
         cp_templates = sum(noise_templates.get("CP", []), [])
         if not cp_templates:
             return []
-        for _ in range(random.randint(1, 3)):
+        for _ in range(random.randint(1, 2)):
             template = random.choice(cp_templates)
 
             replacements = {
@@ -1060,7 +1060,6 @@ def generate_hedge_paragraph(
         adopt_method = random.choice(shared_adoption_methods)
         adopt_month = random.choice(months)
         adopt_day = random.randint(1, 28)
-        adopt_year = random.randint(base_year - 8, base_year + 4)
 
         adoption_sentence = adopt_template.format(
             company=pick_company_name(company_name),
