@@ -66,9 +66,10 @@ fi
 # 4. Run init_venv.sh AND launch workers - all inside WinPython PowerShell's sh environment
 echo "🐍 Initializing virtual environment and launching workers..."
 
-powershell.exe -NoProfile -Command "& {
-    & 'C:\Users\del226\WPy64-31241\WinPython Powershell Prompt.exe'
-}"
+for i in $(seq 1 5); do
+    echo "🔁 Launching WinPython PowerShell Prompt (run $i of 5)..."
+    powershell.exe -NoProfile -Command "& { & 'C:\Users\del226\WPy64-31241\WinPython Powershell Prompt.exe' }"
+done
 
 echo ""
 echo "✅ Setup complete! Command is copied to clipboard"
