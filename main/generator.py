@@ -604,7 +604,7 @@ def generate_hedge_paragraph(
         else:
             if random.random() < 0.65:
                 template = ""
-                while "{notional}" not in template:
+                while template.find("{notional}") == -1:
                     template = random.choice(hedge_position_templates[swapType])
                 prev_notional = generate_value()
                 prev2_notional = generate_value()
