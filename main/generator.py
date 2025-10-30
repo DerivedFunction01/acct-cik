@@ -1218,31 +1218,32 @@ def generate_warrant_paragraph(
     if not template_pool:
         return None, None, None
 
-    template = random.choice(template_pool)
+    all_sentences = []
+    for _ in range(random.randint(2, 3))
+        template = random.choice(template_pool)
 
-    # Format sentence
-    replacements = {
-        "{company}": pick_company_name(company_name),
-        "{shares}": str(shares),
-        "{currency_code}": currency_code,
-        "{price}": str(price),
-        "{expiry_year}": str(expiry_year),
-        "{month}": month,
-        "{end_day}": str(end_day),
-        "{year}": str(current_year),
-        "{amount}": str(amount),
-        "{money_unit}": money_units,
-        "{settlement_year}": str(settlement_year),
-        "{current_year}": str(current_year),
-        "{quarter}": random.choice(quarters),
-    }
+        # Format sentence
+        replacements = {
+            "{company}": pick_company_name(company_name),
+            "{shares}": str(shares),
+            "{currency_code}": currency_code,
+            "{price}": str(price),
+            "{expiry_year}": str(expiry_year),
+            "{month}": month,
+            "{end_day}": str(end_day),
+            "{year}": str(current_year),
+            "{amount}": str(amount),
+            "{money_unit}": money_units,
+            "{settlement_year}": str(settlement_year),
+            "{current_year}": str(current_year),
+            "{quarter}": random.choice(quarters),
+        }
 
-    sentence = template
-    for key, value in replacements.items():
-        sentence = sentence.replace(key, value)
-
-    all_sentences = [sentence]
-
+        sentence = template
+        for key, value in replacements.items():
+            sentence = sentence.replace(key, value)
+        all_sentences.append(sentence)
+        
     paragraph = cleanup(all_sentences, reporting_year)
     labels = label_paragraph(paragraph, labels)
     label = get_primary_label(labels)
