@@ -1011,7 +1011,7 @@ hedge_no_trading_templates = [
 
 hedge_counterparty_templates = [
  "Most of the counterparties to the derivatives are major banks and {company} is monitoring the associated inherent credit risks",
-    "{company} enters into derivative contracts with major financial institutions and monitors counterparty credit risk on an ongoing basis",
+    "{company} may enter into derivative contracts with major financial institutions and monitors counterparty credit risk on an ongoing basis",
     "Derivative counterparties are limited to major banking institutions with strong credit ratings to minimize counterparty risk",
     "Credit risk from derivatives is mitigated by transacting only with highly-rated financial institution counterparties",
     "{company} manages counterparty credit exposure by diversifying its derivative contracts among multiple major banks",    
