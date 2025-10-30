@@ -769,12 +769,12 @@ zero_any_templates = [  # No such outstanding patterms
     "{company} {verb} no significant {swap_type} {time_period}",  # One year
     "{company} {Verb} no significant {swap_type} {time_period} and {prev_year}",  # Two year
     "{company} {verb} no significant {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
-    "{company} does not {verb} any {swap_type} {time_period}",  # One year
-    "{company} does not {verb} any {swap_type} {time_period} and {prev_year}",  # Two year
-    "{company} does not {verb} any {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
-    "{company} does not {verb} any {swap_type} {time_period}",  # One year
-    "{company} does not {verb} any open {swap_type} {time_period} and {prev_year}",  # Two year
-    "{company} does not {verb} any open {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
+    "{company} did not {verb} any {swap_type} {time_period}",  # One year
+    "{company} did not {verb} any {swap_type} {time_period} and {prev_year}",  # Two year
+    "{company} did not {verb} any {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
+    "{company} did not {verb} any {swap_type} {time_period}",  # One year
+    "{company} did not {verb} any open {swap_type} {time_period} and {prev_year}",  # Two year
+    "{company} did not {verb} any open {swap_type} {time_period}, {prev_year}, and {prev2_year}",  # Three year
     "{time_period}, the amounts of {swap_type} outstanding were {materiality}",
     "At {month} {end_day}, {year}, the amounts of {swap_type} outstanding were {materiality}",
     "The amounts of {swap_type} outstanding, as well as the amounts of gains and losses recorded during the year, were {materiality} {time_period}",
@@ -869,7 +869,7 @@ hedge_policy_templates = [
     "Gains and losses on {swap_type} are recognized currently in earnings",
     "The ultimate fair value of our {swap_type} is uncertain, and {company} believe that it is reasonably possible that a change in the estimated fair value could occur in the near future",
     "The accounting for the changes in the fair value of the {swap_type} depends on the intended use of the {swap_type} and the resulting designation",
-    "For a {swap_type} that does not qualify as a {hedge_type} hedge, the change in {hedge_type} is recognized currently in net income",
+    "For a {swap_type} that did not qualify as a {hedge_type} hedge, the change in {hedge_type} is recognized currently in net income",
     "The derivatives that {company} uses to hedge these risks are governed by our risk management policies include {swap_type}",
     "The goal of the hedging program such as using {swap_type} is to mitigate financial risks",
     "If the derivative such as {swap_type} is a hedge, changes in the fair value of derivatives may be recognized in other comprehensive income until the hedged item is recognized in earnings",
@@ -966,9 +966,9 @@ hedge_discontinuation_templates = [
     "Deferred gains or losses on discontinued hedges are recognized immediately in the consolidated statements of operations",
     "Upon dedesignation of a hedge, the ineffective and deferred portions of derivative instruments are recorded in current period earnings",
     "Hedge discontinuation is applied when the underlying forecasted transaction is no longer probable, reclassifying previously deferred amounts to income",
-    "If the hedged item does not materialize, accumulated OCI amounts for the hedge are transferred to current earnings",
+    "If the hedged item did not materialize, accumulated OCI amounts for the hedge are transferred to current earnings",
     "{company} derecognizes hedge accounting when criteria are no longer met, and any associated gains or losses are recognized in the period of discontinuation",
-    "{swap_type} being accounted for as a {hedge_type} hedge does not qualify for hedge accounting because it is no longer highly effective in offsetting {metric} of a hedged item",
+    "{swap_type} being accounted for as a {hedge_type} hedge did not qualify for hedge accounting because it is no longer highly effective in offsetting {metric} of a hedged item",
     "If the {swap_type} expires or is sold, terminated or exercised, or if management determines that designation of the {swap_type} as a hedge instrument is no longer appropriate, hedge accounting would be discontinued",
     "In {year}, {company} discontinued hedge accounting for certain {swap_type} as part of a strategic change in its risk management approach",
     "Upon discontinuation of the {hedge_type} hedge, a net {gain_loss} of {currency_code}{amount} {money_unit} was reclassified from accumulated other comprehensive income into {location}",
