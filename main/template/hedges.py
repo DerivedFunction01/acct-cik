@@ -1216,7 +1216,7 @@ def generate_hedge_position_templates(hedge_type="gen"):
     """
     Generate all template combinations for a specific hedge type.
     Args:
-        hedge_type: One of "ir", "fx", "eq", "cp", "gen"
+        hedge_type: One of "ir", "fx", "eq", "cp", "gen" 
     Returns:
         List of all generated templates
     """
@@ -1240,7 +1240,7 @@ def generate_hedge_position_templates(hedge_type="gen"):
         for connector in amount_connectors
     ]
 
-    # Two-year and three-year versions
+    # Two-year and three-year versions 
     two_year_amounts = [
         to_sentence_case(pattern.replace("{connector}", connector))
         for pattern in two_year_amount_patterns
@@ -1293,24 +1293,33 @@ def generate_hedge_position_templates(hedge_type="gen"):
                 templates.append(
                     to_sentence_case(f"The {amount} of {{swap_type}} is {three_year_amount}, {prefix}")
                 )
-    
-    # Down sample the templates
-    random.shuffle(templates)
-    templates = templates[::2]
+    templates2 = []
 
     # Two-year   Three-year "no prior year" templates
     for template in two_year_no_prior_templates:
         for pattern in two_year_no_prior_patterns:
-            templates.append(
+            templates2.append(
                 to_sentence_case(template.replace("{no_prior_pattern}", pattern))
             )
     for template in three_year_no_prior_templates:
         for pattern in three_year_no_prior_patterns:
-            templates.append(
+            templates2.append(
                 to_sentence_case(template.replace("{no_prior_pattern}", pattern))
             )
 
-    return templates
+    random.shuffle(templates)
+    random.shuffle(templates2)
+    
+    # Calculate target sizes based on 3:2 ratio
+    total_size = len(templates) + len(templates2)
+    target_template_size = int(total_size * 0.6) # 3/5 of total
+    target_template2_size = int(total_size * 0.4) # 2/5 of total
+    
+    # Trim templates to target sizes
+    templates = templates[:target_template_size]
+    templates2 = templates2[:target_template2_size]
+    
+    return templates + templates2
 
 def generate_historical_templates() -> list[str]:
     templates = []
