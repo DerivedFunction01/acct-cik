@@ -892,6 +892,7 @@ def generate_hedge_paragraph(
             )
 
             random.shuffle(sentences)
+            sentences = random.sample(sentences, random.randint(2,3))
         return sentences
 
     def hedge_type_policy(year_to_use: int, additional=False) -> list[str]:
@@ -1132,6 +1133,8 @@ def generate_hedge_paragraph(
             # Join them together
             sentence = ', '.join(def_sent)
             sentences.append(sentence)
+        random.shuffle(sentences)
+        sentences = random.sample(sentences, random.randint(2,3))
         return sentences
 
     # --- Main Execution Logic ---
@@ -1295,36 +1298,46 @@ def generate_emb_paragraph(
     if not template_pool:
         return None, None, None
 
-    template = random.choice(template_pool)
+    # Choose 2-3 sentences using the template pool for embedded derivative paragraphs
+    all_sentences = []
+    for _ in range(random.randint(2, 3)):
+        template = random.choice(template_pool)
 
-    # Format sentence
-    replacements = {
-        "{company}": pick_company_name(company_name),
-        "{currency_code}": currency_code,
-        "{month}": month,
-        "{end_day}": str(end_day),
-        "{year}": str(current_year),
-        "{prev_year}": str(prev_year),
-        "{amount}": str(amount),
-        "{prev_amount}": str(prev_amount),
-        "{money_unit}": money_units,
-        "{current_year}": str(current_year),
-        "{settlement_year}": str(random.choice(past_years) if past_years else current_year - 1),
-        "{currency_pair}": f"{random.choice(currency_codes)}/{random.choice(currency_codes)}",
-        "{principal}": str(principal),
-        "{embedded_fv}": str(embedded_fv),
-        "{target}": random.choice(company_names),
-        "{price}": str(generate_value(False, 1, 100)),
-        "{shares}": str(generate_value(False, 100000, 500000)),
-        "{expiry_year}": str(current_year + random.randint(1, 10)),
-        "{quarter}": random.choice(quarters)
-    }
+        # regenerate some values per-sentence for variability
+        amt = generate_value(False)
+        prev_amt = generate_value(False)
+        price_val = generate_value(False, 1, 100)
+        shares_val = generate_value(False, 100000, 500000)
+        expiry = current_year + random.randint(1, 10)
+        settlement = random.choice(past_years) if past_years else current_year - 1
+        embedded_fv_local = generate_value(False, int(principal / 20) if principal > 20 else 1, int(principal / 10) if principal > 10 else 2)
 
-    sentence = template
-    for key, value in replacements.items():
-        sentence = sentence.replace(key, value)
+        replacements = {
+            "{company}": pick_company_name(company_name),
+            "{currency_code}": currency_code,
+            "{month}": month,
+            "{end_day}": str(end_day),
+            "{year}": str(current_year),
+            "{prev_year}": str(prev_year),
+            "{amount}": str(amt),
+            "{prev_amount}": str(prev_amt),
+            "{money_unit}": money_units,
+            "{current_year}": str(current_year),
+            "{settlement_year}": str(settlement),
+            "{currency_pair}": f"{random.choice(currency_codes)}/{random.choice(currency_codes)}",
+            "{principal}": str(principal),
+            "{embedded_fv}": str(embedded_fv_local),
+            "{target}": random.choice(company_names),
+            "{price}": str(price_val),
+            "{shares}": str(shares_val),
+            "{expiry_year}": str(expiry),
+            "{quarter}": random.choice(quarters),
+        }
 
-    all_sentences = [sentence]
+        sentence = template
+        for key, value in replacements.items():
+            sentence = sentence.replace(key, value)
+        all_sentences.append(sentence)
 
     
     paragraph = cleanup(all_sentences, reporting_year)
@@ -1379,7 +1392,7 @@ def generate_sec_noise():
 
     # Combine all parts and randomly sample
     chunks = random.sample(
-        headers + phrases + [gibberish] + [generate_toc_line()], k=random.randint(8, 15)
+        headers + phrases + [gibberish] + [generate_toc_line()], k=random.randint(3, 4)
     )
 
     # Create paragraph and labels for compatibility
@@ -1612,6 +1625,8 @@ def generate_noise_paragraph(
             materiality=materiality_choice,
         )
         sentences.append(sentence)
+        random.shuffle(sentences)
+        sentences = random.sample(sentences, random.randint(2,3))
         return sentences
 
     # swaps setup
@@ -2092,13 +2107,13 @@ def generate(size_per_label=100):
                 for use_case in table_use_cases:
                     futures.append(executor.submit(generate_derivative_table_text, swapType=swap_type, use_case=use_case))
         # Noise table text
-        noise_table_count = count * 2
+        noise_table_count = count // 2
         noise_table_types = ['B_S', 'EQ', 'PPE', 'DEBT', 'SUPPLY']
         for _ in range(noise_table_count):
             futures.append(executor.submit(generate_noise_table_text, noise_type=random.choice(noise_table_types)))
                 
         # Noise Generation
-        noise_count = count * 2
+        noise_count = count // 2
         noise_types = ['eq', 'cp', 'ir', 'fx', 'law', 'spec']
         for _ in range(noise_count):
             for noise_type in noise_types:
@@ -2106,7 +2121,7 @@ def generate(size_per_label=100):
         for _ in range(size_per_label): # Any random noise
             futures.append(executor.submit(generate_noise_paragraph, noise_type=None))
             
-        for _ in range(count // 2):
+        for _ in range(count // 4):
             futures.append(executor.submit(generate_sec_noise))
         return futures
 
