@@ -549,9 +549,10 @@ def generate_hedge_paragraph(
                     swap_type=swap_type,
                 )
             )
-
+        added = False
         # Add a chance of context sentences
         if not mixed and random.random() < 0.15:
+            added = True
             labels[swapType] = 1  # Context for the specific hedge type
             if swapType == "ir":
                 sentences.extend(generate_debt())
@@ -561,7 +562,8 @@ def generate_hedge_paragraph(
                 sentences.extend(generate_fx())
 
         # Add a small chance of addtional sentences
-        if random.random() < 0.10 and not mixed:
+        if random.random() < 0.10 and not mixed and not added:
+            added = True
             future_year = (
                 random.randint(current_year + 1, current_year + 20)
                 if has_active_derivative
@@ -680,10 +682,11 @@ def generate_hedge_paragraph(
         sentences.append(sentence)
 
         # --- Expired hedges for non-active derivatives ---
-        if not has_active_derivative and random.random() < 0.05 and not mixed:
+        if not has_active_derivative and random.random() < 0.05 and not mixed and not added:
+            added = True
             sentences.append(expire_hedge(year == current_year))
         # --- Chance of payment
-        if random.random() < 0.15 and not mixed:
+        if random.random() < 0.15 and not mixed and not added:
             sentences.append(hedge_payment())
 
         random.shuffle(sentences)
