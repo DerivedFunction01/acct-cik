@@ -1146,7 +1146,7 @@ def generate_hedge_paragraph(
             else:
                 all_sentences.extend(hedge_policy(reporting_year))
 
-    paragraph = cleanup(all_sentences, reporting_year)
+    paragraph = cleanup(all_sentences, base_year)
     labels = label_paragraph(paragraph, labels)
     label = get_primary_label(labels)
     return paragraph, labels, label
