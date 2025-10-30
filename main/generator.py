@@ -916,7 +916,10 @@ def generate_hedge_paragraph(
                         else (random.choice(past_adverbs) + " " + base_verb).strip()
                     )
                 else:  # will not use
-                    return (random.choice(not_adverbs) if random.random() < 0.5 else random.choice(past_adverbs) + " " + random.choice(hedge_use_verbs)).strip()
+                    return (
+                        (random.choice(not_adverbs) if random.random() < 0.5 else random.choice(past_adverbs))
+                        + " " + random.choice(hedge_use_verbs)
+                        ).strip()
 
         # Sentence 1: Begin context
         beg_ctx_template = random.choice(hedge_begin_context_templates.get(swapType, []))
