@@ -403,7 +403,8 @@ http {{
 
             # Failover logic: if a server fails, try the next one.
             # This is crucial for redirecting from a failed CPU server to the GPU server.
-            proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+            # non_idempotent allows POST requests to be retried on the next server.
+            proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504 non_idempotent;
 
             proxy_connect_timeout {GUNICORN_TIMEOUT};
             proxy_send_timeout {GUNICORN_TIMEOUT};
