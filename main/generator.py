@@ -1219,7 +1219,7 @@ def generate_warrant_paragraph(
         return None, None, None
 
     all_sentences = []
-    for _ in range(random.randint(2, 3)):
+    for _ in range(random.randint(1, 2)):
         template = random.choice(template_pool)
 
         # Format sentence
@@ -1282,11 +1282,8 @@ def generate_emb_paragraph(
     end_day = random.randint(28, 31)
 
     # Embedded deriv specific variables
-    amount = generate_value(False)
-    prev_amount = generate_value(False)
     principal = generate_value(False, 100000, 5000000)
     assert not isinstance(principal, str), "principal should be an num"
-    embedded_fv = generate_value(False, int(principal/20), int(principal/10)) if principal > 0 else 0
 
     # Select template pool
     if use_case == 'current':
@@ -1299,9 +1296,9 @@ def generate_emb_paragraph(
     if not template_pool:
         return None, None, None
 
-    # Choose 2-3 sentences using the template pool for embedded derivative paragraphs
+    # Choose 1-2 sentences using the template pool for embedded derivative paragraphs
     all_sentences = []
-    for _ in range(random.randint(2, 3)):
+    for _ in range(random.randint(1, 2)):
         template = random.choice(template_pool)
 
         # regenerate some values per-sentence for variability
