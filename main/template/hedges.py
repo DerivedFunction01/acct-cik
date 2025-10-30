@@ -1310,14 +1310,17 @@ def generate_hedge_position_templates(hedge_type="gen"):
     random.shuffle(templates)
     random.shuffle(templates2)
     
-    # Calculate target sizes based on 3:2 ratio
-    total_size = len(templates) + len(templates2)
-    target_template_size = int(total_size * 0.6) # 3/5 of total
-    target_template2_size = int(total_size * 0.4) # 2/5 of total
-    
-    # Trim templates to target sizes
-    templates = templates[:target_template_size]
-    templates2 = templates2[:target_template2_size]
+    # --- Ratio-Based Sampling to Balance Lists ---
+    # Determine the number of samples for the larger list based on the smaller one to maintain a 3:2 ratio.
+    # This prevents the smaller list from being exhausted and ensures a proper balance.
+    if len(templates) > len(templates2):
+        # 'templates' is larger. Trim it to be 1.5x the size of 'templates2' (3:2 ratio).
+        num_samples_from_templates = min(len(templates), int(len(templates2) * 1.5))
+        templates = templates[:num_samples_from_templates]
+    else:
+        # 'templates2' is larger. Trim it to be 2/3 the size of 'templates'.
+        num_samples_from_templates2 = min(len(templates2), int(len(templates) * (2/3)))
+        templates2 = templates2[:num_samples_from_templates2]
     
     return templates + templates2
 
