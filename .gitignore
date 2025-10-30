@@ -21,3 +21,4 @@ hf_token
 derivative-classifier
 .*.*
 backup
+*.conf
