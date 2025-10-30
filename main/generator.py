@@ -955,7 +955,7 @@ def generate_hedge_paragraph(
             )
 
         # If we don't have an active derivative, add a no such outstanding sentence
-        if not has_active_derivative and random.random() < 0.25 and additional:
+        if not has_active_derivative and random.random() < 0.45 and additional:
             if random.random() < 0.65 and not mixed:
                 sentences.append(expire_hedge(year_to_use) if random.random() < 0.15 else zero_outstanding(year_to_use))
             else:
