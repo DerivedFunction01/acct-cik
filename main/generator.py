@@ -2163,6 +2163,14 @@ def generate(size_per_label=100):
 
     print(f"\n{len(all_samples)} samples written/appended to {output_file} (sorted)")
 
+    # --- Generate Histogram ---
+    from matplotlib import pyplot as plt
+    label_counts = df_new['label'].value_counts()
+    label_counts.plot(kind='bar', title='Label Distribution')
+    plt.xlabel('Labels')
+    plt.ylabel('Frequency')
+    plt.show()
+
 # %%
 generate(1000)
 
