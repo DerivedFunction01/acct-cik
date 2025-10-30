@@ -1390,7 +1390,7 @@ def generate_sec_noise():
 
     # Combine all parts and randomly sample
     chunks = random.sample(
-        headers + phrases + [gibberish] + [generate_toc_line()], k=random.randint(3, 4)
+        headers + phrases + [gibberish] + [generate_toc_line()], k=random.randint(1, 3)
     )
 
     # Create paragraph and labels for compatibility
