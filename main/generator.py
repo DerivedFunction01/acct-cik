@@ -2056,7 +2056,7 @@ def generate(size_per_label=100):
                         swapType=prefix,
                     )
                 )
-            for _ in range(count // 2):
+            for _ in range(count):
                 futures.append(
                     executor.submit(
                         generate_hedge_paragraph,
@@ -2064,7 +2064,7 @@ def generate(size_per_label=100):
                         swapType=prefix,
                     )
                 )
-        for _ in range(count // 2):
+        for _ in range(count):
             futures.append(
                 executor.submit(
                     generate_hedge_paragraph,
