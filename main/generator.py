@@ -415,9 +415,8 @@ def generate_hedge_paragraph(
             replacements = {
                 "{amount}": str(generate_value(False)),
                 "{amount2}": str(generate_value(False)),
-                "{year}": str(current_year + random.randint(3, 10)),
                 "{month}": month,
-                "{current_year}": str(current_year),
+                "{year}": str(current_year),
                 "{debt_types}": selected_debt,
                 "{debt_type}": random.choice(debt_types_list),
                 "{maturity_year}": str(current_year + random.randint(3, 10)),
