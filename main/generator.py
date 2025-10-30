@@ -538,7 +538,9 @@ def generate_hedge_paragraph(
 
         # --- FX: add currency description sentence (0-1 chance) ---
         currency_list = ""
-        if swapType == "fx" and random.random() < 0.6 and not mixed:
+        added = False
+        if swapType == "fx" and random.random() < 0.35 and not mixed:
+            added = True
             labels[swapType] = 1  # Context for the specific hedge type
             selected = random.sample(major_currencies, random.randint(2, 3))
             if random.random() < 0.5:
@@ -562,9 +564,8 @@ def generate_hedge_paragraph(
                     swap_type=swap_type,
                 )
             )
-        added = False
         # Add a chance of context sentences
-        if not mixed and random.random() < 0.15:
+        if not mixed and random.random() < 0.15 and not added:
             added = True
             labels[swapType] = 1  # Context for the specific hedge type
             # Pass the reporting_year to ensure consistency
@@ -689,9 +690,9 @@ def generate_hedge_paragraph(
             frequency=random.choice(frequencies)
         )
         sentences.append(sentence)
-
+        assert not isinstance(notional, str), "Expected number"
         # --- Chance of payment
-        if random.random() < 0.15 and not mixed and not added:
+        if random.random() < 0.15 and not mixed and not added and notional > 0:
             sentences.append(hedge_payment())
 
         random.shuffle(sentences)
