@@ -727,8 +727,8 @@ def generate_hedge_paragraph(
         labels["hist"] = 1.0
         labels["term"] = 1.0
         template = random.choice(hedge_zero_templates)
-        year = base_year 
-        prev_year = base_year - 1
+        year = year_to_use 
+        prev_year = year_to_use - 1
         prev2_year = year_to_use - 2
         notional = 0
         prev_notional = generate_value(haveZero=False, lowerlimit=1)
