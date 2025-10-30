@@ -595,6 +595,7 @@ additional_template_patterns = [
     "A {pct}% change will have a {materiality} effect on {swap_type}",
     "The {swap_type} is settled {frequency} and will expire in {future_year}",
     "These {swap_types} are accounted for at fair value with changes in fair value recognized as they occur",
+    "{company} does not enter into {swap_type} for trading purposes",
 ]
 
 # ------------------------------------------------------------------------------
