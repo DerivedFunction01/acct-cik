@@ -1437,6 +1437,7 @@ PLACEHOLDERS = {
         "LIBOR-based",
         "EURIBOR",
         "treasury-rate",
+        "treasury",
         "forward-rate",
         "fixed-rate",
         "floating-rate",
