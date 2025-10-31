@@ -2,10 +2,10 @@ import random
 from definitions.common_data import transaction_types
 COMMODITY_COST_TYPES = {
     "energy": ["extraction", "drilling", "production", "generation", "refining"],
-    "metals_minerals": ["mining", "extraction", "smelting", "processing"],
-    "agriculture": ["farming", "harvesting", "planting", "processing", "feeding"],
-    "lumber_wood": ["logging", "harvesting", "milling", "processing"],
-    "chemicals_plastics": ["manufacturing", "production", "processing", "feedstock"],
+    "metals_minerals": ["mining", "extraction", "smelting", "refining"],
+    "agriculture": ["farming", "harvesting", "planting", "feeding"],
+    "lumber_wood": ["logging", "harvesting", "milling"],
+    "chemicals_plastics": ["manufacturing", "production", "feedstock"],
     "generic": [
         "input",
         "selling",
@@ -13,6 +13,7 @@ COMMODITY_COST_TYPES = {
         "transportation",
         "storage",
         "hedging",
+        "processing"
     ]
     + transaction_types,
 }
