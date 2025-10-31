@@ -195,6 +195,12 @@ hedge_designations = [
     "within its hedging program",
     "and is a highly effective {hedge_type} hedge on hedged item",
 ]
+hedge_types = [
+    "net investment",
+    "fair value",
+    "cash flow",
+    "economic"
+]
 
 result_phrases = {
     "IR": [""],
