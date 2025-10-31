@@ -797,9 +797,8 @@ def _generate_category_narrative(
     This includes context, a summary of instruments, and details on changes.
     """
     sentences = []
-    reporting_year = scenario.reporting_year
-    reporting_month = "December"
-    reporting_day = 31
+    reporting_year, reporting_month, reporting_day = (
+        scenario.reporting_year, scenario.reporting_month, scenario.reporting_day)
     evidence = []
     current_year_data = yearly_data.get(reporting_year)
     prev_year_data = yearly_data.get(reporting_year - 1)
