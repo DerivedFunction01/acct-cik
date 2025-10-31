@@ -501,6 +501,7 @@ def create_random_scenario() -> GenerationScenario:
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
+            "result_phrase": random.choice(result_phrases["IR"]),
             "hedged_item": hedged_debt,
         }
 
@@ -542,7 +543,7 @@ def create_random_scenario() -> GenerationScenario:
         prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["FX"])
 
         base_args = {
-            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_type": name,
             "instrument_prefix": prefix,
             "instrument_name": name,
             "instrument_alias": alias,
@@ -552,6 +553,7 @@ def create_random_scenario() -> GenerationScenario:
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
+            "result_phrase": random.choice(result_phrases["FX"]),
             "hedged_item": hedged_fx,
         }
 
@@ -590,7 +592,7 @@ def create_random_scenario() -> GenerationScenario:
         prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["CP"])
 
         base_args = {
-            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_type": name,
             "instrument_prefix": prefix,
             "instrument_name": name,
             "instrument_alias": alias,
@@ -600,6 +602,7 @@ def create_random_scenario() -> GenerationScenario:
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
+            "result_phrase": random.choice(result_phrases["CP"]),
             "hedged_item": hedged_commodity,
         }
 
@@ -638,7 +641,7 @@ def create_random_scenario() -> GenerationScenario:
         prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["EQ"])
 
         base_args = {
-            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_type": name,
             "instrument_prefix": prefix,
             "instrument_name": name,
             "instrument_alias": alias,
@@ -648,6 +651,7 @@ def create_random_scenario() -> GenerationScenario:
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
+            "result_phrase": random.choice(result_phrases["EQ"]),
             "hedged_item": hedged_equity,
         }
 
@@ -672,7 +676,7 @@ def create_random_scenario() -> GenerationScenario:
         prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["GEN"])
 
         base_args = {
-            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_type": name,
             "instrument_prefix": prefix,
             "instrument_name": name,
             "instrument_alias": alias,
@@ -1228,7 +1232,7 @@ def generate_training_sample():
     # The final output is a tuple of the text and the JSON object (or string).
     return (narrative_text, json_output)
 
-#%%
+# %%
 if __name__ == "__main__":
     # Example of how to generate one sample
     text, json_data = generate_training_sample()
@@ -1238,4 +1242,4 @@ if __name__ == "__main__":
     print("\n--- GENERATED JSON ---")
     print(json.dumps(json_data, indent=2))
 
-#%%
+# %%
