@@ -3,13 +3,7 @@ from typing import List, Literal, Optional, Dict, TypeVar, Generic, Tuple
 import random
 
 # Imports moved here for the NotionalSentence.build() method
-from defs.common_data import (
-    months,
-    quarters,
-    aggregate_use_verbs,
-    individual_use_verbs,
-    termination_verbs,
-)
+from defs.common_data import  *
 from defs.template_definitions import *
 from defs.template_definitions import (
     _cleanup_sentence,

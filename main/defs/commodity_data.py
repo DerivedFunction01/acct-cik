@@ -1,5 +1,5 @@
 import random
-from definitions.common_data import transaction_types
+from defs.common_data import transaction_types
 COMMODITY_COST_TYPES = {
     "energy": ["extraction", "drilling", "production", "generation", "refining"],
     "metals_minerals": ["mining", "extraction", "smelting", "refining"],

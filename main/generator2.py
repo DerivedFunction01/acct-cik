@@ -28,7 +28,7 @@ from defs.class_definitions import (
     CategorySpecificPolicy,
     GeneralHedgingPolicy,
 )
-from main.defs.dummy_data import *
+from defs.dummy_data import *
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
