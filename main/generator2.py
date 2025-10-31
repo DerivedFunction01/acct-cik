@@ -830,6 +830,9 @@ def _generate_category_narrative(
         if use_fair_value:
             value_to_report = max(1, int(total_notional / random.randint(20, 100)))
 
+        # Get commodity and unit here, to pass into the sentence object
+        commodity_name, commodity_unit, _ = get_random_commodity_and_unit()
+
         # Generate aggregate summary sentence using the NotionalSentence class
         summary_sentence_obj = NotionalSentence(
             swap_type=instrument_type,  # Use the full type for the summary
@@ -844,7 +847,9 @@ def _generate_category_narrative(
             category=category,  # type: ignore
             reporting_year=reporting_year,
             value_type=value_type_to_use,
-            result_phrase=random.choice(result_phrases[category])
+            result_phrase=random.choice(result_phrases[category]),
+            commodity=commodity_name,
+            unit=commodity_unit,
         )
         summary_sentence_text, evidence_obj = summary_sentence_obj.build()
         sentences.append(summary_sentence_text)

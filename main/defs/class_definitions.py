@@ -588,6 +588,8 @@ class NotionalSentence:
     verb: Optional[str] = None
     category: Optional[DerivativeCategory] = None
     maturity_year: Optional[int] = None
+    commodity: Optional[str] = None
+    unit: Optional[str] = None
     reporting_year: Optional[int] = None
 
     # Formatting preferences
@@ -756,8 +758,9 @@ class NotionalSentence:
                 currency_code=self.currency_code,
                 rate_term1=rate_term1,
                 rate_term2=rate_term2,
-                formatted_amount=formatted_amount,
-                commodity=get_random_commodity_and_unit()[0],
+                formatted_amount=formatted_amount, # type: ignore
+                commodity=self.commodity,
+                unit=self.unit,
             )
             result_clause = f", {populated_phrase}"
 
