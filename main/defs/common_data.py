@@ -152,7 +152,26 @@ swap_termination_verbs = [
 # Comparison verbs phrases
 comparison_phrases = ["compared to", "versus", "down from", "reduced from"]
 
-import random
+# --- New Placeholder Lists for Result Phrases ---
+
+risk_mitigation_verbs = [
+    "mitigating",
+    "hedging",
+    "offsetting",
+    "protecting against",
+    "reducing",
+    "managing",
+    "stabilizing",
+]
+
+financial_outcome_locations = [
+    "recognized in other comprehensive income",
+    "recorded in accumulated OCI",
+    "recognized in earnings",
+    "recorded in equity",
+]
+
+gain_loss_phrases = ["gains", "losses", "increase", "decrease"]
 
 # =============================================================================
 # DERIVATIVES

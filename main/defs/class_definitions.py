@@ -9,6 +9,8 @@ from defs.template_definitions import (
     _cleanup_sentence,
     _format_single_notional,
 )
+from main.defs.commodity_data import get_random_commodity_and_unit
+from main.defs.dummy_data import DUMMY_DEBT_TYPES
 
 # =============================================================================
 # SCENARIO DEFINITION - CLASSES
@@ -714,7 +716,16 @@ class NotionalSentence:
         # 6. Result phrase clause
         result_clause = ""
         if self.result_phrase:
-            result_clause = f", {self.result_phrase}"
+            # Populate new placeholders within the result phrase itself
+            populated_phrase = self.result_phrase.format(
+                mitigation_verb=random.choice(risk_mitigation_verbs),
+                gain_loss=random.choice(gain_loss_phrases),
+                outcome_location=random.choice(financial_outcome_locations),
+                debt_type=random.choice(DUMMY_DEBT_TYPES), # Assuming DUMMY_DEBT_TYPES is available
+                currencies=random.choice(all_currencies).adjective,
+                commodity=get_random_commodity_and_unit()[0],
+            )
+            result_clause = f", {populated_phrase}"
 
         # 6b. Maturity clause
         maturity_clause = ""
