@@ -16,10 +16,11 @@ class NarrativeEvidence:
     """Represents a piece of evidence extracted from the generated narrative."""
     instrument_id: Optional[int]  # Link to the specific instrument, if applicable
     status: Literal["summary", "new", "terminated", "none"]
-    notional: Optional[int]
     category: DerivativeCategory
-    instrument_type: Optional[str] = None
-
+    notional: Optional[int] = None # If notional amount is mentioned
+    month: Optional[str] = None # e.g., "January" is mentioned
+    year: Optional[int] = None # e.g., "2023" is mentioned
+    instrument_type: Optional[str] = None # e.g., "interest rate swap"
     def to_dict(self) -> Dict:
         return self.__dict__
 
