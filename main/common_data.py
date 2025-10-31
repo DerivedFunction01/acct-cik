@@ -16,9 +16,19 @@ months_full = [
     "December",
 ]
 
-months_abbr = [mon for mon in months_full if len(mon) <= 4]
+months_abbr = [mon[0:3] for mon in months_full if len(mon) >= 4]
 months = months_full + months_abbr
 quarters = ["first", "second", "third", "fourth", "last", "1st", "2nd", "3rd", "4th"]
+frequencies = [
+    "quarterly",
+    "on a regular basis",
+    "at least quarterly",
+    "monthly",
+    "semi-annually",
+    "periodically",
+    "annually",
+    "from time to time",
+]
 
 major_currencies = [
     Currency("USD", "U.S. Dollar", "$", "U.S.", "United States"),
@@ -75,3 +85,66 @@ all_currencies = (
     + americas_currencies
     + other_currencies
 )
+
+volume_units = [
+    # Energy
+    "barrels",
+    "bbl",  # crude oil
+    "barrels per day",
+    "bbl/d",  # production rate
+    "MMBtu",
+    "MMBtu/h",  # natural gas, energy content
+    "BTU",
+    "Btu",  # single BTU
+    "gigajoules",
+    "GJ",  # energy content
+    "MWh",
+    "megawatt-hour",  # electricity
+    # Bulk solids / metals / minerals
+    "metric tons",
+    "tonne",
+    "MT",  # general bulk
+    "tons",
+    "t",  # alternative
+    "long tons",
+    "LT",
+    "short tons",
+    "ST",
+    "hundredweights",
+    "cwt",
+    "pounds",
+    "lb",
+    "ounces",
+    "oz",  # troy ounces for metals
+    # Agriculture
+    "bushels",
+    "bu",
+    "sacks",
+    "bales",
+    "pecks",
+    # Liquids
+    "gallons",
+    "gal",
+    "liters",
+    "L",
+    "ltr",
+    "cubic meters",
+    "m3",
+    "cubic feet",
+    "ft3",
+    "hectoliters",
+    "hL",
+    "kiloliters",
+    "kL",
+    "megaliters",
+    "ML",
+    "gigaliters",
+    "GL",
+    # Lumber / construction materials
+    "board foot",
+    "bf",
+    "sheets",
+    "coils",
+    "bundles",
+    "pallets",
+]
