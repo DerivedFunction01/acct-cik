@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 
 from common_data import *
+from commodity_data import *
 from main.class_definitions import (
     NarrativeEvidence,
     DerivativeCategory,
