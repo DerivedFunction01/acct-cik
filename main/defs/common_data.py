@@ -1,5 +1,5 @@
 from defs.class_definitions import Currency
-months_full = [
+months = [
     "January",
     "February",
     "March",
@@ -14,8 +14,6 @@ months_full = [
     "December",
 ]
 
-months_abbr = [mon[0:3] for mon in months_full if len(mon) >= 4]
-months = months_full + months_abbr
 quarters = ["first", "second", "third", "fourth", "last", "1st", "2nd", "3rd", "4th"]
 frequencies = [
     "quarterly",

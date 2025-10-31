@@ -4,7 +4,7 @@ import random
 
 # Imports moved here for the NotionalSentence.build() method
 from defs.common_data import (
-    months_full,
+    months,
     quarters,
     aggregate_use_verbs,
     individual_use_verbs,
@@ -610,7 +610,7 @@ class NotionalSentence:
         """
 
         # Default values for optional components
-        month = self.month or random.choice(months_full)
+        month = self.month or random.choice(months)
         end_day = self.end_day or random.randint(28, 31)
         quarter = self.quarter or random.choice(quarters)
         company_name = self.company_name or "The Company"
