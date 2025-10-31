@@ -830,11 +830,20 @@ def _generate_category_narrative(
         )
         total_notional = current_year_data["total_notional"]
 
+        # --- Decide whether to use 'notional' or 'fair_value' ---
+        use_fair_value = random.random() < 0.2  # 20% chance to use fair value
+        value_type_to_use = "fair_value" if use_fair_value else "notional"
+
+        # Adjust the value to be reported. Fair value is a small fraction of notional.
+        value_to_report = total_notional
+        if use_fair_value:
+            value_to_report = max(1, int(total_notional / random.randint(20, 100)))
+
         # Generate aggregate summary sentence using the NotionalSentence class
         summary_sentence_obj = NotionalSentence(
             swap_type=instrument_type,  # Use the full type for the summary
             year=reporting_year,
-            notional=total_notional,
+            notional=value_to_report,
             currency_symbol=currency_symbol,
             month=reporting_month,
             end_day=reporting_day,
@@ -842,6 +851,7 @@ def _generate_category_narrative(
             prefer_abbreviated=scenario.number_format_preference,
             category=category,  # type: ignore
             reporting_year=reporting_year,
+            value_type=value_type_to_use,
         )
         summary_sentence_text, evidence_obj = summary_sentence_obj.build()
         sentences.append(summary_sentence_text)
@@ -850,20 +860,28 @@ def _generate_category_narrative(
         # Add comparative summary if previous year data exists
         if prev_year_data and prev_year_data["total_notional"] > 0:
             # Generate comparative summary sentence
+            prev_total_notional = prev_year_data["total_notional"]
+            prev_value_to_report = prev_total_notional
+            if use_fair_value:  # Be consistent with the value type
+                prev_value_to_report = max(
+                    1, int(prev_total_notional / random.randint(20, 100))
+                )
+
             comparative_summary_obj = NotionalSentence(
                 swap_type=instrument_type,  # Use the full type for the summary
                 year=reporting_year,
-                notional=total_notional,
+                notional=value_to_report,
                 currency_symbol=currency_symbol,
                 month=reporting_month,
                 end_day=reporting_day,
                 prev_year=reporting_year - 1,
-                prev_notional=prev_year_data["total_notional"],
+                prev_notional=prev_value_to_report,
                 sentence_type="comparative",
                 money_units=scenario.archetype.money_units,
                 prefer_abbreviated=scenario.number_format_preference,
                 category=category,  # type: ignore
                 reporting_year=reporting_year,
+                value_type=value_type_to_use,
             )
             comparative_summary_text, evidence_obj = comparative_summary_obj.build()
             sentences.append(comparative_summary_text)
@@ -923,11 +941,19 @@ def _generate_category_narrative(
                 )
                 mentioned_instrument_ids.add(instrument.instrument_id)
 
+                # Decide whether to use 'notional' or 'fair_value'
+                use_fair_value_individual = random.random() < 0.2
+                value_type_individual = "fair_value" if use_fair_value_individual else "notional"
+                value_to_report_individual = instrument.notional_amount
+                if use_fair_value_individual:
+                    value_to_report_individual = max(1, int(instrument.notional_amount / random.randint(20, 100)))
+
+
                 # Generate new individual instrument sentence
                 new_instrument_obj = NotionalSentence(
                     swap_type=instrument_name_to_use,
                     year=reporting_year,
-                    notional=instrument.notional_amount,
+                    notional=value_to_report_individual,
                     currency_symbol=currency_symbol,
                     company_name=scenario.company_name,
                     sentence_type="new_individual",
@@ -937,6 +963,7 @@ def _generate_category_narrative(
                     prefer_abbreviated=scenario.number_format_preference,
                     category=category,  # type: ignore
                     reporting_year=reporting_year,
+                    value_type=value_type_individual,
                 )
                 new_instrument_text, evidence_obj = new_instrument_obj.build()
                 evidence_obj.instrument_id = (
@@ -965,11 +992,18 @@ def _generate_category_narrative(
                 )
                 mentioned_instrument_ids.add(instrument.instrument_id)
 
+                # Decide whether to use 'notional' or 'fair_value'
+                use_fair_value_terminated = random.random() < 0.2
+                value_type_terminated = "fair_value" if use_fair_value_terminated else "notional"
+                value_to_report_terminated = instrument.notional_amount
+                if use_fair_value_terminated:
+                    value_to_report_terminated = max(1, int(instrument.notional_amount / random.randint(20, 100)))
+
                 # Generate terminated individual instrument sentence
                 terminated_instrument_obj = NotionalSentence(
                     swap_type=instrument_name_to_use,
                     year=reporting_year,  # Reporting year is when it was terminated
-                    notional=instrument.notional_amount,
+                    notional=value_to_report_terminated,
                     currency_symbol=currency_symbol,
                     company_name=scenario.company_name,
                     sentence_type="terminated_individual",
@@ -978,6 +1012,7 @@ def _generate_category_narrative(
                     prefer_abbreviated=scenario.number_format_preference,
                     category=category,  # type: ignore
                     reporting_year=reporting_year,
+                    value_type=value_type_terminated,
                 )
                 terminated_instrument_text, evidence_obj = (
                     terminated_instrument_obj.build()
