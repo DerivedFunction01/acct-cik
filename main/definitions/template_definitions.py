@@ -179,3 +179,19 @@ NOTIONAL_SENTENCE_TEMPLATES = {
 
 # Outstanding active state descriptors
 state_descriptors = ["outstanding", "active", "remaining", "open"]
+
+# Hedge designation phrases (optional endings)
+hedge_designations = [
+    "",
+    "designated as hedges",
+    "designated as hedging instruments",
+    "not designated as hedges",
+    "not designated as hedging instruments",
+    "designated as {hedge_type} hedges",
+    "used for hedging purposes",
+    "remaining designated as hedges",
+    "as part of its hedging strategy",
+    "as part of its risk management strategy",
+    "within its hedging program",
+    "and is a highly effective {hedge_type} hedge on hedged item",
+]
