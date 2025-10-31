@@ -4,10 +4,10 @@ import pandas as pd
 import json
 from typing import List, Dict, Tuple, Set
 
-from main.definitions.common_data import *
-from main.definitions.commodity_data import get_random_commodity_and_unit
-from main.definitions.template_definitions import *
-from main.definitions.class_definitions import (
+from defs.common_data import *
+from defs.commodity_data import get_random_commodity_and_unit
+from defs.template_definitions import *
+from defs.class_definitions import (
     BaseNarrativeEvidence,
     NotionalEvidence,
     NotionalSentence,
@@ -28,7 +28,7 @@ from main.definitions.class_definitions import (
     CategorySpecificPolicy,
     GeneralHedgingPolicy,
 )
-from main.definitions.dummy_data import *
+from main.defs.dummy_data import *
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"

@@ -32,7 +32,6 @@ DUMMY_DEBT_TYPES = [
 ]
 DUMMY_COMMODITY_TYPES = ["Natural Gas", "Crude Oil", "Aluminum", "Diesel Fuel"]
 DUMMY_BENCHMARK_RATES = ["SOFR", "LIBOR", "EURIBOR"]
-DUMMY_HEDGE_DESIGNATIONS = ["cash_flow", "fair_value", "net_investment", "economic"]
 DUMMY_EQUITY_UNDERLYINGS = ["S&P 500 Index", "{company_name} Common Stock"]
 DUMMY_EQUITY_TYPES: List[Literal["market_index", "own_stock", "third_party_stock"]] = [
     "market_index",

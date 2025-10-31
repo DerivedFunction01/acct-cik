@@ -1,4 +1,4 @@
-from main.definitions.class_definitions import Currency
+from defs.class_definitions import Currency
 months_full = [
     "January",
     "February",
