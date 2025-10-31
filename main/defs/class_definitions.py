@@ -603,6 +603,23 @@ class GenerationScenario:
         True  # True for abbreviated, False for full numeric
     )
     accounting_updates: List[AccountingStandardUpdate] = field(default_factory=list)
+@dataclass
+class ResultPhraseDetails:
+    """Holds specific details for populating a result_phrase template."""
+   
+    frequency: Optional[str] = None
+    
+    # FX specific
+    geography: Optional[str] = None
+    currencies: List[str] = field(default_factory=list)
+
+    # CP specific
+    commodity: Optional[str] = None
+    unit: Optional[str] = None
+
+    # IR specific (debt_type is primarily for IR)
+    pct: Optional[float] = None
+    debt_type: Optional[str] = None
 
 
 @dataclass
@@ -651,9 +668,7 @@ class NotionalSentence:
     category: Optional[DerivativeCategory] = None
     maturity_year: Optional[int] = None
     commodity: Optional[str] = None
-    unit: Optional[str] = None
-    currencies: List[str] = field(default_factory=list)
-    debt_type: Optional[str] = None
+    result_details: Optional[ResultPhraseDetails] = None
     reporting_year: Optional[int] = None
 
     # Formatting preferences
@@ -673,11 +688,6 @@ class NotionalSentence:
         end_day = self.end_day or random.randint(28, 31)
         quarter = self.quarter or random.choice(quarters)
         company_name = self.company_name or "The Company"
-        
-        # Format the list of currencies into a human-readable string.
-        currencies_str = ""
-        if self.currencies:
-            currencies_str = ", ".join(self.currencies[:-1]) + " and " + self.currencies[-1] if len(self.currencies) > 1 else self.currencies[0]
 
 
         # Determine number of years for comparison
@@ -807,20 +817,30 @@ class NotionalSentence:
                 self.money_units,
                 self.prefer_abbreviated,
             )
+            # Format currencies into a readable string from the details object
+            details = self.result_details or ResultPhraseDetails()
+            currencies_str = ""
+            if details.currencies:
+                currencies_str = ", ".join(details.currencies[:-1]) + " and " + details.currencies[-1] if len(details.currencies) > 1 else details.currencies[0]
+
+            details = self.result_details or ResultPhraseDetails()
             populated_phrase = self.result_phrase.format(
                 mitigation_verb=random.choice(risk_management_verbs),
                 gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
+                frequency=details.frequency or random.choice(frequencies),
                 risk_term=random.choice(risk_exposure_terms),
                 ir_term=random.choice(interest_rate_terms), # type: ignore
-                debt_type=self.debt_type or random.choice(DUMMY_DEBT_TYPES),
+                debt_type=details.debt_type or random.choice(DUMMY_DEBT_TYPES),
                 currencies=currencies_str,
                 currency_code=self.currency_code,
                 rate_term1=rate_term1,
                 rate_term2=rate_term2,
                 formatted_amount=formatted_amount_result, # type: ignore
-                commodity=self.commodity,
-                unit=self.unit,
+                pct=details.pct or random.uniform(1.5, 7.5),
+                geography=details.geography or random.choice([c.location for c in all_currencies]), # type: ignore
+                commodity=details.commodity,
+                unit=details.unit,
             )
             result_clause = f", {populated_phrase}"
 

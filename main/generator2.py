@@ -12,6 +12,7 @@ from defs.template_definitions import *
 from defs.class_definitions import (
     BaseNarrativeEvidence,
     NotionalEvidence,
+    ResultPhraseDetails,
     PolicySentence,
     NotionalSentence,
     NotionalInstrument,
@@ -817,6 +818,7 @@ def _generate_category_narrative(
     debt_type_name = None
     location_names = []
     cost_type_name = None
+    result_details = ResultPhraseDetails()
 
     if current_year_data and current_year_data["instruments"]:
         # Find an instrument in the current year that has a hedged item to extract details from.
@@ -830,9 +832,15 @@ def _generate_category_narrative(
                 cost_type_name = hedged_item.cost_type
             elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
                 currency_names = [exp.full_name for exp in hedged_item.exposures]
-                location_names = [exp.location for exp in hedged_item.exposures]
+                locations = [exp.location for exp in hedged_item.exposures]
+                location_names = list(set(locations)) # Unique locations
+                if location_names:
+                    result_details.geography = random.choice(location_names)
             elif isinstance(hedged_item, DebtHedgedItem):
                 debt_type_name = hedged_item.debt_type
+                result_details.debt_type = hedged_item.debt_type
+                result_details.pct = hedged_item.fixed_rate_pct or hedged_item.change_rate_pct
+                result_details.frequency = hedged_item.payment_frequency
 
     # Use the PolicySentence builder which correctly populates all placeholders.
     # This replaces the manual formatting that was here before.
@@ -883,10 +891,7 @@ def _generate_category_narrative(
             reporting_year=reporting_year,
             value_type=value_type_to_use,
             result_phrase=random.choice(result_phrases[category]),
-            commodity=commodity_name,
-            unit=commodity_unit,
-            currencies=currency_names,
-            debt_type=debt_type_name,
+            result_details=result_details,
         )
         summary_sentence_text, evidence_obj = summary_sentence_obj.build()
         sentences.append(summary_sentence_text)
