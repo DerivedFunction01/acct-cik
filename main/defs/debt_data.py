@@ -66,3 +66,8 @@ debts = [
     "convertible preferred shares",
     "credit agreement",
 ]
+
+benchmark_rates = [
+    "SOFR", "LIBOR", "EURIBOR", 
+    "SONIA",
+]
