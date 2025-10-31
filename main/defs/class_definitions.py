@@ -736,6 +736,15 @@ class NotionalSentence:
             rate_terms = random.sample(specific_rate_terms, 2)
             rate_term1 = rate_terms[0]
             rate_term2 = rate_terms[1]
+            
+            # Generate a random amount for the result phrase and format it
+            random_amount = int(self.notional * random.randint(1, 50) / 100)
+            formatted_amount = _format_single_notional(
+                random_amount,
+                self.currency_symbol,
+                self.money_units,
+                self.prefer_abbreviated,
+            )
             populated_phrase = self.result_phrase.format(
                 mitigation_verb=random.choice(risk_mitigation_verbs),
                 gain_loss=random.choice(gain_loss_phrases),
@@ -747,6 +756,7 @@ class NotionalSentence:
                 currency_code=self.currency_code,
                 rate_term1=rate_term1,
                 rate_term2=rate_term2,
+                formatted_amount=formatted_amount,
                 commodity=get_random_commodity_and_unit()[0],
             )
             result_clause = f", {populated_phrase}"
