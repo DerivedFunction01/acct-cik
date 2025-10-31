@@ -9,7 +9,7 @@ from defs.template_definitions import (
     _cleanup_sentence,
     _format_single_notional,
 )
-from defs.commodity_data import get_random_commodity_and_unit
+from defs.commodity_data import *
 from defs.dummy_data import DUMMY_DEBT_TYPES
 
 # =============================================================================
@@ -246,14 +246,12 @@ class PolicyEvidence(BaseNarrativeEvidence):
 class PolicySentence:
     """A data class to hold components for generating a policy or risk context sentence."""
     category: DerivativeCategory
-    company_name: str
-    # Optional details based on category
-    ir_term: Optional[str] = None
-    debt_type: Optional[str] = None
-    commodity: Optional[str] = None
-    cost_type: Optional[str] = None
+    company_name: str    
     currencies: List[str] = field(default_factory=list)
     locations: List[str] = field(default_factory=list)
+
+    # Add result_details for consistency with NotionalSentence
+    result_details: Optional["ResultPhraseDetails"] = None
 
     def build(self) -> Tuple[str, PolicyEvidence]:
         """Builds a policy sentence and a corresponding PolicyEvidence object."""
@@ -266,22 +264,24 @@ class PolicySentence:
         if self.currencies:
             currencies_str = ", ".join(self.currencies[:-1]) + " and " + self.currencies[-1] if len(self.currencies) > 1 else self.currencies[0]
 
-        locations_str = "various international markets"
+        locations_str = "international markets"
         if self.locations:
             locations_str = ", ".join(self.locations[:-1]) + " and " + self.locations[-1] if len(self.locations) > 1 else self.locations[0]
 
+        details = self.result_details or ResultPhraseDetails()
+
         sentence = template.format(
             company=self.company_name,
-            ir_term=self.ir_term or random.choice(interest_rate_terms),
-            debt_type=self.debt_type or random.choice(DUMMY_DEBT_TYPES),
+            ir_term=random.choice(interest_rate_terms),
+            debt_type=details.debt_type or random.choice(DUMMY_DEBT_TYPES),
             risk_term=random.choice(risk_exposure_terms),
             policy_verb=random.choice(policy_verbs),
-            risk_action_verb=random.choice(risk_management_verbs), # type: ignore
+            risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
             risk_nature_phrases=random.choice(risk_nature_phrases),
             currencies=currencies_str,
             locations=locations_str,
-            commodity=self.commodity or "various commodities",
-            cost_type=self.cost_type or "input costs",
+            commodity=details.commodity or "various commodities",
+            cost_type=random.choice(get_cost_types_for_commodity(details.commodity)),
         )
 
         # Create evidence object

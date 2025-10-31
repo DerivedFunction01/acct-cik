@@ -1,4 +1,5 @@
 import random
+from typing import Optional
 from defs.common_data import transaction_types
 COMMODITY_COST_TYPES = {
     "energy": ["extraction", "drilling", "production", "generation", "refining"],
@@ -199,6 +200,27 @@ def get_units_for_commodity(commodity_name: str) -> list[str]:
     return volume_units
 
 
+def get_cost_types_for_commodity(commodity_name: Optional[str] = "commodity") -> list[str]:
+    """
+    Returns a list of appropriate cost types for a given commodity by finding
+    its category and combining specific and generic cost types.
+    """
+    
+    commodity_name = commodity_name.lower() if commodity_name else "commodity"
+
+    # Find which category the commodity belongs to.
+    for category, commodity_list in COMMODITIES.items():
+        if commodity_name in commodity_list:
+            # Get all costs for that category plus generic costs.
+            possible_costs = (
+                COMMODITY_COST_TYPES.get(category, []) + COMMODITY_COST_TYPES["generic"]
+            )
+            return list(set(possible_costs))  # Use set to remove duplicates.
+
+    # Default fallback to generic costs if no specific category is found.
+    return COMMODITY_COST_TYPES["generic"]
+
+
 def get_random_commodity_and_unit() -> tuple[str, str, str]:
     """
     Selects a random commodity and a matching, appropriate unit and cost type for it.
@@ -213,16 +235,8 @@ def get_random_commodity_and_unit() -> tuple[str, str, str]:
     appropriate_units = get_units_for_commodity(commodity_name)
     unit = random.choice(appropriate_units)
 
-    # 3. Pick a random unit from that list
-    cost_type = "purchase"  # Default
-    for category, commodity_list in COMMODITIES.items():
-        if commodity_name in commodity_list:
-            # Get all costs for that category plus generic costs
-            possible_costs = (
-                COMMODITY_COST_TYPES.get(category, []) + COMMODITY_COST_TYPES["generic"]
-            )
-            if possible_costs:
-                cost_type = random.choice(possible_costs)
-            break  # Stop after finding the first category
+    # 3. Get the list of appropriate cost types and pick one.
+    possible_costs = get_cost_types_for_commodity(commodity_name)
+    cost_type = random.choice(possible_costs) if possible_costs else "purchase"
 
     return commodity_name, unit, cost_type

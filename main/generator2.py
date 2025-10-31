@@ -37,7 +37,10 @@ from defs.dummy_data import *
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
-company_name_df = pd.read_excel(company_name_file)
+try:
+    company_name_df = pd.read_excel(company_name_file)
+except FileNotFoundError:
+    company_name_df = pd.DataFrame(columns=["name"])
 company_names = list(company_name_df["name"])
 
 
@@ -693,56 +696,6 @@ def create_random_scenario() -> GenerationScenario:
     return scenario
 
 
-def pretty_print_scenario(scenario: GenerationScenario):
-    """
-    Prints a human-readable summary of the generated scenario, focusing on instruments and hedged items.
-    """
-    print("\n" + "=" * 80)
-    print(f"SCENARIO SUMMARY for {scenario.company_name} ({scenario.reporting_year})")
-    print("=" * 80)
-
-    if not scenario.instruments:
-        print("No instruments generated in this scenario.")
-        print("=" * 80)
-        return
-
-    print(f"\n--- {len(scenario.instruments)} Instruments Generated ---")
-    for i, instrument in enumerate(scenario.instruments, 1):
-        print(
-            f"\n{i}. Instrument ID: {instrument.instrument_id} ({instrument.category} - {instrument.instrument_type})"
-        )
-        print(f"   - Notional: {instrument.currency} {instrument.notional_amount:,}")
-        print(f"   - Maturity: {instrument.maturity_year}")
-        status = "Terminated/Naked" if not instrument.hedged_item else "Active Hedge"
-        print(f"   - Status: {status}")
-
-        if instrument.hedged_item:
-            hedged_item = instrument.hedged_item
-            print(f"   - Hedged Item (ID: {hedged_item.hedged_item_id}):")
-            if isinstance(hedged_item, DebtHedgedItem):
-                print(f"     - Type: {hedged_item.debt_type}")
-                print(f"     - Principal: {hedged_item.principal_amount:,}")
-                print(f"     - Maturity: {hedged_item.maturity_year}")
-            elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
-                exposures = [
-                    f"{exp.code} {exp.amount:,}" for exp in hedged_item.exposures
-                ]
-                print(f"     - Type: Foreign Currency Exposure")
-                print(f"     - Exposures: {', '.join(exposures)}")
-            elif isinstance(hedged_item, CommodityHedgedItem):
-                print(
-                    f"     - Type: {hedged_item.commodity_type} ({hedged_item.transaction_type})"
-                )
-                print(
-                    f"     - Quantity: {hedged_item.quantity} {hedged_item.unit_of_volume}"
-                )
-            elif isinstance(hedged_item, EquityHedgedItem):
-                print(
-                    f"     - Type: {hedged_item.underlying_equity} ({hedged_item.equity_type})"
-                )
-                print(f"     - Reason: {hedged_item.reason}")
-
-
 # =============================================================================
 # PHASE 2: NARRATIVE AND JSON GENERATION
 # These functions will take a `GenerationScenario` object and produce the
@@ -847,12 +800,8 @@ def _generate_category_narrative(
     policy_sentence_obj = PolicySentence(
         category=category, # type: ignore
         company_name=scenario.company_name,
-        # Pass specific details if available for this category
-        debt_type=debt_type_name,
-        currencies=currency_names,
+        result_details=result_details,
         locations=location_names,
-        commodity=commodity_name,
-        cost_type=cost_type_name,
     )
     context_sentence, policy_evidence = policy_sentence_obj.build()
     sentences.append(context_sentence)
@@ -1121,17 +1070,27 @@ def generate_narrative_from_scenario(
             )
             all_sentences.extend(category_sentences)
             all_evidence.extend(category_evidence)
-        elif random.random() < 0.2:  # Occasionally mention non-use
-            # Add a sentence stating no derivatives are used for this category.
-            # TODO: Make this more robust.
-            pass
+        elif random.random() < 0.2:  # Occasionally mention non-use for an inactive category
+            # Generate a "no instruments" sentence.
+            currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+            no_instrument_obj = NotionalSentence(
+                swap_type="",
+                year=scenario.reporting_year,
+                notional=0,
+                sentence_type="no_instruments",
+                category=category, # type: ignore
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+            )
+            no_instrument_text, evidence_obj = no_instrument_obj.build()
+            all_sentences.append(no_instrument_text)
+            all_evidence.append(evidence_obj)
             continue
 
     # 4. Effectiveness and Accounting (Concluding details)
     all_sentences.extend(_generate_narrative_accounting(scenario))
-
     # TODO: Cleanup and formatting logic will go here.
-    narrative = " ".join(s.strip() for s in all_sentences)
+    narrative = " ".join(s.strip() for s in all_sentences if s)
     full_narrative = f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
     return full_narrative, all_evidence
 
