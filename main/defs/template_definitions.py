@@ -1,4 +1,5 @@
 # New imports for generate_notional_sentence
+import re
 from typing import List, Tuple
 
 def _format_single_notional(
