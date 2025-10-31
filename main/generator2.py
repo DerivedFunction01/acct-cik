@@ -260,6 +260,48 @@ DUMMY_CURRENCIES = ["EUR", "GBP", "JPY", "CAD", "AUD"]
 DUMMY_BENCHMARK_RATES = ["SOFR", "LIBOR", "EURIBOR"]
 DUMMY_HEDGE_DESIGNATIONS = ["cash_flow", "fair_value", "net_investment", "economic"]
 
+
+@dataclass
+class ScenarioArchetype:
+    """Defines the instrument profile for a type of company to make generation more realistic."""
+
+    name: str
+    ir_range: tuple[int, int]
+    fx_range: tuple[int, int]
+    cp_range: tuple[int, int]
+    eq_range: tuple[int, int]
+    gen_range: tuple[int, int]
+
+    def get_instrument_counts(self) -> Dict[str, int]:
+        """Generates a dictionary of instrument counts based on the archetype's ranges."""
+        return {
+            "IR": random.randint(*self.ir_range),
+            "FX": random.randint(*self.fx_range),
+            "CP": random.randint(*self.cp_range),
+            "EQ": random.randint(*self.eq_range),
+            "GEN": random.randint(*self.gen_range),
+        }
+
+
+# Define a list of company archetypes to choose from during generation.
+SCENARIO_ARCHETYPES = [
+    ScenarioArchetype(
+        name="Large Multinational", ir_range=(2, 4), fx_range=(2, 5), cp_range=(1, 3), eq_range=(0, 2), gen_range=(0, 1)
+    ),
+    ScenarioArchetype(
+        name="Domestic Industrial", ir_range=(1, 3), fx_range=(0, 2), cp_range=(2, 4), eq_range=(0, 1), gen_range=(0, 1)
+    ),
+    ScenarioArchetype(
+        name="Tech Company", ir_range=(0, 2), fx_range=(1, 4), cp_range=(0, 0), eq_range=(1, 3), gen_range=(0, 1)
+    ),
+    ScenarioArchetype(
+        name="Financial Institution", ir_range=(2, 5), fx_range=(2, 5), cp_range=(0, 1), eq_range=(0, 2), gen_range=(0, 1)
+    ),
+    ScenarioArchetype(
+        name="Policy Only / Light User", ir_range=(0, 1), fx_range=(0, 1), cp_range=(0, 0), eq_range=(0, 0), gen_range=(1, 2)
+    ),
+]
+
 # =============================================================================
 # PHASE 1 PART 2: SCENARIO GENERATION
 # This section implements the core idea: "Decide the story upfront."
@@ -296,13 +338,9 @@ def create_random_scenario() -> GenerationScenario:
     instrument_id_counter = 1
     hedged_item_id_counter = 1
 
-    # Decide how many of each instrument type to create. This is the "state tracker" logic.
-    instrument_counts = {
-        "IR": random.randint(0, 5),
-        "FX": random.randint(0, 5),
-        "CP": random.randint(0, 5),
-        "EQ": random.randint(0, 3),
-    }
+    # --- Decide on a company archetype and get instrument counts ---
+    archetype = random.choice(SCENARIO_ARCHETYPES)
+    instrument_counts = archetype.get_instrument_counts()
 
     # --- Create IR Instruments ---
     for _ in range(instrument_counts["IR"]):
@@ -429,17 +467,59 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.append(cp_instrument)
 
     # --- Create EQ Instruments ---
-    for _ in range(instrument_counts["EQ"]):
+    for _ in range(instrument_counts.get("EQ", 0)):
         is_terminated = random.random() < 0.3
         hedged_equity = None
         notional = 0
 
         if is_terminated:
             maturity_year = random.randint(reporting_year - 2, reporting_year)
-            notional = random.randint(5, 50) * 1_000_000
+            notional = random.randint(1, 50) * 1_000_000
         else:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
-            notional = random.randint(5, 100) * 1_000_000
+            notional = random.randint(1, 100) * 1_000_000
+            hedged_equity = EquityHedgedItem(
+                hedged_item_id=hedged_item_id_counter,
+                underlying_equity=random.choice(["S&P 500 Index", f"{scenario.company_name} Common Stock"]),
+                equity_type=random.choice(["market_index", "own_stock", "third_party_stock"]),
+                reason=random.choice(["stock-based compensation", "strategic investment", "market risk management"])
+            )
+            hedged_item_id_counter += 1
+
+        eq_instrument = EQInstrument(
+            category="EQ",
+            instrument_id=instrument_id_counter,
+            instrument_type=random.choice(DUMMY_EQ_INSTRUMENT_TYPES),
+            month=random.choice(months),
+            year=reporting_year,
+            notional_amount=notional,
+            currency="USD",
+            maturity_year=maturity_year,
+            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            hedged_item=hedged_equity,
+        )
+        instrument_id_counter += 1
+        scenario.instruments.append(eq_instrument)
+
+    # --- Create Generic Instruments ---
+    for _ in range(instrument_counts.get("GEN", 0)):
+        is_terminated = random.random() < 0.4
+        maturity_year = random.randint(reporting_year - 3, reporting_year) if is_terminated else random.randint(reporting_year + 1, reporting_year + 5)
+
+        gen_instrument = GenericInstrument(
+            category="GEN",
+            instrument_id=instrument_id_counter,
+            instrument_type=random.choice(["derivative contracts", "hedging instruments", "financial instruments"]),
+            month=random.choice(months),
+            year=reporting_year,
+            notional_amount=random.randint(10, 300) * 1_000_000,
+            currency="USD",
+            maturity_year=maturity_year,
+            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            hedged_item=None, # Generic instruments often don't have a specific hedged item
+        )
+        instrument_id_counter += 1
+        scenario.instruments.append(gen_instrument)
 
     return scenario
 
