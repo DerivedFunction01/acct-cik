@@ -72,6 +72,17 @@ def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000, dashed=False):
 DERIVATIVE_CATEGORIES = ("IR", "FX", "CP", "EQ", "GEN")
 DerivativeCategory = Literal["IR", "FX", "CP", "EQ", "GEN"]
 
+@dataclass
+class NarrativeEvidence:
+    """Represents a piece of evidence extracted from the generated narrative."""
+    category: DerivativeCategory
+    instrument_type: str
+    notional: int
+    status: Literal["summary", "new", "terminated", "none"]
+
+    def to_dict(self) -> Dict:
+        return self.__dict__
+
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
 
@@ -1043,7 +1054,7 @@ def _generate_category_narrative(
     category: str,
     yearly_data: Dict,
     scenario: GenerationScenario,
-) -> Tuple[List[str], List[Dict]]:
+) -> Tuple[List[str], List[NarrativeEvidence]]:
     """
     Generates a narrative section for a single derivative category (e.g., Interest Rate Risk).
     This includes context, a summary of instruments, and details on changes.
@@ -1078,12 +1089,12 @@ def _generate_category_narrative(
             f"As of December 31, {reporting_year}, the aggregate notional value for our {instrument_type_plural} was {total_notional_str}."
         )
         evidence.append(
-            {
-                "category": category,
-                "instrument_type": instrument_type_plural,
-                "notional": total_notional,
-                "status": "summary",
-            }
+            NarrativeEvidence(
+                category=category, # type: ignore
+                instrument_type=instrument_type_plural,
+                notional=total_notional,
+                status="summary",
+            )
         )
         if prev_year_data and prev_year_data["total_notional"] > 0:
             prev_total_notional_str = _format_notional(
@@ -1098,12 +1109,12 @@ def _generate_category_narrative(
             f"As of December 31, {reporting_year}, we had no outstanding derivative instruments to hedge against {category}."
         )
         evidence.append(
-            {
-                "category": category,
-                "instrument_type": "none",
-                "notional": 0,
-                "status": "none",
-            }
+            NarrativeEvidence(
+                category=category, # type: ignore
+                instrument_type="none",
+                notional=0,
+                status="none",
+            )
         )
 
 
@@ -1120,12 +1131,12 @@ def _generate_category_narrative(
                     f"During {reporting_year}, we entered into a new {instrument.instrument_type} with a notional value of {notional_str}."
                 )
                 evidence.append(
-                    {
-                        "category": category,
-                        "instrument_type": instrument.instrument_type,
-                        "notional": instrument.notional_amount,
-                        "status": "new",
-                    }
+                    NarrativeEvidence(
+                        category=category, # type: ignore
+                        instrument_type=instrument.instrument_type,
+                        notional=instrument.notional_amount,
+                        status="new",
+                    )
                 )
 
             if instrument.maturity_year == reporting_year:
@@ -1134,12 +1145,12 @@ def _generate_category_narrative(
                     f"A {instrument.instrument_type} with a notional value of {notional_str} matured during the year."
                 )
                 evidence.append(
-                    {
-                        "category": category,
-                        "instrument_type": instrument.instrument_type,
-                        "notional": instrument.notional_amount,
-                        "status": "terminated",
-                    }
+                    NarrativeEvidence(
+                        category=category, # type: ignore
+                        instrument_type=instrument.instrument_type,
+                        notional=instrument.notional_amount,
+                        status="terminated",
+                    )
                 )
 
     return sentences, evidence
@@ -1163,7 +1174,7 @@ def _generate_narrative_accounting(scenario: GenerationScenario) -> List[str]:
     return sentences
 
 
-def generate_narrative_from_scenario(scenario: GenerationScenario) -> Tuple[str, List[Dict]]:
+def generate_narrative_from_scenario(scenario: GenerationScenario) -> Tuple[str, List[NarrativeEvidence]]:
     """
     Constructs a coherent, multi-paragraph narrative from a scenario object.
     This function will replace the old `generate_hedge_paragraph`.
@@ -1234,7 +1245,7 @@ def generate_narrative_from_scenario(scenario: GenerationScenario) -> Tuple[str,
 
 
 def _generate_chain_of_thought(
-    scenario: GenerationScenario, evidence: List[Dict]
+    scenario: GenerationScenario, evidence: List[NarrativeEvidence]
 ) -> str:
     """Dynamically generates the chain_of_thought based on the scenario's instruments."""
     thoughts = []
@@ -1247,12 +1258,12 @@ def _generate_chain_of_thought(
     }
 
     for item in evidence:
-        category = item["category"]
+        category = item.category
         if category in category_names:
             category_name = category_names[category]
-            instrument_type = item["instrument_type"]
-            notional_str = _format_notional(item["notional"], scenario)
-            status = item["status"]
+            instrument_type = item.instrument_type
+            notional_str = _format_notional(item.notional, scenario)
+            status = item.status
 
             if status == "summary":
                 thoughts.append(
@@ -1278,12 +1289,12 @@ def _generate_chain_of_thought(
 
 
 def _generate_analysis_summary(
-    scenario: GenerationScenario, evidence: List[Dict]
+    scenario: GenerationScenario, evidence: List[NarrativeEvidence]
 ) -> str:
     """Dynamically generates a one-sentence analysis summary."""
     summary_phrases = set()
     for item in evidence:
-        summary_phrases.add(f"utilizes {item['category']} derivatives")
+        summary_phrases.add(f"utilizes {item.category} derivatives")
 
     if not summary_phrases:
         return "The company does not use derivative instruments."
@@ -1292,7 +1303,7 @@ def _generate_analysis_summary(
 
 
 def generate_json_from_scenario(
-    scenario: GenerationScenario, evidence: List[Dict]
+    scenario: GenerationScenario, evidence: List[NarrativeEvidence]
 ) -> Dict:
     """
     Generates the target JSON output from the scenario object.
