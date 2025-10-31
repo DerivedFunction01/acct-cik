@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 
 from common_data import *
-from scenario_definitions import (
+from main.class_definitions import (
     NarrativeEvidence,
     DerivativeCategory,
     HedgedItem,
@@ -415,9 +415,11 @@ def create_random_scenario() -> GenerationScenario:
         num_exposures = random.randint(1, 3)
         exposures = [
             CurrencyExposure(
-                code=cur[0],
-                name=cur[1],
-                symbol=cur[2],
+                code=cur.code,
+                full_name=cur.full_name,
+                symbol=cur.symbol,
+                adjective=cur.adjective,
+                location=cur.location,
                 amount=random.randint(1, 100) * multiplier,
             )
             for cur in random.sample(all_currencies, num_exposures)
