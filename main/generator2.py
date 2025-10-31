@@ -368,6 +368,7 @@ class ScenarioArchetype:
     hedging_propensity: float  # A value between 0.0 and 1.0, representing the likelihood of hedging an exposure.
     policy_coverage: Literal["full", "partial", "light"]
     default_currency: str
+    derivative_stance: Literal["active_user", "potential_user", "non_user"]
     money_units: List[tuple[str, int]]  # e.g., [("million", 1_000_000), ("billion", 1_000_000_000)]
 
     def get_exposure_counts(self) -> Dict[str, int]:
@@ -440,6 +441,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.8,
         policy_coverage="full",
         default_currency="USD",
+        derivative_stance="active_user",
         money_units=[("million", 1_000_000), ("billion", 1_000_000_000)],
     ),
     ScenarioArchetype(
@@ -452,6 +454,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.7,
         policy_coverage="partial",
         default_currency="USD",
+        derivative_stance="active_user",
         money_units=[("million", 1_000_000)],
     ),
     ScenarioArchetype(
@@ -464,6 +467,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.6,
         policy_coverage="partial",
         default_currency="USD",
+        derivative_stance="active_user",
         money_units=[("million", 1_000_000)],
     ),
     ScenarioArchetype(
@@ -476,6 +480,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.9,
         policy_coverage="full",
         default_currency="USD",
+        derivative_stance="active_user",
         money_units=[("billion", 1_000_000_000)],
     ),
     ScenarioArchetype(
@@ -488,6 +493,33 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.25,
         policy_coverage="light",
         default_currency="USD",
+        derivative_stance="active_user",
+        money_units=[("thousand", 1_000), ("million", 1_000_000)],
+    ),
+    ScenarioArchetype(
+        name="Potential User",
+        debt_exposure_range=(1, 3),
+        fx_exposure_range=(1, 3),
+        commodity_exposure_range=(0, 2),
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 0),
+        hedging_propensity=0.0,  # They don't have derivatives yet
+        policy_coverage="light",
+        default_currency="USD",
+        derivative_stance="potential_user",
+        money_units=[("thousand", 1_000), ("million", 1_000_000)],
+    ),
+    ScenarioArchetype(
+        name="Non-User",
+        debt_exposure_range=(0, 0),
+        fx_exposure_range=(0, 0),
+        commodity_exposure_range=(0, 0),
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        hedging_propensity=0.0,
+        policy_coverage="light",
+        default_currency="USD",
+        derivative_stance="non_user",
         money_units=[("thousand", 1_000), ("million", 1_000_000)],
     ),
 ]
@@ -673,6 +705,11 @@ def create_random_scenario() -> GenerationScenario:
     # =========================================================================
     # STAGE 2: CREATE INSTRUMENTS BASED ON EXPOSURES AND HEDGING PROPENSITY
     # =========================================================================
+
+    # If the company is not an active user, skip instrument creation entirely.
+    # The narrative will be based on their stance and policies instead.
+    if archetype.derivative_stance != "active_user":
+        return scenario
 
     # --- Create IR Instruments (for some of the debt exposures) ---
     for debt_item in potential_hedged_items["debt"]:
