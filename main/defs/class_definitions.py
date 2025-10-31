@@ -318,7 +318,6 @@ class DebtHedgedItem(HedgedItem):
     payment_frequency: Optional[str] = None
 
 
-
 @dataclass
 class CurrencyExposure(Currency):
     """Represents a specific currency exposure with its amount.
@@ -556,12 +555,15 @@ class NotionalSentence:
     money_unit_word: str = "million"
     value_type: Literal["notional", "fair_value"] = "notional"
     sentence_type: Literal[
-        "summary",
-        "new_individual",
-        "individual",
-        "terminated_individual",
-        "comparative",
-        "no_instruments",
+        "summary", # phrases stating total amount across all derivative type
+        "new_individual", # phrases with new swap in past or current year
+        "individual", # phrases with any swap in past or current year
+        "terminated_individual", # phrases an individual swap being terminated in past or current year
+        "historical_individual", # phrases with a swap in an old year that expires in past or future year
+        "comparative", # Phrases with comparative values
+        "comparative_no_outstanding", # Phrases with explicit mention of no outstanding for current year, values in past
+        "comparative_no_prior_outstanding", # Phrases with current value for current year, but no other values in prior
+        "no_instruments", # No such derivatives at all
     ] = "summary"
 
     # Optional time components
@@ -702,7 +704,7 @@ class NotionalSentence:
         # 5. Hedge designation clause
         hedge_designation_clause = ""
         if self.hedge_designation:
-            hedge_designation_clause = f", designated as {self.hedge_designation}"
+            hedge_designation_clause = self.hedge_designation.format(hedge_type=random.choice(hedge_types))
 
         # 6. Result phrase clause
         result_clause = ""
