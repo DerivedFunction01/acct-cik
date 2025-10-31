@@ -137,8 +137,9 @@ class DebtHedgedItem(HedgedItem):
 @dataclass
 class CurrencyExposure:
     """Represents a specific currency exposure with its amount."""
-
-    currency: str  # e.g., "EUR", "GBP"
+    code: str  # e.g., "EUR", "GBP"
+    name: str  # e.g., "Euro", "British Pound"
+    symbol: str  # e.g., "€", "£"
     amount: int  # The notional amount of the exposure in that currency
 
 
@@ -303,7 +304,13 @@ DUMMY_DEBT_TYPES = [
     "revolving credit agreement",
 ]
 DUMMY_COMMODITY_TYPES = ["Natural Gas", "Crude Oil", "Aluminum", "Diesel Fuel"]
-DUMMY_CURRENCIES = ["EUR", "GBP", "JPY", "CAD", "AUD"]
+DUMMY_CURRENCIES = [
+    ("EUR", "Euro", "€", "European", "European"),
+    ("GBP", "British Pound", "£", "British", "U.K."),
+    ("JPY", "Japanese Yen", "¥", "Japanese", "Japanese"),
+    ("CAD", "Canadian Dollar", "$", "Canadian", "Canadian"),
+    ("AUD", "Australian Dollar", "$", "Australian", "Australian"),
+]
 DUMMY_BENCHMARK_RATES = ["SOFR", "LIBOR", "EURIBOR"]
 DUMMY_HEDGE_DESIGNATIONS = ["cash_flow", "fair_value", "net_investment", "economic"]
 DUMMY_EQUITY_UNDERLYINGS = ["S&P 500 Index", "{company_name} Common Stock"]
@@ -358,6 +365,7 @@ class ScenarioArchetype:
     eq_range: tuple[int, int]
     gen_range: tuple[int, int]
     policy_coverage: Literal["full", "partial", "light"]
+    default_currency: str
 
     def get_instrument_counts(self) -> Dict[str, int]:
         """Generates a dictionary of instrument counts based on the archetype's ranges."""
@@ -380,6 +388,7 @@ SCENARIO_ARCHETYPES = [
         eq_range=(0, 2),
         gen_range=(0, 1),
         policy_coverage="full",
+        default_currency="USD",
     ),
     ScenarioArchetype(
         name="Domestic Industrial",
@@ -389,6 +398,7 @@ SCENARIO_ARCHETYPES = [
         eq_range=(0, 1),
         gen_range=(0, 1),
         policy_coverage="partial",
+        default_currency="USD",
     ),
     ScenarioArchetype(
         name="Tech Company",
@@ -398,6 +408,7 @@ SCENARIO_ARCHETYPES = [
         eq_range=(1, 3),
         gen_range=(0, 1),
         policy_coverage="partial",
+        default_currency="USD",
     ),
     ScenarioArchetype(
         name="Financial Institution",
@@ -407,6 +418,7 @@ SCENARIO_ARCHETYPES = [
         eq_range=(0, 2),
         gen_range=(0, 1),
         policy_coverage="full",
+        default_currency="USD",
     ),
     ScenarioArchetype(
         name="Policy Only / Light User",
@@ -416,6 +428,7 @@ SCENARIO_ARCHETYPES = [
         eq_range=(0, 0),
         gen_range=(1, 2),
         policy_coverage="light",
+        default_currency="USD",
     ),
 ]
 
@@ -538,7 +551,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=notional,
-            currency=DUMMY_DEFAULT_CURRENCY,
+            currency=archetype.default_currency,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=hedged_debt,
@@ -560,7 +573,10 @@ def create_random_scenario() -> GenerationScenario:
             num_exposures = random.randint(1, 3)
             exposures = [
                 CurrencyExposure(
-                    currency=cur, amount=random.randint(1, 100) * 1_000_000
+                    code=cur[0],
+                    name=cur[1],
+                    symbol=cur[2],
+                    amount=random.randint(1, 100) * 1_000_000,
                 )
                 for cur in random.sample(DUMMY_CURRENCIES, num_exposures)
             ]
@@ -577,7 +593,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=notional,
-            currency=DUMMY_DEFAULT_CURRENCY,
+            currency=archetype.default_currency,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=hedged_fx,
@@ -618,7 +634,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=notional,
-            currency=DUMMY_DEFAULT_CURRENCY,
+            currency=archetype.default_currency,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=hedged_commodity,
@@ -655,7 +671,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=notional,
-            currency=DUMMY_DEFAULT_CURRENCY,
+            currency=archetype.default_currency,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=hedged_equity,
@@ -679,7 +695,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=random.randint(10, 300) * 1_000_000,
-            currency=DUMMY_DEFAULT_CURRENCY,
+            currency=archetype.default_currency,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=None,  # Generic instruments often don't have a specific hedged item
