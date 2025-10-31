@@ -1,4 +1,5 @@
 from class_definitions import Currency
+import random
 
 cost_types = ["input", "extraction", "storage"]
 months_full = [
@@ -86,65 +87,103 @@ all_currencies = (
     + other_currencies
 )
 
-volume_units = [
-    # Energy
-    "barrels",
-    "bbl",  # crude oil
-    "barrels per day",
-    "bbl/d",  # production rate
-    "MMBtu",
-    "MMBtu/h",  # natural gas, energy content
-    "BTU",
-    "Btu",  # single BTU
-    "gigajoules",
-    "GJ",  # energy content
-    "MWh",
-    "megawatt-hour",  # electricity
-    # Bulk solids / metals / minerals
-    "metric tons",
-    "tonne",
-    "MT",  # general bulk
-    "tons",
-    "t",  # alternative
-    "long tons",
-    "LT",
-    "short tons",
-    "ST",
-    "hundredweights",
-    "cwt",
-    "pounds",
-    "lb",
-    "ounces",
-    "oz",  # troy ounces for metals
-    # Agriculture
-    "bushels",
-    "bu",
-    "sacks",
-    "bales",
-    "pecks",
-    # Liquids
-    "gallons",
-    "gal",
-    "liters",
-    "L",
-    "ltr",
-    "cubic meters",
-    "m3",
-    "cubic feet",
-    "ft3",
-    "hectoliters",
-    "hL",
-    "kiloliters",
-    "kL",
-    "megaliters",
-    "ML",
-    "gigaliters",
-    "GL",
-    # Lumber / construction materials
-    "board foot",
-    "bf",
-    "sheets",
-    "coils",
-    "bundles",
-    "pallets",
-]
+
+COMMODITY_UNITS = {
+    "energy": [
+        "barrels", "bbl", "barrels per day", "bbl/d", "MMBtu", "MMBtu/h",
+        "BTU", "Btu", "gigajoules", "GJ", "MWh", "megawatt-hour",
+    ],
+    "bulk_solids": [
+        "metric tons", "tonne", "MT", "tons", "t", "long tons", "LT",
+        "short tons", "ST", "hundredweights", "cwt", "pounds", "lb",
+    ],
+    "precious_metals": ["ounces", "oz", "carats", "ingots", "bars"],
+    "agriculture": ["bushels", "bu", "sacks", "bales", "pecks", "head"],
+    "liquids": [
+        "gallons", "gal", "liters", "L", "ltr", "cubic meters", "m3",
+        "cubic feet", "ft3", "hectoliters", "hL", "kiloliters", "kL",
+        "megaliters", "ML", "gigaliters", "GL",
+    ],
+    "lumber": ["board foot", "bf", "cubic meters", "m3", "cubic feet", "ft3"],
+    "manufactured": ["sheets", "coils", "bundles", "pallets", "units"],
+}
+
+COMMODITIES = {
+    "energy": [
+        "crude oil", "diesel fuel", "electricity", "electric", "energy",
+        "ethanol", "fuel", "gas", "gasoline", "natural gas", "petroleum",
+        "biodiesel", "biomass",
+    ],
+    "metals_minerals": [
+        "aluminum", "base metals", "copper", "iron ore", "limestone", "metals",
+        "minerals", "potash", "precious metals", "salt", "sand", "steel",
+        "titanium", "uranium", "gravel", "phosphate", "soda ash",
+    ],
+    "agriculture": [
+        "agricultural products", "cocoa", "coffee", "corn", "cotton", "dairy",
+        "grain", "livestock", "soybeans", "sugar", "wool", "rubber",
+    ],
+    "lumber_wood": [
+        "hardwood lumber", "logs", "lumber", "plywood", "softwood lumber",
+        "timber", "wood", "wood chips", "wood pellets", "pulp", "paper",
+    ],
+    "chemicals_plastics": [
+        "asphalt", "bitumen", "cement", "chemicals", "concrete", "feedstock",
+        "fertilizer", "nitrogen", "petrochemicals", "plastics", "polymers",
+        "resin", "sulfur",
+    ],
+    "textiles": ["textiles", "cotton", "wool"],
+    "generic": ["commodity", "raw materials"],
+}
+
+# Flattened lists for random selection when no category is specified
+volume_units = [unit for sublist in COMMODITY_UNITS.values() for unit in sublist]
+commodities = [item for sublist in COMMODITIES.values() for item in sublist]
+
+
+def get_units_for_commodity(commodity_name: str) -> list[str]:
+    """
+    Returns a list of appropriate volume units for a given commodity.
+    """
+    # This mapping connects commodity categories to their corresponding unit categories.
+    CATEGORY_TO_UNITS_MAP = {
+        "energy": ["energy", "liquids"],
+        "metals_minerals": ["bulk_solids", "precious_metals"],
+        "agriculture": ["agriculture", "bulk_solids"],
+        "lumber_wood": ["lumber", "manufactured", "bulk_solids"],
+        "chemicals_plastics": ["bulk_solids", "liquids"],
+        "textiles": ["agriculture", "manufactured"],
+        "generic": list(COMMODITY_UNITS.keys()), # Can be anything
+    }
+
+    commodity_name = commodity_name.lower()
+
+    # Find which category the commodity belongs to.
+    for category, commodity_list in COMMODITIES.items():
+        if commodity_name in commodity_list:
+            # Get the corresponding unit categories from the map.
+            unit_categories = CATEGORY_TO_UNITS_MAP.get(category, [])
+            # Collect all units from those categories.
+            units = []
+            for unit_cat in unit_categories:
+                units.extend(COMMODITY_UNITS.get(unit_cat, []))
+            return list(set(units)) # Use set to remove duplicates, then convert back to list.
+
+    # Default fallback
+    return volume_units
+
+
+def get_random_commodity_and_unit() -> tuple[str, str]:
+    """
+    Selects a random commodity and a matching, appropriate unit for it.
+
+    Returns:
+        A tuple containing the commodity name and its unit.
+    """
+    # 1. Pick a random commodity from the flattened list
+    commodity_name = random.choice(commodities)
+    # 2. Get the list of appropriate units for that commodity
+    appropriate_units = get_units_for_commodity(commodity_name)
+    # 3. Pick a random unit from that list
+    unit = random.choice(appropriate_units)
+    return commodity_name, unit

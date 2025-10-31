@@ -432,12 +432,13 @@ def create_random_scenario() -> GenerationScenario:
 
     # --- Generate Commodity Exposures ---
     for _ in range(exposure_counts["commodity"]):
+        commodity_name, unit = get_random_commodity_and_unit()
         hedged_commodity = CommodityHedgedItem(
             hedged_item_id=hedged_item_id_counter,
-            commodity_type=random.choice(DUMMY_COMMODITY_TYPES),
+            commodity_type=commodity_name,
             transaction_type=random.choice(DUMMY_COMMODITY_TRANSACTION_TYPES),
             quantity=random.randint(100, 10000),
-            unit_of_volume=random.choice(DUMMY_COMMODITY_UNITS),
+            unit_of_volume=unit,
             price_per_unit=random.uniform(10, 200),
             cost_type=random.choice(cost_types),
             supplier=(random.choice(company_names) if random.random() < 0.2 else None),
