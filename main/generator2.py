@@ -491,7 +491,7 @@ def create_random_scenario() -> GenerationScenario:
         prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["IR"])
 
         base_args = {
-            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_type": name,
             "instrument_prefix": prefix,
             "instrument_name": name,
             "instrument_alias": alias,
