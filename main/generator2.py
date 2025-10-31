@@ -937,12 +937,48 @@ def pretty_print_scenario(scenario: GenerationScenario):
 # =============================================================================
 
 
+def _format_notional(amount: int) -> str:
+    """Formats a large number into a more readable string like '$250.0 million'."""
+    if amount >= 1_000_000_000:
+        return f"${amount / 1_000_000_000:.1f} billion"
+    if amount >= 1_000_000:
+        return f"${amount / 1_000_000:.1f} million"
+    if amount >= 1_000:
+        return f"${amount / 1_000:.1f} thousand"
+    return f"${amount}"
+
+
 def generate_narrative_from_scenario(scenario: GenerationScenario) -> str:
     """
     Constructs a coherent, multi-paragraph narrative from a scenario object.
     This function will replace the old `generate_hedge_paragraph`.
     """
     all_sentences = []
+    reporting_year = scenario.reporting_year
+
+    # =========================================================================
+    # AGGREGATION STEP: Summarize instruments by category and year.
+    # =========================================================================
+    aggregated_data: Dict[str, Dict[int, Dict]] = {}
+    for instrument in scenario.instruments:
+        cat = instrument.category
+        year = instrument.year
+
+        if cat not in aggregated_data:
+            aggregated_data[cat] = {}
+
+        if year not in aggregated_data[cat]:
+            aggregated_data[cat][year] = {
+                "total_notional": 0,
+                "count": 0,
+                "instrument_types": [],
+                "instruments": [],
+            }
+
+        aggregated_data[cat][year]["total_notional"] += instrument.notional_amount
+        aggregated_data[cat][year]["count"] += 1
+        aggregated_data[cat][year]["instrument_types"].append(instrument.instrument_type)
+        aggregated_data[cat][year]["instruments"].append(instrument)
 
     # 1. Introduction (Market Risk Disclosure)
     # TODO: Use templates like `hedge_begin_context_templates`
@@ -966,19 +1002,29 @@ def generate_narrative_from_scenario(scenario: GenerationScenario) -> str:
             f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}."
         )
 
-    # 3. Specific Instrument Disclosure (The Core)
-    # TODO: This is where the main logic will go. We'll loop through `scenario.instruments`
-    # and use templates to describe each one.
-    # This will be a much more involved step.
-    all_sentences.append(
-        f"As of December 31, {scenario.reporting_year}, the total notional of our outstanding interest rate swaps was $250.0 million."
-    )
-    all_sentences.append(
-        f"During the first quarter of {scenario.reporting_year}, our portfolio of foreign currency forward contracts with a notional value of €25.0 million matured and were settled."
-    )
-    all_sentences.append(
-        f"Subsequently, we entered into a series of foreign currency collar contracts with a total notional value of £40.0 million, which were outstanding at year-end."
-    )
+    # 3. Specific Instrument Disclosure (High-Level Summary)
+    for category, yearly_data in aggregated_data.items():
+        if category == "GEN":  # Skip generic for now
+            continue
+
+        # Data for the current reporting year
+        current_year_data = yearly_data.get(reporting_year)
+        if current_year_data and current_year_data["total_notional"] > 0:
+            # Example: "As of December 31, 2023, the aggregate notional value of our interest rate swaps was $250.0 million."
+            instrument_type_plural = current_year_data["instrument_types"][0] + "s"
+            total_notional_str = _format_notional(current_year_data["total_notional"])
+            all_sentences.append(
+                f"As of December 31, {reporting_year}, the aggregate notional value for our {instrument_type_plural} was {total_notional_str}."
+            )
+
+        # Data for the previous year
+        prev_year_data = yearly_data.get(reporting_year - 1)
+        if prev_year_data and prev_year_data["total_notional"] > 0:
+            # Example: "This compares to a total notional value of $220.0 million for the prior year."
+            total_notional_str = _format_notional(prev_year_data["total_notional"])
+            all_sentences.append(f"This compares to a total notional value of {total_notional_str} for the prior year.")
+
+    # TODO: Add more detailed sentences about specific instrument changes (terminations, new entries).
     all_sentences.append(
         f"The Company also has an embedded derivative liability related to its convertible senior notes, with a fair value of $12.5 million as of December 31, {scenario.reporting_year}."
     )
