@@ -678,7 +678,6 @@ class NotionalSentence:
         quarter = self.quarter or random.choice(quarters)
         company_name = self.company_name or "The Company"
 
-
         # Determine number of years for comparison
         num_years = 1
         if self.prev_year is not None and self.prev_notional is not None:
@@ -778,13 +777,17 @@ class NotionalSentence:
         final_value_type = self.value_type
         is_generic_connector = chosen_connector in amount_connectors["generic"]
         is_generic_prefix = chosen_prefix in amount_prefixes["generic"]
-        if (is_generic_connector or is_generic_prefix) and self.value_type == "fair_value":
+        if (
+            is_generic_connector or is_generic_prefix
+        ) and self.value_type == "fair_value":
             final_value_type = "notional"
 
         # 5. Hedge designation clause
         hedge_designation_clause = ""
         if self.hedge_designation:
-            hedge_designation_clause = self.hedge_designation.format(hedge_type=random.choice(hedge_types))
+            hedge_designation_clause = self.hedge_designation.format(
+                hedge_type=random.choice(hedge_types)
+            )
 
         # 6. Result phrase clause
         result_clause = ""
@@ -792,12 +795,12 @@ class NotionalSentence:
             # Populate new placeholders within the result phrase itself
             outcome_verb = random.choice(financial_outcome_verbs)
             outcome_loc = random.choice(balance_sheet_locations)
-            
+
             # Choose two different specific rate terms for templates that need them
             rate_terms = random.sample(specific_rate_terms, 2)
             rate_term1 = rate_terms[0]
             rate_term2 = rate_terms[1]
-            
+
             # Generate a random amount for the result phrase and format it
             random_amount = int(self.notional * random.randint(1, 50) / 100)
             formatted_amount_result = _format_single_notional(
@@ -810,7 +813,13 @@ class NotionalSentence:
             details = self.result_details or ResultPhraseDetails()
             currencies_str = ""
             if details.currencies:
-                currencies_str = ", ".join(details.currencies[:-1]) + " and " + details.currencies[-1] if len(details.currencies) > 1 else details.currencies[0]
+                currencies_str = (
+                    ", ".join(details.currencies[:-1])
+                    + " and "
+                    + details.currencies[-1]
+                    if len(details.currencies) > 1
+                    else details.currencies[0]
+                )
 
             details = self.result_details or ResultPhraseDetails()
             populated_phrase = self.result_phrase.format(
@@ -819,15 +828,15 @@ class NotionalSentence:
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 frequency=details.frequency or random.choice(frequencies),
                 risk_term=random.choice(risk_exposure_terms),
-                ir_term=random.choice(interest_rate_terms), # type: ignore
+                ir_term=random.choice(interest_rate_terms),  # type: ignore
                 debt_type=details.debt_type or random.choice(DUMMY_DEBT_TYPES),
                 currencies=currencies_str,
                 currency_code=self.currency_code,
                 rate_term1=rate_term1,
                 rate_term2=rate_term2,
-                formatted_amount=formatted_amount_result, # type: ignore
+                formatted_amount=formatted_amount_result,  # type: ignore
                 pct=details.pct or random.uniform(1.5, 7.5),
-                geography=details.geography or random.choice([c.location for c in all_currencies]), # type: ignore
+                geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
                 commodity=details.commodity,
                 unit=details.unit,
             )
@@ -840,7 +849,7 @@ class NotionalSentence:
                 adverb = random.choice(future_adverbs)
                 verb_tense = random.choice(termination_verbs_present)
                 maturity_clause = f"which {adverb} {verb_tense} in {self.maturity_year}"
-            else: # maturity_year <= reporting_year
+            else:  # maturity_year <= reporting_year
                 verb_tense = random.choice(termination_verbs_past)
                 maturity_clause = f"which {verb_tense} in {self.maturity_year}"
 
@@ -849,6 +858,21 @@ class NotionalSentence:
             self.sentence_type, NOTIONAL_SENTENCE_TEMPLATES["summary"]
         )
         template = random.choice(templates_for_type)
+
+        # --- NEW LOGIC: Check if the template actually uses a notional amount placeholder. ---
+        mentions_amount = (
+            "{amount_str}" in template
+            or "{amount_connector}" in template
+            or "{amount_prefix}" in template
+        )
+        final_notional = self.notional if mentions_amount else None
+        final_formatted_notional = formatted_notional if mentions_amount else None
+        final_formatted_prev_notional = (
+            formatted_prev_notional if mentions_amount else None
+        )
+        final_formatted_prev2_notional = (
+            formatted_prev2_notional if mentions_amount else None
+        )
 
         # Handle "no_instruments" case specifically
         if self.sentence_type == "no_instruments":
@@ -859,7 +883,7 @@ class NotionalSentence:
                 "FX": "foreign currency",
                 "CP": "commodity price",
                 "EQ": "equity",
-                "GEN": ""
+                "GEN": "",
             }
             # Define a descriptive phrase for the category
             category_risk_phrase = category_map.get(self.category or "GEN", "")
@@ -868,16 +892,18 @@ class NotionalSentence:
             sentence = template.format(
                 time_prefix=time_prefix,
                 company=company_name,
-                verb=random.choice(non_use_verbs), # e.g., "did not hold"
+                verb=random.choice(non_use_verbs),  # e.g., "did not hold"
                 swap_type=f"{category_risk_phrase} derivatives",
-                category_risk_phrase=category_risk_phrase, # type: ignore
+                category_risk_phrase=category_risk_phrase,  # type: ignore
                 time_suffix=time_suffix,
                 year=self.year,
                 month=month,
                 end_day=end_day,
                 state_descriptor=random.choice(state_descriptors),
                 immaterial_term=random.choice(immaterial),
-                portfolio_term=random.choice(portfolio_terms).format(swap_type=f"{category_risk_phrase} derivatives"),
+                portfolio_term=random.choice(portfolio_terms).format(
+                    swap_type=f"{category_risk_phrase} derivatives"
+                ),
             )
             evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year, currency=self.currency_code, reporting_year=self.reporting_year)  # type: ignore
             return sentence, evidence
@@ -908,12 +934,12 @@ class NotionalSentence:
             status=self.sentence_type,  # type: ignore
             category=self.category,  # type: ignore
             aggregate=self.sentence_type in ["summary", "comparative"],
-            notional=self.notional,
+            notional=final_notional,  # Use the conditional notional value
             year=self.year,
             instrument_type=self.swap_type,
-            notional_str=formatted_notional,
-            prev_notional_str=formatted_prev_notional,
-            prev2_notional_str=formatted_prev2_notional,
+            notional_str=final_formatted_notional,
+            prev_notional_str=final_formatted_prev_notional,
+            prev2_notional_str=final_formatted_prev2_notional,
             maturity_year=self.maturity_year,
             reporting_year=self.reporting_year,
             value_type=final_value_type,
