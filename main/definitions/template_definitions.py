@@ -81,42 +81,48 @@ multi_year_time_prefixes = {
 }
 
 # Connectors for linking an action/instrument to its notional or fair value
-amount_connectors = [
-    "with notional amounts totaling",
-    "with notional amounts of",
-    "with aggregate notional values of",
-    "with a notional amount of",
-    "totaling",
-    "with notional values of",
-    "with a total of",
-    "with a value of",
-    "with amounts totaling",
-    "with fair value of",
-    "with fair values totaling",
-    "with fair market value of",
-    "in net notional",
-    "in net value",
-]
+amount_connectors = {
+    "notional": [
+        "with notional amounts totaling",
+        "with notional amounts of",
+        "with aggregate notional values of",
+        "with a notional amount of",
+        "with notional values of",
+        "in net notional",
+    ],
+    "fair_value": [
+        "with fair value of",
+        "with fair values totaling",
+        "with fair market value of",
+    ],
+    "generic": [
+        "totaling",
+        "with a total of",
+        "with a value of",
+        "with amounts totaling",
+        "in net value",
+    ],
+}
 
 # Prefixes for describing amounts (e.g., "fair value of", "notional amount of")
-amount_prefixes = [
-    "fair value",
-    "fair market value",
-    "aggregate notional amount",
-    "aggregate amount",
-    "notional value",
-    "total value",
-    "total amount",
-    "net value",
-    "net notional",
-    "aggregate value",
-]
-
-# Amount formatting strings for different year comparisons
-one_year_amount_format = "{currency_code}{notional} {money_unit}"
-two_year_amount_format = "{currency_code}{notional} {money_unit} and {currency_code}{prev_notional} {money_unit}"
-three_year_amount_format = "{currency_code}{notional} {money_unit}, {currency_code}{prev_notional} {money_unit}, and {currency_code}{prev2_notional} {money_unit}"
-
+amount_prefixes = {
+    "notional": [
+        "aggregate notional amount",
+        "notional value",
+        "net notional",
+    ],
+    "fair_value": [
+        "fair value",
+        "fair market value",
+    ],
+    "generic": [
+        "aggregate amount",
+        "total value",
+        "total amount",
+        "net value",
+        "aggregate value",
+    ],
+}
 
 # Portfolio terms
 portfolio_terms = [
@@ -148,21 +154,26 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}{hedge_designation_clause}{result_clause}.",
         "{time_prefix}, {swap_type} {amount_connector} {amount_str} {verb} by {company}{hedge_designation_clause}{result_clause}.",
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix}{hedge_designation_clause}{result_clause}.",
+        "{time_prefix}, the {amount_prefix} of the {swap_type} was {amount_str}{hedge_designation_clause}{result_clause}.",
+        "The {amount_prefix} of the {swap_type} was {amount_str} {time_suffix}{hedge_designation_clause}{result_clause}.",
     ],
     "new_individual": [
         "{time_prefix}, {company} {verb} new {swap_type} {amount_connector} {amount_str}{hedge_designation_clause}{result_clause}.",
         "{company} {verb} new {swap_type} {amount_connector} {amount_str} {time_suffix}{hedge_designation_clause}{result_clause}.",
         "{time_prefix}, new {swap_type} {amount_connector} {amount_str} {verb} by {company}{hedge_designation_clause}{result_clause}.",
+        "{time_prefix}, a new {swap_type} was entered into with a {amount_prefix} of {amount_str}{hedge_designation_clause}{result_clause}.",
     ],
     "terminated_individual": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}{hedge_designation_clause}{result_clause}.",
         "{time_prefix}, {swap_type} {amount_connector} {amount_str} {verb} by {company}{hedge_designation_clause}{result_clause}.",
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix}{hedge_designation_clause}{result_clause}.",
+        "{time_prefix}, {swap_type} with a {amount_prefix} of {amount_str} were {verb}{hedge_designation_clause}{result_clause}.",
     ],
     "comparative": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}, respectively{hedge_designation_clause}{result_clause}.",
         "{time_prefix}, {swap_type} {amount_connector} {amount_str}, respectively, {verb} by {company}{hedge_designation_clause}{result_clause}.",
         "{swap_type} {amount_connector} {amount_str}, respectively, {time_suffix}{hedge_designation_clause}{result_clause}.",
+        "{time_prefix}, the {amount_prefix} of the {swap_type} were {amount_str}, respectively{hedge_designation_clause}{result_clause}.",
     ],
 }
 

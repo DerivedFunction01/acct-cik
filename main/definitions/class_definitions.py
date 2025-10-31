@@ -568,6 +568,7 @@ class NotionalSentence:
     sentence_type: Literal[
         "summary",
         "new_individual",
+        "individual",
         "terminated_individual",
         "comparative",
         "no_instruments",
@@ -689,7 +690,15 @@ class NotionalSentence:
                 verb = random.choice(aggregate_use_verbs)
 
         # 4. Select amount connector
-        amount_connector = random.choice(amount_connectors)
+        # Choose from the specific list if available, otherwise fall back to generic
+        specific_connectors = amount_connectors.get(self.value_type, [])
+        all_possible_connectors = specific_connectors + amount_connectors["generic"]
+        amount_connector = random.choice(all_possible_connectors)
+        
+        # 4b. Select amount prefix (for templates that don't use a company/verb)
+        specific_prefixes = amount_prefixes.get(self.value_type, [])
+        all_possible_prefixes = specific_prefixes + amount_prefixes["generic"]
+        amount_prefix = random.choice(all_possible_prefixes)
 
         # 5. Hedge designation clause
         hedge_designation_clause = ""
@@ -720,6 +729,7 @@ class NotionalSentence:
             verb=verb,
             swap_type=self.swap_type,
             amount_connector=amount_connector,
+            amount_prefix=amount_prefix,
             amount_str=amount_str,
             hedge_designation_clause=hedge_designation_clause,
             result_clause=result_clause,

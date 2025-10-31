@@ -10,7 +10,8 @@ from main.definitions.common_data import *
 from main.definitions.commodity_data import get_random_commodity_and_unit
 from main.definitions.template_definitions import *
 from main.definitions.class_definitions import (
-    NarrativeEvidence,
+    BaseNarrativeEvidence,
+    NotionalEvidence,
     NotionalSentence,
     DerivativeCategory,
     HedgedItem,
@@ -30,7 +31,6 @@ from main.definitions.class_definitions import (
     RiskManagementPolicy,
     CategorySpecificPolicy,
     GeneralHedgingPolicy,
-    
 )
 from main.definitions.dummy_data import *
 from main.definitions.template_definitions import _format_single_notional
@@ -46,10 +46,14 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
     # Get currency symbol
     currency_code = scenario.archetype.default_currency
     currency_obj = next((c for c in all_currencies if c.code == currency_code), None)
-    currency_symbol = currency_obj.symbol if currency_obj else "$" # Default to $
+    currency_symbol = currency_obj.symbol if currency_obj else "$"  # Default to $
 
     # Get money unit word (e.g., "million")
-    money_unit_word = scenario.archetype.money_units[0][0] if scenario.archetype.money_units else "million"
+    money_unit_word = (
+        scenario.archetype.money_units[0][0]
+        if scenario.archetype.money_units
+        else "million"
+    )
 
     return currency_symbol, money_unit_word
 
@@ -60,7 +64,13 @@ def _generate_instrument_types_from_keywords() -> Dict[str, List[Tuple[str, str,
     Processes the `derivative_keywords` from common_data.py to generate
     a dictionary of realistic instrument type tuples (prefix, name, alias) for each category.
     """
-    instrument_types: Dict[str, Set[Tuple[str, str, str]]] = {"IR": set(), "FX": set(), "CP": set(), "EQ": set(), "GEN": set()}
+    instrument_types: Dict[str, Set[Tuple[str, str, str]]] = {
+        "IR": set(),
+        "FX": set(),
+        "CP": set(),
+        "EQ": set(),
+        "GEN": set(),
+    }
     for category, terms in derivative_keywords.items():
         if category not in instrument_types:
             continue
@@ -70,6 +80,7 @@ def _generate_instrument_types_from_keywords() -> Dict[str, List[Tuple[str, str,
 
     # Convert sets to lists for random.choice
     return {cat: list(names) for cat, names in instrument_types.items()}
+
 
 DYNAMIC_INSTRUMENT_TYPES = _generate_instrument_types_from_keywords()
 
@@ -736,7 +747,6 @@ def pretty_print_scenario(scenario: GenerationScenario):
                 print(f"     - Reason: {hedged_item.reason}")
 
 
-# %%
 # =============================================================================
 # PHASE 2: NARRATIVE AND JSON GENERATION
 # These functions will take a `GenerationScenario` object and produce the
@@ -774,18 +784,23 @@ def _generate_category_narrative(
     category: str,
     yearly_data: Dict,
     scenario: GenerationScenario,
-) -> Tuple[List[str], List[NarrativeEvidence]]:
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
     """
     Generates a narrative section for a single derivative category (e.g., Interest Rate Risk).
     This includes context, a summary of instruments, and details on changes.
     """
     sentences = []
     reporting_year, reporting_month, reporting_day = (
-        scenario.reporting_year, scenario.reporting_month, scenario.reporting_day
+        scenario.reporting_year,
+        scenario.reporting_month,
+        scenario.reporting_day,
     )
     evidence = []
     current_year_data = yearly_data.get(reporting_year)
     prev_year_data = yearly_data.get(reporting_year - 1)
+
+    # --- State for tracking mentioned instruments ---
+    mentioned_instrument_ids = set()
 
     # Get currency and money unit details for sentence generation
     currency_symbol, money_unit_word = _get_currency_and_unit_details(scenario)
@@ -794,7 +809,7 @@ def _generate_category_narrative(
     # TODO: Make this more dynamic based on templates.
     if category == "IR":
         sentences.append(
-            "To manage our interest rate risk, we utilize interest rate swaps to hedge our variable-rate debt." # This should also be templated
+            "To manage our interest rate risk, we utilize interest rate swaps to hedge our variable-rate debt."  # This should also be templated
             # For now, keep it as is, as the request is about notional sentences.
         )
     elif category == "FX":
@@ -806,16 +821,18 @@ def _generate_category_narrative(
             "The Company enters into commodity derivative contracts to manage price risk associated with raw materials."
         )
 
-    # 2. Aggregate Summary
-    summary_sentence = [] # Use connectors, and then join at the end to create the full sentence.
+    # 2. Aggregate Summary.
     if current_year_data and current_year_data["total_notional"] > 0:
         # Use the most common instrument type for the summary, or just the first one
-        instrument_type = max(set(current_year_data["instrument_types"]), key=current_year_data["instrument_types"].count)
+        instrument_type = max(
+            set(current_year_data["instrument_types"]),
+            key=current_year_data["instrument_types"].count,
+        )
         total_notional = current_year_data["total_notional"]
 
         # Generate aggregate summary sentence using the NotionalSentence class
         summary_sentence_obj = NotionalSentence(
-            swap_type=instrument_type,
+            swap_type=instrument_type,  # Use the full type for the summary
             year=reporting_year,
             notional=total_notional,
             currency_symbol=currency_symbol,
@@ -823,7 +840,8 @@ def _generate_category_narrative(
             end_day=reporting_day,
             money_units=scenario.archetype.money_units,
             prefer_abbreviated=scenario.number_format_preference,
-            category=category, # type: ignore
+            category=category,  # type: ignore
+            reporting_year=reporting_year,
         )
         summary_sentence_text, evidence_obj = summary_sentence_obj.build()
         sentences.append(summary_sentence_text)
@@ -833,7 +851,7 @@ def _generate_category_narrative(
         if prev_year_data and prev_year_data["total_notional"] > 0:
             # Generate comparative summary sentence
             comparative_summary_obj = NotionalSentence(
-                swap_type=instrument_type,
+                swap_type=instrument_type,  # Use the full type for the summary
                 year=reporting_year,
                 notional=total_notional,
                 currency_symbol=currency_symbol,
@@ -844,23 +862,25 @@ def _generate_category_narrative(
                 sentence_type="comparative",
                 money_units=scenario.archetype.money_units,
                 prefer_abbreviated=scenario.number_format_preference,
-                category=category, # type: ignore
+                category=category,  # type: ignore
+                reporting_year=reporting_year,
             )
             comparative_summary_text, evidence_obj = comparative_summary_obj.build()
             sentences.append(comparative_summary_text)
             # The evidence for the comparative summary is implicitly handled by the `to_string` method
-            # of the NarrativeEvidence object, so we don't need to add a separate evidence item.
+            # of the BaseNarrativeEvidence object, so we don't need to add a separate evidence item.
     else:
         # Generate a "no instruments" sentence
         no_instrument_obj = NotionalSentence(
-            swap_type="", # Not needed
+            swap_type="",  # Not needed
             year=reporting_year,
             notional=0,
             month=reporting_month,
             end_day=reporting_day,
             sentence_type="no_instruments",
-            category=category, # type: ignore
+            category=category,  # type: ignore
             company_name=scenario.company_name,
+            reporting_year=reporting_year,
         )
         no_instrument_text, evidence_obj = no_instrument_obj.build()
         sentences.append(no_instrument_text)
@@ -886,10 +906,26 @@ def _generate_category_narrative(
     if current_year_data and new_instrument_ids:
         for instrument_id in new_instrument_ids:
             # Find the new instrument in the current year's data
-            instrument = next((i for i in current_year_data["instruments"] if i.instrument_id == instrument_id), None)
-            if instrument: # Generate new individual instrument sentence
+            instrument = next(
+                (
+                    i
+                    for i in current_year_data["instruments"]
+                    if i.instrument_id == instrument_id
+                ),
+                None,
+            )
+            if instrument:
+                # Use the full name for the first mention, then the alias for subsequent mentions.
+                instrument_name_to_use = (
+                    instrument.instrument_type
+                    if instrument.instrument_id not in mentioned_instrument_ids
+                    else instrument.instrument_alias
+                )
+                mentioned_instrument_ids.add(instrument.instrument_id)
+
+                # Generate new individual instrument sentence
                 new_instrument_obj = NotionalSentence(
-                    swap_type=instrument.instrument_type,
+                    swap_type=instrument_name_to_use,
                     year=reporting_year,
                     notional=instrument.notional_amount,
                     currency_symbol=currency_symbol,
@@ -898,49 +934,59 @@ def _generate_category_narrative(
                     hedge_designation=instrument.hedge_designation,
                     money_units=scenario.archetype.money_units,
                     prefer_abbreviated=scenario.number_format_preference,
-                    category=category, # type: ignore
+                    category=category,  # type: ignore
+                    reporting_year=reporting_year,
                 )
                 new_instrument_text, evidence_obj = new_instrument_obj.build()
-                evidence_obj.instrument_id = instrument.instrument_id # Link to specific instrument
+                evidence_obj.instrument_id = (
+                    instrument.instrument_id
+                )  # Link to specific instrument
                 sentences.append(new_instrument_text)
                 evidence.append(evidence_obj)
 
     # Describe terminated instruments
     if prev_year_data and terminated_instrument_ids:
         for instrument_id in terminated_instrument_ids:
-            instrument = next((i for i in prev_year_data["instruments"] if i.instrument_id == instrument_id), None)
+            instrument = next(
+                (
+                    i
+                    for i in prev_year_data["instruments"]
+                    if i.instrument_id == instrument_id
+                ),
+                None,
+            )
             if instrument:
+                # Use the full name for the first mention, then the alias for subsequent mentions.
+                instrument_name_to_use = (
+                    instrument.instrument_type
+                    if instrument.instrument_id not in mentioned_instrument_ids
+                    else instrument.instrument_alias
+                )
+                mentioned_instrument_ids.add(instrument.instrument_id)
+
                 # Generate terminated individual instrument sentence
                 terminated_instrument_obj = NotionalSentence(
-                    swap_type=instrument.instrument_type,
-                    year=reporting_year, # Reporting year is when it was terminated
+                    swap_type=instrument_name_to_use,
+                    year=reporting_year,  # Reporting year is when it was terminated
                     notional=instrument.notional_amount,
                     currency_symbol=currency_symbol,
                     company_name=scenario.company_name,
                     sentence_type="terminated_individual",
                     money_units=scenario.archetype.money_units,
                     prefer_abbreviated=scenario.number_format_preference,
-                    category=category, # type: ignore
+                    category=category,  # type: ignore
+                    reporting_year=reporting_year,
                 )
-                terminated_instrument_text, evidence_obj = terminated_instrument_obj.build()
-                evidence_obj.instrument_id = instrument.instrument_id # Link to specific instrument
+                terminated_instrument_text, evidence_obj = (
+                    terminated_instrument_obj.build()
+                )
+                evidence_obj.instrument_id = (
+                    instrument.instrument_id
+                )  # Link to specific instrument
                 sentences.append(terminated_instrument_text)
                 evidence.append(evidence_obj)
 
     return sentences, evidence
-
-
-# %%
-
-# %%
-if __name__ == "__main__":
-    # Example of how to generate one sample
-    text, json_data = generate_training_sample()
-
-    print("--- GENERATED NARRATIVE ---")
-    print(text)
-    print("\n--- GENERATED JSON ---")
-    print(json.dumps(json_data, indent=2))
 
 
 def _generate_narrative_accounting(scenario: GenerationScenario) -> List[str]:
@@ -961,7 +1007,9 @@ def _generate_narrative_accounting(scenario: GenerationScenario) -> List[str]:
     return sentences
 
 
-def generate_narrative_from_scenario(scenario: GenerationScenario) -> Tuple[str, List[NarrativeEvidence]]:
+def generate_narrative_from_scenario(
+    scenario: GenerationScenario,
+) -> Tuple[str, List[BaseNarrativeEvidence]]:
     """
     Constructs a coherent, multi-paragraph narrative from a scenario object.
     This function will replace the old `generate_hedge_paragraph`.
@@ -1007,10 +1055,10 @@ def generate_narrative_from_scenario(scenario: GenerationScenario) -> Tuple[str,
 
     # 3. Category-Specific Sections (IR, FX, CP, etc.)
     # Iterate in a standard order to mimic real filings.
-    for category in ["IR", "FX", "CP", "EQ"]:
+    for category in ["IR", "FX", "CP", "EQ", "GEN"]:
         if category in aggregated_data:
             category_sentences, category_evidence = _generate_category_narrative(
-                    category, aggregated_data[category], scenario
+                category, aggregated_data[category], scenario
             )
             all_sentences.extend(category_sentences)
             all_evidence.extend(category_evidence)
@@ -1031,73 +1079,32 @@ def generate_narrative_from_scenario(scenario: GenerationScenario) -> Tuple[str,
     return full_narrative, all_evidence
 
 
-def _generate_chain_of_thought(
-    scenario: GenerationScenario, evidence: List[NarrativeEvidence]
-) -> str:
-    """Dynamically generates the chain_of_thought based on the scenario's instruments."""
-    thoughts = []
-
-    # A mapping from category code to a more descriptive name
-    category_names = {
-        "IR": "Interest Rate",
-        "FX": "Foreign Exchange",
-        "CP": "Commodity",
-    }
-
-    for item in evidence:
-        category = item.category
-        if category in category_names:
-            category_name = category_names[category]
-            instrument_type = item.instrument_type
-            notional_str = ""
-            status = item.status
-
-            if status == "summary":
-                thoughts.append(
-                    f"The narrative mentions an aggregate notional value of {notional_str} for {instrument_type}, indicating {category_name} derivative activity."
-                )
-            elif status == "new":
-                thoughts.append(
-                    f"A new {instrument_type} with a notional of {notional_str} was entered into, confirming 'current' {category} use."
-                )
-            elif status == "terminated":
-                thoughts.append(
-                    f"A {instrument_type} with a notional of {notional_str} matured, indicating 'terminated' {category} use."
-                )
-            elif status == "none":
-                thoughts.append(
-                    f"The narrative states no outstanding {instrument_type} for {category_name}, indicating no current use."
-                )
-
-    if not thoughts:
-        return "The company does not appear to use derivative instruments based on the provided narrative."
-
-    return " ".join(thoughts)
-
-
 def _generate_analysis_summary(
-    scenario: GenerationScenario, evidence: List[NarrativeEvidence]
+    scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]
 ) -> str:
     """Dynamically generates a one-sentence analysis summary."""
     summary_phrases = set()
     for item in evidence:
-        summary_phrases.add(f"utilizes {item.category} derivatives")
+        if item.status in ["summary", "new", "comparative", "individual"]:
+            summary_phrases.add(f"utilizes {item.category} derivatives")
 
     if not summary_phrases:
-        return "The company does not use derivative instruments."
+        return "The company does not appear to use derivative instruments."
 
     return f"The company's risk management strategy {', '.join(sorted(list(summary_phrases)))} to hedge market exposures."
 
 
 def generate_json_from_scenario(
-    scenario: GenerationScenario, evidence: List[NarrativeEvidence]
+    scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]
 ) -> Dict:
     """
     Generates the target JSON output from the scenario object.
     The `evidence` from the narrative is used to generate the summary and chain_of_thought.
     """
     analysis_summary = _generate_analysis_summary(scenario, evidence)
-    chain_of_thought = _generate_chain_of_thought(scenario, evidence)
+
+    # Build the chain_of_thought by calling to_string() on each evidence object
+    chain_of_thought = " ".join([e.to_string() for e in evidence])
 
     # --- Build the derivatives list ONLY from what was mentioned in the evidence. ---
     # This ensures the JSON perfectly matches the narrative. Each piece of evidence
@@ -1113,9 +1120,25 @@ def generate_json_from_scenario(
 
         # Find the full instrument object from the scenario to get base details
         instrument = next(
-            (inst for inst in scenario.instruments if inst.instrument_id == ev.instrument_id and inst.year == scenario.reporting_year),
-            None
+            (
+                inst
+                for inst in scenario.instruments
+                if inst.instrument_id == ev.instrument_id
+                and inst.year == scenario.reporting_year
+            ),
+            None,
         )
+        if not instrument:
+            # If not found in current year, check previous year (for terminated instruments)
+            instrument = next(
+                (
+                    inst
+                    for inst in scenario.instruments
+                    if inst.instrument_id == ev.instrument_id
+                    and inst.year == scenario.reporting_year - 1
+                ),
+                None,
+            )
         if not instrument:
             continue
 
@@ -1128,10 +1151,15 @@ def generate_json_from_scenario(
             }
 
         # Add details from the current piece of evidence if they exist
-        if ev.instrument_type is not None:
-            instrument_evidence_map[ev.instrument_id]["instrument_type"] = ev.instrument_type
-        if ev.notional is not None:
-            instrument_evidence_map[ev.instrument_id]["notional_amount"] = ev.notional
+        if isinstance(ev, NotionalEvidence):
+            if ev.instrument_type is not None:
+                instrument_evidence_map[ev.instrument_id][
+                    "instrument_type"
+                ] = ev.instrument_type
+            if ev.notional is not None:
+                instrument_evidence_map[ev.instrument_id][
+                    "notional_amount"
+                ] = ev.notional
 
     derivatives_list = list(instrument_evidence_map.values())
 
@@ -1142,7 +1170,6 @@ def generate_json_from_scenario(
     }
 
 
-# %%
 # =============================================================================
 # PHASE 3: MAIN GENERATION LOOP
 # This will be the new entry point, replacing the old `generate()` function.
@@ -1164,7 +1191,7 @@ def generate_training_sample():
     # The final output is a tuple of the text and the JSON object (or string).
     return (narrative_text, json_output)
 
-# %%
+#%%
 if __name__ == "__main__":
     # Example of how to generate one sample
     text, json_data = generate_training_sample()
@@ -1174,4 +1201,4 @@ if __name__ == "__main__":
     print("\n--- GENERATED JSON ---")
     print(json.dumps(json_data, indent=2))
 
-# %%
+#%%
