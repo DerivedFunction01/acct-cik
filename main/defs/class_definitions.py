@@ -85,21 +85,21 @@ class NotionalEvidence(BaseNarrativeEvidence):
         maturity_reason = ""
         if self.maturity_year:
             if self.maturity_year >= self.reporting_year:
-                maturity_reason = f" and is considered active as its maturity year ({self.maturity_year}) is on or after the reporting year"
+                maturity_reason = f" and is considered active as its maturity year ({self.maturity_year}) is on or after the reporting year."
             else:  # self.maturity_year < self.reporting_year
-                maturity_reason = f" and is considered historical as it matured in {self.maturity_year}, prior to the reporting year"
+                maturity_reason = f" and is considered historical as it matured in {self.maturity_year}, prior to the reporting year."
 
         if self.year == self.reporting_year:
             if self.notional is None:
-                return f" (for the reporting year {self.reporting_year}, confirming current reporting activity{maturity_reason})"
+                return f" (for the reporting year {self.reporting_year}, confirming current reporting activity{maturity_reason})."
             elif self.notional > 0:
-                return f" (for the reporting year {self.reporting_year}, confirming current use with a positive {value_desc}{maturity_reason})"
+                return f" (for the reporting year {self.reporting_year}, confirming current use with a positive {value_desc}{maturity_reason})."
             else:
-                return f" (for the reporting year {self.reporting_year}, confirming no current use with a zero {value_desc}{maturity_reason})"
+                return f" (for the reporting year {self.reporting_year}, confirming no current use with a zero {value_desc}{maturity_reason})."
         elif self.year < self.reporting_year:
-            return f" (for a prior year {self.year}, confirming only historical use before the reporting year {self.reporting_year}{maturity_reason})"
+            return f" (for a prior year {self.year}, confirming only historical use before the reporting year {self.reporting_year}{maturity_reason})."
         elif self.year > self.reporting_year:
-            return f" (for a future year {self.year}, indicating expected or forward activity beyond the reporting year {self.reporting_year})"
+            return f" (for a future year {self.year}, indicating expected or forward activity beyond the reporting year {self.reporting_year})."
         return ""
 
     def _validate_temporal_consistency(self) -> Optional[str]:
@@ -160,12 +160,12 @@ class NotionalEvidence(BaseNarrativeEvidence):
                     f"The report provides an aggregate summary for {category_name} derivatives, "
                     f"comparing {values_desc} of {self.notional_str} for {self.year} "
                     f"against {self.prev_notional_str} for {self.year - 1}. "
-                    f"This indicates continuity across periods."
+                    f"This indicates continuity across periods"
                 )
             else:
                 text = (
                     f"The report mentions an aggregate {value_desc} of {self.notional_str} for {self.instrument_type}, "
-                    f"indicating {category_name} derivative activity in {self.year}."
+                    f"indicating {category_name} derivative activity in {self.year}"
                 )
 
         # -----------------------------------------------------------------
@@ -173,9 +173,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         elif self.status == "new":
             if self.year == self.reporting_year:
-                text = f"The report describes a new '{self.instrument_type}' with a {value_desc} of {self.notional_str}. This confirms 'current' {category_name} use because the instrument appears in the {self.reporting_year} data but was absent in prior periods."
+                text = f"The report describes a new '{self.instrument_type}' with a {value_desc} of {self.notional_str}. This confirms 'current' {category_name} use because the instrument appears in the {self.reporting_year} data but was absent in prior periods"
             else:  # Past year
-                text = f"The report describes a new '{self.instrument_type}' with a {value_desc} of {self.notional_str}. This indicates the instrument was newly entered into during {self.year}."
+                text = f"The report describes a new '{self.instrument_type}' with a {value_desc} of {self.notional_str}. This indicates the instrument was newly entered into during {self.year}"
         # -----------------------------------------------------------------
         # Individual
         # -----------------------------------------------------------------
@@ -184,13 +184,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 f"The report mentions an individual '{self.instrument_type}' "
                 f"with a {value_desc} of {self.notional_str}, "
                 f"indicating that at least one {category_name} derivative was active "
-                f"during {self.year}{self._temporal_reasoning(value_desc)}."
+                f"during {self.year}{self._temporal_reasoning(value_desc)}"
             )
         # -----------------------------------------------------------------
         # Terminated
         # -----------------------------------------------------------------
         elif self.status == "terminated":
-            text = f"The report describes a '{self.instrument_type}' with a {value_desc} of {self.notional_str} that existed in a prior period but is absent in the {self.reporting_year} data. This comparison indicates the instrument was 'terminated' (matured or settled) during the reporting year."
+            text = f"The report describes a '{self.instrument_type}' with a {value_desc} of {self.notional_str} that existed in a prior period but is absent in the {self.reporting_year} data. This comparison indicates the instrument was 'terminated' (matured or settled) during the reporting year"
             
         # -----------------------------------------------------------------
         # No instruments
@@ -198,14 +198,14 @@ class NotionalEvidence(BaseNarrativeEvidence):
         elif self.status == "no_instruments":
             text = (
                 f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, "
-                f"which directly confirms no current use in the reporting period."
+                f"which directly confirms no current use in the reporting period"
             )
 
         # -----------------------------------------------------------------
         # Fallback
         # -----------------------------------------------------------------
         else:
-            text = f"Uncategorized notional evidence found for {category_name}."
+            text = f"Uncategorized notional evidence found for {category_name}"
 
         # Append temporal reasoning if not already included
         if self._temporal_reasoning(value_desc) not in text:
