@@ -1021,11 +1021,11 @@ def generate_narrative_from_scenario(
     Constructs a coherent, multi-paragraph narrative from a scenario object.
     This function will replace the old `generate_hedge_paragraph`.
     """
-    all_sentences = []
+    narrative_sections = []
     all_evidence = []
 
     # =========================================================================
-    # AGGREGATION STEP: Summarize instruments by category and year.
+    # AGGREGATION: Summarize instruments by category and year.
     # =========================================================================
     aggregated_data: Dict[str, Dict[int, Dict]] = {}
     for instrument in scenario.instruments:
@@ -1054,43 +1054,50 @@ def generate_narrative_from_scenario(
     # NARRATIVE CONSTRUCTION: Build the story section by section.
     # =========================================================================
 
-    # 1. Introduction (Broad market risk statement)
-    # This is now handled by the policy generator, so we can remove the old intro function.
-    # 2. Policy and Strategy (High-level hedging approach)
+    # 1. Policy and Strategy Section
     policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
-    all_sentences.extend(policy_sentences)
+    if policy_sentences:
+        narrative_sections.append(" ".join(s.strip() for s in policy_sentences if s))
     all_evidence.extend(policy_evidence)
 
-    # 3. Category-Specific Sections (IR, FX, CP, etc.)
+    # 2. Category-Specific Sections (IR, FX, CP, etc.)
     # Iterate in a standard order to mimic real filings.
     for category in ["IR", "FX", "CP", "EQ", "GEN"]:
         if category in aggregated_data:
             category_sentences, category_evidence = _generate_category_narrative(
                 category, aggregated_data[category], scenario
             )
-            all_sentences.extend(category_sentences)
+            if category_sentences:
+                narrative_sections.append(" ".join(s.strip() for s in category_sentences if s))
             all_evidence.extend(category_evidence)
         elif random.random() < 0.2:  # Occasionally mention non-use for an inactive category
-            # Generate a "no instruments" sentence.
-            currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
             no_instrument_obj = NotionalSentence(
                 swap_type="",
                 year=scenario.reporting_year,
                 notional=0,
                 sentence_type="no_instruments",
-                category=category, # type: ignore
+                category=category,  # type: ignore
                 company_name=scenario.company_name,
                 reporting_year=scenario.reporting_year,
             )
             no_instrument_text, evidence_obj = no_instrument_obj.build()
-            all_sentences.append(no_instrument_text)
+            if no_instrument_text:
+                narrative_sections.append(no_instrument_text)
             all_evidence.append(evidence_obj)
-            continue
 
-    # 4. Effectiveness and Accounting (Concluding details)
-    all_sentences.extend(_generate_narrative_accounting(scenario))
-    # TODO: Cleanup and formatting logic will go here.
-    narrative = " ".join(s.strip() for s in all_sentences if s)
+    # 3. Effectiveness and Accounting Section
+    accounting_sentences, accounting_evidence = _generate_narrative_accounting(scenario)
+    if accounting_sentences:
+        narrative_sections.append(" ".join(s.strip() for s in accounting_sentences if s))
+    all_evidence.extend(accounting_evidence)
+
+    # =========================================================================
+    # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
+    # =========================================================================
+    # Join the sections with double newlines to create distinct paragraphs.
+    narrative = "\n\n".join(section for section in narrative_sections if section)
+
+    # Prepend the reporting year tag.
     full_narrative = f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
     return full_narrative, all_evidence
 
