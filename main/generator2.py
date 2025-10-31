@@ -810,17 +810,18 @@ def _generate_category_narrative(
 
     # 2. Aggregate Summary
     if current_year_data and current_year_data["total_notional"] > 0:
-        instrument_type_plural = current_year_data["instrument_types"][0] + "s"
+        instrument_type = current_year_data["instrument_types"][0]
         total_notional = current_year_data["total_notional"]
         total_notional_str = _format_notional(total_notional, scenario)
         sentences.append(
-            f"As of December 31, {reporting_year}, the aggregate notional value for our {instrument_type_plural} was {total_notional_str}."
+            f"As of December 31, {reporting_year}, the aggregate notional value for our {instrument_type} was {total_notional_str}."
         )
         evidence.append(
             NarrativeEvidence(
-                category=category, # type: ignore
-                instrument_id=None, # This is an aggregate summary, not a specific instrument
-                instrument_type=instrument_type_plural,
+                category=category,  # type: ignore
+                instrument_id=None,  # This is an aggregate summary, not a specific instrument
+                instrument_type=instrument_type,
+                aggregate=True,  # This indicates it's an aggregate summary
                 notional=total_notional,
                 status="summary",
             )
@@ -829,8 +830,16 @@ def _generate_category_narrative(
             prev_total_notional_str = _format_notional(
                 prev_year_data["total_notional"], scenario
             )
-            sentences.append(
-                f"This compares to a total notional value of {prev_total_notional_str} for the prior year."
+            evidence.append(
+                NarrativeEvidence(
+                    category=category,  # type: ignore
+                    instrument_id=None,
+                    instrument_type=instrument_type,
+                    aggregate=True,
+                    notional=prev_year_data["total_notional"],
+                    year=reporting_year - 1,
+                    status="summary",
+                )
             )
     else:
         # If no active instruments, state that.
@@ -851,7 +860,7 @@ def _generate_category_narrative(
     current_ids = {
         i.instrument_id for i in current_year_data["instruments"]
     } if current_year_data else set()
-    
+
     prev_ids = {
         i.instrument_id for i in prev_year_data["instruments"]
     } if prev_year_data else set()
@@ -865,11 +874,11 @@ def _generate_category_narrative(
             # Find the new instrument in the current year's data
             instrument = next((i for i in current_year_data["instruments"] if i.instrument_id == instrument_id), None)
             if instrument:
-                 notional_str = _format_notional(instrument.notional_amount, scenario)
-                 sentences.append(
+                notional_str = _format_notional(instrument.notional_amount, scenario)
+                sentences.append(
                      f"During {reporting_year}, we entered into new {instrument.instrument_type} with an aggregate notional value of {notional_str}."
                  )
-                 evidence.append(
+                evidence.append(
                      NarrativeEvidence(
                          category=category, # type: ignore
                          instrument_id=instrument.instrument_id,
@@ -884,9 +893,9 @@ def _generate_category_narrative(
         for instrument_id in terminated_instrument_ids:
             instrument = next((i for i in prev_year_data["instruments"] if i.instrument_id == instrument_id), None)
             if instrument:
-                 notional_str = _format_notional(instrument.notional_amount, scenario)
-                 sentences.append(f"During {reporting_year}, {instrument.instrument_type} with a notional value of {notional_str} were terminated or matured.")
-                 evidence.append(
+                notional_str = _format_notional(instrument.notional_amount, scenario)
+                sentences.append(f"During {reporting_year}, {instrument.instrument_type} with a notional value of {notional_str} were terminated or matured.")
+                evidence.append(
                      NarrativeEvidence(
                          category=category, # type: ignore
                          instrument_id=instrument.instrument_id,
@@ -1120,7 +1129,7 @@ def generate_training_sample():
     # The final output is a tuple of the text and the JSON object (or string).
     return (narrative_text, json_output)
 
-#%%
+# %%
 if __name__ == "__main__":
     # Example of how to generate one sample
     text, json_data = generate_training_sample()
