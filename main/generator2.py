@@ -6,6 +6,7 @@ from typing import List, Dict, Tuple, Set
 
 from defs.common_data import *
 from defs.commodity_data import get_random_commodity_and_unit
+from defs.debt_data import debts
 from defs.template_definitions import *
 from defs.class_definitions import (
     BaseNarrativeEvidence,
@@ -383,7 +384,7 @@ def create_random_scenario() -> GenerationScenario:
         maturity_year = random.randint(reporting_year + 2, reporting_year + 10)
         hedged_debt = DebtHedgedItem(
             hedged_item_id=hedged_item_id_counter,
-            debt_type=random.choice(DUMMY_DEBT_TYPES),
+            debt_type=random.choice(debts),
             issuance_month=random.choice(months),
             issuance_year=issuance_year,
             maturity_month=random.choice(months),
