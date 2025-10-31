@@ -35,6 +35,9 @@ class NarrativeEvidence:
         month: Optional[str] - e.g., "January" is mentioned
         year: Optional[int] - e.g., "2023" is mentioned
         instrument_type: Optional[str] - e.g., "interest rate swap"
+    notional_str: Optional[str] - Pre-formatted notional string (e.g., "$100.0 million")
+    prev_notional_str: Optional[str] - Pre-formatted previous year notional string
+    prev2_notional_str: Optional[str] - Pre-formatted two-years-prior notional string
         additional_details: Optional[Dict] - Any other relevant details
     """
     instrument_id: Optional[int]  
@@ -45,9 +48,45 @@ class NarrativeEvidence:
     month: Optional[str] = None
     year: Optional[int] = None
     instrument_type: Optional[str] = None
+    notional_str: Optional[str] = None
+    prev_notional_str: Optional[str] = None
+    prev2_notional_str: Optional[str] = None
     additional_details: Optional[Dict] = field(default_factory=dict)
+
     def to_dict(self) -> Dict:
         return self.__dict__
+    
+    def to_string(self) -> str:
+        """Generates a human-readable 'chain of thought' sentence for this piece of evidence."""
+        category_names = {
+            "IR": "Interest Rate",
+            "FX": "Foreign Exchange",
+            "CP": "Commodity",
+            "EQ": "Equity",
+            "GEN": "Generic",
+        }
+        category_name = category_names.get(self.category, self.category)
+
+        if self.status == "summary":
+            if self.prev_notional_str:
+                assert self.year is not None
+                return (
+                    f"The narrative provides an aggregate summary for {category_name} derivatives, "
+                    f"with notional values of {self.notional_str} and {self.prev_notional_str} for {self.year} and {self.year - 1}, respectively, "
+                    f"confirming current and historical use."
+                )
+            return (
+                f"The narrative mentions an aggregate notional value of {self.notional_str} for {self.instrument_type}, "
+                f"indicating {category_name} derivative activity in {self.year}."
+            )
+        elif self.status == "new":
+            return f"A new {self.instrument_type} with a notional of {self.notional_str} was entered into, confirming 'current' {category_name} use."
+        elif self.status == "terminated":
+            return f"A {self.instrument_type} with a notional of {self.notional_str} matured or was settled, indicating 'terminated' {category_name} use."
+        elif self.status == "none":
+            return f"The narrative explicitly states no outstanding instruments for {category_name}, indicating no current use."
+        
+        return f"Uncategorized evidence found for {category_name}."
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
@@ -418,12 +457,11 @@ class NotionalSentence:
     )
     prefer_abbreviated: bool = True
 
-    def build(self) -> Tuple[str, Dict]:
+    def build(self) -> Tuple[str, NarrativeEvidence]:
         """
-        Builds a notional sentence from the instance's configuration and returns
-        the sentence string and a dictionary of the components used.
+        Builds a notional sentence and a corresponding NarrativeEvidence object.
+        Returns: A tuple of (sentence_string, NarrativeEvidence_instance).
         """
-        used_components = {}
 
         # Default values for optional components
         month = self.month or random.choice(months_full)
@@ -443,55 +481,49 @@ class NotionalSentence:
         formatted_notional = _format_single_notional(
             self.notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
         )
-        used_components["amount"] = formatted_notional
+        formatted_prev_notional = None
+        formatted_prev2_notional = None
 
         if num_years == 1:
             amount_str = formatted_notional
         elif num_years == 2:
             assert self.prev_notional is not None
-            formatted_prev_notional = _format_single_notional(
+            formatted_prev_notional = _format_single_notional( # type: ignore
                 self.prev_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
             )
             amount_str = f"{formatted_notional} and {formatted_prev_notional}"
-            used_components["prev_amount"] = formatted_prev_notional
         elif num_years == 3:
             assert self.prev_notional is not None and self.prev2_notional is not None
-            formatted_prev_notional = _format_single_notional(
+            formatted_prev_notional = _format_single_notional( # type: ignore
                 self.prev_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
             )
-            formatted_prev2_notional = _format_single_notional(
+            formatted_prev2_notional = _format_single_notional( # type: ignore
                 self.prev2_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
             )
             amount_str = f"{formatted_notional}, {formatted_prev_notional}, and {formatted_prev2_notional}"
-            used_components["prev_amount"] = formatted_prev_notional
-            used_components["prev2_amount"] = formatted_prev2_notional
-
-        used_components["amount_str"] = amount_str
 
         # 2. Select time prefix template
         time_prefix = ""
         time_suffix = ""
-        if self.sentence_type in ["summary", "comparative"]:
+        if self.sentence_type in ["summary", "comparative", "no_instruments"]:
             if num_years == 1:
                 time_prefix = random.choice(point_in_time_prefixes)
             elif num_years == 2:
                 time_prefix = random.choice(multi_year_time_prefixes["two_year"])
             else:  # num_years == 3
                 time_prefix = random.choice(multi_year_time_prefixes["three_year"])
-        else:  # new_individual, terminated_individual
+        elif self.sentence_type in ["new_individual", "terminated_individual"]:
             time_prefix = random.choice(period_of_time_prefixes)
 
         time_prefix = time_prefix.format(
             month=month,
             end_day=end_day,
             year=self.year,
-            prev_year=self.prev_year or self.year - 1,
-            prev2_year=self.prev2_year or self.year - 2,
+            prev_year=self.prev_year,
+            prev2_year=self.prev2_year,
             quarter=quarter,
         )
         time_suffix = f"as of {month} {end_day}, {self.year}"
-        used_components["time_prefix"] = time_prefix
-        used_components["time_suffix"] = time_suffix
 
         # 3. Select verb
         verb = self.verb
@@ -502,29 +534,32 @@ class NotionalSentence:
                 verb = random.choice(termination_verbs)
             else:  # summary, comparative
                 verb = random.choice(aggregate_use_verbs)
-        used_components["verb"] = verb
 
         # 4. Select amount connector
         amount_connector = random.choice(amount_connectors)
-        used_components["amount_connector"] = amount_connector
 
         # 5. Hedge designation clause
         hedge_designation_clause = ""
         if self.hedge_designation:
             hedge_designation_clause = f", designated as {self.hedge_designation}"
-            used_components["hedge_designation_clause"] = hedge_designation_clause
 
         # 6. Result phrase clause
         result_clause = ""
         if self.result_phrase:
             result_clause = f", {self.result_phrase}"
-            used_components["result_clause"] = result_clause
 
         # 7. Select main sentence template
         templates_for_type = NOTIONAL_SENTENCE_TEMPLATES.get(
             self.sentence_type, NOTIONAL_SENTENCE_TEMPLATES["summary"]
         )
         template = random.choice(templates_for_type)
+
+        # Handle "no_instruments" case specifically
+        if self.sentence_type == "no_instruments":
+            sentence = f"As of {month} {end_day}, {self.year}, {company_name} had no outstanding derivative instruments to hedge against {self.category} risk."
+            evidence = NarrativeEvidence(status="none", category=self.category, notional=0, instrument_type="none", year=self.year) # type: ignore
+            return sentence, evidence
+
 
         # 8. Populate placeholders
         sentence = template.format(
@@ -542,9 +577,18 @@ class NotionalSentence:
         # 9. Cleanup
         sentence = _cleanup_sentence(sentence)
 
-        # Add final components to the used dictionary
-        used_components["company"] = company_name
-        used_components["swap_type"] = self.swap_type
-        used_components["year"] = self.year
+        # 10. Create NarrativeEvidence object
+        evidence = NarrativeEvidence(
+            instrument_id=None, # This will be set later for individual instruments
+            status=self.sentence_type, # type: ignore
+            category=self.category, # type: ignore
+            aggregate=self.sentence_type in ["summary", "comparative"],
+            notional=self.notional,
+            year=self.year,
+            instrument_type=self.swap_type,
+            notional_str=formatted_notional,
+            prev_notional_str=formatted_prev_notional,
+            prev2_notional_str=formatted_prev2_notional,
+        )
 
-        return sentence, used_components
+        return sentence, evidence

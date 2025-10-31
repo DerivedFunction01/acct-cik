@@ -33,6 +33,7 @@ from main.definitions.class_definitions import (
     
 )
 from main.definitions.dummy_data import *
+from main.definitions.template_definitions import _format_single_notional
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
@@ -822,20 +823,12 @@ def _generate_category_narrative(
             end_day=reporting_day,
             money_units=scenario.archetype.money_units,
             prefer_abbreviated=scenario.number_format_preference,
+            category=category, # type: ignore
         )
-        summary_sentence_text, used_components = summary_sentence_obj.build()
-        # TODO: Use `used_components` to build chain_of_thought
+        summary_sentence_text, evidence_obj = summary_sentence_obj.build()
         sentences.append(summary_sentence_text)
-        evidence.append(
-            NarrativeEvidence(
-                category=category,  # type: ignore
-                instrument_id=None,  # This is an aggregate summary, not a specific instrument
-                instrument_type=instrument_type,
-                aggregate=True,  # This indicates it's an aggregate summary
-                notional=total_notional,
-                status="summary",
-            )
-        )
+        evidence.append(evidence_obj)
+
         # Add comparative summary if previous year data exists
         if prev_year_data and prev_year_data["total_notional"] > 0:
             # Generate comparative summary sentence
@@ -851,33 +844,40 @@ def _generate_category_narrative(
                 sentence_type="comparative",
                 money_units=scenario.archetype.money_units,
                 prefer_abbreviated=scenario.number_format_preference,
-            )
-            comparative_summary_text, used_components = comparative_summary_obj.build()
-            sentences.append(comparative_summary_text)
-            # Evidence for previous year's notional is already captured by the comparative sentence.
-    else:
-        # If no active instruments, state that.
-        sentences.append(
-            f"As of {reporting_month} {reporting_day}, {reporting_year}, we had no outstanding derivative instruments to hedge against {category}."
-        )
-        evidence.append(
-            NarrativeEvidence(
                 category=category, # type: ignore
-                instrument_id=None,
-                instrument_type="none",
-                notional=0,
-                status="none",
             )
+            comparative_summary_text, evidence_obj = comparative_summary_obj.build()
+            sentences.append(comparative_summary_text)
+            # The evidence for the comparative summary is implicitly handled by the `to_string` method
+            # of the NarrativeEvidence object, so we don't need to add a separate evidence item.
+    else:
+        # Generate a "no instruments" sentence
+        no_instrument_obj = NotionalSentence(
+            swap_type="", # Not needed
+            year=reporting_year,
+            notional=0,
+            month=reporting_month,
+            end_day=reporting_day,
+            sentence_type="no_instruments",
+            category=category, # type: ignore
+            company_name=scenario.company_name,
         )
+        no_instrument_text, evidence_obj = no_instrument_obj.build()
+        sentences.append(no_instrument_text)
+        evidence.append(evidence_obj)
 
     # 3. Detailed Sentences (New, Terminated) by comparing current and previous years.
-    current_ids = {
-        i.instrument_id for i in current_year_data["instruments"]
-    } if current_year_data else set()
+    current_ids = (
+        {i.instrument_id for i in current_year_data["instruments"]}
+        if current_year_data
+        else set()
+    )
 
-    prev_ids = {
-        i.instrument_id for i in prev_year_data["instruments"]
-    } if prev_year_data else set()
+    prev_ids = (
+        {i.instrument_id for i in prev_year_data["instruments"]}
+        if prev_year_data
+        else set()
+    )
 
     new_instrument_ids = current_ids - prev_ids
     terminated_instrument_ids = prev_ids - current_ids
@@ -898,18 +898,12 @@ def _generate_category_narrative(
                     hedge_designation=instrument.hedge_designation,
                     money_units=scenario.archetype.money_units,
                     prefer_abbreviated=scenario.number_format_preference,
+                    category=category, # type: ignore
                 )
-                new_instrument_text, used_components = new_instrument_obj.build()
+                new_instrument_text, evidence_obj = new_instrument_obj.build()
+                evidence_obj.instrument_id = instrument.instrument_id # Link to specific instrument
                 sentences.append(new_instrument_text)
-                evidence.append(
-                     NarrativeEvidence(
-                         category=category, # type: ignore
-                         instrument_id=instrument.instrument_id,
-                         instrument_type=instrument.instrument_type,
-                         notional=instrument.notional_amount,
-                         status="new",
-                     )
-                 )
+                evidence.append(evidence_obj)
 
     # Describe terminated instruments
     if prev_year_data and terminated_instrument_ids:
@@ -926,20 +920,27 @@ def _generate_category_narrative(
                     sentence_type="terminated_individual",
                     money_units=scenario.archetype.money_units,
                     prefer_abbreviated=scenario.number_format_preference,
+                    category=category, # type: ignore
                 )
-                terminated_instrument_text, used_components = terminated_instrument_obj.build()
+                terminated_instrument_text, evidence_obj = terminated_instrument_obj.build()
+                evidence_obj.instrument_id = instrument.instrument_id # Link to specific instrument
                 sentences.append(terminated_instrument_text)
-                evidence.append(
-                     NarrativeEvidence(
-                         category=category, # type: ignore
-                         instrument_id=instrument.instrument_id,
-                         instrument_type=instrument.instrument_type,
-                         notional=instrument.notional_amount,
-                         status="terminated",
-                     )
-                 )
+                evidence.append(evidence_obj)
 
     return sentences, evidence
+
+
+# %%
+
+# %%
+if __name__ == "__main__":
+    # Example of how to generate one sample
+    text, json_data = generate_training_sample()
+
+    print("--- GENERATED NARRATIVE ---")
+    print(text)
+    print("\n--- GENERATED JSON ---")
+    print(json.dumps(json_data, indent=2))
 
 
 def _generate_narrative_accounting(scenario: GenerationScenario) -> List[str]:
@@ -1048,7 +1049,7 @@ def _generate_chain_of_thought(
         if category in category_names:
             category_name = category_names[category]
             instrument_type = item.instrument_type
-            notional_str = _format_notional(item.notional, scenario)
+            notional_str = ""
             status = item.status
 
             if status == "summary":
