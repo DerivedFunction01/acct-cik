@@ -229,3 +229,182 @@ swap_termination_verbs = [
 
 # Comparison verbs phrases
 comparison_phrases = ["compared to", "versus", "down from", "reduced from"]
+
+import random
+
+# =============================================================================
+# DERIVATIVES
+# =============================================================================
+
+GLOBAL_PREFIXES = ["forward-starting", ""]
+
+SWAP_PREFIXES = [
+    "pay-fixed, receive-floating",
+    "pay-floating, receive-fixed",
+    "pay variable, receive fixed",
+    "pay fixed, receive variable",
+]
+
+PAY_PREFIX_RATIO = 0.05  # ~5% of total swap-like combinations
+
+
+# =============================================================================
+# BASE TYPES
+# =============================================================================
+
+STANDALONE_TYPES = ["swap", "derivative", "hedge", "cap"]
+DEPENDENT_TYPES = [
+    "floor",
+    "collar",
+    "swaption",
+    "lock",
+    "forward",
+    "option",
+    "future",
+    "hedging",
+]
+
+BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
+
+DEFAULT_SUFFIXES = [
+    "",
+    "agreement",
+    "contract",
+    "arrangement",
+    "instrument",
+    "transaction",
+    "commitment",
+    "position",
+    "program",
+]
+
+SPECIAL_EXPANSIONS = {
+    "option": [
+        "call option",
+        "put option",
+        "call contract",
+        "put contract",
+        "option contract",
+    ],
+}
+
+CATEGORY_EXTRAS = {
+    "ir": [],
+    "fx": ["NDF"],
+    "cp": [],
+    "eq": ["index future"],
+    "gen": [
+        "over-the-counter contract",
+        "collar strategies",
+        "total return swap",
+        "derivative financial instrument",
+    ],
+}
+
+PLACEHOLDERS = {
+    "ir": [
+        "interest-rate",
+        "single-currency",
+        "Eurodollar",
+        "SOFR",
+        "SONIA",
+        "LIBOR",
+        "LIBOR-based",
+        "EURIBOR",
+        "treasury-rate",
+        "treasury",
+        "forward-rate",
+        "fixed-rate",
+        "floating-rate",
+        "variable-rate",
+        "benchmark-rate",
+    ],
+    "fx": [
+        "foreign exchange",
+        "forward exchange",
+        "foreign currency",
+        "currency",
+        "cross-currency",
+        "cross currency interest rate",
+        "forward currency",
+        "foreign currency",
+        "forward exchange rate",
+        "currency exchange",
+        "exchange rate",
+        "FX",
+        "dollar call",
+    ],
+    "cp": [
+        "commodity price",
+        "commodity-related",
+        "fixed commodity",
+        "commodity-based",
+    ],
+    "eq": ["equity", "equity-related"],
+    "gen": [""],
+}
+
+
+# =============================================================================
+# EXPANSION FUNCTIONS
+# =============================================================================
+
+
+def expand_types(base_types, suffixes, special):
+    """Expand base types with suffixes and special overrides."""
+    results = []
+    for base in base_types:
+        results.extend(f"{base} {s}".strip() for s in suffixes)
+        if base in special:
+            results.extend(special[base])
+    return sorted(set(results))
+
+
+def expand_derivative_terms(placeholders, types, extras):
+    """Combine all logical dimensions into descriptive derivative terms."""
+    results = []
+
+    for ph in placeholders if placeholders else [""]:
+        for t in types:
+            # Skip dependent types without a placeholder
+            if len(ph) == 0 and t in DEPENDENT_TYPES:
+                continue
+
+            # Build the base term without any prefixes
+            base_term = " ".join(x for x in [ph, t] if x).strip()
+            results.append(base_term)
+
+            # Rarely add global prefixes with 1% probability
+            if random.random() < PAY_PREFIX_RATIO:
+                for pre in GLOBAL_PREFIXES:
+                    if pre:  # Only add non-empty prefixes
+                        term = " ".join(x for x in [pre, ph, t] if x).strip()
+                        results.append(term)
+
+            # For swap-like instruments, rarely add swap-specific prefixes
+            if (
+                any(x in t for x in ["swap", "swaption", "rate lock"])
+                and random.random() < PAY_PREFIX_RATIO
+            ):
+                for pre in SWAP_PREFIXES:
+                    term = " ".join(x for x in [pre, ph, t] if x).strip()
+                    results.append(term)
+
+    results.extend(extras)
+    return sorted(set(results))
+
+
+# =============================================================================
+# BUILD FINAL DICTIONARY
+# =============================================================================
+
+SHARED_TYPES = expand_types(BASE_TYPES, DEFAULT_SUFFIXES, SPECIAL_EXPANSIONS)
+
+derivative_keywords = {
+    cat: expand_derivative_terms(
+        PLACEHOLDERS[cat],
+        SHARED_TYPES,
+        CATEGORY_EXTRAS[cat],
+    )
+    for cat in PLACEHOLDERS
+}
