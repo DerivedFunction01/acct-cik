@@ -49,12 +49,6 @@ DUMMY_GENERIC_INSTRUMENT_TYPES = [
     "hedging instruments",
     "financial instruments",
 ]
-DUMMY_COMMODITY_UNITS = ["MMBtu", "barrels", "metric tons"]
-DUMMY_COMMODITY_TRANSACTION_TYPES: List[Literal["purchase", "sale"]] = [
-    "purchase",
-    "sale",
-]
-DUMMY_DEFAULT_CURRENCY = "USD"
 
 DUMMY_EFFECTIVENESS_METHODS = [
     "regression analysis",

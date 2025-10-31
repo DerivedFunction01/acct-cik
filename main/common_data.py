@@ -1,7 +1,5 @@
 from class_definitions import Currency
 import random
-
-cost_types = ["input", "extraction", "storage"]
 months_full = [
     "January",
     "February",
@@ -87,6 +85,15 @@ all_currencies = (
     + other_currencies
 )
 
+transaction_types = ["purchase", "sale", "exchange", "transfer", "import", "export"]
+COMMODITY_COST_TYPES = {
+    "energy": ["extraction", "drilling", "production", "generation", "refining"],
+    "metals_minerals": ["mining", "extraction", "smelting", "processing"],
+    "agriculture": ["farming", "harvesting", "planting", "processing", "feeding"],
+    "lumber_wood": ["logging", "harvesting", "milling", "processing"],
+    "chemicals_plastics": ["manufacturing", "production", "processing", "feedstock"],
+    "generic": ["input", "purchase", "selling", "procurement", "transportation", "storage", "hedging"],
+}
 
 COMMODITY_UNITS = {
     "energy": [
@@ -106,6 +113,7 @@ COMMODITY_UNITS = {
     ],
     "lumber": ["board foot", "bf", "cubic meters", "m3", "cubic feet", "ft3"],
     "manufactured": ["sheets", "coils", "bundles", "pallets", "units"],
+    "generic": ["units", "items", "packages", "containers", "loads"],
 }
 
 COMMODITIES = {
@@ -140,6 +148,10 @@ COMMODITIES = {
 volume_units = [unit for sublist in COMMODITY_UNITS.values() for unit in sublist]
 commodities = [item for sublist in COMMODITIES.values() for item in sublist]
 
+# Flattened list for random selection or fallback
+cost_types = list(
+    set([cost for sublist in COMMODITY_COST_TYPES.values() for cost in sublist])
+)
 
 def get_units_for_commodity(commodity_name: str) -> list[str]:
     """
@@ -148,12 +160,12 @@ def get_units_for_commodity(commodity_name: str) -> list[str]:
     # This mapping connects commodity categories to their corresponding unit categories.
     CATEGORY_TO_UNITS_MAP = {
         "energy": ["energy", "liquids"],
-        "metals_minerals": ["bulk_solids", "precious_metals"],
+        "metals_minerals": ["bulk_solids", "precious_metals", "manufactured"],
         "agriculture": ["agriculture", "bulk_solids"],
         "lumber_wood": ["lumber", "manufactured", "bulk_solids"],
         "chemicals_plastics": ["bulk_solids", "liquids"],
-        "textiles": ["agriculture", "manufactured"],
-        "generic": list(COMMODITY_UNITS.keys()), # Can be anything
+        "textiles": ["agriculture", "manufactured", "bulk_solids"],
+        "generic": ["generic"], # Can be anything
     }
 
     commodity_name = commodity_name.lower()
@@ -173,17 +185,28 @@ def get_units_for_commodity(commodity_name: str) -> list[str]:
     return volume_units
 
 
-def get_random_commodity_and_unit() -> tuple[str, str]:
+def get_random_commodity_and_unit() -> tuple[str, str, str]:
     """
-    Selects a random commodity and a matching, appropriate unit for it.
+    Selects a random commodity and a matching, appropriate unit and cost type for it.
 
     Returns:
-        A tuple containing the commodity name and its unit.
+        A tuple containing the commodity name, its unit, and an associated cost type.
     """
     # 1. Pick a random commodity from the flattened list
     commodity_name = random.choice(commodities)
+
     # 2. Get the list of appropriate units for that commodity
     appropriate_units = get_units_for_commodity(commodity_name)
-    # 3. Pick a random unit from that list
     unit = random.choice(appropriate_units)
-    return commodity_name, unit
+
+    # 3. Pick a random unit from that list
+    cost_type = "purchase" # Default
+    for category, commodity_list in COMMODITIES.items():
+        if commodity_name in commodity_list:
+            # Get all costs for that category plus generic costs
+            possible_costs = COMMODITY_COST_TYPES.get(category, []) + COMMODITY_COST_TYPES["generic"]
+            if possible_costs:
+                cost_type = random.choice(possible_costs)
+            break # Stop after finding the first category
+
+    return commodity_name, unit, cost_type

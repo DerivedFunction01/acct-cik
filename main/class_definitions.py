@@ -186,7 +186,7 @@ class CommodityHedgedItem(HedgedItem):
     unit_of_volume: str
     price_per_unit: float
     cost_type: str
-    transaction_type: Literal["purchase", "sale"]
+    transaction_type: str
     supplier: Optional[str]
 
 
