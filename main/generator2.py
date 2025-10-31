@@ -380,6 +380,53 @@ class ScenarioArchetype:
         }
 
 
+def _create_instrument_with_history(
+    scenario: GenerationScenario,
+    instrument_class: type,
+    instrument_id: int,
+    base_instrument_args: Dict,
+) -> List[NotionalInstrument]:
+    """
+    Creates a primary instrument and its historical versions for previous years.
+
+    For a single instrument ID, this generates multiple instrument "states," one for
+    the current reporting year and others for the preceding 1-2 years, each with
+    slightly varied notional amounts to simulate historical data.
+
+    Args:
+        scenario: The GenerationScenario to which instruments will be added.
+        instrument_class: The class of the instrument to create (e.g., IRInstrument).
+        instrument_id: The unique ID for this instrument and its history.
+        base_instrument_args: A dictionary of arguments for the instrument constructor.
+
+    Returns:
+        A list of all created instrument instances (current and historical).
+    """
+    created_instruments = []
+    current_year = base_instrument_args["year"]
+
+    # Create instrument for the current reporting year
+    current_instrument = instrument_class(
+        instrument_id=instrument_id, **base_instrument_args
+    )
+    created_instruments.append(current_instrument)
+
+    # Create historical versions for the previous 1-2 years
+    for i in range(1, random.randint(2, 3)):  # For prev_year and prev2_year
+        historical_args = base_instrument_args.copy()
+        historical_args["year"] = current_year - i
+        # Simulate a slightly different notional amount for the previous year
+        historical_args["notional_amount"] = int(
+            base_instrument_args["notional_amount"] * random.uniform(0.85, 1.15)
+        )
+        historical_instrument = instrument_class(
+            instrument_id=instrument_id, **historical_args
+        )
+        created_instruments.append(historical_instrument)
+
+    return created_instruments
+
+
 # Define a list of company archetypes to choose from during generation.
 SCENARIO_ARCHETYPES = [
     ScenarioArchetype(
@@ -761,6 +808,56 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.append(gen_instrument)
 
     return scenario
+
+
+def pretty_print_scenario(scenario: GenerationScenario):
+    """
+    Prints a human-readable summary of the generated scenario, focusing on instruments and hedged items.
+    """
+    print("\n" + "=" * 80)
+    print(f"SCENARIO SUMMARY for {scenario.company_name} ({scenario.reporting_year})")
+    print("=" * 80)
+
+    if not scenario.instruments:
+        print("No instruments generated in this scenario.")
+        print("=" * 80)
+        return
+
+    print(f"\n--- {len(scenario.instruments)} Instruments Generated ---")
+    for i, instrument in enumerate(scenario.instruments, 1):
+        print(
+            f"\n{i}. Instrument ID: {instrument.instrument_id} ({instrument.category} - {instrument.instrument_type})"
+        )
+        print(f"   - Notional: {instrument.currency} {instrument.notional_amount:,}")
+        print(f"   - Maturity: {instrument.maturity_year}")
+        status = "Terminated/Naked" if not instrument.hedged_item else "Active Hedge"
+        print(f"   - Status: {status}")
+
+        if instrument.hedged_item:
+            hedged_item = instrument.hedged_item
+            print(f"   - Hedged Item (ID: {hedged_item.hedged_item_id}):")
+            if isinstance(hedged_item, DebtHedgedItem):
+                print(f"     - Type: {hedged_item.debt_type}")
+                print(f"     - Principal: {hedged_item.principal_amount:,}")
+                print(f"     - Maturity: {hedged_item.maturity_year}")
+            elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
+                exposures = [
+                    f"{exp.code} {exp.amount:,}" for exp in hedged_item.exposures
+                ]
+                print(f"     - Type: Foreign Currency Exposure")
+                print(f"     - Exposures: {', '.join(exposures)}")
+            elif isinstance(hedged_item, CommodityHedgedItem):
+                print(
+                    f"     - Type: {hedged_item.commodity_type} ({hedged_item.transaction_type})"
+                )
+                print(
+                    f"     - Quantity: {hedged_item.quantity} {hedged_item.unit_of_volume}"
+                )
+            elif isinstance(hedged_item, EquityHedgedItem):
+                print(
+                    f"     - Type: {hedged_item.underlying_equity} ({hedged_item.equity_type})"
+                )
+                print(f"     - Reason: {hedged_item.reason}")
 
 
 # %%
