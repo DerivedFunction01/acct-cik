@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional, Dict, TypeVar, Generic
+from typing import List, Literal, Optional, Dict, TypeVar, Generic, Tuple
 import random
 
 # Imports moved here for the NotionalSentence.build() method
@@ -11,7 +11,11 @@ from main.definitions.common_data import (
     termination_verbs,
 )
 from main.definitions.template_definitions import *
-from main.definitions.template_definitions import _cleanup_sentence, _format_single_notional
+from main.definitions.template_definitions import (
+    _cleanup_sentence,
+    _format_single_notional,
+)
+
 # =============================================================================
 # SCENARIO DEFINITION - CLASSES
 # This file contains the core data structures (dataclasses) that define the
@@ -22,27 +26,36 @@ from main.definitions.template_definitions import _cleanup_sentence, _format_sin
 DERIVATIVE_CATEGORIES = ("IR", "FX", "CP", "EQ", "GEN")
 DerivativeCategory = Literal["IR", "FX", "CP", "EQ", "GEN"]
 
+
 @dataclass
-class NarrativeEvidence:
-    """Represents a piece of evidence extracted from the generated narrative.
-    
-    Args:
-        instrument_id: Optional[int] - Link to the specific instrument, if applicable
-        status: Literal["summary", "new", "terminated", "none"] - The status of the evidence
-        category: DerivativeCategory - The category of the derivative
-        aggregate: Optional[bool] - Whether it's an aggregate statement or individual
-        notional: Optional[int] - If notional amount is mentioned
-        month: Optional[str] - e.g., "January" is mentioned
-        year: Optional[int] - e.g., "2023" is mentioned
-        instrument_type: Optional[str] - e.g., "interest rate swap"
-    notional_str: Optional[str] - Pre-formatted notional string (e.g., "$100.0 million")
-    prev_notional_str: Optional[str] - Pre-formatted previous year notional string
-    prev2_notional_str: Optional[str] - Pre-formatted two-years-prior notional string
-        additional_details: Optional[Dict] - Any other relevant details
+class BaseNarrativeEvidence:
     """
-    instrument_id: Optional[int]  
-    status: Literal["summary", "new", "terminated", "none"]
+    Base class for a piece of evidence extracted from the generated narrative.
+    This class is meant to be subclassed for specific evidence types.
+    """
+
     category: DerivativeCategory
+    status: str  # e.g., "summary", "new", "policy_mention", "effectiveness_test"
+    year: Optional[int] = None
+    instrument_id: Optional[int] = None
+    additional_details: Dict = field(default_factory=dict)
+
+    def to_dict(self) -> Dict:
+        """Serializes the evidence to a dictionary."""
+        return self.__dict__
+
+    def to_string(self) -> str:
+        """
+        Generates a human-readable 'chain of thought' sentence for this evidence.
+        This method should be implemented by subclasses.
+        """
+        return f"Uncategorized evidence found for {self.category}."
+
+
+@dataclass
+class NotionalEvidence(BaseNarrativeEvidence):
+    """Evidence related to notional amounts of derivative instruments."""
+
     aggregate: Optional[bool] = None
     notional: Optional[int] = None
     month: Optional[str] = None
@@ -51,11 +64,7 @@ class NarrativeEvidence:
     notional_str: Optional[str] = None
     prev_notional_str: Optional[str] = None
     prev2_notional_str: Optional[str] = None
-    additional_details: Optional[Dict] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
-        return self.__dict__
-    
     def to_string(self) -> str:
         """Generates a human-readable 'chain of thought' sentence for this piece of evidence."""
         category_names = {
@@ -65,7 +74,7 @@ class NarrativeEvidence:
             "EQ": "Equity",
             "GEN": "Generic",
         }
-        category_name = category_names.get(self.category, self.category)
+        category_name = category_names.get(self.category, "Unknown Category")
 
         if self.status == "summary":
             if self.prev_notional_str:
@@ -83,10 +92,10 @@ class NarrativeEvidence:
             return f"A new {self.instrument_type} with a notional of {self.notional_str} was entered into, confirming 'current' {category_name} use."
         elif self.status == "terminated":
             return f"A {self.instrument_type} with a notional of {self.notional_str} matured or was settled, indicating 'terminated' {category_name} use."
-        elif self.status == "none":
+        elif self.status == "no_instruments":
             return f"The narrative explicitly states no outstanding instruments for {category_name}, indicating no current use."
-        
-        return f"Uncategorized evidence found for {category_name}."
+
+        return f"Uncategorized notional evidence found for {category_name}."
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
@@ -94,7 +103,7 @@ T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 @dataclass
 class DerivativeInstrument:
     """Base class for a single derivative instrument within our narrative.
-    
+
     Args:
         instrument_id: int - A unique ID to track the same instrument across multiple years.
         instrument_type: str - The type of derivative instrument (e.g., "interest rate swap").
@@ -152,7 +161,7 @@ class HedgedItem:
 @dataclass
 class DebtHedgedItem(HedgedItem):
     """Represents a debt instrument being hedged (for IR derivatives).
-    
+
     Args:
         debt_type: str - The type of debt instrument being hedged.
         issuance_month: Optional[str] - The issuance month of the debt.
@@ -176,7 +185,7 @@ class DebtHedgedItem(HedgedItem):
     maturity_year: int
     principal_amount: int
     interest_rate_type: Literal["fixed", "variable"]
-    benchmark_rate: Optional[str] = None 
+    benchmark_rate: Optional[str] = None
     spread_bps: Optional[int] = None
     fixed_rate_pct: Optional[float] = None
     change_rate_pct: Optional[float] = None
@@ -196,7 +205,7 @@ class Currency:
 @dataclass
 class CurrencyExposure(Currency):
     """Represents a specific currency exposure with its amount.
-    
+
     Args:
         (Inherited from Currency): code, full_name, symbol, adjective, location
         amount: int - The notional amount of the exposure in that currency.
@@ -229,7 +238,7 @@ class ForeignCurrencyHedgedItem(HedgedItem):
 @dataclass
 class CommodityHedgedItem(HedgedItem):
     """Represents a commodity being hedged (for CP derivatives).
-    
+
     Args:
         commodity_type: str - The type of commodity being hedged.
         quantity: int - The quantity of the commodity.
@@ -252,7 +261,7 @@ class CommodityHedgedItem(HedgedItem):
 @dataclass
 class EquityHedgedItem(HedgedItem):
     """Represents an equity instrument being hedged (for EQ derivatives).
-    
+
     Args:
         underlying_equity: str - The underlying equity being hedged.
         equity_type: Literal["market_index", "own_stock", "third_party_stock"] - The type of equity.
@@ -268,7 +277,7 @@ class EquityHedgedItem(HedgedItem):
 @dataclass
 class NotionalInstrument(DerivativeInstrument, Generic[T_HedgedItem]):
     """A derivative instrument primarily defined by a notional amount.
-    
+
     Args:
         notional_amount: int - The notional amount of the instrument.
         currency: str - The currency of the instrument.
@@ -351,6 +360,7 @@ class ScenarioArchetype:
             "generic": random.randint(*self.generic_instrument_range),
         }
 
+
 @dataclass
 class GeneralHedgingPolicy:
     """Describes the company's high-level, non-instrument-specific hedging policies."""
@@ -373,6 +383,7 @@ class CategorySpecificPolicy:
     # Describes the general accounting policy for this category
     accounting_policy_description: Optional[str] = None
     accounting_standard: Optional[str] = None
+
 
 @dataclass
 class AccountingStandardUpdate:
@@ -411,6 +422,7 @@ class GenerationScenario:
         True  # True for abbreviated, False for full numeric
     )
     accounting_updates: List[AccountingStandardUpdate] = field(default_factory=list)
+
 
 @dataclass
 class NotionalSentence:
@@ -457,10 +469,10 @@ class NotionalSentence:
     )
     prefer_abbreviated: bool = True
 
-    def build(self) -> Tuple[str, NarrativeEvidence]:
+    def build(self) -> Tuple[str, NotionalEvidence]:
         """
-        Builds a notional sentence and a corresponding NarrativeEvidence object.
-        Returns: A tuple of (sentence_string, NarrativeEvidence_instance).
+        Builds a notional sentence and a corresponding NotionalEvidence object.
+        Returns: A tuple of (sentence_string, NotionalEvidence_instance).
         """
 
         # Default values for optional components
@@ -479,7 +491,10 @@ class NotionalSentence:
         # 1. Format amount string
         amount_str = ""
         formatted_notional = _format_single_notional(
-            self.notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
+            self.notional,
+            self.currency_symbol,
+            self.money_units,
+            self.prefer_abbreviated,
         )
         formatted_prev_notional = None
         formatted_prev2_notional = None
@@ -488,17 +503,26 @@ class NotionalSentence:
             amount_str = formatted_notional
         elif num_years == 2:
             assert self.prev_notional is not None
-            formatted_prev_notional = _format_single_notional( # type: ignore
-                self.prev_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
+            formatted_prev_notional = _format_single_notional(  # type: ignore
+                self.prev_notional,
+                self.currency_symbol,
+                self.money_units,
+                self.prefer_abbreviated,
             )
             amount_str = f"{formatted_notional} and {formatted_prev_notional}"
         elif num_years == 3:
             assert self.prev_notional is not None and self.prev2_notional is not None
-            formatted_prev_notional = _format_single_notional( # type: ignore
-                self.prev_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
+            formatted_prev_notional = _format_single_notional(  # type: ignore
+                self.prev_notional,
+                self.currency_symbol,
+                self.money_units,
+                self.prefer_abbreviated,
             )
-            formatted_prev2_notional = _format_single_notional( # type: ignore
-                self.prev2_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
+            formatted_prev2_notional = _format_single_notional(  # type: ignore
+                self.prev2_notional,
+                self.currency_symbol,
+                self.money_units,
+                self.prefer_abbreviated,
             )
             amount_str = f"{formatted_notional}, {formatted_prev_notional}, and {formatted_prev2_notional}"
 
@@ -557,9 +581,8 @@ class NotionalSentence:
         # Handle "no_instruments" case specifically
         if self.sentence_type == "no_instruments":
             sentence = f"As of {month} {end_day}, {self.year}, {company_name} had no outstanding derivative instruments to hedge against {self.category} risk."
-            evidence = NarrativeEvidence(status="none", category=self.category, notional=0, instrument_type="none", year=self.year) # type: ignore
+            evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year)  # type: ignore
             return sentence, evidence
-
 
         # 8. Populate placeholders
         sentence = template.format(
@@ -577,11 +600,11 @@ class NotionalSentence:
         # 9. Cleanup
         sentence = _cleanup_sentence(sentence)
 
-        # 10. Create NarrativeEvidence object
-        evidence = NarrativeEvidence(
-            instrument_id=None, # This will be set later for individual instruments
-            status=self.sentence_type, # type: ignore
-            category=self.category, # type: ignore
+        # 10. Create NotionalEvidence object
+        evidence = NotionalEvidence(
+            instrument_id=None,  # This will be set later for individual instruments
+            status=self.sentence_type,  # type: ignore
+            category=self.category,  # type: ignore
             aggregate=self.sentence_type in ["summary", "comparative"],
             notional=self.notional,
             year=self.year,
