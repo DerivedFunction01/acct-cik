@@ -210,20 +210,8 @@ class NotionalEvidence(BaseNarrativeEvidence):
         else:
             text = f"Uncategorized notional evidence found for {category_name}"
 
-        # Append temporal reasoning if not already included
-        if self._temporal_reasoning(value_desc) not in text:
-            text += self._temporal_reasoning(value_desc)
-
         if warning:
             text = f"{text} {warning}"
-
-        if self.category == "GEN":
-            classification_note = (
-                " Based on the statement, the disclosure does not specify a clear derivative category "
-                "and I cannot link it to any other derivatives I currently know, "
-                "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference."
-            )
-            text += classification_note
 
         return text
 
@@ -890,7 +878,7 @@ class NotionalSentence:
                 immaterial_term=random.choice(immaterial),
                 portfolio_term=random.choice(portfolio_terms).format(swap_type=f"{category_risk_phrase} derivatives"),
             )
-            evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year, currency=self.currency_code)  # type: ignore
+            evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year, currency=self.currency_code, reporting_year=self.reporting_year)  # type: ignore
             return sentence, evidence
 
         # 8. Populate placeholders
