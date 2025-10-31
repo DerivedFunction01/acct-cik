@@ -627,6 +627,40 @@ def create_random_scenario() -> GenerationScenario:
         potential_hedged_items["fx"].append(hedged_fx)
         hedged_item_id_counter += 1
 
+    # --- Generate Commodity Exposures ---
+    for _ in range(exposure_counts["commodity"]):
+        hedged_commodity = CommodityHedgedItem(
+            hedged_item_id=hedged_item_id_counter,
+            commodity_type=random.choice(DUMMY_COMMODITY_TYPES),
+            transaction_type=random.choice(DUMMY_COMMODITY_TRANSACTION_TYPES),
+            quantity=random.randint(100, 10000),
+            unit_of_volume=random.choice(DUMMY_COMMODITY_UNITS),
+            price_per_unit=random.uniform(10, 200),
+            cost_type=random.choice(cost_types),
+            supplier=(random.choice(company_names) if random.random() < 0.2 else None),
+        )
+        potential_hedged_items["commodity"].append(hedged_commodity)
+        hedged_item_id_counter += 1
+
+    # --- Generate Equity Exposures ---
+    for _ in range(exposure_counts["equity"]):
+        # The underlying equity can be the company's own stock or an index
+        underlying = random.choice(DUMMY_EQUITY_UNDERLYINGS).format(
+            company_name=scenario.company_name
+        )
+        equity_type = (
+            "own_stock" if scenario.company_name in underlying else "market_index"
+        )
+
+        hedged_equity = EquityHedgedItem(
+            hedged_item_id=hedged_item_id_counter,
+            underlying_equity=underlying,
+            equity_type=equity_type,  # type: ignore
+            reason=random.choice(DUMMY_EQUITY_REASONS),
+        )
+        potential_hedged_items["equity"].append(hedged_equity)
+        hedged_item_id_counter += 1
+
     # =========================================================================
     # STAGE 2: CREATE INSTRUMENTS BASED ON EXPOSURES AND HEDGING PROPENSITY
     # =========================================================================
@@ -650,20 +684,26 @@ def create_random_scenario() -> GenerationScenario:
         else:
             continue  # Skip creating an instrument for this exposure
 
-        ir_instrument = IRInstrument(
-            category="IR",
+        base_args = {
+            "instrument_type": random.choice(DUMMY_IR_INSTRUMENT_TYPES),
+            "month": random.choice(months),
+            "year": reporting_year,
+            "notional_amount": notional,
+            "currency": archetype.default_currency,
+            "maturity_year": maturity_year,
+            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedged_item": hedged_debt,
+        }
+
+        # Create the instrument and its history
+        new_instruments = _create_instrument_with_history(
+            scenario=scenario,
+            instrument_class=IRInstrument,
             instrument_id=instrument_id_counter,
-            instrument_type=random.choice(DUMMY_IR_INSTRUMENT_TYPES),
-            month=random.choice(months),
-            year=reporting_year,
-            notional_amount=notional,
-            currency=archetype.default_currency,
-            maturity_year=maturity_year,
-            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
-            hedged_item=hedged_debt,
+            base_instrument_args=base_args,
         )
+        scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
-        scenario.instruments.append(ir_instrument)
 
     # --- Create FX Instruments ---
     for fx_item in potential_hedged_items["fx"]:
@@ -684,20 +724,25 @@ def create_random_scenario() -> GenerationScenario:
         else:
             continue  # Skip creating an instrument for this exposure
 
-        fx_instrument = FXInstrument(
-            category="FX",
+        base_args = {
+            "instrument_type": random.choice(DUMMY_FX_INSTRUMENT_TYPES),
+            "month": random.choice(months),
+            "year": reporting_year,
+            "notional_amount": notional,
+            "currency": archetype.default_currency,
+            "maturity_year": maturity_year,
+            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedged_item": hedged_fx,
+        }
+
+        new_instruments = _create_instrument_with_history(
+            scenario=scenario,
+            instrument_class=FXInstrument,
             instrument_id=instrument_id_counter,
-            instrument_type=random.choice(DUMMY_FX_INSTRUMENT_TYPES),
-            month=random.choice(months),
-            year=reporting_year,
-            notional_amount=notional,
-            currency=archetype.default_currency,
-            maturity_year=maturity_year,
-            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
-            hedged_item=hedged_fx,
+            base_instrument_args=base_args,
         )
+        scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
-        scenario.instruments.append(fx_instrument)
 
     # --- Create CP Instruments ---
     for _ in range(exposure_counts["commodity"]):
@@ -728,20 +773,25 @@ def create_random_scenario() -> GenerationScenario:
         else:
             continue  # Skip creating an instrument for this exposure
 
-        cp_instrument = CPInstrument(
-            category="CP",
+        base_args = {
+            "instrument_type": random.choice(DUMMY_CP_INSTRUMENT_TYPES),
+            "month": random.choice(months),
+            "year": reporting_year,
+            "notional_amount": notional,
+            "currency": archetype.default_currency,
+            "maturity_year": maturity_year,
+            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedged_item": hedged_commodity,
+        }
+
+        new_instruments = _create_instrument_with_history(
+            scenario=scenario,
+            instrument_class=CPInstrument,
             instrument_id=instrument_id_counter,
-            instrument_type=random.choice(DUMMY_CP_INSTRUMENT_TYPES),
-            month=random.choice(months),
-            year=reporting_year,
-            notional_amount=notional,
-            currency=archetype.default_currency,
-            maturity_year=maturity_year,
-            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
-            hedged_item=hedged_commodity,
+            base_instrument_args=base_args,
         )
+        scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
-        scenario.instruments.append(cp_instrument)
 
     # --- Create EQ Instruments ---
     for _ in range(exposure_counts.get("equity", 0)):
@@ -768,20 +818,25 @@ def create_random_scenario() -> GenerationScenario:
         else:
             continue  # Skip creating an instrument for this exposure
 
-        eq_instrument = EQInstrument(
-            category="EQ",
+        base_args = {
+            "instrument_type": random.choice(DUMMY_EQ_INSTRUMENT_TYPES),
+            "month": random.choice(months),
+            "year": reporting_year,
+            "notional_amount": notional,
+            "currency": archetype.default_currency,
+            "maturity_year": maturity_year,
+            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedged_item": hedged_equity,
+        }
+
+        new_instruments = _create_instrument_with_history(
+            scenario=scenario,
+            instrument_class=EQInstrument,
             instrument_id=instrument_id_counter,
-            instrument_type=random.choice(DUMMY_EQ_INSTRUMENT_TYPES),
-            month=random.choice(months),
-            year=reporting_year,
-            notional_amount=notional,
-            currency=archetype.default_currency,
-            maturity_year=maturity_year,
-            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
-            hedged_item=hedged_equity,
+            base_instrument_args=base_args,
         )
+        scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
-        scenario.instruments.append(eq_instrument)
 
     # --- Create Generic Instruments ---
     for _ in range(exposure_counts.get("generic", 0)):
@@ -792,20 +847,25 @@ def create_random_scenario() -> GenerationScenario:
             else random.randint(reporting_year + 1, reporting_year + 5)
         )
 
-        gen_instrument = GenericInstrument(
-            category="GEN",
+        base_args = {
+            "instrument_type": random.choice(DUMMY_GENERIC_INSTRUMENT_TYPES),
+            "month": random.choice(months),
+            "year": reporting_year,
+            "notional_amount": random.randint(10, 300) * 1_000_000,
+            "currency": archetype.default_currency,
+            "maturity_year": maturity_year,
+            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedged_item": None,  # Generic instruments often don't have a specific hedged item
+        }
+
+        new_instruments = _create_instrument_with_history(
+            scenario=scenario,
+            instrument_class=GenericInstrument,
             instrument_id=instrument_id_counter,
-            instrument_type=random.choice(DUMMY_GENERIC_INSTRUMENT_TYPES),
-            month=random.choice(months),
-            year=reporting_year,
-            notional_amount=random.randint(10, 300) * 1_000_000,
-            currency=archetype.default_currency,
-            maturity_year=maturity_year,
-            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
-            hedged_item=None,  # Generic instruments often don't have a specific hedged item
+            base_instrument_args=base_args,
         )
+        scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
-        scenario.instruments.append(gen_instrument)
 
     return scenario
 
