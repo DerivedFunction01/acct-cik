@@ -440,9 +440,8 @@ PLACEHOLDERS = {
     "GEN": [""],
 }
 
-
 # =============================================================================
-# EXPANSION FUNCTIONS
+# NEW: Component-based structure for dynamic generation
 # =============================================================================
 
 
@@ -455,62 +454,22 @@ def expand_types(base_types, suffixes, special) -> list[str]:
             results.extend(special[base])
     return sorted(set(results))
 
+SHARED_TYPES = expand_types(BASE_TYPES, DEFAULT_SUFFIXES, SPECIAL_EXPANSIONS)
 
-def expand_derivative_terms(placeholders, types, extras) -> list[tuple[str, str, str]]:
-    """Return (prefix, full term w/o prefix, base term) tuples."""
-    results: list[tuple[str, str, str]]= []
+DERIVATIVE_COMPONENTS = {
+    "placeholders": PLACEHOLDERS,
+    "base_types": SHARED_TYPES,
+    "dependent_types": DEPENDENT_TYPES,
+    "category_extras": CATEGORY_EXTRAS,
+    "swap_prefixes": SWAP_PREFIXES,
+    "global_prefixes": GLOBAL_PREFIXES
+}
 
-    for ph in placeholders if placeholders else [""]:
-        for t in types:
-            # Skip dependent types without a placeholder
-            if not ph and t in DEPENDENT_TYPES:
-                continue
-
-            full_term = " ".join(x for x in [ph, t] if x).strip()
-            base_term = (
-                " ".join(t.split()[-2:]) if len(t.split()) > 1 else t
-            )  # keep "swap contract" not just "contract"
-
-            # Always include base (no prefix)
-            results.append(("", full_term, base_term))
-
-            # Add global prefixes
-            for pre in GLOBAL_PREFIXES:
-                if pre:
-                    results.append((pre, full_term, base_term))
-
-            # Add swap prefixes only to swap-like instruments
-            if any(x in t for x in ["swap", "swaption", "rate lock"]):
-                for pre in SWAP_PREFIXES:
-                    results.append((pre, full_term, base_term))
-
-    # Add extras (no prefixes)
-    for extra in extras:
-        base_term = " ".join(extra.split()[-2:]) if len(extra.split()) > 1 else extra
-        results.append(("", extra, base_term))
-
-    # Deduplicate
-    unique = []
-    seen = set()
-    for r in results:
-        if r not in seen:
-            seen.add(r)
-            unique.append(r)
-
-    return sorted(unique, key=lambda x: (x[0], x[1]))
+# =============================================================================
+# EXPANSION FUNCTIONS
+# =============================================================================
 
 
 # =============================================================================
 # BUILD FINAL DICTIONARY
 # =============================================================================
-
-SHARED_TYPES = expand_types(BASE_TYPES, DEFAULT_SUFFIXES, SPECIAL_EXPANSIONS)
-
-derivative_keywords = {
-    cat: expand_derivative_terms(
-        PLACEHOLDERS[cat],
-        SHARED_TYPES,
-        CATEGORY_EXTRAS[cat],
-    )
-    for cat in PLACEHOLDERS
-}

@@ -2,7 +2,7 @@
 import random
 import pandas as pd
 from collections import Counter
-import json
+import json, re
 from typing import List, Dict, Optional, Tuple, Set
 
 from defs.common_data import *
@@ -11,6 +11,7 @@ from defs.debt_data import *
 from defs.template_definitions import *
 from defs.class_definitions import (
     BaseNarrativeEvidence,
+    HedgedItem,
     NotionalEvidence,
     ResultPhraseDetails,
     PolicySentence,
@@ -62,30 +63,57 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
 
 
 # --- Dynamic Instrument Type Generation ---
-def _generate_instrument_types_from_keywords() -> Dict[str, List[Tuple[str, str, str]]]:
+def _generate_instrument_name(
+    category: str,
+    hedged_item: Optional[HedgedItem] = None,
+    used_base_types: Optional[Set[str]] = None,
+) -> Tuple[str, str, str]:
     """
-    Processes the `derivative_keywords` from common_data.py to generate
-    a dictionary of realistic instrument type tuples (prefix, name, alias) for each category.
+    Dynamically generates a derivative instrument name based on category and context.
+    This replaces the pre-expanded `derivative_keywords` logic.
+
+    Returns:
+        A tuple of (prefix, full_name, alias).
     """
-    instrument_types: Dict[str, Set[Tuple[str, str, str]]] = {
-        "IR": set(),
-        "FX": set(),
-        "CP": set(),
-        "EQ": set(),
-        "GEN": set(),
-    }
-    for category, terms in derivative_keywords.items():
-        if category not in instrument_types:
-            continue
-        for prefix, full_term, base_term in terms:
-            # Add the tuple of (prefix, name, alias)
-            instrument_types[category].add((prefix, full_term, base_term))
+    components = DERIVATIVE_COMPONENTS
+    placeholders = components["placeholders"].get(category, [""])
+    base_types = components["base_types"]
+    extras = components["category_extras"].get(category, [])
 
-    # Convert sets to lists for random.choice
-    return {cat: list(names) for cat, names in instrument_types.items()}
+    # --- Context-Aware Placeholder Selection (for IR) ---
+    placeholder = ""
+    if category == "IR" and isinstance(hedged_item, DebtHedgedItem) and hedged_item.benchmark_rate:
+        # If debt has a specific benchmark, try to match it.
+        rate_lower = hedged_item.benchmark_rate.lower()
+        matching_ph = next((ph for ph in placeholders if rate_lower in ph.lower()), None)
+        if matching_ph:
+            placeholder = matching_ph
+        else:
+            placeholder = "interest-rate" # Default
+    else:
+        placeholder = random.choice(placeholders)
 
+    # --- Smart Base Type Selection (for GEN) ---
+    base_type = ""
+    if category == "GEN" and used_base_types:
+        # For GEN, try to pick a base type that hasn't been used by other categories.
+        available_base_types = [bt for bt in base_types if bt not in used_base_types]
+        if available_base_types:
+            base_type = random.choice(available_base_types)
+        else: # Fallback if all are used
+            base_type = random.choice(base_types)
+    else:
+        base_type = random.choice(base_types + extras)
 
-DYNAMIC_INSTRUMENT_TYPES = _generate_instrument_types_from_keywords()
+    # --- Assemble the name ---
+    full_name = " ".join(filter(None, [placeholder, base_type])).strip()
+    alias = " ".join(base_type.split()[-2:]) if len(base_type.split()) > 1 else base_type
+    prefix = ""
+    if any(x in base_type for x in ["swap", "swaption", "rate lock"]) and random.random() < PAY_PREFIX_RATIO:
+        prefix = random.choice(components["swap_prefixes"])
+
+    return prefix, full_name, alias
+
 
 
 def pick_company_name(company_name: str) -> str:
@@ -371,8 +399,14 @@ def create_random_scenario() -> GenerationScenario:
         archetype=archetype,
     )
 
+    # =========================================================================
+
     instrument_id_counter = 1
+    used_base_types_in_scenario = set() # Track for smart generic instrument naming
     hedged_item_id_counter = 1
+
+    # =========================================================================
+
 
     # =========================================================================
     # STAGE 1: GENERATE THE POOL OF POTENTIAL HEDGED ITEMS (EXPOSURES)
@@ -491,11 +525,11 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue  # This exposure remains unhedged
 
-        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["IR"])
+        prefix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item)
+        used_base_types_in_scenario.add(alias)
 
         base_args = {
             "instrument_type": name,
-            "instrument_prefix": prefix,
             
             "instrument_alias": alias,
             "month": random.choice(months),
@@ -505,6 +539,7 @@ def create_random_scenario() -> GenerationScenario:
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_debt,
+            "instrument_prefix": prefix,
         }
 
         # Create the instrument and its history
@@ -542,11 +577,12 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["FX"])
+        prefix, name, alias = _generate_instrument_name("FX")
+        used_base_types_in_scenario.add(alias)
 
         base_args = {
             "instrument_type": name,
-            "instrument_prefix": prefix,
+            
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -555,6 +591,7 @@ def create_random_scenario() -> GenerationScenario:
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_fx,
+            "instrument_prefix": prefix,
         }
 
         new_instruments = _create_instrument_with_history(
@@ -589,11 +626,12 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["CP"])
+        prefix, name, alias = _generate_instrument_name("CP")
+        used_base_types_in_scenario.add(alias)
 
         base_args = {
             "instrument_type": name,
-            "instrument_prefix": prefix,
+            
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -602,6 +640,7 @@ def create_random_scenario() -> GenerationScenario:
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_commodity,
+            "instrument_prefix": prefix,
         }
 
         new_instruments = _create_instrument_with_history(
@@ -636,11 +675,12 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["EQ"])
+        prefix, name, alias = _generate_instrument_name("EQ")
+        used_base_types_in_scenario.add(alias)
 
         base_args = {
             "instrument_type": name,
-            "instrument_prefix": prefix,
+            
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -649,6 +689,7 @@ def create_random_scenario() -> GenerationScenario:
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_equity,
+            "instrument_prefix": prefix,
         }
 
         new_instruments = _create_instrument_with_history(
@@ -669,11 +710,11 @@ def create_random_scenario() -> GenerationScenario:
             else random.randint(reporting_year + 1, reporting_year + 5)
         )
 
-        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["GEN"])
+        prefix, name, alias = _generate_instrument_name("GEN", used_base_types=used_base_types_in_scenario)
 
         base_args = {
             "instrument_type": name,
-            "instrument_prefix": prefix,
+            
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -682,6 +723,7 @@ def create_random_scenario() -> GenerationScenario:
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": None,  # Generic instruments often don't have a specific hedged item
+            "instrument_prefix": prefix,
         }
 
         new_instruments = _create_instrument_with_history(
@@ -1084,7 +1126,9 @@ def generate_narrative_from_scenario(
             all_evidence.extend(category_evidence)
         elif random.random() < 0.3:  # Occasionally mention non-use for an inactive category
             # Pick a specific instrument type to make the "no use" sentence more realistic.
-            _, swap_type, _ = random.choice(DYNAMIC_INSTRUMENT_TYPES[category])
+            # This now uses the dynamic generator to get a plausible name.
+            _, swap_type, _ = _generate_instrument_name(category)
+
             no_instrument_obj = NotionalSentence(
                 swap_type=swap_type,
                 year=scenario.reporting_year,
