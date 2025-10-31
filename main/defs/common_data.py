@@ -124,18 +124,29 @@ aggregate_use_verbs = [
 ] + shared_use_verbs
 
 # Verbs for termination/expiration events (We {verb})
-termination_verbs = [
+user_termination_verbs = [
     "terminated", "settled", "closed out", "ended", "unwounded", "liquidated",
+]
+
+future_adverbs = [
+    "will",
+    "is scheduled to",    
+    "is expected to",
+    "is anticipated to",
+    "is projected to",
+]
+
+termination_verbs = [
+    "expire",
+    "settle",
+    "mature",
+    "terminate",
+    "reach their expiration date",
 ]
 
 # Verbs for termination/expiration events (The swap {verb})
 swap_termination_verbs = [
-    "expired",
-    "matured",
-    "reached maturity",
-    "reached their expiration date",
-    "settled",
-    "terminated",
+    "expired", "matured", "reached maturity", "settled", "terminated",
 ]
 
 # Comparison verbs phrases

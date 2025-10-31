@@ -683,7 +683,7 @@ class NotionalSentence:
             if self.sentence_type == "new_individual":
                 verb = random.choice(individual_use_verbs)
             elif self.sentence_type == "terminated_individual":
-                verb = random.choice(termination_verbs)
+                verb = random.choice(user_termination_verbs)
             else:  # summary, comparative
                 verb = random.choice(aggregate_use_verbs)
 
@@ -716,6 +716,17 @@ class NotionalSentence:
         if self.result_phrase:
             result_clause = f", {self.result_phrase}"
 
+        # 6b. Maturity clause
+        maturity_clause = ""
+        if self.maturity_year and self.reporting_year:
+            if self.maturity_year > self.reporting_year:
+                adverb = random.choice(future_adverbs)
+                verb = random.choice(termination_verbs)
+                maturity_clause = f", which {adverb} {verb} in {self.maturity_year}"
+            else: # maturity_year <= reporting_year
+                verb = random.choice(swap_termination_verbs)
+                maturity_clause = f", which {verb} in {self.maturity_year}"
+
         # 7. Select main sentence template
         templates_for_type = NOTIONAL_SENTENCE_TEMPLATES.get(
             self.sentence_type, NOTIONAL_SENTENCE_TEMPLATES["summary"]
@@ -741,6 +752,7 @@ class NotionalSentence:
             state_descriptor=random.choice(state_descriptors),
             historical_phrase=random.choice(historical_instrument_phrases),
             result_clause=result_clause,
+            maturity_clause=maturity_clause,
             time_suffix=time_suffix,
         )
 
