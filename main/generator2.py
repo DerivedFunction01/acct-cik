@@ -368,6 +368,7 @@ class ScenarioArchetype:
     hedging_propensity: float  # A value between 0.0 and 1.0, representing the likelihood of hedging an exposure.
     policy_coverage: Literal["full", "partial", "light"]
     default_currency: str
+    money_units: List[tuple[str, int]]  # e.g., [("million", 1_000_000), ("billion", 1_000_000_000)]
 
     def get_exposure_counts(self) -> Dict[str, int]:
         """Generates a dictionary of exposure counts based on the archetype's ranges."""
@@ -439,6 +440,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.8,
         policy_coverage="full",
         default_currency="USD",
+        money_units=[("million", 1_000_000), ("billion", 1_000_000_000)],
     ),
     ScenarioArchetype(
         name="Domestic Industrial",
@@ -450,6 +452,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.7,
         policy_coverage="partial",
         default_currency="USD",
+        money_units=[("million", 1_000_000)],
     ),
     ScenarioArchetype(
         name="Tech Company",
@@ -461,6 +464,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.6,
         policy_coverage="partial",
         default_currency="USD",
+        money_units=[("million", 1_000_000)],
     ),
     ScenarioArchetype(
         name="Financial Institution",
@@ -472,6 +476,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.9,
         policy_coverage="full",
         default_currency="USD",
+        money_units=[("billion", 1_000_000_000)],
     ),
     ScenarioArchetype(
         name="Policy Only / Light User",
@@ -483,6 +488,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensity=0.25,
         policy_coverage="light",
         default_currency="USD",
+        money_units=[("thousand", 1_000), ("million", 1_000_000)],
     ),
 ]
 
@@ -558,6 +564,9 @@ def create_random_scenario() -> GenerationScenario:
     # --- Decide on a company archetype and get exposure counts ---
     archetype = random.choice(SCENARIO_ARCHETYPES)
     exposure_counts = archetype.get_exposure_counts()
+    
+    # --- Decide on the scale of money for this scenario ---
+    money_unit, multiplier = random.choice(archetype.money_units)
 
     # This is a proxy for how many instruments will be created, used for policy generation
     # It's an estimate because of the hedging_propensity logic
@@ -601,7 +610,7 @@ def create_random_scenario() -> GenerationScenario:
             issuance_year=issuance_year,
             maturity_month=random.choice(months),
             maturity_year=maturity_year,
-            principal_amount=random.randint(5, 500) * 1_000_000,
+            principal_amount=random.randint(5, 500) * multiplier,
             interest_rate_type="variable",
             benchmark_rate=random.choice(DUMMY_BENCHMARK_RATES),
             spread_bps=random.randint(100, 300),
@@ -617,7 +626,7 @@ def create_random_scenario() -> GenerationScenario:
                 code=cur[0],
                 name=cur[1],
                 symbol=cur[2],
-                amount=random.randint(1, 100) * 1_000_000,
+                amount=random.randint(1, 100) * multiplier,
             )
             for cur in random.sample(DUMMY_CURRENCIES, num_exposures)
         ]
@@ -675,7 +684,7 @@ def create_random_scenario() -> GenerationScenario:
 
         if is_terminated:
             maturity_year = random.randint(issuance_year + 1, reporting_year)
-            notional = random.randint(5, 500) * 1_000_000
+            notional = random.randint(5, 500) * multiplier
         elif random.random() < archetype.hedging_propensity:
             # Create an active hedge for this existing debt exposure
             hedged_debt = debt_item
@@ -714,7 +723,7 @@ def create_random_scenario() -> GenerationScenario:
 
         if is_terminated:
             maturity_year = random.randint(reporting_year - 2, reporting_year)
-            notional = random.randint(10, 200) * 1_000_000
+            notional = random.randint(10, 200) * multiplier
         elif random.random() < archetype.hedging_propensity:
             hedged_fx = fx_item
             maturity_year = random.randint(reporting_year + 1, reporting_year + 3)
@@ -753,10 +762,10 @@ def create_random_scenario() -> GenerationScenario:
 
         if is_terminated:
             maturity_year = random.randint(reporting_year - 2, reporting_year)
-            notional = random.randint(5, 100) * 1_000_000
+            notional = random.randint(5, 100) * multiplier
         elif random.random() < archetype.hedging_propensity:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
-            notional = random.randint(5, 100) * 1_000_000
+            notional = random.randint(5, 100) * multiplier
             hedged_commodity = CommodityHedgedItem(
                 hedged_item_id=hedged_item_id_counter,
                 commodity_type=random.choice(DUMMY_COMMODITY_TYPES),
@@ -802,10 +811,10 @@ def create_random_scenario() -> GenerationScenario:
 
         if is_terminated:
             maturity_year = random.randint(reporting_year - 2, reporting_year)
-            notional = random.randint(1, 50) * 1_000_000
+            notional = random.randint(1, 50) * multiplier
         elif random.random() < archetype.hedging_propensity:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
-            notional = random.randint(1, 100) * 1_000_000
+            notional = random.randint(1, 100) * multiplier
             hedged_equity = EquityHedgedItem(
                 hedged_item_id=hedged_item_id_counter,
                 underlying_equity=random.choice(DUMMY_EQUITY_UNDERLYINGS).format(
@@ -851,7 +860,7 @@ def create_random_scenario() -> GenerationScenario:
             "instrument_type": random.choice(DUMMY_GENERIC_INSTRUMENT_TYPES),
             "month": random.choice(months),
             "year": reporting_year,
-            "notional_amount": random.randint(10, 300) * 1_000_000,
+            "notional_amount": random.randint(10, 300) * multiplier,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
