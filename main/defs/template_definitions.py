@@ -197,9 +197,9 @@ hedge_designations = [
 ]
 
 result_phrases = {
-    "IR": [],
-    "FX": [],
-    "CP": [],
-    "EQ": [],
-    "GEN": [],
+    "IR": [""],
+    "FX": [""],
+    "CP": [""],
+    "EQ": [""],
+    "GEN": [""],
 }

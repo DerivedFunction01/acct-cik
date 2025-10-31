@@ -496,7 +496,6 @@ def create_random_scenario() -> GenerationScenario:
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
-            "result_phrase": random.choice(result_phrases["IR"]),
             "hedged_item": hedged_debt,
         }
 
@@ -547,7 +546,6 @@ def create_random_scenario() -> GenerationScenario:
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
-            "result_phrase": random.choice(result_phrases["FX"]),
             "hedged_item": hedged_fx,
         }
 
@@ -595,7 +593,6 @@ def create_random_scenario() -> GenerationScenario:
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
-            "result_phrase": random.choice(result_phrases["CP"]),
             "hedged_item": hedged_commodity,
         }
 
@@ -643,7 +640,6 @@ def create_random_scenario() -> GenerationScenario:
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
-            "result_phrase": random.choice(result_phrases["EQ"]),
             "hedged_item": hedged_equity,
         }
 
