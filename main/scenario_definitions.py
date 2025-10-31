@@ -17,6 +17,7 @@ class NarrativeEvidence:
     instrument_id: Optional[int]  # Link to the specific instrument, if applicable
     status: Literal["summary", "new", "terminated", "none"]
     category: DerivativeCategory
+    aggregate: Optional[bool] = None # Whether it's an aggregate statement or individual
     notional: Optional[int] = None # If notional amount is mentioned
     month: Optional[str] = None # e.g., "January" is mentioned
     year: Optional[int] = None # e.g., "2023" is mentioned
