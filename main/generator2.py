@@ -844,41 +844,52 @@ def _generate_category_narrative(
             )
         )
 
+    # 3. Detailed Sentences (New, Terminated) by comparing current and previous years.
+    current_ids = {
+        i.instrument_id for i in current_year_data["instruments"]
+    } if current_year_data else set()
+    
+    prev_ids = {
+        i.instrument_id for i in prev_year_data["instruments"]
+    } if prev_year_data else set()
 
-    # 3. Detailed Sentences (Changes, Terminations, New Entries)
-    # TODO: This logic can be significantly expanded.
-    if current_year_data:
-        for instrument in current_year_data["instruments"]:
-            if (
-                instrument.hedged_item and hasattr(instrument.hedged_item, 'issuance_year')
-                and instrument.hedged_item.issuance_year == reporting_year # type: ignore
-            ):
-                notional_str = _format_notional(instrument.notional_amount, scenario)
-                sentences.append(
-                    f"During {reporting_year}, we entered into a new {instrument.instrument_type} with a notional value of {notional_str}."
-                )
-                evidence.append(
-                    NarrativeEvidence(
-                        category=category, # type: ignore
-                        instrument_type=instrument.instrument_type,
-                        notional=instrument.notional_amount,
-                        status="new",
-                    )
-                )
+    new_instrument_ids = current_ids - prev_ids
+    terminated_instrument_ids = prev_ids - current_ids
 
-            if instrument.maturity_year == reporting_year:
-                notional_str = _format_notional(instrument.notional_amount, scenario)
-                sentences.append(
-                    f"A {instrument.instrument_type} with a notional value of {notional_str} matured during the year."
-                )
-                evidence.append(
-                    NarrativeEvidence(
-                        category=category, # type: ignore
-                        instrument_type=instrument.instrument_type,
-                        notional=instrument.notional_amount,
-                        status="terminated",
-                    )
-                )
+    # Describe new instruments
+    if current_year_data and new_instrument_ids:
+        for instrument_id in new_instrument_ids:
+            # Find the new instrument in the current year's data
+            instrument = next((i for i in current_year_data["instruments"] if i.instrument_id == instrument_id), None)
+            if instrument:
+                 notional_str = _format_notional(instrument.notional_amount, scenario)
+                 sentences.append(
+                     f"During {reporting_year}, we entered into new {instrument.instrument_type} with an aggregate notional value of {notional_str}."
+                 )
+                 evidence.append(
+                     NarrativeEvidence(
+                         category=category, # type: ignore
+                         instrument_type=instrument.instrument_type,
+                         notional=instrument.notional_amount,
+                         status="new",
+                     )
+                 )
+
+    # Describe terminated instruments
+    if prev_year_data and terminated_instrument_ids:
+        for instrument_id in terminated_instrument_ids:
+            instrument = next((i for i in prev_year_data["instruments"] if i.instrument_id == instrument_id), None)
+            if instrument:
+                 notional_str = _format_notional(instrument.notional_amount, scenario)
+                 sentences.append(f"During {reporting_year}, {instrument.instrument_type} with a notional value of {notional_str} were terminated or matured.")
+                 evidence.append(
+                     NarrativeEvidence(
+                         category=category, # type: ignore
+                         instrument_type=instrument.instrument_type,
+                         notional=instrument.notional_amount,
+                         status="terminated",
+                     )
+                 )
 
     return sentences, evidence
 
@@ -1075,7 +1086,7 @@ def generate_training_sample():
     # The final output is a tuple of the text and the JSON object (or string).
     return (narrative_text, json_output)
 
-
+#%%
 if __name__ == "__main__":
     # Example of how to generate one sample
     text, json_data = generate_training_sample()
@@ -1084,3 +1095,5 @@ if __name__ == "__main__":
     print(text)
     print("\n--- GENERATED JSON ---")
     print(json.dumps(json_data, indent=2))
+
+# %%
