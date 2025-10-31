@@ -125,6 +125,8 @@ class GenerationScenario:
     """Holds the entire state for a single, coherent training example."""
 
     company_name: str
+    reporting_month: str
+    reporting_day: int
     reporting_year: int
     instruments: List[NotionalInstrument] = field(default_factory=list)
     policy: Optional[RiskManagementPolicy] = None
@@ -344,6 +346,8 @@ def create_random_scenario() -> GenerationScenario:
     a company has, their status (active or terminated), and their key properties.
     """
     reporting_year = random.randint(2020, 2024)
+    reporting_day = random.randint(28, 31)
+    reporting_month = random.choice(months)
 
     # --- Decide on a company archetype and get exposure counts ---
     archetype = random.choice(SCENARIO_ARCHETYPES)
@@ -372,6 +376,8 @@ def create_random_scenario() -> GenerationScenario:
 
     scenario = GenerationScenario(
         company_name=random.choice(company_names),
+        reporting_month=reporting_month,
+        reporting_day=reporting_day,
         reporting_year=reporting_year,
         instruments=[],
         policy=generate_policy_for_archetype(archetype, instrument_counts_proxy),
@@ -792,6 +798,8 @@ def _generate_category_narrative(
     """
     sentences = []
     reporting_year = scenario.reporting_year
+    reporting_month = "December"
+    reporting_day = 31
     evidence = []
     current_year_data = yearly_data.get(reporting_year)
     prev_year_data = yearly_data.get(reporting_year - 1)
@@ -817,9 +825,15 @@ def _generate_category_narrative(
         instrument_type = current_year_data["instrument_types"][0]
         total_notional = current_year_data["total_notional"]
         total_notional_str = _format_notional(total_notional, scenario)
+        
         verb = random.choice(aggregate_use_verbs)
+        time_prefix = random.choice(point_in_time_prefixes).format(
+            year=reporting_year, month=reporting_month, end_day=reporting_day
+        )
+        connector = random.choice(amount_connectors)
+
         summary_sentence.append(
-            f"As of December 31, {reporting_year}, we {verb} {instrument_type} with an aggregate notional value of {total_notional_str}."
+            f"{time_prefix}, we {verb} {instrument_type} {connector} {total_notional_str}."
         )
 
         evidence.append(
@@ -850,7 +864,7 @@ def _generate_category_narrative(
     else:
         # If no active instruments, state that.
         sentences.append(
-            f"As of December 31, {reporting_year}, we had no outstanding derivative instruments to hedge against {category}."
+            f"As of {reporting_month} {reporting_day}, {reporting_year}, we had no outstanding derivative instruments to hedge against {category}."
         )
         evidence.append(
             NarrativeEvidence(
@@ -881,9 +895,12 @@ def _generate_category_narrative(
             instrument = next((i for i in current_year_data["instruments"] if i.instrument_id == instrument_id), None)
             if instrument:
                 notional_str = _format_notional(instrument.notional_amount, scenario)
+                
                 verb = random.choice(individual_use_verbs)
+                time_prefix = random.choice(period_of_time_prefixes).format(year=reporting_year)
+                connector = random.choice(amount_connectors)
                 sentences.append(
-                     f"During {reporting_year}, we {verb} new {instrument.instrument_type} with an aggregate notional value of {notional_str}."
+                     f"{time_prefix}, we {verb} new {instrument.instrument_type} {connector} {notional_str}."
                  )
                 evidence.append(
                      NarrativeEvidence(

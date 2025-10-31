@@ -86,18 +86,59 @@ all_currencies = (
 
 transaction_types = ["purchase", "sale", "exchange", "transfer", "import", "export"]
 
+# Verbs that can be used for both individual and aggregate contexts
+shared_use_verbs = [
+    "utilized",
+    "employed",
+    "used",
+    "implemented",
+]
+
 # For entering into a new int
 individual_use_verbs = [
     "entered into",
     "executed",
     "initiated",
     "put in place",
-]
+    "secured",
+    "arranged",
+    "committed to",
+    "purchased",
+    "established",
+] + shared_use_verbs
 
 # For aggregrate summary notional amounts
 aggregate_use_verbs = [
     "held",
     "maintained",
     "had outstanding",
-    "utilized",
+    "had in place",
+    "were party to",
+] + shared_use_verbs
+
+# Time prefixes for point-in-time statements (e.g., aggregate summaries)
+point_in_time_prefixes = [
+    "As of {month} {end_day}, {year}",
+    "At year-end {year}",
+    "As of year-end {year}",
+    "At the end of {year}",
+    "At the close of {year}",
+]
+
+# Time prefixes for period-of-time statements (e.g., new or terminated instruments)
+period_of_time_prefixes = [
+    "During {year}",
+    "In {year}",
+    "Throughout {year}",
+]
+
+# Connectors for linking an action/instrument to its notional value
+amount_connectors = [
+    "with notional amounts totaling",
+    "with notional amounts of",
+    "with an aggregate notional value of",
+    "with a notional amount of",
+    "totaling",
+    "with notional values of",
+    "with a total of",
 ]
