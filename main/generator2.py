@@ -1027,12 +1027,6 @@ def _generate_narrative_accounting(scenario: GenerationScenario) -> List[str]:
                 sentences.append(
                     f"For our {cat_policy.category} derivative instruments, we assess hedge effectiveness on a {cat_policy.effectiveness_frequency} basis using the {cat_policy.effectiveness_testing_method}."
                 )
-    # TODO: Add a generic sentence about embedded derivatives if they exist.
-    # This is a placeholder for a more robust check.
-    if random.random() < 0.3:
-        sentences.append(
-            f"The Company also has an embedded derivative liability related to its convertible senior notes, with a fair value of $12.5 million as of December 31, {scenario.reporting_year}."
-        )
     return sentences
 
 
