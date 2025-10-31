@@ -717,10 +717,12 @@ class NotionalSentence:
         result_clause = ""
         if self.result_phrase:
             # Populate new placeholders within the result phrase itself
+            outcome_verb = random.choice(financial_outcome_verbs)
+            outcome_loc = random.choice(balance_sheet_locations)
             populated_phrase = self.result_phrase.format(
                 mitigation_verb=random.choice(risk_mitigation_verbs),
                 gain_loss=random.choice(gain_loss_phrases),
-                outcome_location=random.choice(financial_outcome_locations),
+                outcome_location=f"{outcome_verb} {outcome_loc}",
                 debt_type=random.choice(DUMMY_DEBT_TYPES), # Assuming DUMMY_DEBT_TYPES is available
                 currencies=random.choice(all_currencies).adjective,
                 commodity=get_random_commodity_and_unit()[0],

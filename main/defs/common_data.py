@@ -164,11 +164,23 @@ risk_mitigation_verbs = [
     "stabilizing",
 ]
 
-financial_outcome_locations = [
-    "recognized in other comprehensive income",
-    "recorded in accumulated OCI",
-    "recognized in earnings",
-    "recorded in equity",
+financial_outcome_verbs = [
+    "recognized in",
+    "recorded in",
+    "reflected in",
+    "reported in",
+]
+
+balance_sheet_locations = [
+    "other income (expense), net",
+    "other comprehensive income",
+    "accumulated other comprehensive income (OCI)",
+    "earnings",
+    "net income",
+    "the consolidated statements of operations",
+    "the statement of operations",
+    "the consolidated balance sheets",
+    "equity",
 ]
 
 gain_loss_phrases = ["gains", "losses", "increase", "decrease"]
