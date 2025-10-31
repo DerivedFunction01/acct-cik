@@ -810,18 +810,18 @@ def _generate_category_narrative(
     currency_symbol, money_unit_word, currency_code = _get_currency_and_unit_details(scenario)
 
     # 1. Context Sentence (e.g., "To manage our interest rate risk...")
-    # Use dynamic templates from template_definitions.py
-    template_pool = RISK_CONTEXT_TEMPLATES.get(category, RISK_CONTEXT_TEMPLATES["GEN"])
-    if category in ["IR", "FX"]: # Allow combined context for IR/FX
-        template_pool += RISK_CONTEXT_TEMPLATES["FX_IR"]
-
-    context_template = random.choice(template_pool)
-    # Basic formatting for the context sentence
-    context_sentence = context_template.format(
-        company=scenario.company_name,
-        commodity=random.choice(DUMMY_COMMODITY_TYPES) # Provide a fallback
+    # Use the PolicySentence builder which correctly populates all placeholders.
+    # This replaces the manual formatting that was here before.
+    policy_sentence_obj = PolicySentence(
+        category=category,  # type: ignore
+        company_name=scenario.company_name,
+        # The builder will handle random selection for any details not provided.
+        # We could pass specific debt_type, currencies, etc. here if we wanted to.
     )
+    context_sentence, policy_evidence = policy_sentence_obj.build()
     sentences.append(context_sentence)
+    # We can decide if we want to add this specific evidence to our main list.
+    # For now, we'll just use the sentence.
 
     # 2. Aggregate Summary.
     if current_year_data and current_year_data["total_notional"] > 0:
