@@ -17,14 +17,14 @@ The primary objective is to move beyond simple multi-label classification (`"ir"
 This is the most critical phase. Before any model training, the data generation process must be completely overhauled.
 
 -   **[ ] Define a Canonical JSON Schema for the Model's Output:**
-    -   The model's sole task is to generate a valid JSON object that conforms to a strict, predefined schema. This schema becomes the new "ground truth" for every training sample.
+    -   **Done.** The model's sole task is to generate a valid JSON object that conforms to a strict, predefined schema. This schema becomes the new "ground truth" for every training sample.
     -   This approach completely replaces the old `labels` dictionary and `label_int`. The structured data **is** the label.
     -   **Action:** Create a formal JSON Schema file (e.g., `output_schema.json`). This allows for automated validation of the model's output during both training and inference, ensuring consistency and reliability.
     -   **Proposed Canonical Schema:**
         ```json
         {
-          "analysis_summary": "A brief, one-sentence summary of the derivative activity in the provided text.",
           "chain_of_thought": "A step-by-step reasoning process. The model must explain *how* it reached its conclusions by citing specific parts of the text. E.g., 'The text mentions 'interest rate swaps' to manage 'variable-rate debt'. The notional amount is $100 million for year 2023. This indicates an active Interest Rate (IR) hedge.'",
+          "analysis_summary": "A brief, one-sentence summary of the derivative activity in the provided text.",
           "derivatives": [
             {
               "type": "Interest Rate Swap",
@@ -38,15 +38,15 @@ This is the most critical phase. Before any model training, the data generation 
         ```
     -   **Key Change:** The `labels` array is **eliminated**. It is redundant. All necessary information is captured with greater precision in the `derivatives` array. For example, `{"category": "IR", "status": "current"}` is far more explicit than `["ir", "ir_use", "curr"]`.
 
--   **[ ] Refactor `generator.py`:**
-    -   Modify the core generator functions (`generate_hedge_paragraph`, `generate_warrant_paragraph`, etc.).
+-   **[x] Refactor `generator.py`:**
+    -   **Done.** The new `generator2.py` completely overhauls the generation logic.
     -   Instead of just returning a paragraph and labels, these functions must now assemble and return the full JSON object described above.
     -   The `get_primary_label` and `label_paragraph` functions will be **deprecated and removed**. Their logic is superseded by the direct generation of structured data.
 
--   **[ ] Improve Generation Quality:**
+-   **[x] Improve Generation Quality:**
     -   The user expressed a desire for "higher quality compared to using templates randomly selected."
-    -   **Action: Implement a "Narrative Generation" strategy.** Instead of randomly sampling individual sentence templates, the new generator will construct a coherent, multi-paragraph narrative that mimics the structure of a real SEC filing's risk disclosure section (e.g., Item 7A). This will create more realistic and complex training data that takes full advantage of the larger context window of a GPT-style model.
-    -   **Complex Scenarios:** The narratives should include more complex situations to train a robust model, such as:
+    -   **Action: Implement a "Narrative Generation" strategy.** **Done.** The `generator2.py` script now constructs a coherent, multi-paragraph narrative that mimics the structure of a real SEC filing's risk disclosure section (e.g., Item 7A). This creates more realistic and complex training data.
+    -   **Complex Scenarios:** **Done.** The narratives now include more complex situations to train a robust model, such as:
         -   Multiple active instruments of the same type (e.g., two different interest rate swaps).
         -   Conflicting timelines within the same paragraph (e.g., terminating an old FX forward while entering a new FX collar).
         -   Mentions of accounting treatments (e.g., OCI, fair value).
@@ -56,8 +56,8 @@ This is the most critical phase. Before any model training, the data generation 
         -   **Target JSON:**
             ```json
             {
-              "analysis_summary": "The company holds multiple active interest rate swaps, has recently entered into new foreign currency collars after settling previous forwards, and carries an embedded derivative liability from convertible notes.",
               "chain_of_thought": "The text details two separate interest rate swaps: one existing from 2021 ($150M) and a new one from Q3 2023 ($100M), confirming 'current' IR use. For FX, it explicitly states that €25.0M in forwards 'matured and were settled', indicating termination. However, it then describes new, 'outstanding' foreign currency collars in GBP, confirming 'current' FX use. Finally, it identifies a convertible note from 2022 with an 'embedded derivative liability', confirming a 'current' embedded derivative.",
+              "analysis_summary": "The company holds multiple active interest rate swaps, has recently entered into new foreign currency collars after settling previous forwards, and carries an embedded derivative liability from convertible notes.",
               "derivatives": [{"type":"Interest Rate Swap","category":"IR","status":"current","notional_amount":150000000,"currency":"USD"},{"type":"Interest Rate Swap","category":"IR","status":"current","notional_amount":100000000,"currency":"USD"},{"type":"Foreign Currency Forward","category":"FX","status":"terminated","notional_amount":25000000,"currency":"EUR"},{"type":"Foreign Currency Collar","category":"FX","status":"current","notional_amount":40000000,"currency":"GBP"},{"type":"Embedded Derivative","category":"EMB","status":"current","notional_amount":12500000,"currency":"USD"}]
             }
             ```
@@ -75,7 +75,7 @@ This is the most critical phase. Before any model training, the data generation 
 
 ---
 
-## 3. Phase 2: Update the Training Pipeline (`training.py`)
+## 3. Phase 2: Implement the Training Pipeline (`training.py`)
 
 -   **[ ] Adopt Instruction Fine-Tuning Format:**
     -   The training dataset will now consist of prompt-response pairs.
@@ -89,14 +89,14 @@ This is the most critical phase. Before any model training, the data generation 
 
 ---
 
-## 4. Phase 3: Adapt the Inference and Analysis Pipeline
+## 4. Phase 3: Implement the Inference and Analysis Pipeline
 
 -   **[ ] Re-evaluate Text Extraction (`webpage.py`):**
     -   The current method extracts small paragraphs (~1200 chars). With a larger context model (e.g., Phi-3 Mini with a 4k window), we can extract larger, more coherent chunks of text.
     -   **Action:** Modify `webpage.py`'s `filter_by_keywords` function to expand context more aggressively, creating larger text chunks. This reduces the number of separate inferences per filing and provides more context to the model for each analysis, improving its ability to connect related ideas.
     -   The goal is to find a balance between chunk size and the model's context length to maximize comprehension without truncation.
 
--   **[ ] Update `classify.py` for Real-World Use:**
+-   **[ ] Update `classify.py` to use the new Generative Model:**
     -   The current workflow of extracting relevant paragraphs from filings (`webpage.py`) remains valid.
     -   Modify `classify.py` to loop through these paragraphs. For each one, it will format the instruction prompt and send it to the fine-tuned generative model.
     -   The script will collect a list of JSON objects (one for each paragraph).

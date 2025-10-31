@@ -1118,11 +1118,10 @@ def generate_json_from_scenario(
     The `evidence` from the narrative is used to generate the summary and chain_of_thought.
     """
     analysis_summary = _generate_analysis_summary(scenario, evidence)
-
-    # Build the chain_of_thought by calling to_string() on each evidence object
     chain_of_thought = " ".join([e.to_string() for e in evidence])
 
     # --- Build the derivatives list ONLY from what was mentioned in the evidence. ---
+
     # This ensures the JSON perfectly matches the narrative. Each piece of evidence
     # that points to a specific instrument contributes to its entry in the final JSON.
     derivatives_list = []
@@ -1168,8 +1167,8 @@ def generate_json_from_scenario(
             })
 
     return {
-        "analysis_summary": analysis_summary,
         "chain_of_thought": chain_of_thought,
+        "analysis_summary": analysis_summary,
         "derivatives": derivatives_list,
     }
 
