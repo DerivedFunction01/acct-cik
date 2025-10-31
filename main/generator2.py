@@ -368,15 +368,6 @@ DUMMY_ACCOUNTING_DESCRIPTIONS = {
     "net_investment": "For net investment hedges, foreign currency translation gains or losses are recorded in other comprehensive income (OCI) to offset the translation of the net investment.",
 }
 
-DUMMY_ACCOUNTING_STANDARDS = ["ASU 2017-12", "ASC 815", "IFRS 9"]
-DUMMY_ACCOUNTING_ISSUERS = ["FASB", "IASB"]
-DUMMY_ACCOUNTING_TOPICS = ["Derivatives and Hedging", "Financial Instruments"]
-DUMMY_ADOPTION_IMPACTS = [
-    "no material impact",
-    "a change in hedge effectiveness testing",
-]
-DUMMY_ADOPTION_METHODS = ["modified retrospective approach", "prospective method"]
-
 
 @dataclass
 class ScenarioArchetype:
@@ -627,7 +618,7 @@ def create_random_scenario() -> GenerationScenario:
     # --- Decide on a company archetype and get exposure counts ---
     archetype = random.choice(SCENARIO_ARCHETYPES)
     exposure_counts = archetype.get_exposure_counts()
-
+        
     # --- Decide on the scale of money for this scenario ---
     money_unit, multiplier = random.choice(archetype.money_units)
 
@@ -738,45 +729,30 @@ def create_random_scenario() -> GenerationScenario:
     # =========================================================================
     # STAGE 2: CREATE INSTRUMENTS BASED ON EXPOSURES AND HEDGING PROPENSITY
     # =========================================================================
-    # --- Conditionally add an accounting standard update ---
-    # Based on the archetype flag and a random chance.
-    if archetype.can_have_accounting_update and random.random() < 0.15:
-        is_adopted = random.random() < 0.5
-        effective_year = random.randint(reporting_year - 1, reporting_year + 2)
-        update = AccountingStandardUpdate(
-            standard_name=random.choice(DUMMY_ACCOUNTING_STANDARDS),
-            issuer=random.choice(DUMMY_ACCOUNTING_ISSUERS),
-            topic=random.choice(DUMMY_ACCOUNTING_TOPICS),
-            adoption_year=(
-                reporting_year if is_adopted else 0
-            ),  # Set to 0 if not adopted yet
-            impact_description=random.choice(DUMMY_ADOPTION_IMPACTS),
-            adoption_method=(
-                random.choice(DUMMY_ADOPTION_METHODS) if is_adopted else None
-            ),
-            effective_year=effective_year,
-            is_adopted=is_adopted,
-        )
-        scenario.accounting_updates.append(update)
 
-    # --- Create IR Instruments (for some of the debt exposures) ---
-    for debt_item in potential_hedged_items["debt"]:
+    # --- Create IR Instruments (deterministically based on IR propensity) ---
+    potential_debt_items = potential_hedged_items["debt"]
+    num_ir_hedges = round(len(potential_debt_items) * archetype.hedging_propensities.get("IR", 0.0))
+    debt_items_to_hedge = random.sample(potential_debt_items, num_ir_hedges)
+
+    for debt_item in potential_debt_items:
         issuance_year = random.randint(reporting_year - 8, reporting_year - 1)
         hedged_debt = None
         notional = 0
         maturity_year = 0  # Initialize to satisfy linter
-        is_terminated = random.random() < 0.3
 
-        if is_terminated:
-            maturity_year = random.randint(issuance_year + 1, reporting_year)
-            notional = random.randint(5, 500) * multiplier
-        elif random.random() < archetype.hedging_propensities.get("IR", 0.0):
+        if debt_item in debt_items_to_hedge:
             # Create an active hedge for this existing debt exposure
             hedged_debt = debt_item
             maturity_year = hedged_debt.maturity_year
             notional = hedged_debt.principal_amount
         else:
-            continue  # Skip creating an instrument for this exposure
+            # For unhedged exposures, there's a chance to create a story about a terminated instrument.
+            if random.random() < 0.15: # Small chance to create a terminated instrument story
+                maturity_year = random.randint(issuance_year + 1, reporting_year)
+                notional = random.randint(5, 500) * multiplier
+            else:
+                continue # This exposure remains unhedged
 
         base_args = {
             "instrument_type": random.choice(DUMMY_IR_INSTRUMENT_TYPES),
@@ -799,24 +775,28 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
 
-    # --- Create FX Instruments (based on FX propensity) ---
-    for fx_item in potential_hedged_items["fx"]:
-        is_terminated = random.random() < 0.3
+    # --- Create FX Instruments (deterministically based on FX propensity) ---
+    potential_fx_items = potential_hedged_items["fx"]
+    num_fx_hedges = round(len(potential_fx_items) * archetype.hedging_propensities.get("FX", 0.0))
+    fx_items_to_hedge = random.sample(potential_fx_items, num_fx_hedges)
+
+    for fx_item in potential_fx_items:
         hedged_fx = None
         notional = 0
         maturity_year = 0  # Initialize to satisfy linter
 
-        if is_terminated:
-            maturity_year = random.randint(reporting_year - 2, reporting_year)
-            notional = random.randint(10, 200) * multiplier
-        elif random.random() < archetype.hedging_propensities.get("FX", 0.0):
+        if fx_item in fx_items_to_hedge:
             hedged_fx = fx_item
             maturity_year = random.randint(reporting_year + 1, reporting_year + 3)
             notional = sum(
                 e.amount for e in hedged_fx.exposures
             )  # Simplified USD equivalent
         else:
-            continue  # Skip creating an instrument for this exposure
+            if random.random() < 0.15:
+                maturity_year = random.randint(reporting_year - 2, reporting_year)
+                notional = random.randint(10, 200) * multiplier
+            else:
+                continue
 
         base_args = {
             "instrument_type": random.choice(DUMMY_FX_INSTRUMENT_TYPES),
@@ -838,34 +818,26 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
 
-    # --- Create CP Instruments (based on CP propensity) ---
-    for _ in range(exposure_counts["commodity"]):
-        is_terminated = random.random() < 0.3
+    # --- Create CP Instruments (deterministically based on CP propensity) ---
+    potential_cp_items = potential_hedged_items["commodity"]
+    num_cp_hedges = round(len(potential_cp_items) * archetype.hedging_propensities.get("CP", 0.0))
+    cp_items_to_hedge = random.sample(potential_cp_items, num_cp_hedges)
+
+    for cp_item in potential_cp_items:
         hedged_commodity = None
         notional = 0
         maturity_year = 0  # Initialize to satisfy linter
 
-        if is_terminated:
-            maturity_year = random.randint(reporting_year - 2, reporting_year)
-            notional = random.randint(5, 100) * multiplier
-        elif random.random() < archetype.hedging_propensities.get("CP", 0.0):
+        if cp_item in cp_items_to_hedge:
+            hedged_commodity = cp_item
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
             notional = random.randint(5, 100) * multiplier
-            hedged_commodity = CommodityHedgedItem(
-                hedged_item_id=hedged_item_id_counter,
-                commodity_type=random.choice(DUMMY_COMMODITY_TYPES),
-                transaction_type=random.choice(DUMMY_COMMODITY_TRANSACTION_TYPES),
-                quantity=random.randint(100, 10000),
-                unit_of_volume=random.choice(DUMMY_COMMODITY_UNITS),
-                price_per_unit=random.uniform(10, 200),
-                cost_type=random.choice(cost_types),
-                supplier=(
-                    random.choice(company_names) if random.random() < 0.2 else None
-                ),
-            )
-            hedged_item_id_counter += 1
         else:
-            continue  # Skip creating an instrument for this exposure
+            if random.random() < 0.15:
+                maturity_year = random.randint(reporting_year - 2, reporting_year)
+                notional = random.randint(5, 100) * multiplier
+            else:
+                continue
 
         base_args = {
             "instrument_type": random.choice(DUMMY_CP_INSTRUMENT_TYPES),
@@ -887,30 +859,26 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
 
-    # --- Create EQ Instruments (based on EQ propensity) ---
-    for _ in range(exposure_counts.get("equity", 0)):
-        is_terminated = random.random() < 0.3
+    # --- Create EQ Instruments (deterministically based on EQ propensity) ---
+    potential_eq_items = potential_hedged_items["equity"]
+    num_eq_hedges = round(len(potential_eq_items) * archetype.hedging_propensities.get("EQ", 0.0))
+    eq_items_to_hedge = random.sample(potential_eq_items, num_eq_hedges)
+
+    for eq_item in potential_eq_items:
         hedged_equity = None
         notional = 0
         maturity_year = 0  # Initialize to satisfy linter
 
-        if is_terminated:
-            maturity_year = random.randint(reporting_year - 2, reporting_year)
-            notional = random.randint(1, 50) * multiplier
-        elif random.random() < archetype.hedging_propensities.get("EQ", 0.0):
+        if eq_item in eq_items_to_hedge:
+            hedged_equity = eq_item
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
             notional = random.randint(1, 100) * multiplier
-            hedged_equity = EquityHedgedItem(
-                hedged_item_id=hedged_item_id_counter,
-                underlying_equity=random.choice(DUMMY_EQUITY_UNDERLYINGS).format(
-                    company_name=scenario.company_name
-                ),
-                equity_type=random.choice(DUMMY_EQUITY_TYPES),
-                reason=random.choice(DUMMY_EQUITY_REASONS),
-            )
-            hedged_item_id_counter += 1
         else:
-            continue  # Skip creating an instrument for this exposure
+            if random.random() < 0.15:
+                maturity_year = random.randint(reporting_year - 2, reporting_year)
+                notional = random.randint(1, 50) * multiplier
+            else:
+                continue
 
         base_args = {
             "instrument_type": random.choice(DUMMY_EQ_INSTRUMENT_TYPES),
@@ -932,7 +900,7 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.extend(new_instruments)
         instrument_id_counter += 1
 
-    # --- Create Generic Instruments (based on GEN propensity) ---
+    # --- Create Generic Instruments ---
     for _ in range(exposure_counts.get("generic", 0)):
         is_terminated = random.random() < 0.4
         maturity_year = (
@@ -941,9 +909,6 @@ def create_random_scenario() -> GenerationScenario:
             else random.randint(reporting_year + 1, reporting_year + 5)
         )
 
-        # Generic instruments are created if the propensity is met
-        if random.random() > archetype.hedging_propensities.get("GEN", 0.0):
-            continue
         base_args = {
             "instrument_type": random.choice(DUMMY_GENERIC_INSTRUMENT_TYPES),
             "month": random.choice(months),
