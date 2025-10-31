@@ -52,6 +52,10 @@ class BaseNarrativeEvidence:
         return f"Uncategorized evidence found for {self.category}."
 
 
+from dataclasses import dataclass
+from typing import Optional
+
+
 @dataclass
 class NotionalEvidence(BaseNarrativeEvidence):
     """Evidence related to notional or fair value amounts of derivative instruments, with temporal reasoning and validation."""
@@ -65,7 +69,22 @@ class NotionalEvidence(BaseNarrativeEvidence):
     prev_notional_str: Optional[str] = None
     prev2_notional_str: Optional[str] = None
     reporting_year: Optional[int] = None
+    maturity_year: Optional[int] = None
     value_type: str = "notional"
+
+    # ---------------------------------------------------------------------
+    # Helpers
+    # ---------------------------------------------------------------------
+
+    def _category_label(self) -> str:
+        """Map short category codes to descriptive names."""
+        return {
+            "IR": "Interest Rate",
+            "FX": "Foreign Exchange",
+            "CP": "Commodity",
+            "EQ": "Equity",
+            "GEN": "Generic",
+        }.get(self.category, "Unknown Category")
 
     def _temporal_reasoning(self, value_desc: str) -> str:
         """Describe time relation of the evidence."""
@@ -89,7 +108,6 @@ class NotionalEvidence(BaseNarrativeEvidence):
         if not self.reporting_year or not self.year:
             return None
 
-        # Impossible or contradictory states
         if self.status == "terminated" and self.year > self.reporting_year:
             return f"[Warning] Terminated instrument dated in the future ({self.year}) after reporting year {self.reporting_year}."
         if self.status == "new" and self.year > self.reporting_year:
@@ -100,17 +118,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
             return f"[Warning] Negative notional value ({self.notional}) is not valid for a summary disclosure."
         return None
 
+    # ---------------------------------------------------------------------
+    # Core logic
+    # ---------------------------------------------------------------------
 
     def to_string(self) -> str:
         """Generates a reasoning statement with built-in time validation."""
-        category_names = {
-            "IR": "Interest Rate",
-            "FX": "Foreign Exchange",
-            "CP": "Commodity",
-            "EQ": "Equity",
-            "GEN": "Generic",
-        }
-        category_name = category_names.get(self.category, "Unknown Category")
+        category_name = self._category_label()
         value_desc = (
             "fair value" if self.value_type == "fair_value" else "notional value"
         )
@@ -118,50 +132,90 @@ class NotionalEvidence(BaseNarrativeEvidence):
             "fair values" if self.value_type == "fair_value" else "notional values"
         )
 
-        # Validation
+        if self.year is None or self.reporting_year is None:
+            return "Incomplete temporal data for reasoning."
+
         warning = self._validate_temporal_consistency()
 
-        # Construct message
+        # -----------------------------------------------------------------
+        # Summary
+        # -----------------------------------------------------------------
         if self.status == "summary":
-            if self.prev_notional_str:
-                assert self.year is not None
+            if (
+                self.prev_notional_str
+                and not self.notional_str
+                and self.year < self.reporting_year
+                and self.maturity_year
+            ):
+                reasoning = (
+                    f"The notional amount is disclosed only for {self.year}, "
+                    f"but the instrument has a stated maturity year of {self.maturity_year} beyond {self.reporting_year}, "
+                    f"indicating continued activity into the reporting period despite absence of a new notional figure."
+                )
+                text = (
+                    f"The narrative references {category_name} derivatives with prior-year {value_desc} "
+                    f"of {self.prev_notional_str}, expected to remain active after {self.year}. {reasoning}"
+                )
+            elif self.prev_notional_str:
                 text = (
                     f"The narrative provides an aggregate summary for {category_name} derivatives, "
                     f"comparing {values_desc} of {self.notional_str} for {self.year} "
                     f"against {self.prev_notional_str} for {self.year - 1}. "
-                    f"This indicates continuity of activity across reporting periods{self._temporal_reasoning(value_desc)}."
+                    f"This indicates continuity across periods."
                 )
             else:
                 text = (
                     f"The narrative mentions an aggregate {value_desc} of {self.notional_str} for {self.instrument_type}, "
-                    f"indicating {category_name} derivative activity in {self.year}{self._temporal_reasoning(value_desc)}."
+                    f"indicating {category_name} derivative activity in {self.year}."
                 )
 
+        # -----------------------------------------------------------------
+        # New
+        # -----------------------------------------------------------------
         elif self.status == "new":
-            text = (
-                f"The narrative describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
-                f"This confirms *current* {category_name} derivative activity, as it appears in {self.reporting_year} but was absent previously{self._temporal_reasoning(value_desc)}."
-            )
+            if self.year == self.reporting_year:
+                text = (
+                    f"The narrative describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
+                    f"This confirms current {category_name} derivative activity, as it appears in {self.reporting_year} but was absent previously."
+                )
+            else:  # Past year
+                text = (
+                    f"The narrative describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
+                    f"This indicates the instrument was newly entered into during {self.year}."
+                )
 
+        # -----------------------------------------------------------------
+        # Terminated
+        # -----------------------------------------------------------------
         elif self.status == "terminated":
             text = (
                 f"The narrative describes a {self.instrument_type} with a {value_desc} of {self.notional_str} "
                 f"that existed in prior data but is absent in {self.reporting_year}. "
-                f"This indicates the instrument was *terminated* during the reporting year, ceasing active use{self._temporal_reasoning(value_desc)}."
+                f"This indicates the instrument was terminated during the reporting year, ceasing active use."
             )
 
+        # -----------------------------------------------------------------
+        # No instruments
+        # -----------------------------------------------------------------
         elif self.status == "no_instruments":
             text = (
                 f"The narrative explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, "
-                f"which directly confirms no current use in the reporting period{self._temporal_reasoning(value_desc)}."
+                f"which directly confirms no current use in the reporting period."
             )
 
+        # -----------------------------------------------------------------
+        # Fallback
+        # -----------------------------------------------------------------
         else:
-            text = f"Uncategorized notional evidence found for {category_name}{self._temporal_reasoning(value_desc)}."
+            text = f"Uncategorized notional evidence found for {category_name}."
 
-        # Combine with warning if any
+        # Append temporal reasoning if not already included
+        if self._temporal_reasoning(value_desc) not in text:
+            text += self._temporal_reasoning(value_desc)
+
         if warning:
             text = f"{text} {warning}"
+
         return text
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
