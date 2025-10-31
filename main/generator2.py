@@ -6,8 +6,7 @@ from dataclasses import field
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 
-from template.common import *
-from template.other import *
+from common_data import *
 from scenario_definitions import (
     NarrativeEvidence,
     DerivativeCategory,
@@ -421,7 +420,7 @@ def create_random_scenario() -> GenerationScenario:
                 symbol=cur[2],
                 amount=random.randint(1, 100) * multiplier,
             )
-            for cur in random.sample(DUMMY_CURRENCIES, num_exposures)
+            for cur in random.sample(all_currencies, num_exposures)
         ]
         hedged_fx = ForeignCurrencyHedgedItem(
             hedged_item_id=hedged_item_id_counter, exposures=exposures
@@ -809,13 +808,15 @@ def _generate_category_narrative(
         )
 
     # 2. Aggregate Summary
+    summary_sentence = [] # Use connectors, and then join at the end to create the full sentence.
     if current_year_data and current_year_data["total_notional"] > 0:
         instrument_type = current_year_data["instrument_types"][0]
         total_notional = current_year_data["total_notional"]
         total_notional_str = _format_notional(total_notional, scenario)
-        sentences.append(
+        summary_sentence.append(
             f"As of December 31, {reporting_year}, the aggregate notional value for our {instrument_type} was {total_notional_str}."
         )
+    
         evidence.append(
             NarrativeEvidence(
                 category=category,  # type: ignore

@@ -1,7 +1,4 @@
-import random
-from dataclasses import dataclass, field
-from typing import List, Literal, Dict
-from scenario_definitions import DerivativeCategory
+from typing import List, Literal
 
 # =============================================================================
 # DUMMY DATA AND ARCHETYPES
@@ -34,13 +31,6 @@ DUMMY_DEBT_TYPES = [
     "revolving credit agreement",
 ]
 DUMMY_COMMODITY_TYPES = ["Natural Gas", "Crude Oil", "Aluminum", "Diesel Fuel"]
-DUMMY_CURRENCIES = [
-    ("EUR", "Euro", "€", "European", "European"),
-    ("GBP", "British Pound", "£", "British", "U.K."),
-    ("JPY", "Japanese Yen", "¥", "Japanese", "Japanese"),
-    ("CAD", "Canadian Dollar", "$", "Canadian", "Canadian"),
-    ("AUD", "Australian Dollar", "$", "Australian", "Australian"),
-]
 DUMMY_BENCHMARK_RATES = ["SOFR", "LIBOR", "EURIBOR"]
 DUMMY_HEDGE_DESIGNATIONS = ["cash_flow", "fair_value", "net_investment", "economic"]
 DUMMY_EQUITY_UNDERLYINGS = ["S&P 500 Index", "{company_name} Common Stock"]
@@ -82,4 +72,3 @@ DUMMY_ACCOUNTING_DESCRIPTIONS = {
     "fair_value": "For derivatives designated as fair value hedges, changes in fair value are recognized in earnings, offsetting the change in the hedged item's fair value.",
     "net_investment": "For net investment hedges, foreign currency translation gains or losses are recorded in other comprehensive income (OCI) to offset the translation of the net investment.",
 }
-cost_types = ["input", "extraction", "storage"]
