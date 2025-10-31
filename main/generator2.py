@@ -810,13 +810,41 @@ def _generate_category_narrative(
     currency_symbol, money_unit_word, currency_code = _get_currency_and_unit_details(scenario)
 
     # 1. Context Sentence (e.g., "To manage our interest rate risk...")
+    # First, get specific details from the scenario's instruments for this category.
+    commodity_name = None
+    commodity_unit = None
+    currency_names = []
+    debt_type_name = None
+    location_names = []
+    cost_type_name = None
+
+    if current_year_data and current_year_data["instruments"]:
+        # Find an instrument in the current year that has a hedged item to extract details from.
+        instrument_with_hedged_item = next((inst for inst in current_year_data["instruments"] if inst.hedged_item), None)
+
+        if instrument_with_hedged_item:
+            hedged_item = instrument_with_hedged_item.hedged_item
+            if isinstance(hedged_item, CommodityHedgedItem):
+                commodity_name = hedged_item.commodity_type
+                commodity_unit = hedged_item.unit_of_volume
+                cost_type_name = hedged_item.cost_type
+            elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
+                currency_names = [exp.full_name for exp in hedged_item.exposures]
+                location_names = [exp.location for exp in hedged_item.exposures]
+            elif isinstance(hedged_item, DebtHedgedItem):
+                debt_type_name = hedged_item.debt_type
+
     # Use the PolicySentence builder which correctly populates all placeholders.
     # This replaces the manual formatting that was here before.
     policy_sentence_obj = PolicySentence(
-        category=category,  # type: ignore
+        category=category, # type: ignore
         company_name=scenario.company_name,
-        # The builder will handle random selection for any details not provided.
-        # We could pass specific debt_type, currencies, etc. here if we wanted to.
+        # Pass specific details if available for this category
+        debt_type=debt_type_name,
+        currencies=currency_names,
+        locations=location_names,
+        commodity=commodity_name,
+        cost_type=cost_type_name,
     )
     context_sentence, policy_evidence = policy_sentence_obj.build()
     sentences.append(context_sentence)
@@ -839,25 +867,6 @@ def _generate_category_narrative(
         value_to_report = total_notional
         if use_fair_value:
             value_to_report = max(1, int(total_notional / random.randint(20, 100)))
-
-        # Get commodity, currency, and debt info from the scenario's predefined instruments.
-        commodity_name = None
-        commodity_unit = None
-        currency_names = []
-        debt_type_name = None
-
-        # Find an instrument in the current year that has a hedged item to extract details from.
-        instrument_with_hedged_item = next((inst for inst in current_year_data["instruments"] if inst.hedged_item), None)
-
-        if instrument_with_hedged_item:
-            hedged_item = instrument_with_hedged_item.hedged_item
-            if isinstance(hedged_item, CommodityHedgedItem):
-                commodity_name = hedged_item.commodity_type
-                commodity_unit = hedged_item.unit_of_volume
-            elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
-                currency_names = [exp.full_name for exp in hedged_item.exposures]
-            elif isinstance(hedged_item, DebtHedgedItem):
-                debt_type_name = hedged_item.debt_type
 
         # Generate aggregate summary sentence using the NotionalSentence class
         summary_sentence_obj = NotionalSentence(

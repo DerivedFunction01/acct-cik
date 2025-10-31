@@ -309,19 +309,20 @@ result_phrases = {
 POLICY_CONTEXT_TEMPLATES = {
     "IR": [
         "{company} is exposed to market risks from changes in {ir_term}s on its {debt_type} and investment portfolios.",
-        "Our financing activities expose us to {risk_term} in {ir_term}s that impact borrowing costs.",
-        "{company} faces exposure to changes in market {ir_term}s affecting both variable-rate debt and interest-bearing assets.",
+        "Our financing activities, particularly our {debt_type}, expose us to {risk_term} in {ir_term}s that impact borrowing costs.",
+        "{company} faces exposure to changes in market {ir_term}s affecting both its {debt_type} and interest-bearing assets.",
         "As part of its funding strategy, {company} {policy_verb} strategies to {risk_action_verb} {risk_nature_phrases} {ir_term} movements.",
-        "Our exposure to {ir_term} {risk_term} arises primarily from debt obligations and cash management activities.",
-        "{company}'s borrowing costs and investment income are influenced by changes in prevailing {ir_term} environments.",
+        "Our exposure to {ir_term} {risk_term} arises primarily from our {debt_type} and cash management activities.",
+        "{company}'s borrowing costs on its {debt_type} are influenced by changes in prevailing {ir_term} environments.",
         "{company} actively monitors and manages its exposure to {ir_term} {risk_term}.",
     ],
     "FX": [
         "{company}'s international operations expose it to risks arising from {risk_term} in foreign currency exchange rates.",
         "Due to its global footprint, {company} is exposed to currency translation and transaction risks, particularly with the {currencies}.",
-        "Our cross-border operations result in exposure to changes in exchange rates between functional and reporting currencies.",
-        "Operating in multiple currencies, {company} is exposed to {risk_term} in exchange rates that can affect its financial results.",
-        "Our revenues, expenses, and cash flows are subject to {risk_term} due to foreign currency exchange rate changes.",
+        "Our cross-border operations in {locations} result in exposure to changes in exchange rates between functional and reporting currencies such as {currencies}.",
+        "Operating in multiple currencies such as {currencies}, {company} is exposed to {risk_term} in exchange rates that can affect its financial results.",
+        "With significant operations in {locations}, {company} is subject to {risk_term} from {currencies} exchange rates.",
+        "Our revenues, expenses, and cash flows are subject to {risk_term} due to foreign currency exchange rate changes in {currencies}",
         "Foreign currency {risk_term} impact {company}'s consolidated financial position and cash flows.",
     ],
     "CP": [

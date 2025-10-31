@@ -250,9 +250,10 @@ class PolicySentence:
     # Optional details based on category
     ir_term: Optional[str] = None
     debt_type: Optional[str] = None
-    currencies: Optional[str] = None
     commodity: Optional[str] = None
     cost_type: Optional[str] = None
+    currencies: List[str] = field(default_factory=list)
+    locations: List[str] = field(default_factory=list)
 
     def build(self) -> Tuple[str, PolicyEvidence]:
         """Builds a policy sentence and a corresponding PolicyEvidence object."""
@@ -260,15 +261,25 @@ class PolicySentence:
         template = random.choice(templates)
 
         # Populate placeholders
+        # Format currencies and locations into human-readable strings
+        currencies_str = "various foreign currencies"
+        if self.currencies:
+            currencies_str = ", ".join(self.currencies[:-1]) + " and " + self.currencies[-1] if len(self.currencies) > 1 else self.currencies[0]
+
+        locations_str = "various international markets"
+        if self.locations:
+            locations_str = ", ".join(self.locations[:-1]) + " and " + self.locations[-1] if len(self.locations) > 1 else self.locations[0]
+
         sentence = template.format(
             company=self.company_name,
             ir_term=self.ir_term or random.choice(interest_rate_terms),
             debt_type=self.debt_type or random.choice(DUMMY_DEBT_TYPES),
             risk_term=random.choice(risk_exposure_terms),
             policy_verb=random.choice(policy_verbs),
-            risk_action_verb=random.choice(risk_management_verbs),
+            risk_action_verb=random.choice(risk_management_verbs), # type: ignore
             risk_nature_phrases=random.choice(risk_nature_phrases),
-            currencies=self.currencies or "various foreign currencies",
+            currencies=currencies_str,
+            locations=locations_str,
             commodity=self.commodity or "various commodities",
             cost_type=self.cost_type or "input costs",
         )
