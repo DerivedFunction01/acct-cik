@@ -2,9 +2,7 @@
 import random
 import pandas as pd
 import json
-from dataclasses import field
-from dataclasses import dataclass
-from typing import List, Optional, Dict, Tuple, Set
+from typing import List, Dict, Tuple, Set
 
 from main.definitions.common_data import *
 from main.definitions.commodity_data import get_random_commodity_and_unit
@@ -13,8 +11,6 @@ from main.definitions.class_definitions import (
     BaseNarrativeEvidence,
     NotionalEvidence,
     NotionalSentence,
-    DerivativeCategory,
-    HedgedItem,
     NotionalInstrument,
     DebtHedgedItem,
     ForeignCurrencyHedgedItem,
@@ -33,7 +29,6 @@ from main.definitions.class_definitions import (
     GeneralHedgingPolicy,
 )
 from main.definitions.dummy_data import *
-from main.definitions.template_definitions import _format_single_notional
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
@@ -493,7 +488,7 @@ def create_random_scenario() -> GenerationScenario:
         base_args = {
             "instrument_type": name,
             "instrument_prefix": prefix,
-            "instrument_name": name,
+            
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -545,7 +540,6 @@ def create_random_scenario() -> GenerationScenario:
         base_args = {
             "instrument_type": name,
             "instrument_prefix": prefix,
-            "instrument_name": name,
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -594,7 +588,6 @@ def create_random_scenario() -> GenerationScenario:
         base_args = {
             "instrument_type": name,
             "instrument_prefix": prefix,
-            "instrument_name": name,
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -643,7 +636,6 @@ def create_random_scenario() -> GenerationScenario:
         base_args = {
             "instrument_type": name,
             "instrument_prefix": prefix,
-            "instrument_name": name,
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -678,7 +670,6 @@ def create_random_scenario() -> GenerationScenario:
         base_args = {
             "instrument_type": name,
             "instrument_prefix": prefix,
-            "instrument_name": name,
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
