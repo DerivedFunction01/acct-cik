@@ -5,7 +5,7 @@ COMMODITY_COST_TYPES = {
     "metals_minerals": ["mining", "extraction", "smelting", "refining"],
     "agriculture": ["farming", "harvesting", "planting", "feeding"],
     "lumber_wood": ["logging", "harvesting", "milling"],
-    "chemicals_plastics": ["manufacturing", "production", "feedstock"],
+    "chemicals_plastics": ["manufacturing", "production", "synthesis"],
     "generic": [
         "input",
         "selling",
