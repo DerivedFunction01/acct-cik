@@ -880,10 +880,10 @@ def _generate_category_narrative(
             # The evidence for the comparative summary is implicitly handled by the `to_string` method
             # of the BaseNarrativeEvidence object, so we don't need to add a separate evidence item.
     else:
-        # Generate a "no instruments" sentence
+        # Generate a "no instruments" sentence if the category is active for the archetype
         no_instrument_obj = NotionalSentence(
             swap_type="",  # Not needed
-            year=reporting_year,
+            year=scenario.reporting_year,
             notional=0,
             month=reporting_month,
             end_day=reporting_day,
@@ -1101,10 +1101,8 @@ def generate_narrative_from_scenario(
     all_sentences.extend(_generate_narrative_accounting(scenario))
 
     # TODO: Cleanup and formatting logic will go here.
-    narrative = ". ".join(all_sentences) + "."
-    full_narrative = (
-        f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
-    )
+    narrative = " ".join(s.strip() for s in all_sentences)
+    full_narrative = f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
     return full_narrative, all_evidence
 
 
@@ -1139,58 +1137,42 @@ def generate_json_from_scenario(
     # This ensures the JSON perfectly matches the narrative. Each piece of evidence
     # that points to a specific instrument contributes to its entry in the final JSON.
     derivatives_list = []
-    # Use a dictionary to aggregate evidence for each instrument ID
-    instrument_evidence_map: Dict[int, Dict] = {}
+    # Use a dictionary to aggregate evidence for each category
+    category_evidence_map: Dict[str, Dict] = {}
 
     for ev in evidence:
-        # We only care about evidence pointing to a specific, non-summary instrument
-        if ev.instrument_id is None:
+        if not hasattr(ev, 'category') or not ev.category:
             continue
 
-        # Find the full instrument object from the scenario to get base details
-        instrument = next(
-            (
-                inst
-                for inst in scenario.instruments
-                if inst.instrument_id == ev.instrument_id
-                and inst.year == scenario.reporting_year
-            ),
-            None,
-        )
-        if not instrument:
-            # If not found in current year, check previous year (for terminated instruments)
-            instrument = next(
-                (
-                    inst
-                    for inst in scenario.instruments
-                    if inst.instrument_id == ev.instrument_id
-                    and inst.year == scenario.reporting_year - 1
-                ),
-                None,
-            )
-        if not instrument:
-            continue
+        category = ev.category
 
-        # If we haven't seen this instrument ID yet, initialize it
-        if ev.instrument_id not in instrument_evidence_map:
-            instrument_evidence_map[ev.instrument_id] = {
-                "instrument_id": instrument.instrument_id,
-                "category": instrument.category,
-                "hedge_designation": instrument.hedge_designation,
+        # Initialize the category if it's the first time we see it
+        if category not in category_evidence_map:
+            category_evidence_map[category] = {
+                "category": category,
+                "notional_amount": 0,
+                "instrument_types": set(),
+                "hedge_designations": set()
             }
 
-        # Add details from the current piece of evidence if they exist
+        # Aggregate details from the current piece of evidence
         if isinstance(ev, NotionalEvidence):
-            if ev.instrument_type is not None:
-                instrument_evidence_map[ev.instrument_id][
-                    "instrument_type"
-                ] = ev.instrument_type
-            if ev.notional is not None:
-                instrument_evidence_map[ev.instrument_id][
-                    "notional_amount"
-                ] = ev.notional
+            # For summary evidence, we take the total notional.
+            # For individual instruments, this will just be its own notional.
+            if ev.status == "summary" and ev.notional is not None:
+                 category_evidence_map[category]["notional_amount"] = ev.notional
 
-    derivatives_list = list(instrument_evidence_map.values())
+            if ev.instrument_type:
+                category_evidence_map[category]["instrument_types"].add(ev.instrument_type)
+
+    # Convert the aggregated map into the final list format
+    for cat, data in category_evidence_map.items():
+        if data["notional_amount"] > 0 or data["instrument_types"]:
+            derivatives_list.append({
+                "category": cat,
+                "instrument_type": ", ".join(sorted(list(data["instrument_types"]))),
+                "notional_amount": data["notional_amount"],
+            })
 
     return {
         "analysis_summary": analysis_summary,

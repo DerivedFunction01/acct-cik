@@ -172,7 +172,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     "comparative": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}, respectively{hedge_designation_clause}{result_clause}.",
         "{time_prefix}, {swap_type} {amount_connector} {amount_str}, respectively, {verb} by {company}{hedge_designation_clause}{result_clause}.",
-        "{swap_type} {amount_connector} {amount_str}, respectively, {time_suffix}{hedge_designation_clause}{result_clause}.",
+        "The {swap_type}'s {amount_connector} was {amount_str}, respectively, {time_suffix}{hedge_designation_clause}{result_clause}.",
         "{time_prefix}, the {amount_prefix} of the {swap_type} were {amount_str}, respectively{hedge_designation_clause}{result_clause}.",
     ],
 }
