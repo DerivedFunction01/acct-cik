@@ -266,6 +266,19 @@ class RiskManagementPolicy:
 
 
 @dataclass
+class AccountingStandardUpdate:
+    """Represents the adoption or discussion of a new accounting standard."""
+
+    standard_name: str
+    issuer: str
+    topic: str
+    adoption_year: int
+    impact_description: str
+    adoption_method: Optional[str] = None
+    effective_year: Optional[int] = None
+    is_adopted: bool = False
+
+@dataclass
 class GenerationScenario:
     """Holds the entire state for a single, coherent training example."""
 
@@ -273,6 +286,7 @@ class GenerationScenario:
     reporting_year: int
     instruments: List[NotionalInstrument] = field(default_factory=list)
     policy: Optional[RiskManagementPolicy] = None
+    accounting_updates: List[AccountingStandardUpdate] = field(default_factory=list)
 
 
 # =============================================================================
@@ -354,6 +368,15 @@ DUMMY_ACCOUNTING_DESCRIPTIONS = {
     "net_investment": "For net investment hedges, foreign currency translation gains or losses are recorded in other comprehensive income (OCI) to offset the translation of the net investment.",
 }
 
+DUMMY_ACCOUNTING_STANDARDS = ["ASU 2017-12", "ASC 815", "IFRS 9"]
+DUMMY_ACCOUNTING_ISSUERS = ["FASB", "IASB"]
+DUMMY_ACCOUNTING_TOPICS = ["Derivatives and Hedging", "Financial Instruments"]
+DUMMY_ADOPTION_IMPACTS = [
+    "no material impact",
+    "a change in hedge effectiveness testing",
+]
+DUMMY_ADOPTION_METHODS = ["modified retrospective approach", "prospective method"]
+
 
 @dataclass
 class ScenarioArchetype:
@@ -370,6 +393,8 @@ class ScenarioArchetype:
     default_currency: str
     derivative_stance: Literal["active_user", "potential_user", "non_user"]
     money_units: List[tuple[str, int]]  # e.g., [("million", 1_000_000), ("billion", 1_000_000_000)]
+    can_have_accounting_update: bool = True
+
 
     def get_exposure_counts(self) -> Dict[str, int]:
         """Generates a dictionary of exposure counts based on the archetype's ranges."""
@@ -596,7 +621,7 @@ def create_random_scenario() -> GenerationScenario:
     # --- Decide on a company archetype and get exposure counts ---
     archetype = random.choice(SCENARIO_ARCHETYPES)
     exposure_counts = archetype.get_exposure_counts()
-    
+
     # --- Decide on the scale of money for this scenario ---
     money_unit, multiplier = random.choice(archetype.money_units)
 
@@ -705,7 +730,26 @@ def create_random_scenario() -> GenerationScenario:
     # =========================================================================
     # STAGE 2: CREATE INSTRUMENTS BASED ON EXPOSURES AND HEDGING PROPENSITY
     # =========================================================================
-
+    # --- Conditionally add an accounting standard update ---
+    # Based on the archetype flag and a random chance.
+    if archetype.can_have_accounting_update and random.random() < 0.15:
+        is_adopted = random.random() < 0.5
+        effective_year = random.randint(reporting_year - 1, reporting_year + 2)
+        update = AccountingStandardUpdate(
+            standard_name=random.choice(DUMMY_ACCOUNTING_STANDARDS),
+            issuer=random.choice(DUMMY_ACCOUNTING_ISSUERS),
+            topic=random.choice(DUMMY_ACCOUNTING_TOPICS),
+            adoption_year=(
+                reporting_year if is_adopted else 0
+            ),  # Set to 0 if not adopted yet
+            impact_description=random.choice(DUMMY_ADOPTION_IMPACTS),
+            adoption_method=(
+                random.choice(DUMMY_ADOPTION_METHODS) if is_adopted else None
+            ),
+            effective_year=effective_year,
+            is_adopted=is_adopted,
+        )
+        scenario.accounting_updates.append(update)
     # If the company is not an active user, skip instrument creation entirely.
     # The narrative will be based on their stance and policies instead.
     if archetype.derivative_stance != "active_user":
