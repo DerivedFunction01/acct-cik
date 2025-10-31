@@ -225,6 +225,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
         if warning:
             text = f"{text} {warning}"
 
+        if self.category == "GEN":
+            classification_note = (
+                " Based on the statement, the disclosure does not specify a clear derivative category "
+                "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference."
+            )
+            text += classification_note
+
         return text
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
