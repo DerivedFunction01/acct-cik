@@ -179,8 +179,8 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     ],
     "comparative": [
         "{company} {verb} {swap_type} {amount_connector} {amount_str}, respectively, {time_suffix}{hedge_designation_clause}{result_clause}.",
-        "As of {month} {end_day}, {year} and {prev_year}, {company} were party to {swap_type} totaling {amount_str}, respectively{result_clause}.",
-        "The aggregate {amount_prefix} of the {swap_type} were {amount_str} as of {month} {end_day}, {year} and {prev_year}, respectively{result_clause}.",
+        "{time_prefix}, {company} were party to {swap_type} totaling {amount_str}, respectively{result_clause}.",
+        "The aggregate {amount_prefix} of the {swap_type} were {amount_str} {time_suffix}, respectively{result_clause}.",
     ],
     "individual": [
         "{time_prefix}, {company} {verb} {swap_type} with a {amount_prefix} of {amount_str}{hedge_designation_clause}{maturity_clause}{result_clause}.",
@@ -189,11 +189,11 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     "historical_individual": [
         "A {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix}{hedge_designation_clause}{maturity_clause}{result_clause}.",
         "{company} {verb} a {swap_type} {historical_phrase}, which had a {state_descriptor} {amount_prefix} of {amount_str} {time_suffix}{hedge_designation_clause}{maturity_clause}{result_clause}.",
-        "As of {month} {end_day}, {year}, a {swap_type} initiated in a prior period had a remaining {amount_prefix} of {amount_str}{maturity_clause}{result_clause}.",
+        "{time_prefix}, a {swap_type} initiated in a prior period had a remaining {amount_prefix} of {amount_str}{maturity_clause}{result_clause}.",
     ],
     "comparative_no_outstanding": [
         "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year{result_clause}.",
-        "There were no {state_descriptor} {swap_type} as of {month} {end_day}, {year}, down from {amount_str} at year-end {prev_year}{result_clause}.",
+        "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year}{result_clause}.",
     ],
     "comparative_no_prior_outstanding": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}, whereas no such instruments were {state_descriptor} in the prior year{hedge_designation_clause}{result_clause}.",

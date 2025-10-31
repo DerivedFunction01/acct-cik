@@ -767,7 +767,7 @@ class NotionalSentence:
                 time_prefix=time_prefix,
                 company=company_name,
                 verb=random.choice(non_use_verbs), # e.g., "did not hold"
-                swap_type=f"{category_risk_phrase} derivative instruments",
+                swap_type=f"{category_risk_phrase} derivatives",
                 category_risk_phrase=category_risk_phrase,
                 time_suffix=time_suffix,
                 year=self.year,
@@ -775,6 +775,7 @@ class NotionalSentence:
                 end_day=end_day,
                 state_descriptor=random.choice(state_descriptors),
                 immaterial_term=random.choice(immaterial),
+                portfolio_term=random.choice(portfolio_terms).format(swap_type=f"{category_risk_phrase} derivatives"),
             )
             evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year, currency=self.currency_code)  # type: ignore
             return sentence, evidence
