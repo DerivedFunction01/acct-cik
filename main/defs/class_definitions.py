@@ -48,6 +48,9 @@ class BaseNarrativeEvidence:
         return f"Uncategorized evidence found for {self.category}."
 
 
+from dataclasses import dataclass
+from typing import Optional, Callable, Dict
+
 @dataclass
 class NotionalEvidence(BaseNarrativeEvidence):
     """Evidence related to notional or fair value amounts of derivative instruments, with temporal reasoning and validation."""
@@ -80,31 +83,42 @@ class NotionalEvidence(BaseNarrativeEvidence):
         }.get(self.category, "Unknown Category")
 
     def _temporal_reasoning(self, value_desc: str) -> str:
-        """Describe time relation of the evidence."""
+        """Describe time relation of the evidence, with maturity only in past/future cases."""
         if not self.reporting_year or not self.year:
             return ""
 
-        # New maturity-based reasoning
         maturity_reason = ""
         if self.maturity_year:
             if self.maturity_year >= self.reporting_year:
-                maturity_reason = f" and is considered active as its maturity year ({self.maturity_year}) is on or after the reporting year."
-            else:  # self.maturity_year < self.reporting_year
-                maturity_reason = f" and is considered historical as it matured in {self.maturity_year}, prior to the reporting year."
+                maturity_reason = f" and is considered current as its maturity year ({self.maturity_year}) is on or after the reporting year."
+            else:
+                maturity_reason = f" and is considered historical as it matured in {self.maturity_year}, prior to or at the reporting year."
 
         if self.year == self.reporting_year:
             if self.notional is None:
-                return f" (for the reporting year {self.reporting_year}, confirming current reporting activity{maturity_reason})."
+                return f" (for the reporting year {self.reporting_year}, confirming current reporting activity)."
             elif self.notional > 0:
-                return f" (for the reporting year {self.reporting_year}, confirming current use with a positive {value_desc}{maturity_reason})."
+                return f" (for the reporting year {self.reporting_year}, confirming current use with a positive {value_desc})."
             else:
-                return f" (for the reporting year {self.reporting_year}, confirming no current use with a zero {value_desc}{maturity_reason})."
-        elif self.year < self.reporting_year:
-            return f" (for a prior year {self.year}, confirming only historical use before the reporting year {self.reporting_year}{maturity_reason})."
-        elif self.year > self.reporting_year:
-            return f" (for a future year {self.year}, indicating expected or forward activity beyond the reporting year {self.reporting_year})."
-        return ""
+                return f" (for the reporting year {self.reporting_year}, confirming no current use with a zero {value_desc})."
 
+        elif self.year < self.reporting_year or self.maturity_year == self.reporting_year:
+            # Historical case
+            mismatch_note = ""
+            if any([
+                self.notional_str and str(self.reporting_year) not in self.notional_str,
+                self.prev_notional_str and str(self.reporting_year) not in self.prev_notional_str,
+                self.prev2_notional_str and str(self.reporting_year) not in self.prev2_notional_str,
+            ]):
+                mismatch_note = f" This confirms the disclosed {value_desc} values do not align with the reporting year {self.reporting_year}, reinforcing their historical nature."
+
+            return f" (for a prior year {self.year}, confirming only historical use before the reporting year {self.reporting_year}{maturity_reason}).{mismatch_note}"
+
+        elif self.year > self.reporting_year:
+            # Future case — no historical note
+            return f" (for a future year {self.year}, indicating expected or forward activity beyond the reporting year {self.reporting_year}{maturity_reason})."
+
+        return ""
     def _validate_temporal_consistency(self) -> Optional[str]:
         """Detect inconsistent or ambiguous temporal relationships."""
         if not self.reporting_year or not self.year:
@@ -127,93 +141,69 @@ class NotionalEvidence(BaseNarrativeEvidence):
     def to_string(self) -> str:
         """Generates a reasoning statement with built-in time validation."""
         category_name = self._category_label()
-        value_desc = (
-            "fair value" if self.value_type == "fair_value" else "notional value"
-        )
-        values_desc = (
-            "fair values" if self.value_type == "fair_value" else "notional values"
-        )
+        value_desc = "fair value" if self.value_type == "fair_value" else "notional value"
+        values_desc = "fair values" if self.value_type == "fair_value" else "notional values"
 
         if self.year is None or self.reporting_year is None:
             return "Incomplete temporal data for reasoning."
 
         warning = self._validate_temporal_consistency()
+        temporal_info = self._temporal_reasoning(value_desc)
+        base_desc = f"'{self.instrument_type}' {category_name} derivative"
 
         # -----------------------------------------------------------------
-        # Summary
+        # Template-driven status handlers
         # -----------------------------------------------------------------
-        if self.status == "summary":
-            if (
-                self.prev_notional_str
-                and not self.notional_str
-                and self.year < self.reporting_year
-                and self.maturity_year
-            ):
-                reasoning = (
-                    f"The {value_desc} amount is disclosed only for {self.year}, "
-                    f"but the instrument has a stated maturity year of {self.maturity_year} beyond {self.reporting_year}, "
-                    f"indicating continued activity into the reporting period despite absence of a new {value_desc} figure."
-                )
-                text = (
-                    f"The report references {category_name} derivatives with prior-year {value_desc} "
-                    f"of {self.prev_notional_str}, expected to remain active after {self.year}. {reasoning}"
-                )
-            elif self.prev_notional_str:
-                text = (
-                    f"The report provides an aggregate summary for {category_name} derivatives, "
-                    f"comparing {values_desc} of {self.notional_str} for {self.year} "
-                    f"against {self.prev_notional_str} for {self.year - 1}. "
-                    f"This indicates continuity across periods"
-                )
-            else:
-                text = (
-                    f"The report mentions an aggregate {value_desc} of {self.notional_str} for {self.instrument_type}, "
-                    f"indicating {category_name} derivative activity in {self.year}"
-                )
+        def summary_handler():
+            if not self.notional_str and self.notional is None:
+                return f"The report provides a summary for {category_name} derivatives, confirming activity but no {value_desc} specified for {self.year}."
+            if self.prev_notional_str and not self.notional_str and self.year < self.reporting_year and self.maturity_year:
+                return (f"The report references {category_name} derivatives with prior-year {value_desc} "
+                        f"of {self.prev_notional_str}, expected to remain active after {self.year}. "
+                        f"The {value_desc} is disclosed only for {self.year}, but maturity extends to {self.maturity_year}, "
+                        f"indicating continued activity.")
+            if self.prev_notional_str:
+                return (f"The report provides an aggregate summary for {category_name} derivatives, "
+                        f"comparing {values_desc} of {self.notional_str} for {self.year} "
+                        f"against {self.prev_notional_str} for {self.year - 1}, indicating continuity.")
+            return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
 
-        # -----------------------------------------------------------------
-        # New
-        # -----------------------------------------------------------------
-        elif self.status == "new":
-            if self.year == self.reporting_year:
-                text = f"The report describes a new '{self.instrument_type}' with a {value_desc} of {self.notional_str}. This confirms 'current' {category_name} use because the instrument appears in the {self.reporting_year} data but was absent in prior periods"
-            else:  # Past year
-                text = f"The report describes a new '{self.instrument_type}' with a {value_desc} of {self.notional_str}. This indicates the instrument was newly entered into during {self.year}"
-        # -----------------------------------------------------------------
-        # Individual
-        # -----------------------------------------------------------------
-        elif self.status == "individual":
-            text = (
-                f"The report mentions an individual '{self.instrument_type}' "
-                f"with a {value_desc} of {self.notional_str}, "
-                f"indicating that at least one {category_name} derivative was active "
-                f"during {self.year}{self._temporal_reasoning(value_desc)}"
-            )
-        # -----------------------------------------------------------------
-        # Terminated
-        # -----------------------------------------------------------------
-        elif self.status == "terminated":
-            text = f"The report describes a '{self.instrument_type}' with a {value_desc} of {self.notional_str} that existed in a prior period but is absent in the {self.reporting_year} data. This comparison indicates the instrument was 'terminated' (matured or settled) during the reporting year"
-            
-        # -----------------------------------------------------------------
-        # No instruments
-        # -----------------------------------------------------------------
-        elif self.status == "no_instruments":
-            text = (
-                f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, "
-                f"which directly confirms no current use in the reporting period"
-            )
+        def new_handler():
+            return (f"The report describes a new {base_desc} "
+                    f"{'with a ' + value_desc + ' of ' + self.notional_str if self.notional_str else ''}"
+                    f"{temporal_info or '.'}")
 
-        # -----------------------------------------------------------------
-        # Fallback
-        # -----------------------------------------------------------------
-        else:
-            text = f"Uncategorized notional evidence found for {category_name}"
+        def individual_handler():
+            return (f"The report mentions an individual {base_desc} "
+                    f"{'with a ' + value_desc + ' of ' + self.notional_str if self.notional_str else ''}"
+                    f"{temporal_info or '.'}")
+
+        def terminated_handler():
+            if not self.notional_str and self.notional is None:
+                return f"The report indicates a {base_desc} was terminated, confirming prior existence but no {value_desc} disclosed."
+            return (f"The report describes a terminated {base_desc} with a {value_desc} of {self.notional_str}, "
+                    f"absent in {self.reporting_year} data, indicating settlement or maturity.")
+
+        def no_instruments_handler():
+            return (f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, "
+                    f"confirming no current use.")
+
+        # Map statuses to handlers
+        handlers: Dict[str, Callable[[], str]] = {
+            "summary": summary_handler,
+            "new": new_handler,
+            "individual": individual_handler,
+            "terminated": terminated_handler,
+            "no_instruments": no_instruments_handler,
+        }
+
+        # Dispatch
+        text = handlers.get(self.status, lambda: f"Uncategorized notional evidence found for {category_name}.")()
 
         if warning:
             text = f"{text} {warning}"
 
-        return text
+        return text.strip()
 
 @dataclass
 class PolicyEvidence(BaseNarrativeEvidence):
@@ -847,10 +837,10 @@ class NotionalSentence:
         if self.maturity_year and self.reporting_year:
             if self.maturity_year > self.reporting_year:
                 adverb = random.choice(future_adverbs)
-                verb_tense = random.choice(termination_verbs_present)
+                verb_tense = random.choice([v for v in termination_verbs_present if not v.endswith('ed')]) # Ensure present tense
                 maturity_clause = f"which {adverb} {verb_tense} in {self.maturity_year}"
             else:  # maturity_year <= reporting_year
-                verb_tense = random.choice(termination_verbs_past)
+                verb_tense = random.choice([v for v in termination_verbs_past if v.endswith('ed')]) # Ensure past tense
                 maturity_clause = f"which {verb_tense} in {self.maturity_year}"
 
         # 7. Select main sentence template

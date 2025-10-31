@@ -1325,14 +1325,8 @@ def generate_json_from_scenario(
 
         # Initialize the instrument if it's the first time we see it
         if instrument_id not in instrument_evidence_map:
-            # --- NEW: Determine status based on maturity year ---
-            status = "current"
-            if ev.maturity_year and ev.reporting_year and ev.maturity_year < ev.reporting_year:
-                status = "terminated"
-            elif ev.status in ["new", "individual", "summary"]:
-                status = "current"
-            else:
-                status = ev.status
+            # Determine status directly from the evidence's own status field.
+            status = "terminated" if ev.status == "terminated_individual" else "current"
 
             instrument_evidence_map[instrument_id] = {
                 "type": ev.instrument_type or "Unknown",
@@ -1348,10 +1342,7 @@ def generate_json_from_scenario(
         instrument_evidence_map[instrument_id]["notional_amount"] = ev.notional
 
         # Update status based on evidence type. 'terminated' is a final state.
-        if ev.status == "terminated":
-            instrument_evidence_map[instrument_id]["status"] = "terminated"
-        # Also check maturity year again in case other evidence for the same ID had a different view
-        elif ev.maturity_year and ev.reporting_year and ev.maturity_year < ev.reporting_year:
+        if ev.status == "terminated_individual":
             instrument_evidence_map[instrument_id]["status"] = "terminated"
 
 

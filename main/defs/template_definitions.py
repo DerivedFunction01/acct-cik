@@ -20,18 +20,24 @@ def _format_single_notional(
 
 def _cleanup_sentence(sentence: str) -> str:
     """Clean up sentence by removing empty placeholders and extra spaces."""
+    # Add a space before a clause if the preceding character is not a space or comma
+    sentence = re.sub(r"([a-zA-Z0-9,])({hedge_designation_clause}|{result_clause}|{maturity_clause})", r"\1 \2", sentence)
+
     # Remove any remaining optional placeholders that weren't filled
     sentence = sentence.replace("{hedge_designation_clause}", "")
     sentence = sentence.replace("{result_clause}", "")
+    sentence = sentence.replace("{maturity_clause}", "")
     sentence = sentence.replace("{time_suffix}", "")  # If not used, remove it
 
     # Clean up multiple spaces
     while "  " in sentence:
         sentence = sentence.replace("  ", " ")
 
-    # Clean up comma/space issues
+    # Clean up comma/space issues more aggressively
+    sentence = sentence.replace(" ,", ",")
     sentence = sentence.replace(" ,", ",")
     sentence = sentence.replace(",,", ",")
+    sentence = sentence.replace(" .", ".")
 
     # Remove trailing commas before period
     sentence = sentence.replace(", .", ".")
