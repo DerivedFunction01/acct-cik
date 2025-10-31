@@ -6,9 +6,9 @@ from dataclasses import field
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 
-from common_data import *
-from commodity_data import *
-from main.class_definitions import (
+from main.definitions.common_data import *
+from main.definitions.commodity_data import *
+from main.definitions.class_definitions import (
     NarrativeEvidence,
     DerivativeCategory,
     HedgedItem,
@@ -25,7 +25,7 @@ from main.class_definitions import (
     ScenarioArchetype,
     CurrencyExposure
 )
-from dummy_data import *
+from main.definitions.dummy_data import *
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
@@ -817,10 +817,11 @@ def _generate_category_narrative(
         instrument_type = current_year_data["instrument_types"][0]
         total_notional = current_year_data["total_notional"]
         total_notional_str = _format_notional(total_notional, scenario)
+        verb = random.choice(aggregate_use_verbs)
         summary_sentence.append(
-            f"As of December 31, {reporting_year}, the aggregate notional value for our {instrument_type} was {total_notional_str}."
+            f"As of December 31, {reporting_year}, we {verb} {instrument_type} with an aggregate notional value of {total_notional_str}."
         )
-    
+
         evidence.append(
             NarrativeEvidence(
                 category=category,  # type: ignore
@@ -880,8 +881,9 @@ def _generate_category_narrative(
             instrument = next((i for i in current_year_data["instruments"] if i.instrument_id == instrument_id), None)
             if instrument:
                 notional_str = _format_notional(instrument.notional_amount, scenario)
+                verb = random.choice(individual_use_verbs)
                 sentences.append(
-                     f"During {reporting_year}, we entered into new {instrument.instrument_type} with an aggregate notional value of {notional_str}."
+                     f"During {reporting_year}, we {verb} new {instrument.instrument_type} with an aggregate notional value of {notional_str}."
                  )
                 evidence.append(
                      NarrativeEvidence(

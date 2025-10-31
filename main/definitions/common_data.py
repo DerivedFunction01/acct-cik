@@ -85,3 +85,19 @@ all_currencies = (
 )
 
 transaction_types = ["purchase", "sale", "exchange", "transfer", "import", "export"]
+
+# For entering into a new int
+individual_use_verbs = [
+    "entered into",
+    "executed",
+    "initiated",
+    "put in place",
+]
+
+# For aggregrate summary notional amounts
+aggregate_use_verbs = [
+    "held",
+    "maintained",
+    "had outstanding",
+    "utilized",
+]
