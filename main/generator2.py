@@ -137,6 +137,7 @@ class DebtHedgedItem(HedgedItem):
 @dataclass
 class CurrencyExposure:
     """Represents a specific currency exposure with its amount."""
+
     code: str  # e.g., "EUR", "GBP"
     name: str  # e.g., "Euro", "British Pound"
     symbol: str  # e.g., "€", "£"
@@ -359,22 +360,23 @@ class ScenarioArchetype:
     """Defines the instrument profile for a type of company to make generation more realistic."""
 
     name: str
-    ir_range: tuple[int, int]
-    fx_range: tuple[int, int]
-    cp_range: tuple[int, int]
-    eq_range: tuple[int, int]
-    gen_range: tuple[int, int]
+    debt_exposure_range: tuple[int, int]
+    fx_exposure_range: tuple[int, int]
+    commodity_exposure_range: tuple[int, int]
+    equity_exposure_range: tuple[int, int]
+    generic_instrument_range: tuple[int, int]
+    hedging_propensity: float  # A value between 0.0 and 1.0, representing the likelihood of hedging an exposure.
     policy_coverage: Literal["full", "partial", "light"]
     default_currency: str
 
-    def get_instrument_counts(self) -> Dict[str, int]:
-        """Generates a dictionary of instrument counts based on the archetype's ranges."""
+    def get_exposure_counts(self) -> Dict[str, int]:
+        """Generates a dictionary of exposure counts based on the archetype's ranges."""
         return {
-            "IR": random.randint(*self.ir_range),
-            "FX": random.randint(*self.fx_range),
-            "CP": random.randint(*self.cp_range),
-            "EQ": random.randint(*self.eq_range),
-            "GEN": random.randint(*self.gen_range),
+            "debt": random.randint(*self.debt_exposure_range),
+            "fx": random.randint(*self.fx_exposure_range),
+            "commodity": random.randint(*self.commodity_exposure_range),
+            "equity": random.randint(*self.equity_exposure_range),
+            "generic": random.randint(*self.generic_instrument_range),
         }
 
 
@@ -382,51 +384,56 @@ class ScenarioArchetype:
 SCENARIO_ARCHETYPES = [
     ScenarioArchetype(
         name="Large Multinational",
-        ir_range=(2, 4),
-        fx_range=(2, 5),
-        cp_range=(1, 3),
-        eq_range=(0, 2),
-        gen_range=(0, 1),
+        debt_exposure_range=(3, 6),
+        fx_exposure_range=(3, 6),
+        commodity_exposure_range=(2, 4),
+        equity_exposure_range=(1, 3),
+        generic_instrument_range=(0, 2),
+        hedging_propensity=0.8,
         policy_coverage="full",
         default_currency="USD",
     ),
     ScenarioArchetype(
         name="Domestic Industrial",
-        ir_range=(1, 3),
-        fx_range=(0, 2),
-        cp_range=(2, 4),
-        eq_range=(0, 1),
-        gen_range=(0, 1),
+        debt_exposure_range=(2, 4),
+        fx_exposure_range=(0, 2),
+        commodity_exposure_range=(3, 5),
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 1),
+        hedging_propensity=0.7,
         policy_coverage="partial",
         default_currency="USD",
     ),
     ScenarioArchetype(
         name="Tech Company",
-        ir_range=(0, 2),
-        fx_range=(1, 4),
-        cp_range=(0, 0),
-        eq_range=(1, 3),
-        gen_range=(0, 1),
+        debt_exposure_range=(1, 3),
+        fx_exposure_range=(2, 5),
+        commodity_exposure_range=(0, 0),
+        equity_exposure_range=(2, 4),
+        generic_instrument_range=(0, 1),
+        hedging_propensity=0.6,
         policy_coverage="partial",
         default_currency="USD",
     ),
     ScenarioArchetype(
         name="Financial Institution",
-        ir_range=(2, 5),
-        fx_range=(2, 5),
-        cp_range=(0, 1),
-        eq_range=(0, 2),
-        gen_range=(0, 1),
+        debt_exposure_range=(4, 8),
+        fx_exposure_range=(4, 8),
+        commodity_exposure_range=(0, 2),
+        equity_exposure_range=(1, 3),
+        generic_instrument_range=(1, 2),
+        hedging_propensity=0.9,
         policy_coverage="full",
         default_currency="USD",
     ),
     ScenarioArchetype(
         name="Policy Only / Light User",
-        ir_range=(0, 1),
-        fx_range=(0, 1),
-        cp_range=(0, 0),
-        eq_range=(0, 0),
-        gen_range=(1, 2),
+        debt_exposure_range=(0, 2),
+        fx_exposure_range=(0, 2),
+        commodity_exposure_range=(0, 1),
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(1, 2),
+        hedging_propensity=0.25,
         policy_coverage="light",
         default_currency="USD",
     ),
@@ -501,50 +508,102 @@ def create_random_scenario() -> GenerationScenario:
     """
     reporting_year = random.randint(2020, 2024)
 
-    # --- Decide on a company archetype and get instrument counts ---
+    # --- Decide on a company archetype and get exposure counts ---
     archetype = random.choice(SCENARIO_ARCHETYPES)
-    instrument_counts = archetype.get_instrument_counts()
+    exposure_counts = archetype.get_exposure_counts()
+
+    # This is a proxy for how many instruments will be created, used for policy generation
+    # It's an estimate because of the hedging_propensity logic
+    instrument_counts_proxy = {
+        "IR": int(exposure_counts["debt"] * archetype.hedging_propensity),
+        "FX": int(exposure_counts["fx"] * archetype.hedging_propensity),
+        "CP": int(exposure_counts["commodity"] * archetype.hedging_propensity),
+        "EQ": int(exposure_counts["equity"] * archetype.hedging_propensity),
+        "GEN": exposure_counts["generic"],
+    }
 
     scenario = GenerationScenario(
         company_name=random.choice(company_names),
         reporting_year=reporting_year,
         instruments=[],
-        policy=generate_policy_for_archetype(archetype, instrument_counts),
+        policy=generate_policy_for_archetype(archetype, instrument_counts_proxy),
     )
 
     instrument_id_counter = 1
     hedged_item_id_counter = 1
 
-    # --- Create IR Instruments ---
-    for _ in range(instrument_counts["IR"]):
-        is_terminated = (
-            random.random() < 0.3
-        )  # 30% chance of being a terminated instrument
+    # =========================================================================
+    # STAGE 1: GENERATE THE POOL OF POTENTIAL HEDGED ITEMS (EXPOSURES)
+    # =========================================================================
+
+    potential_hedged_items: Dict[str, List] = {
+        "debt": [],
+        "fx": [],
+        "commodity": [],
+        "equity": [],
+    }
+
+    # --- Generate Debt Exposures ---
+    for _ in range(exposure_counts["debt"]):
+        issuance_year = random.randint(reporting_year - 8, reporting_year - 1)
+        maturity_year = random.randint(reporting_year + 2, reporting_year + 10)
+        hedged_debt = DebtHedgedItem(
+            hedged_item_id=hedged_item_id_counter,
+            debt_type=random.choice(DUMMY_DEBT_TYPES),
+            issuance_month=random.choice(months),
+            issuance_year=issuance_year,
+            maturity_month=random.choice(months),
+            maturity_year=maturity_year,
+            principal_amount=random.randint(5, 500) * 1_000_000,
+            interest_rate_type="variable",
+            benchmark_rate=random.choice(DUMMY_BENCHMARK_RATES),
+            spread_bps=random.randint(100, 300),
+        )
+        potential_hedged_items["debt"].append(hedged_debt)
+        hedged_item_id_counter += 1
+
+    # --- Generate FX Exposures ---
+    for _ in range(exposure_counts["fx"]):
+        num_exposures = random.randint(1, 3)
+        exposures = [
+            CurrencyExposure(
+                code=cur[0],
+                name=cur[1],
+                symbol=cur[2],
+                amount=random.randint(1, 100) * 1_000_000,
+            )
+            for cur in random.sample(DUMMY_CURRENCIES, num_exposures)
+        ]
+        hedged_fx = ForeignCurrencyHedgedItem(
+            hedged_item_id=hedged_item_id_counter, exposures=exposures
+        )
+        potential_hedged_items["fx"].append(hedged_fx)
+        hedged_item_id_counter += 1
+
+    # =========================================================================
+    # STAGE 2: CREATE INSTRUMENTS BASED ON EXPOSURES AND HEDGING PROPENSITY
+    # =========================================================================
+
+    # --- Create IR Instruments (for some of the debt exposures) ---
+    for debt_item in potential_hedged_items["debt"]:
         issuance_year = random.randint(reporting_year - 8, reporting_year - 1)
         hedged_debt = None
         notional = 0
+        maturity_year = 0  # Initialize to satisfy linter
+        is_terminated = random.random() < 0.3
 
         if is_terminated:
             maturity_year = random.randint(issuance_year + 1, reporting_year)
             notional = random.randint(5, 500) * 1_000_000
-        else:
-            maturity_year = random.randint(reporting_year + 2, reporting_year + 10)
-            hedged_debt = DebtHedgedItem(
-                hedged_item_id=hedged_item_id_counter,
-                debt_type=random.choice(DUMMY_DEBT_TYPES),
-                issuance_month=random.choice(months),
-                issuance_year=issuance_year,
-                maturity_month=random.choice(months),
-                maturity_year=maturity_year,
-                principal_amount=random.randint(5, 500) * 1_000_000,
-                interest_rate_type="variable",
-                benchmark_rate=random.choice(DUMMY_BENCHMARK_RATES),
-                spread_bps=random.randint(100, 300),
-            )
+        elif random.random() < archetype.hedging_propensity:
+            # Create an active hedge for this existing debt exposure
+            hedged_debt = debt_item
+            maturity_year = hedged_debt.maturity_year
             notional = hedged_debt.principal_amount
-            hedged_item_id_counter += 1
+        else:
+            continue  # Skip creating an instrument for this exposure
 
-        ir_swap = IRInstrument(
+        ir_instrument = IRInstrument(
             category="IR",
             instrument_id=instrument_id_counter,
             instrument_type=random.choice(DUMMY_IR_INSTRUMENT_TYPES),
@@ -557,34 +616,26 @@ def create_random_scenario() -> GenerationScenario:
             hedged_item=hedged_debt,
         )
         instrument_id_counter += 1
-        scenario.instruments.append(ir_swap)
+        scenario.instruments.append(ir_instrument)
 
     # --- Create FX Instruments ---
-    for _ in range(instrument_counts["FX"]):
+    for fx_item in potential_hedged_items["fx"]:
         is_terminated = random.random() < 0.3
         hedged_fx = None
         notional = 0
+        maturity_year = 0  # Initialize to satisfy linter
 
         if is_terminated:
             maturity_year = random.randint(reporting_year - 2, reporting_year)
             notional = random.randint(10, 200) * 1_000_000
-        else:
+        elif random.random() < archetype.hedging_propensity:
+            hedged_fx = fx_item
             maturity_year = random.randint(reporting_year + 1, reporting_year + 3)
-            num_exposures = random.randint(1, 3)
-            exposures = [
-                CurrencyExposure(
-                    code=cur[0],
-                    name=cur[1],
-                    symbol=cur[2],
-                    amount=random.randint(1, 100) * 1_000_000,
-                )
-                for cur in random.sample(DUMMY_CURRENCIES, num_exposures)
-            ]
-            hedged_fx = ForeignCurrencyHedgedItem(
-                hedged_item_id=hedged_item_id_counter, exposures=exposures
-            )
-            notional = sum(e.amount for e in exposures)  # Simplified USD equivalent
-            hedged_item_id_counter += 1
+            notional = sum(
+                e.amount for e in hedged_fx.exposures
+            )  # Simplified USD equivalent
+        else:
+            continue  # Skip creating an instrument for this exposure
 
         fx_instrument = FXInstrument(
             category="FX",
@@ -602,15 +653,16 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.append(fx_instrument)
 
     # --- Create CP Instruments ---
-    for _ in range(instrument_counts["CP"]):
+    for _ in range(exposure_counts["commodity"]):
         is_terminated = random.random() < 0.3
         hedged_commodity = None
         notional = 0
+        maturity_year = 0  # Initialize to satisfy linter
 
         if is_terminated:
             maturity_year = random.randint(reporting_year - 2, reporting_year)
             notional = random.randint(5, 100) * 1_000_000
-        else:
+        elif random.random() < archetype.hedging_propensity:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
             notional = random.randint(5, 100) * 1_000_000
             hedged_commodity = CommodityHedgedItem(
@@ -626,6 +678,8 @@ def create_random_scenario() -> GenerationScenario:
                 ),
             )
             hedged_item_id_counter += 1
+        else:
+            continue  # Skip creating an instrument for this exposure
 
         cp_instrument = CPInstrument(
             category="CP",
@@ -643,15 +697,16 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.append(cp_instrument)
 
     # --- Create EQ Instruments ---
-    for _ in range(instrument_counts.get("EQ", 0)):
+    for _ in range(exposure_counts.get("equity", 0)):
         is_terminated = random.random() < 0.3
         hedged_equity = None
         notional = 0
+        maturity_year = 0  # Initialize to satisfy linter
 
         if is_terminated:
             maturity_year = random.randint(reporting_year - 2, reporting_year)
             notional = random.randint(1, 50) * 1_000_000
-        else:
+        elif random.random() < archetype.hedging_propensity:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
             notional = random.randint(1, 100) * 1_000_000
             hedged_equity = EquityHedgedItem(
@@ -663,6 +718,8 @@ def create_random_scenario() -> GenerationScenario:
                 reason=random.choice(DUMMY_EQUITY_REASONS),
             )
             hedged_item_id_counter += 1
+        else:
+            continue  # Skip creating an instrument for this exposure
 
         eq_instrument = EQInstrument(
             category="EQ",
@@ -680,7 +737,7 @@ def create_random_scenario() -> GenerationScenario:
         scenario.instruments.append(eq_instrument)
 
     # --- Create Generic Instruments ---
-    for _ in range(instrument_counts.get("GEN", 0)):
+    for _ in range(exposure_counts.get("generic", 0)):
         is_terminated = random.random() < 0.4
         maturity_year = (
             random.randint(reporting_year - 3, reporting_year)
