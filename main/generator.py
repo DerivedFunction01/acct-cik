@@ -1117,7 +1117,7 @@ def generate_hedge_paragraph(
             # '"{swap_type}" means: any {swap_definitions}',
             swap_type = random.choice(derivative_keywords["gen"])
             swap_definitions = []
-            num_def = random.randint(2, 4)
+            num_def = random.randint(1, 3)
             for idx in range(num_def):
                 s_types = random.sample(["rate", "basis", "commodity", "currency", "debt", "equity"], random.randint(2, 4))
                 swap_sentence = f"{idx}{random.choice([".", ")"])} any {', '.join(s_types)} {random.choice(BASE_TYPES)} {random.choice(DEFAULT_SUFFIXES) if random.random() < 0.25 else ''}"
@@ -1125,14 +1125,13 @@ def generate_hedge_paragraph(
             sentence = template.format(swap_type=swap_type, swap_definitions=', '.join(swap_definitions))
             def_sent.append(sentence)
             # Add some additional
-            additional_def = random.sample(hedge_additional_definition_templates, random.randint(2, 4))
+            additional_def = random.sample(hedge_additional_definition_templates, random.randint(1, 3))
             for add in additional_def:
                 def_sent.append(add.format(suffix=random.choice(DEFAULT_SUFFIXES)))
             # Join them together
             sentence = ', '.join(def_sent)
             sentences.append(sentence)
         random.shuffle(sentences)
-        sentences = random.sample(sentences, random.randint(2,3))
         return sentences
 
     # --- Main Execution Logic ---
