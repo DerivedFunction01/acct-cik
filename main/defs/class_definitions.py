@@ -217,6 +217,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         if self.category == "GEN":
             classification_note = (
                 " Based on the statement, the disclosure does not specify a clear derivative category "
+                "and I cannot link it to any other derivatives I currently know, "
                 "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference."
             )
             text += classification_note
