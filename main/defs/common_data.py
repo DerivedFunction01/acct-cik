@@ -191,11 +191,11 @@ SPECIAL_EXPANSIONS = {
 }
 
 CATEGORY_EXTRAS = {
-    "ir": [],
-    "fx": ["NDF"],
-    "cp": [],
-    "eq": ["index future"],
-    "gen": [
+    "IR": [],
+    "FX": ["NDF"],
+    "CP": [],
+    "EQ": ["index future"],
+    "GEN": [
         "over-the-counter contract",
         "collar strategies",
         "total return swap",
@@ -204,7 +204,7 @@ CATEGORY_EXTRAS = {
 }
 
 PLACEHOLDERS = {
-    "ir": [
+    "IR": [
         "interest-rate",
         "single-currency",
         "Eurodollar",
@@ -221,7 +221,7 @@ PLACEHOLDERS = {
         "variable-rate",
         "benchmark-rate",
     ],
-    "fx": [
+    "FX": [
         "foreign exchange",
         "forward exchange",
         "foreign currency",
@@ -236,14 +236,14 @@ PLACEHOLDERS = {
         "FX",
         "dollar call",
     ],
-    "cp": [
+    "CP": [
         "commodity price",
         "commodity-related",
         "fixed commodity",
         "commodity-based",
     ],
-    "eq": ["equity", "equity-related"],
-    "gen": [""],
+    "EQ": ["equity", "equity-related"],
+    "GEN": [""],
 }
 
 
