@@ -363,7 +363,6 @@ DEPENDENT_TYPES = [
 BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
 
 DEFAULT_SUFFIXES = [
-    "",
     "agreement",
     "contract",
     "arrangement",
@@ -451,6 +450,8 @@ def expand_types(base_types, suffixes, special) -> list[str]:
     results = []
     for base in base_types:
         results.extend(f"{base} {s}".strip() for s in suffixes)
+        if base in STANDALONE_TYPES:
+            results.append(base)
         if base in special:
             results.extend(special[base])
     return sorted(set(results))
