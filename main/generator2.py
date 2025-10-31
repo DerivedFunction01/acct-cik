@@ -500,7 +500,7 @@ def create_random_scenario() -> GenerationScenario:
             "notional_amount": notional,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
-            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_debt,
         }
 
@@ -551,7 +551,7 @@ def create_random_scenario() -> GenerationScenario:
             "notional_amount": notional,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
-            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_fx,
         }
 
@@ -599,7 +599,7 @@ def create_random_scenario() -> GenerationScenario:
             "notional_amount": notional,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
-            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_commodity,
         }
 
@@ -647,7 +647,7 @@ def create_random_scenario() -> GenerationScenario:
             "notional_amount": notional,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
-            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_equity,
         }
 
@@ -681,7 +681,7 @@ def create_random_scenario() -> GenerationScenario:
             "notional_amount": random.randint(10, 300) * multiplier,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
-            "hedge_designation": random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            "hedge_designation": random.choice(hedge_designations),
             "hedged_item": None,  # Generic instruments often don't have a specific hedged item
         }
 
