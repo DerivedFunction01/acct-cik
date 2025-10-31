@@ -266,7 +266,7 @@ class PolicySentence:
             debt_type=self.debt_type or random.choice(DUMMY_DEBT_TYPES),
             risk_term=random.choice(risk_exposure_terms),
             policy_verb=random.choice(policy_verbs),
-            risk_action_verb=random.choice(risk_action_verbs),
+            risk_action_verb=random.choice(risk_management_verbs),
             risk_nature_phrases=random.choice(risk_nature_phrases),
             currencies=self.currencies or "various foreign currencies",
             commodity=self.commodity or "various commodities",
@@ -748,7 +748,7 @@ class NotionalSentence:
             if self.sentence_type == "new_individual":
                 verb = random.choice(individual_use_verbs)
             elif self.sentence_type == "terminated_individual":
-                verb = random.choice(user_termination_verbs)
+                verb = random.choice(termination_verbs_past)
             else:  # summary, comparative
                 verb = random.choice(aggregate_use_verbs)
 
@@ -790,14 +790,14 @@ class NotionalSentence:
             
             # Generate a random amount for the result phrase and format it
             random_amount = int(self.notional * random.randint(1, 50) / 100)
-            formatted_amount = _format_single_notional(
+            formatted_amount_result = _format_single_notional(
                 random_amount,
                 self.currency_symbol,
                 self.money_units,
                 self.prefer_abbreviated,
             )
             populated_phrase = self.result_phrase.format(
-                mitigation_verb=random.choice(risk_mitigation_verbs),
+                mitigation_verb=random.choice(risk_management_verbs),
                 gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 risk_term=random.choice(risk_exposure_terms),
@@ -807,7 +807,7 @@ class NotionalSentence:
                 currency_code=self.currency_code,
                 rate_term1=rate_term1,
                 rate_term2=rate_term2,
-                formatted_amount=formatted_amount, # type: ignore
+                formatted_amount=formatted_amount_result, # type: ignore
                 commodity=self.commodity,
                 unit=self.unit,
             )
@@ -818,10 +818,10 @@ class NotionalSentence:
         if self.maturity_year and self.reporting_year:
             if self.maturity_year > self.reporting_year:
                 adverb = random.choice(future_adverbs)
-                verb = random.choice(termination_verbs)
+                verb = random.choice(termination_verbs_present)
                 maturity_clause = f", which {adverb} {verb} in {self.maturity_year}"
             else: # maturity_year <= reporting_year
-                verb = random.choice(swap_termination_verbs)
+                verb = random.choice(termination_verbs_past)
                 maturity_clause = f", which {verb} in {self.maturity_year}"
 
         # 7. Select main sentence template
@@ -850,7 +850,7 @@ class NotionalSentence:
                 company=company_name,
                 verb=random.choice(non_use_verbs), # e.g., "did not hold"
                 swap_type=f"{category_risk_phrase} derivatives",
-                category_risk_phrase=category_risk_phrase,
+                category_risk_phrase=category_risk_phrase, # type: ignore
                 time_suffix=time_suffix,
                 year=self.year,
                 month=month,

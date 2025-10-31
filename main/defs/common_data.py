@@ -123,11 +123,6 @@ aggregate_use_verbs = [
     "were party to",
 ] + shared_use_verbs
 
-# Verbs for termination/expiration events (We {verb})
-user_termination_verbs = [
-    "terminated", "settled", "closed out", "ended", "unwounded", "liquidated",
-]
-
 future_adverbs = [
     "will",
     "is scheduled to",    
@@ -136,17 +131,27 @@ future_adverbs = [
     "is projected to",
 ]
 
-termination_verbs = [
+# Verbs for termination/expiration events
+termination_verbs_present = [
     "expire",
     "settle",
     "mature",
     "terminate",
+    "close out",
+    "unwind",
+    "liquidate",
     "reach their expiration date",
 ]
 
-# Verbs for termination/expiration events (The swap {verb})
-swap_termination_verbs = [
-    "expired", "matured", "reached maturity", "settled", "terminated",
+termination_verbs_past = [
+    "expired",
+    "settled",
+    "matured",
+    "terminated",
+    "close out",
+    "unwounded",
+    "liquidated",
+    "reach their expiration date",
 ]
 
 # Comparison verbs phrases
@@ -174,25 +179,27 @@ policy_verbs = [
     "applies",
 ]
 
-current_adverbs = [
-    "currently",
-    "actively",
-    "presently",
-    "now",
-    "also",
-    "primarily",
-    "only",
-    "expect to continue to" "",
-]
-
-past_adverbs = [
-    "in the past",
-    ", from time to time, ",
-    "periodically",
-    "occasionally",
-    ", in the future,",
-    "",
-]
+time_adverbs = {
+    "current": [
+        "currently",
+        "actively",
+        "presently",
+        "now",
+        "also",
+        "primarily",
+        "only",
+        "expect to continue to",
+        "",
+    ],
+    "past": [
+        "in the past",
+        "from time to time",
+        "periodically",
+        "occasionally",
+        "in the future", 
+        "",
+    ],
+}
 
 not_adverbs = [
     "does not",
@@ -204,7 +211,7 @@ not_adverbs = [
 ]
 
 # Verbs for describing risk management actions (e.g., "...to {verb} exposure")
-risk_action_verbs = [
+risk_management_verbs = [
     "manage",
     "mitigate",
     "reduce",
@@ -214,6 +221,13 @@ risk_action_verbs = [
     "limit",
     "protect against",
     "control",
+    "mitigating",
+    "hedging",
+    "offsetting",
+    "protecting against",
+    "reducing",
+    "managing",
+    "stabilizing",
 ]
 
 # Phrases describing the nature of risk
@@ -225,16 +239,6 @@ risk_nature_phrases = [
     "fluctuations in",
 ]
 # --- New Placeholder Lists for Result Phrases ---
-
-risk_mitigation_verbs = [
-    "mitigating",
-    "hedging",
-    "offsetting",
-    "protecting against",
-    "reducing",
-    "managing",
-    "stabilizing",
-]
 
 risk_exposure_terms = [
     "fluctuations",
