@@ -148,9 +148,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 and self.maturity_year
             ):
                 reasoning = (
-                    f"The {self.value_desc} amount is disclosed only for {self.year}, "
+                    f"The {value_desc} amount is disclosed only for {self.year}, "
                     f"but the instrument has a stated maturity year of {self.maturity_year} beyond {self.reporting_year}, "
-                    f"indicating continued activity into the reporting period despite absence of a new {self.values_desc} figure."
+                    f"indicating continued activity into the reporting period despite absence of a new {value_desc} figure."
                 )
                 text = (
                     f"The report references {category_name} derivatives with prior-year {value_desc} "
