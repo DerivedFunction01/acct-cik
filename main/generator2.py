@@ -60,6 +60,7 @@ def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000, dashed=False):
 
     return value
 
+
 # %%
 # =============================================================================
 # PHASE 1: SCENARIO DEFINITION - CLASS DEFINITION
@@ -73,17 +74,21 @@ DerivativeCategory = Literal["IR", "FX", "CP", "EQ", "GEN"]
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
+
 @dataclass
 class DerivativeInstrument:
     """Base class for a single derivative instrument within our narrative."""
-    instrument_id: int # A unique ID to track the same instrument across multiple years.
+
+    instrument_id: (
+        int  # A unique ID to track the same instrument across multiple years.
+    )
     instrument_type: str
     category: DerivativeCategory  # The category of the derivative
     month: str  # The month this state of the instrument is for.
     year: int  # The year this state of the instrument is for.
     hedge_designation: Optional[str] = None
-    maturity_month: Optional[str] = None # The maturity month
-    maturity_year: Optional[int] = None # The maturity year
+    maturity_month: Optional[str] = None  # The maturity month
+    maturity_year: Optional[int] = None  # The maturity year
 
     def to_dict(self) -> Dict:
         """Serializes the common instrument data to a dictionary for JSON output."""
@@ -98,7 +103,10 @@ class DerivativeInstrument:
 @dataclass
 class HedgedItem:
     """Base class for the item being hedged."""
-    hedged_item_id: int # A unique ID to track the same hedged item across multiple years.
+
+    hedged_item_id: (
+        int  # A unique ID to track the same hedged item across multiple years.
+    )
 
     def to_dict(self) -> Optional[Dict]:
         """Serializes the hedged item data to a dictionary."""
@@ -110,6 +118,7 @@ class HedgedItem:
 @dataclass
 class DebtHedgedItem(HedgedItem):
     """Represents a debt instrument being hedged (for IR derivatives)."""
+
     debt_type: str  # e.g., "variable-rate credit facility", "senior notes", "term loan"
     issuance_month: Optional[str]
     issuance_year: int
@@ -119,42 +128,46 @@ class DebtHedgedItem(HedgedItem):
     interest_rate_type: Literal["fixed", "variable"]
     benchmark_rate: Optional[str] = None  # e.g., "LIBOR", "SOFR"
     spread_bps: Optional[int] = None  # Basis points over the benchmark
-    fixed_rate_pct: Optional[float] = None # The fixed rate percentage
+    fixed_rate_pct: Optional[float] = None  # The fixed rate percentage
     change_rate_pct: Optional[float] = None  # The new rate percentage
     payment_amount: Optional[int] = None  # The payment amount
-    payment_frequency: Optional[str] = None # Payment frequency
+    payment_frequency: Optional[str] = None  # Payment frequency
 
 
 @dataclass
 class CurrencyExposure:
     """Represents a specific currency exposure with its amount."""
+
     currency: str  # e.g., "EUR", "GBP"
-    amount: int    # The notional amount of the exposure in that currency
+    amount: int  # The notional amount of the exposure in that currency
 
 
 @dataclass
 class ForeignCurrencyHedgedItem(HedgedItem):
     """Represents foreign currency exposure being hedged (for FX derivatives)."""
+
     exposures: List[CurrencyExposure] = field(default_factory=list)
 
 
 @dataclass
 class CommodityHedgedItem(HedgedItem):
     """Represents a commodity being hedged (for CP derivatives)."""
+
     commodity_type: str
     quantity: int
     unit_of_volume: str
     price_per_unit: float
-    cost_type: str # Ex. input, extraction, storage
+    cost_type: str  # Ex. input, extraction, storage
     transaction_type: Literal["purchase", "sale"]
-    supplier: Optional[str] # Ex. a third party supplier
+    supplier: Optional[str]  # Ex. a third party supplier
 
 
 @dataclass
 class EquityHedgedItem(HedgedItem):
     """Represents an equity instrument being hedged (for EQ derivatives)."""
+
     # Placeholder for future implementation
-    underlying_equity: str # e.g., "S&P 500 Index", "Company Common Stock"
+    underlying_equity: str  # e.g., "S&P 500 Index", "Company Common Stock"
     equity_type: Literal["market_index", "own_stock", "third_party_stock"]
     reason: str
 
@@ -162,6 +175,7 @@ class EquityHedgedItem(HedgedItem):
 @dataclass
 class NotionalInstrument(DerivativeInstrument, Generic[T_HedgedItem]):
     """A derivative instrument primarily defined by a notional amount."""
+
     notional_amount: int = 0
     currency: str = "USD"
     hedged_item: Optional[T_HedgedItem] = None
@@ -170,11 +184,13 @@ class NotionalInstrument(DerivativeInstrument, Generic[T_HedgedItem]):
         """Extends the base to_dict to include notional-specific fields."""
         # This now correctly handles the nested HedgedItem object.
         data = super().to_dict()
-        data.update({
-            "notional_amount": self.notional_amount,
-            "currency": self.currency,
-            "hedged_item": self.hedged_item.to_dict() if self.hedged_item else None,
-        })
+        data.update(
+            {
+                "notional_amount": self.notional_amount,
+                "currency": self.currency,
+                "hedged_item": self.hedged_item.to_dict() if self.hedged_item else None,
+            }
+        )
         return data
 
     def __post_init__(self):
@@ -202,11 +218,14 @@ class IRInstrument(NotionalInstrument[DebtHedgedItem]):
 class FXInstrument(NotionalInstrument[ForeignCurrencyHedgedItem]):
     pass
 
+
 class CPInstrument(NotionalInstrument[CommodityHedgedItem]):
     pass
 
+
 class EQInstrument(NotionalInstrument[EquityHedgedItem]):
     pass
+
 
 class GenericInstrument(NotionalInstrument[HedgedItem]):
     pass
@@ -215,18 +234,22 @@ class GenericInstrument(NotionalInstrument[HedgedItem]):
 @dataclass
 class GeneralHedgingPolicy:
     """Describes the company's high-level, non-instrument-specific hedging policies."""
+
     does_not_use_for_trading: bool = True
     counterparty_credit_risk_monitored: bool = True
-    counterparty_details: str = "major financial institutions" # e.g., "major financial institutions"
+    counterparty_details: str = (
+        "major financial institutions"  # e.g., "major financial institutions"
+    )
 
 
 @dataclass
 class CategorySpecificPolicy:
     """Describes policies for a specific category of derivatives (e.g., IR, FX)."""
+
     category: DerivativeCategory
-    effectiveness_testing_method: Optional[str] = None # e.g., "dollar-offset method"
+    effectiveness_testing_method: Optional[str] = None  # e.g., "dollar-offset method"
     effectiveness_frequency: Optional[str] = "quarterly"
-    documentation_formalized: bool = True    
+    documentation_formalized: bool = True
     # Describes the general accounting policy for this category
     accounting_policy_description: Optional[str] = None
     accounting_standard: Optional[str] = None
@@ -235,6 +258,7 @@ class CategorySpecificPolicy:
 @dataclass
 class RiskManagementPolicy:
     """Contains all policy-related information for the narrative."""
+
     general_policy: GeneralHedgingPolicy = field(default_factory=GeneralHedgingPolicy)
     category_policies: List[CategorySpecificPolicy] = field(default_factory=list)
 
@@ -242,32 +266,84 @@ class RiskManagementPolicy:
 @dataclass
 class GenerationScenario:
     """Holds the entire state for a single, coherent training example."""
+
     company_name: str
-    reporting_year: int    
-    instruments: List[NotionalInstrument] = field(default_factory=list)    
+    reporting_year: int
+    instruments: List[NotionalInstrument] = field(default_factory=list)
     policy: Optional[RiskManagementPolicy] = None
+
 
 # =============================================================================
 # DUMMY DATA ARRAYS FOR RANDOM GENERATION
 # These can be expanded and mapped to your old templates.
 # =============================================================================
 
-DUMMY_IR_INSTRUMENT_TYPES = ["interest rate swap", "pay-fixed interest rate swap", "interest rate cap", "interest rate collar"]
-DUMMY_FX_INSTRUMENT_TYPES = ["foreign currency forward", "foreign exchange contract", "currency option", "FX collar"]
-DUMMY_CP_INSTRUMENT_TYPES = ["commodity swap", "natural gas futures", "crude oil option"]
+DUMMY_IR_INSTRUMENT_TYPES = [
+    "interest rate swap",
+    "pay-fixed interest rate swap",
+    "interest rate cap",
+    "interest rate collar",
+]
+DUMMY_FX_INSTRUMENT_TYPES = [
+    "foreign currency forward",
+    "foreign exchange contract",
+    "currency option",
+    "FX collar",
+]
+DUMMY_CP_INSTRUMENT_TYPES = [
+    "commodity swap",
+    "natural gas futures",
+    "crude oil option",
+]
 DUMMY_EQ_INSTRUMENT_TYPES = ["equity swap", "equity forward"]
-DUMMY_DEBT_TYPES = ["variable-rate credit facility", "senior notes", "term loan", "revolving credit agreement"]
+DUMMY_DEBT_TYPES = [
+    "variable-rate credit facility",
+    "senior notes",
+    "term loan",
+    "revolving credit agreement",
+]
 DUMMY_COMMODITY_TYPES = ["Natural Gas", "Crude Oil", "Aluminum", "Diesel Fuel"]
 DUMMY_CURRENCIES = ["EUR", "GBP", "JPY", "CAD", "AUD"]
 DUMMY_BENCHMARK_RATES = ["SOFR", "LIBOR", "EURIBOR"]
 DUMMY_HEDGE_DESIGNATIONS = ["cash_flow", "fair_value", "net_investment", "economic"]
+DUMMY_EQUITY_UNDERLYINGS = ["S&P 500 Index", "{company_name} Common Stock"]
+DUMMY_EQUITY_TYPES: List[Literal["market_index", "own_stock", "third_party_stock"]] = [
+    "market_index",
+    "own_stock",
+    "third_party_stock",
+]
+DUMMY_EQUITY_REASONS = [
+    "stock-based compensation",
+    "strategic investment",
+    "market risk management",
+]
+DUMMY_GENERIC_INSTRUMENT_TYPES = [
+    "derivative contracts",
+    "hedging instruments",
+    "financial instruments",
+]
+DUMMY_COMMODITY_UNITS = ["MMBtu", "barrels", "metric tons"]
+DUMMY_COMMODITY_TRANSACTION_TYPES: List[Literal["purchase", "sale"]] = [
+    "purchase",
+    "sale",
+]
+DUMMY_DEFAULT_CURRENCY = "USD"
 
-DUMMY_EFFECTIVENESS_METHODS = ["regression analysis", "the dollar-offset method", "quantitative analysis", "statistical methods"]
-DUMMY_EFFECTIVENESS_FREQUENCIES = ["quarterly", "annually", "at inception and on an ongoing basis"]
+DUMMY_EFFECTIVENESS_METHODS = [
+    "regression analysis",
+    "the dollar-offset method",
+    "quantitative analysis",
+    "statistical methods",
+]
+DUMMY_EFFECTIVENESS_FREQUENCIES = [
+    "quarterly",
+    "annually",
+    "at inception and on an ongoing basis",
+]
 DUMMY_ACCOUNTING_DESCRIPTIONS = {
     "cash_flow": "For derivatives designated as cash flow hedges, the effective portion of the change in fair value is recorded in other comprehensive income (OCI).",
     "fair_value": "For derivatives designated as fair value hedges, changes in fair value are recognized in earnings, offsetting the change in the hedged item's fair value.",
-    "net_investment": "For net investment hedges, foreign currency translation gains or losses are recorded in other comprehensive income (OCI) to offset the translation of the net investment."
+    "net_investment": "For net investment hedges, foreign currency translation gains or losses are recorded in other comprehensive income (OCI) to offset the translation of the net investment.",
 }
 
 
@@ -297,19 +373,49 @@ class ScenarioArchetype:
 # Define a list of company archetypes to choose from during generation.
 SCENARIO_ARCHETYPES = [
     ScenarioArchetype(
-        name="Large Multinational", ir_range=(2, 4), fx_range=(2, 5), cp_range=(1, 3), eq_range=(0, 2), gen_range=(0, 1), policy_coverage="full"
+        name="Large Multinational",
+        ir_range=(2, 4),
+        fx_range=(2, 5),
+        cp_range=(1, 3),
+        eq_range=(0, 2),
+        gen_range=(0, 1),
+        policy_coverage="full",
     ),
     ScenarioArchetype(
-        name="Domestic Industrial", ir_range=(1, 3), fx_range=(0, 2), cp_range=(2, 4), eq_range=(0, 1), gen_range=(0, 1), policy_coverage="partial"
+        name="Domestic Industrial",
+        ir_range=(1, 3),
+        fx_range=(0, 2),
+        cp_range=(2, 4),
+        eq_range=(0, 1),
+        gen_range=(0, 1),
+        policy_coverage="partial",
     ),
     ScenarioArchetype(
-        name="Tech Company", ir_range=(0, 2), fx_range=(1, 4), cp_range=(0, 0), eq_range=(1, 3), gen_range=(0, 1), policy_coverage="partial"
+        name="Tech Company",
+        ir_range=(0, 2),
+        fx_range=(1, 4),
+        cp_range=(0, 0),
+        eq_range=(1, 3),
+        gen_range=(0, 1),
+        policy_coverage="partial",
     ),
     ScenarioArchetype(
-        name="Financial Institution", ir_range=(2, 5), fx_range=(2, 5), cp_range=(0, 1), eq_range=(0, 2), gen_range=(0, 1), policy_coverage="full"
+        name="Financial Institution",
+        ir_range=(2, 5),
+        fx_range=(2, 5),
+        cp_range=(0, 1),
+        eq_range=(0, 2),
+        gen_range=(0, 1),
+        policy_coverage="full",
     ),
     ScenarioArchetype(
-        name="Policy Only / Light User", ir_range=(0, 1), fx_range=(0, 1), cp_range=(0, 0), eq_range=(0, 0), gen_range=(1, 2), policy_coverage="light"
+        name="Policy Only / Light User",
+        ir_range=(0, 1),
+        fx_range=(0, 1),
+        cp_range=(0, 0),
+        eq_range=(0, 0),
+        gen_range=(1, 2),
+        policy_coverage="light",
     ),
 ]
 
@@ -319,17 +425,29 @@ SCENARIO_ARCHETYPES = [
 # We define the state of our financial narrative using structured dataclasses.
 # =============================================================================
 
-def generate_policy_for_archetype(archetype: ScenarioArchetype, instrument_counts: Dict[str, int]) -> RiskManagementPolicy:
+
+def generate_policy_for_archetype(
+    archetype: ScenarioArchetype, instrument_counts: Dict[str, int]
+) -> RiskManagementPolicy:
     """Generates a realistic RiskManagementPolicy based on the company archetype and instrument usage."""
 
     general_policy = GeneralHedgingPolicy(
         does_not_use_for_trading=True,
         counterparty_credit_risk_monitored=True,
-        counterparty_details=random.choice(["major financial institutions", "a diversified group of highly-rated financial institutions"])
+        counterparty_details=random.choice(
+            [
+                "major financial institutions",
+                "a diversified group of highly-rated financial institutions",
+            ]
+        ),
     )
 
     category_policies = []
-    active_categories = [cat for cat, count in instrument_counts.items() if count > 0 and cat not in ["GEN", "EQ"]]
+    active_categories = [
+        cat
+        for cat, count in instrument_counts.items()
+        if count > 0 and cat not in ["GEN", "EQ"]
+    ]
 
     # Determine how many specific policies to create based on the archetype
     if archetype.policy_coverage == "full":
@@ -343,7 +461,9 @@ def generate_policy_for_archetype(archetype: ScenarioArchetype, instrument_count
 
     # Create the specific policies
     if active_categories and num_policies_to_generate > 0:
-        categories_with_policies = random.sample(active_categories, num_policies_to_generate)
+        categories_with_policies = random.sample(
+            active_categories, num_policies_to_generate
+        )
         for category in categories_with_policies:
             policy = CategorySpecificPolicy(
                 category=category,  # type: ignore
@@ -356,8 +476,7 @@ def generate_policy_for_archetype(archetype: ScenarioArchetype, instrument_count
             category_policies.append(policy)
 
     return RiskManagementPolicy(
-        general_policy=general_policy,
-        category_policies=category_policies
+        general_policy=general_policy, category_policies=category_policies
     )
 
 
@@ -368,16 +487,16 @@ def create_random_scenario() -> GenerationScenario:
     a company has, their status (active or terminated), and their key properties.
     """
     reporting_year = random.randint(2020, 2024)
-    
+
     # --- Decide on a company archetype and get instrument counts ---
     archetype = random.choice(SCENARIO_ARCHETYPES)
     instrument_counts = archetype.get_instrument_counts()
-    
+
     scenario = GenerationScenario(
         company_name=random.choice(company_names),
         reporting_year=reporting_year,
         instruments=[],
-        policy=generate_policy_for_archetype(archetype, instrument_counts)
+        policy=generate_policy_for_archetype(archetype, instrument_counts),
     )
 
     instrument_id_counter = 1
@@ -419,7 +538,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=notional,
-            currency="USD",
+            currency=DUMMY_DEFAULT_CURRENCY,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=hedged_debt,
@@ -458,7 +577,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=notional,
-            currency="USD",
+            currency=DUMMY_DEFAULT_CURRENCY,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=hedged_fx,
@@ -481,9 +600,9 @@ def create_random_scenario() -> GenerationScenario:
             hedged_commodity = CommodityHedgedItem(
                 hedged_item_id=hedged_item_id_counter,
                 commodity_type=random.choice(DUMMY_COMMODITY_TYPES),
-                transaction_type=random.choice(["purchase", "sale"]),
+                transaction_type=random.choice(DUMMY_COMMODITY_TRANSACTION_TYPES),
                 quantity=random.randint(100, 10000),
-                unit_of_volume=random.choice(["MMBtu", "barrels", "metric tons"]),
+                unit_of_volume=random.choice(DUMMY_COMMODITY_UNITS),
                 price_per_unit=random.uniform(10, 200),
                 cost_type=random.choice(cost_types),
                 supplier=(
@@ -499,7 +618,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=notional,
-            currency="USD",
+            currency=DUMMY_DEFAULT_CURRENCY,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=hedged_commodity,
@@ -521,9 +640,11 @@ def create_random_scenario() -> GenerationScenario:
             notional = random.randint(1, 100) * 1_000_000
             hedged_equity = EquityHedgedItem(
                 hedged_item_id=hedged_item_id_counter,
-                underlying_equity=random.choice(["S&P 500 Index", f"{scenario.company_name} Common Stock"]),
-                equity_type=random.choice(["market_index", "own_stock", "third_party_stock"]),
-                reason=random.choice(["stock-based compensation", "strategic investment", "market risk management"])
+                underlying_equity=random.choice(DUMMY_EQUITY_UNDERLYINGS).format(
+                    company_name=scenario.company_name
+                ),
+                equity_type=random.choice(DUMMY_EQUITY_TYPES),
+                reason=random.choice(DUMMY_EQUITY_REASONS),
             )
             hedged_item_id_counter += 1
 
@@ -534,7 +655,7 @@ def create_random_scenario() -> GenerationScenario:
             month=random.choice(months),
             year=reporting_year,
             notional_amount=notional,
-            currency="USD",
+            currency=DUMMY_DEFAULT_CURRENCY,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
             hedged_item=hedged_equity,
@@ -545,24 +666,29 @@ def create_random_scenario() -> GenerationScenario:
     # --- Create Generic Instruments ---
     for _ in range(instrument_counts.get("GEN", 0)):
         is_terminated = random.random() < 0.4
-        maturity_year = random.randint(reporting_year - 3, reporting_year) if is_terminated else random.randint(reporting_year + 1, reporting_year + 5)
+        maturity_year = (
+            random.randint(reporting_year - 3, reporting_year)
+            if is_terminated
+            else random.randint(reporting_year + 1, reporting_year + 5)
+        )
 
         gen_instrument = GenericInstrument(
             category="GEN",
             instrument_id=instrument_id_counter,
-            instrument_type=random.choice(["derivative contracts", "hedging instruments", "financial instruments"]),
+            instrument_type=random.choice(DUMMY_GENERIC_INSTRUMENT_TYPES),
             month=random.choice(months),
             year=reporting_year,
             notional_amount=random.randint(10, 300) * 1_000_000,
-            currency="USD",
+            currency=DUMMY_DEFAULT_CURRENCY,
             maturity_year=maturity_year,
             hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
-            hedged_item=None, # Generic instruments often don't have a specific hedged item
+            hedged_item=None,  # Generic instruments often don't have a specific hedged item
         )
         instrument_id_counter += 1
         scenario.instruments.append(gen_instrument)
 
     return scenario
+
 
 # %%
 # =============================================================================
@@ -571,39 +697,60 @@ def create_random_scenario() -> GenerationScenario:
 # final output: the narrative text and the structured JSON label.
 # =============================================================================
 
+
 def generate_narrative_from_scenario(scenario: GenerationScenario) -> str:
     """
     Constructs a coherent, multi-paragraph narrative from a scenario object.
     This function will replace the old `generate_hedge_paragraph`.
     """
     all_sentences = []
-    
+
     # 1. Introduction (Market Risk Disclosure)
     # TODO: Use templates like `hedge_begin_context_templates`
-    all_sentences.append(f"The company is exposed to market risks, primarily from changes in interest rates and foreign currency exchange rates.")
+    all_sentences.append(
+        f"The company is exposed to market risks, primarily from changes in interest rates and foreign currency exchange rates."
+    )
 
     # 2. Policy and Strategy
     if scenario.policy and scenario.policy.general_policy.does_not_use_for_trading:
-        all_sentences.append("Our risk management strategy involves the use of derivative instruments to mitigate these exposures.")
-        all_sentences.append("We do not enter into derivative contracts for trading or speculative purposes.")
-    if scenario.policy and scenario.policy.general_policy.counterparty_credit_risk_monitored:
-        all_sentences.append(f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}.")
+        all_sentences.append(
+            "Our risk management strategy involves the use of derivative instruments to mitigate these exposures."
+        )
+        all_sentences.append(
+            "We do not enter into derivative contracts for trading or speculative purposes."
+        )
+    if (
+        scenario.policy
+        and scenario.policy.general_policy.counterparty_credit_risk_monitored
+    ):
+        all_sentences.append(
+            f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}."
+        )
 
     # 3. Specific Instrument Disclosure (The Core)
     # TODO: This is where the main logic will go. We'll loop through `scenario.instruments`
     # and use templates to describe each one.
     # This will be a much more involved step.
-    all_sentences.append(f"As of December 31, {scenario.reporting_year}, the total notional of our outstanding interest rate swaps was $250.0 million.")
-    all_sentences.append(f"During the first quarter of {scenario.reporting_year}, our portfolio of foreign currency forward contracts with a notional value of €25.0 million matured and were settled.")
-    all_sentences.append(f"Subsequently, we entered into a series of foreign currency collar contracts with a total notional value of £40.0 million, which were outstanding at year-end.")
-    all_sentences.append(f"The Company also has an embedded derivative liability related to its convertible senior notes, with a fair value of $12.5 million as of December 31, {scenario.reporting_year}.")
+    all_sentences.append(
+        f"As of December 31, {scenario.reporting_year}, the total notional of our outstanding interest rate swaps was $250.0 million."
+    )
+    all_sentences.append(
+        f"During the first quarter of {scenario.reporting_year}, our portfolio of foreign currency forward contracts with a notional value of €25.0 million matured and were settled."
+    )
+    all_sentences.append(
+        f"Subsequently, we entered into a series of foreign currency collar contracts with a total notional value of £40.0 million, which were outstanding at year-end."
+    )
+    all_sentences.append(
+        f"The Company also has an embedded derivative liability related to its convertible senior notes, with a fair value of $12.5 million as of December 31, {scenario.reporting_year}."
+    )
 
     # 4. Effectiveness and Accounting (if applicable)
     if scenario.policy and scenario.policy.category_policies:
         for cat_policy in scenario.policy.category_policies:
             if cat_policy.effectiveness_testing_method:
-                all_sentences.append(f"For our {cat_policy.category} derivative instruments, we assess hedge effectiveness on a {cat_policy.effectiveness_frequency} basis using the {cat_policy.effectiveness_testing_method}.")
-
+                all_sentences.append(
+                    f"For our {cat_policy.category} derivative instruments, we assess hedge effectiveness on a {cat_policy.effectiveness_frequency} basis using the {cat_policy.effectiveness_testing_method}."
+                )
 
     # TODO: Cleanup and formatting logic will go here.
     narrative = ". ".join(all_sentences) + "."
@@ -615,7 +762,7 @@ def generate_json_from_scenario(scenario: GenerationScenario, narrative: str) ->
     Generates the target JSON output from the scenario object.
     The `narrative` is passed to help generate the summary and chain_of_thought.
     """
-    
+
     # TODO: Implement logic to generate a dynamic summary and chain_of_thought.
     # For now, we'll use a hardcoded version based on our complex example.
     analysis_summary = "The company holds multiple active interest rate swaps, has recently entered into new foreign currency collars after settling previous forwards, and carries an embedded derivative liability from convertible notes."
@@ -636,18 +783,19 @@ def generate_json_from_scenario(scenario: GenerationScenario, narrative: str) ->
 # This will be the new entry point, replacing the old `generate()` function.
 # =============================================================================
 
+
 def generate_training_sample():
     """Generates a single, complete training sample (narrative + JSON)."""
-    
+
     # 1. Create a random scenario that defines the story.
     scenario = create_random_scenario()
-    
+
     # 2. Generate the narrative text based on that scenario.
     narrative_text = generate_narrative_from_scenario(scenario)
-    
+
     # 3. Generate the corresponding JSON label from the same scenario.
     json_output = generate_json_from_scenario(scenario, narrative_text)
-    
+
     # The final output is a tuple of the text and the JSON object (or string).
     return (narrative_text, json_output)
 
@@ -655,7 +803,7 @@ def generate_training_sample():
 if __name__ == "__main__":
     # Example of how to generate one sample
     text, json_data = generate_training_sample()
-    
+
     print("--- GENERATED NARRATIVE ---")
     print(text)
     print("\n--- GENERATED JSON ---")
