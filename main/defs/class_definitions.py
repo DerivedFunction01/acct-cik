@@ -831,18 +831,18 @@ class NotionalSentence:
                 commodity=details.commodity,
                 unit=details.unit,
             )
-            result_clause = f", {populated_phrase}"
+            result_clause = populated_phrase
 
         # 6b. Maturity clause
         maturity_clause = ""
         if self.maturity_year and self.reporting_year:
             if self.maturity_year > self.reporting_year:
                 adverb = random.choice(future_adverbs)
-                verb = random.choice(termination_verbs_present)
-                maturity_clause = f", which {adverb} {verb} in {self.maturity_year}"
+                verb_tense = random.choice(termination_verbs_present)
+                maturity_clause = f"which {adverb} {verb_tense} in {self.maturity_year}"
             else: # maturity_year <= reporting_year
-                verb = random.choice(termination_verbs_past)
-                maturity_clause = f", which {verb} in {self.maturity_year}"
+                verb_tense = random.choice(termination_verbs_past)
+                maturity_clause = f"which {verb_tense} in {self.maturity_year}"
 
         # 7. Select main sentence template
         templates_for_type = NOTIONAL_SENTENCE_TEMPLATES.get(

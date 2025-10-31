@@ -1325,14 +1325,19 @@ def generate_json_from_scenario(
 
         # Initialize the instrument if it's the first time we see it
         if instrument_id not in instrument_evidence_map:
+            # --- NEW: Determine status based on maturity year ---
+            status = "current"
+            if ev.maturity_year and ev.reporting_year and ev.maturity_year < ev.reporting_year:
+                status = "terminated"
+            elif ev.status in ["new", "individual", "summary"]:
+                status = "current"
+            else:
+                status = ev.status
+
             instrument_evidence_map[instrument_id] = {
                 "type": ev.instrument_type or "Unknown",
                 "category": ev.category,
-                "status": (
-                    "current"
-                    if ev.status in ["new", "individual", "summary"]
-                    else ev.status
-                ),
+                "status": status,
                 "notional_amount": 0,
                 "currency": ev.currency,
                 "value_type": ev.value_type,
@@ -1345,6 +1350,10 @@ def generate_json_from_scenario(
         # Update status based on evidence type. 'terminated' is a final state.
         if ev.status == "terminated":
             instrument_evidence_map[instrument_id]["status"] = "terminated"
+        # Also check maturity year again in case other evidence for the same ID had a different view
+        elif ev.maturity_year and ev.reporting_year and ev.maturity_year < ev.reporting_year:
+            instrument_evidence_map[instrument_id]["status"] = "terminated"
+
 
     # Convert the aggregated map into the final list, matching the TODO.md schema.
     # This creates one entry per unique instrument ID found in the evidence.
@@ -1376,7 +1385,6 @@ def generate_json_from_scenario(
         "analysis_summary": analysis_summary,
         "derivatives": derivatives_list,
     }
-
 
 # =============================================================================
 # PHASE 3: MAIN GENERATION LOOP
