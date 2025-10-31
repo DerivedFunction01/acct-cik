@@ -4,7 +4,7 @@ import pandas as pd
 import json
 from dataclasses import field
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Set
 
 from main.definitions.common_data import *
 from main.definitions.commodity_data import *
@@ -31,6 +31,25 @@ output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
 company_name_df = pd.read_excel(company_name_file)
 company_names = list(company_name_df["name"])
+
+# --- Dynamic Instrument Type Generation ---
+def _generate_instrument_types_from_keywords() -> Dict[str, List[Tuple[str, str, str]]]:
+    """
+    Processes the `derivative_keywords` from common_data.py to generate
+    a dictionary of realistic instrument type tuples (prefix, name, alias) for each category.
+    """
+    instrument_types: Dict[str, Set[Tuple[str, str, str]]] = {"IR": set(), "FX": set(), "CP": set(), "EQ": set(), "GEN": set()}
+    for category, terms in derivative_keywords.items():
+        if category not in instrument_types:
+            continue
+        for prefix, full_term, base_term in terms:
+            # Add the tuple of (prefix, name, alias)
+            instrument_types[category].add((prefix, full_term, base_term))
+
+    # Convert sets to lists for random.choice
+    return {cat: list(names) for cat, names in instrument_types.items()}
+
+DYNAMIC_INSTRUMENT_TYPES = _generate_instrument_types_from_keywords()
 
 
 def pick_company_name(company_name: str) -> str:
@@ -504,8 +523,13 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue  # This exposure remains unhedged
 
+        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["IR"])
+
         base_args = {
-            "instrument_type": random.choice(DUMMY_IR_INSTRUMENT_TYPES),
+            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_prefix": prefix,
+            "instrument_name": name,
+            "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
             "notional_amount": notional,
@@ -550,8 +574,13 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
+        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["FX"])
+
         base_args = {
-            "instrument_type": random.choice(DUMMY_FX_INSTRUMENT_TYPES),
+            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_prefix": prefix,
+            "instrument_name": name,
+            "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
             "notional_amount": notional,
@@ -593,8 +622,13 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
+        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["CP"])
+
         base_args = {
-            "instrument_type": random.choice(DUMMY_CP_INSTRUMENT_TYPES),
+            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_prefix": prefix,
+            "instrument_name": name,
+            "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
             "notional_amount": notional,
@@ -636,8 +670,13 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
+        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["EQ"])
+
         base_args = {
-            "instrument_type": random.choice(DUMMY_EQ_INSTRUMENT_TYPES),
+            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_prefix": prefix,
+            "instrument_name": name,
+            "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
             "notional_amount": notional,
@@ -665,8 +704,13 @@ def create_random_scenario() -> GenerationScenario:
             else random.randint(reporting_year + 1, reporting_year + 5)
         )
 
+        prefix, name, alias = random.choice(DYNAMIC_INSTRUMENT_TYPES["GEN"])
+
         base_args = {
-            "instrument_type": random.choice(DUMMY_GENERIC_INSTRUMENT_TYPES),
+            "instrument_type": f"{prefix} {name}".strip(),
+            "instrument_prefix": prefix,
+            "instrument_name": name,
+            "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
             "notional_amount": random.randint(10, 300) * multiplier,

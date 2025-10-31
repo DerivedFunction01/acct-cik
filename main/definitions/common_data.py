@@ -350,7 +350,7 @@ PLACEHOLDERS = {
 # =============================================================================
 
 
-def expand_types(base_types, suffixes, special):
+def expand_types(base_types, suffixes, special) -> list[str]:
     """Expand base types with suffixes and special overrides."""
     results = []
     for base in base_types:
@@ -360,38 +360,48 @@ def expand_types(base_types, suffixes, special):
     return sorted(set(results))
 
 
-def expand_derivative_terms(placeholders, types, extras):
-    """Combine all logical dimensions into descriptive derivative terms."""
-    results = []
+def expand_derivative_terms(placeholders, types, extras) -> list[tuple[str, str, str]]:
+    """Return (prefix, full term w/o prefix, base term) tuples."""
+    results: list[tuple[str, str, str]]= []
 
     for ph in placeholders if placeholders else [""]:
         for t in types:
             # Skip dependent types without a placeholder
-            if len(ph) == 0 and t in DEPENDENT_TYPES:
+            if not ph and t in DEPENDENT_TYPES:
                 continue
 
-            # Build the base term without any prefixes
-            base_term = " ".join(x for x in [ph, t] if x).strip()
-            results.append(base_term)
+            full_term = " ".join(x for x in [ph, t] if x).strip()
+            base_term = (
+                " ".join(t.split()[-2:]) if len(t.split()) > 1 else t
+            )  # keep "swap contract" not just "contract"
 
-            # Rarely add global prefixes with 1% probability
-            if random.random() < PAY_PREFIX_RATIO:
-                for pre in GLOBAL_PREFIXES:
-                    if pre:  # Only add non-empty prefixes
-                        term = " ".join(x for x in [pre, ph, t] if x).strip()
-                        results.append(term)
+            # Always include base (no prefix)
+            results.append(("", full_term, base_term))
 
-            # For swap-like instruments, rarely add swap-specific prefixes
-            if (
-                any(x in t for x in ["swap", "swaption", "rate lock"])
-                and random.random() < PAY_PREFIX_RATIO
-            ):
+            # Add global prefixes
+            for pre in GLOBAL_PREFIXES:
+                if pre:
+                    results.append((pre, full_term, base_term))
+
+            # Add swap prefixes only to swap-like instruments
+            if any(x in t for x in ["swap", "swaption", "rate lock"]):
                 for pre in SWAP_PREFIXES:
-                    term = " ".join(x for x in [pre, ph, t] if x).strip()
-                    results.append(term)
+                    results.append((pre, full_term, base_term))
 
-    results.extend(extras)
-    return sorted(set(results))
+    # Add extras (no prefixes)
+    for extra in extras:
+        base_term = " ".join(extra.split()[-2:]) if len(extra.split()) > 1 else extra
+        results.append(("", extra, base_term))
+
+    # Deduplicate
+    unique = []
+    seen = set()
+    for r in results:
+        if r not in seen:
+            seen.add(r)
+            unique.append(r)
+
+    return sorted(unique, key=lambda x: (x[0], x[1]))
 
 
 # =============================================================================
