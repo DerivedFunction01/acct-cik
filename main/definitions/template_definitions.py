@@ -195,3 +195,11 @@ hedge_designations = [
     "within its hedging program",
     "and is a highly effective {hedge_type} hedge on hedged item",
 ]
+
+result_phrases = {
+    "IR": [],
+    "FX": [],
+    "CP": [],
+    "EQ": [],
+    "GEN": [],
+}

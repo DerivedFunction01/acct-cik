@@ -240,7 +240,6 @@ class DerivativeInstrument:
         instrument_id: int - A unique ID to track the same instrument across multiple years.
         instrument_type: str - The type of derivative instrument (e.g., "interest rate swap").
         instrument_prefix: Optional[str] - The prefix of the instrument (e.g., "pay-fixed").
-        instrument_name: str - The core name of the instrument (e.g., "interest rate swap").
         instrument_alias: str - A shorter alias for the instrument (e.g., "swap").
         category: DerivativeCategory - The category of the derivative
         month: str - The month this state of the instrument is for.
@@ -253,7 +252,6 @@ class DerivativeInstrument:
     instrument_id: int
     instrument_type: str
     instrument_prefix: Optional[str]
-    instrument_name: str
     instrument_alias: str
     category: DerivativeCategory
     month: str
@@ -268,7 +266,7 @@ class DerivativeInstrument:
             "instrument_id": self.instrument_id,
             "instrument_type": self.instrument_type,
             "instrument_prefix": self.instrument_prefix,
-            "instrument_name": self.instrument_name,
+
             "instrument_alias": self.instrument_alias,
             "category": self.category,
             "hedge_designation": self.hedge_designation,
