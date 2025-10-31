@@ -301,7 +301,6 @@ class ScenarioArchetype:
             "generic": random.randint(*self.generic_instrument_range),
         }
 
-
 @dataclass
 class GeneralHedgingPolicy:
     """Describes the company's high-level, non-instrument-specific hedging policies."""
@@ -324,3 +323,41 @@ class CategorySpecificPolicy:
     # Describes the general accounting policy for this category
     accounting_policy_description: Optional[str] = None
     accounting_standard: Optional[str] = None
+
+@dataclass
+class AccountingStandardUpdate:
+    """Represents the adoption or discussion of a new accounting standard."""
+
+    standard_name: str
+    issuer: str
+    topic: str
+    adoption_year: int
+    impact_description: str
+    adoption_method: Optional[str] = None
+    effective_year: Optional[int] = None
+    is_adopted: bool = False
+
+
+@dataclass
+class RiskManagementPolicy:
+    """Contains all policy-related information for the narrative."""
+
+    general_policy: GeneralHedgingPolicy = field(default_factory=GeneralHedgingPolicy)
+    category_policies: List[CategorySpecificPolicy] = field(default_factory=list)
+
+
+@dataclass
+class GenerationScenario:
+    """Holds the entire state for a single, coherent training example."""
+
+    company_name: str
+    reporting_month: str
+    reporting_day: int
+    reporting_year: int
+    archetype: ScenarioArchetype
+    instruments: List[NotionalInstrument] = field(default_factory=list)
+    policy: Optional[RiskManagementPolicy] = None
+    number_format_preference: bool = (
+        True  # True for abbreviated, False for full numeric
+    )
+    accounting_updates: List[AccountingStandardUpdate] = field(default_factory=list)

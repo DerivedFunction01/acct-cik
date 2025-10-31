@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple, Set
 
 from main.definitions.common_data import *
-from main.definitions.commodity_data import *
+from main.definitions.commodity_data import get_random_commodity_and_unit
 from main.definitions.template_definitions import *
 from main.definitions.class_definitions import (
     NarrativeEvidence,
@@ -24,7 +24,12 @@ from main.definitions.class_definitions import (
     EQInstrument,
     GenericInstrument,
     ScenarioArchetype,
-    CurrencyExposure
+    CurrencyExposure,
+    GenerationScenario,
+    RiskManagementPolicy,
+    CategorySpecificPolicy,
+    GeneralHedgingPolicy,
+    
 )
 from main.definitions.dummy_data import *
 
@@ -32,6 +37,20 @@ output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
 company_name_df = pd.read_excel(company_name_file)
 company_names = list(company_name_df["name"])
+
+
+def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str]:
+    """Returns (currency_symbol, money_unit_word) based on scenario's archetype."""
+    # Get currency symbol
+    currency_code = scenario.archetype.default_currency
+    currency_obj = next((c for c in all_currencies if c.code == currency_code), None)
+    currency_symbol = currency_obj.symbol if currency_obj else "$" # Default to $
+
+    # Get money unit word (e.g., "million")
+    money_unit_word = scenario.archetype.money_units[0][0] if scenario.archetype.money_units else "million"
+
+    return currency_symbol, money_unit_word
+
 
 # --- Dynamic Instrument Type Generation ---
 def _generate_instrument_types_from_keywords() -> Dict[str, List[Tuple[str, str, str]]]:
@@ -85,75 +104,6 @@ def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000, dashed=False):
         value = int(value)
 
     return value
-
-
-# %%
-# =============================================================================
-# PHASE 1: SCENARIO DEFINITION - CLASS DEFINITION
-# This section implements the core idea: "Decide the story upfront."
-# We define the state of our financial narrative using structured dataclasses.
-# =============================================================================
-
-@dataclass
-class GeneralHedgingPolicy:
-    """Describes the company's high-level, non-instrument-specific hedging policies."""
-
-    does_not_use_for_trading: bool = True
-    counterparty_credit_risk_monitored: bool = True
-    counterparty_details: str = (
-        "major financial institutions"  # e.g., "major financial institutions"
-    )
-
-
-@dataclass
-class CategorySpecificPolicy:
-    """Describes policies for a specific category of derivatives (e.g., IR, FX)."""
-
-    category: DerivativeCategory
-    effectiveness_testing_method: Optional[str] = None  # e.g., "dollar-offset method"
-    effectiveness_frequency: Optional[str] = "quarterly"
-    documentation_formalized: bool = True
-    # Describes the general accounting policy for this category
-    accounting_policy_description: Optional[str] = None
-    accounting_standard: Optional[str] = None
-
-
-@dataclass
-class RiskManagementPolicy:
-    """Contains all policy-related information for the narrative."""
-
-    general_policy: GeneralHedgingPolicy = field(default_factory=GeneralHedgingPolicy)
-    category_policies: List[CategorySpecificPolicy] = field(default_factory=list)
-
-
-@dataclass
-class AccountingStandardUpdate:
-    """Represents the adoption or discussion of a new accounting standard."""
-
-    standard_name: str
-    issuer: str
-    topic: str
-    adoption_year: int
-    impact_description: str
-    adoption_method: Optional[str] = None
-    effective_year: Optional[int] = None
-    is_adopted: bool = False
-
-
-@dataclass
-class GenerationScenario:
-    """Holds the entire state for a single, coherent training example."""
-
-    company_name: str
-    reporting_month: str
-    reporting_day: int
-    reporting_year: int
-    instruments: List[NotionalInstrument] = field(default_factory=list)
-    policy: Optional[RiskManagementPolicy] = None
-    number_format_preference: bool = (
-        True  # True for abbreviated, False for full numeric
-    )
-    accounting_updates: List[AccountingStandardUpdate] = field(default_factory=list)
 
 
 def _create_instrument_with_history(
@@ -402,6 +352,7 @@ def create_random_scenario() -> GenerationScenario:
         instruments=[],
         policy=generate_policy_for_archetype(archetype, instrument_counts_proxy),
         number_format_preference=archetype.prefers_abbreviated_numbers,
+        archetype=archetype,
     )
 
     instrument_id_counter = 1
@@ -843,16 +794,21 @@ def _generate_category_narrative(
     """
     sentences = []
     reporting_year, reporting_month, reporting_day = (
-        scenario.reporting_year, scenario.reporting_month, scenario.reporting_day)
+        scenario.reporting_year, scenario.reporting_month, scenario.reporting_day
+    )
     evidence = []
     current_year_data = yearly_data.get(reporting_year)
     prev_year_data = yearly_data.get(reporting_year - 1)
+
+    # Get currency and money unit details for sentence generation
+    currency_symbol, money_unit_word = _get_currency_and_unit_details(scenario)
 
     # 1. Context Sentence (e.g., "To manage our interest rate risk...")
     # TODO: Make this more dynamic based on templates.
     if category == "IR":
         sentences.append(
-            "To manage our interest rate risk, we utilize interest rate swaps to hedge our variable-rate debt."
+            "To manage our interest rate risk, we utilize interest rate swaps to hedge our variable-rate debt." # This should also be templated
+            # For now, keep it as is, as the request is about notional sentences.
         )
     elif category == "FX":
         sentences.append(
@@ -890,21 +846,23 @@ def _generate_category_narrative(
                 status="summary",
             )
         )
+        # Add comparative summary if previous year data exists
         if prev_year_data and prev_year_data["total_notional"] > 0:
-            prev_total_notional_str = _format_notional(
-                prev_year_data["total_notional"], scenario
+            # Generate comparative summary sentence
+            comparative_summary_text = generate_notional_sentence(
+                swap_type=instrument_type,
+                year=reporting_year,
+                notional=total_notional,
+                currency_symbol=currency_symbol,
+                money_unit_word=money_unit_word,
+                month=reporting_month,
+                end_day=reporting_day,
+                prev_year=reporting_year - 1,
+                prev_notional=prev_year_data["total_notional"],
+                sentence_type="comparative",
             )
-            evidence.append(
-                NarrativeEvidence(
-                    category=category,  # type: ignore
-                    instrument_id=None,
-                    instrument_type=instrument_type,
-                    aggregate=True,
-                    notional=prev_year_data["total_notional"],
-                    year=reporting_year - 1,
-                    status="summary",
-                )
-            )
+            sentences.append(comparative_summary_text)
+            # Evidence for previous year's notional is already captured by the comparative sentence.
     else:
         # If no active instruments, state that.
         sentences.append(
@@ -937,15 +895,19 @@ def _generate_category_narrative(
         for instrument_id in new_instrument_ids:
             # Find the new instrument in the current year's data
             instrument = next((i for i in current_year_data["instruments"] if i.instrument_id == instrument_id), None)
-            if instrument:
-                notional_str = _format_notional(instrument.notional_amount, scenario)
-                
-                verb = random.choice(individual_use_verbs)
-                time_prefix = random.choice(period_of_time_prefixes).format(year=reporting_year)
-                connector = random.choice(amount_connectors)
-                sentences.append(
-                     f"{time_prefix}, we {verb} new {instrument.instrument_type} {connector} {notional_str}."
-                 )
+            if instrument: # Generate new individual instrument sentence
+                new_instrument_text = generate_notional_sentence(
+                    swap_type=instrument.instrument_type,
+                    year=reporting_year,
+                    notional=instrument.notional_amount,
+                    currency_symbol=currency_symbol,
+                    money_unit_word=money_unit_word,
+                    month=instrument.month,
+                    company_name=scenario.company_name,
+                    sentence_type="new_individual",
+                    hedge_designation=instrument.hedge_designation,
+                )
+                sentences.append(new_instrument_text)
                 evidence.append(
                      NarrativeEvidence(
                          category=category, # type: ignore
@@ -961,8 +923,18 @@ def _generate_category_narrative(
         for instrument_id in terminated_instrument_ids:
             instrument = next((i for i in prev_year_data["instruments"] if i.instrument_id == instrument_id), None)
             if instrument:
-                notional_str = _format_notional(instrument.notional_amount, scenario)
-                sentences.append(f"During {reporting_year}, {instrument.instrument_type} with a notional value of {notional_str} were terminated or matured.")
+                # Generate terminated individual instrument sentence
+                terminated_instrument_text = generate_notional_sentence(
+                    swap_type=instrument.instrument_type,
+                    year=reporting_year, # Reporting year is when it was terminated
+                    notional=instrument.notional_amount,
+                    currency_symbol=currency_symbol,
+                    money_unit_word=money_unit_word,
+                    month=instrument.month, # Month of termination/maturity
+                    company_name=scenario.company_name,
+                    sentence_type="terminated_individual",
+                )
+                sentences.append(terminated_instrument_text)
                 evidence.append(
                      NarrativeEvidence(
                          category=category, # type: ignore
