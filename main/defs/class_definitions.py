@@ -317,14 +317,6 @@ class DebtHedgedItem(HedgedItem):
     payment_frequency: Optional[str] = None
 
 
-@dataclass
-class Currency:
-    code: str
-    full_name: str
-    symbol: str
-    adjective: str
-    location: str
-
 
 @dataclass
 class CurrencyExposure(Currency):

@@ -1,4 +1,13 @@
-from defs.class_definitions import Currency
+from dataclasses import dataclass
+
+@dataclass
+class Currency:
+    code: str
+    full_name: str
+    symbol: str
+    adjective: str
+    location: str
+
 months = [
     "January",
     "February",
