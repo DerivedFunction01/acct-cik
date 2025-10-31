@@ -121,7 +121,6 @@ def _generate_instrument_name(
     return prefix, full_name, alias
 
 
-
 def pick_company_name(company_name: str) -> str:
     return random.choices([company_name, "The Company"], weights=[0.75, 0.25], k=1)[0]
 
@@ -794,6 +793,7 @@ def _generate_narrative_policy(
                 instrument_categories_in_year.append(inst.category)
         
         counts = Counter(instrument_categories_in_year)
+        # If there are no instruments, the primary category is GEN, otherwise it's the most common.
         primary_category = counts.most_common(1)[0][0] if counts else "GEN"
 
         policy_sentence_obj = PolicySentence(
@@ -802,7 +802,11 @@ def _generate_narrative_policy(
         )
         policy_sentence, policy_evidence = policy_sentence_obj.build()
         sentences.append(policy_sentence)
-        evidence.append(policy_evidence)
+        
+        # Only add the evidence if there are actual instruments. A general policy
+        # statement for a non-user is just context, not evidence of a "GEN" derivative.
+        if instrument_categories_in_year:
+            evidence.append(policy_evidence)
 
         # --- Generate standard policy statements ---
         if scenario.policy.general_policy.does_not_use_for_trading:
@@ -814,7 +818,6 @@ def _generate_narrative_policy(
                 f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}."
             )
     return sentences, evidence
-
 
 def _generate_category_narrative(
     category: str,
@@ -1223,16 +1226,20 @@ def generate_json_from_scenario(
     has_generic_evidence = any(ev.category == "GEN" for ev in evidence)
     if has_generic_evidence:
         # Find other specific categories that were identified in the text.
-        seen_categories = sorted(list({ev.category for ev in evidence if ev.category != "GEN"}))
-        category_map = {
-            "IR": "interest rate", "FX": "foreign exchange",
-            "CP": "commodity", "EQ": "equity"
-        }
-        seen_category_names = [category_map[cat] for cat in seen_categories if cat in category_map]
-
-        generic_reasoning = (
-            " A generic derivative reference was identified. Because the statement does not specify a clear derivative category"
+        seen_categories = sorted(
+            list({ev.category for ev in evidence if ev.category != "GEN"})
         )
+        category_map = {
+            "IR": "Interest Rate",
+            "FX": "Foreign Exchange",
+            "CP": "Commodity",
+            "EQ": "Equity",
+        }
+        seen_category_names = [
+            category_map[cat] for cat in seen_categories if cat in category_map
+        ]
+
+        generic_reasoning = " A generic derivative reference was identified. Because the statement does not specify a clear derivative category"
         if seen_category_names:
             generic_reasoning += f" (such as the other types found: {', '.join(seen_category_names)}), I cannot link it to a specific known type and will therefore treat it as a generic reference."
         else:
@@ -1247,49 +1254,65 @@ def generate_json_from_scenario(
     # Use a dictionary to aggregate evidence for each instrument ID mentioned.
     # This allows us to build a detailed picture of each derivative.
     instrument_evidence_map: Dict[int, Dict] = {}
- 
+
     for ev in evidence:
         # We only care about evidence that has an instrument ID and notional value.
-        if not isinstance(ev, NotionalEvidence) or ev.instrument_id is None or ev.notional is None:
+        if (
+            not isinstance(ev, NotionalEvidence)
+            or ev.instrument_id is None
+            or ev.notional is None
+        ):
             continue
- 
+
         instrument_id = ev.instrument_id
- 
+
         # Initialize the instrument if it's the first time we see it
         if instrument_id not in instrument_evidence_map:
             instrument_evidence_map[instrument_id] = {
                 "type": ev.instrument_type or "Unknown",
                 "category": ev.category,
-                "status": "current" if ev.status in ["new", "individual", "summary"] else ev.status,
+                "status": (
+                    "current"
+                    if ev.status in ["new", "individual", "summary"]
+                    else ev.status
+                ),
                 "notional_amount": 0,
                 "currency": ev.currency,
                 "value_type": ev.value_type,
             }
- 
+
         # Update the notional amount. This will capture the most relevant value
         # (e.g., the 'new' or 'terminated' value for that instrument).
         instrument_evidence_map[instrument_id]["notional_amount"] = ev.notional
- 
+
         # Update status based on evidence type. 'terminated' is a final state.
         if ev.status == "terminated":
             instrument_evidence_map[instrument_id]["status"] = "terminated"
- 
+
     # Convert the aggregated map into the final list, matching the TODO.md schema.
     # This creates one entry per unique instrument ID found in the evidence.
     derivatives_list = list(instrument_evidence_map.values())
- 
+
     # Additionally, add entries for aggregate summaries that don't have an instrument ID
     for ev in evidence:
-        if isinstance(ev, NotionalEvidence) and ev.instrument_id is None and ev.status == "summary" and ev.notional is not None and ev.notional > 0:
-            derivatives_list.append({
-                "type": ev.instrument_type,
-                "category": ev.category,
-                "status": "current",
-                "notional_amount": ev.notional,
-                "currency": ev.currency,
-                # Add value_type to summary entries as well
-                "value_type": ev.value_type,
-            })
+        if (
+            isinstance(ev, NotionalEvidence)
+            and ev.instrument_id is None
+            and ev.status == "summary"
+            and ev.notional is not None
+            and ev.notional > 0
+        ):
+            derivatives_list.append(
+                {
+                    "type": ev.instrument_type,
+                    "category": ev.category,
+                    "status": "current",
+                    "notional_amount": ev.notional,
+                    "currency": ev.currency,
+                    # Add value_type to summary entries as well
+                    "value_type": ev.value_type,
+                }
+            )
 
     return {
         "chain_of_thought": chain_of_thought,
