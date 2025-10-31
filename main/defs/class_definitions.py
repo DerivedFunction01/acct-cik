@@ -670,7 +670,12 @@ class NotionalSentence:
             prev2_year=self.prev2_year,
             quarter=quarter,
         )
-        time_suffix = f"as of {month} {end_day}, {self.year}"
+        if num_years == 2:
+            time_suffix = f"as of {month} {end_day}, {self.year} and {self.prev_year}, respectively"
+        elif num_years == 3:
+            time_suffix = f"as of {month} {end_day}, {self.year}, {self.prev_year}, and {self.prev2_year}, respectively"
+        else:
+            time_suffix = f"as of {month} {end_day}, {self.year}"
 
         # 3. Select verb
         verb = self.verb
