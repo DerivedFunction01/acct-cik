@@ -64,6 +64,8 @@ class NotionalEvidence(BaseNarrativeEvidence):
     notional_str: Optional[str] = None
     prev_notional_str: Optional[str] = None
     prev2_notional_str: Optional[str] = None
+    reporting_year: Optional[int] = None  # The reporting year of the document
+    value_type: str = "notional"  # Can be 'notional' or 'fair_value'
 
     def to_string(self) -> str:
         """Generates a human-readable 'chain of thought' sentence for this piece of evidence."""
@@ -75,23 +77,38 @@ class NotionalEvidence(BaseNarrativeEvidence):
             "GEN": "Generic",
         }
         category_name = category_names.get(self.category, "Unknown Category")
+        value_desc = "fair value" if self.value_type == "fair_value" else "notional value"
+        values_desc = "fair values" if self.value_type == "fair_value" else "notional values"
 
         if self.status == "summary":
             if self.prev_notional_str:
                 assert self.year is not None
                 return (
                     f"The narrative provides an aggregate summary for {category_name} derivatives, "
-                    f"with notional values of {self.notional_str} and {self.prev_notional_str} for {self.year} and {self.year - 1}, respectively, "
+                    f"with {values_desc} of {self.notional_str} and {self.prev_notional_str} for {self.year} and {self.year - 1}, respectively, "
                     f"confirming current and historical use."
                 )
+
+            reasoning = ""
+            if self.year and self.reporting_year and self.year == self.reporting_year:
+                if self.year == self.reporting_year and self.notional is not None:
+                    if self.notional > 0:
+                        reasoning = f" (for the reporting year {self.reporting_year}, confirming current use with a value greater than zero)"
+                    else:  # notional is 0
+                        reasoning = f" (for the reporting year {self.reporting_year}, confirming no current use with a value of zero)"
+                elif self.year < self.reporting_year:
+                    reasoning = (
+                        f" (for a prior year {self.year}, confirming historical use)"
+                    )
+
             return (
-                f"The narrative mentions an aggregate notional value of {self.notional_str} for {self.instrument_type}, "
-                f"indicating {category_name} derivative activity in {self.year}."
+                f"The narrative mentions an aggregate {value_desc} of {self.notional_str} for {self.instrument_type}, "
+                f"indicating {category_name} derivative activity in {self.year}{reasoning}."
             )
         elif self.status == "new":
-            return f"A new {self.instrument_type} with a notional of {self.notional_str} was entered into, confirming 'current' {category_name} use."
+            return f"A new {self.instrument_type} with a {value_desc} of {self.notional_str} was entered into during the reporting year {self.reporting_year}, confirming 'current' {category_name} use."
         elif self.status == "terminated":
-            return f"A {self.instrument_type} with a notional of {self.notional_str} matured or was settled, indicating 'terminated' {category_name} use."
+            return f"A {self.instrument_type} with a {value_desc} of {self.notional_str} from a prior period matured or was settled during the reporting year {self.reporting_year}, indicating 'terminated' {category_name} use."
         elif self.status == "no_instruments":
             return f"The narrative explicitly states no outstanding instruments for {category_name}, indicating no current use."
 
@@ -437,6 +454,7 @@ class NotionalSentence:
     notional: int
     currency_symbol: str = "$"
     money_unit_word: str = "million"
+    value_type: Literal["notional", "fair_value"] = "notional"
     sentence_type: Literal[
         "summary",
         "new_individual",
@@ -462,6 +480,7 @@ class NotionalSentence:
     company_name: Optional[str] = None
     verb: Optional[str] = None
     category: Optional[DerivativeCategory] = None
+    reporting_year: Optional[int] = None
 
     # Formatting preferences
     money_units: List[Tuple[str, int]] = field(
@@ -612,6 +631,8 @@ class NotionalSentence:
             notional_str=formatted_notional,
             prev_notional_str=formatted_prev_notional,
             prev2_notional_str=formatted_prev2_notional,
+            reporting_year=self.reporting_year,
+            value_type=self.value_type,
         )
 
         return sentence, evidence
