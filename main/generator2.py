@@ -79,10 +79,9 @@ class DerivativeInstrument:
     category: Literal["IR", "FX", "CP", "EQ", "GEN"] # The category of the derivative
     month: str  # The month this state of the instrument is for.
     year: int  # The year this state of the instrument is for.
-    hedge_designation: Optional[Literal["cash_flow", "fair_value", "net_investment", "economic"]] = None
+    hedge_designation: Optional[str] = None
     maturity_month: Optional[str] = None # The maturity month
     maturity_year: Optional[int] = None # The maturity year
-    num_instruments: Optional[int] = None # How many total
 
     def to_dict(self) -> Dict:
         """Serializes the common instrument data to a dictionary for JSON output."""
@@ -109,17 +108,19 @@ class HedgedItem:
 @dataclass
 class DebtHedgedItem(HedgedItem):
     """Represents a debt instrument being hedged (for IR derivatives)."""
-    debt_type: str  # e.g., "variable-rate credit facility", "senior notes"
-    month: str # THe month the debt was init
-    year: int # The year the debt was init
-    maturity_month: str # The maturity month
-    maturity_year: int # The maturity year
-    principal_amount: int # The initial principal
+    debt_type: str  # e.g., "variable-rate credit facility", "senior notes", "term loan"
+    issuance_month: Optional[str]
+    issuance_year: int
+    maturity_month: Optional[str]
+    maturity_year: int
+    principal_amount: int
     interest_rate_type: Literal["fixed", "variable"]
-    interest_rate: float
-    interest_rate2: float
-    payment_frequnecy: str
-    other_party: str # The other party of the debt
+    benchmark_rate: Optional[str] = None  # e.g., "LIBOR", "SOFR"
+    spread_bps: Optional[int] = None  # Basis points over the benchmark
+    fixed_rate_pct: Optional[float] = None # The fixed rate percentage
+    change_rate_pct: Optional[float] = None  # The new rate percentage
+    payment_amount: Optional[int] = None  # The payment amount
+    payment_frequency: Optional[str] = None # Payment frequency
 
 
 @dataclass
@@ -243,43 +244,203 @@ class GenerationScenario:
     reporting_year: int    
     instruments: List[NotionalInstrument] = field(default_factory=list)    
     policy: Optional[RiskManagementPolicy] = None
-    
+
+# =============================================================================
+# DUMMY DATA ARRAYS FOR RANDOM GENERATION
+# These can be expanded and mapped to your old templates.
+# =============================================================================
+
+DUMMY_IR_INSTRUMENT_TYPES = ["interest rate swap", "pay-fixed interest rate swap", "interest rate cap", "interest rate collar"]
+DUMMY_FX_INSTRUMENT_TYPES = ["foreign currency forward", "foreign exchange contract", "currency option", "FX collar"]
+DUMMY_CP_INSTRUMENT_TYPES = ["commodity swap", "natural gas futures", "crude oil option"]
+DUMMY_EQ_INSTRUMENT_TYPES = ["equity swap", "equity forward"]
+DUMMY_DEBT_TYPES = ["variable-rate credit facility", "senior notes", "term loan", "revolving credit agreement"]
+DUMMY_COMMODITY_TYPES = ["Natural Gas", "Crude Oil", "Aluminum", "Diesel Fuel"]
+DUMMY_CURRENCIES = ["EUR", "GBP", "JPY", "CAD", "AUD"]
+DUMMY_BENCHMARK_RATES = ["SOFR", "LIBOR", "EURIBOR"]
+DUMMY_HEDGE_DESIGNATIONS = ["cash_flow", "fair_value", "net_investment", "economic"]
+
 # =============================================================================
 # PHASE 1 PART 2: SCENARIO GENERATION
 # This section implements the core idea: "Decide the story upfront."
 # We define the state of our financial narrative using structured dataclasses.
 # =============================================================================
 
+
 def create_random_scenario() -> GenerationScenario:
     """
-    This function will create a random, complex scenario based on the rules
-    we've defined. For now, it's a placeholder for the logic that decides
-    what kind of story to tell (e.g., a company with 2 active IR swaps and 1 terminated FX forward).
+    Creates a random, complex scenario by building a structured `GenerationScenario` object.
+    This function acts as the "story planner," deciding upfront which instruments
+    a company has, their status (active or terminated), and their key properties.
     """
-    # TODO: Implement the logic to generate diverse and complex scenarios.
-    # For now, let's hardcode the complex example from our TODO.md.
-    
-    reporting_year = random.randint(2022, 2024)
-    reporting_month = random.choice(months)
+    reporting_year = random.randint(2020, 2024)
     scenario = GenerationScenario(
         company_name=random.choice(company_names),
         reporting_year=reporting_year,
         instruments=[],
         policy=RiskManagementPolicy(
             general_policy=GeneralHedgingPolicy(
-                does_not_use_for_trading=True,
-                counterparty_credit_risk_monitored=True
+                does_not_use_for_trading=True, counterparty_credit_risk_monitored=True
             ),
             category_policies=[
                 CategorySpecificPolicy(
-                    category="IR",
+                    category=random.choice(["IR", "FX", "CP"]),
                     effectiveness_testing_method="regression analysis",
                     effectiveness_frequency="quarterly",
-                    accounting_policy_description="For derivatives designated as cash flow hedges, the effective portion of the change in fair value is recorded in other comprehensive income (OCI)."
+                    accounting_policy_description="For derivatives designated as cash flow hedges, the effective portion of the change in fair value is recorded in other comprehensive income (OCI).",
                 )
-            ]
-        )
+            ],
+        ),
     )
+
+    instrument_id_counter = 1
+    hedged_item_id_counter = 1
+
+    # Decide how many of each instrument type to create. This is the "state tracker" logic.
+    instrument_counts = {
+        "IR": random.randint(0, 5),
+        "FX": random.randint(0, 5),
+        "CP": random.randint(0, 5),
+        "EQ": random.randint(0, 3),
+    }
+
+    # --- Create IR Instruments ---
+    for _ in range(instrument_counts["IR"]):
+        is_terminated = (
+            random.random() < 0.3
+        )  # 30% chance of being a terminated instrument
+        issuance_year = random.randint(reporting_year - 8, reporting_year - 1)
+        hedged_debt = None
+        notional = 0
+
+        if is_terminated:
+            maturity_year = random.randint(issuance_year + 1, reporting_year)
+            notional = random.randint(5, 500) * 1_000_000
+        else:
+            maturity_year = random.randint(reporting_year + 2, reporting_year + 10)
+            hedged_debt = DebtHedgedItem(
+                hedged_item_id=hedged_item_id_counter,
+                debt_type=random.choice(DUMMY_DEBT_TYPES),
+                issuance_month=random.choice(months),
+                issuance_year=issuance_year,
+                maturity_month=random.choice(months),
+                maturity_year=maturity_year,
+                principal_amount=random.randint(5, 500) * 1_000_000,
+                interest_rate_type="variable",
+                benchmark_rate=random.choice(DUMMY_BENCHMARK_RATES),
+                spread_bps=random.randint(100, 300),
+            )
+            notional = hedged_debt.principal_amount
+            hedged_item_id_counter += 1
+
+        ir_swap = IRInstrument(
+            category="IR",
+            instrument_id=instrument_id_counter,
+            instrument_type=random.choice(DUMMY_IR_INSTRUMENT_TYPES),
+            month=random.choice(months),
+            year=reporting_year,
+            notional_amount=notional,
+            currency="USD",
+            maturity_year=maturity_year,
+            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            hedged_item=hedged_debt,
+        )
+        instrument_id_counter += 1
+        scenario.instruments.append(ir_swap)
+
+    # --- Create FX Instruments ---
+    for _ in range(instrument_counts["FX"]):
+        is_terminated = random.random() < 0.3
+        hedged_fx = None
+        notional = 0
+
+        if is_terminated:
+            maturity_year = random.randint(reporting_year - 2, reporting_year)
+            notional = random.randint(10, 200) * 1_000_000
+        else:
+            maturity_year = random.randint(reporting_year + 1, reporting_year + 3)
+            num_exposures = random.randint(1, 3)
+            exposures = [
+                CurrencyExposure(
+                    currency=cur, amount=random.randint(1, 100) * 1_000_000
+                )
+                for cur in random.sample(DUMMY_CURRENCIES, num_exposures)
+            ]
+            hedged_fx = ForeignCurrencyHedgedItem(
+                hedged_item_id=hedged_item_id_counter, exposures=exposures
+            )
+            notional = sum(e.amount for e in exposures)  # Simplified USD equivalent
+            hedged_item_id_counter += 1
+
+        fx_instrument = FXInstrument(
+            category="FX",
+            instrument_id=instrument_id_counter,
+            instrument_type=random.choice(DUMMY_FX_INSTRUMENT_TYPES),
+            month=random.choice(months),
+            year=reporting_year,
+            notional_amount=notional,
+            currency="USD",
+            maturity_year=maturity_year,
+            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            hedged_item=hedged_fx,
+        )
+        instrument_id_counter += 1
+        scenario.instruments.append(fx_instrument)
+
+    # --- Create CP Instruments ---
+    for _ in range(instrument_counts["CP"]):
+        is_terminated = random.random() < 0.3
+        hedged_commodity = None
+        notional = 0
+
+        if is_terminated:
+            maturity_year = random.randint(reporting_year - 2, reporting_year)
+            notional = random.randint(5, 100) * 1_000_000
+        else:
+            maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
+            notional = random.randint(5, 100) * 1_000_000
+            hedged_commodity = CommodityHedgedItem(
+                hedged_item_id=hedged_item_id_counter,
+                commodity_type=random.choice(DUMMY_COMMODITY_TYPES),
+                transaction_type=random.choice(["purchase", "sale"]),
+                quantity=random.randint(100, 10000),
+                unit_of_volume=random.choice(["MMBtu", "barrels", "metric tons"]),
+                price_per_unit=random.uniform(10, 200),
+                cost_type=random.choice(cost_types),
+                supplier=(
+                    random.choice(company_names) if random.random() < 0.2 else None
+                ),
+            )
+            hedged_item_id_counter += 1
+
+        cp_instrument = CPInstrument(
+            category="CP",
+            instrument_id=instrument_id_counter,
+            instrument_type=random.choice(DUMMY_CP_INSTRUMENT_TYPES),
+            month=random.choice(months),
+            year=reporting_year,
+            notional_amount=notional,
+            currency="USD",
+            maturity_year=maturity_year,
+            hedge_designation=random.choice(DUMMY_HEDGE_DESIGNATIONS),
+            hedged_item=hedged_commodity,
+        )
+        instrument_id_counter += 1
+        scenario.instruments.append(cp_instrument)
+
+    # --- Create EQ Instruments ---
+    for _ in range(instrument_counts["EQ"]):
+        is_terminated = random.random() < 0.3
+        hedged_equity = None
+        notional = 0
+
+        if is_terminated:
+            maturity_year = random.randint(reporting_year - 2, reporting_year)
+            notional = random.randint(5, 50) * 1_000_000
+        else:
+            maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
+            notional = random.randint(5, 100) * 1_000_000
+
     return scenario
 
 # %%
