@@ -990,8 +990,7 @@ def _format_notional(amount: int) -> str:
         return f"${amount / 1_000:.1f} thousand"
     return f"${amount}"
 
-
-def _generate_intro_sentences(scenario: GenerationScenario) -> List[str]:
+def _generate_narrative_intro(scenario: GenerationScenario) -> List[str]:
     """Generates the introductory sentences about market risk."""
     # TODO: Use templates like `hedge_begin_context_templates`
     return [
@@ -999,70 +998,106 @@ def _generate_intro_sentences(scenario: GenerationScenario) -> List[str]:
     ]
 
 
-def _generate_policy_sentences(scenario: GenerationScenario) -> List[str]:
+def _generate_narrative_policy(scenario: GenerationScenario) -> List[str]:
     """Generates sentences describing the company's hedging policy."""
     sentences = []
-    if scenario.policy and scenario.policy.general_policy.does_not_use_for_trading:
-        sentences.append(
-            "Our risk management strategy involves the use of derivative instruments to mitigate these exposures."
-        )
-        sentences.append(
-            "We do not enter into derivative contracts for trading or speculative purposes."
-        )
-    if (
-        scenario.policy
-        and scenario.policy.general_policy.counterparty_credit_risk_monitored
-    ):
-        sentences.append(
-            f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}."
-        )
+    if scenario.policy:
+        if scenario.policy.general_policy.does_not_use_for_trading:
+            sentences.append(
+                "Our risk management strategy involves the use of derivative instruments to mitigate these exposures."
+            )
+            sentences.append(
+                "We do not enter into derivative contracts for trading or speculative purposes."
+            )
+        if scenario.policy.general_policy.counterparty_credit_risk_monitored:
+            sentences.append(
+                f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}."
+            )
     return sentences
 
 
-def _generate_instrument_summary_sentences(
-    scenario: GenerationScenario, aggregated_data: Dict
+def _generate_category_narrative(
+    category: str,
+    yearly_data: Dict,
+    scenario: GenerationScenario,
 ) -> List[str]:
-    """Generates high-level summary sentences for each instrument category."""
+    """
+    Generates a narrative section for a single derivative category (e.g., Interest Rate Risk).
+    This includes context, a summary of instruments, and details on changes.
+    """
     sentences = []
     reporting_year = scenario.reporting_year
+    current_year_data = yearly_data.get(reporting_year)
+    prev_year_data = yearly_data.get(reporting_year - 1)
 
-    for category, yearly_data in aggregated_data.items():
-        if category == "GEN":  # Skip generic for now
-            continue
+    # 1. Context Sentence (e.g., "To manage our interest rate risk...")
+    # TODO: Make this more dynamic based on templates.
+    if category == "IR":
+        sentences.append(
+            "To manage our interest rate risk, we utilize interest rate swaps to hedge our variable-rate debt."
+        )
+    elif category == "FX":
+        sentences.append(
+            "We use foreign currency forward contracts to mitigate the impact of currency fluctuations on our international operations."
+        )
+    elif category == "CP":
+        sentences.append(
+            "The Company enters into commodity derivative contracts to manage price risk associated with raw materials."
+        )
 
-        # Data for the current reporting year
-        current_year_data = yearly_data.get(reporting_year)
-        if current_year_data and current_year_data["total_notional"] > 0:
-            # Example: "As of December 31, 2023, the aggregate notional value of our interest rate swaps was $250.0 million."
-            instrument_type_plural = current_year_data["instrument_types"][0] + "s"
-            total_notional_str = _format_notional(current_year_data["total_notional"])
-            sentences.append(
-                f"As of December 31, {reporting_year}, the aggregate notional value for our {instrument_type_plural} was {total_notional_str}."
-            )
-
-        # Data for the previous year
-        prev_year_data = yearly_data.get(reporting_year - 1)
+    # 2. Aggregate Summary
+    if current_year_data and current_year_data["total_notional"] > 0:
+        instrument_type_plural = current_year_data["instrument_types"][0] + "s"
+        total_notional_str = _format_notional(current_year_data["total_notional"])
+        sentences.append(
+            f"As of December 31, {reporting_year}, the aggregate notional value for our {instrument_type_plural} was {total_notional_str}."
+        )
         if prev_year_data and prev_year_data["total_notional"] > 0:
-            # Example: "This compares to a total notional value of $220.0 million for the prior year."
-            total_notional_str = _format_notional(prev_year_data["total_notional"])
-            sentences.append(f"This compares to a total notional value of {total_notional_str} for the prior year.")
+            prev_total_notional_str = _format_notional(prev_year_data["total_notional"])
+            sentences.append(
+                f"This compares to a total notional value of {prev_total_notional_str} for the prior year."
+            )
+    else:
+        # If no active instruments, state that.
+        sentences.append(
+            f"As of December 31, {reporting_year}, we had no outstanding derivative instruments for this category."
+        )
 
-    # TODO: Add more detailed sentences about specific instrument changes (terminations, new entries).
-    sentences.append(
-        f"The Company also has an embedded derivative liability related to its convertible senior notes, with a fair value of $12.5 million as of December 31, {scenario.reporting_year}."
-    )
+    # 3. Detailed Sentences (Changes, Terminations, New Entries)
+    # TODO: This logic can be significantly expanded.
+    if current_year_data:
+        for instrument in current_year_data["instruments"]:
+            if (
+                instrument.hedged_item
+                and instrument.hedged_item.issuance_year == reporting_year
+            ):
+                sentences.append(
+                    f"During {reporting_year}, we entered into a new {instrument.instrument_type} with a notional value of {_format_notional(instrument.notional_amount)}."
+                )
+
+            if instrument.maturity_year == reporting_year:
+                sentences.append(
+                    f"A {instrument.instrument_type} with a notional value of {_format_notional(instrument.notional_amount)} matured during the year."
+                )
+
     return sentences
 
 
-def _generate_accounting_sentences(scenario: GenerationScenario) -> List[str]:
+def _generate_narrative_accounting(scenario: GenerationScenario) -> List[str]:
     """Generates sentences about accounting treatment and hedge effectiveness."""
     sentences = []
-    if scenario.policy and scenario.policy.category_policies:
+    if scenario.policy and scenario.policy.category_policies:  # Check if policy exists
         for cat_policy in scenario.policy.category_policies:
             if cat_policy.effectiveness_testing_method:
                 sentences.append(
                     f"For our {cat_policy.category} derivative instruments, we assess hedge effectiveness on a {cat_policy.effectiveness_frequency} basis using the {cat_policy.effectiveness_testing_method}."
                 )
+    # TODO: Add a generic sentence about embedded derivatives if they exist.
+    # This is a placeholder for a more robust check.
+    if random.random() < 0.3:
+        sentences.append(
+            f"The Company also has an embedded derivative liability related to its convertible senior notes, with a fair value of $12.5 million as of December 31, {scenario.reporting_year}."
+        )
     return sentences
 
 
@@ -1094,22 +1129,38 @@ def generate_narrative_from_scenario(scenario: GenerationScenario) -> str:
 
         aggregated_data[cat][year]["total_notional"] += instrument.notional_amount
         aggregated_data[cat][year]["count"] += 1
-        aggregated_data[cat][year]["instrument_types"].append(instrument.instrument_type)
+        aggregated_data[cat][year]["instrument_types"].append(
+            instrument.instrument_type
+        )
         aggregated_data[cat][year]["instruments"].append(instrument)
 
-    # 1. Introduction
-    all_sentences.extend(_generate_intro_sentences(scenario))
+    # =========================================================================
+    # NARRATIVE CONSTRUCTION: Build the story section by section.
+    # =========================================================================
 
-    # 2. Policy and Strategy
-    all_sentences.extend(_generate_policy_sentences(scenario))
+    # 1. Introduction (Broad market risk statement)
+    all_sentences.extend(_generate_narrative_intro(scenario))
 
-    # 3. Specific Instrument Disclosure (High-Level Summary)
-    all_sentences.extend(
-        _generate_instrument_summary_sentences(scenario, aggregated_data)
-    )
+    # 2. Policy and Strategy (High-level hedging approach)
+    all_sentences.extend(_generate_narrative_policy(scenario))
 
-    # 4. Effectiveness and Accounting
-    all_sentences.extend(_generate_accounting_sentences(scenario))
+    # 3. Category-Specific Sections (IR, FX, CP, etc.)
+    # Iterate in a standard order to mimic real filings.
+    for category in ["IR", "FX", "CP", "EQ"]:
+        if category in aggregated_data:
+            all_sentences.extend(
+                _generate_category_narrative(
+                    category, aggregated_data[category], scenario
+                )
+            )
+        elif random.random() < 0.2:  # Occasionally mention non-use
+            # Add a sentence stating no derivatives are used for this category.
+            # TODO: Make this more robust.
+            pass
+            continue
+
+    # 4. Effectiveness and Accounting (Concluding details)
+    all_sentences.extend(_generate_narrative_accounting(scenario))
 
     # TODO: Cleanup and formatting logic will go here.
     narrative = ". ".join(all_sentences) + "."
