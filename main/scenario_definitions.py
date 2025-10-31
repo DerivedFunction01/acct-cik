@@ -93,12 +93,23 @@ class CurrencyExposure:
     symbol: str  # e.g., "€", "£"
     amount: int  # The notional amount of the exposure in that currency
 
+    def to_dict(self) -> Dict:
+        """Serializes the currency exposure to a dictionary."""
+        return self.__dict__
+
 
 @dataclass
 class ForeignCurrencyHedgedItem(HedgedItem):
     """Represents foreign currency exposure being hedged (for FX derivatives)."""
 
     exposures: List[CurrencyExposure] = field(default_factory=list)
+
+    def to_dict(self) -> Optional[Dict]:
+        """Serializes the hedged item, including its currency exposures."""
+        data = super().to_dict()
+        if data:
+            data["exposures"] = [exp.to_dict() for exp in self.exposures]
+        return data
 
 
 @dataclass
