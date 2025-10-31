@@ -183,7 +183,16 @@ class NotionalEvidence(BaseNarrativeEvidence):
                     f"The report describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
                     f"This indicates the instrument was newly entered into during {self.year}."
                 )
-
+        # -----------------------------------------------------------------
+        # Individual
+        # -----------------------------------------------------------------
+        elif self.status == "individual":
+            text = (
+                f"The narrative mentions an individual {self.instrument_type} "
+                f"with a {value_desc} of {self.notional_str}, "
+                f"indicating that at least one {category_name} derivative was active "
+                f"during {self.year}{self._temporal_reasoning(value_desc)}."
+            )
         # -----------------------------------------------------------------
         # Terminated
         # -----------------------------------------------------------------
