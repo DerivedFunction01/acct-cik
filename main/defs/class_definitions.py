@@ -230,8 +230,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
 @dataclass
 class PolicyEvidence(BaseNarrativeEvidence):
     """Evidence related to a company's hedging policies or risk exposure."""
-    policy_type: Literal["risk_exposure", "hedging_strategy", "effectiveness_testing", "accounting_treatment"]
-    details: str # The core statement of the policy or risk.
+    details: str = "" # The core statement of the policy or risk.
+    policy_type: Literal[
+        "risk_exposure",
+        "hedging_strategy",
+        "effectiveness_testing",
+        "accounting_treatment",
+    ] = "risk_exposure"
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the policy evidence."""
