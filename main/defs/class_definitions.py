@@ -596,6 +596,7 @@ class NotionalSentence:
     )
     prefer_abbreviated: bool = True
 
+    currencies = ""
     def build(self) -> Tuple[str, NotionalEvidence]:
         """
         Builds a notional sentence and a corresponding NotionalEvidence object.
@@ -607,6 +608,15 @@ class NotionalSentence:
         end_day = self.end_day or random.randint(28, 31)
         quarter = self.quarter or random.choice(quarters)
         company_name = self.company_name or "The Company"
+        currencies = ""
+        if self.result_phrase and "{currencies}" in self.result_phrase:
+            currency_list = []
+            for _ in range(random.randint(1, 3)):
+                currency_list.append(random.choice(all_currencies).full_name)
+            currencies = (
+                ", ".join(currency_list[:-1]) + " and " + currency_list[-1] 
+                if len(currency_list) > 1 else currency_list[0] 
+            )
 
         # Determine number of years for comparison
         num_years = 1
@@ -721,12 +731,22 @@ class NotionalSentence:
             # Populate new placeholders within the result phrase itself
             outcome_verb = random.choice(financial_outcome_verbs)
             outcome_loc = random.choice(balance_sheet_locations)
+            
+            # Choose two different specific rate terms for templates that need them
+            rate_terms = random.sample(specific_rate_terms, 2)
+            rate_term1 = rate_terms[0]
+            rate_term2 = rate_terms[1]
             populated_phrase = self.result_phrase.format(
                 mitigation_verb=random.choice(risk_mitigation_verbs),
                 gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
+                risk_term=random.choice(risk_exposure_terms),
+                ir_term=random.choice(interest_rate_terms),
                 debt_type=random.choice(DUMMY_DEBT_TYPES), # Assuming DUMMY_DEBT_TYPES is available
-                currencies=random.choice(all_currencies).adjective,
+                currencies=currencies,
+                currency_code=self.currency_code,
+                rate_term1=rate_term1,
+                rate_term2=rate_term2,
                 commodity=get_random_commodity_and_unit()[0],
             )
             result_clause = f", {populated_phrase}"

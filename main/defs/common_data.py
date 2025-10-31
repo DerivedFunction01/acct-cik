@@ -176,6 +176,31 @@ risk_mitigation_verbs = [
     "stabilizing",
 ]
 
+risk_exposure_terms = [
+    "fluctuations",
+    "movements",
+    "risk",
+    "volatility",
+    "changes",
+    "exposure",
+    "variability",
+]
+
+general_interest_terms = [
+    "interest rate",
+    "borrowing cost",
+    "financing cost",
+    "interest cost",
+    "rate of interest",
+]
+
+specific_rate_terms = [
+    "variable rate",
+    "fixed rate",
+    "floating rate",
+]
+interest_rate_terms = general_interest_terms + specific_rate_terms
+
 financial_outcome_verbs = [
     "recognized in",
     "recorded in",
