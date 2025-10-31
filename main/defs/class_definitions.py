@@ -9,8 +9,8 @@ from defs.template_definitions import (
     _cleanup_sentence,
     _format_single_notional,
 )
-from main.defs.commodity_data import get_random_commodity_and_unit
-from main.defs.dummy_data import DUMMY_DEBT_TYPES
+from defs.commodity_data import get_random_commodity_and_unit
+from defs.dummy_data import DUMMY_DEBT_TYPES
 
 # =============================================================================
 # SCENARIO DEFINITION - CLASSES
