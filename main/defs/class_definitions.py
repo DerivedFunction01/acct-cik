@@ -155,6 +155,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # Template-driven status handlers
         # -----------------------------------------------------------------
         def summary_handler():
+            assert self.reporting_year is not None and self.year is not None
             if not self.notional_str and self.notional is None:
                 return f"The report provides a summary for {category_name} derivatives, confirming activity but no {value_desc} specified for {self.year}."
             if self.prev_notional_str and not self.notional_str and self.year < self.reporting_year and self.maturity_year:
