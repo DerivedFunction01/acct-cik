@@ -843,6 +843,7 @@ def _generate_category_narrative(
             category=category,  # type: ignore
             reporting_year=reporting_year,
             value_type=value_type_to_use,
+            result_phrase=random.choice(result_phrases[category])
         )
         summary_sentence_text, evidence_obj = summary_sentence_obj.build()
         sentences.append(summary_sentence_text)
