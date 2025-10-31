@@ -170,10 +170,23 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{time_prefix}, {swap_type} with a {amount_prefix} of {amount_str} were {verb}{hedge_designation_clause}{result_clause}.",
     ],
     "comparative": [
-        "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}, respectively{hedge_designation_clause}{result_clause}.",
-        "{time_prefix}, {swap_type} {amount_connector} {amount_str}, respectively, {verb} by {company}{hedge_designation_clause}{result_clause}.",
-        "The {swap_type}'s {amount_connector} was {amount_str}, respectively, {time_suffix}{hedge_designation_clause}{result_clause}.",
-        "{time_prefix}, the {amount_prefix} of the {swap_type} were {amount_str}, respectively{hedge_designation_clause}{result_clause}.",
+        "{company} {verb} {swap_type} {amount_connector} {amount_str}, respectively, {time_suffix}{hedge_designation_clause}{result_clause}.",
+        "As of {month} {end_day}, {year} and {prev_year}, {company} were party to {swap_type} totaling {amount_str}, respectively{hedge_designation_clause}{result_clause}.",
+        "The aggregate {amount_prefix} of the {swap_type} were {amount_str} as of {month} {end_day}, {year} and {prev_year}, respectively{hedge_designation_clause}{result_clause}.",
+    ],
+    "individual": [
+        "{time_prefix}, {company} held {swap_type} with a {amount_prefix} of {amount_str}{hedge_designation_clause}{result_clause}.",
+        "{swap_type} was outstanding {time_suffix} with a {amount_prefix} of {amount_str}{hedge_designation_clause}{result_clause}.",
+    ],
+    "historical_individual": [
+        "A {swap_type} contracted in a prior year remains outstanding, with a {amount_prefix} of {amount_str} {time_suffix}{hedge_designation_clause}{result_clause}.",
+        "{company} held a {swap_type} from a prior period, which had a remaining {amount_prefix} of {amount_str} {time_suffix}{hedge_designation_clause}{result_clause}.",
+    ],
+    "comparative_no_outstanding": [
+        "{time_prefix}, {company} had no outstanding {swap_type}, compared to {amount_str} in the prior year{hedge_designation_clause}{result_clause}.",
+    ],
+    "comparative_no_prior_outstanding": [
+        "{time_prefix}, {company} held {swap_type} {amount_connector} {amount_str}, whereas no such instruments were outstanding in the prior year{hedge_designation_clause}{result_clause}.",
     ],
 }
 
