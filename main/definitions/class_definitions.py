@@ -52,10 +52,6 @@ class BaseNarrativeEvidence:
         return f"Uncategorized evidence found for {self.category}."
 
 
-from dataclasses import dataclass
-from typing import Optional
-
-
 @dataclass
 class NotionalEvidence(BaseNarrativeEvidence):
     """Evidence related to notional or fair value amounts of derivative instruments, with temporal reasoning and validation."""
