@@ -67,16 +67,18 @@ def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000, dashed=False):
 # We define the state of our financial narrative using structured dataclasses.
 # =============================================================================
 
+# Define a central, single source of truth for derivative categories.
+DERIVATIVE_CATEGORIES = ("IR", "FX", "CP", "EQ", "GEN")
+DerivativeCategory = Literal["IR", "FX", "CP", "EQ", "GEN"]
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
-
 
 @dataclass
 class DerivativeInstrument:
     """Base class for a single derivative instrument within our narrative."""
     instrument_id: int # A unique ID to track the same instrument across multiple years.
     instrument_type: str
-    category: Literal["IR", "FX", "CP", "EQ", "GEN"] # The category of the derivative
+    category: DerivativeCategory  # The category of the derivative
     month: str  # The month this state of the instrument is for.
     year: int  # The year this state of the instrument is for.
     hedge_designation: Optional[str] = None
@@ -221,7 +223,7 @@ class GeneralHedgingPolicy:
 @dataclass
 class CategorySpecificPolicy:
     """Describes policies for a specific category of derivatives (e.g., IR, FX)."""
-    category: Literal["IR", "FX", "CP", "EQ", "GEN"]
+    category: DerivativeCategory
     effectiveness_testing_method: Optional[str] = None # e.g., "dollar-offset method"
     effectiveness_frequency: Optional[str] = "quarterly"
     documentation_formalized: bool = True    
@@ -260,6 +262,14 @@ DUMMY_CURRENCIES = ["EUR", "GBP", "JPY", "CAD", "AUD"]
 DUMMY_BENCHMARK_RATES = ["SOFR", "LIBOR", "EURIBOR"]
 DUMMY_HEDGE_DESIGNATIONS = ["cash_flow", "fair_value", "net_investment", "economic"]
 
+DUMMY_EFFECTIVENESS_METHODS = ["regression analysis", "the dollar-offset method", "quantitative analysis", "statistical methods"]
+DUMMY_EFFECTIVENESS_FREQUENCIES = ["quarterly", "annually", "at inception and on an ongoing basis"]
+DUMMY_ACCOUNTING_DESCRIPTIONS = {
+    "cash_flow": "For derivatives designated as cash flow hedges, the effective portion of the change in fair value is recorded in other comprehensive income (OCI).",
+    "fair_value": "For derivatives designated as fair value hedges, changes in fair value are recognized in earnings, offsetting the change in the hedged item's fair value.",
+    "net_investment": "For net investment hedges, foreign currency translation gains or losses are recorded in other comprehensive income (OCI) to offset the translation of the net investment."
+}
+
 
 @dataclass
 class ScenarioArchetype:
@@ -271,6 +281,7 @@ class ScenarioArchetype:
     cp_range: tuple[int, int]
     eq_range: tuple[int, int]
     gen_range: tuple[int, int]
+    policy_coverage: Literal["full", "partial", "light"]
 
     def get_instrument_counts(self) -> Dict[str, int]:
         """Generates a dictionary of instrument counts based on the archetype's ranges."""
@@ -286,19 +297,19 @@ class ScenarioArchetype:
 # Define a list of company archetypes to choose from during generation.
 SCENARIO_ARCHETYPES = [
     ScenarioArchetype(
-        name="Large Multinational", ir_range=(2, 4), fx_range=(2, 5), cp_range=(1, 3), eq_range=(0, 2), gen_range=(0, 1)
+        name="Large Multinational", ir_range=(2, 4), fx_range=(2, 5), cp_range=(1, 3), eq_range=(0, 2), gen_range=(0, 1), policy_coverage="full"
     ),
     ScenarioArchetype(
-        name="Domestic Industrial", ir_range=(1, 3), fx_range=(0, 2), cp_range=(2, 4), eq_range=(0, 1), gen_range=(0, 1)
+        name="Domestic Industrial", ir_range=(1, 3), fx_range=(0, 2), cp_range=(2, 4), eq_range=(0, 1), gen_range=(0, 1), policy_coverage="partial"
     ),
     ScenarioArchetype(
-        name="Tech Company", ir_range=(0, 2), fx_range=(1, 4), cp_range=(0, 0), eq_range=(1, 3), gen_range=(0, 1)
+        name="Tech Company", ir_range=(0, 2), fx_range=(1, 4), cp_range=(0, 0), eq_range=(1, 3), gen_range=(0, 1), policy_coverage="partial"
     ),
     ScenarioArchetype(
-        name="Financial Institution", ir_range=(2, 5), fx_range=(2, 5), cp_range=(0, 1), eq_range=(0, 2), gen_range=(0, 1)
+        name="Financial Institution", ir_range=(2, 5), fx_range=(2, 5), cp_range=(0, 1), eq_range=(0, 2), gen_range=(0, 1), policy_coverage="full"
     ),
     ScenarioArchetype(
-        name="Policy Only / Light User", ir_range=(0, 1), fx_range=(0, 1), cp_range=(0, 0), eq_range=(0, 0), gen_range=(1, 2)
+        name="Policy Only / Light User", ir_range=(0, 1), fx_range=(0, 1), cp_range=(0, 0), eq_range=(0, 0), gen_range=(1, 2), policy_coverage="light"
     ),
 ]
 
@@ -308,6 +319,47 @@ SCENARIO_ARCHETYPES = [
 # We define the state of our financial narrative using structured dataclasses.
 # =============================================================================
 
+def generate_policy_for_archetype(archetype: ScenarioArchetype, instrument_counts: Dict[str, int]) -> RiskManagementPolicy:
+    """Generates a realistic RiskManagementPolicy based on the company archetype and instrument usage."""
+
+    general_policy = GeneralHedgingPolicy(
+        does_not_use_for_trading=True,
+        counterparty_credit_risk_monitored=True,
+        counterparty_details=random.choice(["major financial institutions", "a diversified group of highly-rated financial institutions"])
+    )
+
+    category_policies = []
+    active_categories = [cat for cat, count in instrument_counts.items() if count > 0 and cat not in ["GEN", "EQ"]]
+
+    # Determine how many specific policies to create based on the archetype
+    if archetype.policy_coverage == "full":
+        # These firms likely have a policy for every risk category they manage
+        num_policies_to_generate = len(active_categories)
+    elif archetype.policy_coverage == "partial":
+        # These firms might have 1 or 2 core policies
+        num_policies_to_generate = random.randint(1, min(2, len(active_categories)))
+    else:  # "light"
+        num_policies_to_generate = random.randint(0, min(1, len(active_categories)))
+
+    # Create the specific policies
+    if active_categories and num_policies_to_generate > 0:
+        categories_with_policies = random.sample(active_categories, num_policies_to_generate)
+        for category in categories_with_policies:
+            policy = CategorySpecificPolicy(
+                category=category,  # type: ignore
+                effectiveness_testing_method=random.choice(DUMMY_EFFECTIVENESS_METHODS),
+                effectiveness_frequency=random.choice(DUMMY_EFFECTIVENESS_FREQUENCIES),
+                accounting_policy_description=random.choice(
+                    list(DUMMY_ACCOUNTING_DESCRIPTIONS.values())
+                ),
+            )
+            category_policies.append(policy)
+
+    return RiskManagementPolicy(
+        general_policy=general_policy,
+        category_policies=category_policies
+    )
+
 
 def create_random_scenario() -> GenerationScenario:
     """
@@ -316,31 +368,20 @@ def create_random_scenario() -> GenerationScenario:
     a company has, their status (active or terminated), and their key properties.
     """
     reporting_year = random.randint(2020, 2024)
+    
+    # --- Decide on a company archetype and get instrument counts ---
+    archetype = random.choice(SCENARIO_ARCHETYPES)
+    instrument_counts = archetype.get_instrument_counts()
+    
     scenario = GenerationScenario(
         company_name=random.choice(company_names),
         reporting_year=reporting_year,
         instruments=[],
-        policy=RiskManagementPolicy(
-            general_policy=GeneralHedgingPolicy(
-                does_not_use_for_trading=True, counterparty_credit_risk_monitored=True
-            ),
-            category_policies=[
-                CategorySpecificPolicy(
-                    category=random.choice(["IR", "FX", "CP"]),
-                    effectiveness_testing_method="regression analysis",
-                    effectiveness_frequency="quarterly",
-                    accounting_policy_description="For derivatives designated as cash flow hedges, the effective portion of the change in fair value is recorded in other comprehensive income (OCI).",
-                )
-            ],
-        ),
+        policy=generate_policy_for_archetype(archetype, instrument_counts)
     )
 
     instrument_id_counter = 1
     hedged_item_id_counter = 1
-
-    # --- Decide on a company archetype and get instrument counts ---
-    archetype = random.choice(SCENARIO_ARCHETYPES)
-    instrument_counts = archetype.get_instrument_counts()
 
     # --- Create IR Instruments ---
     for _ in range(instrument_counts["IR"]):
