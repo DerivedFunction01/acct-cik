@@ -1,5 +1,4 @@
 from main.definitions.class_definitions import Currency
-import random
 months_full = [
     "January",
     "February",

@@ -1,4 +1,5 @@
 import random
+from definitions.common_data import transaction_types
 COMMODITY_COST_TYPES = {
     "energy": ["extraction", "drilling", "production", "generation", "refining"],
     "metals_minerals": ["mining", "extraction", "smelting", "processing"],
@@ -7,13 +8,13 @@ COMMODITY_COST_TYPES = {
     "chemicals_plastics": ["manufacturing", "production", "processing", "feedstock"],
     "generic": [
         "input",
-        "purchase",
         "selling",
         "procurement",
         "transportation",
         "storage",
         "hedging",
-    ],
+    ]
+    + transaction_types,
 }
 
 COMMODITY_UNITS = {
