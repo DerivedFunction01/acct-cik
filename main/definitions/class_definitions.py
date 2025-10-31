@@ -148,9 +148,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 and self.maturity_year
             ):
                 reasoning = (
-                    f"The notional amount is disclosed only for {self.year}, "
+                    f"The {self.value_desc} amount is disclosed only for {self.year}, "
                     f"but the instrument has a stated maturity year of {self.maturity_year} beyond {self.reporting_year}, "
-                    f"indicating continued activity into the reporting period despite absence of a new notional figure."
+                    f"indicating continued activity into the reporting period despite absence of a new {self.values_desc} figure."
                 )
                 text = (
                     f"The report references {category_name} derivatives with prior-year {value_desc} "
@@ -174,21 +174,15 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         elif self.status == "new":
             if self.year == self.reporting_year:
-                text = (
-                    f"The report describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
-                    f"This confirms current {category_name} derivative activity, as it appears in {self.reporting_year} but was absent previously."
-                )
+                text = f"The report describes a new '{self.instrument_type}' with a {value_desc} of {self.notional_str}. This confirms 'current' {category_name} use because the instrument appears in the {self.reporting_year} data but was absent in prior periods."
             else:  # Past year
-                text = (
-                    f"The report describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
-                    f"This indicates the instrument was newly entered into during {self.year}."
-                )
+                text = f"The report describes a new '{self.instrument_type}' with a {value_desc} of {self.notional_str}. This indicates the instrument was newly entered into during {self.year}."
         # -----------------------------------------------------------------
         # Individual
         # -----------------------------------------------------------------
         elif self.status == "individual":
             text = (
-                f"The narrative mentions an individual {self.instrument_type} "
+                f"The report mentions an individual '{self.instrument_type}' "
                 f"with a {value_desc} of {self.notional_str}, "
                 f"indicating that at least one {category_name} derivative was active "
                 f"during {self.year}{self._temporal_reasoning(value_desc)}."
@@ -197,11 +191,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # Terminated
         # -----------------------------------------------------------------
         elif self.status == "terminated":
-            text = (
-                f"The report describes a {self.instrument_type} with a {value_desc} of {self.notional_str} "
-                f"that existed in prior data but is absent in {self.reporting_year}. "
-                f"This indicates the instrument was terminated during the reporting year, ceasing active use."
-            )
+            text = f"The report describes a '{self.instrument_type}' with a {value_desc} of {self.notional_str} that existed in a prior period but is absent in the {self.reporting_year} data. This comparison indicates the instrument was 'terminated' (matured or settled) during the reporting year."
 
         # -----------------------------------------------------------------
         # No instruments
