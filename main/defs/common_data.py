@@ -297,7 +297,7 @@ SPECIAL_EXPANSIONS = {
 
 CATEGORY_EXTRAS = {
     "IR": [],
-    "fx": ["NDF"],
+    "FX": ["NDF"],
     "CP": [],
     "EQ": ["index future"],
     "GEN": [
@@ -326,7 +326,7 @@ PLACEHOLDERS = {
         "variable-rate",
         "benchmark-rate",
     ],
-    "fx": [
+    "FX": [
         "foreign exchange",
         "forward exchange",
         "foreign currency",
