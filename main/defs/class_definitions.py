@@ -738,6 +738,8 @@ class NotionalSentence:
             amount_prefix=chosen_prefix,
             amount_str=amount_str,
             hedge_designation_clause=hedge_designation_clause,
+            state_descriptor=random.choice(state_descriptors),
+            historical_phrase=random.choice(historical_instrument_phrases),
             result_clause=result_clause,
             time_suffix=time_suffix,
         )
