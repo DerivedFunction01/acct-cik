@@ -63,6 +63,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
     reporting_year: Optional[int] = None
     maturity_year: Optional[int] = None
     value_type: str = "notional"
+    currency: str = "USD"
 
     # ---------------------------------------------------------------------
     # Helpers
@@ -554,6 +555,7 @@ class NotionalSentence:
     year: int
     notional: int
     currency_symbol: str = "$"
+    currency_code: str = "US Dollar"
     money_unit_word: str = "million"
     value_type: Literal["notional", "fair_value"] = "notional"
     sentence_type: Literal[
@@ -749,7 +751,7 @@ class NotionalSentence:
         # Handle "no_instruments" case specifically
         if self.sentence_type == "no_instruments":
             sentence = f"As of {month} {end_day}, {self.year}, {company_name} had no outstanding derivative instruments to hedge against {self.category} risk."
-            evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year)  # type: ignore
+            evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year, currency=self.currency_code)  # type: ignore
             return sentence, evidence
 
         # 8. Populate placeholders

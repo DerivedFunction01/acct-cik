@@ -36,8 +36,8 @@ company_name_df = pd.read_excel(company_name_file)
 company_names = list(company_name_df["name"])
 
 
-def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str]:
-    """Returns (currency_symbol, money_unit_word) based on scenario's archetype."""
+def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
+    """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
     # Get currency symbol
     currency_code = scenario.archetype.default_currency
     currency_obj = next((c for c in all_currencies if c.code == currency_code), None)
@@ -50,7 +50,7 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
         else "million"
     )
 
-    return currency_symbol, money_unit_word
+    return currency_symbol, money_unit_word, currency_code
 
 
 # --- Dynamic Instrument Type Generation ---
@@ -794,7 +794,7 @@ def _generate_category_narrative(
     mentioned_instrument_ids = set()
 
     # Get currency and money unit details for sentence generation
-    currency_symbol, money_unit_word = _get_currency_and_unit_details(scenario)
+    currency_symbol, money_unit_word, currency_code = _get_currency_and_unit_details(scenario)
 
     # 1. Context Sentence (e.g., "To manage our interest rate risk...")
     # TODO: Make this more dynamic based on templates.
@@ -836,6 +836,7 @@ def _generate_category_narrative(
             year=reporting_year,
             notional=value_to_report,
             currency_symbol=currency_symbol,
+            currency_code=currency_code,
             month=reporting_month,
             end_day=reporting_day,
             money_units=scenario.archetype.money_units,
@@ -1131,41 +1132,45 @@ def generate_json_from_scenario(
     # This ensures the JSON perfectly matches the narrative. Each piece of evidence
     # that points to a specific instrument contributes to its entry in the final JSON.
     derivatives_list = []
-    # Use a dictionary to aggregate evidence for each category
-    category_evidence_map: Dict[str, Dict] = {}
-
+    # Use a dictionary to aggregate evidence for each instrument ID mentioned.
+    # This allows us to build a detailed picture of each derivative.
+    instrument_evidence_map: Dict[int, Dict] = {}
+ 
     for ev in evidence:
-        if not hasattr(ev, 'category') or not ev.category:
+        # We only care about evidence that has an instrument ID and notional value.
+        if not isinstance(ev, NotionalEvidence) or ev.instrument_id is None or ev.notional is None:
             continue
-
-        category = ev.category
-
-        # Initialize the category if it's the first time we see it
-        if category not in category_evidence_map:
-            category_evidence_map[category] = {
-                "category": category,
+ 
+        instrument_id = ev.instrument_id
+ 
+        # Initialize the instrument if it's the first time we see it
+        if instrument_id not in instrument_evidence_map:
+            instrument_evidence_map[instrument_id] = {
+                "type": ev.instrument_type or "Unknown",
+                "category": ev.category,
+                "status": "current" if ev.status in ["new", "individual", "summary"] else ev.status,
                 "notional_amount": 0,
-                "instrument_types": set(),
-                "hedge_designations": set()
+                "currency": ev.currency,
             }
-
-        # Aggregate details from the current piece of evidence
-        if isinstance(ev, NotionalEvidence):
-            # For summary evidence, we take the total notional.
-            # For individual instruments, this will just be its own notional.
-            if ev.status == "summary" and ev.notional is not None:
-                 category_evidence_map[category]["notional_amount"] = ev.notional
-
-            if ev.instrument_type:
-                category_evidence_map[category]["instrument_types"].add(ev.instrument_type)
-
-    # Convert the aggregated map into the final list format
-    for cat, data in category_evidence_map.items():
-        if data["notional_amount"] > 0 or data["instrument_types"]:
+ 
+        # Update the notional amount. This will capture the most relevant value
+        # (e.g., the 'new' or 'terminated' value for that instrument).
+        instrument_evidence_map[instrument_id]["notional_amount"] = ev.notional
+ 
+        # Update status based on evidence type. 'terminated' is a final state.
+        if ev.status == "terminated":
+            instrument_evidence_map[instrument_id]["status"] = "terminated"
+ 
+    # Convert the aggregated map into the final list, matching the TODO.md schema.
+    # This creates one entry per unique instrument ID found in the evidence.
+    derivatives_list = list(instrument_evidence_map.values())
+ 
+    # Additionally, add entries for aggregate summaries that don't have an instrument ID
+    for ev in evidence:
+        if isinstance(ev, NotionalEvidence) and ev.instrument_id is None and ev.status == "summary" and ev.notional is not None and ev.notional > 0:
             derivatives_list.append({
-                "category": cat,
-                "instrument_type": ", ".join(sorted(list(data["instrument_types"]))),
-                "notional_amount": data["notional_amount"],
+                "type": ev.instrument_type, "category": ev.category, "status": "current", "notional_amount": ev.notional,
+                "currency": ev.currency
             })
 
     return {
