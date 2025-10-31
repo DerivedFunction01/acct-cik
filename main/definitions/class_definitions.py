@@ -703,12 +703,20 @@ class NotionalSentence:
         # Choose from the specific list if available, otherwise fall back to generic
         specific_connectors = amount_connectors.get(self.value_type, [])
         all_possible_connectors = specific_connectors + amount_connectors["generic"]
-        amount_connector = random.choice(all_possible_connectors)
-        
+        chosen_connector = random.choice(all_possible_connectors)
+
         # 4b. Select amount prefix (for templates that don't use a company/verb)
         specific_prefixes = amount_prefixes.get(self.value_type, [])
         all_possible_prefixes = specific_prefixes + amount_prefixes["generic"]
-        amount_prefix = random.choice(all_possible_prefixes)
+        chosen_prefix = random.choice(all_possible_prefixes)
+
+        # --- Refine value_type based on the chosen connector/prefix ---
+        # If a generic term was chosen, it's more likely to be interpreted as 'notional' in a real filing.
+        final_value_type = self.value_type
+        is_generic_connector = chosen_connector in amount_connectors["generic"]
+        is_generic_prefix = chosen_prefix in amount_prefixes["generic"]
+        if (is_generic_connector or is_generic_prefix) and self.value_type == "fair_value":
+            final_value_type = "notional"
 
         # 5. Hedge designation clause
         hedge_designation_clause = ""
@@ -738,8 +746,8 @@ class NotionalSentence:
             company=company_name,
             verb=verb,
             swap_type=self.swap_type,
-            amount_connector=amount_connector,
-            amount_prefix=amount_prefix,
+            amount_connector=chosen_connector,
+            amount_prefix=chosen_prefix,
             amount_str=amount_str,
             hedge_designation_clause=hedge_designation_clause,
             result_clause=result_clause,
@@ -763,7 +771,7 @@ class NotionalSentence:
             prev2_notional_str=formatted_prev2_notional,
             maturity_year=self.maturity_year,
             reporting_year=self.reporting_year,
-            value_type=self.value_type,
+            value_type=final_value_type,
         )
 
         return sentence, evidence
