@@ -11,6 +11,7 @@ from defs.template_definitions import *
 from defs.class_definitions import (
     BaseNarrativeEvidence,
     NotionalEvidence,
+    PolicySentence,
     NotionalSentence,
     NotionalInstrument,
     DebtHedgedItem,
@@ -755,13 +756,30 @@ def _generate_narrative_intro(scenario: GenerationScenario) -> List[str]:
 
 
 def _generate_narrative_policy(scenario: GenerationScenario) -> List[str]:
-    """Generates sentences describing the company's hedging policy."""
+    """Generates sentences describing the company's hedging policy and risk exposures."""
     sentences = []
+    evidence = [] # This function will now also produce evidence
+
     if scenario.policy:
+        # --- Generate a high-level risk exposure sentence ---
+        # Determine the primary risk category based on instrument count
+        instrument_counts = {cat: 0 for cat in DERIVATIVE_CATEGORIES}
+        for inst in scenario.instruments:
+            if inst.year == scenario.reporting_year:
+                instrument_counts[inst.category] += 1
+        
+        primary_category = max(instrument_counts, key=instrument_counts.get) if any(instrument_counts.values()) else "GEN"
+
+        policy_sentence_obj = PolicySentence(
+            category=primary_category, # type: ignore
+            company_name=scenario.company_name,
+        )
+        policy_sentence, policy_evidence = policy_sentence_obj.build()
+        sentences.append(policy_sentence)
+        evidence.append(policy_evidence)
+
+        # --- Generate standard policy statements ---
         if scenario.policy.general_policy.does_not_use_for_trading:
-            sentences.append(
-                "Our risk management strategy involves the use of derivative instruments to mitigate these exposures."
-            )
             sentences.append(
                 "We do not enter into derivative contracts for trading or speculative purposes."
             )
@@ -769,7 +787,7 @@ def _generate_narrative_policy(scenario: GenerationScenario) -> List[str]:
             sentences.append(
                 f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}."
             )
-    return sentences
+    return sentences, evidence
 
 
 def _generate_category_narrative(
@@ -1096,10 +1114,11 @@ def generate_narrative_from_scenario(
     # =========================================================================
 
     # 1. Introduction (Broad market risk statement)
-    all_sentences.extend(_generate_narrative_intro(scenario))
-
+    # This is now handled by the policy generator, so we can remove the old intro function.
     # 2. Policy and Strategy (High-level hedging approach)
-    all_sentences.extend(_generate_narrative_policy(scenario))
+    policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
+    all_sentences.extend(policy_sentences)
+    all_evidence.extend(policy_evidence)
 
     # 3. Category-Specific Sections (IR, FX, CP, etc.)
     # Iterate in a standard order to mimic real filings.

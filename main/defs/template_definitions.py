@@ -304,3 +304,35 @@ result_phrases = {
         "",
     ],
 }
+
+# Templates for generating policy and risk context sentences
+POLICY_CONTEXT_TEMPLATES = {
+    "IR": [
+        "{company} is exposed to market risks arising from changes in {ir_term}s on its {debt_type} and investment portfolios.",
+        "Our financing activities expose us to {risk_term} in {ir_term}s that impact borrowing costs.",
+        "{company} faces exposure to changes in market {ir_term}s affecting both variable-rate debt and interest-bearing assets.",
+        "As part of its funding strategy, {company} {policy_verb} strategies to {risk_action_verb} {risk_nature_phrases} {ir_term} movements.",
+    ],
+    "FX": [
+        "{company}'s international operations expose it to risks arising from {risk_term} in foreign currency exchange rates.",
+        "Due to its global footprint, {company} is exposed to currency translation and transaction risks, particularly with the {currencies}.",
+        "Our cross-border operations result in exposure to changes in exchange rates between functional and reporting currencies.",
+        "Operating in multiple currencies, {company} is exposed to {risk_term} in exchange rates that can affect its financial results.",
+    ],
+    "CP": [
+        "{company} is exposed to market risks from changes in {commodity} prices that affect its {cost_type} and revenues.",
+        "Fluctuations in {commodity} prices can impact {company}'s profitability and cost structure.",
+        "As part of its operations, {company} is exposed to {risk_term} in {commodity} prices.",
+        "The profitability of {company}'s operations depends in part on the stability of {commodity} prices.",
+    ],
+    "EQ": [
+        "{company} is exposed to market risks related to {risk_term} in the price of its common stock.",
+        "Volatility in equity markets affects {company}'s exposure to equity-linked compensation and investment values.",
+        "{company}'s share-based compensation costs are influenced by changes in its stock price and market conditions.",
+    ],
+    "GEN": [
+        "{company} is exposed to various market risks, including changes in interest rates, foreign exchange rates, and commodity prices.",
+        "As part of its overall risk management strategy, {company} monitors and manages exposure to {risk_term} in market conditions.",
+        "Our global activities expose us to market risks that arise from changes in economic and financial conditions worldwide.",
+    ],
+}

@@ -227,6 +227,52 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
         return text
 
+@dataclass
+class PolicyEvidence(BaseNarrativeEvidence):
+    """Evidence related to a company's hedging policies or risk exposure."""
+    policy_type: Literal["risk_exposure", "hedging_strategy", "effectiveness_testing", "accounting_treatment"]
+    details: str # The core statement of the policy or risk.
+
+    def to_string(self) -> str:
+        """Generates a reasoning statement for the policy evidence."""
+        return f"The report includes a {self.policy_type.replace('_', ' ')} statement for the {self.category} category: '{self.details}'."
+
+@dataclass
+class PolicySentence:
+    """A data class to hold components for generating a policy or risk context sentence."""
+    category: DerivativeCategory
+    company_name: str
+    # Optional details based on category
+    ir_term: Optional[str] = None
+    debt_type: Optional[str] = None
+    currencies: Optional[str] = None
+    commodity: Optional[str] = None
+    cost_type: Optional[str] = None
+
+    def build(self) -> Tuple[str, PolicyEvidence]:
+        """Builds a policy sentence and a corresponding PolicyEvidence object."""
+        templates = POLICY_CONTEXT_TEMPLATES.get(self.category, POLICY_CONTEXT_TEMPLATES["GEN"])
+        template = random.choice(templates)
+
+        # Populate placeholders
+        sentence = template.format(
+            company=self.company_name,
+            ir_term=self.ir_term or random.choice(interest_rate_terms),
+            debt_type=self.debt_type or random.choice(DUMMY_DEBT_TYPES),
+            risk_term=random.choice(risk_exposure_terms),
+            policy_verb=random.choice(policy_verbs),
+            risk_action_verb=random.choice(risk_action_verbs),
+            risk_nature_phrases=random.choice(risk_nature_phrases),
+            currencies=self.currencies or "various foreign currencies",
+            commodity=self.commodity or "various commodities",
+            cost_type=self.cost_type or "input costs",
+        )
+
+        # Create evidence object
+        evidence = PolicyEvidence(category=self.category, status="policy_mention", policy_type="risk_exposure", details=sentence)
+
+        return sentence, evidence
+
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
 

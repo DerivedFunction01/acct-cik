@@ -164,6 +164,66 @@ non_use_verbs = [
     "possess",
     "be a party to",
 ]
+
+# Verbs for policy/strategy sentences (e.g., "The company {verb} derivatives...")
+policy_verbs = [
+    "utilizes",
+    "employs",
+    "uses",
+    "maintains",
+    "applies",
+]
+
+current_adverbs = [
+    "currently",
+    "actively",
+    "presently",
+    "now",
+    "also",
+    "primarily",
+    "only",
+    "expect to continue to" "",
+]
+
+past_adverbs = [
+    "in the past",
+    ", from time to time, ",
+    "periodically",
+    "occasionally",
+    ", in the future,",
+    "",
+]
+
+not_adverbs = [
+    "does not",
+    "will not",
+    "does not plan to",
+    "does not intend to",
+    "has no plans to",
+    "will not seek to",
+]
+
+# Verbs for describing risk management actions (e.g., "...to {verb} exposure")
+risk_action_verbs = [
+    "manage",
+    "mitigate",
+    "reduce",
+    "hedge",
+    "offset",
+    "stabilize",
+    "limit",
+    "protect against",
+    "control",
+]
+
+# Phrases describing the nature of risk
+risk_nature_phrases = [
+    "exposure to",
+    "the impact of",
+    "risks associated with",
+    "volatility in",
+    "fluctuations in",
+]
 # --- New Placeholder Lists for Result Phrases ---
 
 risk_mitigation_verbs = [
