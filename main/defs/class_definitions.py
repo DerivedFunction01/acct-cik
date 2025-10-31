@@ -590,6 +590,8 @@ class NotionalSentence:
     maturity_year: Optional[int] = None
     commodity: Optional[str] = None
     unit: Optional[str] = None
+    currencies: List[str] = field(default_factory=list)
+    debt_type: Optional[str] = None
     reporting_year: Optional[int] = None
 
     # Formatting preferences
@@ -598,7 +600,6 @@ class NotionalSentence:
     )
     prefer_abbreviated: bool = True
 
-    currencies = ""
     def build(self) -> Tuple[str, NotionalEvidence]:
         """
         Builds a notional sentence and a corresponding NotionalEvidence object.
@@ -610,15 +611,12 @@ class NotionalSentence:
         end_day = self.end_day or random.randint(28, 31)
         quarter = self.quarter or random.choice(quarters)
         company_name = self.company_name or "The Company"
-        currencies = ""
-        if self.result_phrase and "{currencies}" in self.result_phrase:
-            currency_list = []
-            for _ in range(random.randint(1, 3)):
-                currency_list.append(random.choice(all_currencies).full_name)
-            currencies = (
-                ", ".join(currency_list[:-1]) + " and " + currency_list[-1] 
-                if len(currency_list) > 1 else currency_list[0] 
-            )
+        
+        # Format the list of currencies into a human-readable string.
+        currencies_str = ""
+        if self.currencies:
+            currencies_str = ", ".join(self.currencies[:-1]) + " and " + self.currencies[-1] if len(self.currencies) > 1 else self.currencies[0]
+
 
         # Determine number of years for comparison
         num_years = 1
@@ -752,9 +750,9 @@ class NotionalSentence:
                 gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 risk_term=random.choice(risk_exposure_terms),
-                ir_term=random.choice(interest_rate_terms),
-                debt_type=random.choice(DUMMY_DEBT_TYPES), # Assuming DUMMY_DEBT_TYPES is available
-                currencies=currencies,
+                ir_term=random.choice(interest_rate_terms), # type: ignore
+                debt_type=self.debt_type or random.choice(DUMMY_DEBT_TYPES),
+                currencies=currencies_str,
                 currency_code=self.currency_code,
                 rate_term1=rate_term1,
                 rate_term2=rate_term2,

@@ -830,8 +830,24 @@ def _generate_category_narrative(
         if use_fair_value:
             value_to_report = max(1, int(total_notional / random.randint(20, 100)))
 
-        # Get commodity and unit here, to pass into the sentence object
-        commodity_name, commodity_unit, _ = get_random_commodity_and_unit()
+        # Get commodity, currency, and debt info from the scenario's predefined instruments.
+        commodity_name = None
+        commodity_unit = None
+        currency_names = []
+        debt_type_name = None
+
+        # Find an instrument in the current year that has a hedged item to extract details from.
+        instrument_with_hedged_item = next((inst for inst in current_year_data["instruments"] if inst.hedged_item), None)
+
+        if instrument_with_hedged_item:
+            hedged_item = instrument_with_hedged_item.hedged_item
+            if isinstance(hedged_item, CommodityHedgedItem):
+                commodity_name = hedged_item.commodity_type
+                commodity_unit = hedged_item.unit_of_volume
+            elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
+                currency_names = [exp.full_name for exp in hedged_item.exposures]
+            elif isinstance(hedged_item, DebtHedgedItem):
+                debt_type_name = hedged_item.debt_type
 
         # Generate aggregate summary sentence using the NotionalSentence class
         summary_sentence_obj = NotionalSentence(
@@ -850,6 +866,8 @@ def _generate_category_narrative(
             result_phrase=random.choice(result_phrases[category]),
             commodity=commodity_name,
             unit=commodity_unit,
+            currencies=currency_names,
+            debt_type=debt_type_name,
         )
         summary_sentence_text, evidence_obj = summary_sentence_obj.build()
         sentences.append(summary_sentence_text)
