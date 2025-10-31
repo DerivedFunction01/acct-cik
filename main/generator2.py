@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Tuple, Set
 
 from main.definitions.common_data import *
 from main.definitions.commodity_data import *
+from main.definitions.template_definitions import *
 from main.definitions.class_definitions import (
     NarrativeEvidence,
     DerivativeCategory,
