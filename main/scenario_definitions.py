@@ -14,10 +14,11 @@ DerivativeCategory = Literal["IR", "FX", "CP", "EQ", "GEN"]
 @dataclass
 class NarrativeEvidence:
     """Represents a piece of evidence extracted from the generated narrative."""
-    category: DerivativeCategory
-    instrument_type: str
-    notional: int
+    instrument_id: Optional[int]  # Link to the specific instrument, if applicable
     status: Literal["summary", "new", "terminated", "none"]
+    notional: Optional[int]
+    category: DerivativeCategory
+    instrument_type: Optional[str] = None
 
     def to_dict(self) -> Dict:
         return self.__dict__

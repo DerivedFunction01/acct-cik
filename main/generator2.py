@@ -11,6 +11,7 @@ from template.other import *
 from scenario_definitions import (
     NarrativeEvidence,
     DerivativeCategory,
+    HedgedItem,
     NotionalInstrument,
     DebtHedgedItem,
     ForeignCurrencyHedgedItem,
@@ -818,6 +819,7 @@ def _generate_category_narrative(
         evidence.append(
             NarrativeEvidence(
                 category=category, # type: ignore
+                instrument_id=None, # This is an aggregate summary, not a specific instrument
                 instrument_type=instrument_type_plural,
                 notional=total_notional,
                 status="summary",
@@ -838,6 +840,7 @@ def _generate_category_narrative(
         evidence.append(
             NarrativeEvidence(
                 category=category, # type: ignore
+                instrument_id=None,
                 instrument_type="none",
                 notional=0,
                 status="none",
@@ -869,6 +872,7 @@ def _generate_category_narrative(
                  evidence.append(
                      NarrativeEvidence(
                          category=category, # type: ignore
+                         instrument_id=instrument.instrument_id,
                          instrument_type=instrument.instrument_type,
                          notional=instrument.notional_amount,
                          status="new",
@@ -885,6 +889,7 @@ def _generate_category_narrative(
                  evidence.append(
                      NarrativeEvidence(
                          category=category, # type: ignore
+                         instrument_id=instrument.instrument_id,
                          instrument_type=instrument.instrument_type,
                          notional=instrument.notional_amount,
                          status="terminated",
@@ -1050,12 +1055,41 @@ def generate_json_from_scenario(
     analysis_summary = _generate_analysis_summary(scenario, evidence)
     chain_of_thought = _generate_chain_of_thought(scenario, evidence)
 
-    # Filter to only include instruments from the reporting year for the final JSON
-    derivatives_list = [
-        inst.to_dict()
-        for inst in scenario.instruments
-        if inst.year == scenario.reporting_year
-    ]
+    # --- Build the derivatives list ONLY from what was mentioned in the evidence. ---
+    # This ensures the JSON perfectly matches the narrative. Each piece of evidence
+    # that points to a specific instrument contributes to its entry in the final JSON.
+    derivatives_list = []
+    # Use a dictionary to aggregate evidence for each instrument ID
+    instrument_evidence_map: Dict[int, Dict] = {}
+
+    for ev in evidence:
+        # We only care about evidence pointing to a specific, non-summary instrument
+        if ev.instrument_id is None:
+            continue
+
+        # Find the full instrument object from the scenario to get base details
+        instrument = next(
+            (inst for inst in scenario.instruments if inst.instrument_id == ev.instrument_id and inst.year == scenario.reporting_year),
+            None
+        )
+        if not instrument:
+            continue
+
+        # If we haven't seen this instrument ID yet, initialize it
+        if ev.instrument_id not in instrument_evidence_map:
+            instrument_evidence_map[ev.instrument_id] = {
+                "instrument_id": instrument.instrument_id,
+                "category": instrument.category,
+                "hedge_designation": instrument.hedge_designation,
+            }
+
+        # Add details from the current piece of evidence if they exist
+        if ev.instrument_type is not None:
+            instrument_evidence_map[ev.instrument_id]["instrument_type"] = ev.instrument_type
+        if ev.notional is not None:
+            instrument_evidence_map[ev.instrument_id]["notional_amount"] = ev.notional
+
+    derivatives_list = list(instrument_evidence_map.values())
 
     return {
         "analysis_summary": analysis_summary,
