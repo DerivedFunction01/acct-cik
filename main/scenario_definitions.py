@@ -21,6 +21,7 @@ class NarrativeEvidence:
     month: Optional[str] = None # e.g., "January" is mentioned
     year: Optional[int] = None # e.g., "2023" is mentioned
     instrument_type: Optional[str] = None # e.g., "interest rate swap"
+    additional_details: Optional[Dict] = field(default_factory=dict) # Any other relevant details
     def to_dict(self) -> Dict:
         return self.__dict__
 
