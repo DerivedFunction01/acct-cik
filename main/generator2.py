@@ -11,6 +11,7 @@ from main.definitions.commodity_data import get_random_commodity_and_unit
 from main.definitions.template_definitions import *
 from main.definitions.class_definitions import (
     NarrativeEvidence,
+    NotionalSentence,
     DerivativeCategory,
     HedgedItem,
     NotionalInstrument,
@@ -742,21 +743,6 @@ def pretty_print_scenario(scenario: GenerationScenario):
 # =============================================================================
 
 
-def _format_notional(amount: int, scenario: GenerationScenario) -> str:
-    """Formats a large number into a more readable string like '$250.0 million'."""
-    if scenario.number_format_preference:
-        if amount >= 1_000_000_000:
-            return f"${amount / 1_000_000_000:.1f} billion"
-        if amount >= 1_000_000:
-            return f"${amount / 1_000_000:.1f} million"
-        if amount >= 1_000:
-            return f"${amount / 1_000:.1f} thousand"
-    else:
-        # Format with commas for full numeric value
-        return f"${amount:,}"
-    return f"${amount}"
-
-
 def _generate_narrative_intro(scenario: GenerationScenario) -> List[str]:
     """Generates the introductory sentences about market risk."""
     # TODO: Use templates like `hedge_begin_context_templates`
@@ -822,20 +808,24 @@ def _generate_category_narrative(
     # 2. Aggregate Summary
     summary_sentence = [] # Use connectors, and then join at the end to create the full sentence.
     if current_year_data and current_year_data["total_notional"] > 0:
-        instrument_type = current_year_data["instrument_types"][0]
+        # Use the most common instrument type for the summary, or just the first one
+        instrument_type = max(set(current_year_data["instrument_types"]), key=current_year_data["instrument_types"].count)
         total_notional = current_year_data["total_notional"]
-        total_notional_str = _format_notional(total_notional, scenario)
-        
-        verb = random.choice(aggregate_use_verbs)
-        time_prefix = random.choice(point_in_time_prefixes).format(
-            year=reporting_year, month=reporting_month, end_day=reporting_day
-        )
-        connector = random.choice(amount_connectors)
 
-        summary_sentence.append(
-            f"{time_prefix}, we {verb} {instrument_type} {connector} {total_notional_str}."
+        # Generate aggregate summary sentence using the NotionalSentence class
+        summary_sentence_obj = NotionalSentence(
+            swap_type=instrument_type,
+            year=reporting_year,
+            notional=total_notional,
+            currency_symbol=currency_symbol,
+            month=reporting_month,
+            end_day=reporting_day,
+            money_units=scenario.archetype.money_units,
+            prefer_abbreviated=scenario.number_format_preference,
         )
-
+        summary_sentence_text, used_components = summary_sentence_obj.build()
+        # TODO: Use `used_components` to build chain_of_thought
+        sentences.append(summary_sentence_text)
         evidence.append(
             NarrativeEvidence(
                 category=category,  # type: ignore
@@ -849,18 +839,20 @@ def _generate_category_narrative(
         # Add comparative summary if previous year data exists
         if prev_year_data and prev_year_data["total_notional"] > 0:
             # Generate comparative summary sentence
-            comparative_summary_text = generate_notional_sentence(
+            comparative_summary_obj = NotionalSentence(
                 swap_type=instrument_type,
                 year=reporting_year,
                 notional=total_notional,
                 currency_symbol=currency_symbol,
-                money_unit_word=money_unit_word,
                 month=reporting_month,
                 end_day=reporting_day,
                 prev_year=reporting_year - 1,
                 prev_notional=prev_year_data["total_notional"],
                 sentence_type="comparative",
+                money_units=scenario.archetype.money_units,
+                prefer_abbreviated=scenario.number_format_preference,
             )
+            comparative_summary_text, used_components = comparative_summary_obj.build()
             sentences.append(comparative_summary_text)
             # Evidence for previous year's notional is already captured by the comparative sentence.
     else:
@@ -896,17 +888,18 @@ def _generate_category_narrative(
             # Find the new instrument in the current year's data
             instrument = next((i for i in current_year_data["instruments"] if i.instrument_id == instrument_id), None)
             if instrument: # Generate new individual instrument sentence
-                new_instrument_text = generate_notional_sentence(
+                new_instrument_obj = NotionalSentence(
                     swap_type=instrument.instrument_type,
                     year=reporting_year,
                     notional=instrument.notional_amount,
                     currency_symbol=currency_symbol,
-                    money_unit_word=money_unit_word,
-                    month=instrument.month,
                     company_name=scenario.company_name,
                     sentence_type="new_individual",
                     hedge_designation=instrument.hedge_designation,
+                    money_units=scenario.archetype.money_units,
+                    prefer_abbreviated=scenario.number_format_preference,
                 )
+                new_instrument_text, used_components = new_instrument_obj.build()
                 sentences.append(new_instrument_text)
                 evidence.append(
                      NarrativeEvidence(
@@ -924,16 +917,17 @@ def _generate_category_narrative(
             instrument = next((i for i in prev_year_data["instruments"] if i.instrument_id == instrument_id), None)
             if instrument:
                 # Generate terminated individual instrument sentence
-                terminated_instrument_text = generate_notional_sentence(
+                terminated_instrument_obj = NotionalSentence(
                     swap_type=instrument.instrument_type,
                     year=reporting_year, # Reporting year is when it was terminated
                     notional=instrument.notional_amount,
                     currency_symbol=currency_symbol,
-                    money_unit_word=money_unit_word,
-                    month=instrument.month, # Month of termination/maturity
                     company_name=scenario.company_name,
                     sentence_type="terminated_individual",
+                    money_units=scenario.archetype.money_units,
+                    prefer_abbreviated=scenario.number_format_preference,
                 )
+                terminated_instrument_text, used_components = terminated_instrument_obj.build()
                 sentences.append(terminated_instrument_text)
                 evidence.append(
                      NarrativeEvidence(

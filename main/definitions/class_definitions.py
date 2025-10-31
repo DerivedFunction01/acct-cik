@@ -1,6 +1,17 @@
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional, Dict, TypeVar, Generic
 import random
+
+# Imports moved here for the NotionalSentence.build() method
+from main.definitions.common_data import (
+    months_full,
+    quarters,
+    aggregate_use_verbs,
+    individual_use_verbs,
+    termination_verbs,
+)
+from main.definitions.template_definitions import *
+from main.definitions.template_definitions import _cleanup_sentence, _format_single_notional
 # =============================================================================
 # SCENARIO DEFINITION - CLASSES
 # This file contains the core data structures (dataclasses) that define the
@@ -361,3 +372,179 @@ class GenerationScenario:
         True  # True for abbreviated, False for full numeric
     )
     accounting_updates: List[AccountingStandardUpdate] = field(default_factory=list)
+
+@dataclass
+class NotionalSentence:
+    """
+    A data class that holds all the components required to generate a sentence
+    about notional amounts. This structure is passed to a sentence generation function.
+    """
+
+    # Core sentence components
+    swap_type: str
+    year: int
+    notional: int
+    currency_symbol: str = "$"
+    money_unit_word: str = "million"
+    sentence_type: Literal[
+        "summary",
+        "new_individual",
+        "terminated_individual",
+        "comparative",
+        "no_instruments",
+    ] = "summary"
+
+    # Optional time components
+    month: Optional[str] = None
+    end_day: Optional[int] = None
+    quarter: Optional[str] = None
+
+    # Optional comparison data for multi-year sentences
+    prev_year: Optional[int] = None
+    prev_notional: Optional[int] = None
+    prev2_year: Optional[int] = None
+    prev2_notional: Optional[int] = None
+
+    # Optional descriptive elements
+    hedge_designation: Optional[str] = None
+    result_phrase: Optional[str] = None
+    company_name: Optional[str] = None
+    verb: Optional[str] = None
+    category: Optional[DerivativeCategory] = None
+
+    # Formatting preferences
+    money_units: List[Tuple[str, int]] = field(
+        default_factory=lambda: [("million", 1_000_000)]
+    )
+    prefer_abbreviated: bool = True
+
+    def build(self) -> Tuple[str, Dict]:
+        """
+        Builds a notional sentence from the instance's configuration and returns
+        the sentence string and a dictionary of the components used.
+        """
+        used_components = {}
+
+        # Default values for optional components
+        month = self.month or random.choice(months_full)
+        end_day = self.end_day or random.randint(28, 31)
+        quarter = self.quarter or random.choice(quarters)
+        company_name = self.company_name or "The Company"
+
+        # Determine number of years for comparison
+        num_years = 1
+        if self.prev_year is not None and self.prev_notional is not None:
+            num_years = 2
+            if self.prev2_year is not None and self.prev2_notional is not None:
+                num_years = 3
+
+        # 1. Format amount string
+        amount_str = ""
+        formatted_notional = _format_single_notional(
+            self.notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
+        )
+        used_components["amount"] = formatted_notional
+
+        if num_years == 1:
+            amount_str = formatted_notional
+        elif num_years == 2:
+            assert self.prev_notional is not None
+            formatted_prev_notional = _format_single_notional(
+                self.prev_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
+            )
+            amount_str = f"{formatted_notional} and {formatted_prev_notional}"
+            used_components["prev_amount"] = formatted_prev_notional
+        elif num_years == 3:
+            assert self.prev_notional is not None and self.prev2_notional is not None
+            formatted_prev_notional = _format_single_notional(
+                self.prev_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
+            )
+            formatted_prev2_notional = _format_single_notional(
+                self.prev2_notional, self.currency_symbol, self.money_units, self.prefer_abbreviated
+            )
+            amount_str = f"{formatted_notional}, {formatted_prev_notional}, and {formatted_prev2_notional}"
+            used_components["prev_amount"] = formatted_prev_notional
+            used_components["prev2_amount"] = formatted_prev2_notional
+
+        used_components["amount_str"] = amount_str
+
+        # 2. Select time prefix template
+        time_prefix = ""
+        time_suffix = ""
+        if self.sentence_type in ["summary", "comparative"]:
+            if num_years == 1:
+                time_prefix = random.choice(point_in_time_prefixes)
+            elif num_years == 2:
+                time_prefix = random.choice(multi_year_time_prefixes["two_year"])
+            else:  # num_years == 3
+                time_prefix = random.choice(multi_year_time_prefixes["three_year"])
+        else:  # new_individual, terminated_individual
+            time_prefix = random.choice(period_of_time_prefixes)
+
+        time_prefix = time_prefix.format(
+            month=month,
+            end_day=end_day,
+            year=self.year,
+            prev_year=self.prev_year or self.year - 1,
+            prev2_year=self.prev2_year or self.year - 2,
+            quarter=quarter,
+        )
+        time_suffix = f"as of {month} {end_day}, {self.year}"
+        used_components["time_prefix"] = time_prefix
+        used_components["time_suffix"] = time_suffix
+
+        # 3. Select verb
+        verb = self.verb
+        if verb is None:
+            if self.sentence_type == "new_individual":
+                verb = random.choice(individual_use_verbs)
+            elif self.sentence_type == "terminated_individual":
+                verb = random.choice(termination_verbs)
+            else:  # summary, comparative
+                verb = random.choice(aggregate_use_verbs)
+        used_components["verb"] = verb
+
+        # 4. Select amount connector
+        amount_connector = random.choice(amount_connectors)
+        used_components["amount_connector"] = amount_connector
+
+        # 5. Hedge designation clause
+        hedge_designation_clause = ""
+        if self.hedge_designation:
+            hedge_designation_clause = f", designated as {self.hedge_designation}"
+            used_components["hedge_designation_clause"] = hedge_designation_clause
+
+        # 6. Result phrase clause
+        result_clause = ""
+        if self.result_phrase:
+            result_clause = f", {self.result_phrase}"
+            used_components["result_clause"] = result_clause
+
+        # 7. Select main sentence template
+        templates_for_type = NOTIONAL_SENTENCE_TEMPLATES.get(
+            self.sentence_type, NOTIONAL_SENTENCE_TEMPLATES["summary"]
+        )
+        template = random.choice(templates_for_type)
+
+        # 8. Populate placeholders
+        sentence = template.format(
+            time_prefix=time_prefix,
+            company=company_name,
+            verb=verb,
+            swap_type=self.swap_type,
+            amount_connector=amount_connector,
+            amount_str=amount_str,
+            hedge_designation_clause=hedge_designation_clause,
+            result_clause=result_clause,
+            time_suffix=time_suffix,
+        )
+
+        # 9. Cleanup
+        sentence = _cleanup_sentence(sentence)
+
+        # Add final components to the used dictionary
+        used_components["company"] = company_name
+        used_components["swap_type"] = self.swap_type
+        used_components["year"] = self.year
+
+        return sentence, used_components
