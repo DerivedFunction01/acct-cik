@@ -153,19 +153,19 @@ class NotionalEvidence(BaseNarrativeEvidence):
                     f"indicating continued activity into the reporting period despite absence of a new notional figure."
                 )
                 text = (
-                    f"The narrative references {category_name} derivatives with prior-year {value_desc} "
+                    f"The report references {category_name} derivatives with prior-year {value_desc} "
                     f"of {self.prev_notional_str}, expected to remain active after {self.year}. {reasoning}"
                 )
             elif self.prev_notional_str:
                 text = (
-                    f"The narrative provides an aggregate summary for {category_name} derivatives, "
+                    f"The report provides an aggregate summary for {category_name} derivatives, "
                     f"comparing {values_desc} of {self.notional_str} for {self.year} "
                     f"against {self.prev_notional_str} for {self.year - 1}. "
                     f"This indicates continuity across periods."
                 )
             else:
                 text = (
-                    f"The narrative mentions an aggregate {value_desc} of {self.notional_str} for {self.instrument_type}, "
+                    f"The report mentions an aggregate {value_desc} of {self.notional_str} for {self.instrument_type}, "
                     f"indicating {category_name} derivative activity in {self.year}."
                 )
 
@@ -175,12 +175,12 @@ class NotionalEvidence(BaseNarrativeEvidence):
         elif self.status == "new":
             if self.year == self.reporting_year:
                 text = (
-                    f"The narrative describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
+                    f"The report describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
                     f"This confirms current {category_name} derivative activity, as it appears in {self.reporting_year} but was absent previously."
                 )
             else:  # Past year
                 text = (
-                    f"The narrative describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
+                    f"The report describes a new {self.instrument_type} with a {value_desc} of {self.notional_str}. "
                     f"This indicates the instrument was newly entered into during {self.year}."
                 )
 
@@ -189,7 +189,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         elif self.status == "terminated":
             text = (
-                f"The narrative describes a {self.instrument_type} with a {value_desc} of {self.notional_str} "
+                f"The report describes a {self.instrument_type} with a {value_desc} of {self.notional_str} "
                 f"that existed in prior data but is absent in {self.reporting_year}. "
                 f"This indicates the instrument was terminated during the reporting year, ceasing active use."
             )
@@ -199,7 +199,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         elif self.status == "no_instruments":
             text = (
-                f"The narrative explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, "
+                f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, "
                 f"which directly confirms no current use in the reporting period."
             )
 
@@ -522,7 +522,7 @@ class AccountingStandardUpdate:
 
 @dataclass
 class RiskManagementPolicy:
-    """Contains all policy-related information for the narrative."""
+    """Contains all policy-related information for The report."""
 
     general_policy: GeneralHedgingPolicy = field(default_factory=GeneralHedgingPolicy)
     category_policies: List[CategorySpecificPolicy] = field(default_factory=list)
