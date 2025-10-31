@@ -1,6 +1,7 @@
 # %%
 import random
 import pandas as pd
+from collections import Counter
 import json
 from typing import List, Dict, Tuple, Set
 
@@ -29,6 +30,7 @@ from defs.class_definitions import (
     RiskManagementPolicy,
     CategorySpecificPolicy,
     GeneralHedgingPolicy,
+    DERIVATIVE_CATEGORIES,
 )
 from defs.dummy_data import *
 
@@ -747,28 +749,23 @@ def pretty_print_scenario(scenario: GenerationScenario):
 # =============================================================================
 
 
-def _generate_narrative_intro(scenario: GenerationScenario) -> List[str]:
-    """Generates the introductory sentences about market risk."""
-    # TODO: Use templates like `hedge_begin_context_templates`
-    return [
-        f"The company is exposed to market risks, primarily from changes in interest rates and foreign currency exchange rates."
-    ]
-
-
-def _generate_narrative_policy(scenario: GenerationScenario) -> List[str]:
+def _generate_narrative_policy(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
     """Generates sentences describing the company's hedging policy and risk exposures."""
     sentences = []
     evidence = [] # This function will now also produce evidence
 
     if scenario.policy:
         # --- Generate a high-level risk exposure sentence ---
-        # Determine the primary risk category based on instrument count
-        instrument_counts = {cat: 0 for cat in DERIVATIVE_CATEGORIES}
+        # Determine the primary risk category by finding the most common one.
+        instrument_categories_in_year = []
         for inst in scenario.instruments:
             if inst.year == scenario.reporting_year:
-                instrument_counts[inst.category] += 1
+                instrument_categories_in_year.append(inst.category)
         
-        primary_category = max(instrument_counts, key=instrument_counts.get) if any(instrument_counts.values()) else "GEN"
+        counts = Counter(instrument_categories_in_year)
+        primary_category = counts.most_common(1)[0][0] if counts else "GEN"
 
         policy_sentence_obj = PolicySentence(
             category=primary_category, # type: ignore
@@ -834,10 +831,9 @@ def _generate_category_narrative(
     # 2. Aggregate Summary.
     if current_year_data and current_year_data["total_notional"] > 0:
         # Use the most common instrument type for the summary, or just the first one
-        instrument_type = max(
-            set(current_year_data["instrument_types"]),
-            key=current_year_data["instrument_types"].count,
-        )
+        counts = Counter(current_year_data["instrument_types"])
+        instrument_type = counts.most_common(1)[0][0] if counts else "derivative instrument"
+
         total_notional = current_year_data["total_notional"]
 
         # --- Decide whether to use 'notional' or 'fair_value' ---
@@ -983,7 +979,6 @@ def _generate_category_narrative(
                 if use_fair_value_individual:
                     value_to_report_individual = max(1, int(instrument.notional_amount / random.randint(20, 100)))
 
-
                 # Generate new individual instrument sentence
                 new_instrument_obj = NotionalSentence(
                     swap_type=instrument_name_to_use,
@@ -1061,7 +1056,9 @@ def _generate_category_narrative(
     return sentences, evidence
 
 
-def _generate_narrative_accounting(scenario: GenerationScenario) -> List[str]:
+def _generate_narrative_accounting(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
     """Generates sentences about accounting treatment and hedge effectiveness."""
     sentences = []
     if scenario.policy and scenario.policy.category_policies:  # Check if policy exists
@@ -1070,7 +1067,7 @@ def _generate_narrative_accounting(scenario: GenerationScenario) -> List[str]:
                 sentences.append(
                     f"For our {cat_policy.category} derivative instruments, we assess hedge effectiveness on a {cat_policy.effectiveness_frequency} basis using the {cat_policy.effectiveness_testing_method}."
                 )
-    return sentences
+    return sentences, []  # Return an empty list for evidence for now
 
 
 def generate_narrative_from_scenario(
