@@ -90,15 +90,24 @@ class NotionalEvidence(BaseNarrativeEvidence):
         """Describe time relation of the evidence."""
         if not self.reporting_year or not self.year:
             return ""
+
+        # New maturity-based reasoning
+        maturity_reason = ""
+        if self.maturity_year:
+            if self.maturity_year >= self.reporting_year:
+                maturity_reason = f" and is considered active as its maturity year ({self.maturity_year}) is on or after the reporting year"
+            else:  # self.maturity_year < self.reporting_year
+                maturity_reason = f" and is considered historical as it matured in {self.maturity_year}, prior to the reporting year"
+
         if self.year == self.reporting_year:
             if self.notional is None:
-                return f" (for the reporting year {self.reporting_year}, confirming current reporting activity)"
+                return f" (for the reporting year {self.reporting_year}, confirming current reporting activity{maturity_reason})"
             elif self.notional > 0:
-                return f" (for the reporting year {self.reporting_year}, confirming current use with a positive {value_desc})"
+                return f" (for the reporting year {self.reporting_year}, confirming current use with a positive {value_desc}{maturity_reason})"
             else:
-                return f" (for the reporting year {self.reporting_year}, confirming no current use with a zero {value_desc})"
+                return f" (for the reporting year {self.reporting_year}, confirming no current use with a zero {value_desc}{maturity_reason})"
         elif self.year < self.reporting_year:
-            return f" (for a prior year {self.year}, confirming only historical use before the reporting year {self.reporting_year})"
+            return f" (for a prior year {self.year}, confirming only historical use before the reporting year {self.reporting_year}{maturity_reason})"
         elif self.year > self.reporting_year:
             return f" (for a future year {self.year}, indicating expected or forward activity beyond the reporting year {self.reporting_year})"
         return ""
@@ -192,7 +201,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         elif self.status == "terminated":
             text = f"The report describes a '{self.instrument_type}' with a {value_desc} of {self.notional_str} that existed in a prior period but is absent in the {self.reporting_year} data. This comparison indicates the instrument was 'terminated' (matured or settled) during the reporting year."
-
+            
         # -----------------------------------------------------------------
         # No instruments
         # -----------------------------------------------------------------
@@ -591,6 +600,7 @@ class NotionalSentence:
     company_name: Optional[str] = None
     verb: Optional[str] = None
     category: Optional[DerivativeCategory] = None
+    maturity_year: Optional[int] = None
     reporting_year: Optional[int] = None
 
     # Formatting preferences
@@ -751,6 +761,7 @@ class NotionalSentence:
             notional_str=formatted_notional,
             prev_notional_str=formatted_prev_notional,
             prev2_notional_str=formatted_prev2_notional,
+            maturity_year=self.maturity_year,
             reporting_year=self.reporting_year,
             value_type=self.value_type,
         )

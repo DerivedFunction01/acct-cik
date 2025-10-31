@@ -933,6 +933,7 @@ def _generate_category_narrative(
                     sentence_type="new_individual",
                     hedge_designation=instrument.hedge_designation,
                     money_units=scenario.archetype.money_units,
+                    maturity_year=instrument.maturity_year,
                     prefer_abbreviated=scenario.number_format_preference,
                     category=category,  # type: ignore
                     reporting_year=reporting_year,
@@ -973,6 +974,7 @@ def _generate_category_narrative(
                     company_name=scenario.company_name,
                     sentence_type="terminated_individual",
                     money_units=scenario.archetype.money_units,
+                    maturity_year=instrument.maturity_year,
                     prefer_abbreviated=scenario.number_format_preference,
                     category=category,  # type: ignore
                     reporting_year=reporting_year,
