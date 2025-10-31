@@ -750,7 +750,32 @@ class NotionalSentence:
 
         # Handle "no_instruments" case specifically
         if self.sentence_type == "no_instruments":
-            sentence = f"As of {month} {end_day}, {self.year}, {company_name} had no outstanding derivative instruments to hedge against {self.category} risk."
+            # Select a template from the new list
+            template = random.choice(NO_INSTRUMENTS_TEMPLATES)
+            category_map = {
+                "IR": "interest rate",
+                "FX": "foreign currency",
+                "CP": "commodity price",
+                "EQ": "equity",
+                "GEN": ""
+            }
+            # Define a descriptive phrase for the category
+            category_risk_phrase = category_map.get(self.category or "GEN", "")
+
+            # Populate the chosen template
+            sentence = template.format(
+                time_prefix=time_prefix,
+                company=company_name,
+                verb=random.choice(non_use_verbs), # e.g., "did not hold"
+                swap_type=f"{category_risk_phrase} derivative instruments",
+                category_risk_phrase=category_risk_phrase,
+                time_suffix=time_suffix,
+                year=self.year,
+                month=month,
+                end_day=end_day,
+                state_descriptor=random.choice(state_descriptors),
+                immaterial_term=random.choice(immaterial),
+            )
             evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year, currency=self.currency_code)  # type: ignore
             return sentence, evidence
 

@@ -152,6 +152,18 @@ swap_termination_verbs = [
 # Comparison verbs phrases
 comparison_phrases = ["compared to", "versus", "down from", "reduced from"]
 
+# Verbs for expressing non-use or absence of instruments
+non_use_verbs = [
+    "hold",
+    "utilize",
+    "maintain",
+    "have",
+    "use",
+    "employ",
+    "carry",
+    "possess",
+    "be a party to",
+]
 # --- New Placeholder Lists for Result Phrases ---
 
 risk_mitigation_verbs = [
@@ -184,6 +196,48 @@ balance_sheet_locations = [
 ]
 
 gain_loss_phrases = ["gains", "losses", "increase", "decrease"]
+
+# Optional / Immaterial terms
+immaterial = [
+    "immaterial",
+    "not significant",
+    "limited",
+    "not material",
+    "negligible",
+    "minimal",
+    "insignificant",
+    "not substantial",
+    "minor",
+    "trivial",
+    "inconsequential",
+    "small-scale",
+    "marginal",
+    "petty",
+    "nominal",
+    "slight",
+    "unimportant",
+    "zero",
+    "none",
+]
+
+# Material / Significant terms
+material = [
+    "material",
+    "significant",
+    "substantial",
+    "considerable",
+    "important",
+    "consequential",
+    "critical",
+    "major",
+    "notable",
+    "relevant",
+    "weighty",
+    "meaningful",
+    "prominent",
+    "pivotal",
+    "essential",
+]
 
 # =============================================================================
 # DERIVATIVES
@@ -242,11 +296,11 @@ SPECIAL_EXPANSIONS = {
 }
 
 CATEGORY_EXTRAS = {
-    "IR": [],
-    "FX": ["NDF"],
-    "CP": [],
-    "EQ": ["index future"],
-    "GEN": [
+    "ir": [],
+    "fx": ["NDF"],
+    "cp": [],
+    "eq": ["index future"],
+    "gen": [
         "over-the-counter contract",
         "collar strategies",
         "total return swap",
@@ -255,7 +309,7 @@ CATEGORY_EXTRAS = {
 }
 
 PLACEHOLDERS = {
-    "IR": [
+    "ir": [
         "interest-rate",
         "single-currency",
         "Eurodollar",
@@ -272,7 +326,7 @@ PLACEHOLDERS = {
         "variable-rate",
         "benchmark-rate",
     ],
-    "FX": [
+    "fx": [
         "foreign exchange",
         "forward exchange",
         "foreign currency",
@@ -287,14 +341,14 @@ PLACEHOLDERS = {
         "FX",
         "dollar call",
     ],
-    "CP": [
+    "cp": [
         "commodity price",
         "commodity-related",
         "fixed commodity",
         "commodity-based",
     ],
-    "EQ": ["equity", "equity-related"],
-    "GEN": [""],
+    "eq": ["equity", "equity-related"],
+    "gen": [""],
 }
 
 

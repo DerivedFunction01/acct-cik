@@ -202,6 +202,22 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     ],
 }
 
+# Templates for when no derivatives are outstanding for a given category for all years
+# These templates are designed to be flexible and use other predefined template variables.
+NO_INSTRUMENTS_TEMPLATES = [
+    "{time_prefix}, {company} {verb} no {state_descriptor} {swap_type} to hedge against {category_risk_phrase} risk.",
+    "{time_prefix}, there were no {state_descriptor} {swap_type}.",
+    "{company} did not {verb} any {swap_type} {time_suffix}.",
+    "As of {month} {end_day}, {year}, the amounts of {state_descriptor} {swap_type} were {immaterial_term}.",
+    "There were no such {swap_type} {state_descriptor} {time_suffix}.",
+    "{company} did not {verb} any {state_descriptor} {swap_type} {time_suffix}.",
+    "{time_prefix}, {company} did not {verb} any {portfolio_term} for {category_risk_phrase} hedging purposes.",
+    "During the period, {company} was not a party to any {swap_type}.",
+    "{company} {verb} no {state_descriptor} derivative positions as of year-end {year}.",
+    "No {portfolio_term} were {verb} by {company} {time_suffix} for hedging {category_risk_phrase} risk."
+]
+
+
 # Outstanding active state descriptors
 state_descriptors = ["outstanding", "active", "remaining", "open"]
 
