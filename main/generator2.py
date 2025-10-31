@@ -806,27 +806,22 @@ def _generate_category_narrative(
     current_year_data = yearly_data.get(reporting_year)
     prev_year_data = yearly_data.get(reporting_year - 1)
 
-    # --- State for tracking mentioned instruments ---
-    mentioned_instrument_ids = set()
-
     # Get currency and money unit details for sentence generation
     currency_symbol, money_unit_word, currency_code = _get_currency_and_unit_details(scenario)
 
     # 1. Context Sentence (e.g., "To manage our interest rate risk...")
-    # TODO: Make this more dynamic based on templates.
-    if category == "IR":
-        sentences.append(
-            "To manage our interest rate risk, we utilize interest rate swaps to hedge our variable-rate debt."  # This should also be templated
-            # For now, keep it as is, as the request is about notional sentences.
-        )
-    elif category == "FX":
-        sentences.append(
-            "We use foreign currency forward contracts to mitigate the impact of currency fluctuations on our international operations."
-        )
-    elif category == "CP":
-        sentences.append(
-            "The Company enters into commodity derivative contracts to manage price risk associated with raw materials."
-        )
+    # Use dynamic templates from template_definitions.py
+    template_pool = RISK_CONTEXT_TEMPLATES.get(category, RISK_CONTEXT_TEMPLATES["GEN"])
+    if category in ["IR", "FX"]: # Allow combined context for IR/FX
+        template_pool += RISK_CONTEXT_TEMPLATES["FX_IR"]
+
+    context_template = random.choice(template_pool)
+    # Basic formatting for the context sentence
+    context_sentence = context_template.format(
+        company=scenario.company_name,
+        commodity=random.choice(DUMMY_COMMODITY_TYPES) # Provide a fallback
+    )
+    sentences.append(context_sentence)
 
     # 2. Aggregate Summary.
     if current_year_data and current_year_data["total_notional"] > 0:
@@ -964,13 +959,6 @@ def _generate_category_narrative(
                 None,
             )
             if instrument:
-                # Use the full name for the first mention, then the alias for subsequent mentions.
-                instrument_name_to_use = (
-                    instrument.instrument_type
-                    if instrument.instrument_id not in mentioned_instrument_ids
-                    else instrument.instrument_alias
-                )
-                mentioned_instrument_ids.add(instrument.instrument_id)
 
                 # Decide whether to use 'notional' or 'fair_value'
                 use_fair_value_individual = random.random() < 0.2
@@ -981,7 +969,7 @@ def _generate_category_narrative(
 
                 # Generate new individual instrument sentence
                 new_instrument_obj = NotionalSentence(
-                    swap_type=instrument_name_to_use,
+                    swap_type=instrument.instrument_type,
                     year=reporting_year,
                     notional=value_to_report_individual,
                     currency_symbol=currency_symbol,
@@ -1014,13 +1002,6 @@ def _generate_category_narrative(
                 None,
             )
             if instrument:
-                # Use the full name for the first mention, then the alias for subsequent mentions.
-                instrument_name_to_use = (
-                    instrument.instrument_type
-                    if instrument.instrument_id not in mentioned_instrument_ids
-                    else instrument.instrument_alias
-                )
-                mentioned_instrument_ids.add(instrument.instrument_id)
 
                 # Decide whether to use 'notional' or 'fair_value'
                 use_fair_value_terminated = random.random() < 0.2
@@ -1031,7 +1012,7 @@ def _generate_category_narrative(
 
                 # Generate terminated individual instrument sentence
                 terminated_instrument_obj = NotionalSentence(
-                    swap_type=instrument_name_to_use,
+                    swap_type=instrument.instrument_type,
                     year=reporting_year,  # Reporting year is when it was terminated
                     notional=value_to_report_terminated,
                     currency_symbol=currency_symbol,
