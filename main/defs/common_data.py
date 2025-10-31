@@ -426,6 +426,7 @@ PLACEHOLDERS = {
         "foreign currency",
         "forward exchange rate",
         "currency exchange",
+        "cross-currency interest rate",
         "exchange rate",
         "FX",
         "dollar call",

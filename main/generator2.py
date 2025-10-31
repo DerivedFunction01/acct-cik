@@ -6,7 +6,7 @@ import json, re
 from typing import List, Dict, Optional, Tuple, Set
 
 from defs.common_data import *
-from defs.commodity_data import get_random_commodity_and_unit
+from defs.commodity_data import get_random_commodity_and_unit, get_cost_types_for_commodity
 from defs.debt_data import *
 from defs.template_definitions import *
 from defs.class_definitions import (
@@ -85,11 +85,12 @@ def _generate_instrument_name(
     if category == "IR" and isinstance(hedged_item, DebtHedgedItem) and hedged_item.benchmark_rate:
         # If debt has a specific benchmark, try to match it.
         rate_lower = hedged_item.benchmark_rate.lower()
-        matching_ph = next((ph for ph in placeholders if rate_lower in ph.lower()), None)
-        if matching_ph:
+        matching_ph = next((ph for ph in placeholders if rate_lower in ph.lower() and "cross-currency" not in ph), None)
+        # 75% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
+        if matching_ph and random.random() < 0.75:
             placeholder = matching_ph
         else:
-            placeholder = "interest-rate" # Default
+            placeholder = "interest-rate" # Default or fallback
     else:
         placeholder = random.choice(placeholders)
 
@@ -103,7 +104,12 @@ def _generate_instrument_name(
         else: # Fallback if all are used
             base_type = random.choice(base_types)
     else:
-        base_type = random.choice(base_types + extras)
+        # For FX, occasionally create a cross-currency interest rate swap.
+        if category == "FX" and random.random() < 0.15:
+             placeholder = "cross-currency interest rate"
+             base_type = random.choice([s for s in base_types if "swap" in s or "agreement" in s or "contract" in s])
+        else:
+            base_type = random.choice(base_types + extras)
 
     # --- Assemble the name ---
     full_name = " ".join(filter(None, [placeholder, base_type])).strip()
@@ -423,16 +429,31 @@ def create_random_scenario() -> GenerationScenario:
     for _ in range(exposure_counts["debt"]):
         issuance_year = random.randint(reporting_year - 8, reporting_year - 1)
         maturity_year = random.randint(reporting_year + 2, reporting_year + 10)
+
+        # --- NEW: Context-aware debt and benchmark selection ---
+        selected_debt_type: DebtType = random.choice(all_debt_types)
+        benchmark_rate = None
+        debt_currency = archetype.default_currency
+
+        # 20% chance for the debt to be in a foreign currency
+        if random.random() < 0.20:
+            foreign_curr = random.choice([c for c in all_currencies if c.code != archetype.default_currency])
+            debt_currency = foreign_curr.code
+
+        if selected_debt_type.benchmarks:
+            benchmark_rate = random.choice(selected_debt_type.benchmarks)
+
         hedged_debt = DebtHedgedItem(
             hedged_item_id=hedged_item_id_counter,
-            debt_type=random.choice(debts),
+            debt_type=selected_debt_type.name,
+            currency=debt_currency,
             issuance_month=random.choice(months),
             issuance_year=issuance_year,
             maturity_month=random.choice(months),
             maturity_year=maturity_year,
             principal_amount=random.randint(5, 500) * multiplier,
             interest_rate_type="variable",
-            benchmark_rate=random.choice(benchmark_rates),
+            benchmark_rate=benchmark_rate,
             spread_bps=random.randint(100, 300),
         )
         potential_hedged_items["debt"].append(hedged_debt)
@@ -525,12 +546,24 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue  # This exposure remains unhedged
 
-        prefix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item)
-        used_base_types_in_scenario.add(alias)
+        # --- NEW: Handle Cross-Currency Interest Rate Swaps as a special case ---
+        is_cross_currency = debt_item.currency != archetype.default_currency and random.random() < 0.5
+        if is_cross_currency:
+            # This is a hybrid instrument. We'll name it accordingly but categorize it as FX.
+            instrument_category = "FX"
+            placeholder = "cross-currency interest rate"
+            base_type = random.choice([s for s in DERIVATIVE_COMPONENTS["base_types"] if "swap" in s or "agreement" in s])
+            name = f"{placeholder} {base_type}"
+            alias = " ".join(base_type.split()[-2:])
+            prefix = "" # Prefixes don't make sense for this type
+        else:
+            # Standard IR hedge
+            instrument_category = "IR"
+            prefix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item)
+            used_base_types_in_scenario.add(alias)
 
         base_args = {
             "instrument_type": name,
-            
             "instrument_alias": alias,
             "month": random.choice(months),
             "year": reporting_year,
@@ -545,7 +578,7 @@ def create_random_scenario() -> GenerationScenario:
         # Create the instrument and its history
         new_instruments = _create_instrument_with_history(
             scenario=scenario,
-            instrument_class=IRInstrument,
+            instrument_class=FXInstrument if is_cross_currency else IRInstrument,
             instrument_id=instrument_id_counter,
             base_instrument_args=base_args,
         )
