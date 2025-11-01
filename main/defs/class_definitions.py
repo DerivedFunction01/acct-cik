@@ -1014,7 +1014,7 @@ class NotionalSentence:
                     if len(details.currencies) > 1
                     else details.currencies[0]
                 )
-            
+
             # Get random commodity details if needed, as a fallback
             commodity_name, _, _ = get_random_commodity_and_unit()
 
@@ -1164,7 +1164,6 @@ class NotionalSentence:
             )
             result_clause = populated_phrase
 
-
         # 6b. Maturity clause, only if the type of sentence is is_ter
         maturity_clause = ""
         if (
@@ -1199,7 +1198,7 @@ class NotionalSentence:
             or "{amount_prefix}" in template
         )
         final_notional = self.notional if mentions_amount else None
-        
+
         final_notional_str = amount_str if mentions_amount else None
         # --- NEW: These are now generated inside the build method for specific templates ---
         termination_noun_local = random.choice(termination_noun)
@@ -1262,8 +1261,8 @@ class NotionalSentence:
             historical_phrase=random.choice(historical_instrument_phrases),
             result_clause=result_clause,
             portfolio_term=random.choice(portfolio_terms).format(
-                    swap_type=f"{self.swap_type}" + "s"
-                ),
+                swap_type=f"{self.swap_type}" + "s"
+            ),
             portfolio_verb=random.choice(portfolio_verbs),
             maturity_clause=maturity_clause,
             time_suffix=time_suffix,
@@ -1272,8 +1271,8 @@ class NotionalSentence:
             year=self.year,
             month=month,
             end_day=end_day,
+            begin_mitigation=begin_mitigation,
         )
-        sentence = sentence.replace("{begin_mitigation}", begin_mitigation)
 
         # 9. Cleanup
         sentence = _cleanup_sentence(sentence)
