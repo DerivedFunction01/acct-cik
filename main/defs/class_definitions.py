@@ -521,8 +521,6 @@ class CounterpartyRiskSentence:
             materiality=random.choice(immaterial),
         )
 
-        # Cleanup to handle cases where 'derivatives' is hardcoded in the template
-        sentence = sentence.replace("derivative contracts", f"{instrument_term} contracts")
         return _cleanup_sentence(sentence)
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
