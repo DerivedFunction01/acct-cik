@@ -10,7 +10,6 @@ from defs.template_definitions import (
     _format_single_notional,
 )
 from defs.commodity_data import *
-from defs.dummy_data import DUMMY_DEBT_TYPES
 
 # =============================================================================
 # SCENARIO DEFINITION - CLASSES
@@ -84,6 +83,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
     def _temporal_reasoning(self, value_desc: str) -> str:
         """Describe time relation of the evidence, with maturity only in past/future cases."""
+        # TODO: Replace hardcoded sentence fragments with generative logic.
         if not self.reporting_year or not self.year:
             return ""
 
@@ -155,6 +155,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # Template-driven status handlers
         # -----------------------------------------------------------------
         def summary_handler():
+            # TODO: Replace hardcoded sentence templates with generative logic.
             assert self.reporting_year is not None and self.year is not None
             if not self.notional_str and self.notional is None:
                 return f"The report provides a summary for {category_name} derivatives, confirming activity but no {value_desc} specified for {self.year}."
@@ -170,22 +171,26 @@ class NotionalEvidence(BaseNarrativeEvidence):
             return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
 
         def new_handler():
+            # TODO: Replace hardcoded sentence templates with generative logic.
             return (f"The report describes a new {base_desc} "
                     f"{'with a ' + value_desc + ' of ' + self.notional_str if self.notional_str else ''}"
                     f"{temporal_info or '.'}")
 
         def individual_handler():
+            # TODO: Replace hardcoded sentence templates with generative logic.
             return (f"The report mentions an individual {base_desc} "
                     f"{'with a ' + value_desc + ' of ' + self.notional_str if self.notional_str else ''}"
                     f"{temporal_info or '.'}")
 
         def terminated_handler():
+            # TODO: Replace hardcoded sentence templates with generative logic.
             if not self.notional_str and self.notional is None:
                 return f"The report indicates a {base_desc} was terminated, confirming prior existence but no {value_desc} disclosed."
             return (f"The report describes a terminated {base_desc} with a {value_desc} of {self.notional_str}, "
                     f"absent in {self.reporting_year} data, indicating settlement or maturity.")
 
         def no_instruments_handler():
+            # TODO: Replace hardcoded sentence templates with generative logic.
             return (f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, "
                     f"confirming no current use.")
 
@@ -238,11 +243,13 @@ class PolicySentence:
         template = random.choice(templates)
 
         # Populate placeholders
+        # TODO: Replace hardcoded fallback strings like "various foreign currencies" with more dynamic generation.
         # Format currencies and locations into human-readable strings
         currencies_str = "various foreign currencies"
         if self.currencies:
             currencies_str = ", ".join(self.currencies[:-1]) + " and " + self.currencies[-1] if len(self.currencies) > 1 else self.currencies[0]
 
+        # TODO: Replace hardcoded fallback strings like f"international {random.choice(geo_locations)}" with more dynamic generation.
         locations_str = f"international {random.choice(geo_locations)}"
         if self.locations:
             locations_str = ", ".join(self.locations[:-1]) + " and " + self.locations[-1] if len(self.locations) > 1 else self.locations[0]
@@ -250,13 +257,13 @@ class PolicySentence:
         details = self.result_details or ResultPhraseDetails()
 
         sentence = template.format(
+            # TODO: These random.choice() calls are selecting from dummy data lists. This logic will be replaced by the generative model.
             company=self.company_name,
             ir_term=random.choice(interest_rate_terms),
-            debt_type=details.debt_type or random.choice(DUMMY_DEBT_TYPES),
+            debt_type=details.debt_type or "debt",
             risk_term=random.choice(risk_exposure_terms),
             policy_verb=random.choice(policy_verbs),
             risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
-            risk_nature_phrases=random.choice(risk_nature_phrases),
             currencies=currencies_str,
             locations=locations_str,
             commodity=details.commodity or "various commodities",
@@ -715,6 +722,7 @@ class NotionalSentence:
         # 2. Select time prefix template
         time_prefix = ""
         time_suffix = ""
+        # TODO: The logic for selecting and formatting time prefixes/suffixes is template-based and should be replaced by generative logic.
         if self.sentence_type in ["summary", "comparative", "no_instruments"]:
             if num_years == 1:
                 time_prefix = random.choice(point_in_time_prefixes)
@@ -772,6 +780,7 @@ class NotionalSentence:
             final_value_type = "notional"
 
         # 5. Hedge designation clause
+        # TODO: Replace hardcoded hedge designation clauses with generative logic.
         hedge_designation_clause = ""
         if self.hedge_designation:
             hedge_designation_clause = self.hedge_designation.format(
@@ -779,6 +788,7 @@ class NotionalSentence:
             )
 
         # 6. Result phrase clause
+        # TODO: The construction of the result_clause is template-based and should be replaced by generative logic.
         result_clause = ""
         if self.result_phrase:
             # Populate new placeholders within the result phrase itself
@@ -818,7 +828,7 @@ class NotionalSentence:
                 frequency=details.frequency or random.choice(frequencies),
                 risk_term=random.choice(risk_exposure_terms),
                 ir_term=random.choice(interest_rate_terms),  # type: ignore
-                debt_type=details.debt_type or random.choice(DUMMY_DEBT_TYPES),
+                debt_type=details.debt_type or "debt",
                 currencies=currencies_str,
                 currency_code=self.currency_code,
                 rate_term1=rate_term1,
@@ -832,6 +842,7 @@ class NotionalSentence:
             result_clause = populated_phrase
 
         # 6b. Maturity clause
+        # TODO: Replace hardcoded maturity clause templates with generative logic.
         maturity_clause = ""
         if self.maturity_year and self.reporting_year:
             if self.maturity_year > self.reporting_year:
@@ -865,6 +876,7 @@ class NotionalSentence:
 
         # Handle "no_instruments" case specifically
         if self.sentence_type == "no_instruments":
+            # TODO: This entire block for "no_instruments" uses hardcoded templates and should be replaced by generative logic.
             # Select a template from the new list
             template = random.choice(NO_INSTRUMENTS_TEMPLATES)
             category_map = {
