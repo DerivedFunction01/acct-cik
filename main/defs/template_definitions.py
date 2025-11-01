@@ -337,7 +337,7 @@ POLICY_CONTEXT_TEMPLATES = {
     ],
     "CP": [
         "{company} is exposed to market {risk_term} from changes in {commodity} prices that affect its {cost_type} and revenues.",
-        "Fluctuations in {commodity} prices can impact {company}'s profitability and cost structure.",
+        "{risk_term}s in {commodity} prices can impact {company}'s profitability and cost structure.",
         "As part of its operations, {company} is exposed to {risk_term} in {commodity} prices.",
         "The profitability of {company}'s operations depends in part on the stability of {commodity} prices.",
         "{company}'s cost of goods sold is affected by {risk_term} in {commodity} market prices.",
