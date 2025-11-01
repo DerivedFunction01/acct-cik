@@ -312,7 +312,7 @@ result_phrases = {
         "which effectively converts the {rate_term1} into a {rate_term2} of {debt_type}",
         "to hedge {formatted_amount} of various {debt_type}",
         "{financial_outcome_verb} interest income (expense) of {formatted_amount} related to these {swap_type}",
-        "to cap or fix {company}'s {ir_term} at {pct}% on an agreed upon principal amount of {formatted_amount}",
+        "to cap or fix our {ir_term} at {pct}% on an agreed upon principal amount of {formatted_amount}",
         "to eliminate the {ir_term} if the {debt_type} were to exceed {pct}%",
         "{mitigation_verb} against the possible negative effects of {ir_term} {risk_term} on {debt_type} obligations",
         "to exchange {rate_term1} and {rate_term2} interest payment obligations",
