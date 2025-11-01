@@ -124,12 +124,16 @@ aggregate_use_verbs = [
     "were party to",
 ] + shared_use_verbs
 
+
 future_adverbs = [
     "will",
-    "is scheduled to",    
+    "is scheduled to",
     "is expected to",
     "is anticipated to",
     "is projected to",
+    "is set to",
+    "is slated to",
+    "is due to",
 ]
 
 # Verbs for termination/expiration events
@@ -141,6 +145,10 @@ termination_verbs_present = [
     "close out",
     "unwind",
     "liquidate",
+    "conclude",
+    "end",
+    "be settled",
+    "be terminated",
     "reach their expiration date",
 ]
 
@@ -150,13 +158,38 @@ termination_verbs_past = [
     "matured",
     "terminated",
     "close out",
-    "unwounded",
+    "unwound",
     "liquidated",
-    "reach their expiration date",
+    "concluded",
+    "ended",
+    "were settled",
+    "were terminated",
+    "reached their expiration date",
+]
+
+termination_noun = [
+    "expiration",
+    "settlement",
+    "maturity",
+    "termination",
+    "closing",
+    "unwinding",
+    "liquidation",
+    "conclusion",
+    "ending",
 ]
 
 # Comparison verbs phrases
-comparison_phrases = ["compared to", "versus", "down from", "reduced from"]
+comparison_phrases = [
+    "compared to",
+    "versus",
+    "down from",
+    "up from",
+    "an increase from",
+    "reduced from",
+    "as against",
+    "in comparison with",
+]
 
 # Verbs for expressing non-use or absence of instruments
 non_use_verbs = [

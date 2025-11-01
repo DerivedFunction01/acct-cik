@@ -214,6 +214,12 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "The {amount_prefix} of this {swap_type} stood at {amount_str} in {year}.",
         "In {year}, the position's {amount_prefix} was {amount_str}."
     ],
+    "partial_settlement": [
+        "In {year}, a portion of the {swap_type} was {verb}, reducing its {amount_prefix} to {amount_str}.",
+        "A partial termination occurred in {year}, bringing the remaining {amount_prefix} to {amount_str}.",
+        "By {year}, after a partial settlement, the outstanding {amount_prefix} was {amount_str}.",
+        "{company} partially {verb} its {swap_type} position in {year}, with the remaining {amount_prefix} at {amount_str}."
+    ],
     "comparative_no_outstanding": [
         "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year {result_clause}.",
         "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year} {result_clause}.",

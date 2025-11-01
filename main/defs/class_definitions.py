@@ -1293,6 +1293,7 @@ class TimelineSentence:
 
         # --- Generate sentences for each selected year ---
         for i, year in enumerate(selected_years):
+            prev_notional = self.instrument.notional_history.get(selected_years[i-1]) if i > 0 else None
             notional = self.instrument.notional_history[year]
             if self.value_type == "fair_value":
                 notional = max(1, int(notional / random.randint(20, 100)))
@@ -1302,16 +1303,22 @@ class TimelineSentence:
                 sentence_type = "inception"
                 name_to_use = self.instrument.instrument_type
             else:
-                # Subsequent mentions: Use "continuing" template and an alias
-                sentence_type = "continuing"
+                # --- NEW: Check for partial settlement ---
+                # If notional decreased by more than 30%, it's a partial settlement.
+                if prev_notional and notional < prev_notional * 0.7 and random.random() < 0.8:
+                    sentence_type = "partial_settlement"
+                else:
+                    # Otherwise, it's just a continuing mention.
+                    sentence_type = "continuing"
                 name_to_use = self.instrument.instrument_alias
 
             sentence_obj = NotionalSentence(
                 swap_type=name_to_use,
                 year=year,
                 notional=notional,
-                sentence_type=sentence_type,
+                sentence_type=sentence_type, # type: ignore
                 company_name=self.company_name,
+                verb=random.choice(termination_verbs_past) if sentence_type == "partial_settlement" else None,
                 currency_symbol=self.currency_symbol,
                 currency_code=self.currency_code,
                 money_units=self.money_units,
