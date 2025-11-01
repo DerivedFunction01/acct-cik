@@ -1400,9 +1400,12 @@ def generate_narrative_from_scenario(
     full_narrative = (
         f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
     )
-    # Post-warning: Check for the word "none" in the final narrative
-    if "none" in full_narrative.lower():
-        full_narrative += "\n\n[WARNING: The word 'none' was found in the narrative. Please review for potential ambiguity or unintended implications.]"
+    # --- NEW: Post-generation warnings for leftover placeholders ---
+    warnings = []
+    if "None" in full_narrative: warnings.append("The word 'none' was found.")
+    if re.search(r'[\{\}\[\]]', full_narrative): warnings.append("Leftover template characters like '{}' or '[]' were found.")
+    if warnings:
+        full_narrative += f"\n\n[WARNING: Please review for potential ambiguity or unintended implications. Issues found: {'; '.join(warnings)}]"
     return full_narrative, all_evidence
 
 

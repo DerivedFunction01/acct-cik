@@ -445,6 +445,14 @@ class MitigationSentence:
                 else details.currencies[0]
             )
 
+        # --- NEW: Handle multiple commodities ---
+        commodities_str = "commodities"
+        if details.commodity:
+            if len(details.commodity) > 1:
+                commodities_str = ", ".join(details.commodity[:-1]) + f" and {details.commodity[-1]}"
+            else:
+                commodities_str = details.commodity[0]
+
         # Populate placeholders in the chosen mitigation phrase
         interest_rates = random.sample(specific_rate_terms, k=2)
         risk_terms = random.sample(risk_exposure_terms, k=2)
@@ -452,7 +460,7 @@ class MitigationSentence:
             debt_type=details.debt_type or "debt",
             currencies=currencies_str,
             geography=details.geography or random.choice([c.location for c in all_currencies]),
-            commodity=details.commodity or "commodities",
+            commodity=commodities_str,
             rate_term1=interest_rates[0],
             rate_term2=interest_rates[1],
             risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
