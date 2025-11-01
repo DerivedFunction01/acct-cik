@@ -537,7 +537,6 @@ def create_random_scenario() -> GenerationScenario:
 
         # --- NEW: Handle Cross-Currency Interest Rate Swaps as a special case ---
         is_cross_currency = debt_item.currency != archetype.default_currency and random.random() < 0.5
-        # TODO: The random chance for cross-currency swaps is hardcoded logic.
         if is_cross_currency:
             # This is a hybrid instrument. We'll name it accordingly but categorize it as FX.
             instrument_category = "FX"
@@ -777,7 +776,6 @@ def _generate_narrative_policy(
 
     if scenario.policy:
         # --- Generate a high-level risk exposure sentence ---
-        # TODO: The logic to determine the primary risk category is a simple heuristic. A generative model should handle this more naturally.
         # Determine the primary risk category by finding the most common one.
         instrument_categories_in_year = []
         for inst in scenario.instruments:
@@ -801,7 +799,6 @@ def _generate_narrative_policy(
             evidence.append(policy_evidence)
 
         # --- Generate standard policy statements ---
-        # TODO: These are hardcoded sentences and should be replaced by generative logic.
         if scenario.policy.general_policy.does_not_use_for_trading:
              # Select a random template for the "no trading" policy
             template = random.choice(hedge_no_trading_templates)
@@ -894,6 +891,13 @@ def _generate_category_narrative(
     # 2. Aggregate Summary OR Individual Instrument Descriptions.
     if current_year_data and current_year_data["total_notional"] > 0:
         # --- NEW LOGIC: Decide whether to summarize or detail ---
+        # Check for the specific case where there are current instruments but no prior ones.
+        if prev_year_data is None or prev_year_data["total_notional"] == 0:
+            # 15% chance to generate a specific "no prior" sentence
+            if random.random() < 0.15:
+                # This logic will be handled in the comparative summary section below
+                pass
+
         num_instruments_current_year = len(current_year_data["instruments"])
 
         # If there are few instruments, describe them individually.
@@ -908,13 +912,23 @@ def _generate_category_narrative(
                         1, int(instrument.notional_amount / random.randint(20, 100))
                     )
 
+                # Determine if the instrument is "historical" (existed in a prior year)
+                is_historical = False
+                if prev_year_data:
+                    prev_ids = {i.instrument_id for i in prev_year_data["instruments"]}
+                    if instrument.instrument_id in prev_ids:
+                        is_historical = True
+                
+                # 20% chance to use the historical template if applicable
+                sentence_type = "historical_individual" if is_historical and random.random() < 0.2 else "individual"
+
                 individual_sentence_obj = NotionalSentence(
                     swap_type=instrument.instrument_type,
                     year=reporting_year,
                     notional=value_to_report,
                     currency_symbol=currency_symbol,
                     company_name=scenario.company_name,
-                    sentence_type="individual",
+                    sentence_type=sentence_type,
                     hedge_designation=instrument.hedge_designation,
                     money_units=scenario.archetype.money_units,
                     maturity_year=instrument.maturity_year,
@@ -998,6 +1012,26 @@ def _generate_category_narrative(
                 )
                 comparative_summary_text, evidence_obj = comparative_summary_obj.build()
                 sentences.append(comparative_summary_text)
+            # NEW: Handle case where there were no prior instruments
+            elif prev_year_data is None or prev_year_data["total_notional"] == 0:
+                comparative_no_prior_obj = NotionalSentence(
+                    swap_type=instrument_type,
+                    year=reporting_year,
+                    notional=value_to_report,
+                    currency_symbol=currency_symbol,
+                    month=reporting_month,
+                    end_day=reporting_day,
+                    prev_year=reporting_year - 1,
+                    prev_notional=0, # Explicitly zero
+                    sentence_type="comparative_no_prior_outstanding",
+                    money_units=scenario.archetype.money_units,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    category=category,  # type: ignore
+                    reporting_year=reporting_year,
+                    value_type=value_type_to_use,
+                )
+                comparative_summary_text, evidence_obj = comparative_no_prior_obj.build()
+                sentences.append(comparative_summary_text)
     else:
         # Generate a "no instruments" sentence if the category is active for the archetype
         no_instrument_obj = NotionalSentence(
@@ -1015,8 +1049,30 @@ def _generate_category_narrative(
         sentences.append(no_instrument_text)
         evidence.append(evidence_obj)
 
+        # NEW: If there are no current instruments, check if there were prior ones
+        # to generate a "comparative_no_outstanding" sentence.
+        if prev_year_data and prev_year_data["total_notional"] > 0:
+            instrument_type = prev_year_data["instrument_types"][0] if prev_year_data["instrument_types"] else "derivative instrument"
+            comparative_no_outstanding_obj = NotionalSentence(
+                swap_type=instrument_type,
+                year=reporting_year,
+                notional=0, # No notional this year
+                currency_symbol=currency_symbol,
+                month=reporting_month,
+                end_day=reporting_day,
+                prev_year=reporting_year - 1,
+                prev_notional=prev_year_data["total_notional"],
+                sentence_type="comparative_no_outstanding",
+                money_units=scenario.archetype.money_units,
+                prefer_abbreviated=scenario.number_format_preference,
+                category=category,  # type: ignore
+                reporting_year=reporting_year,
+            )
+            no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
+            sentences.append(no_instrument_text)
+        evidence.append(evidence_obj)
+
     # 3. Detailed Sentences (New, Terminated) by comparing current and previous years.
-    # TODO: The logic to compare current/previous years to identify "new" and "terminated" instruments is a heuristic that a generative model should learn to perform implicitly.
     current_ids = (
         {i.instrument_id for i in current_year_data["instruments"]}
         if current_year_data
@@ -1253,7 +1309,6 @@ def _generate_analysis_summary(
     """Dynamically generates a one-sentence analysis summary."""
     summary_phrases = set()
     for item in evidence:
-        # TODO: This logic for creating a summary is a simple heuristic. A generative model should create a more natural summary.
         if item.status in ["summary", "new", "comparative", "individual"]:
             summary_phrases.add(f"utilizes {item.category} derivatives")
 
@@ -1275,7 +1330,6 @@ def generate_json_from_scenario(
 
     # --- Append a final reasoning statement for any GENERIC derivatives ---
     # This logic is now centralized here, instead of in the Evidence class.
-    # TODO: This reasoning for generic derivatives is hardcoded. A generative model should learn to explain its reasoning.
     has_generic_evidence = any(ev.category == "GEN" for ev in evidence)
     if has_generic_evidence:
         # Find other specific categories that were identified in the text.
