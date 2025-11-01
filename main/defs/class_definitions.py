@@ -841,10 +841,13 @@ class NotionalSentence:
             )
             result_clause = populated_phrase
 
-        # 6b. Maturity clause
-        # TODO: Replace hardcoded maturity clause templates with generative logic.
+        # 6b. Maturity clause, only if the type of sentence is is_ter
         maturity_clause = ""
-        if self.maturity_year and self.reporting_year:
+        if (
+            self.maturity_year
+            and self.reporting_year
+            and self.sentence_type in ["historical_individual", "terminated_individual"]
+        ):
             if self.maturity_year > self.reporting_year:
                 adverb = random.choice(future_adverbs)
                 verb_tense = random.choice([v for v in termination_verbs_present if not v.endswith('ed')]) # Ensure present tense
