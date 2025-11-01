@@ -544,3 +544,96 @@ MITIGATION_TEMPLATES = {
         "as part of a risk management program",
     ],
 }
+
+# ==============================================================================
+# HEDGE POLICY TEMPLATES (Ported from old/template/hedges.py)
+# ==============================================================================
+
+# --- Documentation Policy ---
+hedge_documentation_templates = [
+    "For a {swap_type} to qualify as a hedge at inception and throughout the hedged period, {company} formally document the nature and relationships between the hedging instruments and hedged item.",
+    "For a {swap_type} designated as a {hedge_type} hedge, the {gain_loss} is {financial_outcome_verb} in earnings in the period of change together with the offsetting loss or gain on the risk being hedged.",
+    "{company} maintains formal documentation of all hedging relationships, including the risk management objective and strategy for undertaking the hedge.",
+    "Hedge accounting requires formal documentation at inception describing the hedging relationship and {company}'s risk management objectives.",
+    "{company} document our hedging relationships and risk management strategies at inception in accordance with applicable accounting standards.",
+    "{company} prepares formal documentation for all hedges, detailing the hedging {swap_type}, hedged item, and risk management strategy.",
+    "At hedge inception, {company} documents the relationship between the {swap_type} and the hedged item, including the risk management objective.",
+    "{company} maintains detailed documentation of hedging relationships to comply with hedge accounting requirements.",
+    "{company} formally document all hedging relationships at inception, including the strategy and objectives for risk management.",
+    "Hedge documentation includes the risk management objective, hedging {swap_type}, and hedged item, prepared at inception.",
+    "{company} records formal documentation for hedges, outlining the relationship and risk management strategy.",
+    "{company} document the hedging relationship and risk management objectives at the start of each hedge in line with accounting standards.",
+]
+
+# --- Effectiveness Policy ---
+hedge_effectiveness_policy_templates = [
+    "{company} {verb}, both at inception and on an on-going basis, whether the {swap_type} that are utilized in {hedge_type} hedging transactions are highly effective in offsetting the {metric} of hedged items.",
+    "{company} {verb} hedge effectiveness {frequency} to ensure derivatives continue to meet the criteria for hedge accounting.",
+    "Hedge effectiveness is {verb} {frequency} using {method} in accordance with {standard}.",
+    "{company} {verb} {frequency} assessments of hedge effectiveness to determine whether hedging relationships remain highly effective.",
+    "{company} {verb} hedge effectiveness {frequency} in accordance with {standard}.",
+    "{company} {verb} hedge effectiveness {frequency} using {method} to ensure compliance with {standard}.",
+    "{company} {verb} {frequency} tests of hedge effectiveness for {swap_type} to offset changes in {metric}.",
+    "Hedge effectiveness is {verb} {frequency} to verify that derivatives qualify for hedge accounting under {standard}.", # 'is' is not a placeholder, but it works with all verbs in assessment_verbs
+    "{company} {verb} {swap_type} effectiveness {frequency} to ensure they offset {metric} as intended.",
+    "{company} {verb} effectiveness of {swap_type} {frequency} using {method} per {standard}.",
+    "{company} {verb} {frequency} hedge effectiveness tests using {method} to comply with {standard}.",
+    "Hedge effectiveness is {verb} {frequency} for {swap_type} to meet {standard} requirements.",
+    "{company} {verb} the effectiveness of {swap_type} {frequency} to offset changes in {metric} per {standard}.",
+    "{company} {verb} {frequency} assessments of {swap_type} effectiveness using {method}.",
+    "{company} {verb} hedge effectiveness {frequency} for {swap_type} in accordance with {standard}.",
+    "{company} {verb} {swap_type} effectiveness {frequency} to confirm compliance with {standard}.", # 'verb' is already a placeholder
+    "{company}'s hedge positions in {swap_type} are continually {verb} to determine whether new or offsetting transactions are required.",
+]
+
+# --- Ineffectiveness Policy ---
+hedge_ineffectiveness_policy_templates = [
+    "{company} {verb} hedge ineffectiveness {frequency} and {financial_outcome_verb} the {gain_loss} related to the ineffective portion of derivative instruments, if any, to current earnings.",
+    "Any hedge ineffectiveness is {financial_outcome_verb} immediately in earnings in the period identified.",
+    "Ineffectiveness, if present, is {verb} {frequency} and {financial_outcome_verb} in the consolidated statements of operations.",
+    "{company} {financial_outcome_verb} any ineffective portion of hedging instruments in current period earnings.",
+    "{gain_loss} from the ineffective portion of derivative instruments are {financial_outcome_verb} in earnings {frequency}.",
+    "{company} {verb} hedge ineffectiveness and {financial_outcome_verb} any such amounts in the statement of operations for the relevant period.",
+    "Ineffective amounts arising from hedging relationships are {financial_outcome_verb} in earnings as part of the assessment {frequency}.",
+    "{company} {verb} hedge effectiveness and immediately {financial_outcome_verb} any ineffectiveness in income.",
+    "Hedge ineffectiveness, when identified, is {financial_outcome_verb} in earnings for the reporting period in which it occurs.",
+    "The ineffective portion of designated hedges is calculated and {financial_outcome_verb} in current earnings {frequency}.",
+]
+
+# --- Discontinuation Policy ---
+hedge_discontinuation_templates = [
+    "If {company} determine that a forecasted transaction is no longer probable of occurring, {company} {termination_verb} hedge accounting and any related unrealized {gain_loss} on the derivative instrument is {financial_outcome_verb} in current earnings.",
+    "Hedge accounting is {termination_verb} if the hedged forecasted transaction is no longer expected to occur, with accumulated {gain_loss} {financial_outcome_verb} to earnings.",
+    "When a hedged forecasted transaction becomes improbable, {company} dedesignates the hedging relationship and {financial_outcome_verb} deferred {gain_loss} immediately.",
+    "If a forecasted transaction fails to occur, amounts previously deferred in other comprehensive income are {financial_outcome_verb} to current period earnings.",
+    "{company} ceases hedge accounting for derivatives when the hedged item is no longer expected to occur, with any accumulated {gain_loss} {financial_outcome_verb} in earnings.",
+    "Deferred {gain_loss} on discontinued hedges are {financial_outcome_verb} immediately in the consolidated statements of operations.",
+    "Upon dedesignation of a hedge, the ineffective and deferred portions of derivative instruments are {financial_outcome_verb} in current period earnings.",
+    "Hedge discontinuation is applied when the underlying forecasted transaction is no longer probable, with previously deferred amounts {financial_outcome_verb} to income.",
+    "If the hedged item did not materialize, accumulated OCI amounts for the hedge are {financial_outcome_verb} to current earnings.",
+    "{company} derecognizes hedge accounting when criteria are no longer met, and any associated {gain_loss} are {financial_outcome_verb} in the period of discontinuation.",
+    "{swap_type} being accounted for as a {hedge_type} hedge did not qualify for hedge accounting because it is no longer highly effective in offsetting {metric} of a hedged item.",
+    "If the {swap_type} expires or is sold, terminated or exercised, or if management determines that designation of the {swap_type} as a hedge instrument is no longer appropriate, hedge accounting would be discontinued.",
+    "When a hedge is discontinued because it is no longer effective, the derivative is no longer designated as a hedge, and subsequent changes in fair value are recognized in earnings.",
+    "For discontinued {hedge_type} hedges, any gains or losses previously deferred in other comprehensive income are recognized in earnings when the hedged transaction affects earnings.",
+    "{company} may terminate or de-designate a {swap_type} at any time, at which point hedge accounting is discontinued prospectively.",
+]
+
+# --- General Accounting Policy ---
+hedge_accounting_policy_templates = [
+    "Changes in the fair value of {swap_type} are recorded each period in current earnings or other comprehensive income (loss), depending on whether a derivative instrument is designated as part of a hedging transaction and, if it is, the type of hedging transaction.",
+    "{swap_type} are measured at fair value with {gain_loss} {financial_outcome_verb} in earnings or accumulated other comprehensive income based on hedge designation.",
+    "{company} accounts for {swap_type} at fair value, with changes in fair value {financial_outcome_verb} in either net income or other comprehensive income depending on the nature of the hedging relationship.",
+    "Fair value changes in {swap_type} are reflected in the financial statements through either the income statement or other comprehensive income, based on whether hedge accounting is applied.",
+    "{company} {financial_outcome_verb} {swap_type} at fair value, with changes {financial_outcome_verb} in earnings or OCI depending on hedge designation.",
+    "Changes in derivative fair values are {financial_outcome_verb} in net income or accumulated OCI, based on the type of hedge and its designation.",
+    "{swap_type} are accounted for at fair value, with {gain_loss} {financial_outcome_verb} in earnings or other comprehensive income per hedge accounting rules.",
+    "{company} {financial_outcome_verb} fair value changes of {swap_type} in either current earnings or OCI, depending on the hedging relationship.",
+    "{gain_loss} on {swap_type} are {financial_outcome_verb} currently in earnings.",
+    "The accounting for the changes in the fair value of the {swap_type} depends on the intended use of the {swap_type} and the resulting designation.",
+    "For a {swap_type} that did not qualify as a {hedge_type} hedge, the change in {hedge_type} is {financial_outcome_verb} currently in net income.",
+    "If the derivative such as {swap_type} is a hedge, changes in the fair value of derivatives may be {financial_outcome_verb} in other comprehensive income until the hedged item is {financial_outcome_verb} in earnings.",
+]
+
+# --- Shared placeholders for policy templates ---
+hedge_standards = ["ASC 815", "applicable accounting guidance", "U.S. GAAP", "accounting standards", "ASU 2017-12", "Topic 815"]

@@ -213,6 +213,15 @@ policy_verbs = [
     "applies",
 ]
 
+# Verbs for assessing hedge effectiveness
+assessment_verbs = [
+    "assesses",
+    "evaluates",
+    "reviews",
+    "tests",
+    "monitors",
+    "analyzes",
+]
 # Adverbs for describing the timing or nature of an action.
 time_adverbs = {
     "current": [  # For describing active, ongoing use
@@ -279,6 +288,14 @@ risk_exposure_terms = [
     "variability",
 ]
 
+hedge_metrics = [
+    "changes in cash flows",
+    "changes in fair value",
+    "variability",
+    "exposure",
+]
+
+
 general_interest_terms = [
     "interest rate",
     "borrowing cost",
@@ -313,7 +330,13 @@ balance_sheet_locations = [
     "equity",
 ]
 
-gain_loss_phrases = ["gains", "losses", "increase", "decrease"]
+gain_loss_phrases = [
+    "gains",
+    "losses",
+    "gains and losses",
+    "increase",
+    "decrease",
+]
 
 # Optional / Immaterial terms
 immaterial = [

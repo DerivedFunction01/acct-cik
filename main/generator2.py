@@ -10,6 +10,7 @@ from defs.commodity_data import get_random_commodity_and_unit, get_cost_types_fo
 from defs.debt_data import *
 from defs.template_definitions import *
 from defs.class_definitions import (
+    AccountingPolicySentence,
     BaseNarrativeEvidence,
     HedgedItem,
     MitigationEvidence,
@@ -1285,15 +1286,46 @@ def _generate_narrative_accounting(
     scenario: GenerationScenario,
 ) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
     """Generates sentences about accounting treatment and hedge effectiveness."""
-    sentences = []
-    if scenario.policy and scenario.policy.category_policies:  # Check if policy exists
-        # TODO: This is a hardcoded sentence template and should be replaced by generative logic.
+    all_sentences: List[str] = []
+    all_evidence: List[BaseNarrativeEvidence] = [] # type: ignore
+    mentioned_policies = set()
+
+    if scenario.policy and scenario.policy.category_policies:
+        # --- NEW: First, generate general policies that apply to all categories ---
+        # We'll use the first available category policy as a representative sample.
+        first_policy = scenario.policy.category_policies[0]
+
+        # Generate a documentation sentence if applicable
+        if first_policy.documentation_formalized and "documentation" not in mentioned_policies:
+            doc_template = random.choice(hedge_documentation_templates)
+            sentence = doc_template.format(
+                company=scenario.company_name,
+                swap_type="derivative instruments", # Generic term
+                hedge_type=random.choice(hedge_types),
+                # Add dummy values for other placeholders that might be in some templates
+                verb=random.choice(assessment_verbs),
+                metric=random.choice(hedge_metrics),
+                frequency=first_policy.effectiveness_frequency or random.choice(frequencies),
+                method=first_policy.effectiveness_testing_method,
+                standard=first_policy.accounting_standard or random.choice(hedge_standards),
+                gain_loss=random.choice(gain_loss_phrases),
+                financial_outcome_verb=random.choice(financial_outcome_verbs),
+                termination_verb=random.choice(termination_verbs_past)
+            )
+            all_sentences.append(sentence)
+            mentioned_policies.add("documentation")
+
+        # --- Now, iterate through each category for its specific policies ---
         for cat_policy in scenario.policy.category_policies:
-            if cat_policy.effectiveness_testing_method:
-                sentences.append(
-                    f"For our {cat_policy.category} derivative instruments, we assess hedge effectiveness on a {cat_policy.effectiveness_frequency} basis using the {cat_policy.effectiveness_testing_method}."
-                )
-    return sentences, []  # Return an empty list for evidence for now
+            policy_sentence_builder = AccountingPolicySentence(
+                cat_policy=cat_policy, company_name=scenario.company_name, already_mentioned_policies=mentioned_policies
+            )
+            generated_items = policy_sentence_builder.build()
+            for sentence, evidence in generated_items:
+                all_sentences.append(sentence)
+                all_evidence.append(evidence)
+
+    return all_sentences, all_evidence
 
 
 def generate_narrative_from_scenario(

@@ -532,6 +532,60 @@ class CounterpartyRiskSentence:
 
         return _cleanup_sentence(sentence)
 
+@dataclass
+class AccountingPolicySentence:
+    """
+    A data class to hold components for generating sentences about accounting policies,
+    effectiveness testing, and documentation for a specific derivative category.
+    """
+    cat_policy: "CategorySpecificPolicy"
+    company_name: str
+    already_mentioned_policies: set[str] = field(default_factory=set)
+
+    def build(self) -> List[Tuple[str, "PolicyEvidence"]]:
+        """
+        Builds a list of sentences and corresponding evidence objects based on the policy.
+        """
+        sentences_and_evidence = []
+
+        # Define a mapping from policy attributes to templates and evidence types
+        policy_map = {
+            "documentation": (hedge_documentation_templates, "hedging_strategy", "documentation_formalized"),
+            "effectiveness": (hedge_effectiveness_policy_templates, "effectiveness_testing", "effectiveness_testing_method"),
+            "accounting": (hedge_accounting_policy_templates, "accounting_treatment", "accounting_policy_description"),
+        }
+
+        # Choose a random template from each relevant policy category
+        templates_to_use: List[Tuple[List[str], str]] = []
+        for policy_name, (template_list, evidence_type, attr_name) in policy_map.items():
+            if getattr(self.cat_policy, attr_name, None) and policy_name not in self.already_mentioned_policies:
+                templates_to_use.append((template_list, evidence_type))
+
+        # Add ineffectiveness and discontinuation policies with a certain probability
+        if "ineffectiveness" not in self.already_mentioned_policies and random.random() < 0.4:
+            templates_to_use.append((hedge_ineffectiveness_policy_templates, "accounting_treatment"))
+        if "discontinuation" not in self.already_mentioned_policies and random.random() < 0.3:
+            templates_to_use.append((hedge_discontinuation_templates, "accounting_treatment"))
+
+        # Populate the chosen templates
+        for template_list, evidence_type in templates_to_use:
+            template = random.choice(template_list)
+            sentence = template.format(
+                company=self.company_name,
+                swap_type="derivative instruments",
+                hedge_type=random.choice(hedge_types),
+                verb=random.choice(assessment_verbs),
+                metric=random.choice(hedge_metrics),
+                frequency=self.cat_policy.effectiveness_frequency or random.choice(frequencies),
+                method=self.cat_policy.effectiveness_testing_method,
+                standard=self.cat_policy.accounting_standard or random.choice(hedge_standards),
+            )
+            
+            evidence = PolicyEvidence(category=self.cat_policy.category, status="policy_mention", policy_type=evidence_type, details=sentence) # type: ignore
+            sentences_and_evidence.append((sentence, evidence))
+
+        return sentences_and_evidence
+
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
 
