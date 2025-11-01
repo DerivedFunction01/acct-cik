@@ -66,6 +66,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
     maturity_year: Optional[int] = None
     value_type: str = "notional"
     currency: str = "USD"
+    sentence_type: Optional[str] = None
 
     # ---------------------------------------------------------------------
     # Helpers
@@ -86,8 +87,11 @@ class NotionalEvidence(BaseNarrativeEvidence):
         if not self.reporting_year or not self.year:
             return ""
 
-        maturity_reason = ""
-        if self.maturity_year is not None:
+        maturity_reason = "" # Only give maturity reason to proper sentences
+        if self.maturity_year is not None and self.sentence_type and self.sentence_type in [
+            "historical_individual",
+            "terminated_individual",
+        ]:
             if self.maturity_year >= self.reporting_year:
                 maturity_reason = f" and is considered current as its maturity year ({self.maturity_year}) is on or after the reporting year"
             else:
@@ -984,6 +988,7 @@ class NotionalSentence:
                 prev2_year=self.prev2_year,
                 currency=self.currency_code,
                 reporting_year=self.reporting_year,
+                sentence_type=self.sentence_type,
             )
             return sentence, evidence
 
@@ -1028,6 +1033,7 @@ class NotionalSentence:
             maturity_year=self.maturity_year,
             reporting_year=self.reporting_year,
             value_type=final_value_type,
+            sentence_type=self.sentence_type,
         )
 
         return sentence, evidence
