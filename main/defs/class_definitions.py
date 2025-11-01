@@ -353,9 +353,13 @@ class MitigationSentence:
     has_active_instruments: bool
     usage_status: Literal["current", "speculative", "historical", "non_use"]
     result_details: Optional["ResultPhraseDetails"] = None
+    # Add time components for context
+    year: Optional[int] = None
+    month: Optional[str] = None
+    end_day: Optional[int] = None
 
-    def build(self) -> str:
-        """Builds a sentence describing the purpose of a hedge."""
+    def build(self) -> Tuple[str, bool]:
+        """Builds a sentence describing the purpose of a hedge. Returns the sentence and a boolean indicating if it was a 'non-use' sentence."""
         # Select the appropriate set of mitigation phrases
         templates = MITIGATION_TEMPLATES.get(self.category, MITIGATION_TEMPLATES["GEN"])
         mitigation_phrase = random.choice(templates)
@@ -368,7 +372,7 @@ class MitigationSentence:
         # Choose an adverb and verb based on the usage status
         adverb = ""
         verb = ""
-        adverb_list = time_adverbs.get(self.usage_status, [])
+        adverb_list = time_adverbs.get(final_usage_status, [])
         if adverb_list:
             adverb = random.choice(adverb_list)
 
@@ -399,21 +403,27 @@ class MitigationSentence:
             commodity=details.commodity or "commodities",
         )
 
+        # Add time context suffix
+        time_suffix = ""
+        if self.year and self.month and self.end_day:
+            time_suffix = f"as of {self.month} {self.end_day}, {self.year}"
+
         # Combine into a final sentence
         # Structure: "{Company} {verb} {swap_type}, {mitigation_phrase}."
         # --- FIX: For non_use, always use the company-first structure for better flow. ---
         if final_usage_status == "non_use":
-            sentence_structures = [f"{{company}} {{adverb}} {{verb}} {{swap_type}}, {populated_phrase}."]
+            sentence_structures = [f"{{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}, {populated_phrase}."]
         else:
             # Or: "{mitigation_phrase}, {company} {verb} {swap_type}."
             sentence_structures = [
-                f"{{company}} {{adverb}} {{verb}} {{swap_type}}, {populated_phrase}.",
-                f"{populated_phrase.capitalize()}, {{company}} {{adverb}} {{verb}} {{swap_type}}."
+                f"{{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}, {populated_phrase}.",
+                f"{populated_phrase.capitalize()}, {{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}."
             ]
         sentence_template = random.choice(sentence_structures)
         sentence = sentence_template.format(company=self.company_name, adverb=adverb, verb=verb, swap_type=self.swap_type)
 
-        return _cleanup_sentence(sentence)
+        is_non_use_sentence = (final_usage_status == "non_use")
+        return _cleanup_sentence(sentence), is_non_use_sentence
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 

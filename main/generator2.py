@@ -907,6 +907,7 @@ def _generate_category_narrative(
     # 1b. Mitigation/Purpose Sentence (e.g., "The company uses swaps to hedge interest rate risk...")
     # This adds a sentence explaining *why* the company is using the derivative.
     if current_year_data and current_year_data["instruments"]:
+        is_non_use_mitigation = False
         has_active_instruments = bool(current_year_data and current_year_data["instruments"])
         # Determine the usage status based on the archetype's propensity
         past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0)) # type: ignore
@@ -926,13 +927,17 @@ def _generate_category_narrative(
             swap_type=instrument_type,
             has_active_instruments=has_active_instruments,
             usage_status=usage,
+            year=reporting_year,
+            month=reporting_month,
+            end_day=reporting_day,
             result_details=result_details,
         )
-        mitigation_sentence = mitigation_sentence_obj.build()
+        mitigation_sentence, is_non_use_mitigation = mitigation_sentence_obj.build()
         sentences.append(mitigation_sentence)
 
     # 2. Aggregate Summary OR Individual Instrument Descriptions.
-    if current_year_data and current_year_data["total_notional"] > 0:
+    # --- FIX: Do not generate a notional sentence if the mitigation sentence already stated non-use. ---
+    if current_year_data and current_year_data["total_notional"] > 0 and not is_non_use_mitigation:
         # --- NEW LOGIC: Decide whether to summarize or detail ---
         # Check for the specific case where there are current instruments but no prior ones.
         if prev_year_data is None or prev_year_data["total_notional"] == 0:
