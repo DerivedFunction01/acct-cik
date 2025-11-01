@@ -1038,7 +1038,7 @@ class NotionalSentence:
                 rate_term1=rate_term1,
                 rate_term2=rate_term2,
                 formatted_amount=formatted_amount_result,  # type: ignore
-                pct=details.pct or random.uniform(1.5, 7.5),
+                pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
                 geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
                 commodity=details.commodity,
                 unit=details.unit,
