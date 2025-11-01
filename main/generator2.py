@@ -345,60 +345,323 @@ SCENARIO_ARCHETYPES = [
     ),
 ]
 
+
 # =============================================================================
 # PHASE 1 PART 2: SCENARIO GENERATION
 # This section implements the core idea: "Decide the story upfront."
 # We define the state of our financial narrative using structured dataclasses.
 # =============================================================================
+class ScenarioBuilder:
+    """
+    Handles the logic of building a complete GenerationScenario,
+    including creating exposures and derivative instruments.
+    """
 
+    def __init__(self, scenario: GenerationScenario):
+        self.scenario = scenario
+        self.archetype = scenario.archetype
+        self.reporting_year = scenario.reporting_year
+        self.multiplier = random.choice(self.archetype.money_units)[1]
+        self.instrument_id_counter = 1
+        self.hedged_item_id_counter = 1
+        self.potential_hedged_items: Dict[str, List] = {
+            "debt": [],
+            "fx": [],
+            "commodity": [],
+            "equity": [],
+        }
+        self.all_scenario_base_types: Set[str] = set()
 
-def generate_policy_for_archetype(
-    archetype: ScenarioArchetype, instrument_counts: Dict[str, int]
-) -> RiskManagementPolicy:
-    """Generates a realistic RiskManagementPolicy based on the company archetype and instrument usage."""
+    def _generate_debt_exposures(self, count: int):
+        for _ in range(count):
+            issuance_year = random.randint(
+                self.reporting_year - 15, self.reporting_year - 1
+            )
+            maturity_year = random.randint(
+                self.reporting_year + 2, self.reporting_year + 20
+            )
+            selected_debt_type: DebtType = random.choice(all_debt_types)
+            benchmark_rate = (
+                random.choice(selected_debt_type.benchmarks + specific_rate_terms)
+                if selected_debt_type.benchmarks
+                else None
+            )
+            debt_currency = self.archetype.default_currency
+            if random.random() < 0.20:
+                foreign_curr = random.choice(
+                    [
+                        c
+                        for c in all_currencies
+                        if c.code != self.archetype.default_currency
+                    ]
+                )
+                debt_currency = foreign_curr.code
 
-    general_policy = GeneralHedgingPolicy(
-        does_not_use_for_trading=True,
-        # TODO: Replace hardcoded counterparty details with more varied, generated text.
-        counterparty_credit_risk_monitored=True,
-        counterparty_details=random.choice(
-            [
-                "major financial institutions",
-                "a diversified group of highly-rated financial institutions",
+            hedged_debt = DebtHedgedItem(
+                hedged_item_id=self.hedged_item_id_counter,
+                debt_type=selected_debt_type.name,
+                currency=debt_currency,
+                issuance_year=issuance_year,
+                maturity_year=maturity_year,
+                principal_amount=random.randint(5, 500) * self.multiplier,
+                benchmark_rate=benchmark_rate,
+                issuance_month=random.choice(months),
+                maturity_month=random.choice(months),
+                spread_bps=random.randint(100, 300),
+            )
+            self.potential_hedged_items["debt"].append(hedged_debt)
+            self.hedged_item_id_counter += 1
+
+    def _generate_fx_exposures(self, count: int):
+        for _ in range(count):
+            exposures = [
+                CurrencyExposure(
+                    code=cur.code,
+                    full_name=cur.full_name,
+                    symbol=cur.symbol,
+                    adjective=cur.adjective,
+                    location=cur.location,
+                    amount=random.randint(1, 100) * self.multiplier,
+                )
+                for cur in random.sample(all_currencies, random.randint(1, 3))
             ]
-        ),
-    )
+            self.potential_hedged_items["fx"].append(
+                ForeignCurrencyHedgedItem(
+                    hedged_item_id=self.hedged_item_id_counter, exposures=exposures
+                )
+            )
+            self.hedged_item_id_counter += 1
 
-    category_policies = []
-    active_categories = [
-        cat
-        for cat, count in instrument_counts.items()
-        if count > 0 and cat not in ["GEN", "EQ"]
-    ]
+    def _generate_commodity_exposures(self, count: int):
+        for _ in range(count):
+            commodity_name, unit, cost_type = get_random_commodity_and_unit()
+            self.potential_hedged_items["commodity"].append(
+                CommodityHedgedItem(
+                    hedged_item_id=self.hedged_item_id_counter,
+                    commodity_type=commodity_name,
+                    transaction_type=random.choice(transaction_types),
+                    quantity=random.randint(100, 10000),
+                    unit_of_volume=unit,
+                    price_per_unit=random.uniform(10, 200),
+                    cost_type=cost_type,
+                    supplier=(
+                        random.choice(company_names) if random.random() < 0.2 else None
+                    ),
+                )
+            )
+            self.hedged_item_id_counter += 1
 
-    # Determine how many specific policies to create based on the archetype
-    if archetype.policy_coverage == "full":
-        # These firms likely have a policy for every risk category they manage
-        num_policies_to_generate = len(active_categories)
-    elif archetype.policy_coverage == "partial":
-        # These firms might have 1 or 2 core policies
-        num_policies_to_generate = random.randint(1, min(2, len(active_categories)))
-    else:  # "light"
-        num_policies_to_generate = random.randint(0, min(1, len(active_categories)))
+    def _generate_equity_exposures(self, count: int):
+        for _ in range(count):
+            underlying = random.choice(DUMMY_EQUITY_UNDERLYINGS).format(
+                company_name=self.scenario.company_name
+            )
+            equity_type = (
+                "own_stock"
+                if self.scenario.company_name in underlying
+                else "market_index"
+            )
+            self.potential_hedged_items["equity"].append(
+                EquityHedgedItem(
+                    hedged_item_id=self.hedged_item_id_counter,
+                    underlying_equity=underlying,
+                    equity_type=equity_type,  # type: ignore
+                    reason=random.choice(DUMMY_EQUITY_REASONS),
+                )
+            )
+            self.hedged_item_id_counter += 1
 
-    # Create the specific policies
-    if active_categories and num_policies_to_generate > 0:
-        categories_with_policies = random.sample(
-            active_categories, num_policies_to_generate
+    def _build_instruments_for_category(
+        self,
+        category: str,
+        instrument_class: type,
+        potential_items: List[HedgedItem],
+        available_base_types: List[str],
+    ):
+        past_prop, current_prop = self.archetype.hedging_propensities.get(
+            category, (0.0, 0.0)  # type: ignore
+        )  # type: ignore
+        num_hedges = round(len(potential_items) * max(0, current_prop))
+        items_to_hedge = random.sample(potential_items, num_hedges)
+
+        for item in potential_items:
+            hedged_item = None
+            notional = 0
+            maturity_year = 0
+
+            if item in items_to_hedge:
+                hedged_item = item
+                if isinstance(item, DebtHedgedItem):
+                    maturity_year = item.maturity_year
+                    notional = item.principal_amount
+                elif isinstance(item, ForeignCurrencyHedgedItem):
+                    maturity_year = random.randint(
+                        self.reporting_year + 1, self.reporting_year + 3
+                    )
+                    notional = sum(e.amount for e in item.exposures)
+                else:  # CP, EQ
+                    maturity_year = random.randint(
+                        self.reporting_year + 1, self.reporting_year + 5
+                    )
+                    notional = random.randint(5, 100) * self.multiplier
+            else:
+                is_exiting = past_prop > 0 and current_prop == 0
+                if is_exiting or random.random() < past_prop:
+                    hedged_item = item
+                    maturity_year = random.randint(
+                        self.reporting_year - 5, self.reporting_year
+                    )
+                    notional = random.randint(5, 500) * self.multiplier
+                else:
+                    continue  # Unhedged exposure
+
+            # Special case for cross-currency swaps
+            if (
+                isinstance(hedged_item, DebtHedgedItem)
+                and hedged_item.currency != self.archetype.default_currency
+                and random.random() < 0.5
+            ):
+                prefix, placeholder, base_type, suffix, name, alias = (
+                    "",
+                    "cross-currency interest rate",
+                    "swap",
+                    "agreement",
+                    "cross-currency interest rate swap agreement",
+                    "swap",
+                )
+            else:
+                prefix, placeholder, base_type, suffix, name, alias = (
+                    _generate_instrument_name(
+                        category,
+                        hedged_item=hedged_item,
+                        available_base_types=available_base_types,
+                        all_scenario_base_types=self.all_scenario_base_types,
+                    )
+                )
+
+            base_args = {
+                "instrument_type": name,
+                "instrument_alias": alias,
+                "notional_amount": notional,
+                "start_month": random.choice(months),
+                "start_year": random.randint(
+                    self.reporting_year - 10, self.reporting_year - 1
+                ),
+                "currency": self.archetype.default_currency,
+                "maturity_year": maturity_year,
+                "hedge_designation": random.choice(hedge_designations),
+                "hedged_item": hedged_item,
+                "instrument_prefix": prefix,
+                "placeholder": placeholder,
+                "base_type": base_type,
+                "suffix": suffix,
+            }
+
+            new_instrument = _create_instrument_with_history(
+                scenario=self.scenario,
+                instrument_class=instrument_class,
+                instrument_id=self.instrument_id_counter,
+                base_instrument_args=base_args,
+            )
+            self.scenario.instruments.append(new_instrument)
+            self.instrument_id_counter += 1
+
+    def build(self) -> GenerationScenario:
+        exposure_counts = self.archetype.get_exposure_counts()
+
+        # Reserve base types for GEN category
+        all_base_types = DERIVATIVE_COMPONENTS["base_types"]
+        gen_reserved_base_types = random.sample(all_base_types, random.randint(1, 2))
+        other_available_base_types = [
+            bt for bt in all_base_types if bt not in gen_reserved_base_types
+        ]
+
+        # Determine all base types that will appear in the scenario for context-aware aliasing
+        if exposure_counts["debt"] > 0:
+            self.all_scenario_base_types.add(random.choice(other_available_base_types))
+        if exposure_counts["fx"] > 0:
+            self.all_scenario_base_types.add(random.choice(other_available_base_types))
+        if exposure_counts["commodity"] > 0:
+            self.all_scenario_base_types.add(random.choice(other_available_base_types))
+        if exposure_counts["equity"] > 0:
+            self.all_scenario_base_types.add(random.choice(other_available_base_types))
+        if exposure_counts["generic"] > 0:
+            self.all_scenario_base_types.add(random.choice(gen_reserved_base_types))
+
+        # Generate all potential exposures
+        self._generate_debt_exposures(exposure_counts["debt"])
+        self._generate_fx_exposures(exposure_counts["fx"])
+        self._generate_commodity_exposures(exposure_counts["commodity"])
+        self._generate_equity_exposures(exposure_counts["equity"])
+
+        # Build instruments based on exposures and propensities
+        self._build_instruments_for_category(
+            "IR",
+            IRInstrument,
+            self.potential_hedged_items["debt"],
+            other_available_base_types,
         )
-        for category in categories_with_policies:
-            # The class now handles its own random value generation.
-            policy = CategorySpecificPolicy(category=category) # type: ignore
-            category_policies.append(policy)
+        self._build_instruments_for_category(
+            "FX",
+            FXInstrument,
+            self.potential_hedged_items["fx"],
+            other_available_base_types,
+        )
+        self._build_instruments_for_category(
+            "CP",
+            CPInstrument,
+            self.potential_hedged_items["commodity"],
+            other_available_base_types,
+        )
+        self._build_instruments_for_category(
+            "EQ",
+            EQInstrument,
+            self.potential_hedged_items["equity"],
+            other_available_base_types,
+        )
 
-    return RiskManagementPolicy(
-        general_policy=general_policy, category_policies=category_policies
-    )
+        # Create Generic Instruments (which don't have pre-defined exposures)
+        for _ in range(exposure_counts.get("generic", 0)):
+            is_terminated = random.random() < 0.4
+            maturity_year = (
+                random.randint(self.reporting_year - 3, self.reporting_year)
+                if is_terminated
+                else random.randint(self.reporting_year + 1, self.reporting_year + 5)
+            )
+            prefix, placeholder, base_type, suffix, name, alias = (
+                _generate_instrument_name(
+                    "GEN",
+                    available_base_types=gen_reserved_base_types,
+                    all_scenario_base_types=self.all_scenario_base_types,
+                )
+            )
+            base_args = {
+                "instrument_type": name,
+                "instrument_alias": alias,
+                "notional_amount": random.randint(10, 300) * self.multiplier,
+                "start_month": random.choice(months),
+                "start_year": random.randint(
+                    self.reporting_year - 5, self.reporting_year - 1
+                ),
+                "currency": self.archetype.default_currency,
+                "maturity_year": maturity_year,
+                "hedge_designation": random.choice(hedge_designations),
+                "hedged_item": None,
+                "instrument_prefix": prefix,
+                "placeholder": placeholder,
+                "base_type": base_type,
+                "suffix": suffix,
+            }
+            new_instrument = _create_instrument_with_history(
+                scenario=self.scenario,
+                instrument_class=GenericInstrument,
+                instrument_id=self.instrument_id_counter,
+                base_instrument_args=base_args,
+            )
+            self.scenario.instruments.append(new_instrument)
+            self.instrument_id_counter += 1
+
+        return self.scenario
 
 
 def create_random_scenario() -> GenerationScenario:
@@ -413,21 +676,41 @@ def create_random_scenario() -> GenerationScenario:
 
     # --- Decide on a company archetype and get exposure counts ---
     archetype = random.choice(SCENARIO_ARCHETYPES)
-    exposure_counts = archetype.get_exposure_counts()
 
-    # --- Decide on the scale of money for this scenario ---
-    money_unit, multiplier = random.choice(archetype.money_units)
+    def generate_policy_for_archetype(
+        archetype: ScenarioArchetype,
+    ) -> RiskManagementPolicy:
+        """Generates a realistic RiskManagementPolicy based on the company archetype."""
+        general_policy = GeneralHedgingPolicy(
+            counterparty_details=random.choice([
+                "major financial institutions",
+                "a diversified group of highly-rated financial institutions",
+            ])
+        )
+        category_policies = []
+        # Determine which categories *could* have policies based on propensity
+        possible_policy_categories = [
+            cat for cat, props in archetype.hedging_propensities.items()
+            if props[0] > 0 or props[1] > 0
+        ]
 
-    # This is a proxy for how many instruments will be created, used for policy generation
-    # It's an estimate because of the hedging_propensity logic
-    instrument_counts_proxy = {
-        # Use the 'current' propensity (index 1) for this proxy
-        "IR": int(exposure_counts["debt"] * max(0, archetype.hedging_propensities.get("IR", (0.0, 0.0))[1])),
-        "FX": int(exposure_counts["fx"] * max(0, archetype.hedging_propensities.get("FX", (0.0, 0.0))[1])),
-        "CP": int(exposure_counts["commodity"] * max(0, archetype.hedging_propensities.get("CP", (0.0, 0.0))[1])),
-        "EQ": int(exposure_counts["equity"] * max(0, archetype.hedging_propensities.get("EQ", (0.0, 0.0))[1])),
-        "GEN": exposure_counts["generic"],
-    }
+        if archetype.policy_coverage == "full":
+            num_policies = len(possible_policy_categories)
+        elif archetype.policy_coverage == "partial":
+            num_policies = random.randint(1, min(2, len(possible_policy_categories)))
+        else: # "light"
+            num_policies = random.randint(0, min(1, len(possible_policy_categories)))
+
+        if possible_policy_categories and num_policies > 0:
+            cats_with_policies = random.sample(possible_policy_categories, num_policies)
+            for category in cats_with_policies:
+                policy = CategorySpecificPolicy(category=category) # type: ignore
+                category_policies.append(policy)
+
+        return RiskManagementPolicy(
+            general_policy=general_policy,
+            category_policies=category_policies
+        )
 
     scenario = GenerationScenario(
         company_name=random.choice(company_names),
@@ -435,425 +718,14 @@ def create_random_scenario() -> GenerationScenario:
         reporting_day=reporting_day,
         reporting_year=reporting_year,
         instruments=[],
-        policy=generate_policy_for_archetype(archetype, instrument_counts_proxy),
+        policy=generate_policy_for_archetype(archetype),
         number_format_preference=archetype.prefers_abbreviated_numbers,
         archetype=archetype,
     )
 
-    # =========================================================================
-
-    instrument_id_counter = 1
-    hedged_item_id_counter = 1
-
-    # --- NEW: Reserve base types for the GEN category for this scenario ---
-    all_base_types = DERIVATIVE_COMPONENTS["base_types"]
-    # Reserve 1 or 2 base types for GEN
-    num_to_reserve = random.randint(1, 2)
-    gen_reserved_base_types = random.sample(all_base_types, num_to_reserve)
-    # The rest are available for other categories
-    other_available_base_types = [bt for bt in all_base_types if bt not in gen_reserved_base_types]
-
-    # =========================================================================
-
-    # =========================================================================
-    # STAGE 1: GENERATE THE POOL OF POTENTIAL HEDGED ITEMS (EXPOSURES)
-    # =========================================================================
-
-    # --- NEW: Pre-determine all base types that will be used in the scenario ---
-    # This allows for context-aware alias generation.
-    all_base_types = DERIVATIVE_COMPONENTS["base_types"]
-    num_to_reserve = random.randint(1, 2)
-    gen_reserved_base_types = random.sample(all_base_types, num_to_reserve)
-    other_available_base_types = [bt for bt in all_base_types if bt not in gen_reserved_base_types]
-    
-    potential_hedged_items: Dict[str, List] = {
-        "debt": [],
-        "fx": [],
-        "commodity": [],
-        "equity": [],
-    }
-
-    # --- NEW: Determine the set of all base_types that will appear in this scenario ---
-    # This is a proxy; the actual instruments are created later.
-    all_scenario_base_types = set()
-    if exposure_counts["debt"] > 0: all_scenario_base_types.add(random.choice(other_available_base_types))
-    if exposure_counts["fx"] > 0: all_scenario_base_types.add(random.choice(other_available_base_types))
-    if exposure_counts["commodity"] > 0: all_scenario_base_types.add(random.choice(other_available_base_types))
-    if exposure_counts["equity"] > 0: all_scenario_base_types.add(random.choice(other_available_base_types))
-    if exposure_counts["generic"] > 0: all_scenario_base_types.add(random.choice(gen_reserved_base_types))
-
-
-    # --- Generate Debt Exposures ---
-    for _ in range(exposure_counts["debt"]):
-        issuance_year = random.randint(reporting_year - 15, reporting_year - 1)
-        maturity_year = random.randint(reporting_year + 2, reporting_year + 20)
-
-        # --- NEW: Context-aware debt and benchmark selection ---
-        selected_debt_type: DebtType = random.choice(all_debt_types)
-        benchmark_rate = None
-        debt_currency = archetype.default_currency
-
-        # 20% chance for the debt to be in a foreign currency
-        if random.random() < 0.20:
-            foreign_curr = random.choice([c for c in all_currencies if c.code != archetype.default_currency])
-            debt_currency = foreign_curr.code
-
-        if selected_debt_type.benchmarks:
-            benchmark_rate = random.choice(
-                selected_debt_type.benchmarks + specific_rate_terms
-            )
-
-        hedged_debt = DebtHedgedItem(
-            hedged_item_id=hedged_item_id_counter,
-            debt_type=selected_debt_type.name,
-            currency=debt_currency,
-            issuance_month=random.choice(months),
-            issuance_year=issuance_year,
-            maturity_month=random.choice(months),
-            maturity_year=maturity_year,
-            principal_amount=random.randint(5, 500) * multiplier,
-            benchmark_rate=benchmark_rate,
-            spread_bps=random.randint(100, 300),
-        )
-        potential_hedged_items["debt"].append(hedged_debt)
-        hedged_item_id_counter += 1
-
-    # --- Generate FX Exposures ---
-    for _ in range(exposure_counts["fx"]):
-        num_exposures = random.randint(1, 3)
-        exposures = [
-            CurrencyExposure(
-                code=cur.code,
-                full_name=cur.full_name,
-                symbol=cur.symbol,
-                adjective=cur.adjective,
-                location=cur.location,
-                amount=random.randint(1, 100) * multiplier,
-            )
-            for cur in random.sample(all_currencies, num_exposures)
-        ]
-        hedged_fx = ForeignCurrencyHedgedItem(
-            hedged_item_id=hedged_item_id_counter, exposures=exposures
-        )
-        potential_hedged_items["fx"].append(hedged_fx)
-        hedged_item_id_counter += 1
-
-    # --- Generate Commodity Exposures ---
-    for _ in range(exposure_counts["commodity"]):
-        commodity_name, unit, cost_types = get_random_commodity_and_unit()
-        hedged_commodity = CommodityHedgedItem(
-            hedged_item_id=hedged_item_id_counter,
-            commodity_type=commodity_name,
-            transaction_type=random.choice(transaction_types),
-            quantity=random.randint(100, 10000),
-            unit_of_volume=unit,
-            price_per_unit=random.uniform(10, 200),
-            cost_type=cost_types,
-            supplier=(random.choice(company_names) if random.random() < 0.2 else None),
-        )
-        potential_hedged_items["commodity"].append(hedged_commodity)
-        hedged_item_id_counter += 1
-
-    # --- Generate Equity Exposures ---
-    for _ in range(exposure_counts["equity"]):
-        # The underlying equity can be the company's own stock or an index
-        underlying = random.choice(DUMMY_EQUITY_UNDERLYINGS).format(
-            company_name=scenario.company_name
-        )
-        equity_type = (
-            "own_stock" if scenario.company_name in underlying else "market_index"
-        )
-
-        hedged_equity = EquityHedgedItem(
-            hedged_item_id=hedged_item_id_counter,
-            underlying_equity=underlying,
-            equity_type=equity_type,  # type: ignore
-            reason=random.choice(DUMMY_EQUITY_REASONS),
-        )
-        potential_hedged_items["equity"].append(hedged_equity)
-        hedged_item_id_counter += 1
-
-    # =========================================================================
-    # STAGE 2: CREATE INSTRUMENTS BASED ON EXPOSURES AND HEDGING PROPENSITY
-    # =========================================================================
-
-    # --- Create IR Instruments (deterministically based on IR propensity) ---
-    potential_debt_items = potential_hedged_items["debt"]
-    past_prop, current_prop = archetype.hedging_propensities.get("IR", (0.0, 0.0))
-    num_ir_hedges = round(len(potential_debt_items) * max(0, current_prop))
-    debt_items_to_hedge = random.sample(potential_debt_items, num_ir_hedges)
-
-    for debt_item in potential_debt_items:
-        issuance_year = random.randint(reporting_year - 8, reporting_year - 1)
-        hedged_debt = None
-        notional = 0
-        maturity_year = 0  # Initialize to satisfy linter
-        suffix = ""
-
-        if debt_item in debt_items_to_hedge:
-            # Create an active hedge for this existing debt exposure
-            hedged_debt = debt_item
-            maturity_year = hedged_debt.maturity_year
-            notional = hedged_debt.principal_amount
-        else:
-            # For unhedged exposures, there's a chance to create a story about a terminated instrument.
-            # This is especially true for "Exiting Hedger" archetypes where past_prop > 0 and current_prop == 0.
-            is_exiting_hedger = past_prop > 0 and current_prop == 0
-            should_create_historical = is_exiting_hedger or (random.random() < past_prop)
-
-            if should_create_historical:
-                maturity_year = random.randint(reporting_year - 5, reporting_year) # Expired in the last 5 years
-                notional = random.randint(5, 500) * multiplier
-                # --- FIX: Ensure historical instruments are also linked to their exposure ---
-                hedged_debt = debt_item
-            else:
-                continue  # This exposure remains unhedged
-
-        # --- NEW: Handle Cross-Currency Interest Rate Swaps as a special case ---
-        is_cross_currency = debt_item.currency != archetype.default_currency and random.random() < 0.5
-        if is_cross_currency:
-            # This is a hybrid instrument. We'll name it accordingly but categorize it as FX.
-            instrument_category = "IR" # FIX: Keep it categorized as an Interest Rate instrument
-            placeholder = "cross-currency interest rate"
-            base_type = random.choice([s for s in DERIVATIVE_COMPONENTS["base_types"] if "swap" in s or "agreement" in s])
-            name = f"{placeholder} {base_type}"
-            alias = " ".join(base_type.split()[-2:])
-            prefix = "" # Prefixes don't make sense for this type
-        else:
-            # Standard IR hedge
-            instrument_category = "IR"
-            prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item, available_base_types=other_available_base_types, all_scenario_base_types=all_scenario_base_types)
-
-        base_args = {
-            "instrument_type": name,
-            "instrument_alias": alias,            
-            "notional_amount": notional,
-            "start_month": random.choice(months),
-            "start_year": random.randint(reporting_year - 10, reporting_year -1),
-            "currency": archetype.default_currency,
-            "maturity_year": maturity_year,
-            "hedge_designation": random.choice(hedge_designations),
-            "hedged_item": hedged_debt,
-            "instrument_prefix": prefix,
-            "placeholder": placeholder,
-            "base_type": base_type,
-            "suffix": suffix,
-        }
-
-        # Create the single instrument object with its full history
-        new_instrument = _create_instrument_with_history(
-            scenario=scenario,
-            instrument_class=IRInstrument, # FIX: Always create an IRInstrument from a debt exposure
-            instrument_id=instrument_id_counter,
-            base_instrument_args=base_args,
-        )
-        scenario.instruments.append(new_instrument)
-        instrument_id_counter += 1
-
-    # --- Create FX Instruments (deterministically based on FX propensity) ---
-    potential_fx_items = potential_hedged_items["fx"]
-    past_prop, current_prop = archetype.hedging_propensities.get("FX", (0.0, 0.0))
-    num_fx_hedges = round(len(potential_fx_items) * max(0, current_prop))
-    fx_items_to_hedge = random.sample(potential_fx_items, num_fx_hedges)
-
-    for fx_item in potential_fx_items:
-        hedged_fx = None
-        notional = 0
-        maturity_year = 0  # Initialize to satisfy linter
-
-        if fx_item in fx_items_to_hedge:
-            hedged_fx = fx_item
-            maturity_year = random.randint(reporting_year + 1, reporting_year + 3)
-            notional = sum(
-                e.amount for e in hedged_fx.exposures
-            )  # Simplified USD equivalent
-        else:
-            is_exiting_hedger = past_prop > 0 and current_prop == 0
-            should_create_historical = is_exiting_hedger or (random.random() < past_prop)
-
-            if should_create_historical:
-                maturity_year = random.randint(reporting_year - 2, reporting_year)
-                notional = random.randint(10, 200) * multiplier
-                # --- FIX: Ensure historical instruments are also linked to their exposure ---
-                hedged_fx = fx_item
-            else:
-                continue
-
-        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("FX", available_base_types=other_available_base_types, all_scenario_base_types=all_scenario_base_types)
-
-        base_args = {
-            "instrument_type": name,
-            "instrument_alias": alias,
-            "start_month": random.choice(months),
-            "start_year": random.randint(reporting_year - 5, reporting_year -1),
-            "notional_amount": notional,
-            "currency": archetype.default_currency,
-            "maturity_year": maturity_year,
-            "hedge_designation": random.choice(hedge_designations),
-            "hedged_item": hedged_fx,
-            "instrument_prefix": prefix,
-            "placeholder": placeholder,
-            "base_type": base_type,
-            "suffix": suffix,
-        }
-
-        new_instrument = _create_instrument_with_history(
-            scenario=scenario,
-            instrument_class=FXInstrument,
-            instrument_id=instrument_id_counter,
-            base_instrument_args=base_args,
-        )
-        scenario.instruments.append(new_instrument)
-        instrument_id_counter += 1
-
-    # --- Create CP Instruments (deterministically based on CP propensity) ---
-    potential_cp_items = potential_hedged_items["commodity"]
-    past_prop, current_prop = archetype.hedging_propensities.get("CP", (0.0, 0.0))
-    num_cp_hedges = round(len(potential_cp_items) * max(0, current_prop))
-    cp_items_to_hedge = random.sample(potential_cp_items, num_cp_hedges)
-
-    for cp_item in potential_cp_items:
-
-        hedged_commodity = None
-        notional = 0
-        maturity_year = 0  # Initialize to satisfy linter
-
-        if cp_item in cp_items_to_hedge:
-            hedged_commodity = cp_item
-            maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
-            notional = random.randint(5, 100) * multiplier
-        else:
-            is_exiting_hedger = past_prop > 0 and current_prop == 0
-            should_create_historical = is_exiting_hedger or (random.random() < past_prop)
-
-            if should_create_historical:
-                maturity_year = random.randint(reporting_year - 2, reporting_year)
-                notional = random.randint(5, 100) * multiplier
-                # --- FIX: Ensure historical instruments are also linked to their exposure ---
-                hedged_commodity = cp_item
-            else:
-                continue
-
-        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("CP", available_base_types=other_available_base_types, all_scenario_base_types=all_scenario_base_types)
-
-        base_args = {
-            "instrument_type": name,
-            "instrument_alias": alias,
-            "start_month": random.choice(months),
-            "start_year": random.randint(reporting_year - 5, reporting_year -1),
-            "notional_amount": notional,
-            "currency": archetype.default_currency,
-            "maturity_year": maturity_year,
-            "hedge_designation": random.choice(hedge_designations),
-            "hedged_item": hedged_commodity,
-            "instrument_prefix": prefix,
-            "placeholder": placeholder,
-            "base_type": base_type,
-            "suffix": suffix,
-        }
-
-        new_instrument = _create_instrument_with_history(
-            scenario=scenario,
-            instrument_class=CPInstrument,
-            instrument_id=instrument_id_counter,
-            base_instrument_args=base_args,
-        )
-        scenario.instruments.append(new_instrument)
-        instrument_id_counter += 1
-
-    # --- Create EQ Instruments (deterministically based on EQ propensity) ---
-    potential_eq_items = potential_hedged_items["equity"]
-    past_prop, current_prop = archetype.hedging_propensities.get("EQ", (0.0, 0.0))
-    num_eq_hedges = round(len(potential_eq_items) * max(0, current_prop))
-    eq_items_to_hedge = random.sample(potential_eq_items, num_eq_hedges)
-
-    for eq_item in potential_eq_items:
-
-        hedged_equity = None
-        notional = 0
-        maturity_year = 0  # Initialize to satisfy linter
-
-        if eq_item in eq_items_to_hedge:
-            hedged_equity = eq_item
-            maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
-            notional = random.randint(1, 100) * multiplier
-        else:
-            is_exiting_hedger = past_prop > 0 and current_prop == 0
-            should_create_historical = is_exiting_hedger or (random.random() < past_prop)
-
-            if should_create_historical:
-                maturity_year = random.randint(reporting_year - 2, reporting_year)
-                notional = random.randint(1, 50) * multiplier
-                # --- FIX: Ensure historical instruments are also linked to their exposure ---
-                hedged_equity = eq_item
-            else:
-                continue
-
-        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("EQ", available_base_types=other_available_base_types, all_scenario_base_types=all_scenario_base_types)
-
-        base_args = {
-            "instrument_type": name,
-            "instrument_alias": alias,
-            "start_month": random.choice(months),
-            "start_year": random.randint(reporting_year - 5, reporting_year -1),
-            "notional_amount": notional,
-            "currency": archetype.default_currency,
-            "maturity_year": maturity_year,
-            "hedge_designation": random.choice(hedge_designations),
-            "hedged_item": hedged_equity,
-            "instrument_prefix": prefix,
-            "placeholder": placeholder,
-            "base_type": base_type,
-            "suffix": suffix,
-        }
-
-        new_instrument = _create_instrument_with_history(
-            scenario=scenario,
-            instrument_class=EQInstrument,
-            instrument_id=instrument_id_counter,
-            base_instrument_args=base_args,
-        )
-        scenario.instruments.append(new_instrument)
-        instrument_id_counter += 1
-
-    # --- Create Generic Instruments ---
-    for _ in range(exposure_counts.get("generic", 0)):
-
-        is_terminated = random.random() < 0.4
-        maturity_year = (
-            random.randint(reporting_year - 3, reporting_year)
-            if is_terminated
-            else random.randint(reporting_year + 1, reporting_year + 5)
-        )
-
-        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("GEN", available_base_types=gen_reserved_base_types, all_scenario_base_types=all_scenario_base_types)
-
-        base_args = {
-            "instrument_type": name,
-            "instrument_alias": alias,
-            "start_month": random.choice(months),
-            "start_year": random.randint(reporting_year - 5, reporting_year -1),
-            "notional_amount": random.randint(10, 300) * multiplier,
-            "currency": archetype.default_currency,
-            "maturity_year": maturity_year,
-            "hedge_designation": random.choice(hedge_designations),
-            "hedged_item": None,  # Generic instruments often don't have a specific hedged item
-            "instrument_prefix": prefix,
-            "placeholder": placeholder,
-            "base_type": base_type,
-            "suffix": suffix,
-        }
-
-        new_instrument = _create_instrument_with_history(
-            scenario=scenario,
-            instrument_class=GenericInstrument,
-            instrument_id=instrument_id_counter,
-            base_instrument_args=base_args,
-        )
-        scenario.instruments.append(new_instrument)
-        instrument_id_counter += 1
-
-    return scenario
+    # Use the builder to construct the full scenario
+    builder = ScenarioBuilder(scenario)
+    return builder.build()
 
 def _get_smart_instrument_description(instruments: List[NotionalInstrument], category: str) -> str:
     """

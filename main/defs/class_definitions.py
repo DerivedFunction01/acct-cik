@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional, Dict, TypeVar, Generic, Tuple
+from typing import Callable, List, Literal, Optional, Dict, TypeVar, Generic, Tuple
 import random
 
 # Imports moved here for the NotionalSentence.build() method
@@ -25,10 +25,6 @@ from defs.commodity_data import *
 # Define a central, single source of truth for derivative categories.
 DERIVATIVE_CATEGORIES = ("IR", "FX", "CP", "EQ", "GEN")
 DerivativeCategory = Literal["IR", "FX", "CP", "EQ", "GEN"]
-
-
-from dataclasses import dataclass, field
-from typing import Optional, Callable, Dict
 
 
 @dataclass
@@ -870,13 +866,12 @@ class CategorySpecificPolicy:
     """Describes policies for a specific category of derivatives (e.g., IR, FX)."""
 
     category: DerivativeCategory
-    effectiveness_testing_method: Optional[str] = field(
-        default_factory=lambda: random.choice(hedge_methods)
-    )
-    effectiveness_frequency: Optional[str] = field(default_factory=lambda: random.choice(frequencies))
+    effectiveness_testing_method: Optional[str] = None  # e.g., "dollar-offset method"
+    effectiveness_frequency: Optional[str] = "quarterly"
     documentation_formalized: bool = True
-    accounting_policy_description: Optional[str] = field(default_factory=lambda: random.choice(hedge_accounting_policy_templates))
-    accounting_standard: Optional[str] = field(default_factory=lambda: random.choice(hedge_standards))
+    # Describes the general accounting policy for this category
+    accounting_policy_description: Optional[str] = None
+    accounting_standard: Optional[str] = None
 
 
 @dataclass
