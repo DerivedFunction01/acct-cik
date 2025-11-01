@@ -1288,7 +1288,7 @@ def _generate_narrative_accounting(
 ) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
     """Generates sentences about accounting treatment and hedge effectiveness."""
     # --- MODIFIED: This function will now return paragraphs instead of sentences ---
-    all_paragraphs: List[str] = []
+    all_paragraphs: List[str] = [] # Each string in this list will be a full paragraph
     all_evidence: List[BaseNarrativeEvidence] = []  # type: ignore
     mentioned_policies = set()
     
@@ -1304,9 +1304,9 @@ def _generate_narrative_accounting(
             p for p in scenario.policy.category_policies if p.category in active_categories
         ]
 
-        # --- MODIFIED: Group sentences by category to form paragraphs ---
-        category_sentences = []
+        # --- MODIFIED: Create a separate paragraph for each category's policies ---
         for cat_policy in policies_to_generate:
+            category_sentences = []
             instruments_in_cat = [i for i in scenario.instruments if i.category == cat_policy.category]
             swap_type_desc = _get_smart_instrument_description(instruments_in_cat, cat_policy.category)
 
@@ -1322,9 +1322,10 @@ def _generate_narrative_accounting(
                 all_evidence.append(evidence) # type: ignore
                 if isinstance(evidence, PolicyEvidence):
                     mentioned_policies.add(evidence.policy_type)
-        
-        if category_sentences:
-            all_paragraphs.append(" ".join(category_sentences))
+            
+            # Join the sentences for this specific category into a single paragraph
+            if category_sentences:
+                all_paragraphs.append(" ".join(category_sentences))
 
     return all_paragraphs, all_evidence
 
