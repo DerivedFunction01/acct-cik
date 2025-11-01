@@ -362,7 +362,7 @@ POLICY_CONTEXT_TEMPLATES = {
         "Our cross-border operations in {locations} result in exposure to {risk_term} in exchange rates between functional and reporting currencies such as {currencies}.",
         "Operating in multiple currencies such as {currencies}, {company} is exposed to {risk_term} in exchange rates that can affect its financial results.",
         "With significant operations in {locations}, {company} is subject to {risk_term} from {currencies} exchange rates.",
-        "Our revenues, expenses, and cash flows are subject to {risk_term} due to foreign currency exchange rate changes in {currencies}",
+        "Our revenues, expenses, and cash flows are subject to {risk_term} due to foreign currency exchange rate changes in {currencies}.",
         "{company} operates subsidiaries in {locations}, creating exposure to foreign currency movements when their financial results are translated.",
         "Our net investment in {locations} subsidiaries expose us to {currencies}'s exchange rate {risk_term}.",
         "We are exposed to foreign currency {risk_term} on intercompany loans and transactions between our subsidiaries in {locations}.",
