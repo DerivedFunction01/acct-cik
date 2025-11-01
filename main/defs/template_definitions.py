@@ -345,7 +345,7 @@ POLICY_CONTEXT_TEMPLATES = {
     ],
     "EQ": [
         "{company} is exposed to market risks related to {risk_term} in the price of its common stock.",
-        "Volatility in equity markets affects {company}'s exposure to equity-linked compensation and investment values.",
+        "{risk_term}s in equity markets affects {company}'s exposure to equity-linked compensation and investment values.",
         "{company}'s share-based compensation costs are influenced by changes in its stock price and market conditions.",
         "As a publicly traded entity, {company} is exposed to risks associated with market price {risk_term} of its shares.",
     ],
