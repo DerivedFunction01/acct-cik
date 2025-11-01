@@ -192,24 +192,23 @@ time_adverbs = {
         "expect to continue to",
         "",
     ],
-    "past": [
+    "past": [ # also have a random chance to add the adverb "may" -> may use
         "in the past",
         "from time to time",
         "periodically",
         "occasionally",
-        "in the future", 
+        "in the future",
         "",
     ],
+    "never": [
+        "does not",
+        "will not",
+        "does not plan to",
+        "does not intend to",
+        "has no plans to",
+        "will not seek to",
+    ],
 }
-
-not_adverbs = [
-    "does not",
-    "will not",
-    "does not plan to",
-    "does not intend to",
-    "has no plans to",
-    "will not seek to",
-]
 
 # Verbs for describing risk management actions (e.g., "...to {verb} exposure")
 risk_management_verbs = [

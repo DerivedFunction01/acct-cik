@@ -18,6 +18,7 @@ from defs.class_definitions import (
     NotionalSentence,
     NotionalInstrument,
     DebtHedgedItem,
+    MitigationSentence,
     ForeignCurrencyHedgedItem,
     CommodityHedgedItem,
     EquityHedgedItem,
@@ -902,6 +903,20 @@ def _generate_category_narrative(
     sentences.append(context_sentence)
     # We can decide if we want to add this specific evidence to our main list.
     # For now, we'll just use the sentence.
+
+    # 1b. Mitigation/Purpose Sentence (e.g., "The company uses swaps to hedge interest rate risk...")
+    # This adds a sentence explaining *why* the company is using the derivative.
+    if current_year_data and current_year_data["instruments"]:
+        # Use the most common instrument type for the sentence
+        instrument_type = Counter(current_year_data["instrument_types"]).most_common(1)[0][0]
+        mitigation_sentence_obj = MitigationSentence(
+            category=category,  # type: ignore
+            company_name=scenario.company_name,
+            swap_type=instrument_type,
+            result_details=result_details,
+        )
+        mitigation_sentence = mitigation_sentence_obj.build()
+        sentences.append(mitigation_sentence)
 
     # 2. Aggregate Summary OR Individual Instrument Descriptions.
     if current_year_data and current_year_data["total_notional"] > 0:

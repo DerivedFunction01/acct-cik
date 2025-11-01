@@ -344,6 +344,53 @@ class PolicySentence:
 
         return sentence, evidence
 
+@dataclass
+class MitigationSentence:
+    """A data class to hold components for generating a sentence about hedging mitigation/purpose."""
+    category: DerivativeCategory
+    company_name: str
+    swap_type: str
+    result_details: Optional["ResultPhraseDetails"] = None
+
+    def build(self) -> str:
+        """Builds a sentence describing the purpose of a hedge."""
+        # Select the appropriate set of mitigation phrases
+        templates = MITIGATION_TEMPLATES.get(self.category, MITIGATION_TEMPLATES["GEN"])
+        mitigation_phrase = random.choice(templates)
+
+        # Choose a verb for the action
+        verb = random.choice(individual_use_verbs + aggregate_use_verbs)
+
+        # Format currencies and other details from the result_details object
+        details = self.result_details or ResultPhraseDetails()
+        currencies_str = ""
+        if details.currencies:
+            currencies_str = (
+                ", ".join(details.currencies[:-1]) + " and " + details.currencies[-1]
+                if len(details.currencies) > 1
+                else details.currencies[0]
+            )
+
+        # Populate placeholders in the chosen mitigation phrase
+        populated_phrase = mitigation_phrase.format(
+            debt_type=details.debt_type or "debt",
+            currencies=currencies_str,
+            geography=details.geography or random.choice([c.location for c in all_currencies]),
+            commodity=details.commodity or "commodities",
+        )
+
+        # Combine into a final sentence
+        # Structure: "{Company} {verb} {swap_type}, {mitigation_phrase}."
+        # Or: "{mitigation_phrase}, {company} {verb} {swap_type}."
+        sentence_structures = [
+            f"{{company}} {{verb}} {{swap_type}}, {populated_phrase}.",
+            f"{populated_phrase.capitalize()}, {{company}} {{verb}} {{swap_type}}."
+        ]
+        sentence_template = random.choice(sentence_structures)
+        sentence = sentence_template.format(company=self.company_name, verb=verb, swap_type=self.swap_type)
+
+        return _cleanup_sentence(sentence)
+
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
 
