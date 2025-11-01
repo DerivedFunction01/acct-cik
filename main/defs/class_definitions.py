@@ -917,6 +917,10 @@ class NotionalSentence:
     commodity: Optional[str] = None
     result_details: Optional[ResultPhraseDetails] = None
     reporting_year: Optional[int] = None
+    
+    # Others
+    termination_noun: Optional[str] = None
+    comparison_phrase: Optional[str] = None
 
     # Formatting preferences
     money_units: List[Tuple[str, int]] = field(
@@ -1310,6 +1314,7 @@ class TimelineSentence:
                 else:
                     # Otherwise, it's just a continuing mention.
                     sentence_type = "continuing"
+                # Use the alias for subsequent mentions to make the text more natural
                 name_to_use = self.instrument.instrument_alias
 
             sentence_obj = NotionalSentence(
@@ -1317,7 +1322,11 @@ class TimelineSentence:
                 year=year,
                 notional=notional,
                 sentence_type=sentence_type, # type: ignore
+                # Pass additional details for the partial_settlement templates
                 company_name=self.company_name,
+                termination_noun=random.choice(termination_noun),
+                comparison_phrase=random.choice(comparison_phrases),
+                # Use a past-tense verb for partial settlements
                 verb=random.choice(termination_verbs_past) if sentence_type == "partial_settlement" else None,
                 currency_symbol=self.currency_symbol,
                 currency_code=self.currency_code,
