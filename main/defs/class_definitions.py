@@ -490,6 +490,41 @@ class MitigationSentence:
 
         return _cleanup_sentence(sentence), evidence
 
+@dataclass
+class CounterpartyRiskSentence:
+    """A data class to hold components for generating a counterparty risk sentence."""
+    company_name: str
+    counterparty_details: str
+    has_active_derivatives: bool
+
+    def build(self) -> str:
+        """Builds a counterparty risk sentence. No evidence is generated as this is a general policy statement."""
+        template = random.choice(hedge_counterparty_templates)
+
+        # If the company has no active derivatives, use a more generic term.
+        # This prevents the policy from incorrectly implying derivative use.
+        if self.has_active_derivatives:
+            instrument_term = "derivatives"
+        else:
+            instrument_term = random.choice([
+                "financial instruments",
+                "transactions",
+                "financial contracts",
+            ])
+
+        sentence = template.format(
+            company=_get_company_reference(self.company_name),
+            counterparty_details=self.counterparty_details,
+            swap_type=instrument_term,
+            risk_verb=random.choice(risk_management_verbs),
+            policy_verb=random.choice(policy_verbs),
+            materiality=random.choice(immaterial),
+        )
+
+        # Cleanup to handle cases where 'derivatives' is hardcoded in the template
+        sentence = sentence.replace("derivative contracts", f"{instrument_term} contracts")
+        return _cleanup_sentence(sentence)
+
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
 

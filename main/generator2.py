@@ -3,7 +3,7 @@ import random
 import pandas as pd
 from collections import Counter
 import json, re
-from typing import List, Dict, Optional, Tuple, Set
+from typing import List, Dict, Optional, Tuple
 
 from defs.common_data import *
 from defs.commodity_data import get_random_commodity_and_unit, get_cost_types_for_commodity
@@ -19,6 +19,7 @@ from defs.class_definitions import (
     NotionalSentence,
     NotionalInstrument,
     DebtHedgedItem,
+    CounterpartyRiskSentence,
     MitigationSentence,
     ForeignCurrencyHedgedItem,
     CommodityHedgedItem,
@@ -866,7 +867,7 @@ def _generate_narrative_policy(
     evidence = [] # This function will now also produce evidence
 
     if scenario.policy:
-        # --- NEW: Always generate a high-level, generic risk exposure sentence first ---
+        # --- Always generate a high-level, generic risk exposure sentence first ---
         # This acts as a standard introductory statement, similar to Item 7A.
         policy_sentence_obj = PolicySentence(
             category="GEN", # Always start with a generic context
@@ -876,9 +877,11 @@ def _generate_narrative_policy(
         sentences.append(policy_sentence)
 
         # Determine if there are any active instruments in the reporting year.
-        instrument_categories_in_year = [
-            inst.category for inst in scenario.instruments if scenario.reporting_year in inst.notional_history
-        ]
+        has_active_derivatives = any(
+            inst.notional_history.get(scenario.reporting_year, 0) > 0
+            for inst in scenario.instruments
+        )
+        instrument_categories_in_year = [inst.category for inst in scenario.instruments if has_active_derivatives]
 
         # Only add evidence if there are actual instruments. A general policy
         # statement for a non-user is just context, not evidence of a derivative.
@@ -893,11 +896,14 @@ def _generate_narrative_policy(
                 company=scenario.company_name, verb=random.choice(policy_verbs)
             )
             sentences.append(sentence)
-        # TODO: This is a hardcoded sentence template and should be replaced by generative logic.
         if scenario.policy.general_policy.counterparty_credit_risk_monitored:
-            sentences.append(
-                f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}."
+            counterparty_sentence_obj = CounterpartyRiskSentence(
+                company_name=scenario.company_name,
+                counterparty_details=scenario.policy.general_policy.counterparty_details,
+                has_active_derivatives=has_active_derivatives,
             )
+            sentence = counterparty_sentence_obj.build()
+            sentences.append(sentence) # No evidence is generated for this policy statement
     return sentences, evidence
 
 

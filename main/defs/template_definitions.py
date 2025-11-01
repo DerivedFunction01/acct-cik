@@ -259,6 +259,26 @@ hedge_no_trading_templates = [
     "{company} does not use derivatives for speculative investments",
 ]
 
+# Templates for counterparty risk policy statements
+hedge_counterparty_templates = [
+    "Most of the counterparties to the derivatives are major banks and {company} is monitoring the associated inherent credit risks.",
+    "{company} may enter into derivative contracts with {counterparty_details} and monitors counterparty credit risk on an ongoing basis.",
+    "Derivative counterparties are limited to {counterparty_details} with strong credit ratings to minimize counterparty risk.",
+    "Credit risk from derivatives is mitigated by transacting only with highly-rated financial institution counterparties.",
+    "{company} manages counterparty credit exposure by diversifying its derivative contracts among multiple {counterparty_details}.",
+    "The majority of derivative counterparties are {counterparty_details}, and {company} actively monitors inherent credit risks.",
+    "{company} mitigates counterparty credit risk by engaging with {counterparty_details} and continuously monitoring their creditworthiness.",
+    "To minimize counterparty risk, {company} restricts derivative transactions to {counterparty_details} with high credit ratings.",
+    "Counterparty credit risk is managed by diversifying derivative agreements across several major banking institutions.",
+    "{company} primarily transacts with {counterparty_details} for its derivatives, and associated credit risks are under continuous review.",
+    "Derivative counterparties are selected from {counterparty_details}, and {company} maintains vigilance over inherent credit risks.",
+    "Credit risk from derivative instruments is managed by limiting transactions to major banks with robust credit profiles.",
+    "{company} ensures counterparty credit risk is minimized by diversifying derivative contracts among multiple highly-rated financial institutions.",
+    "The majority of {company}'s derivative counterparties are {counterparty_details}, and credit risk is actively monitored.",
+    "{company} engages with {counterparty_details} for derivatives and continuously assesses counterparty credit risk.",
+    "Based upon certain factors, including a review of the {swap_type} for {company}'s counterparties, {company} determined its counterparty credit risk to be {materiality}.",
+]
+
 # Outstanding active state descriptors
 state_descriptors = ["outstanding", "active", "remaining", "open"]
 
