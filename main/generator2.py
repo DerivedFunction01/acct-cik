@@ -541,6 +541,7 @@ def create_random_scenario() -> GenerationScenario:
         hedged_debt = None
         notional = 0
         maturity_year = 0  # Initialize to satisfy linter
+        suffix = ""
 
         if debt_item in debt_items_to_hedge:
             # Create an active hedge for this existing debt exposure
