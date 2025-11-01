@@ -445,7 +445,7 @@ class ScenarioBuilder:
         for _ in range(count):
             # --- FIX: Ensure unit and cost_type are specific to the chosen commodity ---
             # 1. Select a random commodity from the full list.
-            commodity_name, unit, cost_type = get_random_commodity_and_unit()
+            commodity_name, unit, cost_type = get_random_commodity_and_unit(self.scenario.archetype.commodity_types)
 
             self.potential_hedged_items["commodity"].append(
                 CommodityHedgedItem(
@@ -935,7 +935,7 @@ def _generate_category_narrative(
             if instrument_with_hedged_item:
                 hedged_item = instrument_with_hedged_item.hedged_item
                 if isinstance(hedged_item, CommodityHedgedItem):
-                    specific_details.commodity = hedged_item.commodity_type
+                    specific_details.commodity.append(hedged_item.commodity_type)
                     specific_details.unit = hedged_item.unit_of_volume
                 elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
                     locations = [exp.location for exp in hedged_item.exposures]

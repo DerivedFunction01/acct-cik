@@ -357,13 +357,11 @@ class PolicySentence:
             currencies_str = ", ".join(details.currencies[:-1]) + " and " + details.currencies[-1] if len(details.currencies) > 1 else details.currencies[0]
 
         # --- NEW: Handle multiple commodities ---
-        commodities_str = details.commodity or "various commodities"
-        if isinstance(details.commodity, list):
+        commodities_str = "various commodities"
+        if details.commodity:
             if len(details.commodity) > 1:
-                commodities_str = (
-                    ", ".join(details.commodity[:-1]) + f" and {details.commodity[-1]}" # type: ignore
-                )
-            elif details.commodity: # type: ignore
+                commodities_str = ", ".join(details.commodity[:-1]) + f" and {details.commodity[-1]}"
+            else:
                 commodities_str = details.commodity[0]
         # TODO: Replace hardcoded fallback strings like f"international {random.choice(geo_locations)}" with more dynamic generation.
         locations_str = f"international {random.choice(geo_locations)}"
@@ -386,7 +384,7 @@ class PolicySentence:
             currencies=currencies_str,
             locations=locations_str,
             commodity=commodities_str,
-            cost_type=random.choice(get_cost_types_for_commodity(details.commodity)),
+            cost_type=random.choice(get_cost_types_for_commodity(random.choice(details.commodity) if details.commodity else None)),
         )
 
         # Create evidence object
@@ -936,7 +934,7 @@ class SpecificDetails:
     locations: List[str] = field(default_factory=list)
 
     # CP specific
-    commodity: Optional[str] = None
+    commodity: List[str] = field(default_factory=list)
     unit: Optional[str] = None
 
     # IR specific (debt_type is primarily for IR)
@@ -1035,7 +1033,7 @@ class NotionalSentence:
                 risk_term=random.choice(risk_exposure_terms),
                 risk_term2=random.choice(risk_exposure_terms),
                 currencies=currencies_str or "various currencies",
-                geography=details.geography or random.choice([c.location for c in all_currencies]),
+                geography=details.geography or random.choice([c.location for c in all_currencies]), # type: ignore
                 commodity=details.commodity or commodity_name,
                 rate_term1=random.choice(specific_rate_terms),
                 rate_term2=random.choice(specific_rate_terms),
@@ -1141,8 +1139,15 @@ class NotionalSentence:
             # Format currencies into a readable string from the details object
             details = self.specific_details or SpecificDetails()
             currencies_str = ""
-            # --- FIX: Ensure commodity and unit have sensible fallbacks ---
-            commodity_name, unit_name, _ = get_random_commodity_and_unit()
+            # --- NEW: Handle multiple commodities and sensible fallbacks ---
+            commodities_str = "various commodities"
+            unit_name = "units"
+            if details.commodity:
+                if len(details.commodity) > 1:
+                    commodities_str = ", ".join(details.commodity[:-1]) + f" and {details.commodity[-1]}"
+                else:
+                    commodities_str = details.commodity[0]
+                unit_name = random.choice(get_units_for_commodity(random.choice(details.commodity)))
 
             if details.currencies:
                 currencies_str = (
@@ -1153,6 +1158,9 @@ class NotionalSentence:
                     else details.currencies[0]
                 )
 
+            # Fallback if no commodity is provided in details
+            if not details.commodity:
+                commodities_str, unit_name, _ = get_random_commodity_and_unit()
             details = self.specific_details or SpecificDetails()
             populated_phrase = result_phrase_template.format(
                 mitigation_verb=random.choice([v for v in risk_management_verbs if not v.endswith('ing')]), # Use base form
@@ -1169,9 +1177,9 @@ class NotionalSentence:
                 rate_term2=random.choice(specific_rate_terms),
                 formatted_amount=formatted_amount_result,  # type: ignore
                 pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
-                geography=details.geography or random.choice([c.location for c in all_currencies]),
-                commodity=details.commodity or commodity_name,
-                unit=details.unit or unit_name,
+                geography=details.geography or random.choice([c.location for c in all_currencies]), # type: ignore
+                commodity=commodities_str,
+                unit=details.unit or unit_name, # Use the unit from details if provided, otherwise the derived one
                 financial_outcome_verb=outcome_verb,
                 company=self.company_name,
                 swap_type=self.swap_type,
