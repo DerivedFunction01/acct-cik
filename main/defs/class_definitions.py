@@ -1132,7 +1132,14 @@ class NotionalSentence:
                 company=self.company_name,
                 swap_type=self.swap_type,
             )
+            # --- FIX: Add a comma before the result phrase for better grammar ---
+            # --- FIX: Handle leading comma for different template structures ---
+            # The populated_phrase itself is now stored. The comma will be added
+            # by the templates that need it.
+            # We'll use a special placeholder {result_phrase_populated} to avoid
+            # conflicts with the final {result_clause}.
             result_clause = populated_phrase
+
 
         # 6b. Maturity clause, only if the type of sentence is is_ter
         maturity_clause = ""
@@ -1243,12 +1250,21 @@ class NotionalSentence:
             end_day=end_day,
         )
 
+        # --- NEW: Populate the result_clause placeholder with appropriate punctuation ---
+        # This logic is now inside build() to handle different sentence structures.
+        if "{result_clause_initial}" in template and result_clause:
+            sentence = template.replace("{result_clause_initial}", result_clause.capitalize())
+            # Clear the other placeholder to avoid duplication
+            sentence = sentence.replace(", {result_clause}", "")
+        elif result_clause:
+            sentence = sentence.replace("{result_clause}", f", {result_clause}")
+
         # 9. Cleanup
         sentence = _cleanup_sentence(sentence)
 
         # 10. Create NotionalEvidence object
         evidence = NotionalEvidence(
-            instrument_id=None,  # This will be set later for individual instruments
+            instrument_id=None,  # This is set later for individual instruments
             status=self.sentence_type,  # type: ignore
             category=self.category,  # type: ignore
             aggregate=self.sentence_type in ["summary", "comparative"],
