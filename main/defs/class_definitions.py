@@ -579,6 +579,7 @@ class AccountingPolicySentence:
                 frequency=self.cat_policy.effectiveness_frequency or random.choice(frequencies),
                 method=self.cat_policy.effectiveness_testing_method,
                 standard=self.cat_policy.accounting_standard or random.choice(hedge_standards),
+                financial_outcome_verb=random.choice(financial_outcome_verbs),
             )
             
             evidence = PolicyEvidence(category=self.cat_policy.category, status="policy_mention", policy_type=evidence_type, details=sentence) # type: ignore
