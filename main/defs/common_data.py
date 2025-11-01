@@ -507,7 +507,7 @@ DERIVATIVE_COMPONENTS = {
 
 # e.g., "various", "certain"
 GENERIC_QUANTIFIERS = [
-    "various", "certain", "a number of", "a series of", "multiple", "several"
+    "various", "certain", "a number of", "a series of", "multiple", "several", "",
 ]
 
 # e.g., "derivative", "financial"
