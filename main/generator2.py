@@ -899,7 +899,12 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
             dominant_instrument_example = next(i.instrument_type for i in instruments if i.placeholder == most_common_placeholder)
             # --- FIX: Use a random suffix for more variety ---
             other_suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
-            return f"{dominant_instrument_example} and other {most_common_placeholder} {other_suffix}s"
+            plural_suffix = (
+                f"{other_suffix}s"
+                if other_suffix and not other_suffix.endswith("s")
+                else other_suffix
+            )
+            return f"{dominant_instrument_example} and other {most_common_placeholder} {plural_suffix}"
         else:
             # "a portfolio of derivative instruments"
             # --- FIX: Use the full category name for a more natural phrase ---
