@@ -47,6 +47,9 @@ def _cleanup_sentence(sentence: str) -> str:
     # Correctly pluralize words ending in a consonant followed by 'y' (e.g., "company" -> "companies").
     # This avoids incorrectly changing words like "always" or "employs".
     sentence = re.sub(r"([^aeiou])ys\b", r"\1ies", sentence, flags=re.IGNORECASE)
+    
+    # capitalize the 1st char
+    sentence = sentence[0].upper() + sentence[1:]
 
     return sentence.strip()
 
