@@ -15,7 +15,7 @@ class DebtCategory:
 
 # Define benchmark rates
 benchmark_rates = [
-    "SOFR", "LIBOR", "EURIBOR", "SONIA", "Fed Funds Rate", "Prime Rate"
+    "SOFR", "LIBOR", "EURIBOR", "SONIA", "", "Prime Rate"
 ]
 
 # Define debt categories and their specific types
@@ -72,10 +72,10 @@ DEBT_CATEGORIES = [
         name="Short-Term & Money Market",
         debt_types=[
             DebtType(name="commercial paper", benchmarks=[]),
-            DebtType(name="certificate of deposit (CD)", benchmarks=["Fed Funds Rate"]),
+            DebtType(name="certificate of deposit (CD)", benchmarks=[]),
             DebtType(name="banker's acceptance", benchmarks=[]),
             DebtType(name="repurchase agreement (repo)", benchmarks=["SOFR"]),
-            DebtType(name="federal funds", benchmarks=["Fed Funds Rate"]),
+            DebtType(name="federal funds", benchmarks=[]),
             DebtType(name="money market instrument", benchmarks=[]),
             DebtType(name="eurodollar borrowing", benchmarks=["LIBOR"]),
         ]

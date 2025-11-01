@@ -78,19 +78,16 @@ def _generate_instrument_name(
     components = DERIVATIVE_COMPONENTS
     placeholders = components["placeholders"].get(category, [""])
     base_types = components["base_types"]
-    extras = components["category_extras"].get(category, [])
+    special_types = components["special_types"]
 
     # --- Context-Aware Placeholder Selection (for IR) ---
     placeholder = ""
-    if category == "IR" and isinstance(hedged_item, DebtHedgedItem) and hedged_item.benchmark_rate:
-        # If debt has a specific benchmark, try to match it.
-        rate_lower = hedged_item.benchmark_rate.lower()
-        matching_ph = next((ph for ph in placeholders if rate_lower in ph.lower() and "cross-currency" not in ph), None)
+    if category == "IR" and isinstance(hedged_item, DebtHedgedItem) and hedged_item.benchmark_rate: 
         # 75% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
-        if matching_ph and random.random() < 0.75:
-            placeholder = matching_ph
+        if random.random() < 0.75:
+            placeholder = hedged_item.benchmark_rate
         else:
-            placeholder = "interest-rate" # Default or fallback
+            placeholder = f"interest{random.choice([" ", "-"])}rate" # Default or fallback
     else:
         placeholder = random.choice(placeholders)
 
@@ -106,10 +103,10 @@ def _generate_instrument_name(
     else:
         # For FX, occasionally create a cross-currency interest rate swap.
         if category == "FX" and random.random() < 0.15:
-             placeholder = "cross-currency interest rate"
-             base_type = random.choice([s for s in base_types if "swap" in s or "agreement" in s or "contract" in s])
+            placeholder = "cross-currency interest rate"
+            base_type = random.choice([s for s in base_types if "swap" in s or "agreement" in s or "contract" in s])
         else:
-            base_type = random.choice(base_types + extras)
+            base_type = random.choice(base_types)
 
     # --- Assemble the name ---
     full_name = " ".join(filter(None, [placeholder, base_type])).strip()
@@ -451,7 +448,7 @@ def create_random_scenario() -> GenerationScenario:
             maturity_month=random.choice(months),
             maturity_year=maturity_year,
             principal_amount=random.randint(5, 500) * multiplier,
-            interest_rate_type="variable",
+            interest_rate_type=random.choice(["fixed", "variable", "floating"]),
             benchmark_rate=benchmark_rate,
             spread_bps=random.randint(100, 300),
         )

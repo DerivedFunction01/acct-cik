@@ -348,7 +348,7 @@ PAY_PREFIX_RATIO = 0.05  # ~5% of total swap-like combinations
 # BASE TYPES
 # =============================================================================
 
-STANDALONE_TYPES = ["swap", "derivative", "hedge", "cap"]
+STANDALONE_TYPES = ["swap", "derivative" "cap"]
 DEPENDENT_TYPES = [
     "floor",
     "collar",
@@ -357,7 +357,8 @@ DEPENDENT_TYPES = [
     "forward",
     "option",
     "future",
-    "hedging",
+    "hedge",
+    "option",
 ]
 
 BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
@@ -373,7 +374,7 @@ DEFAULT_SUFFIXES = [
     "program",
 ]
 
-SPECIAL_EXPANSIONS = {
+SPECIAL_SUFFIX = {
     "option": [
         "call option",
         "put option",
@@ -444,34 +445,13 @@ PLACEHOLDERS = {
 # NEW: Component-based structure for dynamic generation
 # =============================================================================
 
-
-def expand_types(base_types, suffixes, special) -> list[str]:
-    """Expand base types with suffixes and special overrides."""
-    results = []
-    for base in base_types:
-        results.extend(f"{base} {s}".strip() for s in suffixes)
-        if base in STANDALONE_TYPES:
-            results.append(base)
-        if base in special:
-            results.extend(special[base])
-    return sorted(set(results))
-
-SHARED_TYPES = expand_types(BASE_TYPES, DEFAULT_SUFFIXES, SPECIAL_EXPANSIONS)
-
 DERIVATIVE_COMPONENTS = {
     "placeholders": PLACEHOLDERS,
-    "base_types": SHARED_TYPES,
+    "base_types": BASE_TYPES,
     "dependent_types": DEPENDENT_TYPES,
+    "suffixes": DEFAULT_SUFFIXES,
+    "special_suffixes": SPECIAL_SUFFIX,
     "category_extras": CATEGORY_EXTRAS,
     "swap_prefixes": SWAP_PREFIXES,
     "global_prefixes": GLOBAL_PREFIXES
 }
-
-# =============================================================================
-# EXPANSION FUNCTIONS
-# =============================================================================
-
-
-# =============================================================================
-# BUILD FINAL DICTIONARY
-# =============================================================================

@@ -353,7 +353,7 @@ class DebtHedgedItem(HedgedItem):
     maturity_month: Optional[str]
     maturity_year: int
     principal_amount: int
-    interest_rate_type: Literal["fixed", "variable"]
+    interest_rate_type: Literal["fixed", "variable", "floating"]
     currency: str = "USD"
     benchmark_rate: Optional[str] = None
     spread_bps: Optional[int] = None
