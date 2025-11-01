@@ -1076,7 +1076,7 @@ class NotionalSentence:
             details = self.result_details or ResultPhraseDetails()
             risk_terms = random.sample(risk_exposure_terms, k=2)
             populated_phrase = self.result_phrase.format(
-                mitigation_verb=random.choice(risk_management_verbs),
+                mitigation_verb=random.choice([v for v in risk_management_verbs if not v.endswith('ing')]), # Use base form
                 gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 frequency=details.frequency or random.choice(frequencies),
@@ -1093,7 +1093,7 @@ class NotionalSentence:
                 geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
                 commodity=details.commodity,
                 unit=details.unit,
-                financial_outcome_verb=random.choice(financial_outcome_verbs),
+                financial_outcome_verb=outcome_verb,
                 company=self.company_name,
                 swap_type=self.swap_type,
             )

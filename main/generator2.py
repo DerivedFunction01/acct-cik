@@ -1364,6 +1364,9 @@ def generate_narrative_from_scenario(
     full_narrative = (
         f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
     )
+    # Post-warning: Check for the word "none" in the final narrative
+    if "none" in full_narrative.lower():
+        full_narrative += "\n\n[WARNING: The word 'none' was found in the narrative. Please review for potential ambiguity or unintended implications.]"
     return full_narrative, all_evidence
 
 

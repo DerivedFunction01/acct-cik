@@ -302,7 +302,6 @@ immaterial = [
     "slight",
     "unimportant",
     "zero",
-    "none",
 ]
 
 # Material / Significant terms
