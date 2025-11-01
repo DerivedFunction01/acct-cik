@@ -11,12 +11,22 @@ from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExpo
 from defs.common_data import *
 from defs.cp_data import CommodityHedgedItem, CPInstrument, get_random_commodity_and_unit
 from defs.instrument_definitions import DERIVATIVE_CATEGORIES, BaseNarrativeEvidence, NotionalInstrument, HedgedItem, GenericInstrument
-from defs.policy_definitions import AccountingPolicySentence, CounterpartyRiskSentence, GeneralHedgingPolicy, MitigationEvidence, MitigationSentence, PolicyEvidence, PolicySentence, RiskManagementPolicy
+from defs.policy_definitions import (
+    AccountingPolicySentence,
+    CounterpartyRiskSentence,
+    GeneralHedgingPolicy,
+    MitigationEvidence,
+    MitigationSentence,
+    PolicyEvidence,
+    PolicySentence,
+    RiskManagementPolicy,
+    CategorySpecificPolicy,
+)
 from defs.scenario_definitions import company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument
-from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence
+from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.template_definitions import hedge_no_trading_templates
-from main.defs.eq_data import EQInstrument, EquityHedgedItem
+from defs.eq_data import EQInstrument, EquityHedgedItem
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
