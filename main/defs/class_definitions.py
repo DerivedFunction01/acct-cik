@@ -768,11 +768,7 @@ class EquityHedgedItem(HedgedItem):
         equity_type: Literal["market_index", "own_stock", "third_party_stock"] - The type of equity.
         reason: str - The reason for hedging this equity exposure.
     """
-
-    # Placeholder for future implementation
-    underlying_equity: str
     equity_type: Literal["market_index", "own_stock", "third_party_stock"]
-    reason: str
 
 
 @dataclass
