@@ -66,7 +66,7 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
 def _generate_instrument_name(
     category: str,
     hedged_item: Optional["HedgedItem"] = None,
-    used_base_types: Optional[Set[str]] = None,
+    available_base_types: Optional[List[str]] = None,
 ) -> Tuple[str, str, str]:
     """
     Dynamically generates a derivative instrument name based on category and context.
@@ -77,7 +77,7 @@ def _generate_instrument_name(
     """
     components = DERIVATIVE_COMPONENTS
     placeholders = components["placeholders"].get(category, [""])
-    base_types = components["base_types"]  # e.g., swap, cap
+    base_types = available_base_types or components["base_types"]
     suffixes = components["suffixes"]  # e.g., contract, agreement
     special_suffixes = components["special_suffixes"]  # e.g., put option
     special_ratio = 0.10  # configurable
@@ -89,25 +89,17 @@ def _generate_instrument_name(
         and isinstance(hedged_item, DebtHedgedItem)
         and hedged_item.benchmark_rate
     ):
-        # 75% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
-        if random.random() < 0.75:
+        # 35% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
+        if random.random() < 0.35:
             placeholder = hedged_item.benchmark_rate
+        elif random.random() < 0.35:
+            placeholder = hedged_item.interest_rate_type
         else:
             placeholder = f"interest{random.choice([' ', '-'])}rate"
     else:
         placeholder = random.choice(placeholders)
 
-    # --- Smart Base Type Selection (for GEN) ---
-    base_type = ""
-    if category == "GEN" and used_base_types:
-        # For GEN, try to pick a base type that hasn't been used by other categories.
-        available_base_types = [bt for bt in base_types if bt not in used_base_types]
-        if available_base_types:
-            base_type = random.choice(available_base_types)
-        else:  # Fallback if all are used
-            base_type = random.choice(base_types)
-    else:
-        base_type = random.choice(base_types)
+    base_type = random.choice(base_types)
 
     # --- Assemble the name ---
     use_special = special_suffixes and random.random() < special_ratio
@@ -132,6 +124,13 @@ def _generate_instrument_name(
         and random.random() < PAY_PREFIX_RATIO
     ):
         prefix = random.choice(components["swap_prefixes"])
+            
+    # --- Optional Prefix (global)
+    if (
+        not prefix and random.random() < PAY_PREFIX_RATIO
+    ):
+        prefix = random.choice(components["global_prefixes"]
+    )
 
     return prefix, full_name, alias
 
@@ -387,8 +386,15 @@ def create_random_scenario() -> GenerationScenario:
     # =========================================================================
 
     instrument_id_counter = 1
-    used_base_types_in_scenario = set() # Track for smart generic instrument naming
     hedged_item_id_counter = 1
+
+    # --- NEW: Reserve base types for the GEN category for this scenario ---
+    all_base_types = DERIVATIVE_COMPONENTS["base_types"]
+    # Reserve 1 or 2 base types for GEN
+    num_to_reserve = random.randint(1, 2)
+    gen_reserved_base_types = random.sample(all_base_types, num_to_reserve)
+    # The rest are available for other categories
+    other_available_base_types = [bt for bt in all_base_types if bt not in gen_reserved_base_types]
 
     # =========================================================================
 
@@ -538,8 +544,7 @@ def create_random_scenario() -> GenerationScenario:
         else:
             # Standard IR hedge
             instrument_category = "IR"
-            prefix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item)
-            used_base_types_in_scenario.add(alias)
+            prefix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item, available_base_types=other_available_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -589,8 +594,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = _generate_instrument_name("FX")
-        used_base_types_in_scenario.add(alias)
+        prefix, name, alias = _generate_instrument_name("FX", available_base_types=other_available_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -638,8 +642,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = _generate_instrument_name("CP")
-        used_base_types_in_scenario.add(alias)
+        prefix, name, alias = _generate_instrument_name("CP", available_base_types=other_available_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -687,8 +690,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = _generate_instrument_name("EQ")
-        used_base_types_in_scenario.add(alias)
+        prefix, name, alias = _generate_instrument_name("EQ", available_base_types=other_available_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -722,7 +724,7 @@ def create_random_scenario() -> GenerationScenario:
             else random.randint(reporting_year + 1, reporting_year + 5)
         )
 
-        prefix, name, alias = _generate_instrument_name("GEN", used_base_types=used_base_types_in_scenario)
+        prefix, name, alias = _generate_instrument_name("GEN", available_base_types=gen_reserved_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -760,7 +762,7 @@ def create_random_scenario() -> GenerationScenario:
 def _generate_narrative_policy(
     scenario: GenerationScenario,
 ) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
-    """Generates sentences describing the company's hedging policy and risk exposures."""
+    """Generates sentences describing the company's hedging policy and risk exposures.""" # noqa
     sentences = []
     evidence = [] # This function will now also produce evidence
 
@@ -804,7 +806,6 @@ def _generate_category_narrative(
     category: str,
     yearly_data: Dict,
     scenario: GenerationScenario,
-    seen_instrument_names: set,
 ) -> Tuple[List[str], List[BaseNarrativeEvidence], Optional[str]]:
     """
     Generates a narrative section for a single derivative category (e.g., Interest Rate Risk).
@@ -917,15 +918,8 @@ def _generate_category_narrative(
         # If there are many instruments, provide an aggregate summary.
         else:
             # Use the most common instrument type for the summary, or just the first one
-            available_types = [
-                t
-                for t in current_year_data["instrument_types"]
-                if t not in seen_instrument_names
-            ]
-            if not available_types:
-                available_types = current_year_data["instrument_types"]
 
-            counts = Counter(available_types)
+            counts = Counter(current_year_data["instrument_types"])
             instrument_type = (
                 counts.most_common(1)[0][0] if counts else "derivative instrument"
             )
@@ -1148,7 +1142,6 @@ def generate_narrative_from_scenario(
     """
     narrative_sections = []
     all_evidence = []
-    seen_instrument_names = set()  # Track used instrument names to ensure variety
 
     # =========================================================================
     # AGGREGATION: Summarize instruments by category and year.
@@ -1190,11 +1183,10 @@ def generate_narrative_from_scenario(
     # Iterate in a standard order to mimic real filings.
     for category in ["IR", "FX", "CP", "EQ", "GEN"]:
         if category in aggregated_data:
-            category_sentences, category_evidence, used_name = _generate_category_narrative(
-                category, aggregated_data[category], scenario, seen_instrument_names
+            category_sentences, category_evidence, _ = _generate_category_narrative(
+                category, aggregated_data[category], scenario
             )
             if category_sentences:
-                if used_name: seen_instrument_names.add(used_name)
                 narrative_sections.append(" ".join(s.strip() for s in category_sentences if s))
             all_evidence.extend(category_evidence)
         elif random.random() < 0.3:  # Occasionally mention non-use for an inactive category
