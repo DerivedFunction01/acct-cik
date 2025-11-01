@@ -616,7 +616,7 @@ def create_random_scenario() -> GenerationScenario:
         is_cross_currency = debt_item.currency != archetype.default_currency and random.random() < 0.5
         if is_cross_currency:
             # This is a hybrid instrument. We'll name it accordingly but categorize it as FX.
-            instrument_category = "FX"
+            instrument_category = "IR" # FIX: Keep it categorized as an Interest Rate instrument
             placeholder = "cross-currency interest rate"
             base_type = random.choice([s for s in DERIVATIVE_COMPONENTS["base_types"] if "swap" in s or "agreement" in s])
             name = f"{placeholder} {base_type}"
@@ -646,7 +646,7 @@ def create_random_scenario() -> GenerationScenario:
         # Create the single instrument object with its full history
         new_instrument = _create_instrument_with_history(
             scenario=scenario,
-            instrument_class=FXInstrument if is_cross_currency else IRInstrument,
+            instrument_class=IRInstrument, # FIX: Always create an IRInstrument from a debt exposure
             instrument_id=instrument_id_counter,
             base_instrument_args=base_args,
         )

@@ -315,7 +315,7 @@ class PolicyEvidence(BaseNarrativeEvidence):
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the policy evidence."""
-        return f"The report includes a {self.policy_type.replace('_', ' ')} statement for the {self.category} category: '{self.details}'."
+        return f"A {self.policy_type.replace('_', ' ')} statement was found for the {self.category} category."
 
 @dataclass
 class MitigationEvidence(BaseNarrativeEvidence):
@@ -353,8 +353,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
         if self.usage_status == "non_use":
             return f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging."
 
-        base_statement = f"A mitigation purpose statement was found for {category_name} derivatives, stating: '{self.details}'."
-        return f"{base_statement} {linguistic_cue} for {instrument_desc} suggests a '{self.usage_status}' usage status."
+        return f"A mitigation purpose statement was found for {category_name} derivatives. {linguistic_cue} for {instrument_desc} suggests a '{self.usage_status}' usage status."
 
 
 @dataclass
