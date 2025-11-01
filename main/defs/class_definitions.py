@@ -295,6 +295,46 @@ class PolicyEvidence(BaseNarrativeEvidence):
         return f"The report includes a {self.policy_type.replace('_', ' ')} statement for the {self.category} category: '{self.details}'."
 
 @dataclass
+class MitigationEvidence(BaseNarrativeEvidence):
+    """Evidence related to the purpose or strategy of hedging."""
+
+    details: str = ""  # The core statement of the mitigation.
+    usage_status: Optional[str] = None  # e.g., "current", "speculative", "non_use"
+    verb: Optional[str] = None  # The verb used (e.g., "uses", "may use", "does not use")
+    adverb: Optional[str] = None # The adverb used (e.g., "currently", "from time to time")
+    instrument_type: Optional[str] = None  # the derivative
+
+    def _category_label(self) -> str:
+        """Map short category codes to descriptive names."""
+        return {
+            "IR": "Interest Rate",
+            "FX": "Foreign Exchange",
+            "CP": "Commodity",
+            "EQ": "Equity",
+            "GEN": "Generic",
+        }.get(self.category, "Unknown Category")
+
+    def to_string(self) -> str:
+        """Generates a reasoning statement for the mitigation evidence."""
+        # --- NEW: More analytical reasoning statement ---
+        category_name = self._category_label()
+        instrument_desc = f"'{self.instrument_type}'" if self.instrument_type else "derivatives"
+
+        # Build the linguistic cue description
+        linguistic_cue = ""
+        if self.adverb and self.verb:
+            linguistic_cue = f"The use of the phrase '{self.adverb} {self.verb}'"
+        elif self.verb:
+            linguistic_cue = f"The use of the verb '{self.verb}'"
+
+        if self.usage_status == "non_use":
+            return f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging."
+
+        base_statement = f"A mitigation purpose statement was found for {category_name} derivatives, stating: '{self.details}'."
+        return f"{base_statement} {linguistic_cue} for {instrument_desc} suggests a '{self.usage_status}' usage status."
+
+
+@dataclass
 class PolicySentence:
     """A data class to hold components for generating a policy or risk context sentence."""
     category: DerivativeCategory
@@ -358,8 +398,8 @@ class MitigationSentence:
     month: Optional[str] = None
     end_day: Optional[int] = None
 
-    def build(self) -> Tuple[str, bool]:
-        """Builds a sentence describing the purpose of a hedge. Returns the sentence and a boolean indicating if it was a 'non-use' sentence."""
+    def build(self) -> Tuple[str, MitigationEvidence]:
+        """Builds a sentence describing the purpose of a hedge. Returns the sentence and a MitigationEvidence object."""
         # Select the appropriate set of mitigation phrases
         templates = MITIGATION_TEMPLATES.get(self.category, MITIGATION_TEMPLATES["GEN"])
         mitigation_phrase = random.choice(templates)
@@ -369,17 +409,19 @@ class MitigationSentence:
         if self.has_active_instruments and self.usage_status == "non_use":
             final_usage_status = "current"
 
-        # Choose an adverb and verb based on the usage status
+        # --- NEW: Treat 'historical' like 'speculative' to imply potential future use. ---
+        # Choose an adverb and verb based on the usage status.
+        effective_status = "speculative" if final_usage_status == "historical" else final_usage_status
         adverb = ""
         verb = ""
-        adverb_list = time_adverbs.get(final_usage_status, [])
+        adverb_list = time_adverbs.get(effective_status, [])
         if adverb_list:
             adverb = random.choice(adverb_list)
 
         if final_usage_status == "current":
             verb = random.choice(policy_verbs) # e.g., "uses", "employs"
-        elif final_usage_status == "speculative" and adverb == "may":
-            verb = random.choice(non_use_verbs) # e.g., "may use", "may employ"
+        elif effective_status == "speculative":
+            verb = random.choice(non_use_verbs) # e.g., "may use", "may employ", "may enter into"
         elif final_usage_status == "non_use":
             verb = random.choice(non_use_verbs) # e.g., "does not use"
         else: # historical or other speculative cases
@@ -422,8 +464,18 @@ class MitigationSentence:
         sentence_template = random.choice(sentence_structures)
         sentence = sentence_template.format(company=self.company_name, adverb=adverb, verb=verb, swap_type=self.swap_type)
 
-        is_non_use_sentence = (final_usage_status == "non_use")
-        return _cleanup_sentence(sentence), is_non_use_sentence
+        # Create evidence object
+        evidence = MitigationEvidence(
+            category=self.category,
+            status="mitigation_purpose",
+            usage_status=final_usage_status,
+            details=populated_phrase,
+            verb=verb,
+            adverb=adverb,
+            instrument_type=self.swap_type,
+        )
+
+        return _cleanup_sentence(sentence), evidence
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 

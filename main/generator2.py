@@ -918,39 +918,44 @@ def _generate_category_narrative(
 
     # 1b. Mitigation/Purpose Sentence (e.g., "The company uses swaps to hedge interest rate risk...")
     # This adds a sentence explaining *why* the company is using the derivative.
-    if current_year_data and current_year_data["instruments"]:
-        is_non_use_mitigation = False
-        has_active_instruments = bool(current_year_data and current_year_data["instruments"])
-        # --- FIX: Determine usage status based on actual data first, then fall back to propensity. ---
-        past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0)) # type: ignore
-        if has_active_instruments:
-            usage = "current"
-        elif current_prop < 0: # Explicit non-user
-            usage = "non_use"
-        elif past_prop > 0 and current_prop == 0: # Exiting hedger
-            usage = "historical"
-        else: # No active instruments, and not an explicit non-user -> speculative
-            usage = "speculative"
+    is_non_use_mitigation = False
+    has_active_instruments = bool(current_year_data and current_year_data["instruments"])
+    # --- FIX: Determine usage status based on actual data first, then fall back to propensity. ---
+    past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0)) # type: ignore
+    if has_active_instruments:
+        usage = "current"
+    elif current_prop < 0: # Explicit non-user
+        usage = "non_use"
+    elif past_prop > 0 and current_prop == 0: # Exiting hedger
+        usage = "historical"
+    else: # No active instruments, and not an explicit non-user -> speculative
+        usage = "speculative"
 
-        # Use the most common instrument type for the sentence
+    # Use the most common instrument type for the sentence, or a generic one if no instruments exist.
+    instrument_type = "derivatives" # Default for non-users
+    if has_active_instruments and current_year_data:
         instrument_type = Counter(current_year_data["instrument_types"]).most_common(1)[0][0]
-        mitigation_sentence_obj = MitigationSentence(
-            category=category,  # type: ignore
-            company_name=scenario.company_name,
-            swap_type=instrument_type,
-            has_active_instruments=has_active_instruments,
-            usage_status=usage,
-            year=reporting_year,
-            month=reporting_month,
-            end_day=reporting_day,
-            result_details=result_details,
-        )
-        mitigation_sentence, is_non_use_mitigation = mitigation_sentence_obj.build()
-        sentences.append(mitigation_sentence)
+
+    mitigation_sentence_obj = MitigationSentence(
+        category=category,  # type: ignore
+        company_name=scenario.company_name,
+        swap_type=instrument_type,
+        has_active_instruments=has_active_instruments,
+        usage_status=usage,
+        year=reporting_year,
+        month=reporting_month,
+        end_day=reporting_day,
+        result_details=result_details,
+    )
+    mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
+    sentences.append(mitigation_sentence)
+    evidence.append(mitigation_evidence)
+    is_non_use_mitigation = (mitigation_evidence.usage_status == "non_use")
 
     # 2. Aggregate Summary OR Individual Instrument Descriptions.
     # --- FIX: Do not generate a notional sentence if the mitigation sentence already stated non-use. ---
-    if current_year_data and current_year_data["total_notional"] > 0 and not is_non_use_mitigation:
+    # Also check if there are any instruments at all, to avoid this block for non-users.
+    if current_year_data and current_year_data["instruments"] and not is_non_use_mitigation:
         # --- NEW LOGIC: Decide whether to summarize or detail ---
         # Check for the specific case where there are current instruments but no prior ones.
         if prev_year_data is None or prev_year_data["total_notional"] == 0:
