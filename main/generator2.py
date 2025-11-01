@@ -546,8 +546,11 @@ def create_random_scenario() -> GenerationScenario:
             notional = hedged_debt.principal_amount
         else:
             # For unhedged exposures, there's a chance to create a story about a terminated instrument.
-            # Use the 'past' propensity to decide if a historical (now terminated) hedge existed.
-            if random.random() < past_prop:
+            # This is especially true for "Exiting Hedger" archetypes where past_prop > 0 and current_prop == 0.
+            is_exiting_hedger = past_prop > 0 and current_prop == 0
+            should_create_historical = is_exiting_hedger or (random.random() < past_prop)
+
+            if should_create_historical:
                 maturity_year = random.randint(issuance_year + 1, reporting_year)
                 notional = random.randint(5, 500) * multiplier
             else:
@@ -609,7 +612,10 @@ def create_random_scenario() -> GenerationScenario:
                 e.amount for e in hedged_fx.exposures
             )  # Simplified USD equivalent
         else:
-            if random.random() < past_prop:
+            is_exiting_hedger = past_prop > 0 and current_prop == 0
+            should_create_historical = is_exiting_hedger or (random.random() < past_prop)
+
+            if should_create_historical:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(10, 200) * multiplier
             else:
@@ -657,7 +663,10 @@ def create_random_scenario() -> GenerationScenario:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
             notional = random.randint(5, 100) * multiplier
         else:
-            if random.random() < past_prop:
+            is_exiting_hedger = past_prop > 0 and current_prop == 0
+            should_create_historical = is_exiting_hedger or (random.random() < past_prop)
+
+            if should_create_historical:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(5, 100) * multiplier
             else:
@@ -705,7 +714,10 @@ def create_random_scenario() -> GenerationScenario:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
             notional = random.randint(1, 100) * multiplier
         else:
-            if random.random() < past_prop:
+            is_exiting_hedger = past_prop > 0 and current_prop == 0
+            should_create_historical = is_exiting_hedger or (random.random() < past_prop)
+
+            if should_create_historical:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(1, 50) * multiplier
             else:
