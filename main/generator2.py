@@ -92,10 +92,8 @@ def _generate_instrument_name(
         # 35% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
         if random.random() < 0.35:
             placeholder = hedged_item.benchmark_rate
-        elif random.random() < 0.35:
-            placeholder = hedged_item.interest_rate_type
         else:
-            placeholder = f"interest{random.choice([' ', '-'])}rate"
+            placeholder = random.choice(placeholders)
     else:
         placeholder = random.choice(placeholders)
 
@@ -398,7 +396,6 @@ def create_random_scenario() -> GenerationScenario:
 
     # =========================================================================
 
-
     # =========================================================================
     # STAGE 1: GENERATE THE POOL OF POTENTIAL HEDGED ITEMS (EXPOSURES)
     # =========================================================================
@@ -426,7 +423,9 @@ def create_random_scenario() -> GenerationScenario:
             debt_currency = foreign_curr.code
 
         if selected_debt_type.benchmarks:
-            benchmark_rate = random.choice(selected_debt_type.benchmarks)
+            benchmark_rate = random.choice(
+                selected_debt_type.benchmarks + specific_rate_terms
+            )
 
         hedged_debt = DebtHedgedItem(
             hedged_item_id=hedged_item_id_counter,
@@ -437,7 +436,6 @@ def create_random_scenario() -> GenerationScenario:
             maturity_month=random.choice(months),
             maturity_year=maturity_year,
             principal_amount=random.randint(5, 500) * multiplier,
-            interest_rate_type=random.choice(["fixed", "variable", "floating"]),
             benchmark_rate=benchmark_rate,
             spread_bps=random.randint(100, 300),
         )
