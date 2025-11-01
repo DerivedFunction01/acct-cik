@@ -243,7 +243,7 @@ class PolicySentence:
         if self.currencies:
             currencies_str = ", ".join(self.currencies[:-1]) + " and " + self.currencies[-1] if len(self.currencies) > 1 else self.currencies[0]
 
-        locations_str = "international markets"
+        locations_str = f"international {random.choice(geo_locations)}"
         if self.locations:
             locations_str = ", ".join(self.locations[:-1]) + " and " + self.locations[-1] if len(self.locations) > 1 else self.locations[0]
 

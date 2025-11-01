@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Dict, List
 
 @dataclass
 class Currency:
@@ -90,7 +91,7 @@ all_currencies = (
     + americas_currencies
     + other_currencies
 )
-
+geo_locations = ["markets", "locations", "operations", "regions"]
 transaction_types = ["purchase", "sale", "exchange", "transfer", "import", "export"]
 
 # Verbs that can be used for both individual and aggregate contexts
@@ -376,10 +377,10 @@ DEFAULT_SUFFIXES = [
     "program",
 ]
 
-SPECIAL_SUFFIX =  [
-        "call option",
-        "put option",
-],
+SPECIAL_SUFFIX = [
+    "call option",
+    "put option",
+]
 
 CATEGORY_EXTRAS = {
     "IR": [],

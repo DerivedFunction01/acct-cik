@@ -75,7 +75,7 @@ def _generate_instrument_name(
     Returns:
         A tuple of (prefix, full_name, alias).
     """
-    components = DERIVATIVE_COMPONENTS
+    components= DERIVATIVE_COMPONENTS
     placeholders = components["placeholders"].get(category, [""])
     base_types = available_base_types or components["base_types"]
     suffixes = components["suffixes"]  # e.g., contract, agreement
