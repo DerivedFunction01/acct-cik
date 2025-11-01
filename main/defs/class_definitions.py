@@ -870,12 +870,13 @@ class CategorySpecificPolicy:
     """Describes policies for a specific category of derivatives (e.g., IR, FX)."""
 
     category: DerivativeCategory
-    effectiveness_testing_method: Optional[str] = None  # e.g., "dollar-offset method"
-    effectiveness_frequency: Optional[str] = "quarterly"
+    effectiveness_testing_method: Optional[str] = field(
+        default_factory=lambda: random.choice(hedge_methods)
+    )
+    effectiveness_frequency: Optional[str] = field(default_factory=lambda: random.choice(frequencies))
     documentation_formalized: bool = True
-    # Describes the general accounting policy for this category
-    accounting_policy_description: Optional[str] = None
-    accounting_standard: Optional[str] = None
+    accounting_policy_description: Optional[str] = field(default_factory=lambda: random.choice(hedge_accounting_policy_templates))
+    accounting_standard: Optional[str] = field(default_factory=lambda: random.choice(hedge_standards))
 
 
 @dataclass

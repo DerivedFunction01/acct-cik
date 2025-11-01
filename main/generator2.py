@@ -392,13 +392,8 @@ def generate_policy_for_archetype(
             active_categories, num_policies_to_generate
         )
         for category in categories_with_policies:
-            policy = CategorySpecificPolicy(
-                # TODO: These random.choice() calls select from dummy data lists. This will be replaced by the generative model.
-                category=category,  # type: ignore
-                effectiveness_testing_method=random.choice(hedge_methods),
-                effectiveness_frequency=random.choice(frequencies),
-                accounting_policy_description=random.choice(hedge_accounting_policy_templates),
-            )
+            # The class now handles its own random value generation.
+            policy = CategorySpecificPolicy(category=category) # type: ignore
             category_policies.append(policy)
 
     return RiskManagementPolicy(
