@@ -14,13 +14,8 @@ from defs.class_definitions import (
     AccountingPolicySentence,
     BaseNarrativeEvidence,
     HedgedItem,
-    MitigationEvidence,
-    NotionalEvidence,
-    PolicyEvidence, # type: ignore
-    SpecificDetails,
+    MitigationEvidence, PolicyEvidence, # type: ignore
     PolicySentence,
-    NotionalSentence,
-    TimelineSentence,
     NotionalInstrument,
     DebtHedgedItem,
     CounterpartyRiskSentence,
@@ -40,7 +35,8 @@ from defs.class_definitions import (
     CategorySpecificPolicy,
     GeneralHedgingPolicy,
     DERIVATIVE_CATEGORIES,
-)
+) # type: ignore
+from defs.notional_definitions import *
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"

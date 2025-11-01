@@ -1,5 +1,9 @@
+import random
 from dataclasses import dataclass, field
 from typing import List
+
+from main.defs.class_definitions import DebtHedgedItem
+
 
 # --- NEW: Import common verb lists for reuse --- (This was already here, but I'm confirming its good use)
 from .common_data import individual_use_verbs, aggregate_use_verbs, termination_verbs_past
@@ -259,3 +263,34 @@ debt_action_verbs = {
     "refinancing": ["refinanced", "restructured"],
     "balance": list(set(["had", "held", "maintained"] + aggregate_use_verbs)),
 }
+
+
+@dataclass
+class IRContextSentence:
+    """
+    Builds a sentence providing context about a specific debt instrument (exposure).
+    This class is defined here to live alongside its debt-specific templates.
+    """
+
+    hedged_item: "DebtHedgedItem"
+    company_name: str
+
+    def build(self) -> str:
+        """Builds a sentence about the debt exposure."""
+        # Lazy import to prevent circular dependency
+        from .template_definitions import _cleanup_sentence, _format_single_notional
+
+        # Choose a random template from the "balance" category for a general statement
+        template = random.choice(debt_templates["balance"])
+
+        # Format the sentence
+        sentence = template.format(
+            company=self.company_name,
+            verb=random.choice(debt_action_verbs["balance"]),
+            debt_type=self.hedged_item.debt_type,
+            amount_str=_format_single_notional(self.hedged_item.principal_amount, "$", [("million", 1_000_000)], True),
+            # Add other placeholders as needed, leaving them blank if not used by the template
+            **{key: "" for key in ["time_prefix", "composition_clause", "state_descriptor", "time_suffix", "amount_str2", "debt_type2", "interest_rate_clause"]}
+        )
+
+        return _cleanup_sentence(sentence)
