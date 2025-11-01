@@ -896,12 +896,23 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
         if num_most_common >= 2:
             # "interest-rate swaps and other interest rate instruments"
             dominant_instrument_example = next(i.instrument_type for i in instruments if i.placeholder == most_common_placeholder)
-            return f"{dominant_instrument_example} and other {most_common_placeholder} instruments"
+            # --- FIX: Use a random suffix for more variety ---
+            other_suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+            return f"{dominant_instrument_example} and other {most_common_placeholder} {other_suffix}s"
         else:
             # "a portfolio of derivative instruments"
-            return f"a {random.choice(portfolio_terms).format(swap_type=f'{category} derivatives')}"
+            # --- FIX: Use the full category name for a more natural phrase ---
+            category_map = {
+                "IR": "interest rate",
+                "FX": "foreign exchange",
+                "CP": "commodity",
+                "EQ": "equity",
+                "GEN": "various" # Fallback for generic
+            }
+            descriptive_category = category_map.get(category, "various")
+            return f"a portfolio of {descriptive_category} derivative instruments"
 
-    return "various derivative instruments"
+    return "TODO"
 
 # =============================================================================
 # PHASE 2: NARRATIVE AND JSON GENERATION
@@ -1174,7 +1185,7 @@ def _generate_category_narrative(
 
                     if timeline_paragraph:
                         paragraphs.append(timeline_paragraph)
-                        evidence.extend(timeline_evidence)
+                        evidence.append(timeline_evidence)
                         # Mark as mentioned for all future references
                         mentioned_instrument_fingerprints.add(instrument_fingerprint)
 
@@ -1665,7 +1676,10 @@ def generate_json_from_scenario(
 
         # Update the notional amount. This will capture the most relevant value
         # (e.g., the 'new' or 'terminated' value for that instrument).
-        instrument_evidence_map[instrument_id]["amount"] = ev.notional
+        # --- FIX: Use the notional from the evidence, which could be a fair value ---
+        # This ensures the JSON amount matches what was stated in the narrative.
+        if ev.notional is not None:
+            instrument_evidence_map[instrument_id]["amount"] = ev.notional
 
         # Update status based on evidence type. 'terminated' is a final state.
         if ev.status == "terminated_individual":

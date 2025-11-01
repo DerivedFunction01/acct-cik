@@ -418,17 +418,15 @@ DEPENDENT_TYPES = [
 BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
 
 # Types that should not have an alias
-NO_ALIAS_TYPES = [
+NO_ALIAS_TYPES_INDEPENDENT = [
     "derivative",
     "hedge",
-    "hedging",
 ]
 
 # Types that should not have an alias
 NO_ALIAS_TYPES = [
-    "derivative",
-    "hedge",
-]
+    "hedging",
+] + NO_ALIAS_TYPES_INDEPENDENT
 
 DEFAULT_SUFFIXES = [
     "agreement",

@@ -227,6 +227,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
             # The temporal reasoning will provide the historical context.
             return individual_handler()
 
+        def timeline_handler() -> str:
+            # Custom handler for the consolidated timeline evidence.
+            # This creates a single, coherent reasoning statement for an instrument's history.
+            return (f"A historical timeline for a {base_desc} was identified, "
+                    f"showing a {value_desc} of {self.prev_notional_str} at inception in {self.prev_year} "
+                    f"and a value of {self.notional_str} in {self.year}{temporal_info}")
+
         # Map statuses to handlers
         handlers: Dict[str, Callable[[], str]] = {
             "summary": summary_handler,
@@ -241,6 +248,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
             # Add handlers for timeline sentence types
             "inception": inception_handler,
             "continuing": individual_handler, # Treat 'continuing' like a standard 'individual' mention
+            "timeline": timeline_handler, # Handler for the consolidated timeline object
         }
 
         # Dispatch
