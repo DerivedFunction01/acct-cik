@@ -307,6 +307,14 @@ class MitigationEvidence(BaseNarrativeEvidence):
         # --- NEW: More analytical reasoning statement ---
         category_name = self._category_label()
         instrument_desc = f"'{self.instrument_type}'" if self.instrument_type else "derivatives"
+        
+        # --- NEW: Add a classification note for generic categories ---
+        classification_note = ""
+        if self.category in (None, "GEN"):
+            classification_note = (
+                " Based on the surrounding context, the disclosure does not specify a clear derivative category "
+                "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference."
+            )
 
         # Build the linguistic cue description
         linguistic_cue = ""
@@ -316,7 +324,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
             linguistic_cue = f"The use of the verb '{self.verb}'"
 
         if self.usage_status == "non_use":
-            return f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging."
+            return f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging.{classification_note}"
 
         # --- FIX: Use more natural language for speculative status ---
         status_description = {
@@ -325,7 +333,9 @@ class MitigationEvidence(BaseNarrativeEvidence):
             "speculative": "likely future use",
         }.get(self.usage_status, f"an '{self.usage_status}' usage status") # type: ignore
 
-        return f"{linguistic_cue} for {instrument_desc} suggests {status_description} for {category_name} derivatives."
+        base_sentence = f"{linguistic_cue} for {instrument_desc} suggests {status_description} for {category_name} derivatives."
+        
+        return " ".join(filter(None, [base_sentence, classification_note]))
 
 
 @dataclass
