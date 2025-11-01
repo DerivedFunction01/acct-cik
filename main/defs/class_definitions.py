@@ -89,7 +89,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
         maturity_reason = "" # Only give maturity reason to proper sentences
         if self.maturity_year is not None and self.sentence_type and self.sentence_type in [
-            "historical_individual",
+            "historical_individual", "new_individual", "individual",
             "terminated_individual",
         ]:
             if self.maturity_year >= self.reporting_year:
@@ -226,7 +226,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
         def terminated_individual_handler() -> str:
             if not self.notional_str and self.notional is None:
-                return f"The report indicates a {base_desc} was terminated, confirming prior existence but no {value_desc} was disclosed{temporal_info}"
+                return f"The report indicates a {base_desc} was terminated, confirming prior existence but no {value_desc} was disclosed for {self.year}{temporal_info}"
             return f"The report describes a terminated {base_desc} with a prior {value_desc} of {self.notional_str}. Its absence in {self.reporting_year} data indicates settlement or maturity{temporal_info}"
 
         def no_instruments_handler() -> str:
@@ -834,11 +834,11 @@ class NotionalSentence:
     value_type: Literal["notional", "fair_value"] = "notional"
     sentence_type: Literal[
         "summary", # phrases stating total amount across all derivative type
-        "new_individual", # phrases with new swap in past or current year
-        "individual", # phrases with any swap in past or current year
-        "terminated_individual", # phrases an individual swap being terminated in past or current year
-        "historical_individual", # phrases with a swap in an old year that expires in past or future year
-        "comparative", # Phrases with comparative values
+        "new_individual",  # phrases with new swap in past or current year
+        "individual",  # phrases with any swap in past or current year
+        "terminated_individual",  # phrases an individual swap being terminated in past or current year
+        "historical_individual",  # phrases with a swap in an old year that expires in past or future year
+        "comparative",  # Phrases with comparative values
         "comparative_no_outstanding", # Phrases with explicit mention of no outstanding for current year, values in past
         "comparative_no_prior_outstanding", # Phrases with current value for current year, but no other values in prior
         "no_instruments", # No such derivatives at all
@@ -1060,13 +1060,13 @@ class NotionalSentence:
         maturity_clause = ""
         if (
             self.maturity_year
-            and self.reporting_year
-            and self.sentence_type in ["historical_individual", "terminated_individual"]
+            and self.sentence_type
+            in ["historical_individual", "terminated_individual", "individual", "new_individual"]
         ):
-            if self.maturity_year > self.reporting_year:
+            if self.reporting_year and self.maturity_year > self.reporting_year:
                 adverb = random.choice(future_adverbs)
                 verb_tense = random.choice([v for v in termination_verbs_present if not v.endswith('ed')]) # Ensure present tense
-                maturity_clause = f"which {adverb} {verb_tense} in {self.maturity_year}"
+                maturity_clause = f"which {adverb} {verb_tense} in {self.maturity_year}" if random.random() < 0.5 else f"with a maturity date in {self.maturity_year}"
             else:  # maturity_year <= reporting_year
                 verb_tense = random.choice([v for v in termination_verbs_past if v.endswith('ed')]) # Ensure past tense
                 maturity_clause = f"which {verb_tense} in {self.maturity_year}"
