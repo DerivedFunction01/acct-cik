@@ -14,7 +14,8 @@ from defs.class_definitions import (
     BaseNarrativeEvidence,
     HedgedItem,
     MitigationEvidence,
-    NotionalEvidence, # type: ignore
+    NotionalEvidence,
+    PolicyEvidence, # type: ignore
     SpecificDetails,
     PolicySentence,
     NotionalSentence,
@@ -1287,43 +1288,42 @@ def _generate_narrative_accounting(
 ) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
     """Generates sentences about accounting treatment and hedge effectiveness."""
     all_sentences: List[str] = []
-    all_evidence: List[BaseNarrativeEvidence] = [] # type: ignore
+    all_evidence: List[BaseNarrativeEvidence] = []  # type: ignore
     mentioned_policies = set()
-
+    
+    # --- NEW: Generate accounting policies for each category with instruments ---
     if scenario.policy and scenario.policy.category_policies:
-        # --- NEW: First, generate general policies that apply to all categories ---
-        # We'll use the first available category policy as a representative sample.
-        first_policy = scenario.policy.category_policies[0]
+        # Get all categories that have active instruments in the reporting year
+        active_categories = {
+            inst.category
+            for inst in scenario.instruments
+            if inst.notional_history.get(scenario.reporting_year, 0) > 0
+        }
 
-        # Generate a documentation sentence if applicable
-        if first_policy.documentation_formalized and "documentation" not in mentioned_policies:
-            doc_template = random.choice(general_hedge_documentation_templates)
-            sentence = doc_template.format(
-                company=scenario.company_name,
-                swap_type="derivative instruments", # Generic term
-                hedge_type=random.choice(hedge_types),
-                # Add dummy values for other placeholders that might be in some templates
-                verb=random.choice(assessment_verbs),
-                metric=random.choice(hedge_metrics),
-                frequency=first_policy.effectiveness_frequency or random.choice(frequencies),
-                method=first_policy.effectiveness_testing_method,
-                standard=first_policy.accounting_standard or random.choice(hedge_standards),
-                gain_loss=random.choice(gain_loss_phrases),
-                financial_outcome_verb=random.choice(financial_outcome_verbs),
-                termination_verb=random.choice(termination_verbs_past)
-            )
-            all_sentences.append(sentence)
-            mentioned_policies.add("documentation")
+        # Find the corresponding policies for those active categories
+        policies_to_generate = [
+            p for p in scenario.policy.category_policies if p.category in active_categories
+        ]
 
-        # --- Now, iterate through each category for its specific policies ---
-        for cat_policy in scenario.policy.category_policies:
+        for cat_policy in policies_to_generate:
+            # Generate a descriptive instrument type for the category
+            instruments_in_cat = [i for i in scenario.instruments if i.category == cat_policy.category]
+            swap_type_desc = _get_smart_instrument_description(instruments_in_cat, cat_policy.category)
+
             policy_sentence_builder = AccountingPolicySentence(
-                cat_policy=cat_policy, company_name=scenario.company_name, already_mentioned_policies=mentioned_policies
+                cat_policy=cat_policy,
+                company_name=scenario.company_name,
+                already_mentioned_policies=mentioned_policies,
+                swap_type_override=swap_type_desc, # Pass the specific swap type
             )
             generated_items = policy_sentence_builder.build()
             for sentence, evidence in generated_items:
                 all_sentences.append(sentence)
-                all_evidence.append(evidence)
+                all_evidence.append(evidence) # type: ignore
+                # --- FIX: Update the set with the policy type that was just used ---
+                # This ensures it is not repeated for the next category.
+                if isinstance(evidence, PolicyEvidence):
+                    mentioned_policies.add(evidence.policy_type)
 
     return all_sentences, all_evidence
 

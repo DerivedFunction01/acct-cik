@@ -540,6 +540,7 @@ class AccountingPolicySentence:
     """
     cat_policy: "CategorySpecificPolicy"
     company_name: str
+    swap_type_override: Optional[str] = None
     already_mentioned_policies: set[str] = field(default_factory=set)
 
     def build(self) -> List[Tuple[str, "PolicyEvidence"]]:
@@ -572,7 +573,7 @@ class AccountingPolicySentence:
             template = random.choice(template_list)
             sentence = template.format(
                 company=_get_company_reference(self.company_name),
-                swap_type="derivative instruments",
+                swap_type=self.swap_type_override or "derivative instruments",
                 hedge_type=random.choice(hedge_types),
                 verb=random.choice(assessment_verbs),
                 metric=random.choice(hedge_metrics),
