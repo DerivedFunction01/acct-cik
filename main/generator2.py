@@ -1075,7 +1075,6 @@ def _generate_category_narrative(
                 year=reporting_year,
                 notional=value_to_report,
                 currency_symbol=currency_symbol,
-                currency_code=currency_code,
                 month=reporting_month,
                 end_day=reporting_day,
                 money_units=scenario.archetype.money_units,
@@ -1261,16 +1260,11 @@ def _generate_category_narrative(
                 else "derivative instrument"
             )
             # Create specific_details for the comparative sentence
-            comparative_details = SpecificDetails(
-                gain_loss=random.choice(gain_loss_phrases),
-                risk_term=random.choice(risk_exposure_terms),
-            )
             comparative_no_outstanding_obj = NotionalSentence(
                 swap_type=instrument_type,
                 year=reporting_year,
                 notional=prev_year_data["total_notional"], # Pass the prior year notional for the template
                 sentence_type="comparative_no_outstanding", # type: ignore
-                specific_details=comparative_details,
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             paragraphs.append(no_instrument_text)

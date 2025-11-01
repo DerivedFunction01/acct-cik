@@ -860,10 +860,6 @@ class SpecificDetails:
     geography: Optional[str] = None
     currencies: List[str] = field(default_factory=list)
 
-    # Shared / Generic
-    gain_loss: Optional[str] = None
-    risk_term: Optional[str] = None
-
     # CP specific
     commodity: Optional[str] = None
     unit: Optional[str] = None
@@ -871,8 +867,6 @@ class SpecificDetails:
     # IR specific (debt_type is primarily for IR)
     pct: Optional[float] = None
     debt_type: Optional[str] = None
-    rate_term1: Optional[str] = None
-    rate_term2: Optional[str] = None
 
 
 @dataclass
@@ -885,9 +879,6 @@ class NotionalSentence:
     # Core sentence components
     swap_type: str
     year: int
-    currency_symbol: str = "$"
-    currency_code: str = "US Dollar"
-    money_unit_word: str = "million"
     value_type: Literal["notional", "fair_value"] = "notional"
     sentence_type: Literal[
         "summary", # phrases stating total amount across all derivative type
@@ -902,6 +893,8 @@ class NotionalSentence:
     ] = "summary"
 
     notional: Optional[int] = None
+    currency_symbol: str = "$"
+    currency_code: str = "US ollar"
     # Optional time components
     month: Optional[str] = None
     end_day: Optional[int] = None
@@ -912,13 +905,8 @@ class NotionalSentence:
     verb: Optional[str] = None
     category: Optional[DerivativeCategory] = None
     maturity_year: Optional[int] = None
-    commodity: Optional[str] = None
     specific_details: Optional[SpecificDetails] = None
     reporting_year: Optional[int] = None
-    
-    # Others
-    termination_noun: Optional[str] = None
-    comparison_phrase: Optional[str] = None
 
     # Formatting preferences
     money_units: List[Tuple[str, int]] = field(
@@ -1046,21 +1034,21 @@ class NotionalSentence:
             details = self.specific_details or SpecificDetails()
             populated_phrase = result_phrase_template.format(
                 mitigation_verb=random.choice([v for v in risk_management_verbs if not v.endswith('ing')]), # Use base form
-                gain_loss=details.gain_loss or random.choice(gain_loss_phrases),
+                gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 frequency=details.frequency or random.choice(frequencies),
-                risk_term=details.risk_term or random.choice(risk_exposure_terms),
+                risk_term=random.choice(risk_exposure_terms),
                 risk_term2=random.choice(risk_exposure_terms), # A second random one for variety
                 ir_term=random.choice(interest_rate_terms),  # type: ignore
                 debt_type=details.debt_type or "debt",
-                currencies=currencies_str,
+                currencies=currencies_str or "various currencies",
                 currency_code=self.currency_code,
-                rate_term1=details.rate_term1 or random.choice(specific_rate_terms),
-                rate_term2=details.rate_term2 or random.choice(specific_rate_terms),
+                rate_term1=random.choice(specific_rate_terms),
+                rate_term2=random.choice(specific_rate_terms),
                 formatted_amount=formatted_amount_result,  # type: ignore
                 pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
                 geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
-                commodity=details.commodity,
+                commodity=details.commodity or "commodities",
                 unit=details.unit,
                 financial_outcome_verb=outcome_verb,
                 company=self.company_name,
@@ -1102,11 +1090,13 @@ class NotionalSentence:
             or "{amount_prefix}" in template
         )
         final_notional = self.notional if mentions_amount else None
+        
+        # --- NEW: These are now generated inside the build method for specific templates ---
+        termination_noun_local = random.choice(termination_noun)
+        comparison_phrase_local = random.choice(comparison_phrases)
 
         # Handle "no_instruments" case specifically
         if self.sentence_type == "no_instruments":
-            # TODO: This entire block for "no_instruments" uses hardcoded templates and should be replaced by generative logic.
-            # Select a template from the new list
             template = random.choice(NO_INSTRUMENTS_TEMPLATES)
             category_map = {
                 "IR": "interest rate",
@@ -1167,6 +1157,8 @@ class NotionalSentence:
             portfolio_verb=random.choice(portfolio_verbs),
             maturity_clause=maturity_clause,
             time_suffix=time_suffix,
+            termination_noun=termination_noun_local,
+            comparison_phrase=comparison_phrase_local,
         )
 
         # 9. Cleanup
@@ -1258,24 +1250,14 @@ class TimelineSentence:
                 # Use the alias for subsequent mentions to make the text more natural
                 name_to_use = self.instrument.instrument_alias
 
-            # --- NEW: Populate SpecificDetails for this specific point in time ---
-            specific_details = SpecificDetails(
-                gain_loss=random.choice(gain_loss_phrases),
-                risk_term=random.choice(risk_exposure_terms),
-                rate_term1=random.choice(specific_rate_terms),
-                rate_term2=random.choice(specific_rate_terms),
-            )
-
             sentence_obj = NotionalSentence(
                 swap_type=name_to_use,
                 year=year,
                 notional=notional,
                 sentence_type=sentence_type, # type: ignore
                 # Pass additional details for the partial_settlement templates
-                specific_details=specific_details,
+                # No specific_details needed here, as TimelineSentence doesn't have hedged item context.
                 company_name=self.company_name,
-                termination_noun=random.choice(termination_noun),
-                comparison_phrase=random.choice(comparison_phrases),
                 # Use a past-tense verb for partial settlements
                 verb=random.choice(termination_verbs_past) if sentence_type == "partial_settlement" else None,
                 currency_symbol=self.currency_symbol,
