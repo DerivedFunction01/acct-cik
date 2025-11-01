@@ -231,14 +231,6 @@ risk_management_verbs = [
     "stabilizing",
 ]
 
-# Phrases describing the nature of risk
-risk_nature_phrases = [
-    "exposure to",
-    "the impact of",
-    "risks associated with",
-    "volatility in",
-    "fluctuations in",
-]
 # --- New Placeholder Lists for Result Phrases ---
 
 risk_exposure_terms = [

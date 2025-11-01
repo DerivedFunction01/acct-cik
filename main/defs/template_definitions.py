@@ -324,21 +324,24 @@ POLICY_CONTEXT_TEMPLATES = {
         "{company} actively monitors and manages its exposure to {ir_term} {risk_term}.",
     ],
     "FX": [
-        "{company}'s international operations expose it to risks arising from {risk_term} in foreign currency exchange rates.",
-        "Due to its global footprint, {company} is exposed to currency translation and transaction risks, particularly with the {currencies}.",
+        "{company}'s international operations expose it to {risk_term}s arising from {risk_term} in foreign currency exchange rates.",
+        "Due to its global footprint, {company} is exposed to currency translation and transaction {risk_term}, particularly with the {currencies}.",
         "Our cross-border operations in {locations} result in exposure to changes in exchange rates between functional and reporting currencies such as {currencies}.",
         "Operating in multiple currencies such as {currencies}, {company} is exposed to {risk_term} in exchange rates that can affect its financial results.",
         "With significant operations in {locations}, {company} is subject to {risk_term} from {currencies} exchange rates.",
         "Our revenues, expenses, and cash flows are subject to {risk_term} due to foreign currency exchange rate changes in {currencies}",
+        "{company} operates subsidiaries in {locations}, creating exposure to foreign currency movements when their financial results are translated.",
+        "Our net investment in {locations} subsidiaries expose us to {currencies}'s exchange rate {risk_term}.",
+        "We are exposed to foreign currency {risk_term} on intercompany loans and transactions between our subsidiaries in {locations}.",
         "Foreign currency {risk_term} impact {company}'s consolidated financial position and cash flows.",
     ],
     "CP": [
-        "{company} is exposed to market risks from changes in {commodity} prices that affect its {cost_type} and revenues.",
+        "{company} is exposed to market {risk_term} from changes in {commodity} prices that affect its {cost_type} and revenues.",
         "Fluctuations in {commodity} prices can impact {company}'s profitability and cost structure.",
         "As part of its operations, {company} is exposed to {risk_term} in {commodity} prices.",
         "The profitability of {company}'s operations depends in part on the stability of {commodity} prices.",
         "{company}'s cost of goods sold is affected by {risk_term} in {commodity} market prices.",
-        "Our operations are subject to risks associated with changes in the prices of key commodities such as {commodity}.",
+        "Our operations are subject to {risk_term} associated with changes in the prices of key commodities such as {commodity}.",
     ],
     "EQ": [
         "{company} is exposed to market risks related to {risk_term} in the price of its common stock.",
@@ -352,7 +355,7 @@ POLICY_CONTEXT_TEMPLATES = {
         "Our global activities expose us to market risks that arise from changes in economic and financial conditions worldwide.",
         "Market risk represents the potential for losses arising from {risk_term} in market variables affecting {company}'s earnings or cash flows.",
     ],
-    "FX_IR": [ # Combined context
+    "FX_IR": [  # Combined context
         "{company}'s global operations expose it to various market risks, including {risk_term} in foreign currency exchange rates and interest rates.",
         "Our business operations in multiple countries result in exposure to foreign currency exchange rate {risk_term} and {ir_term} {risk_term}.",
         "As a global entity, {company} faces exposure to exchange rate {risk_term} and {ir_term} risks in its operations.",
