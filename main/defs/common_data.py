@@ -386,7 +386,7 @@ DEPENDENT_TYPES = [
     "option",
     "future",
     "hedge",
-    "hedging"
+    "hedging",
     "option",
     "call",
     "put",
@@ -398,6 +398,7 @@ BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
 NO_ALIAS_TYPES = [
     "derivative",
     "hedge",
+    "hedging",
 ]
 
 # Types that should not have an alias
