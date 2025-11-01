@@ -436,7 +436,7 @@ POLICY_CONTEXT_TEMPLATES = {
         "As a publicly traded entity, {company} is exposed to {risk_term} associated with market price {risk_term2} of its shares.",
     ],
     "GEN": [
-        "{company} is exposed to various market {risk_term}, including {risk_term2} in interest rates, foreign exchange rates, and commodity prices.",
+        "{company} is exposed to various market {risk_term} arising from the normal course of operations.",
         "As part of its overall risk management strategy, {company} monitors and manages exposure to {risk_term} in market conditions.",
         "Our global activities expose us to market {risk_term} that arise from {risk_term2} in economic and financial conditions worldwide.",
         "Market {risk_term} represents the potential for losses arising from {risk_term2} in market variables affecting {company}'s earnings or cash flows.",
