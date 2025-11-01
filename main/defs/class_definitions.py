@@ -5,6 +5,11 @@ import random
 # Imports moved here for the NotionalSentence.build() method
 from defs.common_data import  *
 from defs.template_definitions import *
+
+def _get_company_reference(company_name: str, chance: float = 0.6) -> str:
+    """Randomly returns either the full company name or a generic placeholder."""
+    return company_name if random.random() < chance else "The Company"
+
 from defs.template_definitions import (
     _cleanup_sentence,
     _format_single_notional,
@@ -366,7 +371,7 @@ class PolicySentence:
         risk_terms = random.sample(risk_exposure_terms, k=2)
         sentence = template.format(
             # TODO: These random.choice() calls are selecting from dummy data lists. This logic will be replaced by the generative model.
-            company=self.company_name,
+            company=_get_company_reference(self.company_name),
             ir_term=random.choice(interest_rate_terms),
             debt_type=details.debt_type or "debt",
             risk_term=risk_terms[0],
@@ -465,7 +470,7 @@ class MitigationSentence:
             sentence_structures = [f"{{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}, {populated_phrase}."]
         else:
             # Or: "{mitigation_phrase}, {company} {verb} {swap_type}."
-            sentence_structures = [
+            sentence_structures = [ # type: ignore
                 f"{{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}, {populated_phrase}.",
                 f"{populated_phrase.capitalize()}, {{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}."
             ]
@@ -473,7 +478,7 @@ class MitigationSentence:
         sentence = sentence_template.format(company=self.company_name, adverb=adverb, verb=verb, swap_type=self.swap_type)
 
         # Create evidence object
-        evidence = MitigationEvidence(
+        evidence = MitigationEvidence( # type: ignore
             category=self.category,
             status="mitigation_purpose",
             usage_status=final_usage_status,
@@ -887,7 +892,7 @@ class NotionalSentence:
         month = self.month or random.choice(months)
         end_day = self.end_day or random.randint(28, 31)
         quarter = self.quarter or random.choice(quarters)
-        company_name = self.company_name or "The Company"
+        company_name = _get_company_reference(self.company_name or "The Company")
 
         # Determine number of years for comparison
         num_years = 1
