@@ -69,13 +69,13 @@ def _generate_instrument_name(
     category: str,
     hedged_item: Optional["HedgedItem"] = None,
     available_base_types: Optional[List[str]] = None,
-) -> Tuple[str, str, str]:
+) -> Tuple[str, str, str, str, str, str]:
     """
     Dynamically generates a derivative instrument name based on category and context.
     This replaces the pre-expanded `derivative_keywords` logic.
 
     Returns:
-        A tuple of (prefix, full_name, alias).
+        A tuple of (prefix, placeholder, base_type, suffix, full_name, alias).
     """
     components= DERIVATIVE_COMPONENTS
     placeholders = components["placeholders"].get(category, [""])
@@ -103,11 +103,12 @@ def _generate_instrument_name(
 
     # --- Assemble the name ---
     use_special = special_suffixes and random.random() < special_ratio
+    suffix = ""
     if use_special:
         chosen = random.choice(special_suffixes)
         full_name = " ".join(filter(None, [placeholder, chosen])).strip()
         alias = " ".join(chosen.split()[-2:]) if len(chosen.split()) > 1 else chosen
-        base_type = chosen  # treat as base for alias/prefix logic
+        base_type = chosen # treat as base for alias/prefix logic
     else:
         suffix = random.choice(suffixes)
         full_name = " ".join(filter(None, [placeholder, base_type, suffix])).strip()
@@ -134,7 +135,7 @@ def _generate_instrument_name(
         prefix = random.choice(components["global_prefixes"]
     )
 
-    return prefix, full_name, alias
+    return prefix, placeholder, base_type, suffix, full_name, alias
 
 def _create_instrument_with_history(
     scenario: GenerationScenario,
@@ -571,7 +572,7 @@ def create_random_scenario() -> GenerationScenario:
         else:
             # Standard IR hedge
             instrument_category = "IR"
-            prefix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item, available_base_types=other_available_base_types)
+            prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item, available_base_types=other_available_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -584,6 +585,9 @@ def create_random_scenario() -> GenerationScenario:
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_debt,
             "instrument_prefix": prefix,
+            "placeholder": placeholder,
+            "base_type": base_type,
+            "suffix": suffix,
         }
 
         # Create the single instrument object with its full history
@@ -623,7 +627,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = _generate_instrument_name("FX", available_base_types=other_available_base_types)
+        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("FX", available_base_types=other_available_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -636,6 +640,9 @@ def create_random_scenario() -> GenerationScenario:
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_fx,
             "instrument_prefix": prefix,
+            "placeholder": placeholder,
+            "base_type": base_type,
+            "suffix": suffix,
         }
 
         new_instrument = _create_instrument_with_history(
@@ -673,7 +680,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = _generate_instrument_name("CP", available_base_types=other_available_base_types)
+        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("CP", available_base_types=other_available_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -686,6 +693,9 @@ def create_random_scenario() -> GenerationScenario:
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_commodity,
             "instrument_prefix": prefix,
+            "placeholder": placeholder,
+            "base_type": base_type,
+            "suffix": suffix,
         }
 
         new_instrument = _create_instrument_with_history(
@@ -723,7 +733,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, name, alias = _generate_instrument_name("EQ", available_base_types=other_available_base_types)
+        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("EQ", available_base_types=other_available_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -736,6 +746,9 @@ def create_random_scenario() -> GenerationScenario:
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": hedged_equity,
             "instrument_prefix": prefix,
+            "placeholder": placeholder,
+            "base_type": base_type,
+            "suffix": suffix,
         }
 
         new_instrument = _create_instrument_with_history(
@@ -757,7 +770,7 @@ def create_random_scenario() -> GenerationScenario:
             else random.randint(reporting_year + 1, reporting_year + 5)
         )
 
-        prefix, name, alias = _generate_instrument_name("GEN", available_base_types=gen_reserved_base_types)
+        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("GEN", available_base_types=gen_reserved_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -770,6 +783,9 @@ def create_random_scenario() -> GenerationScenario:
             "hedge_designation": random.choice(hedge_designations),
             "hedged_item": None,  # Generic instruments often don't have a specific hedged item
             "instrument_prefix": prefix,
+            "placeholder": placeholder,
+            "base_type": base_type,
+            "suffix": suffix,
         }
 
         new_instrument = _create_instrument_with_history(
@@ -783,6 +799,56 @@ def create_random_scenario() -> GenerationScenario:
 
     return scenario
 
+def _get_smart_instrument_description(instruments: List[NotionalInstrument], category: str) -> str:
+    """
+    Generates a smart, concatenated description of the instruments used.
+    """
+    if not instruments:
+        return "derivatives"
+
+    count = len(instruments)
+    unique_types = sorted(list({i.instrument_type for i in instruments}))
+
+    if count == 1:
+        return instruments[0].instrument_type
+
+    if count == 2:
+        return f"{unique_types[0]} and {unique_types[1]}"
+
+    # Check for similarity based on placeholder
+    placeholders = {i.placeholder for i in instruments}
+    if len(placeholders) == 1:
+        placeholder = list(placeholders)[0]
+        # Concatenate base_type + suffix
+        combined_names = []
+        for inst in instruments:
+            # Combine base_type and suffix, but handle cases where one is empty
+            # e.g., "put option" might have base_type "put option" and empty suffix
+            if inst.base_type and inst.suffix and inst.base_type in inst.suffix:
+                 combined_names.append(inst.suffix)
+            else:
+                combined_names.append(f"{inst.base_type} {inst.suffix}".strip())
+
+        unique_combined = sorted(list(set(combined_names)))
+        if len(unique_combined) <= 3:
+            # "interest-rate swaps, contracts, and agreements"
+            return f"{placeholder} {', '.join(unique_combined[:-1])} and {unique_combined[-1]}"
+
+    # Fallback for 4+ instruments or dissimilar instruments
+    if count >= 4:
+        # Check for a dominant placeholder
+        placeholder_counts = Counter(i.placeholder for i in instruments)
+        most_common_placeholder, num_most_common = placeholder_counts.most_common(1)[0]
+
+        if num_most_common >= 2:
+            # "interest-rate swaps and other interest rate instruments"
+            dominant_instrument_example = next(i.instrument_type for i in instruments if i.placeholder == most_common_placeholder)
+            return f"{dominant_instrument_example} and other {most_common_placeholder} instruments"
+        else:
+            # "a portfolio of derivative instruments"
+            return f"a {random.choice(portfolio_terms).format(swap_type=f'{category} derivatives')}"
+
+    return "various derivative instruments"
 
 # =============================================================================
 # PHASE 2: NARRATIVE AND JSON GENERATION
@@ -915,11 +981,7 @@ def _generate_category_narrative(
                 )
             )
         )
-        instrument_type = (
-            Counter(current_year_data["instrument_types"]).most_common(1)[0][0] # type: ignore
-            if has_active_instruments and current_year_data
-            else "derivatives"
-        )
+        instrument_type = _get_smart_instrument_description(current_year_data["instruments"], category) if has_active_instruments and current_year_data else "derivatives"
 
         mitigation_sentence_obj = MitigationSentence(
             category=category, # type: ignore

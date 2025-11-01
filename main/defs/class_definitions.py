@@ -509,6 +509,9 @@ class DerivativeInstrument:
     instrument_type: str
     instrument_prefix: Optional[str]
     instrument_alias: str
+    placeholder: str
+    base_type: str
+    suffix: str
     category: DerivativeCategory
     start_month: str
     start_year: int
@@ -523,6 +526,9 @@ class DerivativeInstrument:
             "instrument_type": self.instrument_type,
             "instrument_prefix": self.instrument_prefix,
             "instrument_alias": self.instrument_alias,
+            "placeholder": self.placeholder,
+            "base_type": self.base_type,
+            "suffix": self.suffix,
             "category": self.category,
             "hedge_designation": self.hedge_designation,
         }
