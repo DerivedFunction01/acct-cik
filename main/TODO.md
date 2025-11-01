@@ -25,6 +25,18 @@ This is the most critical phase. Before any model training, the data generation 
         {
           "chain_of_thought": "A step-by-step reasoning process. The model must explain *how* it reached its conclusions by citing specific parts of the text. E.g., 'The text mentions 'interest rate swaps' to manage 'variable-rate debt'. The notional amount is $100 million for year 2023. This indicates an active Interest Rate (IR) hedge.'",
           "analysis_summary": "A brief, one-sentence summary of the derivative activity in the provided text.",
+          "exposure": {
+            "IR": true,
+            "FX": true,
+            "CP": false,
+            "EQ": false
+          },
+          "mitigation": {
+            "IR": true,
+            "FX": false,
+            "CP": false,
+            "EQ": false
+          },
           "derivatives": [
             {
               "type": "Interest Rate Swap",
@@ -58,6 +70,22 @@ This is the most critical phase. Before any model training, the data generation 
             {
               "chain_of_thought": "The text details two separate interest rate swaps: one existing from 2021 ($150M) and a new one from Q3 2023 ($100M), confirming 'current' IR use. For FX, it explicitly states that €25.0M in forwards 'matured and were settled', indicating termination. However, it then describes new, 'outstanding' foreign currency collars in GBP, confirming 'current' FX use. Finally, it identifies a convertible note from 2022 with an 'embedded derivative liability', confirming a 'current' embedded derivative.",
               "analysis_summary": "The company holds multiple active interest rate swaps, has recently entered into new foreign currency collars after settling previous forwards, and carries an embedded derivative liability from convertible notes.",
+              "exposure": {
+                "IR": true,
+                "FX": true,
+                "CP": false,
+                "EQ": false,
+                "EMB": true,
+                "GEN": false
+              },
+              "mitigation": {
+                "IR": true,
+                "FX": true,
+                "CP": false,
+                "EQ": false,
+                "EMB": true,
+                "GEN": false
+              },
               "derivatives": [{"type":"Interest Rate Swap","category":"IR","status":"current","notional_amount":150000000,"currency":"USD"},{"type":"Interest Rate Swap","category":"IR","status":"current","notional_amount":100000000,"currency":"USD"},{"type":"Foreign Currency Forward","category":"FX","status":"terminated","notional_amount":25000000,"currency":"EUR"},{"type":"Foreign Currency Collar","category":"FX","status":"current","notional_amount":40000000,"currency":"GBP"},{"type":"Embedded Derivative","category":"EMB","status":"current","notional_amount":12500000,"currency":"USD"}]
             }
             ```

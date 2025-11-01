@@ -12,6 +12,7 @@ from defs.template_definitions import *
 from defs.class_definitions import (
     BaseNarrativeEvidence,
     HedgedItem,
+    MitigationEvidence,
     NotionalEvidence,
     ResultPhraseDetails,
     PolicySentence,
@@ -1393,6 +1394,35 @@ def generate_json_from_scenario(
     The `evidence` from the narrative is used to generate the summary and chain_of_thought.
     """
     analysis_summary = _generate_analysis_summary(scenario, evidence)
+
+    # --- NEW: Generate exposure and mitigation maps ---
+    # Exposure is based on the archetype's potential risks.
+    archetype_exposures = scenario.archetype.get_exposure_counts()
+    exposure_map = {
+        "IR": archetype_exposures["debt"] > 0,
+        "FX": archetype_exposures["fx"] > 0,
+        "CP": archetype_exposures["commodity"] > 0,
+        "EQ": archetype_exposures["equity"] > 0,
+        "GEN": archetype_exposures["generic"] > 0,
+    }
+
+    # --- NEW: Mitigation status is now "current", "historical", or "never" ---
+    # It's driven by the usage_status in the MitigationEvidence objects.
+    mitigation_map = {cat: "never" for cat in DERIVATIVE_CATEGORIES}
+    for ev in evidence:
+        if isinstance(ev, MitigationEvidence):
+            status = ev.usage_status
+            category = ev.category
+            if category in mitigation_map:
+                # Map the detailed usage_status to the simpler "current", "historical", "never"
+                if status == "current":
+                    mitigation_map[category] = "current"
+                elif status == "historical":
+                    mitigation_map[category] = "historical"
+                elif status == "speculative":
+                    mitigation_map[category] = "unknown"
+                # "non_use" maps to "never" as it's an explicit statement of non-activity.
+
     chain_of_thought = " ".join([e.to_string() for e in evidence])
 
     # --- Append a final reasoning statement for any GENERIC derivatives ---
@@ -1488,6 +1518,8 @@ def generate_json_from_scenario(
     return {
         "chain_of_thought": chain_of_thought,
         "analysis_summary": analysis_summary,
+        "exposure": exposure_map,
+        "mitigation": mitigation_map,
         "derivatives": derivatives_list,
     }
 
