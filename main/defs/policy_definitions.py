@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import random
 from typing import List, Literal, Optional, Set, Tuple
 
-from defs.function_definitions import _get_company_reference,
+from defs.function_definitions import _get_company_reference
 
 from defs.common_data import *
 from defs.template_definitions import *
