@@ -1041,17 +1041,16 @@ class NotionalSentence:
                 rate_term2=random.choice(specific_rate_terms),
             ).capitalize() + ", "
 
-        if self.notional is None:
-            self.notional = 0
-
         # 1. Format amount string
-        formatted_notional = _format_single_notional(
-            self.notional,
-            self.currency_symbol,
-            self.money_units,
-            self.prefer_abbreviated,
-        )
-        amount_str = formatted_notional
+        amount_str = ""
+        if self.notional is not None:
+            formatted_notional = _format_single_notional(
+                self.notional,
+                self.currency_symbol,
+                self.money_units,
+                self.prefer_abbreviated,
+            )
+            amount_str = formatted_notional
 
         # 2. Select time prefix template
         time_prefix = ""
