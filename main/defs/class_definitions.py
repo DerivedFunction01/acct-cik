@@ -467,7 +467,7 @@ class MitigationSentence:
 
         # Add time context suffix
         time_suffix = ""
-        if self.year and self.month and self.end_day:
+        if self.year and self.month and self.end_day and random.random() < 0.5:
             time_suffix = f"as of {self.month} {self.end_day}, {self.year}"
 
         # Combine into a final sentence
