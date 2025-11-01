@@ -65,7 +65,7 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
 # --- Dynamic Instrument Type Generation ---
 def _generate_instrument_name(
     category: str,
-    hedged_item: Optional[HedgedItem] = None,
+    hedged_item: Optional["HedgedItem"] = None,
     used_base_types: Optional[Set[str]] = None,
 ) -> Tuple[str, str, str]:
     """
@@ -77,17 +77,23 @@ def _generate_instrument_name(
     """
     components = DERIVATIVE_COMPONENTS
     placeholders = components["placeholders"].get(category, [""])
-    base_types = components["base_types"]
-    special_types = components["special_types"]
+    base_types = components["base_types"]  # e.g., swap, cap
+    suffixes = components["suffixes"]  # e.g., contract, agreement
+    special_suffixes = components["special_suffixes"]  # e.g., put option
+    special_ratio = 0.10  # configurable
 
     # --- Context-Aware Placeholder Selection (for IR) ---
     placeholder = ""
-    if category == "IR" and isinstance(hedged_item, DebtHedgedItem) and hedged_item.benchmark_rate: 
+    if (
+        category == "IR"
+        and isinstance(hedged_item, DebtHedgedItem)
+        and hedged_item.benchmark_rate
+    ):
         # 75% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
         if random.random() < 0.75:
             placeholder = hedged_item.benchmark_rate
         else:
-            placeholder = f"interest{random.choice([" ", "-"])}rate" # Default or fallback
+            placeholder = f"interest{random.choice([' ', '-'])}rate"
     else:
         placeholder = random.choice(placeholders)
 
@@ -98,59 +104,36 @@ def _generate_instrument_name(
         available_base_types = [bt for bt in base_types if bt not in used_base_types]
         if available_base_types:
             base_type = random.choice(available_base_types)
-        else: # Fallback if all are used
+        else:  # Fallback if all are used
             base_type = random.choice(base_types)
     else:
-        # For FX, occasionally create a cross-currency interest rate swap.
-        if category == "FX" and random.random() < 0.15:
-            placeholder = "cross-currency interest rate"
-            base_type = random.choice([s for s in base_types if "swap" in s or "agreement" in s or "contract" in s])
-        else:
-            base_type = random.choice(base_types)
+        base_type = random.choice(base_types)
 
     # --- Assemble the name ---
-    full_name = " ".join(filter(None, [placeholder, base_type])).strip()
-    alias = " ".join(base_type.split()[-2:]) if len(base_type.split()) > 1 else base_type
+    use_special = special_suffixes and random.random() < special_ratio
+    if use_special:
+        chosen = random.choice(special_suffixes)
+        full_name = " ".join(filter(None, [placeholder, chosen])).strip()
+        alias = " ".join(chosen.split()[-2:]) if len(chosen.split()) > 1 else chosen
+        base_type = chosen  # treat as base for alias/prefix logic
+    else:
+        suffix = random.choice(suffixes)
+        full_name = " ".join(filter(None, [placeholder, base_type, suffix])).strip()
+        alias = (
+            " ".join(base_type.split()[-2:])
+            if len(base_type.split()) > 1
+            else base_type
+        )
+
+    # --- Optional Prefix (for swaps, swaptions, rate locks) ---
     prefix = ""
-    if any(x in base_type for x in ["swap", "swaption", "rate lock"]) and random.random() < PAY_PREFIX_RATIO:
+    if (
+        any(x in base_type for x in ["swap", "swaption", "lock"])
+        and random.random() < PAY_PREFIX_RATIO
+    ):
         prefix = random.choice(components["swap_prefixes"])
 
     return prefix, full_name, alias
-
-
-def pick_company_name(company_name: str) -> str:
-    return random.choices([company_name, "The Company"], weights=[0.75, 0.25], k=1)[0]
-
-
-def generate_value(haveZero=True, lowerlimit=1, upperlimit=1000, dashed=False):
-    """Generate a random previous notional value with chance of being zero,
-    and optional rounding for variability. Returns int if whole, else float."""
-    if haveZero:
-        chance = 0.15
-    else:
-        chance = 0
-
-    upperlimit = int(upperlimit)
-    value = (
-        0.0
-        if random.random() < chance
-        else (1 if upperlimit <= 1 else random.randint(lowerlimit, upperlimit))
-    )
-
-    if value == 0.0 and dashed and random.random() < 0.05:
-        return "--"
-
-    if random.random() < 0.5:
-        divisor = random.choice([10, 100])
-        decimals = random.randint(1, 2)
-        value = round(value / divisor, decimals)
-
-    # Cast to int if it's a whole number with 50% chance
-    if isinstance(value, float) and value.is_integer() and random.random() < 0.5:
-        value = int(value)
-
-    return value
-
 
 def _create_instrument_with_history(
     scenario: GenerationScenario,

@@ -359,6 +359,8 @@ DEPENDENT_TYPES = [
     "future",
     "hedge",
     "option",
+    "call",
+    "put",
 ]
 
 BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
@@ -378,9 +380,6 @@ SPECIAL_SUFFIX = {
     "option": [
         "call option",
         "put option",
-        "call contract",
-        "put contract",
-        "option contract",
     ],
 }
 
