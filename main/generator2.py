@@ -11,11 +11,8 @@ from defs.commodity_data import get_random_commodity_and_unit, get_cost_types_fo
 from defs.debt_data import *
 from defs.template_definitions import *
 from defs.class_definitions import (
-    AccountingPolicySentence,
     BaseNarrativeEvidence,
     HedgedItem,
-    MitigationEvidence, PolicyEvidence, # type: ignore
-    PolicySentence,
     NotionalInstrument,
     DebtHedgedItem,
     CounterpartyRiskSentence,
@@ -37,6 +34,13 @@ from defs.class_definitions import (
     DERIVATIVE_CATEGORIES,
 ) # type: ignore
 from defs.notional_definitions import *
+from defs.policy_definitions import (
+    AccountingPolicySentence,
+    PolicyEvidence,
+    PolicySentence,
+)
+from defs.class_definitions import MitigationEvidence
+
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
