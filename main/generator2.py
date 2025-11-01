@@ -1027,13 +1027,18 @@ def _generate_category_narrative(
         has_active_instruments = bool(
             current_year_data and current_year_data["instruments"]
         ) # type: ignore
-        past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0)) # type: ignore
+        past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0))  # type: ignore
+
+        # --- FIX: Only sometimes generate an explicit "no use" statement ---
+        # This reflects that firms don't always state their non-use.
+        is_explicit_non_use = current_prop < 0 and random.random() < 0.6  # 60% chance to state non-use
+
         usage = (
             "current"
             if has_active_instruments
             else (
-                "non_use"
-                if current_prop < 0
+                "non_use"  # This will only be chosen if the conditions above are met
+                if is_explicit_non_use
                 else (
                     "historical"
                     if past_prop > 0 and current_prop == 0
