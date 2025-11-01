@@ -158,13 +158,12 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # The instrument_type here is the name used in the sentence (could be full name or alias)
         instrument_name_in_sentence = self.instrument_type or "the instrument"
 
-        # Check if the name used is likely an alias (shorter than the base description)
-        # A simple heuristic is to check if the base description contains the used name, but not vice-versa.
-        if base_desc and instrument_name_in_sentence and base_desc != instrument_name_in_sentence and instrument_name_in_sentence in base_desc:
-            reason = (f"Wait, the term '{instrument_name_in_sentence}' appears to be an alias for the previously mentioned {base_desc}. "
-                       f"Given the similar context, I'll treat this as another reference to the same instrument.")
+        # A simple heuristic is to check if the base description contains the used name, but not vice-versa, suggesting an alias.
+        if base_desc and instrument_name_in_sentence and base_desc != instrument_name_in_sentence and instrument_name_in_sentence in base_desc and len(instrument_name_in_sentence.split()) < len(base_desc.split()):
+            reason = (f"Wait, the term '{instrument_name_in_sentence}' appears to be an alias for the previously mentioned '{base_desc}'. "
+                      f"Given the similar context, I'll treat this as another reference to the same instrument.")
         else:
-            reason = f"Wait, another mention of the same {base_desc} has appeared."
+            reason = f"Wait, another mention of the same '{base_desc}' has appeared."
 
         return reason + " "
 
@@ -174,19 +173,16 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
     def to_string(self) -> str:
         """Generates a reasoning statement with built-in time validation and generic-category handling."""
-        # Category handling with generic classification note
+        # --- NEW: Relocated category handling and classification note logic ---
+        category_name = self._category_label()
+        category_context = f"{category_name} derivative activity"
+        classification_note = ""
         if self.category in (None, "GEN"):
-            category_name = ""
-            category_context = "general derivative activity"
             classification_note = (
                 " Based on the surrounding context, the disclosure does not specify a clear derivative category "
                 "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference "
                 "and I'll come back to it later."
             )
-        else:
-            category_name = self._category_label()
-            category_context = f"{category_name} derivative activity"
-            classification_note = ""
 
         value_desc = (
             "fair value" if self.value_type == "fair_value" else "notional value"
@@ -194,8 +190,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         values_desc = (
             "fair values" if self.value_type == "fair_value" else "notional values"
         )
-
-        # If both temporal anchors are missing, we still can report basic individual mentions.
+        
         if self.year is None or self.reporting_year is None:
             # Allow certain statuses to function without full temporal anchors.
             temporal_info = self._temporal_reasoning(value_desc)  # will be empty string
@@ -204,8 +199,10 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
         warning = self._validate_temporal_consistency()
 
+        # --- NEW: Construct a more descriptive base_desc, including the suffix if available ---
+        # The instrument_type could be the full name or an alias.
         base_desc = (
-            f"'{self.instrument_type}' {category_name} derivative"
+            f"{self.instrument_type}"
             if self.instrument_type
             else f"{category_context}"
         )
@@ -220,7 +217,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 return (f"The report provides an aggregate summary for {category_context}, comparing {values_desc} of {self.notional_str} for {self.year} "
                         f"against {self.prev_notional_str} for {self.prev_year}, indicating continuity{temporal_info}")
             elif self.notional_str or self.notional is not None:
-                return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
+                return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc} activity{temporal_info}"
             return f"The report provides a summary for {category_context}, confirming activity but no {value_desc} was specified for {self.year}."
 
         def new_individual_handler() -> str:
@@ -230,14 +227,14 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str
                 else ""
             )
-            return f"{prefix}{value_part}{temporal_info}"
+            return f"{prefix}{value_part}{classification_note}{temporal_info}"
 
         def individual_handler() -> str:
             prefix = f"The report mentions an individual {base_desc}"
             value_part = (
                 f" with a {value_desc} of {self.notional_str}" if self.notional_str else ""
             )
-            return f"{prefix}{value_part}{temporal_info}"
+            return f"{prefix}{value_part}{classification_note}{temporal_info}"
 
         def terminated_individual_handler() -> str:
             prefix = f"The report describes a terminated {base_desc}"
@@ -290,11 +287,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
         repetition_reasoning = self._get_repetition_reasoning(base_desc)
         text = repetition_reasoning + text
 
-        # Append warning and classification note if present
+        # Append warning if present
         if warning:
             text = f"{text} {warning}"
-        if classification_note:
-            text = f"{text}{classification_note}"
 
         return " ".join(text.split()) # Clean up any extra spaces
 
