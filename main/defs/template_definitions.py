@@ -670,6 +670,14 @@ hedge_accounting_policy_templates = [
 ]
 
 # --- Shared placeholders for policy templates ---
+hedge_methods = [
+    "regression analysis",
+    "the dollar-offset method",
+    "quantitative analysis",
+    "statistical methods",
+    "prospective and retrospective testing",
+]
+
 hedge_standards = ["ASC 815", "applicable accounting guidance", "U.S. GAAP", "accounting standards", "ASU 2017-12", "Topic 815"]
 
 # For simplicity in the AccountingPolicySentence class, we can combine the split templates.
