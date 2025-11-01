@@ -502,3 +502,15 @@ DERIVATIVE_COMPONENTS = {
     "global_prefixes": GLOBAL_PREFIXES,
     "no_alias_types": NO_ALIAS_TYPES,
 }
+
+# --- NEW: Components for dynamically generating generic descriptions ---
+
+# e.g., "various", "certain"
+GENERIC_QUANTIFIERS = [
+    "various", "certain", "a number of", "a series of", "multiple", "several"
+]
+
+# e.g., "derivative", "financial"
+GENERIC_DESCRIPTORS = [
+    "financial"
+] + NO_ALIAS_TYPES

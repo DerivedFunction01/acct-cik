@@ -910,9 +910,21 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
                 "GEN": "various" # Fallback for generic
             }
             descriptive_category = category_map.get(category, "various")
-            return f"a portfolio of {descriptive_category} derivative instruments"
+            # --- FIX: Use a random suffix for more variety ---
+            # e.g., "a portfolio of interest rate contracts" instead of always "derivative instruments"
+            suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+            # Ensure the suffix is pluralized correctly
+            plural_suffix = f"{suffix}s" if suffix and not suffix.endswith('s') else suffix
+            return f"a portfolio of {descriptive_category} {plural_suffix}"
 
-    return "TODO"
+    # --- FIX: Dynamically generate the generic description ---
+    # This replaces the hardcoded GENERIC_DERIVATIVE_DESCRIPTIONS list.
+    quantifier = random.choice(GENERIC_QUANTIFIERS)
+    descriptor = random.choice(GENERIC_DESCRIPTORS)
+    suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+    plural_suffix = f"{suffix}s" if not suffix.endswith('s') else suffix
+
+    return " ".join(filter(None, [quantifier, descriptor, plural_suffix]))
 
 # =============================================================================
 # PHASE 2: NARRATIVE AND JSON GENERATION
