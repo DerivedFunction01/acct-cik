@@ -974,7 +974,17 @@ class NotionalSentence:
                     or f"{category_risk_phrase} derivative") + "s"
                 ),
             )
-            evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year, currency=self.currency_code, reporting_year=self.reporting_year)  # type: ignore
+            evidence = NotionalEvidence(
+                status="no_instruments",
+                category=self.category,  # type: ignore
+                notional=0,
+                instrument_type="none",
+                year=self.year,
+                prev_year=self.prev_year,
+                prev2_year=self.prev2_year,
+                currency=self.currency_code,
+                reporting_year=self.reporting_year,
+            )
             return sentence, evidence
 
         # 8. Populate placeholders
@@ -1009,6 +1019,8 @@ class NotionalSentence:
             aggregate=self.sentence_type in ["summary", "comparative"],
             notional=final_notional,  # Use the conditional notional value
             year=self.year,
+            prev_year=self.prev_year,
+            prev2_year=self.prev2_year,
             instrument_type=self.swap_type,
             notional_str=final_formatted_notional,
             prev_notional_str=final_formatted_prev_notional,
