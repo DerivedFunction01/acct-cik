@@ -215,10 +215,12 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "In {year}, the position's {amount_prefix} was {amount_str}."
     ],
     "partial_settlement": [
-        "In {year}, a portion of the {swap_type} was {verb}, reducing its {amount_prefix} to {amount_str}.",
-        "A partial termination occurred in {year}, bringing the remaining {amount_prefix} to {amount_str}.",
-        "By {year}, after a partial settlement, the outstanding {amount_prefix} was {amount_str}.",
-        "{company} partially {verb} its {swap_type} position in {year}, with the remaining {amount_prefix} at {amount_str}."
+        "In {year}, a portion of the {swap_type} was {verb}, reducing its {amount_prefix} to {amount_str} {result_clause}.",
+        "A partial {termination_noun} occurred in {year}, bringing the remaining {amount_prefix} to {amount_str} {result_clause}.",
+        "By {year}, after a partial {termination_noun}, the {state_descriptor} {amount_prefix} was {amount_str} {result_clause}.",
+        "{company} partially {verb} its {swap_type} position in {year}, with the remaining {amount_prefix} at {amount_str} {result_clause}.",
+        "Following a partial {termination_noun} in {year}, the {swap_type} had an {state_descriptor} {amount_prefix} of {amount_str} {result_clause}.",
+        "The {amount_prefix} of the {swap_type} was {comparison_phrase} {amount_str} in {year} due to a partial {termination_noun} {result_clause}."
     ],
     "comparative_no_outstanding": [
         "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year {result_clause}.",
