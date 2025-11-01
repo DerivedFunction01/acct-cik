@@ -918,10 +918,17 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
             plural_suffix = f"{suffix}s" if suffix and not suffix.endswith('s') else suffix
             return f"{quantifier} {descriptive_category} {plural_suffix}"
 
-    # --- FIX: Dynamically generate the generic description ---
-    # This replaces the hardcoded GENERIC_DERIVATIVE_DESCRIPTIONS list.
-
-    descriptor = random.choice(GENERIC_DESCRIPTORS)
+    # --- FIX: Dynamically generate the generic description, ensuring category is mentioned ---
+    # This logic handles cases with 2-3 dissimilar instruments or fallbacks.
+    category_map = {
+        "IR": "interest rate",
+        "FX": "foreign exchange",
+        "CP": "commodity",
+        "EQ": "equity",
+        "GEN": "various"
+    }
+    # Always prefer the specific category name over a generic descriptor if available.
+    descriptor = category_map.get(category, random.choice(GENERIC_DESCRIPTORS))
     suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
     plural_suffix = f"{suffix}s" if not suffix.endswith('s') else suffix
 
