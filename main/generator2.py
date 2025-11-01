@@ -802,26 +802,22 @@ def _generate_narrative_policy(
     evidence = [] # This function will now also produce evidence
 
     if scenario.policy:
-        # --- Generate a high-level risk exposure sentence ---
-        # Determine the primary risk category by finding the most common one.
-        instrument_categories_in_year = []
-        for inst in scenario.instruments:
-            if inst.year == scenario.reporting_year:
-                instrument_categories_in_year.append(inst.category)
-
-        counts = Counter(instrument_categories_in_year)
-        # If there are no instruments, the primary category is GEN, otherwise it's the most common.
-        primary_category = counts.most_common(1)[0][0] if counts else "GEN"
-
+        # --- NEW: Always generate a high-level, generic risk exposure sentence first ---
+        # This acts as a standard introductory statement, similar to Item 7A.
         policy_sentence_obj = PolicySentence(
-            category=primary_category, # type: ignore
+            category="GEN", # Always start with a generic context
             company_name=scenario.company_name,
         )
         policy_sentence, policy_evidence = policy_sentence_obj.build()
         sentences.append(policy_sentence)
 
-        # Only add the evidence if there are actual instruments. A general policy
-        # statement for a non-user is just context, not evidence of a "GEN" derivative.
+        # Determine if there are any active instruments in the reporting year.
+        instrument_categories_in_year = [
+            inst.category for inst in scenario.instruments if inst.year == scenario.reporting_year
+        ]
+
+        # Only add evidence if there are actual instruments. A general policy
+        # statement for a non-user is just context, not evidence of a derivative.
         if instrument_categories_in_year:
             evidence.append(policy_evidence)
 
