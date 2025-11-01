@@ -1027,8 +1027,13 @@ class NotionalSentence:
                     else details.currencies[0]
                 )
 
-            # Get random commodity details if needed, as a fallback
-            commodity_name, _, _ = get_random_commodity_and_unit()
+            # --- FIX: Handle multiple commodities ---
+            commodities_str = "various commodities"
+            if details.commodity:
+                if len(details.commodity) > 1:
+                    commodities_str = ", ".join(details.commodity[:-1]) + f" and {details.commodity[-1]}"
+                else:
+                    commodities_str = details.commodity[0]
 
             begin_mitigation = mitigation_phrase_template.format(
                 risk_action_verb=random.choice([v for v in risk_management_verbs if not v.endswith('ing')]),
@@ -1038,7 +1043,7 @@ class NotionalSentence:
                 risk_term2=random.choice(risk_exposure_terms),
                 currencies=currencies_str or "various currencies",
                 geography=details.geography or random.choice([c.location for c in all_currencies]), # type: ignore
-                commodity=details.commodity or commodity_name,
+                commodity=commodities_str,
                 rate_term1=random.choice(specific_rate_terms),
                 rate_term2=random.choice(specific_rate_terms),
             ).capitalize() + ", "
