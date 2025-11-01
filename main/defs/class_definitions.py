@@ -1029,7 +1029,7 @@ class NotionalSentence:
                 commodity=details.commodity or commodity_name,
                 rate_term1=random.choice(specific_rate_terms),
                 rate_term2=random.choice(specific_rate_terms),
-            ).capitalize()
+            ).capitalize() + ", "
 
         if self.notional is None:
             self.notional = 0
