@@ -181,7 +181,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         # Using portfolio terms (ex. portfolio consists of swap)
         "{time_prefix}, {company}'s {portfolio_term} {portfolio_verb} {swap_type} has {amount_str} {hedge_designation_clause}{result_clause}.",
         # --- NEW: result_clause at the beginning ---
-        "{result_clause_initial}, {company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause}.",
+        "{begin_mitigation}, {company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause}.",
     ],
     "new_individual": [
         "{time_prefix}, {company} {verb} new {swap_type} {amount_connector} {amount_str} {hedge_designation_clause}{result_clause}.",
@@ -189,7 +189,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{time_prefix}, new {swap_type} {amount_connector} {amount_str} {verb} by {company} {hedge_designation_clause}{result_clause}.",
         "{time_prefix}, a new {swap_type} was entered into with a {amount_prefix} of {amount_str} {hedge_designation_clause}{result_clause}.",
         # --- NEW: result_clause at the beginning ---
-        "{result_clause_initial}, {company} {verb} a new {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause}.",
+        "{begin_mitigation}, {company} {verb} a new {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause}.",
     ],
     "terminated_individual": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause}{result_clause}.",
@@ -202,20 +202,20 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{time_prefix}, {company} were party to {swap_type} totaling {amount_str}, respectively{result_clause}.",
         "The aggregate {amount_prefix} of the {swap_type} were {amount_str} {time_suffix}, respectively{result_clause}.",
         # --- NEW: result_clause at the beginning ---
-        "{result_clause_initial}, {company} held {swap_type} with aggregate {amount_prefix}s of {amount_str}, respectively, {time_suffix}.",
+        "{begin_mitigation}, {company} held {swap_type} with aggregate {amount_prefix}s of {amount_str}, respectively, {time_suffix}.",
     ],
     "individual": [
         "{time_prefix}, {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause}{result_clause}.",
         "A {swap_type} was {state_descriptor} {time_suffix}, with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause}{result_clause}.",
         # --- NEW: result_clause at the beginning ---
-        "{result_clause_initial}, {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
+        "{begin_mitigation}, {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
     ],
     "historical_individual": [
         "A {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}{result_clause}.",
         "{company} {verb} a {swap_type} {historical_phrase}, which had a {state_descriptor} {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}{result_clause}.",
         "{time_prefix}, a {swap_type} initiated in a prior period had a remaining {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause}{result_clause}.",
         # --- NEW: result_clause at the beginning ---
-        "{result_clause_initial}, a {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
+        "{begin_mitigation}, a {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
     ],
     "inception": [
         "In {year}, {company} {verb} a {swap_type} with an initial {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause}{result_clause}.",
@@ -244,7 +244,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{time_prefix}, {company} {verb} {swap_type} with a {amount_prefix} of {amount_str}; no comparable instruments were {state_descriptor} during {prev_year} {hedge_designation_clause}{result_clause}.",
         "The {amount_prefix} of {swap_type} was {amount_str} {time_suffix}; there were no such instruments reported in {prev_year}{result_clause}.",
         # --- NEW: result_clause at the beginning ---
-        "{result_clause_initial}, {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {time_suffix}, whereas no such instruments were held in the prior year.",
+        "{begin_mitigation}, {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {time_suffix}, whereas no such instruments were held in the prior year.",
     ],
 }
 
