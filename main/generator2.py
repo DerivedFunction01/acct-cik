@@ -953,7 +953,6 @@ def _generate_category_narrative(
             category=category, # type: ignore
             company_name=scenario.company_name,
             specific_details=specific_details,
-            locations=location_names,
         )
         context_sentence, _ = policy_sentence_obj.build()
         sentences.append(context_sentence)

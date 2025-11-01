@@ -338,9 +338,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
 class PolicySentence:
     """A data class to hold components for generating a policy or risk context sentence."""
     category: DerivativeCategory
-    company_name: str    
-    currencies: List[str] = field(default_factory=list)
-    locations: List[str] = field(default_factory=list)
+    company_name: str
 
     # Add specific_details for consistency with NotionalSentence
     specific_details: Optional["SpecificDetails"] = None
@@ -354,23 +352,27 @@ class PolicySentence:
         # Populate placeholders
         # TODO: Replace hardcoded fallback strings like "various foreign currencies" with more dynamic generation.
         # Format currencies and locations into human-readable strings
-        currencies_str = "various foreign currencies"
-        if self.currencies:
-            currencies_str = ", ".join(self.currencies[:-1]) + " and " + self.currencies[-1] if len(self.currencies) > 1 else self.currencies[0]
+        currencies_str = "various foreign currencies" # Fallback
+        if details.currencies:
+            currencies_str = ", ".join(details.currencies[:-1]) + " and " + details.currencies[-1] if len(details.currencies) > 1 else details.currencies[0]
 
         # --- NEW: Handle multiple commodities ---
         commodities_str = details.commodity or "various commodities"
         if isinstance(details.commodity, list):
             if len(details.commodity) > 1:
                 commodities_str = (
-                    ", ".join(details.commodity[:-1]) + f" and {details.commodity[-1]}"
+                    ", ".join(details.commodity[:-1]) + f" and {details.commodity[-1]}" # type: ignore
                 )
-            elif details.commodity:
+            elif details.commodity: # type: ignore
                 commodities_str = details.commodity[0]
         # TODO: Replace hardcoded fallback strings like f"international {random.choice(geo_locations)}" with more dynamic generation.
         locations_str = f"international {random.choice(geo_locations)}"
-        if self.locations:
-            locations_str = ", ".join(self.locations[:-1]) + " and " + self.locations[-1] if len(self.locations) > 1 else self.locations[0]
+        if details.locations:
+            locations_str = (
+                ", ".join(details.locations[:-1]) + " and " + details.locations[-1]
+                if len(details.locations) > 1
+                else details.locations[0]
+            )
         risk_terms = random.sample(risk_exposure_terms, k=2)
         sentence = template.format(
             # TODO: These random.choice() calls are selecting from dummy data lists. This logic will be replaced by the generative model.
@@ -931,6 +933,7 @@ class SpecificDetails:
     # FX specific
     geography: Optional[str] = None
     currencies: List[str] = field(default_factory=list)
+    locations: List[str] = field(default_factory=list)
 
     # CP specific
     commodity: Optional[str] = None
