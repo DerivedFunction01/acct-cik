@@ -1322,34 +1322,31 @@ def generate_narrative_from_scenario(
     all_evidence.extend(policy_evidence)
 
     # 2. Category-Specific Sections (IR, FX, CP, etc.)
+    # --- NEW: Get all potential categories from the archetype's exposures to ensure we discuss risk even if not hedged. ---
+    archetype_exposures = scenario.archetype.get_exposure_counts()
+    all_relevant_categories = {
+        "IR": archetype_exposures["debt"] > 0,
+        "FX": archetype_exposures["fx"] > 0,
+        "CP": archetype_exposures["commodity"] > 0,
+        "EQ": archetype_exposures["equity"] > 0,
+        "GEN": archetype_exposures["generic"] > 0,
+    }
+
     # Iterate in a standard order to mimic real filings.
     for category in ["IR", "FX", "CP", "EQ", "GEN"]:
-        if category in aggregated_data:
+        # --- FIX: Generate a narrative section if the category has either instruments OR an underlying exposure. ---
+        has_instruments = category in aggregated_data
+        has_exposure = all_relevant_categories.get(category, False)
+
+        if has_instruments or has_exposure:
+            # If there are no instruments, yearly_data will be empty, but the function can still generate context.
+            yearly_data_for_cat = aggregated_data.get(category, {})
             category_sentences, category_evidence, _ = _generate_category_narrative(
-                category, aggregated_data[category], scenario
+                category, yearly_data_for_cat, scenario
             )
             if category_sentences:
                 narrative_sections.append(" ".join(s.strip() for s in category_sentences if s))
             all_evidence.extend(category_evidence)
-        
-        elif random.random() < 0.3:  # Occasionally mention non-use for an inactive category
-            # Pick a specific instrument type to make the "no use" sentence more realistic.
-            # This now uses the dynamic generator to get a plausible name.
-            _, swap_type, _ = _generate_instrument_name(category)
-
-            no_instrument_obj = NotionalSentence(
-                swap_type=swap_type,
-                year=scenario.reporting_year,
-                notional=0,
-                sentence_type="no_instruments",
-                category=category,  # type: ignore
-                company_name=scenario.company_name,
-                reporting_year=scenario.reporting_year,
-            )
-            no_instrument_text, evidence_obj = no_instrument_obj.build()
-            if no_instrument_text:
-                narrative_sections.append(no_instrument_text)
-            all_evidence.append(evidence_obj) # This object now correctly contains reporting_year
 
     # 3. Effectiveness and Accounting Section
     accounting_sentences, accounting_evidence = _generate_narrative_accounting(scenario)
