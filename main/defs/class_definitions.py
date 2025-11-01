@@ -438,7 +438,7 @@ class MitigationSentence:
             )
 
         # Populate placeholders in the chosen mitigation phrase
-        interest_rates = random.sample(interest_rate_terms, k=2)
+        interest_rates = random.sample(specific_rate_terms, k=2)
         populated_phrase = mitigation_phrase.format(
             debt_type=details.debt_type or "debt",
             currencies=currencies_str,
@@ -446,6 +446,8 @@ class MitigationSentence:
             commodity=details.commodity or "commodities",
             rate_term1=interest_rates[0],
             rate_term2=interest_rates[1],
+            risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
+            ir_term=random.choice(interest_rate_terms),
         )
 
         # Add time context suffix
