@@ -195,7 +195,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
             if self.prev_notional_str:
                 return (
                     f"The report provides an aggregate summary for {category_context}, comparing {values_desc} of {self.notional_str} for {self.year} "
-                    f"against {self.prev_notional_str} for {self.year - 1}, indicating continuity{temporal_info}"
+                    f"against {self.prev_notional_str} for {self.prev_year}, indicating continuity{temporal_info}"
                 )
             return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
 
