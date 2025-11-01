@@ -118,6 +118,7 @@ def _generate_instrument_name(
     # --- Optional Prefix (for swaps, swaptions, rate locks) ---
     prefix = ""
     if (
+        
         any(x in base_type for x in ["swap", "swaption", "lock"])
         and random.random() < PAY_PREFIX_RATIO
     ):
@@ -125,6 +126,7 @@ def _generate_instrument_name(
             
     # --- Optional Prefix (global)
     if (
+        
         not prefix and random.random() < PAY_PREFIX_RATIO
     ):
         prefix = random.choice(components["global_prefixes"]
@@ -288,6 +290,7 @@ def generate_policy_for_archetype(
 
     general_policy = GeneralHedgingPolicy(
         does_not_use_for_trading=True,
+        # TODO: Replace hardcoded counterparty details with more varied, generated text.
         counterparty_credit_risk_monitored=True,
         counterparty_details=random.choice(
             [
@@ -321,6 +324,7 @@ def generate_policy_for_archetype(
         )
         for category in categories_with_policies:
             policy = CategorySpecificPolicy(
+                # TODO: These random.choice() calls select from dummy data lists. This will be replaced by the generative model.
                 category=category,  # type: ignore
                 effectiveness_testing_method=random.choice(DUMMY_EFFECTIVENESS_METHODS),
                 effectiveness_frequency=random.choice(DUMMY_EFFECTIVENESS_FREQUENCIES),
@@ -417,6 +421,7 @@ def create_random_scenario() -> GenerationScenario:
         benchmark_rate = None
         debt_currency = archetype.default_currency
 
+        
         # 20% chance for the debt to be in a foreign currency
         if random.random() < 0.20:
             foreign_curr = random.choice([c for c in all_currencies if c.code != archetype.default_currency])
@@ -521,6 +526,7 @@ def create_random_scenario() -> GenerationScenario:
             notional = hedged_debt.principal_amount
         else:
             # For unhedged exposures, there's a chance to create a story about a terminated instrument.
+            
             if (
                 random.random() < 0.15
             ):  # Small chance to create a terminated instrument story
@@ -531,6 +537,7 @@ def create_random_scenario() -> GenerationScenario:
 
         # --- NEW: Handle Cross-Currency Interest Rate Swaps as a special case ---
         is_cross_currency = debt_item.currency != archetype.default_currency and random.random() < 0.5
+        # TODO: The random chance for cross-currency swaps is hardcoded logic.
         if is_cross_currency:
             # This is a hybrid instrument. We'll name it accordingly but categorize it as FX.
             instrument_category = "FX"
@@ -586,6 +593,7 @@ def create_random_scenario() -> GenerationScenario:
                 e.amount for e in hedged_fx.exposures
             )  # Simplified USD equivalent
         else:
+            
             if random.random() < 0.15:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(10, 200) * multiplier
@@ -634,6 +642,7 @@ def create_random_scenario() -> GenerationScenario:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
             notional = random.randint(5, 100) * multiplier
         else:
+            
             if random.random() < 0.15:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(5, 100) * multiplier
@@ -682,6 +691,7 @@ def create_random_scenario() -> GenerationScenario:
             maturity_year = random.randint(reporting_year + 1, reporting_year + 5)
             notional = random.randint(1, 100) * multiplier
         else:
+            
             if random.random() < 0.15:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(1, 50) * multiplier
@@ -715,6 +725,7 @@ def create_random_scenario() -> GenerationScenario:
 
     # --- Create Generic Instruments ---
     for _ in range(exposure_counts.get("generic", 0)):
+        
         is_terminated = random.random() < 0.4
         maturity_year = (
             random.randint(reporting_year - 3, reporting_year)
@@ -766,6 +777,7 @@ def _generate_narrative_policy(
 
     if scenario.policy:
         # --- Generate a high-level risk exposure sentence ---
+        # TODO: The logic to determine the primary risk category is a simple heuristic. A generative model should handle this more naturally.
         # Determine the primary risk category by finding the most common one.
         instrument_categories_in_year = []
         for inst in scenario.instruments:
@@ -789,10 +801,15 @@ def _generate_narrative_policy(
             evidence.append(policy_evidence)
 
         # --- Generate standard policy statements ---
+        # TODO: These are hardcoded sentences and should be replaced by generative logic.
         if scenario.policy.general_policy.does_not_use_for_trading:
-            sentences.append(
-                "We do not enter into derivative contracts for trading or speculative purposes."
+             # Select a random template for the "no trading" policy
+            template = random.choice(hedge_no_trading_templates)
+            sentence = template.format(
+                company=scenario.company_name, verb=random.choice(policy_verbs)
             )
+            sentences.append(sentence)
+        # TODO: This is a hardcoded sentence template and should be replaced by generative logic.
         if scenario.policy.general_policy.counterparty_credit_risk_monitored:
             sentences.append(
                 f"Counterparty credit risk is managed by transacting with {scenario.policy.general_policy.counterparty_details}."
@@ -881,6 +898,7 @@ def _generate_category_narrative(
 
         # If there are few instruments, describe them individually.
         if 0 < num_instruments_current_year <= 2:
+            
             for instrument in current_year_data["instruments"]:
                 use_fair_value = random.random() < 0.2
                 value_type = "fair_value" if use_fair_value else "notional"
@@ -924,6 +942,7 @@ def _generate_category_narrative(
             used_name = instrument_type  # Track the name we used for this category
 
             total_notional = current_year_data["total_notional"]
+            
             use_fair_value = random.random() < 0.2
             value_type_to_use = "fair_value" if use_fair_value else "notional"
             value_to_report = total_notional
@@ -997,6 +1016,7 @@ def _generate_category_narrative(
         evidence.append(evidence_obj)
 
     # 3. Detailed Sentences (New, Terminated) by comparing current and previous years.
+    # TODO: The logic to compare current/previous years to identify "new" and "terminated" instruments is a heuristic that a generative model should learn to perform implicitly.
     current_ids = (
         {i.instrument_id for i in current_year_data["instruments"]}
         if current_year_data
@@ -1027,6 +1047,7 @@ def _generate_category_narrative(
             if instrument:
 
                 # Decide whether to use 'notional' or 'fair_value'
+                
                 use_fair_value_individual = random.random() < 0.2
                 value_type_individual = (
                     "fair_value" if use_fair_value_individual else "notional"
@@ -1077,6 +1098,7 @@ def _generate_category_narrative(
             if instrument:
 
                 # Decide whether to use 'notional' or 'fair_value'
+                
                 use_fair_value_terminated = random.random() < 0.2
                 value_type_terminated = (
                     "fair_value" if use_fair_value_terminated else "notional"
@@ -1123,6 +1145,7 @@ def _generate_narrative_accounting(
     """Generates sentences about accounting treatment and hedge effectiveness."""
     sentences = []
     if scenario.policy and scenario.policy.category_policies:  # Check if policy exists
+        # TODO: This is a hardcoded sentence template and should be replaced by generative logic.
         for cat_policy in scenario.policy.category_policies:
             if cat_policy.effectiveness_testing_method:
                 sentences.append(
@@ -1187,6 +1210,7 @@ def generate_narrative_from_scenario(
             if category_sentences:
                 narrative_sections.append(" ".join(s.strip() for s in category_sentences if s))
             all_evidence.extend(category_evidence)
+        
         elif random.random() < 0.3:  # Occasionally mention non-use for an inactive category
             # Pick a specific instrument type to make the "no use" sentence more realistic.
             # This now uses the dynamic generator to get a plausible name.
@@ -1229,6 +1253,7 @@ def _generate_analysis_summary(
     """Dynamically generates a one-sentence analysis summary."""
     summary_phrases = set()
     for item in evidence:
+        # TODO: This logic for creating a summary is a simple heuristic. A generative model should create a more natural summary.
         if item.status in ["summary", "new", "comparative", "individual"]:
             summary_phrases.add(f"utilizes {item.category} derivatives")
 
@@ -1250,6 +1275,7 @@ def generate_json_from_scenario(
 
     # --- Append a final reasoning statement for any GENERIC derivatives ---
     # This logic is now centralized here, instead of in the Evidence class.
+    # TODO: This reasoning for generic derivatives is hardcoded. A generative model should learn to explain its reasoning.
     has_generic_evidence = any(ev.category == "GEN" for ev in evidence)
     if has_generic_evidence:
         # Find other specific categories that were identified in the text.

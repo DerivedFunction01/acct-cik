@@ -1,5 +1,10 @@
 from typing import List, Literal
 
+# TODO: This entire file consists of "dummy data" lists used for the template-based
+# generation system. As part of the migration to a generative model, these static
+# lists will be deprecated. The new model will learn to generate these terms
+# contextually rather than selecting them from a predefined list.
+
 # =============================================================================
 # DUMMY DATA AND ARCHETYPES
 # This file contains the lists of dummy data and the ScenarioArchetype class

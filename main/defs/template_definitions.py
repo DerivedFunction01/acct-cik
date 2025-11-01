@@ -171,6 +171,8 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
         "{time_prefix}, the {amount_prefix} of the {swap_type} was {amount_str} {result_clause}.",
         "The {amount_prefix} of the {swap_type} was {amount_str} {time_suffix} {result_clause}.",
+        # Using portfolio terms (ex. portfolio consists of swap)
+        "{time_prefix}, {company}'s {portfolio_term} {portfolio_verb} {swap_type} has {amount_str} {hedge_designation_clause} {result_clause}."
     ],
     "new_individual": [
         "{time_prefix}, {company} {verb} new {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
@@ -224,6 +226,34 @@ NO_INSTRUMENTS_TEMPLATES = [
     "No {portfolio_term} were {verb} by {company} {time_suffix} for hedging {category_risk_phrase} risk."
 ]
 
+# Templates for "no trading" policy statements
+hedge_no_trading_templates = [
+    "{company} does not enter into derivative transactions for trading purposes",
+    "{company}'s policy prohibits the use of derivatives for speculative or trading purposes",
+    "Derivatives are {verb} solely for hedging and risk management, not for speculative trading",
+    "{company} does not engage in derivative transactions for speculative purposes",
+    "All derivative transactions are {verb} for hedging purposes and not for trading or speculation",
+    "The use of derivatives is strictly limited to hedging activities, not for speculative trading",
+    "{company} does not utilize derivative instruments for speculative purposes",
+    "Derivatives are {verb} exclusively for hedging identified risks, not for trading gains",
+    "{company} maintains a strict policy against using derivatives for speculative trading",
+    "No derivative transactions are {verb} for trading or speculative activities",
+    "Derivatives are {verb} solely to manage exposures, not for proprietary trading",
+    "{company} prohibits speculative derivative activities",
+    "The company's derivative strategy is focused on risk mitigation, not trading",
+    "Derivatives are {verb} for hedging purposes only, not for speculation",
+    "{company} does not engage in speculative derivative transactions",
+    "All derivative activities are non-trading in nature",
+    "Derivatives are {verb} to hedge specific risks, not for market speculation",
+    "{company} has a policy against using derivatives for trading profits",
+    "The use of derivatives is restricted to hedging, excluding speculative positions",
+    "No derivatives are {verb} for trading accounts",
+    "{company} does not conduct proprietary trading in derivatives",
+    "Derivatives are {verb} exclusively for risk management, not for trading income",
+    "The company's derivative policy forbids speculative trading",
+    "All derivative transactions are {verb} for hedging purposes, not for trading purposes",
+    "{company} does not use derivatives for speculative investments",
+]
 
 # Outstanding active state descriptors
 state_descriptors = ["outstanding", "active", "remaining", "open"]

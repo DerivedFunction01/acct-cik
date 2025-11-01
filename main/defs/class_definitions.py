@@ -894,7 +894,7 @@ class NotionalSentence:
                 time_prefix=time_prefix,
                 company=company_name,
                 verb=random.choice(non_use_verbs),  # e.g., "did not hold"
-                swap_type=f"{category_risk_phrase} derivatives",
+                swap_type=(f"{self.swap_type}" or f"{category_risk_phrase} derivative") + "s",
                 category_risk_phrase=category_risk_phrase,  # type: ignore
                 time_suffix=time_suffix,
                 year=self.year,
@@ -903,7 +903,8 @@ class NotionalSentence:
                 state_descriptor=random.choice(state_descriptors),
                 immaterial_term=random.choice(immaterial),
                 portfolio_term=random.choice(portfolio_terms).format(
-                    swap_type=f"{category_risk_phrase} derivatives"
+                    swap_type=(f"{self.swap_type}"
+                    or f"{category_risk_phrase} derivative") + "s"
                 ),
             )
             evidence = NotionalEvidence(status="no_instruments", category=self.category, notional=0, instrument_type="none", year=self.year, currency=self.currency_code, reporting_year=self.reporting_year)  # type: ignore
@@ -922,6 +923,10 @@ class NotionalSentence:
             state_descriptor=random.choice(state_descriptors),
             historical_phrase=random.choice(historical_instrument_phrases),
             result_clause=result_clause,
+            portfolio_term=random.choice(portfolio_terms).format(
+                    swap_type=f"{self.swap_type}" + "s"
+                ),
+            portfolio_verb=random.choice(portfolio_verbs),
             maturity_clause=maturity_clause,
             time_suffix=time_suffix,
         )
