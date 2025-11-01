@@ -1102,23 +1102,7 @@ def _generate_category_narrative(
                 comparative_summary_text, evidence_obj = comparative_no_prior_obj.build()
                 sentences.append(comparative_summary_text)
     else:
-        # Generate a "no instruments" sentence if the category is active for the archetype
-        no_instrument_obj = NotionalSentence(
-            swap_type="",  # Not needed
-            year=scenario.reporting_year,
-            notional=0,
-            month=reporting_month,
-            end_day=reporting_day,
-            sentence_type="no_instruments",
-            category=category,  # type: ignore
-            company_name=scenario.company_name,
-            reporting_year=reporting_year,
-        )
-        no_instrument_text, evidence_obj = no_instrument_obj.build()
-        sentences.append(no_instrument_text)
-        evidence.append(evidence_obj)
-
-        # NEW: If there are no current instruments, check if there were prior ones
+        # --- NEW: If there are no current instruments, check if there were prior ones
         # to generate a "comparative_no_outstanding" sentence.
         if prev_year_data and prev_year_data["total_notional"] > 0:
             instrument_type = prev_year_data["instrument_types"][0] if prev_year_data["instrument_types"] else "derivative instrument"
@@ -1139,7 +1123,23 @@ def _generate_category_narrative(
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             sentences.append(no_instrument_text)
-        evidence.append(evidence_obj)
+            evidence.append(evidence_obj)
+        else:
+            # Only generate a generic "no instruments" sentence if there's no history to compare to.
+            no_instrument_obj = NotionalSentence(
+                swap_type="",  # Not needed
+                year=scenario.reporting_year,
+                notional=0,
+                month=reporting_month,
+                end_day=reporting_day,
+                sentence_type="no_instruments",
+                category=category,  # type: ignore
+                company_name=scenario.company_name,
+                reporting_year=reporting_year,
+            )
+            no_instrument_text, evidence_obj = no_instrument_obj.build()
+            sentences.append(no_instrument_text)
+            evidence.append(evidence_obj)
 
     # 3. Detailed Sentences (New, Terminated) by comparing current and previous years.
     current_ids = (
