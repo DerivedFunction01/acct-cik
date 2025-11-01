@@ -155,8 +155,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
             category_name = "derivative"
             category_context = "general derivative activity"
             classification_note = (
-                " Based on the narrative context, the disclosure does not specify a clear derivative category "
-                "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference."
+                " Based on the surrounding context, the disclosure does not specify a clear derivative category "
+                "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference "
+                "and I'll come back to it later."
             )
         else:
             category_name = self._category_label()
