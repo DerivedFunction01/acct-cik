@@ -341,7 +341,7 @@ PAY_PREFIX_RATIO = 0.05  # ~5% of total swap-like combinations
 # BASE TYPES
 # =============================================================================
 
-STANDALONE_TYPES = ["swap", "derivative" "cap"]
+STANDALONE_TYPES = ["swap", "derivative", "cap"]
 DEPENDENT_TYPES = [
     "floor",
     "collar",
