@@ -1531,14 +1531,15 @@ def generate_json_from_scenario(
                 "type": ev.instrument_type or "Unknown",
                 "category": ev.category,
                 "status": status,
-                "notional_amount": 0,
+                "amount": 0,
                 "currency": ev.currency,
                 "value_type": ev.value_type,
+                "level": "individual",
             }
 
         # Update the notional amount. This will capture the most relevant value
         # (e.g., the 'new' or 'terminated' value for that instrument).
-        instrument_evidence_map[instrument_id]["notional_amount"] = ev.notional
+        instrument_evidence_map[instrument_id]["amount"] = ev.notional
 
         # Update status based on evidence type. 'terminated' is a final state.
         if ev.status == "terminated_individual":
@@ -1562,10 +1563,10 @@ def generate_json_from_scenario(
                 {
                     "type": ev.instrument_type,
                     "category": ev.category,
+                    "level": "aggregate",
                     "status": "current",
-                    "notional_amount": ev.notional,
+                    "amount": ev.notional,
                     "currency": ev.currency,
-                    # Add value_type to summary entries as well
                     "value_type": ev.value_type,
                 }
             )
