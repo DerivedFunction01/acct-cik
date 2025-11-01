@@ -868,6 +868,7 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
     if count == 2 and len(unique_types) > 1:
         return f"{unique_types[0]} and {unique_types[1]}"
 
+    quantifier = random.choice(GENERIC_QUANTIFIERS)
     # Check for similarity based on placeholder
     placeholders = {i.placeholder for i in instruments}
     if len(placeholders) == 1:
@@ -915,11 +916,11 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
             suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
             # Ensure the suffix is pluralized correctly
             plural_suffix = f"{suffix}s" if suffix and not suffix.endswith('s') else suffix
-            return f"a portfolio of {descriptive_category} {plural_suffix}"
+            return f"{quantifier} {descriptive_category} {plural_suffix}"
 
     # --- FIX: Dynamically generate the generic description ---
     # This replaces the hardcoded GENERIC_DERIVATIVE_DESCRIPTIONS list.
-    quantifier = random.choice(GENERIC_QUANTIFIERS)
+
     descriptor = random.choice(GENERIC_DESCRIPTORS)
     suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
     plural_suffix = f"{suffix}s" if not suffix.endswith('s') else suffix
