@@ -459,7 +459,7 @@ MITIGATION_TEMPLATES = {
         "to {risk_action_verb} input costs",
         "to {risk_action_verb} its exposure to {commodity} price increases",
         "to commit to purchase {commodity} at an agreed-upon price at a specified future date",
-        "to {risk_action_verb} the impact of {risk_term} for {commodity} sales from storage.",
+        "to {risk_action_verb} the impact of {risk_term} for {commodity} sales from storage",
     ],
     "EQ": [
         "to manage exposure to changes in the market price of its common stock and related equity-based compensation costs",
