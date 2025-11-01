@@ -980,7 +980,7 @@ class NotionalSentence:
     )
     prefer_abbreviated: bool = True
     is_repeated_mention: bool = False
-    optional_seed: Optional[float] = None
+    optional_chance: float = 0.5
 
     def build(self) -> Tuple[str, NotionalEvidence]:
         """
@@ -1001,7 +1001,7 @@ class NotionalSentence:
         # --- NEW: Generate a mitigation phrase for the 'begin_mitigation' placeholder ---
         begin_mitigation = ""
         # Only generate this for templates that actually use it, and only some of the time.
-        if random.random() < 0.3: # 30% chance to add this clause
+        if random.random() < self.optional_chance: # 50% chance to add this clause
             mitigation_templates = MITIGATION_TEMPLATES.get(self.category, MITIGATION_TEMPLATES["GEN"]) # type: ignore
             mitigation_phrase_template = random.choice(mitigation_templates)
 
@@ -1098,8 +1098,7 @@ class NotionalSentence:
         # --- FIX: Make hedge designation clause optional ---
         hedge_designation_clause = ""
         # Use the provided seed or a new random float
-        seed = self.optional_seed if self.optional_seed is not None else random.random()
-        if seed < 0.5: # 50% chance to add this clause
+        if random.random() < self.optional_chance: # 50% chance to add this clause
             # Choose from templates that are not empty
             designation_template = random.choice([d for d in hedge_designations if d])
             hedge_designation_clause = designation_template.format(
@@ -1110,8 +1109,7 @@ class NotionalSentence:
         # NEW: The result phrase template is now selected inside the build method.
         result_clause = ""
         # --- FIX: Make result phrase clause optional ---
-        # Use the same seed, potentially shifted, to decide. Let's use a simple check.
-        if seed > 0.5: # 50% chance to add this clause
+        if random.random() < self.optional_chance: # 50% chance to add this clause
             # Choose from templates that are not empty
             result_phrase_template = random.choice([r for r in result_phrases.get(self.category, result_phrases["GEN"]) if r]) # type: ignore
             # Populate new placeholders within the result phrase itself
