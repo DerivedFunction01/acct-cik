@@ -823,7 +823,7 @@ def _generate_narrative_policy(
 
         # --- Generate standard policy statements ---
         if scenario.policy.general_policy.does_not_use_for_trading:
-             # Select a random template for the "no trading" policy
+            # Select a random template for the "no trading" policy
             template = random.choice(hedge_no_trading_templates)
             sentence = template.format(
                 company=scenario.company_name, verb=random.choice(policy_verbs)
@@ -856,7 +856,6 @@ def _generate_category_narrative(
         scenario.reporting_month,
         scenario.reporting_day,
     )
-    evidence = []
     current_year_data = yearly_data.get(reporting_year)
     prev_year_data = yearly_data.get(reporting_year - 1)
 
@@ -871,7 +870,10 @@ def _generate_category_narrative(
         result_details = ResultPhraseDetails()
         location_names = []
         if current_year_data and current_year_data["instruments"]:
-            instrument_with_hedged_item = next((inst for inst in current_year_data["instruments"] if inst.hedged_item), None)
+            instrument_with_hedged_item = next(
+                (inst for inst in current_year_data["instruments"] if inst.hedged_item),
+                None,
+            )
             if instrument_with_hedged_item:
                 hedged_item = instrument_with_hedged_item.hedged_item
                 if isinstance(hedged_item, CommodityHedgedItem):
@@ -884,45 +886,92 @@ def _generate_category_narrative(
                         result_details.geography = random.choice(location_names)
                 elif isinstance(hedged_item, DebtHedgedItem):
                     result_details.debt_type = hedged_item.debt_type
-                    result_details.pct = hedged_item.fixed_rate_pct or hedged_item.change_rate_pct
+                    result_details.pct = (
+                        hedged_item.fixed_rate_pct or hedged_item.change_rate_pct
+                    )
                     result_details.frequency = hedged_item.payment_frequency
 
         policy_sentence_obj = PolicySentence(
-            category=category, company_name=scenario.company_name, result_details=result_details, locations=location_names
+            category=category, # type: ignore
+            company_name=scenario.company_name,
+            result_details=result_details,
+            locations=location_names,
         )
         context_sentence, _ = policy_sentence_obj.build()
         sentences.append(context_sentence)
 
         # 1b. Mitigation/Purpose Sentence
-        has_active_instruments = bool(current_year_data and current_year_data["instruments"])
-        past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0))
-        usage = "current" if has_active_instruments else ("non_use" if current_prop < 0 else ("historical" if past_prop > 0 and current_prop == 0 else "speculative"))
-        instrument_type = Counter(current_year_data["instrument_types"]).most_common(1)[0][0] if has_active_instruments and current_year_data else "derivatives"
+        has_active_instruments = bool(
+            current_year_data and current_year_data["instruments"]
+        )
+        past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0)) # type: ignore
+        usage = (
+            "current"
+            if has_active_instruments
+            else (
+                "non_use"
+                if current_prop < 0
+                else (
+                    "historical"
+                    if past_prop > 0 and current_prop == 0
+                    else "speculative"
+                )
+            )
+        )
+        instrument_type = (
+            Counter(current_year_data["instrument_types"]).most_common(1)[0][0]
+            if has_active_instruments and current_year_data
+            else "derivatives"
+        )
 
         mitigation_sentence_obj = MitigationSentence(
-            category=category, company_name=scenario.company_name, swap_type=instrument_type,
-            has_active_instruments=has_active_instruments, usage_status=usage, year=reporting_year,
-            month=reporting_month, end_day=reporting_day, result_details=result_details
+            category=category, # type: ignore
+            company_name=scenario.company_name,
+            swap_type=instrument_type,
+            has_active_instruments=has_active_instruments,
+            usage_status=usage,
+            year=reporting_year,
+            month=reporting_month,
+            end_day=reporting_day,
+            result_details=result_details,
         )
         mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
         sentences.append(mitigation_sentence)
         evidence.append(mitigation_evidence)
 
         # 1c. Optional Aggregate Summary
-        is_non_use_mitigation = (mitigation_evidence.usage_status == "non_use")
-        if current_year_data and current_year_data["instruments"] and not is_non_use_mitigation and random.random() < 0.5:
+        is_non_use_mitigation = mitigation_evidence.usage_status == "non_use"
+        if (
+            current_year_data
+            and current_year_data["instruments"]
+            and not is_non_use_mitigation
+            and random.random() < 0.5
+        ):
             total_notional = current_year_data["total_notional"]
             use_fair_value = random.random() < 0.2
             value_type_to_use = "fair_value" if use_fair_value else "notional"
-            value_to_report = max(1, int(total_notional / random.randint(20, 100))) if use_fair_value else total_notional
+            value_to_report = (
+                max(1, int(total_notional / random.randint(20, 100)))
+                if use_fair_value
+                else total_notional
+            )
 
             summary_sentence_obj = NotionalSentence(
-                swap_type=instrument_type, year=reporting_year, notional=value_to_report,
-                currency_symbol=currency_symbol, currency_code=currency_code, month=reporting_month,
-                end_day=reporting_day, money_units=scenario.archetype.money_units,
-                prefer_abbreviated=scenario.number_format_preference, category=category,
-                reporting_year=reporting_year, value_type=value_type_to_use,
-                result_phrase=random.choice(result_phrases.get(category, result_phrases["GEN"])),
+                swap_type=instrument_type,
+                year=reporting_year,
+                notional=value_to_report,
+                currency_symbol=currency_symbol,
+                currency_code=currency_code,
+                month=reporting_month,
+                end_day=reporting_day,
+                money_units=scenario.archetype.money_units,
+                prefer_abbreviated=scenario.number_format_preference,
+                category=category, # type: ignore
+                reporting_year=reporting_year,
+                value_type=value_type_to_use,
+                result_phrase=random.choice(
+                    result_phrases.get(category, result_phrases["GEN"])
+                ),
                 result_details=result_details,
             )
             summary_sentence_text, evidence_obj = summary_sentence_obj.build()
@@ -941,16 +990,24 @@ def _generate_category_narrative(
                     value_to_report = max(
                         1, int(instrument.notional_amount / random.randint(20, 100))
                     )
-    
+
                 # Determine if the instrument is "historical" (existed in a prior year)
                 is_historical = False
                 if prev_year_data:
                     prev_ids = {i.instrument_id for i in prev_year_data["instruments"]}
-                    if instrument.instrument_id in prev_ids and instrument.instrument_id not in (current_year_data.get("new_ids", set())):
+                    if (
+                        instrument.instrument_id in prev_ids
+                        and instrument.instrument_id
+                        not in (current_year_data.get("new_ids", set()))
+                    ):
                         is_historical = True
-                
+
                 # 20% chance to use the historical template if applicable
-                sentence_type = "historical_individual" if is_historical and random.random() < 0.2 else "individual"
+                sentence_type = (
+                    "historical_individual"
+                    if is_historical and random.random() < 0.2
+                    else "individual"
+                )
 
                 individual_sentence_obj = NotionalSentence(
                     swap_type=instrument.instrument_type,
@@ -970,24 +1027,40 @@ def _generate_category_narrative(
                         result_phrases.get(category, result_phrases["GEN"])
                     ),
                 )
-                new_instrument_text, evidence_obj = new_instrument_obj.build()
+                individual_sentence_text, evidence_obj = individual_sentence_obj.build()
                 evidence_obj.instrument_id = (
                     instrument.instrument_id
                 )  # Link to specific instrument
-                sentences.append(new_instrument_text)
+                sentences.append(individual_sentence_text)
                 evidence.append(evidence_obj)
 
         # Describe terminated instruments by looking at the previous year's data
         if prev_year_data:
-            terminated_instrument_ids = {i.instrument_id for i in prev_year_data["instruments"]} - {i.instrument_id for i in (current_year_data["instruments"] if current_year_data else [])}
+            terminated_instrument_ids = {
+                i.instrument_id for i in prev_year_data["instruments"]
+            } - {
+                i.instrument_id
+                for i in (current_year_data["instruments"] if current_year_data else [])
+            }
             for instrument_id in terminated_instrument_ids:
-                instrument = next((i for i in prev_year_data["instruments"] if i.instrument_id == instrument_id), None)
+                instrument = next(
+                    (
+                        i
+                        for i in prev_year_data["instruments"]
+                        if i.instrument_id == instrument_id
+                    ),
+                    None,
+                )
                 if instrument:
                     use_fair_value_terminated = random.random() < 0.2
-                    value_type_terminated = "fair_value" if use_fair_value_terminated else "notional"
+                    value_type_terminated = (
+                        "fair_value" if use_fair_value_terminated else "notional"
+                    )
                     value_to_report_terminated = instrument.notional_amount
                     if use_fair_value_terminated:
-                        value_to_report_terminated = max(1, int(instrument.notional_amount / random.randint(20, 100)))
+                        value_to_report_terminated = max(
+                            1, int(instrument.notional_amount / random.randint(20, 100))
+                        )
 
                     terminated_instrument_obj = NotionalSentence(
                         swap_type=instrument.instrument_type,
@@ -999,25 +1072,45 @@ def _generate_category_narrative(
                         money_units=scenario.archetype.money_units,
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
-                        category=category,
+                        category=category,  # type: ignore
                         reporting_year=reporting_year,
                         value_type=value_type_terminated,
-                        result_phrase=random.choice(result_phrases.get(category, result_phrases["GEN"])),
+                        result_phrase=random.choice(
+                            result_phrases.get(category, result_phrases["GEN"])
+                        ),
                     )
-                    terminated_instrument_text, evidence_obj = terminated_instrument_obj.build()
+                    terminated_instrument_text, evidence_obj = (
+                        terminated_instrument_obj.build()
+                    )
                     evidence_obj.instrument_id = instrument.instrument_id
                     sentences.append(terminated_instrument_text)
                     evidence.append(evidence_obj)
 
         # If there are no current instruments, check for a comparative no-outstanding sentence
-        if not (current_year_data and current_year_data["instruments"]) and prev_year_data and prev_year_data["total_notional"] > 0:
-            instrument_type = prev_year_data["instrument_types"][0] if prev_year_data["instrument_types"] else "derivative instrument"
+        if (
+            not (current_year_data and current_year_data["instruments"])
+            and prev_year_data
+            and prev_year_data["total_notional"] > 0
+        ):
+            instrument_type = (
+                prev_year_data["instrument_types"][0]
+                if prev_year_data["instrument_types"]
+                else "derivative instrument"
+            )
             comparative_no_outstanding_obj = NotionalSentence(
-                swap_type=instrument_type, year=reporting_year, notional=0, currency_symbol=currency_symbol,
-                month=reporting_month, end_day=reporting_day, prev_year=reporting_year - 1,
-                prev_notional=prev_year_data["total_notional"], sentence_type="comparative_no_outstanding",
-                money_units=scenario.archetype.money_units, prefer_abbreviated=scenario.number_format_preference,
-                category=category, reporting_year=reporting_year
+                swap_type=instrument_type,
+                year=reporting_year,
+                notional=0,
+                currency_symbol=currency_symbol,
+                month=reporting_month,
+                end_day=reporting_day,
+                prev_year=reporting_year - 1,
+                prev_notional=prev_year_data["total_notional"],
+                sentence_type="comparative_no_outstanding",
+                money_units=scenario.archetype.money_units,
+                prefer_abbreviated=scenario.number_format_preference,
+                category=category,  # type: ignore
+                reporting_year=reporting_year,
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             sentences.append(no_instrument_text)
@@ -1113,7 +1206,9 @@ def generate_narrative_from_scenario(
 
     # --- Part 2: Build the "Derivative Financial Instruments" Details Section ---
     # Add a title for this section if there are any details to report.
-    has_any_details = any(cat in aggregated_data for cat in ["IR", "FX", "CP", "EQ", "GEN"])
+    has_any_details = any(
+        cat in aggregated_data for cat in ["IR", "FX", "CP", "EQ", "GEN"]
+    )
     if has_any_details:
         # This is a simple way to add a section header.
         derivative_details_sentences.append("Derivative Financial Instruments")
@@ -1132,23 +1227,25 @@ def generate_narrative_from_scenario(
     # This can be appended to the details section or be its own section.
     # Let's add it to the end of the details for now.
     if accounting_sentences and derivative_details_sentences:
-         derivative_details_sentences.extend(accounting_sentences)
+        derivative_details_sentences.extend(accounting_sentences)
     all_evidence.extend(accounting_evidence)
 
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
     # =========================================================================
-    # Join the sections with double newlines to create distinct paragraphs.
-    narrative = "\n\n".join(section for section in narrative_sections if section)
-    
+
     # Assemble the final narrative from the generated parts
     narrative_sections = []
     narrative_sections.append(" ".join(s.strip() for s in item_7a_sentences if s))
     if derivative_details_sentences:
-        narrative_sections.append(" ".join(s.strip() for s in derivative_details_sentences if s))
+        narrative_sections.append(
+            " ".join(s.strip() for s in derivative_details_sentences if s)
+        )
     narrative = "\n\n".join(section for section in narrative_sections if section)
     # Prepend the reporting year tag.
-    full_narrative = f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
+    full_narrative = (
+        f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
+    )
     return full_narrative, all_evidence
 
 
