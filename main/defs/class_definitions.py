@@ -146,16 +146,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
         classification_note = ""
         if self.category in (None, "GEN"):
             classification_note = (
-                " Based on the surrounding context, the disclosure does not specify a clear derivative category "
-                "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference "
+                ". Based on the surrounding context, the disclosure does not specify a clear derivative category "
+                ", so it is treated as a generic reference "
                 "and I'll come back to it later."
             )
 
         value_desc = (
             "fair value" if self.value_type == "fair_value" else "notional value"
-        )
-        values_desc = (
-            "fair values" if self.value_type == "fair_value" else "notional values"
         )
         
         if self.year is None or self.reporting_year is None:
