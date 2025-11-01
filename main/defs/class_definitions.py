@@ -74,7 +74,6 @@ class NotionalEvidence(BaseNarrativeEvidence):
     sentence_type: Optional[str] = None
     is_repeated_mention: bool = False
 
-
     # ---------------------------------------------------------------------
     # Helpers
     # ---------------------------------------------------------------------
@@ -162,10 +161,10 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # Check if the name used is likely an alias (shorter than the base description)
         # A simple heuristic is to check if the base description contains the used name, but not vice-versa.
         if base_desc and instrument_name_in_sentence and base_desc != instrument_name_in_sentence and instrument_name_in_sentence in base_desc:
-             reason = (f"Aha, the term '{instrument_name_in_sentence}' appears to be an alias for the previously mentioned {base_desc}. "
+            reason = (f"Wait, the term '{instrument_name_in_sentence}' appears to be an alias for the previously mentioned {base_desc}. "
                        f"Given the similar context, I'll treat this as another reference to the same instrument.")
         else:
-             reason = f"Aha, another mention of the same {base_desc} has appeared."
+            reason = f"Wait, another mention of the same {base_desc} has appeared."
 
         return reason + " "
 
@@ -221,7 +220,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 return (f"The report provides an aggregate summary for {category_context}, comparing {values_desc} of {self.notional_str} for {self.year} "
                         f"against {self.prev_notional_str} for {self.prev_year}, indicating continuity{temporal_info}")
             elif self.notional_str or self.notional is not None:
-                 return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
+                return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
             return f"The report provides a summary for {category_context}, confirming activity but no {value_desc} was specified for {self.year}."
 
         def new_individual_handler() -> str:
