@@ -1159,6 +1159,9 @@ class NotionalSentence:
             time_suffix=time_suffix,
             termination_noun=termination_noun_local,
             comparison_phrase=comparison_phrase_local,
+            year=self.year,
+            month=month,
+            end_day=end_day,
         )
 
         # 9. Cleanup
