@@ -507,6 +507,7 @@ MITIGATION_TEMPLATES = {
         "to {risk_action_verb} {commodity} procurement",
         "to {risk_action_verb} risks from {commodity} price swings",
         "to {risk_action_verb} against {commodity} market {risk_term}",
+        "to {risk_action_verb} risks associated with the prices of {commodity}",
         "to lock in pricing",
         "to {risk_action_verb} input costs",
         "to {risk_action_verb} its exposure to {commodity} price increases",

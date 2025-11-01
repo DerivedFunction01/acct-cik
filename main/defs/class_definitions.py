@@ -349,6 +349,7 @@ class PolicySentence:
         """Builds a policy sentence and a corresponding PolicyEvidence object."""
         templates = POLICY_CONTEXT_TEMPLATES.get(self.category, POLICY_CONTEXT_TEMPLATES["GEN"])
         template = random.choice(templates)
+        details = self.specific_details or SpecificDetails()
 
         # Populate placeholders
         # TODO: Replace hardcoded fallback strings like "various foreign currencies" with more dynamic generation.
@@ -357,12 +358,19 @@ class PolicySentence:
         if self.currencies:
             currencies_str = ", ".join(self.currencies[:-1]) + " and " + self.currencies[-1] if len(self.currencies) > 1 else self.currencies[0]
 
+        # --- NEW: Handle multiple commodities ---
+        commodities_str = details.commodity or "various commodities"
+        if isinstance(details.commodity, list):
+            if len(details.commodity) > 1:
+                commodities_str = (
+                    ", ".join(details.commodity[:-1]) + f" and {details.commodity[-1]}"
+                )
+            elif details.commodity:
+                commodities_str = details.commodity[0]
         # TODO: Replace hardcoded fallback strings like f"international {random.choice(geo_locations)}" with more dynamic generation.
         locations_str = f"international {random.choice(geo_locations)}"
         if self.locations:
             locations_str = ", ".join(self.locations[:-1]) + " and " + self.locations[-1] if len(self.locations) > 1 else self.locations[0]
-
-        details = self.specific_details or SpecificDetails()
         risk_terms = random.sample(risk_exposure_terms, k=2)
         sentence = template.format(
             # TODO: These random.choice() calls are selecting from dummy data lists. This logic will be replaced by the generative model.
@@ -375,7 +383,7 @@ class PolicySentence:
             risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
             currencies=currencies_str,
             locations=locations_str,
-            commodity=details.commodity or "various commodities",
+            commodity=commodities_str,
             cost_type=random.choice(get_cost_types_for_commodity(details.commodity)),
         )
 
