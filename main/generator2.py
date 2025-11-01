@@ -1297,7 +1297,7 @@ def _generate_narrative_accounting(
 
         # Generate a documentation sentence if applicable
         if first_policy.documentation_formalized and "documentation" not in mentioned_policies:
-            doc_template = random.choice(hedge_documentation_templates)
+            doc_template = random.choice(general_hedge_documentation_templates)
             sentence = doc_template.format(
                 company=scenario.company_name,
                 swap_type="derivative instruments", # Generic term

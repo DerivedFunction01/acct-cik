@@ -549,37 +549,45 @@ MITIGATION_TEMPLATES = {
 # HEDGE POLICY TEMPLATES (Ported from old/template/hedges.py)
 # ==============================================================================
 
-# --- Documentation Policy ---
-hedge_documentation_templates = [
+# --- Documentation Policy (Specific - mentions swap_type) ---
+specific_hedge_documentation_templates = [
     "For a {swap_type} to qualify as a hedge at inception and throughout the hedged period, {company} formally document the nature and relationships between the hedging instruments and hedged item.",
     "For a {swap_type} designated as a {hedge_type} hedge, the {gain_loss} is {financial_outcome_verb} in earnings in the period of change together with the offsetting loss or gain on the risk being hedged.",
+    "{company} prepares formal documentation for all hedges, detailing the hedging {swap_type}, hedged item, and risk management strategy.",
+    "At hedge inception, {company} documents the relationship between the {swap_type} and the hedged item, including the risk management objective.",
+    "Hedge documentation includes the risk management objective, hedging {swap_type}, and hedged item, prepared at inception.",
+]
+
+# --- Documentation Policy (General) ---
+general_hedge_documentation_templates = [
     "{company} maintains formal documentation of all hedging relationships, including the risk management objective and strategy for undertaking the hedge.",
     "Hedge accounting requires formal documentation at inception describing the hedging relationship and {company}'s risk management objectives.",
     "{company} document our hedging relationships and risk management strategies at inception in accordance with applicable accounting standards.",
-    "{company} prepares formal documentation for all hedges, detailing the hedging {swap_type}, hedged item, and risk management strategy.",
-    "At hedge inception, {company} documents the relationship between the {swap_type} and the hedged item, including the risk management objective.",
     "{company} maintains detailed documentation of hedging relationships to comply with hedge accounting requirements.",
     "{company} formally document all hedging relationships at inception, including the strategy and objectives for risk management.",
-    "Hedge documentation includes the risk management objective, hedging {swap_type}, and hedged item, prepared at inception.",
     "{company} records formal documentation for hedges, outlining the relationship and risk management strategy.",
     "{company} document the hedging relationship and risk management objectives at the start of each hedge in line with accounting standards.",
 ]
 
-# --- Effectiveness Policy ---
-hedge_effectiveness_policy_templates = [
+# --- Effectiveness Policy (Specific - mentions swap_type or metric) ---
+specific_hedge_effectiveness_templates = [
     "{company} {verb}, both at inception and on an on-going basis, whether the {swap_type} that are utilized in {hedge_type} hedging transactions are highly effective in offsetting the {metric} of hedged items.",
+    "{company} {verb} {frequency} tests of hedge effectiveness for {swap_type} to offset changes in {metric}.",
+    "{company} {verb} {swap_type} effectiveness {frequency} to ensure they offset {metric} as intended.",
+    "{company} {verb} the effectiveness of {swap_type} {frequency} to offset changes in {metric} per {standard}.",
+]
+
+# --- Effectiveness Policy (General) ---
+general_hedge_effectiveness_templates = [
     "{company} {verb} hedge effectiveness {frequency} to ensure derivatives continue to meet the criteria for hedge accounting.",
     "Hedge effectiveness is {verb} {frequency} using {method} in accordance with {standard}.",
     "{company} {verb} {frequency} assessments of hedge effectiveness to determine whether hedging relationships remain highly effective.",
     "{company} {verb} hedge effectiveness {frequency} in accordance with {standard}.",
     "{company} {verb} hedge effectiveness {frequency} using {method} to ensure compliance with {standard}.",
-    "{company} {verb} {frequency} tests of hedge effectiveness for {swap_type} to offset changes in {metric}.",
     "Hedge effectiveness is {verb} {frequency} to verify that derivatives qualify for hedge accounting under {standard}.", # 'is' is not a placeholder, but it works with all verbs in assessment_verbs
-    "{company} {verb} {swap_type} effectiveness {frequency} to ensure they offset {metric} as intended.",
     "{company} {verb} effectiveness of {swap_type} {frequency} using {method} per {standard}.",
     "{company} {verb} {frequency} hedge effectiveness tests using {method} to comply with {standard}.",
     "Hedge effectiveness is {verb} {frequency} for {swap_type} to meet {standard} requirements.",
-    "{company} {verb} the effectiveness of {swap_type} {frequency} to offset changes in {metric} per {standard}.",
     "{company} {verb} {frequency} assessments of {swap_type} effectiveness using {method}.",
     "{company} {verb} hedge effectiveness {frequency} for {swap_type} in accordance with {standard}.",
     "{company} {verb} {swap_type} effectiveness {frequency} to confirm compliance with {standard}.", # 'verb' is already a placeholder
@@ -588,16 +596,16 @@ hedge_effectiveness_policy_templates = [
 
 # --- Ineffectiveness Policy ---
 hedge_ineffectiveness_policy_templates = [
-    "{company} {verb} hedge ineffectiveness {frequency} and {financial_outcome_verb} the {gain_loss} related to the ineffective portion of derivative instruments, if any, to current earnings.",
+    "{company} {verb} hedge ineffectiveness {frequency} and {financial_outcome_verb} the {gain_loss} related to the ineffective portion of its {swap_type}, if any, to current earnings.",
     "Any hedge ineffectiveness is {financial_outcome_verb} immediately in earnings in the period identified.",
-    "Ineffectiveness, if present, is {verb} {frequency} and {financial_outcome_verb} in the consolidated statements of operations.",
+    "Ineffectiveness related to {swap_type}, if present, is {verb} {frequency} and {financial_outcome_verb} in the consolidated statements of operations.",
     "{company} {financial_outcome_verb} any ineffective portion of hedging instruments in current period earnings.",
-    "{gain_loss} from the ineffective portion of derivative instruments are {financial_outcome_verb} in earnings {frequency}.",
-    "{company} {verb} hedge ineffectiveness and {financial_outcome_verb} any such amounts in the statement of operations for the relevant period.",
+    "{gain_loss} from the ineffective portion of {swap_type} are {financial_outcome_verb} in earnings {frequency}.",
+    "{company} {verb} hedge ineffectiveness on its {swap_type} and {financial_outcome_verb} any such amounts in the statement of operations for the relevant period.",
     "Ineffective amounts arising from hedging relationships are {financial_outcome_verb} in earnings as part of the assessment {frequency}.",
-    "{company} {verb} hedge effectiveness and immediately {financial_outcome_verb} any ineffectiveness in income.",
+    "{company} {verb} hedge effectiveness on its {swap_type} and immediately {financial_outcome_verb} any ineffectiveness in income.",
     "Hedge ineffectiveness, when identified, is {financial_outcome_verb} in earnings for the reporting period in which it occurs.",
-    "The ineffective portion of designated hedges is calculated and {financial_outcome_verb} in current earnings {frequency}.",
+    "The ineffective portion of designated {swap_type} hedges is calculated and {financial_outcome_verb} in current earnings {frequency}.",
 ]
 
 # --- Discontinuation Policy ---
@@ -637,3 +645,7 @@ hedge_accounting_policy_templates = [
 
 # --- Shared placeholders for policy templates ---
 hedge_standards = ["ASC 815", "applicable accounting guidance", "U.S. GAAP", "accounting standards", "ASU 2017-12", "Topic 815"]
+
+# For simplicity in the AccountingPolicySentence class, we can combine the split templates.
+hedge_documentation_templates = general_hedge_documentation_templates + specific_hedge_documentation_templates
+hedge_effectiveness_policy_templates = general_hedge_effectiveness_templates + specific_hedge_effectiveness_templates
