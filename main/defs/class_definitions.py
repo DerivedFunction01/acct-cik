@@ -512,7 +512,7 @@ class DerivativeInstrument:
     category: DerivativeCategory
     start_month: str
     start_year: int
-    maturity_month: str
+    maturity_month: Optional[str] = None
     hedge_designation: Optional[str] = None
     maturity_year: Optional[int] = None
 
