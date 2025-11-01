@@ -184,27 +184,22 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         # Template-driven status handlers (now consistently include temporal_info)
         # -----------------------------------------------------------------
-        def summary_handler():
+        def summary_handler() -> str:
             if not self.notional_str and self.notional is None:
-                return f"The report provides a summary for {category_context}, confirming activity but no {value_desc} specified for {self.year}."
-            if (
-                self.prev_notional_str
-                and not self.notional_str
-                and (self.year is not None and self.year < (self.reporting_year or 0))
-                and self.maturity_year
-            ):
+                return f"The report provides a summary for {category_context}, confirming activity but no {value_desc} was specified for {self.year}."
+            if self.prev_notional_str and not self.notional_str and self.year and self.reporting_year and self.year < self.reporting_year and self.maturity_year:
                 return (
-                    f"The report references {category_context} with prior-year {value_desc} of {self.prev_notional_str}, expected to remain active after {self.year}. "
-                    f"The {value_desc} is disclosed only for {self.year}, but maturity extends to {self.maturity_year}, indicating continued activity{temporal_info}"
+                    f"The report references {category_context} with a prior-year {value_desc} of {self.prev_notional_str} for {self.year}. "
+                    f"Although no current value is given for the reporting year ({self.reporting_year}), the maturity in {self.maturity_year} suggests it may still be active{temporal_info}"
                 )
             if self.prev_notional_str:
                 return (
                     f"The report provides an aggregate summary for {category_context}, comparing {values_desc} of {self.notional_str} for {self.year} "
-                    f"against {self.prev_notional_str} for {self.prev_year}, indicating continuity{temporal_info}."
+                    f"against {self.prev_notional_str} for {self.year - 1}, indicating continuity{temporal_info}"
                 )
             return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
 
-        def new_individual_handler():
+        def new_individual_handler() -> str:
             # New: if year == reporting_year we treat as current; otherwise report the year-based context
             prefix = f"The report describes a new {base_desc}"
             value_part = (
@@ -212,9 +207,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str
                 else ""
             )
-            return f"{prefix}{value_part}{temporal_info or '.'}"
+            return f"{prefix}{value_part}{temporal_info}"
 
-        def individual_handler():
+        def individual_handler() -> str:
             # Individual mention doesn't imply newness. Attach temporal_info if available.
             prefix = f"The report mentions an individual {base_desc}"
             value_part = (
@@ -222,15 +217,15 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str
                 else ""
             )
-            return f"{prefix}{value_part}{temporal_info or '.'}"
+            return f"{prefix}{value_part}{temporal_info}"
 
-        def terminated_individual_handler():
+        def terminated_individual_handler() -> str:
             if not self.notional_str and self.notional is None:
-                return f"The report indicates a {base_desc} was terminated, confirming prior existence but no {value_desc} disclosed{temporal_info or '.'}"
-            return f"The report describes a terminated {base_desc} with a {value_desc} of {self.notional_str}, absent in {self.reporting_year} data, indicating settlement or maturity{temporal_info or '.'}"
+                return f"The report indicates a {base_desc} was terminated, confirming prior existence but no {value_desc} was disclosed{temporal_info}"
+            return f"The report describes a terminated {base_desc} with a prior {value_desc} of {self.notional_str}. Its absence in {self.reporting_year} data indicates settlement or maturity{temporal_info}"
 
-        def no_instruments_handler():
-            return f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, confirming no current use{temporal_info or '.'}"
+        def no_instruments_handler() -> str:
+            return f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, confirming no current use{temporal_info}"
 
         def comparative_handler() -> str:
             # General comparative uses summary logic
@@ -239,13 +234,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
         def comparative_no_outstanding_handler() -> str:
             return (
                 f"The report confirms no outstanding {category_context} in {self.reporting_year}, "
-                f"compared to a prior {value_desc} of {self.prev_notional_str} in {self.prev_year}, indicating termination of activity{temporal_info or '.'}"
+                f"compared to a prior {value_desc} of {self.prev_notional_str} in {self.prev_year}, indicating termination of activity{temporal_info}"
             )
 
         def comparative_no_prior_outstanding_handler() -> str:
             return (
                 f"The report shows a current {value_desc} of {self.notional_str} for {category_context} in {self.reporting_year}, "
-                f"with no such instruments outstanding in the prior year, indicating new activity{temporal_info or '.'}"
+                f"with no such instruments outstanding in the prior year, indicating new activity{temporal_info}"
             )
 
         def historical_individual_handler() -> str:
