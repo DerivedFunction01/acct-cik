@@ -991,7 +991,7 @@ class NotionalSentence:
                 commodity=details.commodity,
                 unit=details.unit,
                 financial_outcome_verb=random.choice(financial_outcome_verbs),
-                company_name=self.company_name,
+                company=self.company_name,
             )
             result_clause = populated_phrase
 

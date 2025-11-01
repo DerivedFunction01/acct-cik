@@ -921,16 +921,17 @@ def _generate_category_narrative(
     if current_year_data and current_year_data["instruments"]:
         is_non_use_mitigation = False
         has_active_instruments = bool(current_year_data and current_year_data["instruments"])
-        # Determine the usage status based on the archetype's propensity
+        # --- FIX: Determine usage status based on actual data first, then fall back to propensity. ---
         past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0)) # type: ignore
-        if current_prop > 0.5:
+        if has_active_instruments:
             usage = "current"
-        elif current_prop < 0:
+        elif current_prop < 0: # Explicit non-user
             usage = "non_use"
-        elif past_prop > 0 and current_prop == 0:
+        elif past_prop > 0 and current_prop == 0: # Exiting hedger
             usage = "historical"
-        else:
+        else: # No active instruments, and not an explicit non-user -> speculative
             usage = "speculative"
+
         # Use the most common instrument type for the sentence
         instrument_type = Counter(current_year_data["instrument_types"]).most_common(1)[0][0]
         mitigation_sentence_obj = MitigationSentence(
