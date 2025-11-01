@@ -506,8 +506,8 @@ class ScenarioArchetype:
     equity_exposure_range: tuple[int, int]
     generic_instrument_range: tuple[int, int]
     hedging_propensities: Dict[
-        DerivativeCategory, float
-    ]  # Per-category likelihood of hedging.
+        DerivativeCategory, Tuple[float, float]
+    ]  # Per-category likelihood of hedging (past, current).
     policy_coverage: Literal["full", "partial", "light"]
     default_currency: str
     money_units: List[
@@ -838,6 +838,7 @@ class NotionalSentence:
                 geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
                 commodity=details.commodity,
                 unit=details.unit,
+                financial_outcome_verb=random.choice(financial_outcome_verbs),
             )
             result_clause = populated_phrase
 
