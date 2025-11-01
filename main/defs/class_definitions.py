@@ -229,7 +229,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
             )
             # --- NEW: Add "Aha!" moment for repeated mentions ---
             if self.is_repeated_mention and self.instrument_id:
-                prefix = f"Aha, another mention of the same {base_desc} (instrument ID {self.instrument_id}) appeared"
+                prefix = f"Aha, another mention of the same {base_desc} appeared"
                 value_part = (
                     f" with a {value_desc} of {self.notional_str}"
                     if self.notional_str
