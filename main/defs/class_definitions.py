@@ -152,7 +152,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         """Generates a reasoning statement with built-in time validation and generic-category handling."""
         # Category handling with generic classification note
         if self.category in (None, "GEN"):
-            category_name = "derivative"
+            category_name = ""
             category_context = "general derivative activity"
             classification_note = (
                 " Based on the surrounding context, the disclosure does not specify a clear derivative category "
