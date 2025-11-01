@@ -5,7 +5,7 @@ from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple,
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
 # --- NEW: Import common verb lists for reuse --- (This was already here, but I'm confirming its good use)
-from .common_data import individual_use_verbs, aggregate_use_verbs, termination_verbs_past
+from defs.common_data import individual_use_verbs, aggregate_use_verbs, termination_verbs_past
 
 
 @dataclass

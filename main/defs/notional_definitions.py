@@ -4,10 +4,8 @@ from typing import Callable, Dict, List, Literal, Optional, Tuple
 from defs.function_definitions import _get_company_reference
 from defs.common_data import *
 from defs.template_definitions import *
-from defs.cp_data import *
-from defs.fx_data import *
-from defs.ir_data import *
-from defs.eq_data import *
+from defs.cp_data import get_random_commodity_and_unit, get_units_for_commodity
+from defs.instrument_definitions import NotionalInstrument
 from defs.template_definitions import _format_single_notional
 from defs.template_definitions import _cleanup_sentence
 from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
