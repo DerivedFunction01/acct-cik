@@ -1351,23 +1351,20 @@ def generate_json_from_scenario(
     # This logic is now centralized here, instead of in the Evidence class.
     has_generic_evidence = any(ev.category == "GEN" for ev in evidence)
     if has_generic_evidence:
-        # Find other specific categories that were identified in the text.
-        seen_categories = sorted(
-            list({ev.category for ev in evidence if ev.category != "GEN"})
+        # Find other specific instrument types that were identified in the text.
+        seen_instrument_types = sorted(
+            list(
+                {
+                    ev.instrument_type
+                    for ev in evidence
+                    if isinstance(ev, NotionalEvidence) and ev.category != "GEN" and ev.instrument_type
+                }
+            )
         )
-        category_map = {
-            "IR": "Interest Rate",
-            "FX": "Foreign Exchange",
-            "CP": "Commodity",
-            "EQ": "Equity",
-        }
-        seen_category_names = [
-            category_map[cat] for cat in seen_categories if cat in category_map
-        ]
 
         generic_reasoning = " A generic derivative reference was identified. Because the statement does not specify a clear derivative category"
-        if seen_category_names:
-            generic_reasoning += f" (such as the other types found: {', '.join(seen_category_names)}), I cannot link it to a specific known type and will therefore treat it as a generic reference."
+        if seen_instrument_types:
+            generic_reasoning += f" (such as the other instruments found: {', '.join(seen_instrument_types)}), I cannot link it to a specific known type and will therefore treat it as a generic reference."
         else:
             generic_reasoning += ", I cannot link it to a specific known type and will therefore treat it as a generic reference."
         chain_of_thought += generic_reasoning
