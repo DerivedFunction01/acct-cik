@@ -1225,6 +1225,7 @@ class NotionalSentence:
             notional=final_notional,  # Use the conditional notional value
             year=self.year,
             notional_str=final_notional_str,
+            prev_notional_str=None, # Explicitly set to None for single sentences
             instrument_type=self.swap_type,
             maturity_year=self.maturity_year,
             reporting_year=self.reporting_year,
@@ -1251,7 +1252,7 @@ class TimelineSentence:
     prefer_abbreviated: bool
     value_type: Literal["notional", "fair_value"]
 
-    def build(self) -> Tuple[str, List[NotionalEvidence]]:
+    def build(self) -> Tuple[str, NotionalEvidence]:
         """
         Builds a historical timeline paragraph for a single instrument.
 
@@ -1259,7 +1260,7 @@ class TimelineSentence:
             A tuple containing:
             - A single paragraph string describing the instrument's history.
             - A list of NotionalEvidence objects, one for each point in time mentioned.
-        """
+        """ # type: ignore
         sentences = []
         evidence_list = []
 
@@ -1281,12 +1282,25 @@ class TimelineSentence:
         # Ensure unique, sorted years
         selected_years = sorted(list(set(years_to_report)))
 
+        # --- FIX: Store formatted notional strings for the evidence object ---
+        timeline_notional_strings: Dict[int, str] = {}
+
         # --- Generate sentences for each selected year ---
         for i, year in enumerate(selected_years):
             prev_notional = self.instrument.notional_history.get(selected_years[i-1]) if i > 0 else None
             notional = self.instrument.notional_history[year]
             if self.value_type == "fair_value":
                 notional = max(1, int(notional / random.randint(20, 100)))
+
+            # --- FIX: Correctly format the notional string for each year ---
+            formatted_notional = _format_single_notional(
+                notional,
+                self.currency_symbol,
+                self.money_units,
+                self.prefer_abbreviated,
+            )
+            timeline_notional_strings[year] = formatted_notional
+
 
             if i == 0:
                 # First mention: Use "inception" template
@@ -1306,6 +1320,7 @@ class TimelineSentence:
             sentence_obj = NotionalSentence(
                 swap_type=name_to_use,
                 year=year,
+                # --- FIX: Pass the correctly formatted string ---
                 notional=notional,
                 sentence_type=sentence_type, # type: ignore
                 # Pass additional details for the partial_settlement templates
@@ -1323,10 +1338,28 @@ class TimelineSentence:
                 value_type=self.value_type,
             )
             sentence_text, evidence = sentence_obj.build()
-            evidence.instrument_id = self.instrument.instrument_id
             sentences.append(sentence_text)
-            evidence_list.append(evidence)
+
+        # --- FIX: Create a single, consolidated evidence object for the entire timeline ---
+        # This makes the chain_of_thought much more coherent.
+        inception_year = selected_years[0]
+        final_year = selected_years[-1]
+        
+        consolidated_evidence = NotionalEvidence(
+            instrument_id=self.instrument.instrument_id,
+            status="timeline", # A new status for our custom handler
+            category=self.instrument.category,
+            notional=self.instrument.notional_history[final_year],
+            notional_str=timeline_notional_strings[final_year],
+            prev_notional_str=timeline_notional_strings.get(inception_year),
+            year=final_year,
+            prev_year=inception_year,
+            instrument_type=self.instrument.instrument_type,
+            maturity_year=self.instrument.maturity_year,
+            reporting_year=self.reporting_year,
+            value_type=self.value_type,
+        )
 
         # Combine sentences into a single, flowing paragraph
         full_paragraph = " ".join(sentences)
-        return full_paragraph, evidence_list
+        return full_paragraph, consolidated_evidence
