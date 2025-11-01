@@ -221,15 +221,21 @@ def get_cost_types_for_commodity(commodity_name: Optional[str] = "commodity") ->
     return COMMODITY_COST_TYPES["generic"]
 
 
-def get_random_commodity_and_unit() -> tuple[str, str, str]:
+def get_random_commodity_and_unit(selected_types: Optional[list[str]] = None) -> tuple[str, str, str]:
     """
     Selects a random commodity and a matching, appropriate unit and cost type for it.
 
     Returns:
         A tuple containing the commodity name, its unit, and an associated cost type.
     """
-    # 1. Pick a random commodity from the flattened list
-    commodity_name = random.choice(commodities)
+    # 1. Pick a random commodity from the flattened list, if we don't have selected types
+    commodity_name = "commodity"
+    if not selected_types:
+        commodity_name = random.choice(commodities)
+    else:
+        types_to_pick_from = random.choice(selected_types)
+        # Now pick a random one for that type
+        commodity_name = random.choice(COMMODITIES.get(types_to_pick_from, []))
 
     # 2. Get the list of appropriate units for that commodity
     appropriate_units = get_units_for_commodity(commodity_name)

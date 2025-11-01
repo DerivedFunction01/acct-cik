@@ -838,6 +838,9 @@ class ScenarioArchetype:
     ]  # e.g., [("million", 1_000_000), ("billion", 1_000_000_000)]
     prefers_abbreviated_numbers: bool = True
     can_have_accounting_update: bool = True
+    commodity_types: List[str] = field(
+        default_factory=list
+    )  # e.g. ["energy", "metals_minerals"]
 
     def get_exposure_counts(self) -> Dict[str, int]:
         """Generates a dictionary of exposure counts based on the archetype's ranges."""
