@@ -1657,12 +1657,19 @@ def generate_json_from_scenario(
         else:
             display_types = all_seen_types
             
-        generic_reasoning = " A generic derivative reference was identified. Because the statement does not specify a clear derivative category"
+        generic_reasoning = (
+            "After reviewing the full text, I found a reference to a derivative that lacks sufficient context "
+            "to determine its specific category"
+        )
         if display_types:
-            generic_reasoning += f" (such as the other instruments found: {', '.join(display_types)}), I cannot link it to a specific known type and will therefore treat it as a generic reference."
+            generic_reasoning += (
+                f" (unlike other instruments identified, such as {', '.join(display_types)}), "
+                "so it is treated as a generic reference for now."
+            )
         else:
-            generic_reasoning += ", I cannot link it to a specific known type and will therefore treat it as a generic reference."
+            generic_reasoning += ", so it is treated as a generic reference for now."
         chain_of_thought += "\n" + generic_reasoning.strip()
+
 
     # --- Build the derivatives list ONLY from what was mentioned in the evidence. ---
 
