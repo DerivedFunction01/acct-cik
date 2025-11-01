@@ -338,8 +338,7 @@ class DebtHedgedItem(HedgedItem):
         maturity_month: Optional[str] - The maturity month of the debt.
         maturity_year: int - The maturity year of the debt.
         principal_amount: int - The principal amount of the debt.
-        interest_rate_type: Literal["fixed", "variable"] - The type of interest rate.
-        benchmark_rate: Optional[str] - The benchmark rate if variable (e.g., "LIBOR").
+        benchmark_rate: Optional[str] - Any type of rate.
         spread_bps: Optional[int] - The spread in basis points over the benchmark.
         fixed_rate_pct: Optional[float] - The fixed interest rate percentage.
         change_rate_pct: Optional[float] - The new interest rate percentage after a change.
@@ -353,7 +352,6 @@ class DebtHedgedItem(HedgedItem):
     maturity_month: Optional[str]
     maturity_year: int
     principal_amount: int
-    interest_rate_type: Literal["fixed", "variable", "floating"]
     currency: str = "USD"
     benchmark_rate: Optional[str] = None
     spread_bps: Optional[int] = None

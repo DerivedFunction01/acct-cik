@@ -376,12 +376,10 @@ DEFAULT_SUFFIXES = [
     "program",
 ]
 
-SPECIAL_SUFFIX = {
-    "option": [
+SPECIAL_SUFFIX =  [
         "call option",
         "put option",
-    ],
-}
+],
 
 CATEGORY_EXTRAS = {
     "IR": [],
