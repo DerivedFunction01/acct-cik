@@ -1499,7 +1499,11 @@ def generate_json_from_scenario(
                     similar_instruments.add(inst_type)
             
             # Limit to a small, random number (2 to 4) of examples
-            num_to_show = random.randint(2, min(4, len(similar_instruments)))
+            # FIX: The lower bound must not be greater than the upper bound.
+            # If there's only 1 similar instrument, randint(2, 1) would fail.
+            # We now choose a number between 1 and the number of instruments (up to 4).
+            upper_bound = min(4, len(similar_instruments))
+            num_to_show = random.randint(1, upper_bound) if upper_bound > 0 else 0
             display_types = sorted(list(random.sample(list(similar_instruments), num_to_show)))
         else:
             display_types = all_seen_types
