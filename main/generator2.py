@@ -6,27 +6,17 @@ from collections import Counter
 import json, re
 from typing import List, Dict, Literal, Optional, Set, Tuple
 
+from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
+from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument
 from defs.common_data import *
-from defs.cp_data import *
-from defs.ir_data import *
-from defs.fx_data import *
-from defs.eq_data import *
-from defs.template_definitions import *
-from defs.notional_definitions import *
-from defs.policy_definitions import *
-from defs.policy_definitions import *
-from defs.scenario_definitions import *
-from defs.instrument_definitions import *
-
-
-output_file = "./training_data.xlsx"
-company_name_file = "./names.xlsx"
-try:
-    company_name_df = pd.read_excel(company_name_file)
-except FileNotFoundError:
-    company_name_df = pd.DataFrame(columns=["name"])
-company_names = list(company_name_df["name"])
-
+from defs.cp_data import CommodityHedgedItem, CPInstrument, get_random_commodity_and_unit
+from defs.instrument_definitions import DERIVATIVE_CATEGORIES, BaseNarrativeEvidence, NotionalInstrument, HedgedItem, GenericInstrument
+from defs.policy_definitions import AccountingPolicySentence, CounterpartyRiskSentence, GeneralHedgingPolicy, MitigationEvidence, MitigationSentence, PolicyEvidence, PolicySentence, RiskManagementPolicy
+from defs.scenario_definitions import company_names
+from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument
+from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence
+from defs.template_definitions import hedge_no_trading_templates
+from main.defs.eq_data import EQInstrument, EquityHedgedItem
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -43,168 +33,6 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
     )
 
     return currency_symbol, money_unit_word, currency_code
-
-
-def _create_contextual_alias(base_type: str, category: str, placeholder: str, all_other_base_types: Set[str]) -> str:
-    """
-    Creates a context-aware alias for an instrument. If the base type is unique
-    across the scenario, a simple alias is used. Otherwise, a category prefix is added.
-
-    Args:
-        base_type: The base type of the current instrument (e.g., "swap").
-        category: The category of the current instrument (e.g., "IR").
-        placeholder: The placeholder used in the instrument name (e.g., "cross-currency").
-        all_other_base_types: A set of all base types present in the scenario.
-
-    Returns:
-        A contextually appropriate alias string.
-    """
-    # NEW: Handle special suffixes like "put option" explicitly.
-    # This ensures the full two-word phrase is treated as the base.
-    for special_suffix in DERIVATIVE_COMPONENTS["special_suffixes"]:
-        if special_suffix in base_type:
-            alias_base = special_suffix
-            break
-    else:
-        # Fallback for other types.
-        alias_base = " ".join(base_type.split()[-2:]) if len(base_type.split()) > 1 else base_type
-
-    is_base_type_unique = base_type not in all_other_base_types
-
-    # --- NEW: Prevent aliasing for certain generic types ---
-    no_alias_types = DERIVATIVE_COMPONENTS.get("no_alias_types", [])
-    if any(no_alias_word in base_type for no_alias_word in no_alias_types):
-        return base_type
-
-    # If the base type is unique, or a generic term, or already specific (like cross-currency), don't add a prefix.
-    if is_base_type_unique or alias_base in ["swap"] or "cross-currency" in placeholder:
-        return alias_base
-    
-    category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
-    category_prefix = category_prefix_map.get(category, "")
-    
-    # --- NEW: For dependent types, prefer a more descriptive alias ---
-    # e.g., "rate lock" instead of just "lock"
-    if base_type in DERIVATIVE_COMPONENTS.get("dependent_types", []):
-        # Use placeholder if it's not generic, otherwise fallback to category prefix
-        if placeholder and category.lower() not in placeholder:
-            return f"{placeholder} {alias_base}".strip()
-
-    return f"{category_prefix} {alias_base}".strip()
-
-# --- Dynamic Instrument Type Generation ---
-def _generate_instrument_name(
-    category: str,
-    hedged_item: Optional["HedgedItem"] = None,
-    available_base_types: Optional[List[str]] = None,
-    all_scenario_base_types: Optional[Set[str]] = None,
-) -> Tuple[str, str, str, str, str, str]:
-    """
-    Dynamically generates a derivative instrument name based on category and context.
-    This replaces the pre-expanded `derivative_keywords` logic.
-
-    Returns:
-        A tuple of (prefix, placeholder, base_type, suffix, full_name, alias).
-    """
-    components= DERIVATIVE_COMPONENTS
-    placeholders = components["placeholders"].get(category, [""])
-    base_types = available_base_types or components["base_types"]
-    suffixes = components["suffixes"]  # e.g., contract, agreement
-    special_suffixes = components["special_suffixes"]  # e.g., put option
-    special_ratio = 0.10  # configurable
-
-    if (
-        category == "IR"
-        and isinstance(hedged_item, DebtHedgedItem)
-        and hedged_item.benchmark_rate
-    ):
-        # 35% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
-        placeholder = hedged_item.benchmark_rate if random.random() < 0.35 else random.choice(placeholders)
-    else:
-        placeholder = random.choice(placeholders)
-
-    base_type = random.choice(base_types)
-
-    # --- Assemble the name ---
-    use_special = special_suffixes and random.random() < special_ratio
-    suffix = ""
-    if use_special:
-        chosen = random.choice(special_suffixes)
-        full_name = " ".join(filter(None, [placeholder, chosen])).strip()
-        base_type = chosen # treat as base for alias/prefix logic
-    else:
-        suffix = random.choice(suffixes)
-        full_name = " ".join(filter(None, [placeholder, base_type, suffix])).strip()
-
-    # --- NEW: Context-aware alias generation ---
-    other_base_types = (all_scenario_base_types or set()) - {base_type}
-    alias = _create_contextual_alias(base_type, category, placeholder, other_base_types)
-
-    # --- Optional Prefix (for swaps, swaptions, rate locks) ---
-    prefix = ""
-    if (
-        
-        any(x in base_type for x in ["swap", "swaption", "lock"])
-        and random.random() < PAY_PREFIX_RATIO
-    ):
-        prefix = random.choice(components["swap_prefixes"])
-            
-    # --- Optional Prefix (global)
-    if (
-        
-        not prefix and random.random() < PAY_PREFIX_RATIO
-    ):
-        prefix = random.choice(components["global_prefixes"]
-    )
-
-    return prefix, placeholder, base_type, suffix, full_name, alias
-
-def _create_instrument_with_history(
-    scenario: GenerationScenario,
-    instrument_class: type,
-    instrument_id: int,
-    base_instrument_args: Dict,
-) -> NotionalInstrument:
-    """
-    Creates a single instrument and populates its history for previous years.
-
-    For a single instrument ID, this generates one instrument object containing a
-    `notional_history` dictionary, which maps years to notional amounts.
-    The history can extend back a variable number of years.
-
-    Args:
-        scenario: The GenerationScenario to which instruments will be added.
-        instrument_class: The class of the instrument to create (e.g., IRInstrument).
-        instrument_id: The unique ID for this instrument and its history.
-        base_instrument_args: A dictionary of arguments for the instrument constructor,
-                              including the notional amount for the *current* reporting year.
-
-    Returns:
-        A single NotionalInstrument instance with its history populated.
-    """
-    current_year = scenario.reporting_year
-    current_notional = base_instrument_args.pop("notional_amount")
-
-    # The history dictionary will store {year: notional}
-    notional_history = {current_year: current_notional}
-
-    # Create historical versions for the previous 2-7 years
-    num_historical_years = random.randint(2, 7)
-    last_notional = current_notional
-    for i in range(1, num_historical_years + 1):
-        historical_year = current_year - i
-        # Simulate a slightly different notional amount for the previous year
-        last_notional = int(last_notional * random.uniform(0.85, 1.15))
-        notional_history[historical_year] = max(0, last_notional) # Ensure notional doesn't become negative
-
-    # Create the single instrument instance with the complete history
-    instrument = instrument_class(
-        instrument_id=instrument_id,
-        notional_history=notional_history,
-        **base_instrument_args,
-    )
-
-    return instrument
 
 
 # Define a list of company archetypes to choose from during generation.
@@ -430,7 +258,9 @@ class ScenarioBuilder:
         for _ in range(count):
             # --- FIX: Ensure unit and cost_type are specific to the chosen commodity ---
             # 1. Select a random commodity from the full list.
-            commodity_name, unit, cost_type = get_random_commodity_and_unit(self.scenario.archetype.commodity_types)
+            commodity_name, unit, cost_type = get_random_commodity_and_unit(
+                self.scenario.archetype.commodity_types
+            )
 
             self.potential_hedged_items["commodity"].append(
                 CommodityHedgedItem(
@@ -450,13 +280,19 @@ class ScenarioBuilder:
 
     def _generate_equity_exposures(self, count: int):
         for _ in range(count):
-            equity_type = random.choice(["market_index", "own_stock", "third_party_stock"])
-            stock_symbol = "".join(random.choices(string.ascii_uppercase, k=random.randint(3, 4))) if equity_type != "market_index" else None
+            equity_type = random.choice(
+                ["market_index", "own_stock", "third_party_stock"]
+            )
+            stock_symbol = (
+                "".join(random.choices(string.ascii_uppercase, k=random.randint(3, 4)))
+                if equity_type != "market_index"
+                else None
+            )
 
             self.potential_hedged_items["equity"].append(
                 EquityHedgedItem(
                     hedged_item_id=self.hedged_item_id_counter,
-                    equity_type=equity_type, # type: ignore
+                    equity_type=equity_type,  # type: ignore
                     number_of_shares=random.randint(10000, 500000),
                     share_price=random.uniform(10.0, 250.0),
                     stock_symbol=stock_symbol,
@@ -542,7 +378,6 @@ class ScenarioBuilder:
                 ),
                 "currency": self.archetype.default_currency,
                 "maturity_year": maturity_year,
-                "hedge_designation": random.choice(hedge_designations),
                 "hedged_item": hedged_item,
                 "instrument_prefix": prefix,
                 "placeholder": placeholder,
@@ -638,7 +473,6 @@ class ScenarioBuilder:
                 ),
                 "currency": self.archetype.default_currency,
                 "maturity_year": maturity_year,
-                "hedge_designation": random.choice(hedge_designations),
                 "hedged_item": None,
                 "instrument_prefix": prefix,
                 "placeholder": placeholder,
@@ -818,6 +652,178 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
     plural_suffix = f"{suffix}s" if not suffix.endswith('s') else suffix
 
     return " ".join(filter(None, [quantifier, descriptor, plural_suffix]))
+
+
+def _create_instrument_with_history(
+    scenario: GenerationScenario,
+    instrument_class: type,
+    instrument_id: int,
+    base_instrument_args: Dict,
+) -> NotionalInstrument:
+    """
+    Creates a single instrument and populates its history for previous years.
+
+    For a single instrument ID, this generates one instrument object containing a
+    `notional_history` dictionary, which maps years to notional amounts.
+    The history can extend back a variable number of years.
+
+    Args:
+        scenario: The GenerationScenario to which instruments will be added.
+        instrument_class: The class of the instrument to create (e.g., IRInstrument).
+        instrument_id: The unique ID for this instrument and its history.
+        base_instrument_args: A dictionary of arguments for the instrument constructor,
+                              including the notional amount for the *current* reporting year.
+
+    Returns:
+        A single NotionalInstrument instance with its history populated.
+    """
+    current_year = scenario.reporting_year
+    current_notional = base_instrument_args.pop("notional_amount")
+
+    # The history dictionary will store {year: notional}
+    notional_history = {current_year: current_notional}
+
+    # Create historical versions for the previous 2-7 years
+    num_historical_years = random.randint(2, 7)
+    last_notional = current_notional
+    for i in range(1, num_historical_years + 1):
+        historical_year = current_year - i
+        # Simulate a slightly different notional amount for the previous year
+        last_notional = int(last_notional * random.uniform(0.85, 1.15))
+        notional_history[historical_year] = max(
+            0, last_notional
+        )  # Ensure notional doesn't become negative
+
+    # Create the single instrument instance with the complete history
+    instrument = instrument_class(
+        instrument_id=instrument_id,
+        notional_history=notional_history,
+        **base_instrument_args,
+    )
+
+    return instrument
+
+
+# --- Dynamic Instrument Type Generation ---
+def _generate_instrument_name(
+    category: str,
+    hedged_item: Optional["HedgedItem"] = None,
+    available_base_types: Optional[List[str]] = None,
+    all_scenario_base_types: Optional[Set[str]] = None,
+) -> Tuple[str, str, str, str, str, str]:
+    """
+    Dynamically generates a derivative instrument name based on category and context.
+    This replaces the pre-expanded `derivative_keywords` logic.
+
+    Returns:
+        A tuple of (prefix, placeholder, base_type, suffix, full_name, alias).
+    """
+    components = DERIVATIVE_COMPONENTS
+    placeholders = components["placeholders"].get(category, [""])
+    base_types = available_base_types or components["base_types"]
+    suffixes = components["suffixes"]  # e.g., contract, agreement
+    special_suffixes = components["special_suffixes"]  # e.g., put option
+    special_ratio = 0.10  # configurable
+
+    if (
+        category == "IR"
+        and isinstance(hedged_item, DebtHedgedItem)
+        and hedged_item.benchmark_rate
+    ):
+        # 35% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
+        placeholder = (
+            hedged_item.benchmark_rate
+            if random.random() < 0.35
+            else random.choice(placeholders)
+        )
+    else:
+        placeholder = random.choice(placeholders)
+
+    base_type = random.choice(base_types)
+
+    # --- Assemble the name ---
+    use_special = special_suffixes and random.random() < special_ratio
+    suffix = ""
+    if use_special:
+        chosen = random.choice(special_suffixes)
+        full_name = " ".join(filter(None, [placeholder, chosen])).strip()
+        base_type = chosen  # treat as base for alias/prefix logic
+    else:
+        suffix = random.choice(suffixes)
+        full_name = " ".join(filter(None, [placeholder, base_type, suffix])).strip()
+
+    # --- NEW: Context-aware alias generation ---
+    other_base_types = (all_scenario_base_types or set()) - {base_type}
+    alias = _create_contextual_alias(base_type, category, placeholder, other_base_types)
+
+    # --- Optional Prefix (for swaps, swaptions, rate locks) ---
+    prefix = ""
+    if (
+        any(x in base_type for x in ["swap", "swaption", "lock"])
+        and random.random() < PAY_PREFIX_RATIO
+    ):
+        prefix = random.choice(components["swap_prefixes"])
+
+    # --- Optional Prefix (global)
+    if not prefix and random.random() < PAY_PREFIX_RATIO:
+        prefix = random.choice(components["global_prefixes"])
+
+    return prefix, placeholder, base_type, suffix, full_name, alias
+
+
+def _create_contextual_alias(
+    base_type: str, category: str, placeholder: str, all_other_base_types: Set[str]
+) -> str:
+    """
+    Creates a context-aware alias for an instrument. If the base type is unique
+    across the scenario, a simple alias is used. Otherwise, a category prefix is added.
+
+    Args:
+        base_type: The base type of the current instrument (e.g., "swap").
+        category: The category of the current instrument (e.g., "IR").
+        placeholder: The placeholder used in the instrument name (e.g., "cross-currency").
+        all_other_base_types: A set of all base types present in the scenario.
+
+    Returns:
+        A contextually appropriate alias string.
+    """
+    # NEW: Handle special suffixes like "put option" explicitly.
+    # This ensures the full two-word phrase is treated as the base.
+    for special_suffix in DERIVATIVE_COMPONENTS["special_suffixes"]:
+        if special_suffix in base_type:
+            alias_base = special_suffix
+            break
+    else:
+        # Fallback for other types.
+        alias_base = (
+            " ".join(base_type.split()[-2:])
+            if len(base_type.split()) > 1
+            else base_type
+        )
+
+    is_base_type_unique = base_type not in all_other_base_types
+
+    # --- NEW: Prevent aliasing for certain generic types ---
+    no_alias_types = DERIVATIVE_COMPONENTS.get("no_alias_types", [])
+    if any(no_alias_word in base_type for no_alias_word in no_alias_types):
+        return base_type
+
+    # If the base type is unique, or a generic term, or already specific (like cross-currency), don't add a prefix.
+    if is_base_type_unique or alias_base in ["swap"] or "cross-currency" in placeholder:
+        return alias_base
+
+    category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
+    category_prefix = category_prefix_map.get(category, "")
+
+    # --- NEW: For dependent types, prefer a more descriptive alias ---
+    # e.g., "rate lock" instead of just "lock"
+    if base_type in DERIVATIVE_COMPONENTS.get("dependent_types", []):
+        # Use placeholder if it's not generic, otherwise fallback to category prefix
+        if placeholder and category.lower() not in placeholder:
+            return f"{placeholder} {alias_base}".strip()
+
+    return f"{category_prefix} {alias_base}".strip()
+
 
 # =============================================================================
 # PHASE 2: NARRATIVE AND JSON GENERATION

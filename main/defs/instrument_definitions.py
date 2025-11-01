@@ -1,3 +1,4 @@
+import random
 from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple, TypeVar
 from dataclasses import dataclass, field
 
@@ -6,7 +7,6 @@ DERIVATIVE_CATEGORIES = ("IR", "FX", "CP", "EQ", "GEN")
 DerivativeCategory = Literal["IR", "FX", "CP", "EQ", "GEN"]
 
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
-
 
 @dataclass
 class ContextSentence:

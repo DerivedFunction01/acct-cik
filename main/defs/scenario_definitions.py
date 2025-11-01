@@ -1,9 +1,20 @@
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional, Dict, TypeVar, Generic, Tuple
+import string
+from typing import List, Literal, Optional, Dict, TypeVar, Generic, Tuple, Set
 import random
+import pandas as pd
+output_file = "./training_data.xlsx"
+company_name_file = "./names.xlsx"
+try:
+    company_name_df = pd.read_excel(company_name_file)
+except FileNotFoundError:
+    company_name_df = pd.DataFrame(columns=["name"])
+company_names = list(company_name_df["name"])
 
-from defs.instrument_definitions import DerivativeCategory, NotionalInstrument
+from defs.instrument_definitions import DerivativeCategory,  NotionalInstrument
 from defs.policy_definitions import AccountingStandardUpdate, RiskManagementPolicy
+from defs.common_data import *
+from defs.template_definitions import *
 
 
 @dataclass
