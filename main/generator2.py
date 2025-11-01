@@ -6,7 +6,7 @@ import json, re
 from typing import List, Dict, Optional, Set, Tuple
 
 from defs.common_data import *
-from defs.commodity_data import get_random_commodity_and_unit, get_cost_types_for_commodity
+from defs.commodity_data import get_random_commodity_and_unit, get_cost_types_for_commodity, get_units_for_commodity
 from defs.debt_data import *
 from defs.template_definitions import *
 from defs.class_definitions import (
@@ -434,7 +434,10 @@ class ScenarioBuilder:
 
     def _generate_commodity_exposures(self, count: int):
         for _ in range(count):
+            # --- FIX: Ensure unit and cost_type are specific to the chosen commodity ---
+            # 1. Select a random commodity from the full list.
             commodity_name, unit, cost_type = get_random_commodity_and_unit()
+
             self.potential_hedged_items["commodity"].append(
                 CommodityHedgedItem(
                     hedged_item_id=self.hedged_item_id_counter,
@@ -733,6 +736,18 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
     """
     if not instruments:
         return "derivatives"
+
+    # --- NEW: For CP, sometimes use the specific commodity name ---
+    if category == "CP" and random.random() < 0.4: # 40% chance
+        # Get a commodity name from one of the hedged items
+        commodity_name = next(
+            (inst.hedged_item.commodity_type for inst in instruments if inst.hedged_item and isinstance(inst.hedged_item, CommodityHedgedItem)),
+            None
+        )
+        if commodity_name:
+            # e.g., "crude oil swaps and contracts"
+            base_types = sorted(list({f"{i.base_type} {i.suffix}".strip() for i in instruments}))
+            return f"{commodity_name} {', '.join(base_types)}"
 
     count = len(instruments)
     unique_types = sorted(list({i.instrument_type for i in instruments}))
