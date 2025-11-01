@@ -65,7 +65,7 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
     return currency_symbol, money_unit_word, currency_code
 
 
-def _create_contextual_alias(base_type: str, category: str, all_other_base_types: Set[str]) -> str:
+def _create_contextual_alias(base_type: str, category: str, placeholder: str, all_other_base_types: Set[str]) -> str:
     """
     Creates a context-aware alias for an instrument. If the base type is unique
     across the scenario, a simple alias is used. Otherwise, a category prefix is added.
@@ -73,6 +73,7 @@ def _create_contextual_alias(base_type: str, category: str, all_other_base_types
     Args:
         base_type: The base type of the current instrument (e.g., "swap").
         category: The category of the current instrument (e.g., "IR").
+        placeholder: The placeholder used in the instrument name (e.g., "cross-currency").
         all_other_base_types: A set of all base types present in the scenario.
 
     Returns:
@@ -90,7 +91,8 @@ def _create_contextual_alias(base_type: str, category: str, all_other_base_types
 
     is_base_type_unique = base_type not in all_other_base_types
 
-    if is_base_type_unique or alias_base in ["swap", "derivative"] or "cross-currency" in base_type:
+    # If the base type is unique, or a generic term, or already specific (like cross-currency), don't add a prefix.
+    if is_base_type_unique or alias_base in ["swap", "derivative"] or "cross-currency" in placeholder:
         return alias_base
     
     category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
@@ -143,7 +145,7 @@ def _generate_instrument_name(
 
     # --- NEW: Context-aware alias generation ---
     other_base_types = (all_scenario_base_types or set()) - {base_type}
-    alias = _create_contextual_alias(base_type, category, other_base_types)
+    alias = _create_contextual_alias(base_type, category, placeholder, other_base_types)
 
     # --- Optional Prefix (for swaps, swaptions, rate locks) ---
     prefix = ""
