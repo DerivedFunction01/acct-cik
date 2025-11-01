@@ -873,6 +873,8 @@ def _generate_category_narrative(
             if isinstance(hedged_item, CommodityHedgedItem):
                 commodity_name = hedged_item.commodity_type
                 commodity_unit = hedged_item.unit_of_volume
+                result_details.commodity = commodity_name
+                result_details.unit = commodity_unit
                 cost_type_name = hedged_item.cost_type
             elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
                 currency_names = [exp.full_name for exp in hedged_item.exposures]
@@ -950,6 +952,7 @@ def _generate_category_narrative(
                     reporting_year=reporting_year,
                     value_type=value_type,
                     result_phrase=random.choice(
+                        # Pass the commodity name to the sentence builder
                         result_phrases.get(category, result_phrases["GEN"])
                     ),
                 )
@@ -990,6 +993,7 @@ def _generate_category_narrative(
                 reporting_year=reporting_year,
                 value_type=value_type_to_use,
                 result_phrase=random.choice(
+                    # Pass the commodity name to the sentence builder
                     result_phrases.get(category, result_phrases["GEN"])
                 ),
                 result_details=result_details,
@@ -1143,6 +1147,7 @@ def _generate_category_narrative(
                     reporting_year=reporting_year,
                     value_type=value_type_individual,
                     result_phrase=random.choice(
+                        # Pass the commodity name to the sentence builder
                         result_phrases.get(category, result_phrases["GEN"])
                     ),
                 )
@@ -1193,6 +1198,7 @@ def _generate_category_narrative(
                     reporting_year=reporting_year,
                     value_type=value_type_terminated,
                     result_phrase=random.choice(
+                        # Pass the commodity name to the sentence builder
                         result_phrases.get(category, result_phrases["GEN"])
                     ),
                 )
