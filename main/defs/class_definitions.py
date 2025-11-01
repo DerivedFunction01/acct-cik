@@ -88,51 +88,22 @@ class NotionalEvidence(BaseNarrativeEvidence):
             "GEN": "Generic",
         }.get(self.category, "Unknown Category")
 
-    def _temporal_reasoning(self, value_desc: str) -> str:
-        """Describe time relation of the evidence, with maturity only in past/future cases."""
+    def _temporal_reasoning(self) -> str:
+        """Generates a concise temporal reasoning string, e.g., '(2023, current maturity)'."""
         if not self.reporting_year or not self.year:
             return ""
 
-        maturity_reason = "" # Only give maturity reason to proper sentences
+        maturity_status = ""
         if self.maturity_year is not None and self.sentence_type and self.sentence_type in [
             "historical_individual", "new_individual", "individual",
             "terminated_individual",
         ]:
             if self.maturity_year >= self.reporting_year:
-                maturity_reason = f" and is considered current as its maturity year ({self.maturity_year}) is on or after the reporting year"
+                maturity_status = ", current maturity"
             else:
-                maturity_reason = f" and is considered historical as it matured in {self.maturity_year}, prior to or at the reporting year"
+                maturity_status = ", historical maturity"
 
-        if self.year == self.reporting_year:
-            if self.notional is None:
-                return f" (for the reporting year {self.reporting_year}, confirming current reporting activity{maturity_reason})."
-            elif self.notional > 0:
-                return f" (for the reporting year {self.reporting_year}, confirming current use with a positive {value_desc}{maturity_reason})."
-            else:
-                return f" (for the reporting year {self.reporting_year}, confirming no current use with a zero {value_desc}{maturity_reason})."
-
-        elif (
-            self.year < self.reporting_year or self.maturity_year == self.reporting_year
-        ):
-            mismatch_note = ""
-            if any(
-                [
-                    self.notional_str
-                    and str(self.reporting_year) not in self.notional_str,
-                    self.prev_notional_str
-                    and str(self.reporting_year) not in self.prev_notional_str,
-                    self.prev2_notional_str
-                    and str(self.reporting_year) not in self.prev2_notional_str,
-                ]
-            ):
-                mismatch_note = f" This confirms the disclosed {value_desc} values do not align with the reporting year {self.reporting_year}, reinforcing their historical nature."
-
-            return f" (for a prior year {self.year}, confirming only historical use before the reporting year {self.reporting_year}{maturity_reason}).{mismatch_note}"
-
-        elif self.year > self.reporting_year:
-            return f" (for a future year {self.year}, indicating expected or forward activity beyond the reporting year {self.reporting_year}{maturity_reason})."
-
-        return ""
+        return f" ({self.year}{maturity_status})"
 
     def _validate_temporal_consistency(self) -> Optional[str]:
         """Detect inconsistent or ambiguous temporal relationships."""
@@ -192,10 +163,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
         )
         
         if self.year is None or self.reporting_year is None:
-            # Allow certain statuses to function without full temporal anchors.
-            temporal_info = self._temporal_reasoning(value_desc)  # will be empty string
+            temporal_info = ""
         else:
-            temporal_info = self._temporal_reasoning(value_desc)
+            temporal_info = self._temporal_reasoning()
 
         warning = self._validate_temporal_consistency()
 
@@ -212,34 +182,21 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         def summary_handler() -> str:
             # Summary is always aggregate, so it won't have a specific "aha" moment for an individual instrument.
-            # Its logic remains focused on aggregate values.
-            if self.prev_notional_str:
-                return (f"The report provides an aggregate summary for {category_context}, comparing {values_desc} of {self.notional_str} for {self.year} "
-                        f"against {self.prev_notional_str} for {self.prev_year}, indicating continuity{temporal_info}")
-            elif self.notional_str or self.notional is not None:
-                return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc} activity{temporal_info}"
-            return f"The report provides a summary for {category_context}, confirming activity but no {value_desc} was specified for {self.year}."
+            # Its logic remains focused on aggregate values. The phrase "An aggregate..." is sufficient.
+            value_part = f" of {self.notional_str}" if self.notional_str or self.notional is not None else " with no value specified"
+            return f"An aggregate {value_desc}{value_part} was identified for {base_desc} activity{temporal_info}"
 
         def new_individual_handler() -> str:
-            prefix = f"The report describes a new {base_desc}"
-            value_part = (
-                f" with a {value_desc} of {self.notional_str}"
-                if self.notional_str
-                else ""
-            )
-            return f"{prefix}{value_part}{classification_note}{temporal_info}"
+            value_part = f" with a {value_desc} of {self.notional_str}" if self.notional_str else ""
+            return f"A new individual {base_desc} was identified{value_part}{classification_note}{temporal_info}"
 
         def individual_handler() -> str:
-            prefix = f"The report mentions an individual {base_desc}"
-            value_part = (
-                f" with a {value_desc} of {self.notional_str}" if self.notional_str else ""
-            )
-            return f"{prefix}{value_part}{classification_note}{temporal_info}"
+            value_part = f" with a {value_desc} of {self.notional_str}" if self.notional_str else ""
+            return f"An individual {base_desc} was identified{value_part}{classification_note}{temporal_info}"
 
         def terminated_individual_handler() -> str:
-            prefix = f"The report describes a terminated {base_desc}"
             value_part = f" with a prior {value_desc} of {self.notional_str}" if self.notional_str else ""
-            return f"{prefix}{value_part}. Its absence in {self.reporting_year} data indicates settlement or maturity{temporal_info}"
+            return f"A terminated {base_desc} was identified{value_part}{temporal_info}"
 
         def no_instruments_handler() -> str:
             return f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, confirming no current use{temporal_info}"
@@ -315,7 +272,7 @@ class PolicyEvidence(BaseNarrativeEvidence):
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the policy evidence."""
-        return f"A {self.policy_type.replace('_', ' ')} statement was found for the {self.category} category."
+        return "" # This evidence is contextual and does not need to be in the chain of thought.
 
 @dataclass
 class MitigationEvidence(BaseNarrativeEvidence):
@@ -353,7 +310,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
         if self.usage_status == "non_use":
             return f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging."
 
-        return f"A mitigation purpose statement was found for {category_name} derivatives. {linguistic_cue} for {instrument_desc} suggests a '{self.usage_status}' usage status."
+        return f"{linguistic_cue} for {instrument_desc} suggests a '{self.usage_status}' usage status for {category_name} derivatives."
 
 
 @dataclass
@@ -1175,6 +1132,7 @@ class NotionalSentence:
         )
         final_notional = self.notional if mentions_amount else None
         
+        final_notional_str = amount_str if mentions_amount else None
         # --- NEW: These are now generated inside the build method for specific templates ---
         termination_noun_local = random.choice(termination_noun)
         comparison_phrase_local = random.choice(comparison_phrases)
@@ -1259,6 +1217,7 @@ class NotionalSentence:
             aggregate=self.sentence_type in ["summary", "comparative"],
             notional=final_notional,  # Use the conditional notional value
             year=self.year,
+            notional_str=final_notional_str,
             instrument_type=self.swap_type,
             maturity_year=self.maturity_year,
             reporting_year=self.reporting_year,

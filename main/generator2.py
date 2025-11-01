@@ -1041,7 +1041,15 @@ def _generate_category_narrative(
                 )
             )
         )
-        instrument_type = _get_smart_instrument_description(current_year_data["instruments"], category) if has_active_instruments and current_year_data else "derivatives"
+
+        if has_active_instruments and current_year_data:
+            instrument_type = _get_smart_instrument_description(current_year_data["instruments"], category)
+        else:
+            # For speculative cases, generate a plausible instrument name instead of just "derivatives"
+            _, _, _, _, name, _ = _generate_instrument_name(category)
+            # 50% chance to make it plural for better sentence flow
+            instrument_type = f"{name}s" if random.random() < 0.5 else name
+
 
         mitigation_sentence_obj = MitigationSentence(
             category=category, # type: ignore
@@ -1066,14 +1074,20 @@ def _generate_category_narrative(
             and not is_non_use_mitigation
             and random.random() < 0.5
         ):
+            # --- FIX: Only report a value if the template is likely to use it ---
+            # Decide upfront if we're going to mention a value.
+            # This prevents passing a value to a template that doesn't display it,
+            # which avoids creating evidence with a "None" notional string.
+            mentions_amount = random.random() < 0.8  # 80% chance to generate a sentence with a value
+
             total_notional = current_year_data["total_notional"]
             use_fair_value = random.random() < 0.2 # type: ignore
             value_type_to_use = "fair_value" if use_fair_value else "notional"
-            value_to_report = (
-                max(1, int(total_notional / random.randint(20, 100)))
-                if use_fair_value
-                else total_notional
-            )
+            value_to_report = None
+            if mentions_amount:
+                value_to_report = (
+                    max(1, int(total_notional / random.randint(20, 100))) if use_fair_value else total_notional
+                )
 
             summary_sentence_obj = NotionalSentence(
                 swap_type=instrument_type,
