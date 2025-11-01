@@ -1,9 +1,10 @@
 # %%
 import random
+import string
 import pandas as pd
 from collections import Counter
 import json, re
-from typing import List, Dict, Optional, Set, Tuple
+from typing import List, Dict, Literal, Optional, Set, Tuple
 
 from defs.common_data import *
 from defs.commodity_data import get_random_commodity_and_unit, get_cost_types_for_commodity, get_units_for_commodity
@@ -40,7 +41,6 @@ from defs.class_definitions import (
     GeneralHedgingPolicy,
     DERIVATIVE_CATEGORIES,
 )
-from defs.dummy_data import *
 
 output_file = "./training_data.xlsx"
 company_name_file = "./names.xlsx"
@@ -473,20 +473,16 @@ class ScenarioBuilder:
 
     def _generate_equity_exposures(self, count: int):
         for _ in range(count):
-            underlying = random.choice(DUMMY_EQUITY_UNDERLYINGS).format(
-                company_name=self.scenario.company_name
-            )
-            equity_type = (
-                "own_stock"
-                if self.scenario.company_name in underlying
-                else "market_index"
-            )
+            equity_type = random.choice(["market_index", "own_stock", "third_party_stock"])
+            stock_symbol = "".join(random.choices(string.ascii_uppercase, k=random.randint(3, 4))) if equity_type != "market_index" else None
+
             self.potential_hedged_items["equity"].append(
                 EquityHedgedItem(
                     hedged_item_id=self.hedged_item_id_counter,
-                    underlying_equity=underlying,
-                    equity_type=equity_type,  # type: ignore
-                    reason=random.choice(DUMMY_EQUITY_REASONS),
+                    equity_type=equity_type, # type: ignore
+                    number_of_shares=random.randint(10000, 500000),
+                    share_price=random.uniform(10.0, 250.0),
+                    stock_symbol=stock_symbol,
                 )
             )
             self.hedged_item_id_counter += 1

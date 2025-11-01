@@ -764,11 +764,15 @@ class EquityHedgedItem(HedgedItem):
     """Represents an equity instrument being hedged (for EQ derivatives).
 
     Args:
-        underlying_equity: str - The underlying equity being hedged.
         equity_type: Literal["market_index", "own_stock", "third_party_stock"] - The type of equity.
-        reason: str - The reason for hedging this equity exposure.
+        number_of_shares: Optional[int] - The number of shares being hedged.
+        share_price: Optional[float] - The share price at a point in time.
+        stock_symbol: Optional[str] - The stock ticker symbol.
     """
     equity_type: Literal["market_index", "own_stock", "third_party_stock"]
+    number_of_shares: Optional[int] = None
+    share_price: Optional[float] = None
+    stock_symbol: Optional[str] = None
 
 
 @dataclass
