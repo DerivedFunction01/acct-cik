@@ -510,10 +510,10 @@ class DerivativeInstrument:
     instrument_prefix: Optional[str]
     instrument_alias: str
     category: DerivativeCategory
-    month: str
-    year: int
+    start_month: str
+    start_year: int
+    maturity_month: str
     hedge_designation: Optional[str] = None
-    maturity_month: Optional[str] = None
     maturity_year: Optional[int] = None
 
     def to_dict(self) -> Dict:
@@ -522,7 +522,6 @@ class DerivativeInstrument:
             "instrument_id": self.instrument_id,
             "instrument_type": self.instrument_type,
             "instrument_prefix": self.instrument_prefix,
-
             "instrument_alias": self.instrument_alias,
             "category": self.category,
             "hedge_designation": self.hedge_designation,
@@ -660,7 +659,7 @@ class NotionalInstrument(DerivativeInstrument, Generic[T_HedgedItem]):
         hedged_item: Optional[T_HedgedItem] - The item being hedged by this instrument.
     """
 
-    notional_amount: int = 0
+    notional_history: Dict[int, int] = field(default_factory=dict)  # {year: notional_amount}
     currency: str = "USD"
     hedged_item: Optional[T_HedgedItem] = None
 
@@ -670,7 +669,7 @@ class NotionalInstrument(DerivativeInstrument, Generic[T_HedgedItem]):
         data = super().to_dict()
         data.update(
             {
-                "notional_amount": self.notional_amount,
+                "notional_history": self.notional_history,
                 "currency": self.currency,
                 "hedged_item": self.hedged_item.to_dict() if self.hedged_item else None,
             }

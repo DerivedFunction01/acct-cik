@@ -141,46 +141,47 @@ def _create_instrument_with_history(
     instrument_class: type,
     instrument_id: int,
     base_instrument_args: Dict,
-) -> List[NotionalInstrument]:
+) -> NotionalInstrument:
     """
-    Creates a primary instrument and its historical versions for previous years.
+    Creates a single instrument and populates its history for previous years.
 
-    For a single instrument ID, this generates multiple instrument "states," one for
-    the current reporting year and others for the preceding 1-2 years, each with
-    slightly varied notional amounts to simulate historical data.
+    For a single instrument ID, this generates one instrument object containing a
+    `notional_history` dictionary, which maps years to notional amounts.
+    The history can extend back a variable number of years.
 
     Args:
         scenario: The GenerationScenario to which instruments will be added.
         instrument_class: The class of the instrument to create (e.g., IRInstrument).
         instrument_id: The unique ID for this instrument and its history.
-        base_instrument_args: A dictionary of arguments for the instrument constructor.
+        base_instrument_args: A dictionary of arguments for the instrument constructor,
+                              including the notional amount for the *current* reporting year.
 
     Returns:
-        A list of all created instrument instances (current and historical).
+        A single NotionalInstrument instance with its history populated.
     """
-    created_instruments = []
-    current_year = base_instrument_args["year"]
+    current_year = scenario.reporting_year
+    current_notional = base_instrument_args.pop("notional_amount")
 
-    # Create instrument for the current reporting year
-    current_instrument = instrument_class(
-        instrument_id=instrument_id, **base_instrument_args
-    )
-    created_instruments.append(current_instrument)
+    # The history dictionary will store {year: notional}
+    notional_history = {current_year: current_notional}
 
-    # Create historical versions for the previous 1-2 years
-    for i in range(1, random.randint(2, 3)):  # For prev_year and prev2_year
-        historical_args = base_instrument_args.copy()
-        historical_args["year"] = current_year - i
+    # Create historical versions for the previous 2-7 years
+    num_historical_years = random.randint(2, 7)
+    last_notional = current_notional
+    for i in range(1, num_historical_years + 1):
+        historical_year = current_year - i
         # Simulate a slightly different notional amount for the previous year
-        historical_args["notional_amount"] = int(
-            base_instrument_args["notional_amount"] * random.uniform(0.85, 1.15)
-        )
-        historical_instrument = instrument_class(
-            instrument_id=instrument_id, **historical_args
-        )
-        created_instruments.append(historical_instrument)
+        last_notional = int(last_notional * random.uniform(0.85, 1.15))
+        notional_history[historical_year] = max(0, last_notional) # Ensure notional doesn't become negative
 
-    return created_instruments
+    # Create the single instrument instance with the complete history
+    instrument = instrument_class(
+        instrument_id=instrument_id,
+        notional_history=notional_history,
+        **base_instrument_args,
+    )
+
+    return instrument
 
 
 # Define a list of company archetypes to choose from during generation.
@@ -436,8 +437,8 @@ def create_random_scenario() -> GenerationScenario:
 
     # --- Generate Debt Exposures ---
     for _ in range(exposure_counts["debt"]):
-        issuance_year = random.randint(reporting_year - 8, reporting_year - 1)
-        maturity_year = random.randint(reporting_year + 2, reporting_year + 10)
+        issuance_year = random.randint(reporting_year - 15, reporting_year - 1)
+        maturity_year = random.randint(reporting_year + 2, reporting_year + 20)
 
         # --- NEW: Context-aware debt and benchmark selection ---
         selected_debt_type: DebtType = random.choice(all_debt_types)
@@ -552,7 +553,7 @@ def create_random_scenario() -> GenerationScenario:
             should_create_historical = is_exiting_hedger or (random.random() < past_prop)
 
             if should_create_historical:
-                maturity_year = random.randint(issuance_year + 1, reporting_year)
+                maturity_year = random.randint(reporting_year - 5, reporting_year) # Expired in the last 5 years
                 notional = random.randint(5, 500) * multiplier
             else:
                 continue  # This exposure remains unhedged
@@ -574,10 +575,10 @@ def create_random_scenario() -> GenerationScenario:
 
         base_args = {
             "instrument_type": name,
-            "instrument_alias": alias,
-            "month": random.choice(months),
-            "year": reporting_year,
+            "instrument_alias": alias,            
             "notional_amount": notional,
+            "start_month": random.choice(months),
+            "start_year": random.randint(reporting_year - 10, reporting_year -1),
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
             "hedge_designation": random.choice(hedge_designations),
@@ -585,14 +586,14 @@ def create_random_scenario() -> GenerationScenario:
             "instrument_prefix": prefix,
         }
 
-        # Create the instrument and its history
-        new_instruments = _create_instrument_with_history(
+        # Create the single instrument object with its full history
+        new_instrument = _create_instrument_with_history(
             scenario=scenario,
             instrument_class=FXInstrument if is_cross_currency else IRInstrument,
             instrument_id=instrument_id_counter,
             base_instrument_args=base_args,
         )
-        scenario.instruments.extend(new_instruments)
+        scenario.instruments.append(new_instrument)
         instrument_id_counter += 1
 
     # --- Create FX Instruments (deterministically based on FX propensity) ---
@@ -626,10 +627,9 @@ def create_random_scenario() -> GenerationScenario:
 
         base_args = {
             "instrument_type": name,
-            
             "instrument_alias": alias,
-            "month": random.choice(months),
-            "year": reporting_year,
+            "start_month": random.choice(months),
+            "start_year": random.randint(reporting_year - 5, reporting_year -1),
             "notional_amount": notional,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
@@ -638,13 +638,13 @@ def create_random_scenario() -> GenerationScenario:
             "instrument_prefix": prefix,
         }
 
-        new_instruments = _create_instrument_with_history(
+        new_instrument = _create_instrument_with_history(
             scenario=scenario,
             instrument_class=FXInstrument,
             instrument_id=instrument_id_counter,
             base_instrument_args=base_args,
         )
-        scenario.instruments.extend(new_instruments)
+        scenario.instruments.append(new_instrument)
         instrument_id_counter += 1
 
     # --- Create CP Instruments (deterministically based on CP propensity) ---
@@ -677,10 +677,9 @@ def create_random_scenario() -> GenerationScenario:
 
         base_args = {
             "instrument_type": name,
-            
             "instrument_alias": alias,
-            "month": random.choice(months),
-            "year": reporting_year,
+            "start_month": random.choice(months),
+            "start_year": random.randint(reporting_year - 5, reporting_year -1),
             "notional_amount": notional,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
@@ -689,13 +688,13 @@ def create_random_scenario() -> GenerationScenario:
             "instrument_prefix": prefix,
         }
 
-        new_instruments = _create_instrument_with_history(
+        new_instrument = _create_instrument_with_history(
             scenario=scenario,
             instrument_class=CPInstrument,
             instrument_id=instrument_id_counter,
             base_instrument_args=base_args,
         )
-        scenario.instruments.extend(new_instruments)
+        scenario.instruments.append(new_instrument)
         instrument_id_counter += 1
 
     # --- Create EQ Instruments (deterministically based on EQ propensity) ---
@@ -728,10 +727,9 @@ def create_random_scenario() -> GenerationScenario:
 
         base_args = {
             "instrument_type": name,
-            
             "instrument_alias": alias,
-            "month": random.choice(months),
-            "year": reporting_year,
+            "start_month": random.choice(months),
+            "start_year": random.randint(reporting_year - 5, reporting_year -1),
             "notional_amount": notional,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
@@ -740,13 +738,13 @@ def create_random_scenario() -> GenerationScenario:
             "instrument_prefix": prefix,
         }
 
-        new_instruments = _create_instrument_with_history(
+        new_instrument = _create_instrument_with_history(
             scenario=scenario,
             instrument_class=EQInstrument,
             instrument_id=instrument_id_counter,
             base_instrument_args=base_args,
         )
-        scenario.instruments.extend(new_instruments)
+        scenario.instruments.append(new_instrument)
         instrument_id_counter += 1
 
     # --- Create Generic Instruments ---
@@ -763,10 +761,9 @@ def create_random_scenario() -> GenerationScenario:
 
         base_args = {
             "instrument_type": name,
-            
             "instrument_alias": alias,
-            "month": random.choice(months),
-            "year": reporting_year,
+            "start_month": random.choice(months),
+            "start_year": random.randint(reporting_year - 5, reporting_year -1),
             "notional_amount": random.randint(10, 300) * multiplier,
             "currency": archetype.default_currency,
             "maturity_year": maturity_year,
@@ -775,13 +772,13 @@ def create_random_scenario() -> GenerationScenario:
             "instrument_prefix": prefix,
         }
 
-        new_instruments = _create_instrument_with_history(
+        new_instrument = _create_instrument_with_history(
             scenario=scenario,
             instrument_class=GenericInstrument,
             instrument_id=instrument_id_counter,
             base_instrument_args=base_args,
         )
-        scenario.instruments.extend(new_instruments)
+        scenario.instruments.append(new_instrument)
         instrument_id_counter += 1
 
     return scenario
@@ -813,7 +810,7 @@ def _generate_narrative_policy(
 
         # Determine if there are any active instruments in the reporting year.
         instrument_categories_in_year = [
-            inst.category for inst in scenario.instruments if inst.year == scenario.reporting_year
+            inst.category for inst in scenario.instruments if scenario.reporting_year in inst.notional_history
         ]
 
         # Only add evidence if there are actual instruments. A general policy
@@ -867,7 +864,7 @@ def _generate_category_narrative(
     # --- Part 1: Generate Policy, Mitigation, and optional Aggregate Summary ---
     if part == "summary":
         # 1a. Context Sentence (e.g., "To manage our interest rate risk...")
-        result_details = ResultPhraseDetails()
+        result_details = ResultPhraseDetails() # type: ignore
         location_names = []
         if current_year_data and current_year_data["instruments"]:
             instrument_with_hedged_item = next(
@@ -903,7 +900,7 @@ def _generate_category_narrative(
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(
             current_year_data and current_year_data["instruments"]
-        )
+        ) # type: ignore
         past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0)) # type: ignore
         usage = (
             "current"
@@ -919,7 +916,7 @@ def _generate_category_narrative(
             )
         )
         instrument_type = (
-            Counter(current_year_data["instrument_types"]).most_common(1)[0][0]
+            Counter(current_year_data["instrument_types"]).most_common(1)[0][0] # type: ignore
             if has_active_instruments and current_year_data
             else "derivatives"
         )
@@ -948,7 +945,7 @@ def _generate_category_narrative(
             and random.random() < 0.5
         ):
             total_notional = current_year_data["total_notional"]
-            use_fair_value = random.random() < 0.2
+            use_fair_value = random.random() < 0.2 # type: ignore
             value_type_to_use = "fair_value" if use_fair_value else "notional"
             value_to_report = (
                 max(1, int(total_notional / random.randint(20, 100)))
@@ -985,13 +982,13 @@ def _generate_category_narrative(
             for instrument in current_year_data["instruments"]:
                 use_fair_value = random.random() < 0.2
                 value_type = "fair_value" if use_fair_value else "notional"
-                value_to_report = instrument.notional_amount
+                value_to_report = instrument.notional_history.get(reporting_year, 0)
                 if use_fair_value:
                     value_to_report = max(
-                        1, int(instrument.notional_amount / random.randint(20, 100))
+                        1, int(value_to_report / random.randint(20, 100))
                     )
 
-                # Determine if the instrument is "historical" (existed in a prior year)
+                # Determine if the instrument is "historical" (existed in a prior year) # type: ignore
                 is_historical = False
                 if prev_year_data:
                     prev_ids = {i.instrument_id for i in prev_year_data["instruments"]}
@@ -1055,11 +1052,11 @@ def _generate_category_narrative(
                     use_fair_value_terminated = random.random() < 0.2
                     value_type_terminated = (
                         "fair_value" if use_fair_value_terminated else "notional"
-                    )
-                    value_to_report_terminated = instrument.notional_amount
+                    ) # type: ignore
+                    value_to_report_terminated = instrument.notional_history.get(reporting_year - 1, 0)
                     if use_fair_value_terminated:
-                        value_to_report_terminated = max(
-                            1, int(instrument.notional_amount / random.randint(20, 100))
+                        value_to_report_terminated = max( # type: ignore
+                            1, int(value_to_report_terminated / random.randint(20, 100))
                         )
 
                     terminated_instrument_obj = NotionalSentence(
@@ -1148,27 +1145,24 @@ def generate_narrative_from_scenario(
     # AGGREGATION: Summarize instruments by category and year.
     # =========================================================================
     aggregated_data: Dict[str, Dict[int, Dict]] = {}
-    for instrument in scenario.instruments:
-        cat = instrument.category
-        year = instrument.year
+    for instrument in scenario.instruments: # type: ignore
+        cat = instrument.category # type: ignore
+        for year, notional in instrument.notional_history.items(): # type: ignore
+            if cat not in aggregated_data:
+                aggregated_data[cat] = {}
 
-        if cat not in aggregated_data:
-            aggregated_data[cat] = {}
+            if year not in aggregated_data[cat]:
+                aggregated_data[cat][year] = {
+                    "total_notional": 0,
+                    "count": 0,
+                    "instrument_types": [],
+                    "instruments": [],
+                }
 
-        if year not in aggregated_data[cat]:
-            aggregated_data[cat][year] = {
-                "total_notional": 0,
-                "count": 0,
-                "instrument_types": [],
-                "instruments": [],
-            }
-
-        aggregated_data[cat][year]["total_notional"] += instrument.notional_amount
-        aggregated_data[cat][year]["count"] += 1
-        aggregated_data[cat][year]["instrument_types"].append(
-            instrument.instrument_type
-        )
-        aggregated_data[cat][year]["instruments"].append(instrument)
+            aggregated_data[cat][year]["total_notional"] += notional
+            aggregated_data[cat][year]["count"] += 1
+            aggregated_data[cat][year]["instrument_types"].append(instrument.instrument_type) # type: ignore
+            aggregated_data[cat][year]["instruments"].append(instrument)
 
     # =========================================================================
     # NARRATIVE CONSTRUCTION: Build the story section by section.
@@ -1349,7 +1343,7 @@ def generate_json_from_scenario(
 
         # Initialize the instrument if it's the first time we see it
         if instrument_id not in instrument_evidence_map:
-            # Determine status directly from the evidence's own status field.
+            # Determine status directly from the evidence's own status field. # type: ignore
             status = "terminated" if ev.status == "terminated_individual" else "current"
 
             instrument_evidence_map[instrument_id] = {
