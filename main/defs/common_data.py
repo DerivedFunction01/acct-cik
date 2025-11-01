@@ -180,27 +180,31 @@ policy_verbs = [
     "applies",
 ]
 
+# Adverbs for describing the timing or nature of an action.
 time_adverbs = {
-    "current": [
+    "current": [  # For describing active, ongoing use
         "currently",
         "actively",
         "presently",
         "now",
         "also",
         "primarily",
-        "only",
         "expect to continue to",
         "",
     ],
-    "past": [ # also have a random chance to add the adverb "may" -> may use
+    "historical": [  # For describing past, completed actions
         "in the past",
+        "previously",
+        "formerly",
+    ],
+    "speculative": [  # For describing potential or uncertain future actions
         "from time to time",
         "periodically",
         "occasionally",
         "in the future",
-        "",
+        "may", # For other adverbs in this category, we can still append "may", such as "from time to time, may use ..."
     ],
-    "never": [
+    "non_use": [  # For explicitly stating non-use
         "does not",
         "will not",
         "does not plan to",

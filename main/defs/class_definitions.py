@@ -350,6 +350,7 @@ class MitigationSentence:
     category: DerivativeCategory
     company_name: str
     swap_type: str
+    usage_status: Literal["current", "speculative", "historical", "non_use"]
     result_details: Optional["ResultPhraseDetails"] = None
 
     def build(self) -> str:
@@ -358,8 +359,21 @@ class MitigationSentence:
         templates = MITIGATION_TEMPLATES.get(self.category, MITIGATION_TEMPLATES["GEN"])
         mitigation_phrase = random.choice(templates)
 
-        # Choose a verb for the action
-        verb = random.choice(individual_use_verbs + aggregate_use_verbs)
+        # Choose an adverb and verb based on the usage status
+        adverb = ""
+        verb = ""
+        adverb_list = time_adverbs.get(self.usage_status, [])
+        if adverb_list:
+            adverb = random.choice(adverb_list)
+
+        if self.usage_status == "current":
+            verb = random.choice(policy_verbs) # e.g., "uses", "employs"
+        elif self.usage_status == "speculative" and adverb == "may":
+            verb = random.choice(non_use_verbs) # e.g., "may use", "may employ"
+        elif self.usage_status == "non_use":
+            verb = random.choice(non_use_verbs) # e.g., "does not use"
+        else: # historical or other speculative cases
+            verb = random.choice(individual_use_verbs + aggregate_use_verbs) # e.g., "used", "employed"
 
         # Format currencies and other details from the result_details object
         details = self.result_details or ResultPhraseDetails()
@@ -383,11 +397,11 @@ class MitigationSentence:
         # Structure: "{Company} {verb} {swap_type}, {mitigation_phrase}."
         # Or: "{mitigation_phrase}, {company} {verb} {swap_type}."
         sentence_structures = [
-            f"{{company}} {{verb}} {{swap_type}}, {populated_phrase}.",
-            f"{populated_phrase.capitalize()}, {{company}} {{verb}} {{swap_type}}."
+            f"{{company}} {{adverb}} {{verb}} {{swap_type}}, {populated_phrase}.",
+            f"{populated_phrase.capitalize()}, {{company}} {{adverb}} {{verb}} {{swap_type}}."
         ]
         sentence_template = random.choice(sentence_structures)
-        sentence = sentence_template.format(company=self.company_name, verb=verb, swap_type=self.swap_type)
+        sentence = sentence_template.format(company=self.company_name, adverb=adverb, verb=verb, swap_type=self.swap_type)
 
         return _cleanup_sentence(sentence)
 
