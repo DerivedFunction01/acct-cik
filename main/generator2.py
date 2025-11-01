@@ -1288,7 +1288,7 @@ def _generate_narrative_accounting(
 ) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
     """Generates sentences about accounting treatment and hedge effectiveness."""
     # --- MODIFIED: This function will now return paragraphs instead of sentences ---
-    all_paragraphs: List[str] = [] # Each string in this list will be a full paragraph
+    all_paragraphs: List[str] = []  # Each string in this list will be a full paragraph
     all_evidence: List[BaseNarrativeEvidence] = []  # type: ignore
     mentioned_policies = set()
     
@@ -1304,7 +1304,8 @@ def _generate_narrative_accounting(
             p for p in scenario.policy.category_policies if p.category in active_categories
         ]
 
-        # --- MODIFIED: Create a separate paragraph for each category's policies ---
+        # --- FIX: Create a separate paragraph for each category's policies ---
+        is_first_policy_run = True
         for cat_policy in policies_to_generate:
             category_sentences = []
             instruments_in_cat = [i for i in scenario.instruments if i.category == cat_policy.category]
@@ -1315,6 +1316,8 @@ def _generate_narrative_accounting(
                 company_name=scenario.company_name,
                 already_mentioned_policies=mentioned_policies,
                 swap_type_override=swap_type_desc,
+                # --- NEW: Pass the flag to control general vs. specific sentences ---
+                generate_specifics_only=not is_first_policy_run
             )
             generated_items = policy_sentence_builder.build()
             for sentence, evidence in generated_items:
@@ -1325,7 +1328,9 @@ def _generate_narrative_accounting(
             
             # Join the sentences for this specific category into a single paragraph
             if category_sentences:
-                all_paragraphs.append(" ".join(category_sentences))
+                # After the first successful run, all subsequent runs should be specifics-only
+                is_first_policy_run = False
+                all_paragraphs.append(" ".join(s.strip() for s in category_sentences))
 
     return all_paragraphs, all_evidence
 

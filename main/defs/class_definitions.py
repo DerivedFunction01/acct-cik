@@ -541,6 +541,7 @@ class AccountingPolicySentence:
     cat_policy: "CategorySpecificPolicy"
     company_name: str
     swap_type_override: Optional[str] = None
+    generate_specifics_only: bool = False
     already_mentioned_policies: set[str] = field(default_factory=set)
 
     def build(self) -> List[Tuple[str, "PolicyEvidence"]]:
@@ -551,22 +552,34 @@ class AccountingPolicySentence:
 
         # Define a mapping from policy attributes to templates and evidence types
         policy_map = {
-            "documentation": (hedge_documentation_templates, "hedging_strategy", "documentation_formalized"),
-            "effectiveness": (hedge_effectiveness_policy_templates, "effectiveness_testing", "effectiveness_testing_method"),
-            "accounting": (hedge_accounting_policy_templates, "accounting_treatment", "accounting_policy_description"),
+            "documentation": (general_hedge_documentation_templates, specific_hedge_documentation_templates, "hedging_strategy", "documentation_formalized"),
+            "effectiveness": (general_hedge_effectiveness_templates, specific_hedge_effectiveness_templates, "effectiveness_testing", "effectiveness_testing_method"),
+            "accounting": (hedge_accounting_policy_templates, hedge_accounting_policy_templates, "accounting_treatment", "accounting_policy_description"), # No specific/general split for this one
         }
 
         # Choose a random template from each relevant policy category
         templates_to_use: List[Tuple[List[str], str]] = []
-        for policy_name, (template_list, evidence_type, attr_name) in policy_map.items():
+        for policy_name, (general_list, specific_list, evidence_type, attr_name) in policy_map.items():
             if getattr(self.cat_policy, attr_name, None) and policy_name not in self.already_mentioned_policies:
+                # --- NEW: Use the flag to decide which template list to use ---
+                if self.generate_specifics_only:
+                    # Filter for templates that are actually specific
+                    template_list = [t for t in specific_list if '{swap_type}' in t]
+                    if not template_list: # Fallback if no specific templates exist
+                        continue
+                else:
+                    # Use a mix of general and specific for the first run
+                    template_list = general_list + specific_list
+
                 templates_to_use.append((template_list, evidence_type))
 
         # Add ineffectiveness and discontinuation policies with a certain probability
-        if "ineffectiveness" not in self.already_mentioned_policies and random.random() < 0.4:
-            templates_to_use.append((hedge_ineffectiveness_policy_templates, "accounting_treatment"))
-        if "discontinuation" not in self.already_mentioned_policies and random.random() < 0.3:
-            templates_to_use.append((hedge_discontinuation_templates, "accounting_treatment"))
+        # These are less likely to be repeated, but we can suppress them on subsequent runs if needed.
+        if not self.generate_specifics_only:
+            if "ineffectiveness" not in self.already_mentioned_policies and random.random() < 0.4:
+                templates_to_use.append((hedge_ineffectiveness_policy_templates, "accounting_treatment"))
+            if "discontinuation" not in self.already_mentioned_policies and random.random() < 0.3:
+                templates_to_use.append((hedge_discontinuation_templates, "accounting_treatment"))
 
         # Populate the chosen templates
         for template_list, evidence_type in templates_to_use:
