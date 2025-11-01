@@ -814,7 +814,7 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
     if count == 1:
         return instruments[0].instrument_type
 
-    if count == 2:
+    if count == 2 and len(unique_types) > 1:
         return f"{unique_types[0]} and {unique_types[1]}"
 
     # Check for similarity based on placeholder
@@ -827,7 +827,7 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
             # Combine base_type and suffix, but handle cases where one is empty
             # e.g., "put option" might have base_type "put option" and empty suffix
             if inst.base_type and inst.suffix and inst.base_type in inst.suffix:
-                 combined_names.append(inst.suffix)
+                combined_names.append(inst.suffix)
             else:
                 combined_names.append(f"{inst.base_type} {inst.suffix}".strip())
 
