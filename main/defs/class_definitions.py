@@ -307,10 +307,9 @@ class MitigationEvidence(BaseNarrativeEvidence):
         # --- NEW: Add a classification note for generic categories ---
         classification_note = ""
         if self.category in (None, "GEN"):
-            classification_note = (
-                " Based on the surrounding context, the disclosure does not specify a clear derivative category "
-                "such as interest rate, foreign exchange, commodity, or equity, so it is treated as a generic reference."
-            )
+            classification_note = ("The disclosure does not specify a clear derivative category (e.g., interest rate, "
+                                   "foreign exchange), so this is being treated as a generic reference. "
+                                   "I will look for more context to classify it later.")
 
         # Build the linguistic cue description
         linguistic_cue = ""

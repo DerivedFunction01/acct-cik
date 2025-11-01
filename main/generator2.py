@@ -1526,13 +1526,17 @@ def generate_json_from_scenario(
     if has_generic_evidence:
         # Find other specific instrument types that were identified in the text.
         all_seen_types = sorted(
-            list(
-                {
-                    ev.instrument_type
-                    for ev in evidence
-                    if isinstance(ev, NotionalEvidence) and ev.category != "GEN" and ev.instrument_type
-                }
-            )
+            list({
+                ev.instrument_type
+                for ev in evidence
+                if (
+                    (isinstance(ev, NotionalEvidence) or isinstance(ev, MitigationEvidence))
+                    and ev.category != "GEN"
+                    and ev.instrument_type
+                    and "derivative" not in ev.instrument_type
+                    and "instrument" not in ev.instrument_type
+                )
+            })
         )
         
         # --- NEW: Select a few similar-sounding instruments to mention ---
