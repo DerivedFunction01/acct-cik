@@ -1126,7 +1126,12 @@ class NotionalSentence:
             outcome_loc = random.choice(balance_sheet_locations)
 
             # Generate a random amount for the result phrase and format it
-            random_amount = int(self.notional * random.randint(1, 50) / 100)
+
+            random_amount = int(
+                (self.notional or random.randint(1, 300) * self.money_units[0][1])
+                * random.randint(1, 50)
+                / 100
+            )
             formatted_amount_result = _format_single_notional(
                 random_amount,
                 self.currency_symbol,
