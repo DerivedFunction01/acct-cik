@@ -1460,6 +1460,12 @@ def _generate_debug_output(scenario: GenerationScenario) -> str:
     """
     debug_lines = ["\n\n--- DEBUG INFO ---"]
     debug_lines.append(f"Archetype: {scenario.archetype.name}")
+    # --- NEW: Add exposure counts to debug output ---
+    exposure_counts = scenario.archetype.get_exposure_counts()
+    debug_lines.append(f"Exposures: Debt({exposure_counts['debt']}), "
+                       f"FX({exposure_counts['fx']}), "
+                       f"Commodity({exposure_counts['commodity']}), "
+                       f"Equity({exposure_counts['equity']})")
     debug_lines.append(f"Reporting Year: {scenario.reporting_year}")
     debug_lines.append(f"Total Instruments: {len(scenario.instruments)}")
     debug_lines.append("=" * 20)
@@ -1547,6 +1553,10 @@ def generate_json_from_scenario(
                     mitigation_map[category] = "current"
                 elif status == "historical":
                     mitigation_map[category] = "historical"
+                # --- FIX: If there's an explicit "non_use" statement, it means "never". ---
+                # This is more specific than the default.
+                elif status == "non_use":
+                    mitigation_map[category] = "never"
                 elif status == "speculative":
                     mitigation_map[category] = "unknown"
                 # "non_use" maps to "never" as it's an explicit statement of non-activity.

@@ -264,6 +264,12 @@ class NotionalEvidence(BaseNarrativeEvidence):
             # Historical individual mention uses the individual wording but relies on temporal_info for history
             return individual_handler()
 
+        def inception_handler() -> str:
+            # Inception is a specific type of individual mention.
+            # We can reuse the individual handler as it correctly describes the instrument.
+            # The temporal reasoning will provide the historical context.
+            return individual_handler()
+
         # Map statuses to handlers
         handlers: Dict[str, Callable[[], str]] = {
             "summary": summary_handler,
@@ -275,6 +281,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
             "comparative_no_outstanding": comparative_no_outstanding_handler,
             "comparative_no_prior_outstanding": comparative_no_prior_outstanding_handler,
             "historical_individual": historical_individual_handler,
+            # Add handlers for timeline sentence types
+            "inception": inception_handler,
+            "continuing": individual_handler, # Treat 'continuing' like a standard 'individual' mention
         }
 
         # Dispatch
@@ -965,6 +974,7 @@ class NotionalSentence:
         "comparative_no_outstanding", # Phrases with explicit mention of no outstanding for current year, values in past
         "comparative_no_prior_outstanding", # Phrases with current value for current year, but no other values in prior
         "no_instruments", # No such derivatives at all
+        "inception", "continuing", "partial_settlement", # For TimelineSentence
     ] = "summary"
 
     notional: Optional[int] = None
