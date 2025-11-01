@@ -16,7 +16,7 @@ The primary objective is to move beyond simple multi-label classification (`"ir"
 
 This is the most critical phase. Before any model training, the data generation process must be completely overhauled.
 
--   **[ ] Define a Canonical JSON Schema for the Model's Output:**
+-   **[x] Define a Canonical JSON Schema for the Model's Output:**
     -   **Done.** The model's sole task is to generate a valid JSON object that conforms to a strict, predefined schema. This schema becomes the new "ground truth" for every training sample.
     -   This approach completely replaces the old `labels` dictionary and `label_int`. The structured data **is** the label.
     -   **Action:** Create a formal JSON Schema file (e.g., `output_schema.json`). This allows for automated validation of the model's output during both training and inference, ensuring consistency and reliability.
@@ -28,27 +28,27 @@ This is the most critical phase. Before any model training, the data generation 
           "exposure": {
             "IR": true,
             "FX": true,
-            "CP": false,
-            "EQ": false
+            "CP": false
           },
           "mitigation": {
             "IR": true,
-            "FX": false,
-            "CP": false,
-            "EQ": false
+            "FX": "never",
+            "CP": "none"
           },
           "derivatives": [
             {
               "type": "Interest Rate Swap",
               "category": "IR",
-              "status": "current",
-              "notional_amount": 100000000,
-              "currency": "USD"
+              "level": "individual",
+              "status": "current", 
+              "amount": 100000000,
+              "currency": "USD",
+              "value_type": "notional"
             }
           ]
         }
         ```
-    -   **Key Change:** The `labels` array is **eliminated**. It is redundant. All necessary information is captured with greater precision in the `derivatives` array. For example, `{"category": "IR", "status": "current"}` is far more explicit than `["ir", "ir_use", "curr"]`.
+    -   **Key Change:** The old `labels` array is **eliminated**. It is redundant. All necessary information is now captured with greater precision in the `derivatives` array and the `exposure`/`mitigation` maps.
 
 -   **[x] Refactor `generator.py`:**
     -   **Done.** The new `generator2.py` completely overhauls the generation logic.
@@ -90,16 +90,15 @@ This is the most critical phase. Before any model training, the data generation 
             }
             ```
     -   **Proposed Narrative Flow:**
-        1.  **Introduction (Market Risk Disclosure):** Start with a broad statement about market risk exposure, similar to the beginning of an "Item 7A. Quantitative and Qualitative Disclosures About Market Risk" section.
-            -   *Templates to use:* `hedge_begin_context_templates`.
-        2.  **Policy and Strategy:** Describe the company's high-level hedging policy and state that derivatives are not used for trading.
-            -   *Templates to use:* `hedge_policy_templates`, `hedge_no_trading_templates`.
-        3.  **Specific Instrument Disclosure (The Core):** Introduce the specific derivative instruments being used. This is where the key details (notional amounts, years, types, currency) will be generated, forming the basis for the JSON output.
-            -   *Templates to use:* `hedge_position_templates`.
-        4.  **Effectiveness and Accounting:** Provide details on hedge effectiveness, documentation, and accounting treatment. This adds crucial context.
-            -   *Templates to use:* `hedge_effectiveness_actual_templates`, `hedge_documentation_templates`.
-        5.  **Termination/Maturity (Conditional):** For scenarios involving historical or terminated derivatives, conclude the narrative with sentences about swaps expiring or being settled.
-            -   *Templates to use:* `hedge_termination_templates`, `hedge_zero_templates`.
+        1.  **General Policy Section:** A high-level paragraph covering general risk, non-trading policies, and counterparty risk.
+            -   *Classes used:* `PolicySentence`, `CounterpartyRiskSentence`.
+        2.  **Category-Specific Summaries (Item 7A style):** For each relevant risk category (IR, FX, etc.), generate a paragraph describing the risk exposure and the company's mitigation strategy (e.g., "To manage interest rate risk, the company uses interest rate swaps...").
+            -   *Classes used:* `PolicySentence`, `MitigationSentence`, and sometimes an aggregate `NotionalSentence`.
+        3.  **Detailed Instrument Disclosures (Notes section style):** For each category where instruments exist, generate detailed paragraphs describing individual instruments, including their notional amounts, history, and maturity. This is where timelines for older instruments are generated.
+            -   *Classes used:* `NotionalSentence`, `TimelineSentence`.
+        4.  **Accounting Policy Section:** A concluding section that details the company's policies on documentation, effectiveness testing, and accounting treatment (fair value, cash flow, etc.).
+            -   *Classes used:* `AccountingPolicySentence`.
+
 
 ---
 
