@@ -151,6 +151,24 @@ class NotionalEvidence(BaseNarrativeEvidence):
             return f"[Warning] Negative notional value ({self.notional}) is not valid for a summary disclosure."
         return None
 
+    def _get_repetition_reasoning(self, base_desc: str) -> str:
+        """Generates the 'aha' moment reasoning for a repeated instrument mention."""
+        if not self.is_repeated_mention:
+            return ""
+
+        # The instrument_type here is the name used in the sentence (could be full name or alias)
+        instrument_name_in_sentence = self.instrument_type or "the instrument"
+
+        # Check if the name used is likely an alias (shorter than the base description)
+        # A simple heuristic is to check if the base description contains the used name, but not vice-versa.
+        if base_desc and instrument_name_in_sentence and base_desc != instrument_name_in_sentence and instrument_name_in_sentence in base_desc:
+             reason = (f"Aha, the term '{instrument_name_in_sentence}' appears to be an alias for the previously mentioned {base_desc}. "
+                       f"Given the similar context, I'll treat this as another reference to the same instrument.")
+        else:
+             reason = f"Aha, another mention of the same {base_desc} has appeared."
+
+        return reason + " "
+
     # ---------------------------------------------------------------------
     # Core logic
     # ---------------------------------------------------------------------
@@ -197,22 +215,16 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # Template-driven status handlers (now consistently include temporal_info)
         # -----------------------------------------------------------------
         def summary_handler() -> str:
-            if not self.notional_str and self.notional is None:
-                return f"The report provides a summary for {category_context}, confirming activity but no {value_desc} was specified for {self.year}."
-            if self.prev_notional_str and not self.notional_str and self.year and self.reporting_year and self.year < self.reporting_year and self.maturity_year:
-                return (
-                    f"The report references {category_context} with a prior-year {value_desc} of {self.prev_notional_str} for {self.year}. "
-                    f"Although no current value is given for the reporting year ({self.reporting_year}), the maturity in {self.maturity_year} suggests it may still be active{temporal_info}"
-                )
+            # Summary is always aggregate, so it won't have a specific "aha" moment for an individual instrument.
+            # Its logic remains focused on aggregate values.
             if self.prev_notional_str:
-                return (
-                    f"The report provides an aggregate summary for {category_context}, comparing {values_desc} of {self.notional_str} for {self.year} "
-                    f"against {self.prev_notional_str} for {self.prev_year}, indicating continuity{temporal_info}"
-                )
-            return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
+                return (f"The report provides an aggregate summary for {category_context}, comparing {values_desc} of {self.notional_str} for {self.year} "
+                        f"against {self.prev_notional_str} for {self.prev_year}, indicating continuity{temporal_info}")
+            elif self.notional_str or self.notional is not None:
+                 return f"The report mentions an aggregate {value_desc} of {self.notional_str} for {base_desc}{temporal_info}"
+            return f"The report provides a summary for {category_context}, confirming activity but no {value_desc} was specified for {self.year}."
 
         def new_individual_handler() -> str:
-            # New: if year == reporting_year we treat as current; otherwise report the year-based context
             prefix = f"The report describes a new {base_desc}"
             value_part = (
                 f" with a {value_desc} of {self.notional_str}"
@@ -222,25 +234,16 @@ class NotionalEvidence(BaseNarrativeEvidence):
             return f"{prefix}{value_part}{temporal_info}"
 
         def individual_handler() -> str:
-            # Individual mention doesn't imply newness. Attach temporal_info if available.
             prefix = f"The report mentions an individual {base_desc}"
             value_part = (
-            f" with a {value_desc} of {self.notional_str}" if self.notional_str else ""
+                f" with a {value_desc} of {self.notional_str}" if self.notional_str else ""
             )
-            # --- NEW: Add "Aha!" moment for repeated mentions ---
-            if self.is_repeated_mention and self.instrument_id:
-                prefix = f"Aha, another mention of the same {base_desc} appeared"
-                value_part = (
-                    f" with a {value_desc} of {self.notional_str}"
-                    if self.notional_str
-                    else ""
-                )
             return f"{prefix}{value_part}{temporal_info}"
 
         def terminated_individual_handler() -> str:
-            if not self.notional_str and self.notional is None:
-                return f"The report indicates a {base_desc} was terminated, confirming prior existence but no {value_desc} was disclosed for {self.year}{temporal_info}"
-            return f"The report describes a terminated {base_desc} with a prior {value_desc} of {self.notional_str}. Its absence in {self.reporting_year} data indicates settlement or maturity{temporal_info}"
+            prefix = f"The report describes a terminated {base_desc}"
+            value_part = f" with a prior {value_desc} of {self.notional_str}" if self.notional_str else ""
+            return f"{prefix}{value_part}. Its absence in {self.reporting_year} data indicates settlement or maturity{temporal_info}"
 
         def no_instruments_handler() -> str:
             return f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, confirming no current use{temporal_info}"
@@ -284,13 +287,17 @@ class NotionalEvidence(BaseNarrativeEvidence):
             lambda: f"Uncategorized notional evidence found for {category_name}.",
         )()
 
+        # --- NEW: Prepend the "aha" moment reasoning ---
+        repetition_reasoning = self._get_repetition_reasoning(base_desc)
+        text = repetition_reasoning + text
+
         # Append warning and classification note if present
         if warning:
             text = f"{text} {warning}"
         if classification_note:
             text = f"{text}{classification_note}"
 
-        return text.strip()
+        return " ".join(text.split()) # Clean up any extra spaces
 
 @dataclass
 class PolicyEvidence(BaseNarrativeEvidence):
