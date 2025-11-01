@@ -1336,11 +1336,11 @@ def generate_narrative_from_scenario(
 
     # Iterate in a standard order to mimic real filings.
     for category in ["IR", "FX", "CP", "EQ", "GEN"]:
-        # --- FIX: Generate a narrative section if the category has either instruments OR an underlying exposure. ---
+        # Generate a narrative section if the category has either instruments OR an underlying exposure.
         has_instruments = category in aggregated_data
         has_exposure = all_relevant_categories.get(category, False)
 
-        if has_instruments or has_exposure:
+        if has_instruments or (has_exposure and category != "GEN"): # Also generate for unhedged exposures, but skip GEN if no instruments
             # If there are no instruments, yearly_data will be empty, but the function can still generate context.
             yearly_data_for_cat = aggregated_data.get(category, {})
             category_sentences, category_evidence, _ = _generate_category_narrative(
