@@ -1141,7 +1141,7 @@ def generate_narrative_from_scenario(
     Constructs a coherent, multi-paragraph narrative from a scenario object.
     This function will replace the old `generate_hedge_paragraph`.
     """
-    item_7a_sentences, derivative_details_sentences = [], []
+    item_7a_sections, derivative_details_sections = [], []
     all_evidence = []
 
     # =========================================================================
@@ -1176,9 +1176,9 @@ def generate_narrative_from_scenario(
 
     # 1. Generate the top-level general policy statement.
     policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
-    if policy_sentences:
-        item_7a_sentences.extend(policy_sentences)
-    all_evidence.extend(policy_evidence)
+    if policy_sentences: # This becomes its own section
+        item_7a_sections.append(" ".join(s.strip() for s in policy_sentences if s))
+        all_evidence.extend(policy_evidence)
 
     # 2. Category-Specific Sections (IR, FX, CP, etc.)
     # --- NEW: Get all potential categories from the archetype's exposures to ensure we discuss risk even if not hedged. ---
@@ -1201,7 +1201,7 @@ def generate_narrative_from_scenario(
             summary_sentences, summary_evidence, _ = _generate_category_narrative(
                 category, yearly_data_for_cat, scenario, part="summary"
             )
-            item_7a_sentences.extend(summary_sentences)
+            item_7a_sections.append(" ".join(s.strip() for s in summary_sentences if s))
             all_evidence.extend(summary_evidence)
 
     # --- Part 2: Build the "Derivative Financial Instruments" Details Section ---
@@ -1211,7 +1211,7 @@ def generate_narrative_from_scenario(
     )
     if has_any_details:
         # This is a simple way to add a section header.
-        derivative_details_sentences.append("Derivative Financial Instruments")
+        derivative_details_sections.append("Derivative Financial Instruments")
 
     for category in ["IR", "FX", "CP", "EQ", "GEN"]:
         if category in aggregated_data:
@@ -1219,16 +1219,17 @@ def generate_narrative_from_scenario(
             detail_sentences, detail_evidence, _ = _generate_category_narrative(
                 category, yearly_data_for_cat, scenario, part="details"
             )
-            derivative_details_sentences.extend(detail_sentences)
+            derivative_details_sections.append(" ".join(s.strip() for s in detail_sentences if s))
             all_evidence.extend(detail_evidence)
 
     # 3. Effectiveness and Accounting Section
     accounting_sentences, accounting_evidence = _generate_narrative_accounting(scenario)
     # This can be appended to the details section or be its own section.
     # Let's add it to the end of the details for now.
-    if accounting_sentences and derivative_details_sentences:
-        derivative_details_sentences.extend(accounting_sentences)
-    all_evidence.extend(accounting_evidence)
+    if accounting_sentences and derivative_details_sections:
+        accounting_section = " ".join(s.strip() for s in accounting_sentences if s)
+        derivative_details_sections.append(accounting_section)
+        all_evidence.extend(accounting_evidence)
 
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
@@ -1236,11 +1237,8 @@ def generate_narrative_from_scenario(
 
     # Assemble the final narrative from the generated parts
     narrative_sections = []
-    narrative_sections.append(" ".join(s.strip() for s in item_7a_sentences if s))
-    if derivative_details_sentences:
-        narrative_sections.append(
-            " ".join(s.strip() for s in derivative_details_sentences if s)
-        )
+    narrative_sections.extend(item_7a_sections)
+    narrative_sections.extend(derivative_details_sections)
     narrative = "\n\n".join(section for section in narrative_sections if section)
     # Prepend the reporting year tag.
     full_narrative = (
