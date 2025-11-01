@@ -873,14 +873,14 @@ class NotionalSentence:
         time_prefix = ""
         time_suffix = ""
         # TODO: The logic for selecting and formatting time prefixes/suffixes is template-based and should be replaced by generative logic.
-        if self.sentence_type in ["summary", "comparative", "no_instruments"]:
+        if self.sentence_type in ["summary", "comparative", "no_instruments", "individual"]:
             if num_years == 1:
                 time_prefix = random.choice(point_in_time_prefixes)
             elif num_years == 2:
                 time_prefix = random.choice(multi_year_time_prefixes["two_year"])
             else:  # num_years == 3
                 time_prefix = random.choice(multi_year_time_prefixes["three_year"])
-        elif self.sentence_type in ["new_individual", "terminated_individual"]:
+        elif self.sentence_type in ["new_individual", "terminated_individual", "historical_individual"]:
             time_prefix = random.choice(period_of_time_prefixes)
 
         time_prefix = time_prefix.format(
