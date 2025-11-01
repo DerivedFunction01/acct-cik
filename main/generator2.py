@@ -1565,10 +1565,10 @@ def generate_json_from_scenario(
         if display_types:
             generic_reasoning += (
                 f" (unlike other instruments identified, such as {', '.join(display_types)}), "
-                "so it is treated as a generic reference for now."
+                "so it is treated as a generic reference."
             )
         else:
-            generic_reasoning += ", so it is treated as a generic reference for now."
+            generic_reasoning += ", so it is treated as a generic reference."
         chain_of_thought += "\n" + generic_reasoning.strip()
 
 

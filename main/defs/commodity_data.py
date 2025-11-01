@@ -233,7 +233,7 @@ def get_random_commodity_and_unit(selected_types: Optional[list[str]] = None) ->
     if not selected_types:
         commodity_name = random.choice(commodities)
     else:
-        types_to_pick_from = random.choice(selected_types)
+        types_to_pick_from = random.choice(selected_types) if len(selected_types) else "generic"
         # Now pick a random one for that type
         commodity_name = random.choice(COMMODITIES.get(types_to_pick_from, []))
 
