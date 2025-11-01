@@ -236,7 +236,7 @@ risk_management_verbs = [
 risk_exposure_terms = [
     "fluctuations",
     "movements",
-    "risk",
+    "risks",
     "volatility",
     "changes",
     "exposure",

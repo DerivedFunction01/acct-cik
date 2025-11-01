@@ -322,13 +322,14 @@ class PolicySentence:
             locations_str = ", ".join(self.locations[:-1]) + " and " + self.locations[-1] if len(self.locations) > 1 else self.locations[0]
 
         details = self.result_details or ResultPhraseDetails()
-
+        risk_terms = random.sample(risk_exposure_terms, k=2)
         sentence = template.format(
             # TODO: These random.choice() calls are selecting from dummy data lists. This logic will be replaced by the generative model.
             company=self.company_name,
             ir_term=random.choice(interest_rate_terms),
             debt_type=details.debt_type or "debt",
-            risk_term=random.choice(risk_exposure_terms),
+            risk_term=risk_terms[0],
+            risk_term2=risk_terms[1],
             policy_verb=random.choice(policy_verbs),
             risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
             currencies=currencies_str,
@@ -888,12 +889,14 @@ class NotionalSentence:
                 )
 
             details = self.result_details or ResultPhraseDetails()
+            risk_terms = random.sample(risk_exposure_terms, k=2)
             populated_phrase = self.result_phrase.format(
                 mitigation_verb=random.choice(risk_management_verbs),
                 gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 frequency=details.frequency or random.choice(frequencies),
-                risk_term=random.choice(risk_exposure_terms),
+                risk_term=risk_terms[0],
+                risk_term2=risk_terms[1],
                 ir_term=random.choice(interest_rate_terms),  # type: ignore
                 debt_type=details.debt_type or "debt",
                 currencies=currencies_str,

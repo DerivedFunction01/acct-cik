@@ -43,6 +43,9 @@ def _cleanup_sentence(sentence: str) -> str:
     # Remove trailing commas before period
     sentence = sentence.replace(", .", ".")
     sentence = sentence.replace(" .", ".")  # In case of empty clauses
+    
+    # Fix "ys" to "ies"
+    sentence = sentence.replace("ys", "ies")
 
     return sentence.strip()
 
@@ -345,18 +348,18 @@ result_phrases = {
 # Templates for generating policy and risk context sentences
 POLICY_CONTEXT_TEMPLATES = {
     "IR": [
-        "{company} is exposed to market risks from changes in {ir_term}s on its {debt_type} and investment portfolios.",
+        "{company} is exposed to market {risk_term} from changes in {ir_term}s on its {debt_type} and investment portfolios.",
         "Our financing activities, particularly our {debt_type}, expose us to {risk_term} in {ir_term}s that impact borrowing costs.",
         "{company} faces exposure to changes in market {ir_term}s affecting both its {debt_type} and interest-bearing assets.",
-        "As part of its funding strategy, {company} {policy_verb} strategies to {risk_action_verb} {risk_nature_phrases} {ir_term} movements.",
+        "As part of its funding strategy, {company} {policy_verb} strategies to {risk_action_verb} {risk_term} in {ir_term} movements.",
         "Our exposure to {ir_term} {risk_term} arises primarily from our {debt_type} and cash management activities.",
         "{company}'s borrowing costs on its {debt_type} are influenced by changes in prevailing {ir_term} environments.",
         "{company} actively monitors and manages its exposure to {ir_term} {risk_term}.",
     ],
     "FX": [
-        "{company}'s international operations in {locations} expose it to {risk_term}s arising from {risk_term} in foreign currency exchange rates.",
+        "{company}'s international operations in {locations} expose it to {risk_term} arising from {risk_term} in foreign currency exchange rates.",
         "Due to its global footprint, {company} is exposed to currency translation and transaction {risk_term}, particularly with the {currencies}.",
-        "Our cross-border operations in {locations} result in exposure to changes in exchange rates between functional and reporting currencies such as {currencies}.",
+        "Our cross-border operations in {locations} result in exposure to {risk_term} in exchange rates between functional and reporting currencies such as {currencies}.",
         "Operating in multiple currencies such as {currencies}, {company} is exposed to {risk_term} in exchange rates that can affect its financial results.",
         "With significant operations in {locations}, {company} is subject to {risk_term} from {currencies} exchange rates.",
         "Our revenues, expenses, and cash flows are subject to {risk_term} due to foreign currency exchange rate changes in {currencies}",
@@ -367,27 +370,27 @@ POLICY_CONTEXT_TEMPLATES = {
     ],
     "CP": [
         "{company} is exposed to market {risk_term} from changes in {commodity} prices that affect its {cost_type} and revenues.",
-        "{risk_term}s in {commodity} prices can impact {company}'s profitability and cost structure.",
+        "{risk_term} in {commodity} prices can impact {company}'s profitability and cost structure.",
         "As part of its operations, {company} is exposed to {risk_term} in {commodity} prices.",
         "The profitability of {company}'s operations depends in part on the stability of {commodity} prices.",
         "{company}'s cost of goods sold is affected by {risk_term} in {commodity} market prices.",
         "Our operations are subject to {risk_term} associated with changes in the prices of key commodities such as {commodity}.",
     ],
     "EQ": [
-        "{company} is exposed to market risks related to {risk_term} in the price of its common stock.",
-        "{risk_term}s in equity markets affects {company}'s exposure to equity-linked compensation and investment values.",
-        "{company}'s share-based compensation costs are influenced by changes in its stock price and market conditions.",
-        "As a publicly traded entity, {company} is exposed to risks associated with market price {risk_term} of its shares.",
+        "{company} is exposed to market {risk_term} related to {risk_term2} in the price of its common stock.",
+        "{risk_term} in equity markets affects {company}'s exposure to equity-linked compensation and investment values.",
+        "{company}'s share-based compensation costs are influenced by {risk_term} in its stock price and market conditions.",
+        "As a publicly traded entity, {company} is exposed to {risk_term} associated with market price {risk_term2} of its shares.",
     ],
     "GEN": [
-        "{company} is exposed to various market risks, including changes in interest rates, foreign exchange rates, and commodity prices.",
+        "{company} is exposed to various market {risk_term}, including {risk_term2} in interest rates, foreign exchange rates, and commodity prices.",
         "As part of its overall risk management strategy, {company} monitors and manages exposure to {risk_term} in market conditions.",
-        "Our global activities expose us to market risks that arise from changes in economic and financial conditions worldwide.",
-        "Market risk represents the potential for losses arising from {risk_term} in market variables affecting {company}'s earnings or cash flows.",
+        "Our global activities expose us to market {risk_term} that arise from {risk_term2} in economic and financial conditions worldwide.",
+        "Market {risk_term} represents the potential for losses arising from {risk_term2} in market variables affecting {company}'s earnings or cash flows.",
     ],
     "FX_IR": [  # Combined context
-        "{company}'s global operations expose it to various market risks, including {risk_term} in foreign currency exchange rates and interest rates.",
-        "Our business operations in multiple countries result in exposure to foreign currency exchange rate {risk_term} and {ir_term} {risk_term}.",
-        "As a global entity, {company} faces exposure to exchange rate {risk_term} and {ir_term} risks in its operations.",
+        "{company}'s global operations expose it to various market {risk_term}, including {risk_term2} in foreign currency exchange rates and interest rates.",
+        "Our business operations in multiple countries result in exposure to foreign currency exchange rate {risk_term} and {ir_term} {risk_term2}.",
+        "As a global entity, {company} faces exposure to exchange rate {risk_term} and {ir_term} {risk_term2} in its operations.",
     ],
 }
