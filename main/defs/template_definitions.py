@@ -332,7 +332,7 @@ result_phrases = {
         "which {mitigation_verb} foreign exchange {risk_term} against {currencies}",
         "denominated in {currencies}",
         "to sell foreign currencies to {currencies}",
-        "for {currencies} to hedge {pct}% of {company}'s exposure to other foreign currencies",
+        "for {currencies} to hedge {pct}% of our exposure to other foreign currencies",
         "",
     ],
     "CP": [
