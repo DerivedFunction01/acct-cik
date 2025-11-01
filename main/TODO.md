@@ -4,7 +4,7 @@ This document outlines the plan to refactor the project from a multi-label class
 
 ## 1. Project Goal: Evolve from Classification to Generative Analysis
 
-The primary objective is to move beyond simple multi-label classification (`"ir": 1, "curr": 1`) to a more powerful generative approach. The new model will not just classify text but will also generate a structured "thought process" and extract key details into a JSON object.
+The primary objective is to move beyond simple multi-label classification (`"ir": 1, "curr": 1`) to a more powerful generative approach. The new model will not just classify text but will also generate a structured "thought process" and extract key details into a valid JSON object.
 
 **Current State:** The `generator.py` script produces `(paragraph, labels_dict, label_int)` tuples to train a `AutoModelForSequenceClassification` model.
 
@@ -56,6 +56,20 @@ This is the most critical phase. Before any model training, the data generation 
     -   The `get_primary_label` and `label_paragraph` functions will be **deprecated and removed**. Their logic is superseded by the direct generation of structured data.
 
 -   **[x] Improve Generation Quality:**
+    -   **Action: Implement a "Narrative Generation" strategy.** **Done.** The `generator2.py` script now constructs a coherent, multi-paragraph narrative that mimics the structure of a real SEC filing's risk disclosure section (e.g., Item 7A). This creates more realistic and complex training data.
+    -   **Complex Scenarios:** **Done.** The narratives now include more complex situations to train a robust model, such as:
+        -   Multiple active instruments of the same type (e.g., two different interest rate swaps).
+        -   Conflicting timelines within the same paragraph (e.g., terminating an old FX forward while entering a new FX collar).
+        -   Mentions of accounting treatments (e.g., OCI, fair value).
+        -   Inclusion of embedded derivatives alongside standard hedges.
+
+-   **[ ] Port Contextual "Noise" Generation:**
+    -   The old `generator.py` had functions like `generate_debt`, `generate_fx`, and `generate_commodity` that created realistic, non-derivative sentences to provide context around the main topic (e.g., discussing debt facilities in a paragraph about interest rate swaps).
+    -   This contextual "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk.
+    -   **Action:** Create a new `ContextSentence` class in `defs/class_definitions.py`. This class will use templates from `defs/noise_templates.py` (to be created) to generate these sentences.
+    -   **Action:** Integrate the `ContextSentence.build()` method into `generator2.py`'s `_generate_category_narrative` function. It should be called probabilistically to inject relevant, non-derivative context into the generated paragraphs, similar to the old `generate_derivative_sentences` logic.
+
+-   **[ ] Improve Generation Quality (Continued):**
     -   The user expressed a desire for "higher quality compared to using templates randomly selected."
     -   **Action: Implement a "Narrative Generation" strategy.** **Done.** The `generator2.py` script now constructs a coherent, multi-paragraph narrative that mimics the structure of a real SEC filing's risk disclosure section (e.g., Item 7A). This creates more realistic and complex training data.
     -   **Complex Scenarios:** **Done.** The narratives now include more complex situations to train a robust model, such as:
