@@ -609,6 +609,8 @@ def create_random_scenario() -> GenerationScenario:
             if should_create_historical:
                 maturity_year = random.randint(reporting_year - 5, reporting_year) # Expired in the last 5 years
                 notional = random.randint(5, 500) * multiplier
+                # --- FIX: Ensure historical instruments are also linked to their exposure ---
+                hedged_debt = debt_item
             else:
                 continue  # This exposure remains unhedged
 
@@ -677,6 +679,8 @@ def create_random_scenario() -> GenerationScenario:
             if should_create_historical:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(10, 200) * multiplier
+                # --- FIX: Ensure historical instruments are also linked to their exposure ---
+                hedged_fx = fx_item
             else:
                 continue
 
@@ -730,6 +734,8 @@ def create_random_scenario() -> GenerationScenario:
             if should_create_historical:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(5, 100) * multiplier
+                # --- FIX: Ensure historical instruments are also linked to their exposure ---
+                hedged_commodity = cp_item
             else:
                 continue
 
@@ -783,6 +789,8 @@ def create_random_scenario() -> GenerationScenario:
             if should_create_historical:
                 maturity_year = random.randint(reporting_year - 2, reporting_year)
                 notional = random.randint(1, 50) * multiplier
+                # --- FIX: Ensure historical instruments are also linked to their exposure ---
+                hedged_equity = eq_item
             else:
                 continue
 

@@ -1088,6 +1088,9 @@ class NotionalSentence:
             # Format currencies into a readable string from the details object
             details = self.specific_details or SpecificDetails()
             currencies_str = ""
+            # --- FIX: Ensure commodity and unit have sensible fallbacks ---
+            commodity_name, unit_name, _ = get_random_commodity_and_unit()
+
             if details.currencies:
                 currencies_str = (
                     ", ".join(details.currencies[:-1])
@@ -1113,9 +1116,9 @@ class NotionalSentence:
                 rate_term2=random.choice(specific_rate_terms),
                 formatted_amount=formatted_amount_result,  # type: ignore
                 pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
-                geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
-                commodity=details.commodity or "commodities",
-                unit=details.unit or "unit",
+                geography=details.geography or random.choice([c.location for c in all_currencies]),
+                commodity=details.commodity or commodity_name,
+                unit=details.unit or unit_name,
                 financial_outcome_verb=outcome_verb,
                 company=self.company_name,
                 swap_type=self.swap_type,
