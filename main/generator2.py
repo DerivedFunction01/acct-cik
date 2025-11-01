@@ -105,6 +105,14 @@ def _create_contextual_alias(base_type: str, category: str, placeholder: str, al
     
     category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
     category_prefix = category_prefix_map.get(category, "")
+    
+    # --- NEW: For dependent types, prefer a more descriptive alias ---
+    # e.g., "rate lock" instead of just "lock"
+    if base_type in DERIVATIVE_COMPONENTS.get("dependent_types", []):
+        # Use placeholder if it's not generic, otherwise fallback to category prefix
+        if placeholder and category.lower() not in placeholder:
+            return f"{placeholder} {alias_base}".strip()
+
     return f"{category_prefix} {alias_base}".strip()
 
 # --- Dynamic Instrument Type Generation ---
