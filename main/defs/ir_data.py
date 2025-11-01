@@ -1,12 +1,53 @@
 import random
 from dataclasses import dataclass, field
-from typing import List
+from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple, TypeVar
 
-from main.defs.class_definitions import DebtHedgedItem
-
+from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
 # --- NEW: Import common verb lists for reuse --- (This was already here, but I'm confirming its good use)
 from .common_data import individual_use_verbs, aggregate_use_verbs, termination_verbs_past
+
+
+@dataclass
+class DebtHedgedItem(HedgedItem):
+    """Represents a debt instrument being hedged (for IR derivatives).
+
+    Args:
+        debt_type: str - The type of debt instrument being hedged.
+        issuance_month: Optional[str] - The issuance month of the debt.
+        issuance_year: int - The issuance year of the debt.
+        maturity_month: Optional[str] - The maturity month of the debt.
+        maturity_year: int - The maturity year of the debt.
+        principal_amount: int - The principal amount of the debt.
+        benchmark_rate: Optional[str] - Any type of rate.
+        spread_bps: Optional[int] - The spread in basis points over the benchmark.
+        fixed_rate_pct: Optional[float] - The fixed interest rate percentage.
+        change_rate_pct: Optional[float] - The new interest rate percentage after a change.
+        payment_amount: Optional[int] - The payment amount.
+        payment_frequency: Optional[str] - The payment frequency (e.g., "quarterly").
+    """
+
+    debt_type: str
+    issuance_month: Optional[str]
+    issuance_year: int
+    maturity_month: Optional[str]
+    maturity_year: int
+    principal_amount: int
+    currency: str = "USD"
+    benchmark_rate: Optional[str] = None
+    spread_bps: Optional[int] = None
+    fixed_rate_pct: Optional[float] = None
+    change_rate_pct: Optional[float] = None
+    payment_amount: Optional[int] = None
+    payment_frequency: Optional[str] = None
+
+
+# Specific instrument types can now be defined cleanly.
+# We can add more specific fields to each type later if needed.
+class IRInstrument(NotionalInstrument[DebtHedgedItem]):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, category="IR", **kwargs)
+
 
 @dataclass
 class DebtType:

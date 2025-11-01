@@ -1,6 +1,37 @@
 import random
 from typing import Optional
+from dataclasses import dataclass
 from defs.common_data import transaction_types
+from defs.instrument_definitions import HedgedItem, NotionalInstrument
+
+
+@dataclass
+class CommodityHedgedItem(HedgedItem):
+    """Represents a commodity being hedged (for CP derivatives).
+
+    Args:
+        commodity_type: str - The type of commodity being hedged.
+        quantity: int - The quantity of the commodity.
+        unit_of_volume: str - The unit of volume of the commodity.
+        price_per_unit: float - The price per unit of the commodity.
+        cost_type: str - The cost type of the commodity (e.g., "input").
+        transaction_type: Literal["purchase", "sale"] - The transaction type (e.g., "purchase").
+        supplier: Optional[str] - The supplier of the commodity if purchased.
+    """
+
+    commodity_type: str
+    quantity: int
+    unit_of_volume: str
+    price_per_unit: float
+    cost_type: str
+    transaction_type: str
+    supplier: Optional[str]
+
+
+class CPInstrument(NotionalInstrument[CommodityHedgedItem]):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, category="CP", **kwargs)
+
 COMMODITY_COST_TYPES = {
     "energy": ["extraction", "drilling", "production", "generation", "refining"],
     "metals_minerals": ["mining", "extraction", "smelting", "refining"],

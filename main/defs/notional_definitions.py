@@ -1,12 +1,14 @@
 from dataclasses import dataclass, field
 import random
 from typing import Callable, Dict, List, Literal, Optional, Tuple
-from defs.class_definitions import BaseNarrativeEvidence, DerivativeCategory, NotionalInstrument, SpecificDetails, _get_company_reference
+from defs.class_definitions import _get_company_reference
 from defs.common_data import *
 from defs.template_definitions import *
-from defs.commodity_data import *
+from defs.cp_data import *
 from defs.template_definitions import _format_single_notional
 from defs.template_definitions import _cleanup_sentence
+from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
+
 @dataclass
 class NotionalEvidence(BaseNarrativeEvidence):
     """Evidence related to notional or fair value amounts of derivative instruments, with temporal reasoning and validation."""
@@ -278,7 +280,7 @@ class NotionalSentence:
 
     notional: Optional[int] = None
     currency_symbol: str = "$"
-    currency_code: str = "US ollar"
+    currency_code: str = "US Dollar"
     # Optional time components
     month: Optional[str] = None
     end_day: Optional[int] = None

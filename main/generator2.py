@@ -7,39 +7,16 @@ import json, re
 from typing import List, Dict, Literal, Optional, Set, Tuple
 
 from defs.common_data import *
-from defs.commodity_data import get_random_commodity_and_unit, get_cost_types_for_commodity, get_units_for_commodity
-from defs.debt_data import *
+from defs.cp_data import *
+from defs.ir_data import *
+from defs.fx_data import *
+from defs.eq_data import *
 from defs.template_definitions import *
-from defs.class_definitions import (
-    BaseNarrativeEvidence,
-    HedgedItem,
-    NotionalInstrument,
-    DebtHedgedItem,
-    CounterpartyRiskSentence,
-    MitigationSentence,
-    ForeignCurrencyHedgedItem,
-    CommodityHedgedItem,
-    EquityHedgedItem,
-    IRInstrument,
-    FXInstrument,
-    CPInstrument,
-    EQInstrument,
-    GenericInstrument,
-    ScenarioArchetype,
-    CurrencyExposure,
-    GenerationScenario,
-    RiskManagementPolicy,
-    CategorySpecificPolicy,
-    GeneralHedgingPolicy,
-    DERIVATIVE_CATEGORIES,
-) # type: ignore
 from defs.notional_definitions import *
-from defs.policy_definitions import (
-    AccountingPolicySentence,
-    PolicyEvidence,
-    PolicySentence,
-)
-from defs.class_definitions import MitigationEvidence
+from defs.policy_definitions import *
+from defs.policy_definitions import *
+from defs.scenario_definitions import *
+from defs.instrument_definitions import *
 
 
 output_file = "./training_data.xlsx"
