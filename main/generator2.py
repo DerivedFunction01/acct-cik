@@ -1287,26 +1287,26 @@ def _generate_narrative_accounting(
     scenario: GenerationScenario,
 ) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
     """Generates sentences about accounting treatment and hedge effectiveness."""
-    all_sentences: List[str] = []
+    # --- MODIFIED: This function will now return paragraphs instead of sentences ---
+    all_paragraphs: List[str] = []
     all_evidence: List[BaseNarrativeEvidence] = []  # type: ignore
     mentioned_policies = set()
     
     # --- NEW: Generate accounting policies for each category with instruments ---
     if scenario.policy and scenario.policy.category_policies:
-        # Get all categories that have active instruments in the reporting year
         active_categories = {
             inst.category
             for inst in scenario.instruments
             if inst.notional_history.get(scenario.reporting_year, 0) > 0
         }
 
-        # Find the corresponding policies for those active categories
         policies_to_generate = [
             p for p in scenario.policy.category_policies if p.category in active_categories
         ]
 
+        # --- MODIFIED: Group sentences by category to form paragraphs ---
+        category_sentences = []
         for cat_policy in policies_to_generate:
-            # Generate a descriptive instrument type for the category
             instruments_in_cat = [i for i in scenario.instruments if i.category == cat_policy.category]
             swap_type_desc = _get_smart_instrument_description(instruments_in_cat, cat_policy.category)
 
@@ -1314,18 +1314,19 @@ def _generate_narrative_accounting(
                 cat_policy=cat_policy,
                 company_name=scenario.company_name,
                 already_mentioned_policies=mentioned_policies,
-                swap_type_override=swap_type_desc, # Pass the specific swap type
+                swap_type_override=swap_type_desc,
             )
             generated_items = policy_sentence_builder.build()
             for sentence, evidence in generated_items:
-                all_sentences.append(sentence)
+                category_sentences.append(sentence)
                 all_evidence.append(evidence) # type: ignore
-                # --- FIX: Update the set with the policy type that was just used ---
-                # This ensures it is not repeated for the next category.
                 if isinstance(evidence, PolicyEvidence):
                     mentioned_policies.add(evidence.policy_type)
+        
+        if category_sentences:
+            all_paragraphs.append(" ".join(category_sentences))
 
-    return all_sentences, all_evidence
+    return all_paragraphs, all_evidence
 
 
 def generate_narrative_from_scenario(
@@ -1424,8 +1425,9 @@ def generate_narrative_from_scenario(
     # This can be appended to the details section or be its own section.
     # Let's add it to the end of the details for now.
     if accounting_sentences and derivative_details_sections:
-        accounting_section = " ".join(s.strip() for s in accounting_sentences if s)
-        derivative_details_sections.append(accounting_section)
+        # --- MODIFIED: Join with newlines to create separate paragraphs ---
+        accounting_section_paragraph = "\n\n".join(s.strip() for s in accounting_sentences if s)
+        derivative_details_sections.append(accounting_section_paragraph)
         all_evidence.extend(accounting_evidence)
 
     # =========================================================================
