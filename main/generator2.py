@@ -13,8 +13,8 @@ from defs.class_definitions import (
     BaseNarrativeEvidence,
     HedgedItem,
     MitigationEvidence,
-    NotionalEvidence,
-    ResultPhraseDetails,
+    NotionalEvidence, # type: ignore
+    SpecificDetails,
     PolicySentence,
     NotionalSentence,
     TimelineSentence,
@@ -985,7 +985,7 @@ def _generate_category_narrative(
     # --- Part 1: Generate Policy, Mitigation, and optional Aggregate Summary ---
     if part == "summary":
         # 1a. Context Sentence (e.g., "To manage our interest rate risk...")
-        result_details = ResultPhraseDetails() # type: ignore
+        specific_details = SpecificDetails()  # type: ignore
         location_names = []
         if current_year_data and current_year_data["instruments"]:
             instrument_with_hedged_item = next(
@@ -995,24 +995,24 @@ def _generate_category_narrative(
             if instrument_with_hedged_item:
                 hedged_item = instrument_with_hedged_item.hedged_item
                 if isinstance(hedged_item, CommodityHedgedItem):
-                    result_details.commodity = hedged_item.commodity_type
-                    result_details.unit = hedged_item.unit_of_volume
+                    specific_details.commodity = hedged_item.commodity_type
+                    specific_details.unit = hedged_item.unit_of_volume
                 elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
                     locations = [exp.location for exp in hedged_item.exposures]
                     location_names = list(set(locations))
                     if location_names:
-                        result_details.geography = random.choice(location_names)
+                        specific_details.geography = random.choice(location_names)
                 elif isinstance(hedged_item, DebtHedgedItem):
-                    result_details.debt_type = hedged_item.debt_type
-                    result_details.pct = (
+                    specific_details.debt_type = hedged_item.debt_type
+                    specific_details.pct = (
                         hedged_item.fixed_rate_pct or hedged_item.change_rate_pct
                     )
-                    result_details.frequency = hedged_item.payment_frequency
+                    specific_details.frequency = hedged_item.payment_frequency
 
         policy_sentence_obj = PolicySentence(
             category=category, # type: ignore
             company_name=scenario.company_name,
-            result_details=result_details,
+            specific_details=specific_details,
             locations=location_names,
         )
         context_sentence, _ = policy_sentence_obj.build()
@@ -1047,7 +1047,7 @@ def _generate_category_narrative(
             year=reporting_year,
             month=reporting_month,
             end_day=reporting_day,
-            result_details=result_details,
+            specific_details=specific_details,
         )
         mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
         sentences.append(mitigation_sentence)
@@ -1083,10 +1083,7 @@ def _generate_category_narrative(
                 category=category, # type: ignore
                 reporting_year=reporting_year,
                 value_type=value_type_to_use,
-                result_phrase=random.choice(
-                    result_phrases.get(category, result_phrases["GEN"])
-                ),
-                result_details=result_details,
+                specific_details=specific_details,
             )
             summary_sentence_text, evidence_obj = summary_sentence_obj.build()
             sentences.append(summary_sentence_text)
@@ -1184,12 +1181,11 @@ def _generate_category_narrative(
 
                     individual_sentence_obj = NotionalSentence(
                         swap_type=name_to_use, year=year_to_report, notional=notional_to_report,
-                        currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type=sentence_type,
-                        hedge_designation=instrument.hedge_designation, money_units=scenario.archetype.money_units,
+                        currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type=sentence_type, # type: ignore
+                        money_units=scenario.archetype.money_units,
                         maturity_year=instrument.maturity_year, prefer_abbreviated=scenario.number_format_preference,
                         category=category, reporting_year=reporting_year, value_type=value_type, # type: ignore
                         is_repeated_mention=is_repeated,
-                        result_phrase=random.choice(result_phrases.get(category, result_phrases["GEN"])),
                     )
                 individual_sentence_text, evidence_obj = individual_sentence_obj.build()
                 evidence_obj.instrument_id = (
@@ -1238,17 +1234,12 @@ def _generate_category_narrative(
                         notional=value_to_report_terminated,
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
-                        sentence_type="terminated_individual",
+                        sentence_type="terminated_individual", # type: ignore
                         money_units=scenario.archetype.money_units,
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
-                        category=category,  # type: ignore
-                        reporting_year=reporting_year,
-                        value_type=value_type_terminated,
+                        category=category, reporting_year=reporting_year, value_type=value_type_terminated, # type: ignore
                         is_repeated_mention=is_repeated_terminated,
-                        result_phrase=random.choice(
-                            result_phrases.get(category, result_phrases["GEN"])
-                        ),
                     )
                     terminated_instrument_text, evidence_obj = (
                         terminated_instrument_obj.build()
@@ -1275,14 +1266,10 @@ def _generate_category_narrative(
                 notional=0,
                 currency_symbol=currency_symbol,
                 month=reporting_month,
-                end_day=reporting_day,
-                prev_year=reporting_year - 1,
-                prev_notional=prev_year_data["total_notional"],
-                sentence_type="comparative_no_outstanding",
+                end_day=reporting_day, # type: ignore
+                sentence_type="comparative_no_outstanding", # type: ignore
                 money_units=scenario.archetype.money_units,
                 prefer_abbreviated=scenario.number_format_preference,
-                category=category,  # type: ignore
-                reporting_year=reporting_year,
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             paragraphs.append(no_instrument_text)

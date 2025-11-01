@@ -356,8 +356,8 @@ class PolicySentence:
     currencies: List[str] = field(default_factory=list)
     locations: List[str] = field(default_factory=list)
 
-    # Add result_details for consistency with NotionalSentence
-    result_details: Optional["ResultPhraseDetails"] = None
+    # Add specific_details for consistency with NotionalSentence
+    specific_details: Optional["SpecificDetails"] = None
 
     def build(self) -> Tuple[str, PolicyEvidence]:
         """Builds a policy sentence and a corresponding PolicyEvidence object."""
@@ -376,7 +376,7 @@ class PolicySentence:
         if self.locations:
             locations_str = ", ".join(self.locations[:-1]) + " and " + self.locations[-1] if len(self.locations) > 1 else self.locations[0]
 
-        details = self.result_details or ResultPhraseDetails()
+        details = self.specific_details or SpecificDetails()
         risk_terms = random.sample(risk_exposure_terms, k=2)
         sentence = template.format(
             # TODO: These random.choice() calls are selecting from dummy data lists. This logic will be replaced by the generative model.
@@ -406,7 +406,7 @@ class MitigationSentence:
     swap_type: str
     has_active_instruments: bool
     usage_status: Literal["current", "speculative", "historical", "non_use"]
-    result_details: Optional["ResultPhraseDetails"] = None
+    specific_details: Optional["SpecificDetails"] = None
     # Add time components for context
     year: Optional[int] = None
     month: Optional[str] = None
@@ -441,8 +441,8 @@ class MitigationSentence:
         else: # historical or other speculative cases
             verb = random.choice(individual_use_verbs + aggregate_use_verbs) # e.g., "used", "employed"
 
-        # Format currencies and other details from the result_details object
-        details = self.result_details or ResultPhraseDetails()
+        # Format currencies and other details from the specific_details object
+        details = self.specific_details or SpecificDetails()
         currencies_str = ""
         if details.currencies:
             currencies_str = (
@@ -851,14 +851,18 @@ class GenerationScenario:
     )
     accounting_updates: List[AccountingStandardUpdate] = field(default_factory=list)
 @dataclass
-class ResultPhraseDetails:
+class SpecificDetails:
     """Holds specific details for populating a result_phrase template."""
-   
+
     frequency: Optional[str] = None
-    
+
     # FX specific
     geography: Optional[str] = None
     currencies: List[str] = field(default_factory=list)
+
+    # Shared / Generic
+    gain_loss: Optional[str] = None
+    risk_term: Optional[str] = None
 
     # CP specific
     commodity: Optional[str] = None
@@ -867,6 +871,8 @@ class ResultPhraseDetails:
     # IR specific (debt_type is primarily for IR)
     pct: Optional[float] = None
     debt_type: Optional[str] = None
+    rate_term1: Optional[str] = None
+    rate_term2: Optional[str] = None
 
 
 @dataclass
@@ -879,7 +885,6 @@ class NotionalSentence:
     # Core sentence components
     swap_type: str
     year: int
-    notional: int
     currency_symbol: str = "$"
     currency_code: str = "US Dollar"
     money_unit_word: str = "million"
@@ -896,26 +901,19 @@ class NotionalSentence:
         "no_instruments", # No such derivatives at all
     ] = "summary"
 
+    notional: Optional[int] = None
     # Optional time components
     month: Optional[str] = None
     end_day: Optional[int] = None
     quarter: Optional[str] = None
 
-    # Optional comparison data for multi-year sentences
-    prev_year: Optional[int] = None
-    prev_notional: Optional[int] = None
-    prev2_year: Optional[int] = None
-    prev2_notional: Optional[int] = None
-
     # Optional descriptive elements
-    hedge_designation: Optional[str] = None
-    result_phrase: Optional[str] = None
     company_name: Optional[str] = None
     verb: Optional[str] = None
     category: Optional[DerivativeCategory] = None
     maturity_year: Optional[int] = None
     commodity: Optional[str] = None
-    result_details: Optional[ResultPhraseDetails] = None
+    specific_details: Optional[SpecificDetails] = None
     reporting_year: Optional[int] = None
     
     # Others
@@ -942,61 +940,29 @@ class NotionalSentence:
         company_name = _get_company_reference(self.company_name or "The Company")
 
         # Determine number of years for comparison
-        num_years = 1
-        if self.prev_year is not None and self.prev_notional is not None:
-            num_years = 2
-            if self.prev2_year is not None and self.prev2_notional is not None:
-                num_years = 3
+        # This is now simplified, as we only handle one point in time.
+        # Comparative sentences will be built differently.
+
+        if self.notional is None:
+            self.notional = 0
 
         # 1. Format amount string
-        amount_str = ""
         formatted_notional = _format_single_notional(
             self.notional,
             self.currency_symbol,
             self.money_units,
             self.prefer_abbreviated,
         )
-        formatted_prev_notional = None
-        formatted_prev2_notional = None
-
-        if num_years == 1:
-            amount_str = formatted_notional
-        elif num_years == 2:
-            assert self.prev_notional is not None
-            formatted_prev_notional = _format_single_notional(  # type: ignore
-                self.prev_notional,
-                self.currency_symbol,
-                self.money_units,
-                self.prefer_abbreviated,
-            )
-            amount_str = f"{formatted_notional} and {formatted_prev_notional}"
-        elif num_years == 3:
-            assert self.prev_notional is not None and self.prev2_notional is not None
-            formatted_prev_notional = _format_single_notional(  # type: ignore
-                self.prev_notional,
-                self.currency_symbol,
-                self.money_units,
-                self.prefer_abbreviated,
-            )
-            formatted_prev2_notional = _format_single_notional(  # type: ignore
-                self.prev2_notional,
-                self.currency_symbol,
-                self.money_units,
-                self.prefer_abbreviated,
-            )
-            amount_str = f"{formatted_notional}, {formatted_prev_notional}, and {formatted_prev2_notional}"
+        amount_str = formatted_notional
 
         # 2. Select time prefix template
         time_prefix = ""
         time_suffix = ""
         # TODO: The logic for selecting and formatting time prefixes/suffixes is template-based and should be replaced by generative logic.
         if self.sentence_type in ["summary", "comparative", "no_instruments", "individual"]:
-            if num_years == 1:
-                time_prefix = random.choice(point_in_time_prefixes)
-            elif num_years == 2:
-                time_prefix = random.choice(multi_year_time_prefixes["two_year"])
-            else:  # num_years == 3
-                time_prefix = random.choice(multi_year_time_prefixes["three_year"])
+            # Simplified: Always use single-year prefixes for now.
+            # Comparative logic will be handled by specific templates.
+            time_prefix = random.choice(point_in_time_prefixes)
         elif self.sentence_type in ["new_individual", "terminated_individual", "historical_individual"]:
             time_prefix = random.choice(period_of_time_prefixes)
 
@@ -1004,16 +970,9 @@ class NotionalSentence:
             month=month,
             end_day=end_day,
             year=self.year,
-            prev_year=self.prev_year,
-            prev2_year=self.prev2_year,
             quarter=quarter,
         )
-        if num_years == 2:
-            time_suffix = f"as of {month} {end_day}, {self.year} and {self.prev_year}, respectively"
-        elif num_years == 3:
-            time_suffix = f"as of {month} {end_day}, {self.year}, {self.prev_year}, and {self.prev2_year}, respectively"
-        else:
-            time_suffix = f"as of {month} {end_day}, {self.year}"
+        time_suffix = f"as of {month} {end_day}, {self.year}"
 
         # 3. Select verb
         verb = self.verb
@@ -1048,24 +1007,21 @@ class NotionalSentence:
 
         # 5. Hedge designation clause
         # TODO: Replace hardcoded hedge designation clauses with generative logic.
-        hedge_designation_clause = ""
-        if self.hedge_designation:
-            hedge_designation_clause = self.hedge_designation.format(
-                hedge_type=random.choice(hedge_types)
-            )
+        # NEW: This is now determined inside the build method.
+        hedge_designation_clause = random.choice(hedge_designations).format(
+            hedge_type=random.choice(hedge_types)
+        )
 
         # 6. Result phrase clause
         # TODO: The construction of the result_clause is template-based and should be replaced by generative logic.
+        # NEW: The result phrase template is now selected inside the build method.
+        result_phrase_template = random.choice(result_phrases.get(self.category, result_phrases["GEN"])) # type: ignore
+
         result_clause = ""
-        if self.result_phrase:
+        if result_phrase_template:
             # Populate new placeholders within the result phrase itself
             outcome_verb = random.choice(financial_outcome_verbs)
             outcome_loc = random.choice(balance_sheet_locations)
-
-            # Choose two different specific rate terms for templates that need them
-            rate_terms = random.sample(specific_rate_terms, 2)
-            rate_term1 = rate_terms[0]
-            rate_term2 = rate_terms[1]
 
             # Generate a random amount for the result phrase and format it
             random_amount = int(self.notional * random.randint(1, 50) / 100)
@@ -1076,7 +1032,7 @@ class NotionalSentence:
                 self.prefer_abbreviated,
             )
             # Format currencies into a readable string from the details object
-            details = self.result_details or ResultPhraseDetails()
+            details = self.specific_details or SpecificDetails()
             currencies_str = ""
             if details.currencies:
                 currencies_str = (
@@ -1087,21 +1043,20 @@ class NotionalSentence:
                     else details.currencies[0]
                 )
 
-            details = self.result_details or ResultPhraseDetails()
-            risk_terms = random.sample(risk_exposure_terms, k=2)
-            populated_phrase = self.result_phrase.format(
+            details = self.specific_details or SpecificDetails()
+            populated_phrase = result_phrase_template.format(
                 mitigation_verb=random.choice([v for v in risk_management_verbs if not v.endswith('ing')]), # Use base form
-                gain_loss=random.choice(gain_loss_phrases),
+                gain_loss=details.gain_loss or random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 frequency=details.frequency or random.choice(frequencies),
-                risk_term=risk_terms[0],
-                risk_term2=risk_terms[1],
+                risk_term=details.risk_term or random.choice(risk_exposure_terms),
+                risk_term2=random.choice(risk_exposure_terms), # A second random one for variety
                 ir_term=random.choice(interest_rate_terms),  # type: ignore
                 debt_type=details.debt_type or "debt",
                 currencies=currencies_str,
                 currency_code=self.currency_code,
-                rate_term1=rate_term1,
-                rate_term2=rate_term2,
+                rate_term1=details.rate_term1 or random.choice(specific_rate_terms),
+                rate_term2=details.rate_term2 or random.choice(specific_rate_terms),
                 formatted_amount=formatted_amount_result,  # type: ignore
                 pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
                 geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
@@ -1147,13 +1102,6 @@ class NotionalSentence:
             or "{amount_prefix}" in template
         )
         final_notional = self.notional if mentions_amount else None
-        final_formatted_notional = formatted_notional if mentions_amount else None
-        final_formatted_prev_notional = (
-            formatted_prev_notional if mentions_amount else None
-        )
-        final_formatted_prev2_notional = (
-            formatted_prev2_notional if mentions_amount else None
-        )
 
         # Handle "no_instruments" case specifically
         if self.sentence_type == "no_instruments":
@@ -1194,8 +1142,6 @@ class NotionalSentence:
                 notional=0,
                 instrument_type="none",
                 year=self.year,
-                prev_year=self.prev_year,
-                prev2_year=self.prev2_year,
                 currency=self.currency_code,
                 reporting_year=self.reporting_year,
                 sentence_type=self.sentence_type,
@@ -1234,12 +1180,7 @@ class NotionalSentence:
             aggregate=self.sentence_type in ["summary", "comparative"],
             notional=final_notional,  # Use the conditional notional value
             year=self.year,
-            prev_year=self.prev_year,
-            prev2_year=self.prev2_year,
             instrument_type=self.swap_type,
-            notional_str=final_formatted_notional,
-            prev_notional_str=final_formatted_prev_notional,
-            prev2_notional_str=final_formatted_prev2_notional,
             maturity_year=self.maturity_year,
             reporting_year=self.reporting_year,
             value_type=final_value_type,
@@ -1317,12 +1258,21 @@ class TimelineSentence:
                 # Use the alias for subsequent mentions to make the text more natural
                 name_to_use = self.instrument.instrument_alias
 
+            # --- NEW: Populate SpecificDetails for this specific point in time ---
+            specific_details = SpecificDetails(
+                gain_loss=random.choice(gain_loss_phrases),
+                risk_term=random.choice(risk_exposure_terms),
+                rate_term1=random.choice(specific_rate_terms),
+                rate_term2=random.choice(specific_rate_terms),
+            )
+
             sentence_obj = NotionalSentence(
                 swap_type=name_to_use,
                 year=year,
                 notional=notional,
                 sentence_type=sentence_type, # type: ignore
                 # Pass additional details for the partial_settlement templates
+                specific_details=specific_details,
                 company_name=self.company_name,
                 termination_noun=random.choice(termination_noun),
                 comparison_phrase=random.choice(comparison_phrases),
@@ -1332,7 +1282,6 @@ class TimelineSentence:
                 currency_code=self.currency_code,
                 money_units=self.money_units,
                 prefer_abbreviated=self.prefer_abbreviated,
-                hedge_designation=self.instrument.hedge_designation,
                 maturity_year=self.instrument.maturity_year,
                 category=self.instrument.category,
                 reporting_year=self.reporting_year,
