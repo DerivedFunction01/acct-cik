@@ -907,6 +907,7 @@ def _generate_category_narrative(
     # 1b. Mitigation/Purpose Sentence (e.g., "The company uses swaps to hedge interest rate risk...")
     # This adds a sentence explaining *why* the company is using the derivative.
     if current_year_data and current_year_data["instruments"]:
+        has_active_instruments = bool(current_year_data and current_year_data["instruments"])
         # Determine the usage status based on the archetype's propensity
         past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0)) # type: ignore
         if current_prop > 0.5:
@@ -923,6 +924,7 @@ def _generate_category_narrative(
             category=category,  # type: ignore
             company_name=scenario.company_name,
             swap_type=instrument_type,
+            has_active_instruments=has_active_instruments,
             usage_status=usage,
             result_details=result_details,
         )

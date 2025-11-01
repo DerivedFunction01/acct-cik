@@ -350,6 +350,7 @@ class MitigationSentence:
     category: DerivativeCategory
     company_name: str
     swap_type: str
+    has_active_instruments: bool
     usage_status: Literal["current", "speculative", "historical", "non_use"]
     result_details: Optional["ResultPhraseDetails"] = None
 
@@ -359,6 +360,11 @@ class MitigationSentence:
         templates = MITIGATION_TEMPLATES.get(self.category, MITIGATION_TEMPLATES["GEN"])
         mitigation_phrase = random.choice(templates)
 
+        # --- FIX: Prevent contradiction. If there are active instruments, status cannot be 'non_use'. ---
+        final_usage_status = self.usage_status
+        if self.has_active_instruments and self.usage_status == "non_use":
+            final_usage_status = "current"
+
         # Choose an adverb and verb based on the usage status
         adverb = ""
         verb = ""
@@ -366,11 +372,11 @@ class MitigationSentence:
         if adverb_list:
             adverb = random.choice(adverb_list)
 
-        if self.usage_status == "current":
+        if final_usage_status == "current":
             verb = random.choice(policy_verbs) # e.g., "uses", "employs"
-        elif self.usage_status == "speculative" and adverb == "may":
+        elif final_usage_status == "speculative" and adverb == "may":
             verb = random.choice(non_use_verbs) # e.g., "may use", "may employ"
-        elif self.usage_status == "non_use":
+        elif final_usage_status == "non_use":
             verb = random.choice(non_use_verbs) # e.g., "does not use"
         else: # historical or other speculative cases
             verb = random.choice(individual_use_verbs + aggregate_use_verbs) # e.g., "used", "employed"
@@ -395,11 +401,15 @@ class MitigationSentence:
 
         # Combine into a final sentence
         # Structure: "{Company} {verb} {swap_type}, {mitigation_phrase}."
-        # Or: "{mitigation_phrase}, {company} {verb} {swap_type}."
-        sentence_structures = [
-            f"{{company}} {{adverb}} {{verb}} {{swap_type}}, {populated_phrase}.",
-            f"{populated_phrase.capitalize()}, {{company}} {{adverb}} {{verb}} {{swap_type}}."
-        ]
+        # --- FIX: For non_use, always use the company-first structure for better flow. ---
+        if final_usage_status == "non_use":
+            sentence_structures = [f"{{company}} {{adverb}} {{verb}} {{swap_type}}, {populated_phrase}."]
+        else:
+            # Or: "{mitigation_phrase}, {company} {verb} {swap_type}."
+            sentence_structures = [
+                f"{{company}} {{adverb}} {{verb}} {{swap_type}}, {populated_phrase}.",
+                f"{populated_phrase.capitalize()}, {{company}} {{adverb}} {{verb}} {{swap_type}}."
+            ]
         sentence_template = random.choice(sentence_structures)
         sentence = sentence_template.format(company=self.company_name, adverb=adverb, verb=verb, swap_type=self.swap_type)
 
