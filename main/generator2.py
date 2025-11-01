@@ -1408,7 +1408,11 @@ def generate_json_from_scenario(
 
     # --- NEW: Mitigation status is now "current", "historical", or "never" ---
     # It's driven by the usage_status in the MitigationEvidence objects.
-    mitigation_map = {cat: "never" for cat in DERIVATIVE_CATEGORIES}
+    # --- NEW: Use "none" if no exposure exists, otherwise default to "never". ---
+    mitigation_map = {
+        cat: "never" if exposure_map.get(cat) else "none"
+        for cat in DERIVATIVE_CATEGORIES
+    }
     for ev in evidence:
         if isinstance(ev, MitigationEvidence):
             status = ev.usage_status
