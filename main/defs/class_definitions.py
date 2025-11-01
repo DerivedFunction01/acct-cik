@@ -1115,7 +1115,7 @@ class NotionalSentence:
                 pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
                 geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
                 commodity=details.commodity or "commodities",
-                unit=details.unit,
+                unit=details.unit or "unit",
                 financial_outcome_verb=outcome_verb,
                 company=self.company_name,
                 swap_type=self.swap_type,
