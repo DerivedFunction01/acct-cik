@@ -571,7 +571,7 @@ class AccountingPolicySentence:
         for template_list, evidence_type in templates_to_use:
             template = random.choice(template_list)
             sentence = template.format(
-                company=self.company_name,
+                company=_get_company_reference(self.company_name),
                 swap_type="derivative instruments",
                 hedge_type=random.choice(hedge_types),
                 verb=random.choice(assessment_verbs),
@@ -579,7 +579,13 @@ class AccountingPolicySentence:
                 frequency=self.cat_policy.effectiveness_frequency or random.choice(frequencies),
                 method=self.cat_policy.effectiveness_testing_method,
                 standard=self.cat_policy.accounting_standard or random.choice(hedge_standards),
+                gain_loss=random.choice(gain_loss_phrases),
                 financial_outcome_verb=random.choice(financial_outcome_verbs),
+                termination_verb=random.choice(termination_verbs_past),
+                # --- NEW: Populate factored-out placeholders ---
+                hedge_accounting_subject=random.choice(hedge_accounting_subjects),
+                hedged_item_subject=random.choice(hedged_item_subjects),
+                deferred_gain_loss_subject=random.choice(deferred_gain_loss_subjects).format(gain_loss=random.choice(gain_loss_phrases)),
             )
             
             evidence = PolicyEvidence(category=self.cat_policy.category, status="policy_mention", policy_type=evidence_type, details=sentence) # type: ignore

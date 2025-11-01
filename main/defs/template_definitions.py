@@ -549,6 +549,32 @@ MITIGATION_TEMPLATES = {
 # HEDGE POLICY TEMPLATES (Ported from old/template/hedges.py)
 # ==============================================================================
 
+# --- NEW: Factored-out components for more variety ---
+
+hedge_accounting_subjects = [
+    "Hedge accounting",
+    "The application of hedge accounting",
+    "Hedge accounting treatment",
+]
+
+hedged_item_subjects = [
+    "a forecasted transaction",
+    "the hedged forecasted transaction",
+    "the hedged item",
+    "the underlying forecasted transaction",
+]
+
+deferred_gain_loss_subjects = [
+    "any related unrealized {gain_loss}",
+    "accumulated {gain_loss}",
+    "deferred {gain_loss}",
+    "amounts previously deferred in other comprehensive income",
+    "any accumulated {gain_loss}",
+]
+# ==============================================================================
+# HEDGE POLICY TEMPLATES (Ported from old/template/hedges.py)
+# ==============================================================================
+
 # --- Documentation Policy (Specific - mentions swap_type) ---
 specific_hedge_documentation_templates = [
     "For a {swap_type} to qualify as a hedge at inception and throughout the hedged period, {company} formally document the nature and relationships between the hedging instruments and hedged item.",
@@ -610,19 +636,19 @@ hedge_ineffectiveness_policy_templates = [
 
 # --- Discontinuation Policy ---
 hedge_discontinuation_templates = [
-    "If {company} determine that a forecasted transaction is no longer probable of occurring, {company} {termination_verb} hedge accounting and any related unrealized {gain_loss} on the derivative instrument is {financial_outcome_verb} in current earnings.",
-    "Hedge accounting is {termination_verb} if the hedged forecasted transaction is no longer expected to occur, with accumulated {gain_loss} {financial_outcome_verb} to earnings.",
-    "When a hedged forecasted transaction becomes improbable, {company} dedesignates the hedging relationship and {financial_outcome_verb} deferred {gain_loss} immediately.",
-    "If a forecasted transaction fails to occur, amounts previously deferred in other comprehensive income are {financial_outcome_verb} to current period earnings.",
-    "{company} ceases hedge accounting for derivatives when the hedged item is no longer expected to occur, with any accumulated {gain_loss} {financial_outcome_verb} in earnings.",
-    "Deferred {gain_loss} on discontinued hedges are {financial_outcome_verb} immediately in the consolidated statements of operations.",
+    "If {company} determine that {hedged_item_subject} is no longer probable of occurring, {company} {termination_verb} hedge accounting and {deferred_gain_loss_subject} on the derivative instrument is {financial_outcome_verb} in current earnings.",
+    "{hedge_accounting_subject} is {termination_verb} if {hedged_item_subject} is no longer expected to occur, with {deferred_gain_loss_subject} {financial_outcome_verb} to earnings.",
+    "When {hedged_item_subject} becomes improbable, {company} dedesignates the hedging relationship and {financial_outcome_verb} {deferred_gain_loss_subject} immediately.",
+    "If {hedged_item_subject} fails to occur, {deferred_gain_loss_subject} are {financial_outcome_verb} to current period earnings.",
+    "{company} ceases hedge accounting for derivatives when {hedged_item_subject} is no longer expected to occur, with {deferred_gain_loss_subject} {financial_outcome_verb} in earnings.",
+    "{deferred_gain_loss_subject} on discontinued hedges are {financial_outcome_verb} immediately in the consolidated statements of operations.",
     "Upon dedesignation of a hedge, the ineffective and deferred portions of derivative instruments are {financial_outcome_verb} in current period earnings.",
-    "Hedge discontinuation is applied when the underlying forecasted transaction is no longer probable, with previously deferred amounts {financial_outcome_verb} to income.",
-    "If the hedged item did not materialize, accumulated OCI amounts for the hedge are {financial_outcome_verb} to current earnings.",
+    "{hedge_accounting_subject} is discontinued when {hedged_item_subject} is no longer probable, with {deferred_gain_loss_subject} {financial_outcome_verb} to income.",
+    "If {hedged_item_subject} did not materialize, accumulated OCI amounts for the hedge are {financial_outcome_verb} to current earnings.",
     "{company} derecognizes hedge accounting when criteria are no longer met, and any associated {gain_loss} are {financial_outcome_verb} in the period of discontinuation.",
     "{swap_type} being accounted for as a {hedge_type} hedge did not qualify for hedge accounting because it is no longer highly effective in offsetting {metric} of a hedged item.",
     "If the {swap_type} expires or is sold, terminated or exercised, or if management determines that designation of the {swap_type} as a hedge instrument is no longer appropriate, hedge accounting would be discontinued.",
-    "When a hedge is discontinued because it is no longer effective, the derivative is no longer designated as a hedge, and subsequent changes in fair value are recognized in earnings.",
+    "When a hedge is discontinued because it is no longer effective, the derivative is no longer designated as a hedge, and subsequent changes in fair value are {financial_outcome_verb} in earnings.",
     "For discontinued {hedge_type} hedges, any gains or losses previously deferred in other comprehensive income are recognized in earnings when the hedged transaction affects earnings.",
     "{company} may terminate or de-designate a {swap_type} at any time, at which point hedge accounting is discontinued prospectively.",
 ]
