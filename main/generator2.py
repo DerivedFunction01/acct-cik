@@ -1557,9 +1557,10 @@ def generate_json_from_scenario(
 
     # --- NEW: Mitigation status is now "current", "historical", or "never" ---
     # It's driven by the usage_status in the MitigationEvidence objects.
-    # --- NEW: Use "none" if no exposure exists, otherwise default to "never". ---
+    # --- FIX: Default to "unknown" if exposure exists but no evidence, "none" if no exposure. ---
     mitigation_map = {
-        cat: "never" if exposure_map.get(cat) else "none"
+        # If there's exposure but no mention of hedging, the status is "unknown".
+        cat: "unknown" if exposure_map.get(cat) else "none"
         for cat in DERIVATIVE_CATEGORIES
     }
     for ev in evidence:
@@ -1576,8 +1577,8 @@ def generate_json_from_scenario(
                 # This is more specific than the default.
                 elif status == "non_use":
                     mitigation_map[category] = "never"
-                elif status == "speculative":
-                    mitigation_map[category] = "unknown"
+                elif status == "speculative": # "may use", "from time to time", etc.
+                    mitigation_map[category] = "likely"
                 # "non_use" maps to "never" as it's an explicit statement of non-activity.
     # --- NEW: Join with newlines for readability ---
     chain_of_thought = "\n".join([e.to_string() for e in evidence])
