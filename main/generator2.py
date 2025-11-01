@@ -995,21 +995,44 @@ def _generate_category_narrative(
                     if (
                         instrument.instrument_id in prev_ids
                         and instrument.instrument_id
-                        not in (current_year_data.get("new_ids", set()))
+                        not in (current_year_data.get("new_ids", set())) # type: ignore
                     ):
                         is_historical = True
 
-                # 20% chance to use the historical template if applicable
-                sentence_type = (
-                    "historical_individual"
-                    if is_historical and random.random() < 0.2
-                    else "individual"
-                )
+                # --- NEW: Enhanced historical sentence generation ---
+                sentence_type = "individual"
+                year_to_report = reporting_year
+                notional_to_report = value_to_report
+
+                if is_historical and random.random() < 0.35: # 35% chance for a historical sentence
+                    sentence_type = "historical_individual"
+                    # 50% chance to talk about the inception year vs. a random past year
+                    if random.random() < 0.5 and instrument.start_year in instrument.notional_history:
+                        # Describe the instrument's inception
+                        year_to_report = instrument.start_year
+                        notional_to_report = instrument.notional_history[instrument.start_year]
+                        # Adjust value if fair_value is used
+                        if use_fair_value:
+                             notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
+                    else:
+                        # Describe a random point in its history before the reporting year
+                        past_years = [y for y in instrument.notional_history.keys() if y < reporting_year]
+                        if past_years:
+                            year_to_report = random.choice(past_years)
+                            notional_to_report = instrument.notional_history[year_to_report]
+                            if use_fair_value:
+                                notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
+                        else: # Fallback if no past years available for some reason
+                            year_to_report = reporting_year
+                            notional_to_report = value_to_report
+                else:
+                    year_to_report = reporting_year
+                    notional_to_report = value_to_report
 
                 individual_sentence_obj = NotionalSentence(
                     swap_type=instrument.instrument_type,
-                    year=reporting_year,
-                    notional=value_to_report,
+                    year=year_to_report,
+                    notional=notional_to_report,
                     currency_symbol=currency_symbol,
                     company_name=scenario.company_name,
                     sentence_type=sentence_type,
@@ -1241,6 +1264,48 @@ def generate_narrative_from_scenario(
     return full_narrative, all_evidence
 
 
+def _generate_debug_output(scenario: GenerationScenario) -> str:
+    """
+    Generates a formatted string containing debug information about the scenario,
+    including archetype, instruments, and their hedged items (exposures).
+    """
+    debug_lines = ["\n\n--- DEBUG INFO ---"]
+    debug_lines.append(f"Archetype: {scenario.archetype.name}")
+    debug_lines.append(f"Reporting Year: {scenario.reporting_year}")
+    debug_lines.append(f"Total Instruments: {len(scenario.instruments)}")
+    debug_lines.append("=" * 20)
+
+    # Create a set of all hedged item IDs to identify unhedged exposures
+    hedged_item_ids = {
+        inst.hedged_item.hedged_item_id
+        for inst in scenario.instruments
+        if inst.hedged_item
+    }
+
+    for i, inst in enumerate(scenario.instruments):
+        debug_lines.append(f"\nInstrument {i+1}/{len(scenario.instruments)} (ID: {inst.instrument_id})")
+        debug_lines.append(f"  - Type: {inst.instrument_type}")
+        debug_lines.append(f"  - Category: {inst.category}")
+        debug_lines.append(f"  - Start: {inst.start_month} {inst.start_year}")
+        debug_lines.append(f"  - Maturity: {inst.maturity_year}")
+        debug_lines.append(f"  - Notional History: {inst.notional_history}")
+
+        if inst.hedged_item:
+            hedged_item = inst.hedged_item
+            debug_lines.append("  - Hedged Item (Exposure):")
+            debug_lines.append(f"    - ID: {hedged_item.hedged_item_id}")
+            debug_lines.append(f"    - Type: {type(hedged_item).__name__}")
+            # Convert hedged item to dict for clean printing, excluding the ID which is already shown
+            details = hedged_item.to_dict()
+            if details:
+                details.pop("hedged_item_id", None)
+                debug_lines.append(f"    - Details: {json.dumps(details, indent=4)}")
+        else:
+            debug_lines.append("  - Hedged Item (Exposure): None")
+
+    return "\n".join(debug_lines)
+
+
 def _generate_analysis_summary(
     scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]
 ) -> str:
@@ -1296,15 +1361,15 @@ def generate_json_from_scenario(
                 elif status == "speculative":
                     mitigation_map[category] = "unknown"
                 # "non_use" maps to "never" as it's an explicit statement of non-activity.
-
-    chain_of_thought = " ".join([e.to_string() for e in evidence])
+    # --- NEW: Join with newlines for readability ---
+    chain_of_thought = "\n".join([e.to_string() for e in evidence])
 
     # --- Append a final reasoning statement for any GENERIC derivatives ---
     # This logic is now centralized here, instead of in the Evidence class.
     has_generic_evidence = any(ev.category == "GEN" for ev in evidence)
     if has_generic_evidence:
         # Find other specific instrument types that were identified in the text.
-        seen_instrument_types = sorted(
+        all_seen_types = sorted(
             list(
                 {
                     ev.instrument_type
@@ -1313,13 +1378,32 @@ def generate_json_from_scenario(
                 }
             )
         )
-
+        
+        # --- NEW: Select a few similar-sounding instruments to mention ---
+        # If there are only a few, list them all. Otherwise, be selective.
+        if len(all_seen_types) > 4:
+            # Pick a random instrument as a "seed"
+            seed_instrument = random.choice(all_seen_types)
+            seed_words = set(seed_instrument.split())
+            
+            # Find other instruments that share at least one word with the seed
+            similar_instruments = {seed_instrument}
+            for inst_type in all_seen_types:
+                if inst_type != seed_instrument and seed_words.intersection(inst_type.split()):
+                    similar_instruments.add(inst_type)
+            
+            # Limit to a small, random number (2 to 4) of examples
+            num_to_show = random.randint(2, min(4, len(similar_instruments)))
+            display_types = sorted(list(random.sample(list(similar_instruments), num_to_show)))
+        else:
+            display_types = all_seen_types
+            
         generic_reasoning = " A generic derivative reference was identified. Because the statement does not specify a clear derivative category"
-        if seen_instrument_types:
-            generic_reasoning += f" (such as the other instruments found: {', '.join(seen_instrument_types)}), I cannot link it to a specific known type and will therefore treat it as a generic reference."
+        if display_types:
+            generic_reasoning += f" (such as the other instruments found: {', '.join(display_types)}), I cannot link it to a specific known type and will therefore treat it as a generic reference."
         else:
             generic_reasoning += ", I cannot link it to a specific known type and will therefore treat it as a generic reference."
-        chain_of_thought += generic_reasoning
+        chain_of_thought += "\n" + generic_reasoning.strip()
 
     # --- Build the derivatives list ONLY from what was mentioned in the evidence. ---
 
@@ -1412,9 +1496,13 @@ def generate_training_sample():
     # 2. Generate the narrative text and the evidence list based on that scenario.
     narrative_text, evidence = generate_narrative_from_scenario(scenario)
 
+    # --- NEW: Append debug output to the narrative text ---
+    debug_output = _generate_debug_output(scenario)
+    narrative_text += debug_output
+
     # 3. Generate the corresponding JSON label using the evidence from the narrative.
     json_output = generate_json_from_scenario(scenario, evidence)
-
+    
     # The final output is a tuple of the text and the JSON object (or string).
     return (narrative_text, json_output)
 
