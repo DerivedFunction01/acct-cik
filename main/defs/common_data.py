@@ -400,6 +400,12 @@ NO_ALIAS_TYPES = [
     "hedge",
 ]
 
+# Types that should not have an alias
+NO_ALIAS_TYPES = [
+    "derivative",
+    "hedge",
+]
+
 DEFAULT_SUFFIXES = [
     "agreement",
     "contract",
@@ -471,5 +477,6 @@ DERIVATIVE_COMPONENTS = {
     "special_suffixes": SPECIAL_SUFFIX,
     "category_extras": CATEGORY_EXTRAS,
     "swap_prefixes": SWAP_PREFIXES,
-    "global_prefixes": GLOBAL_PREFIXES
+    "global_prefixes": GLOBAL_PREFIXES,
+    "no_alias_types": NO_ALIAS_TYPES,
 }

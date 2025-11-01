@@ -92,8 +92,13 @@ def _create_contextual_alias(base_type: str, category: str, placeholder: str, al
 
     is_base_type_unique = base_type not in all_other_base_types
 
+    # --- NEW: Prevent aliasing for certain generic types ---
+    no_alias_types = DERIVATIVE_COMPONENTS.get("no_alias_types", [])
+    if any(no_alias_word in base_type for no_alias_word in no_alias_types):
+        return base_type
+
     # If the base type is unique, or a generic term, or already specific (like cross-currency), don't add a prefix.
-    if is_base_type_unique or alias_base in ["swap", "derivative"] or "cross-currency" in placeholder:
+    if is_base_type_unique or alias_base in ["swap"] or "cross-currency" in placeholder:
         return alias_base
     
     category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
