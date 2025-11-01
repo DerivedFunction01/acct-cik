@@ -980,6 +980,7 @@ class NotionalSentence:
     )
     prefer_abbreviated: bool = True
     is_repeated_mention: bool = False
+    optional_seed: Optional[float] = None
 
     def build(self) -> Tuple[str, NotionalEvidence]:
         """
@@ -1061,18 +1062,26 @@ class NotionalSentence:
 
         # 5. Hedge designation clause
         # TODO: Replace hardcoded hedge designation clauses with generative logic.
-        # NEW: This is now determined inside the build method.
-        hedge_designation_clause = random.choice(hedge_designations).format(
-            hedge_type=random.choice(hedge_types)
-        )
+        # --- FIX: Make hedge designation clause optional ---
+        hedge_designation_clause = ""
+        # Use the provided seed or a new random float
+        seed = self.optional_seed if self.optional_seed is not None else random.random()
+        if seed < 0.5: # 50% chance to add this clause
+            # Choose from templates that are not empty
+            designation_template = random.choice([d for d in hedge_designations if d])
+            hedge_designation_clause = designation_template.format(
+                hedge_type=random.choice(hedge_types)
+            )
 
         # 6. Result phrase clause
         # TODO: The construction of the result_clause is template-based and should be replaced by generative logic.
         # NEW: The result phrase template is now selected inside the build method.
-        result_phrase_template = random.choice(result_phrases.get(self.category, result_phrases["GEN"])) # type: ignore
-
         result_clause = ""
-        if result_phrase_template:
+        # --- FIX: Make result phrase clause optional ---
+        # Use the same seed, potentially shifted, to decide. Let's use a simple check.
+        if seed > 0.5: # 50% chance to add this clause
+            # Choose from templates that are not empty
+            result_phrase_template = random.choice([r for r in result_phrases.get(self.category, result_phrases["GEN"]) if r]) # type: ignore
             # Populate new placeholders within the result phrase itself
             outcome_verb = random.choice(financial_outcome_verbs)
             outcome_loc = random.choice(balance_sheet_locations)
