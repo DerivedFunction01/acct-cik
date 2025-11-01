@@ -1110,12 +1110,14 @@ def _generate_category_narrative(
                         if use_fair_value:
                             notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
 
+                        is_repeated = instrument.instrument_id in mentioned_instrument_ids
                         timeline_sentence_obj = NotionalSentence(
                             swap_type=name_to_use, year=year_to_report, notional=notional_to_report,
                             currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type="historical_individual",
                             hedge_designation=instrument.hedge_designation, money_units=scenario.archetype.money_units,
                             maturity_year=instrument.maturity_year, prefer_abbreviated=scenario.number_format_preference,
                             category=category, reporting_year=reporting_year, value_type=value_type, # type: ignore
+                            is_repeated_mention=is_repeated,
                             result_phrase=random.choice(result_phrases.get(category, result_phrases["GEN"])),
                         )
                         timeline_sentence_text, evidence_obj = timeline_sentence_obj.build()
@@ -1150,12 +1152,14 @@ def _generate_category_narrative(
                                 if use_fair_value:
                                     notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
 
+                    is_repeated = instrument.instrument_id in mentioned_instrument_ids
                     individual_sentence_obj = NotionalSentence(
                         swap_type=name_to_use, year=year_to_report, notional=notional_to_report,
                         currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type=sentence_type,
                         hedge_designation=instrument.hedge_designation, money_units=scenario.archetype.money_units,
                         maturity_year=instrument.maturity_year, prefer_abbreviated=scenario.number_format_preference,
                         category=category, reporting_year=reporting_year, value_type=value_type, # type: ignore
+                        is_repeated_mention=is_repeated,
                         result_phrase=random.choice(result_phrases.get(category, result_phrases["GEN"])),
                     )
                 individual_sentence_text, evidence_obj = individual_sentence_obj.build()
@@ -1196,6 +1200,7 @@ def _generate_category_narrative(
                     # Decide whether to use alias for terminated instruments as well
                     use_alias_terminated = (instrument.instrument_id in mentioned_instrument_ids and random.random() < 0.75) or (random.random() < 0.2)
                     name_to_use_terminated = instrument.instrument_alias if use_alias_terminated and instrument.instrument_alias else instrument.instrument_type
+                    is_repeated_terminated = instrument.instrument_id in mentioned_instrument_ids
 
                     terminated_instrument_obj = NotionalSentence(
                         swap_type=name_to_use_terminated,
@@ -1210,6 +1215,7 @@ def _generate_category_narrative(
                         category=category,  # type: ignore
                         reporting_year=reporting_year,
                         value_type=value_type_terminated,
+                        is_repeated_mention=is_repeated_terminated,
                         result_phrase=random.choice(
                             result_phrases.get(category, result_phrases["GEN"])
                         ),

@@ -72,6 +72,8 @@ class NotionalEvidence(BaseNarrativeEvidence):
     value_type: str = "notional"
     currency: str = "USD"
     sentence_type: Optional[str] = None
+    is_repeated_mention: bool = False
+
 
     # ---------------------------------------------------------------------
     # Helpers
@@ -223,10 +225,16 @@ class NotionalEvidence(BaseNarrativeEvidence):
             # Individual mention doesn't imply newness. Attach temporal_info if available.
             prefix = f"The report mentions an individual {base_desc}"
             value_part = (
-                f" with a {value_desc} of {self.notional_str}"
-                if self.notional_str
-                else ""
+            f" with a {value_desc} of {self.notional_str}" if self.notional_str else ""
             )
+            # --- NEW: Add "Aha!" moment for repeated mentions ---
+            if self.is_repeated_mention and self.instrument_id:
+                prefix = f"Aha, another mention of the same {base_desc} (instrument ID {self.instrument_id}) appeared"
+                value_part = (
+                    f" with a {value_desc} of {self.notional_str}"
+                    if self.notional_str
+                    else ""
+                )
             return f"{prefix}{value_part}{temporal_info}"
 
         def terminated_individual_handler() -> str:
@@ -914,6 +922,7 @@ class NotionalSentence:
         default_factory=lambda: [("million", 1_000_000)]
     )
     prefer_abbreviated: bool = True
+    is_repeated_mention: bool = False
 
     def build(self) -> Tuple[str, NotionalEvidence]:
         """
@@ -1230,6 +1239,7 @@ class NotionalSentence:
             reporting_year=self.reporting_year,
             value_type=final_value_type,
             sentence_type=self.sentence_type,
+            is_repeated_mention=self.is_repeated_mention,
         )
 
         return sentence, evidence
