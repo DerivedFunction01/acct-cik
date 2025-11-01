@@ -2,9 +2,8 @@ from dataclasses import dataclass, field
 import random
 from typing import List, Literal, Optional, Set, Tuple
 
-from defs.class_definitions import (
-    _get_company_reference,
-)
+from defs.function_definitions import _get_company_reference,
+
 from defs.common_data import *
 from defs.template_definitions import *
 from defs.cp_data import get_cost_types_for_commodity
@@ -81,7 +80,6 @@ class PolicySentence:
                 )
             else:
                 commodities_str = details.commodity[0]
-        # TODO: Replace hardcoded fallback strings like f"international {random.choice(geo_locations)}" with more dynamic generation.
         locations_str = f"international {random.choice(geo_locations)}"
         if details.locations:
             locations_str = (
@@ -91,7 +89,6 @@ class PolicySentence:
             )
         risk_terms = random.sample(risk_exposure_terms, k=2)
         sentence = template.format(
-            # TODO: These random.choice() calls are selecting from dummy data lists. This logic will be replaced by the generative model.
             company=_get_company_reference(self.company_name),
             ir_term=random.choice(interest_rate_terms),
             debt_type=details.debt_type or "debt",

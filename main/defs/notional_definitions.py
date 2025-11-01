@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 import random
 from typing import Callable, Dict, List, Literal, Optional, Tuple
-from defs.class_definitions import _get_company_reference
+from defs.function_definitions import _get_company_reference
 from defs.common_data import *
 from defs.template_definitions import *
 from defs.cp_data import *
