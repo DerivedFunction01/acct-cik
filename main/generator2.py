@@ -78,10 +78,19 @@ def _create_contextual_alias(base_type: str, category: str, all_other_base_types
     Returns:
         A contextually appropriate alias string.
     """
-    is_base_type_unique = base_type not in all_other_base_types
-    alias_base = " ".join(base_type.split()[-2:]) if len(base_type.split()) > 1 else base_type
+    # NEW: Handle special suffixes like "put option" explicitly.
+    # This ensures the full two-word phrase is treated as the base.
+    for special_suffix in DERIVATIVE_COMPONENTS["special_suffixes"]:
+        if special_suffix in base_type:
+            alias_base = special_suffix
+            break
+    else:
+        # Fallback for other types.
+        alias_base = " ".join(base_type.split()[-2:]) if len(base_type.split()) > 1 else base_type
 
-    if is_base_type_unique or alias_base in ["swap", "derivative"]:
+    is_base_type_unique = base_type not in all_other_base_types
+
+    if is_base_type_unique or alias_base in ["swap", "derivative"] or "cross-currency" in base_type:
         return alias_base
     
     category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
