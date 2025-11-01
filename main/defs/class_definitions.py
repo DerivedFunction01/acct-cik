@@ -998,6 +998,39 @@ class NotionalSentence:
         # This is now simplified, as we only handle one point in time.
         # Comparative sentences will be built differently.
 
+        # --- NEW: Generate a mitigation phrase for the 'begin_mitigation' placeholder ---
+        begin_mitigation = ""
+        # Only generate this for templates that actually use it, and only some of the time.
+        if random.random() < 0.3: # 30% chance to add this clause
+            mitigation_templates = MITIGATION_TEMPLATES.get(self.category, MITIGATION_TEMPLATES["GEN"]) # type: ignore
+            mitigation_phrase_template = random.choice(mitigation_templates)
+
+            # Populate the mitigation phrase with relevant details
+            details = self.specific_details or SpecificDetails()
+            currencies_str = ""
+            if details.currencies:
+                currencies_str = (
+                    ", ".join(details.currencies[:-1]) + " and " + details.currencies[-1]
+                    if len(details.currencies) > 1
+                    else details.currencies[0]
+                )
+            
+            # Get random commodity details if needed, as a fallback
+            commodity_name, _, _ = get_random_commodity_and_unit()
+
+            begin_mitigation = mitigation_phrase_template.format(
+                risk_action_verb=random.choice([v for v in risk_management_verbs if not v.endswith('ing')]),
+                ir_term=random.choice(interest_rate_terms),
+                debt_type=details.debt_type or "debt",
+                risk_term=random.choice(risk_exposure_terms),
+                risk_term2=random.choice(risk_exposure_terms),
+                currencies=currencies_str or "various currencies",
+                geography=details.geography or random.choice([c.location for c in all_currencies]),
+                commodity=details.commodity or commodity_name,
+                rate_term1=random.choice(specific_rate_terms),
+                rate_term2=random.choice(specific_rate_terms),
+            ).capitalize()
+
         if self.notional is None:
             self.notional = 0
 
@@ -1073,8 +1106,7 @@ class NotionalSentence:
                 hedge_type=random.choice(hedge_types)
             )
 
-        # 6. Result phrase clause
-        # TODO: The construction of the result_clause is template-based and should be replaced by generative logic.
+        # 6. Result phrase clause.
         # NEW: The result phrase template is now selected inside the build method.
         result_clause = ""
         # --- FIX: Make result phrase clause optional ---
@@ -1132,12 +1164,6 @@ class NotionalSentence:
                 company=self.company_name,
                 swap_type=self.swap_type,
             )
-            # --- FIX: Add a comma before the result phrase for better grammar ---
-            # --- FIX: Handle leading comma for different template structures ---
-            # The populated_phrase itself is now stored. The comma will be added
-            # by the templates that need it.
-            # We'll use a special placeholder {result_phrase_populated} to avoid
-            # conflicts with the final {result_clause}.
             result_clause = populated_phrase
 
 
@@ -1249,15 +1275,7 @@ class NotionalSentence:
             month=month,
             end_day=end_day,
         )
-
-        # --- NEW: Populate the result_clause placeholder with appropriate punctuation ---
-        # This logic is now inside build() to handle different sentence structures.
-        if "{result_clause_initial}" in template and result_clause:
-            sentence = template.replace("{result_clause_initial}", result_clause.capitalize())
-            # Clear the other placeholder to avoid duplication
-            sentence = sentence.replace(", {result_clause}", "")
-        elif result_clause:
-            sentence = sentence.replace("{result_clause}", f", {result_clause}")
+        sentence = sentence.replace("{begin_mitigation}", begin_mitigation)
 
         # 9. Cleanup
         sentence = _cleanup_sentence(sentence)
