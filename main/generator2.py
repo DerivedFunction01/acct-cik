@@ -17,6 +17,7 @@ from defs.class_definitions import (
     ResultPhraseDetails,
     PolicySentence,
     NotionalSentence,
+    TimelineSentence,
     NotionalInstrument,
     DebtHedgedItem,
     CounterpartyRiskSentence,
@@ -1137,45 +1138,26 @@ def _generate_category_narrative(
                 # 25% chance to generate a timeline for instruments with 5+ years of history
                 is_long_history_timeline = is_historical and history_length > 4 and random.random() < 0.25
 
+                # --- NEW: Use TimelineSentence class for long histories ---
                 if is_long_history_timeline:
-                    timeline_sentences = []
-                    # Generate a timeline of 2-3 sentences for this instrument
-                    num_timeline_points = random.randint(2, min(3, history_length - 1))
-                    past_years = sorted([y for y in instrument.notional_history.keys() if y < reporting_year])
+                    timeline_builder = TimelineSentence(
+                        instrument=instrument,
+                        company_name=scenario.company_name,
+                        reporting_year=reporting_year,
+                        currency_symbol=currency_symbol,
+                        currency_code=currency_code,
+                        money_units=scenario.archetype.money_units,
+                        prefer_abbreviated=scenario.number_format_preference,
+                        value_type=value_type,
+                    )
+                    timeline_paragraph, timeline_evidence = timeline_builder.build()
 
-                    # Select distinct years: start, a middle point, and the most recent past year
-                    if len(past_years) > num_timeline_points:
-                        selected_years = {past_years[0]} # Start year
-                        if num_timeline_points > 2 and len(past_years) > 2:
-                            mid_index = len(past_years) // 2
-                            selected_years.add(past_years[mid_index])
-                        selected_years.add(past_years[-1]) # Most recent past year
-                        selected_years_list = sorted(list(selected_years))
-                    else:
-                        selected_years_list = past_years
+                    if timeline_paragraph:
+                        paragraphs.append(timeline_paragraph)
+                        evidence.extend(timeline_evidence)
+                        # Mark as mentioned for all future references
+                        mentioned_instrument_fingerprints.add(instrument_fingerprint)
 
-                    for year_to_report in selected_years_list:
-                        notional_to_report = instrument.notional_history[year_to_report]
-                        if use_fair_value:
-                            notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
-
-                        timeline_sentence_obj = NotionalSentence(
-                            swap_type=name_to_use, year=year_to_report, notional=notional_to_report,
-                            currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type="historical_individual",
-                            hedge_designation=instrument.hedge_designation, money_units=scenario.archetype.money_units,
-                            maturity_year=instrument.maturity_year, prefer_abbreviated=scenario.number_format_preference,
-                            category=category, reporting_year=reporting_year, value_type=value_type, # type: ignore
-                            is_repeated_mention=is_repeated,
-                            result_phrase=random.choice(result_phrases.get(category, result_phrases["GEN"])),
-                        )
-                        timeline_sentence_text, evidence_obj = timeline_sentence_obj.build()
-                        evidence_obj.instrument_id = instrument.instrument_id
-                        timeline_sentences.append(timeline_sentence_text)
-                        evidence.append(evidence_obj)
-                        mentioned_instrument_fingerprints.add(instrument_fingerprint) # Mark as mentioned
-                    # Join the timeline sentences into a single paragraph string
-                    if timeline_sentences:
-                        paragraphs.append(" ".join(s.strip() for s in timeline_sentences if s))
                     continue  # Skip the normal individual sentence generation for this instrument
 
                 # --- Standard sentence generation (current, historical, or inception) ---

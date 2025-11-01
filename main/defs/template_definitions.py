@@ -204,6 +204,16 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{company} {verb} a {swap_type} {historical_phrase}, which had a {state_descriptor} {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         "{time_prefix}, a {swap_type} initiated in a prior period had a remaining {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
     ],
+    "inception": [
+        "In {year}, {company} {verb} a {swap_type} with an initial {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "A {swap_type} was initiated by {company} in {year}, with a starting {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}."
+    ],
+    "continuing": [
+        "By {year}, its {amount_prefix} was {amount_str}.",
+        "As of {year}, the {swap_type} had a {amount_prefix} of {amount_str}.",
+        "The {amount_prefix} of this {swap_type} stood at {amount_str} in {year}.",
+        "In {year}, the position's {amount_prefix} was {amount_str}."
+    ],
     "comparative_no_outstanding": [
         "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year {result_clause}.",
         "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year} {result_clause}.",

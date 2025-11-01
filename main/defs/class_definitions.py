@@ -1244,3 +1244,89 @@ class NotionalSentence:
         )
 
         return sentence, evidence
+
+
+@dataclass
+class TimelineSentence:
+    """
+    Generates a multi-sentence paragraph describing the history of a single
+    derivative instrument over several years.
+    """
+    instrument: NotionalInstrument
+    company_name: str
+    reporting_year: int
+    currency_symbol: str
+    currency_code: str
+    money_units: List[Tuple[str, int]]
+    prefer_abbreviated: bool
+    value_type: Literal["notional", "fair_value"]
+
+    def build(self) -> Tuple[str, List[NotionalEvidence]]:
+        """
+        Builds a historical timeline paragraph for a single instrument.
+
+        Returns:
+            A tuple containing:
+            - A single paragraph string describing the instrument's history.
+            - A list of NotionalEvidence objects, one for each point in time mentioned.
+        """
+        sentences = []
+        evidence_list = []
+
+        # --- Select years and sort them ---
+        history_years = sorted(list(self.instrument.notional_history.keys()))
+        years_to_report = []
+        if len(history_years) > 2:
+            # Select start, a middle point, and the most recent year before the reporting year
+            years_to_report.append(history_years[0]) # Inception year
+            if len(history_years) > 3:
+                mid_index = len(history_years) // 2
+                years_to_report.append(history_years[mid_index])
+            # Add the most recent year that is not the inception year
+            if history_years[-1] != history_years[0]:
+                years_to_report.append(history_years[-1])
+        else:
+            years_to_report = history_years
+
+        # Ensure unique, sorted years
+        selected_years = sorted(list(set(years_to_report)))
+
+        # --- Generate sentences for each selected year ---
+        for i, year in enumerate(selected_years):
+            notional = self.instrument.notional_history[year]
+            if self.value_type == "fair_value":
+                notional = max(1, int(notional / random.randint(20, 100)))
+
+            if i == 0:
+                # First mention: Use "inception" template
+                sentence_type = "inception"
+                name_to_use = self.instrument.instrument_type
+            else:
+                # Subsequent mentions: Use "continuing" template and an alias
+                sentence_type = "continuing"
+                name_to_use = self.instrument.instrument_alias
+
+            sentence_obj = NotionalSentence(
+                swap_type=name_to_use,
+                year=year,
+                notional=notional,
+                sentence_type=sentence_type,
+                company_name=self.company_name,
+                currency_symbol=self.currency_symbol,
+                currency_code=self.currency_code,
+                money_units=self.money_units,
+                prefer_abbreviated=self.prefer_abbreviated,
+                hedge_designation=self.instrument.hedge_designation,
+                maturity_year=self.instrument.maturity_year,
+                category=self.instrument.category,
+                reporting_year=self.reporting_year,
+                value_type=self.value_type,
+            )
+            sentence_text, evidence = sentence_obj.build()
+            evidence.instrument_id = self.instrument.instrument_id
+            sentences.append(sentence_text)
+            evidence_list.append(evidence)
+
+        # Combine sentences into a single, flowing paragraph
+        full_paragraph = " ".join(sentences)
+        return full_paragraph, evidence_list
