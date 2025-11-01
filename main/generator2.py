@@ -65,11 +65,35 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
     return currency_symbol, money_unit_word, currency_code
 
 
+def _create_contextual_alias(base_type: str, category: str, all_other_base_types: Set[str]) -> str:
+    """
+    Creates a context-aware alias for an instrument. If the base type is unique
+    across the scenario, a simple alias is used. Otherwise, a category prefix is added.
+
+    Args:
+        base_type: The base type of the current instrument (e.g., "swap").
+        category: The category of the current instrument (e.g., "IR").
+        all_other_base_types: A set of all base types present in the scenario.
+
+    Returns:
+        A contextually appropriate alias string.
+    """
+    is_base_type_unique = base_type not in all_other_base_types
+    alias_base = " ".join(base_type.split()[-2:]) if len(base_type.split()) > 1 else base_type
+
+    if is_base_type_unique or alias_base in ["swap", "derivative"]:
+        return alias_base
+    
+    category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
+    category_prefix = category_prefix_map.get(category, "")
+    return f"{category_prefix} {alias_base}".strip()
+
 # --- Dynamic Instrument Type Generation ---
 def _generate_instrument_name(
     category: str,
     hedged_item: Optional["HedgedItem"] = None,
     available_base_types: Optional[List[str]] = None,
+    all_scenario_base_types: Optional[Set[str]] = None,
 ) -> Tuple[str, str, str, str, str, str]:
     """
     Dynamically generates a derivative instrument name based on category and context.
@@ -85,18 +109,13 @@ def _generate_instrument_name(
     special_suffixes = components["special_suffixes"]  # e.g., put option
     special_ratio = 0.10  # configurable
 
-    # --- Context-Aware Placeholder Selection (for IR) ---
-    placeholder = ""
     if (
         category == "IR"
         and isinstance(hedged_item, DebtHedgedItem)
         and hedged_item.benchmark_rate
     ):
         # 35% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
-        if random.random() < 0.35:
-            placeholder = hedged_item.benchmark_rate
-        else:
-            placeholder = random.choice(placeholders)
+        placeholder = hedged_item.benchmark_rate if random.random() < 0.35 else random.choice(placeholders)
     else:
         placeholder = random.choice(placeholders)
 
@@ -108,16 +127,14 @@ def _generate_instrument_name(
     if use_special:
         chosen = random.choice(special_suffixes)
         full_name = " ".join(filter(None, [placeholder, chosen])).strip()
-        alias = " ".join(chosen.split()[-2:]) if len(chosen.split()) > 1 else chosen
         base_type = chosen # treat as base for alias/prefix logic
     else:
         suffix = random.choice(suffixes)
         full_name = " ".join(filter(None, [placeholder, base_type, suffix])).strip()
-        alias = (
-            " ".join(base_type.split()[-2:])
-            if len(base_type.split()) > 1
-            else base_type
-        )
+
+    # --- NEW: Context-aware alias generation ---
+    other_base_types = (all_scenario_base_types or set()) - {base_type}
+    alias = _create_contextual_alias(base_type, category, other_base_types)
 
     # --- Optional Prefix (for swaps, swaptions, rate locks) ---
     prefix = ""
@@ -430,12 +447,29 @@ def create_random_scenario() -> GenerationScenario:
     # STAGE 1: GENERATE THE POOL OF POTENTIAL HEDGED ITEMS (EXPOSURES)
     # =========================================================================
 
+    # --- NEW: Pre-determine all base types that will be used in the scenario ---
+    # This allows for context-aware alias generation.
+    all_base_types = DERIVATIVE_COMPONENTS["base_types"]
+    num_to_reserve = random.randint(1, 2)
+    gen_reserved_base_types = random.sample(all_base_types, num_to_reserve)
+    other_available_base_types = [bt for bt in all_base_types if bt not in gen_reserved_base_types]
+    
     potential_hedged_items: Dict[str, List] = {
         "debt": [],
         "fx": [],
         "commodity": [],
         "equity": [],
     }
+
+    # --- NEW: Determine the set of all base_types that will appear in this scenario ---
+    # This is a proxy; the actual instruments are created later.
+    all_scenario_base_types = set()
+    if exposure_counts["debt"] > 0: all_scenario_base_types.add(random.choice(other_available_base_types))
+    if exposure_counts["fx"] > 0: all_scenario_base_types.add(random.choice(other_available_base_types))
+    if exposure_counts["commodity"] > 0: all_scenario_base_types.add(random.choice(other_available_base_types))
+    if exposure_counts["equity"] > 0: all_scenario_base_types.add(random.choice(other_available_base_types))
+    if exposure_counts["generic"] > 0: all_scenario_base_types.add(random.choice(gen_reserved_base_types))
+
 
     # --- Generate Debt Exposures ---
     for _ in range(exposure_counts["debt"]):
@@ -574,7 +608,7 @@ def create_random_scenario() -> GenerationScenario:
         else:
             # Standard IR hedge
             instrument_category = "IR"
-            prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item, available_base_types=other_available_base_types)
+            prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("IR", hedged_item=debt_item, available_base_types=other_available_base_types, all_scenario_base_types=all_scenario_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -629,7 +663,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("FX", available_base_types=other_available_base_types)
+        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("FX", available_base_types=other_available_base_types, all_scenario_base_types=all_scenario_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -682,7 +716,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("CP", available_base_types=other_available_base_types)
+        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("CP", available_base_types=other_available_base_types, all_scenario_base_types=all_scenario_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -735,7 +769,7 @@ def create_random_scenario() -> GenerationScenario:
             else:
                 continue
 
-        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("EQ", available_base_types=other_available_base_types)
+        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("EQ", available_base_types=other_available_base_types, all_scenario_base_types=all_scenario_base_types)
 
         base_args = {
             "instrument_type": name,
@@ -772,7 +806,7 @@ def create_random_scenario() -> GenerationScenario:
             else random.randint(reporting_year + 1, reporting_year + 5)
         )
 
-        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("GEN", available_base_types=gen_reserved_base_types)
+        prefix, placeholder, base_type, suffix, name, alias = _generate_instrument_name("GEN", available_base_types=gen_reserved_base_types, all_scenario_base_types=all_scenario_base_types)
 
         base_args = {
             "instrument_type": name,
