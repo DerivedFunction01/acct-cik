@@ -43,9 +43,10 @@ def _cleanup_sentence(sentence: str) -> str:
     # Remove trailing commas before period
     sentence = sentence.replace(", .", ".")
     sentence = sentence.replace(" .", ".")  # In case of empty clauses
-    
-    # Fix "ys" to "ies"
-    sentence = sentence.replace("ys", "ies")
+
+    # Correctly pluralize words ending in a consonant followed by 'y' (e.g., "company" -> "companies").
+    # This avoids incorrectly changing words like "always" or "employs".
+    sentence = re.sub(r"([^aeiou])ys\b", r"\1ies", sentence, flags=re.IGNORECASE)
 
     return sentence.strip()
 
