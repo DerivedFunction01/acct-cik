@@ -977,6 +977,9 @@ def _generate_category_narrative(
 
     # --- Part 2: Generate Detailed Individual Instrument Sentences ---
     elif part == "details":
+        # NEW: This will be a list of paragraph strings.
+        paragraphs = []
+
         # Describe individual instruments that are currently active
         if current_year_data and current_year_data["instruments"]:
             for instrument in current_year_data["instruments"]:
@@ -999,61 +1002,86 @@ def _generate_category_narrative(
                     ):
                         is_historical = True
 
-                # --- NEW: Enhanced historical sentence generation ---
-                sentence_type = "individual"
-                year_to_report = reporting_year
-                notional_to_report = value_to_report
+                # --- NEW: Timeline generation for instruments with a long history ---
+                history_length = len(instrument.notional_history)
+                # 25% chance to generate a timeline for instruments with 5+ years of history
+                is_long_history_timeline = is_historical and history_length > 4 and random.random() < 0.25
 
-                if is_historical and random.random() < 0.35: # 35% chance for a historical sentence
-                    sentence_type = "historical_individual"
-                    # 50% chance to talk about the inception year vs. a random past year
-                    if random.random() < 0.5 and instrument.start_year in instrument.notional_history:
-                        # Describe the instrument's inception
-                        year_to_report = instrument.start_year
-                        notional_to_report = instrument.notional_history[instrument.start_year]
-                        # Adjust value if fair_value is used
-                        if use_fair_value:
-                             notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
+                if is_long_history_timeline:
+                    timeline_sentences = []
+                    # Generate a timeline of 2-3 sentences for this instrument
+                    num_timeline_points = random.randint(2, min(3, history_length - 1))
+                    past_years = sorted([y for y in instrument.notional_history.keys() if y < reporting_year])
+
+                    # Select distinct years: start, a middle point, and the most recent past year
+                    if len(past_years) > num_timeline_points:
+                        selected_years = {past_years[0]} # Start year
+                        if num_timeline_points > 2 and len(past_years) > 2:
+                            mid_index = len(past_years) // 2
+                            selected_years.add(past_years[mid_index])
+                        selected_years.add(past_years[-1]) # Most recent past year
+                        selected_years_list = sorted(list(selected_years))
                     else:
-                        # Describe a random point in its history before the reporting year
-                        past_years = [y for y in instrument.notional_history.keys() if y < reporting_year]
-                        if past_years:
-                            year_to_report = random.choice(past_years)
-                            notional_to_report = instrument.notional_history[year_to_report]
-                            if use_fair_value:
-                                notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
-                        else: # Fallback if no past years available for some reason
-                            year_to_report = reporting_year
-                            notional_to_report = value_to_report
+                        selected_years_list = past_years
+
+                    for year_to_report in selected_years_list:
+                        notional_to_report = instrument.notional_history[year_to_report]
+                        if use_fair_value:
+                            notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
+
+                        timeline_sentence_obj = NotionalSentence(
+                            swap_type=instrument.instrument_type, year=year_to_report, notional=notional_to_report,
+                            currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type="historical_individual",
+                            hedge_designation=instrument.hedge_designation, money_units=scenario.archetype.money_units,
+                            maturity_year=instrument.maturity_year, prefer_abbreviated=scenario.number_format_preference,
+                            category=category, reporting_year=reporting_year, value_type=value_type, # type: ignore
+                            result_phrase=random.choice(result_phrases.get(category, result_phrases["GEN"])),
+                        )
+                        timeline_sentence_text, evidence_obj = timeline_sentence_obj.build()
+                        evidence_obj.instrument_id = instrument.instrument_id
+                        timeline_sentences.append(timeline_sentence_text)
+                        evidence.append(evidence_obj)
+                    # Join the timeline sentences into a single paragraph string
+                    if timeline_sentences:
+                        paragraphs.append(" ".join(s.strip() for s in timeline_sentences if s))
+                    continue  # Skip the normal individual sentence generation for this instrument
+
+                # --- Standard sentence generation (current, historical, or inception) ---
                 else:
+                    sentence_type = "individual"
                     year_to_report = reporting_year
                     notional_to_report = value_to_report
 
-                individual_sentence_obj = NotionalSentence(
-                    swap_type=instrument.instrument_type,
-                    year=year_to_report,
-                    notional=notional_to_report,
-                    currency_symbol=currency_symbol,
-                    company_name=scenario.company_name,
-                    sentence_type=sentence_type,
-                    hedge_designation=instrument.hedge_designation,
-                    money_units=scenario.archetype.money_units,
-                    maturity_year=instrument.maturity_year,
-                    prefer_abbreviated=scenario.number_format_preference,
-                    category=category,  # type: ignore
-                    reporting_year=reporting_year,
-                    value_type=value_type,
-                    result_phrase=random.choice(
-                        result_phrases.get(category, result_phrases["GEN"])
-                    ),
-                )
+                    if is_historical and random.random() < 0.35: # 35% chance for a historical sentence
+                        sentence_type = "historical_individual"
+                        # 50% chance to talk about the inception year vs. a random past year
+                        if random.random() < 0.5 and instrument.start_year in instrument.notional_history:
+                            year_to_report = instrument.start_year
+                            notional_to_report = instrument.notional_history[instrument.start_year]
+                            if use_fair_value:
+                                notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
+                        else:
+                            past_years = [y for y in instrument.notional_history.keys() if y < reporting_year]
+                            if past_years:
+                                year_to_report = random.choice(past_years)
+                                notional_to_report = instrument.notional_history[year_to_report]
+                                if use_fair_value:
+                                    notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
+
+                    individual_sentence_obj = NotionalSentence(
+                        swap_type=instrument.instrument_type, year=year_to_report, notional=notional_to_report,
+                        currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type=sentence_type,
+                        hedge_designation=instrument.hedge_designation, money_units=scenario.archetype.money_units,
+                        maturity_year=instrument.maturity_year, prefer_abbreviated=scenario.number_format_preference,
+                        category=category, reporting_year=reporting_year, value_type=value_type, # type: ignore
+                        result_phrase=random.choice(result_phrases.get(category, result_phrases["GEN"])),
+                    )
                 individual_sentence_text, evidence_obj = individual_sentence_obj.build()
                 evidence_obj.instrument_id = (
-                    instrument.instrument_id
-                )  # Link to specific instrument
-                sentences.append(individual_sentence_text)
+                    instrument.instrument_id # type: ignore
+                )
+                paragraphs.append(individual_sentence_text)
                 evidence.append(evidence_obj)
-
         # Describe terminated instruments by looking at the previous year's data
         if prev_year_data:
             terminated_instrument_ids = {
@@ -1103,7 +1131,7 @@ def _generate_category_narrative(
                         terminated_instrument_obj.build()
                     )
                     evidence_obj.instrument_id = instrument.instrument_id
-                    sentences.append(terminated_instrument_text)
+                    paragraphs.append(terminated_instrument_text)
                     evidence.append(evidence_obj)
 
         # If there are no current instruments, check for a comparative no-outstanding sentence
@@ -1133,10 +1161,13 @@ def _generate_category_narrative(
                 reporting_year=reporting_year,
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
-            sentences.append(no_instrument_text)
+            paragraphs.append(no_instrument_text)
             evidence.append(evidence_obj)
 
-    return sentences, evidence, used_name
+        # Return the list of paragraphs instead of a flat list of sentences
+        sentences = paragraphs
+
+    return sentences, evidence, used_name # type: ignore
 
 
 def _generate_narrative_accounting(
@@ -1236,7 +1267,10 @@ def generate_narrative_from_scenario(
             detail_sentences, detail_evidence, _ = _generate_category_narrative(
                 category, yearly_data_for_cat, scenario, part="details"
             )
-            derivative_details_sections.append(" ".join(s.strip() for s in detail_sentences if s))
+            # NEW: Join the generated paragraphs with newlines.
+            # This ensures timelines and individual instruments get their own paragraphs.
+            category_details_paragraph = "\n\n".join(s.strip() for s in detail_sentences if s)
+            derivative_details_sections.append(category_details_paragraph)
             all_evidence.extend(detail_evidence)
 
     # 3. Effectiveness and Accounting Section
