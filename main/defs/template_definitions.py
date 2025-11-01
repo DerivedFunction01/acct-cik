@@ -324,7 +324,7 @@ POLICY_CONTEXT_TEMPLATES = {
         "{company} actively monitors and manages its exposure to {ir_term} {risk_term}.",
     ],
     "FX": [
-        "{company}'s international operations expose it to {risk_term}s arising from {risk_term} in foreign currency exchange rates.",
+        "{company}'s international operations in {locations} expose it to {risk_term}s arising from {risk_term} in foreign currency exchange rates.",
         "Due to its global footprint, {company} is exposed to currency translation and transaction {risk_term}, particularly with the {currencies}.",
         "Our cross-border operations in {locations} result in exposure to changes in exchange rates between functional and reporting currencies such as {currencies}.",
         "Operating in multiple currencies such as {currencies}, {company} is exposed to {risk_term} in exchange rates that can affect its financial results.",
