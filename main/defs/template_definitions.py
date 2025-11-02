@@ -794,10 +794,10 @@ class Table:
                 continue
 
             val1_str = _format_single_notional(
-                val1, inst.symbol, self.prefer_abbreviated, False
+                val1, inst.symbol, self.prefer_abbreviated, True
             )
             val2_str = _format_single_notional(
-                val2, inst.symbol, self.prefer_abbreviated, False
+                val2, inst.symbol, self.prefer_abbreviated, True
             )
 
             row_str = f"| {name_to_use:<45} | {val1_str:>15} | {val2_str:>15} |"
@@ -882,10 +882,10 @@ class Table:
                 fair_val = self._get_value(inst, year, "fair_value")
 
                 notional_str = _format_single_notional(
-                    notional_val, inst.symbol, self.prefer_abbreviated, no_unit_word=True
+                    notional_val, inst.symbol, self.prefer_abbreviated, True
                 )
                 fair_val_str = _format_single_notional(
-                    fair_val, self.currency_symbol, self.prefer_abbreviated, no_unit_word=True
+                    fair_val, self.currency_symbol, self.prefer_abbreviated, True
                 )
 
                 row_str = (
