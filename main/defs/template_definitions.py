@@ -40,7 +40,7 @@ def _format_single_notional(
 
     # Fallback to full numeric value with commas
     if symbol in KNOWN_CURRENCY_SYMBOLS:
-        return f"{symbol}{amount:,.0f}"
+        return f"{symbol} {amount:,.0f}"
     else:
         return f"{amount:,.0f} {symbol}"
 
