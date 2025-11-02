@@ -1597,6 +1597,7 @@ def _generate_debug_output(scenario: GenerationScenario) -> str:
         debug_lines.append(f"  - Category: {inst.category}")
         debug_lines.append(f"  - Start: {inst.start_month} {inst.start_year}")
         debug_lines.append(f"  - Maturity: {inst.maturity_year}")
+        debug_lines.append(f"  - Maturity Value: {inst.maturity_value}")
         debug_lines.append(f"  - Notional History: {inst.notional_history}")
 
         if inst.hedged_item:

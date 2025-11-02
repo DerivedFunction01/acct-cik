@@ -793,12 +793,17 @@ class TimelineSentence:
                 name_to_use = self.instrument.instrument_type
             # --- NEW: Check if this is the final year of a terminated instrument's life ---
             elif self.instrument.maturity_year and year == self.instrument.maturity_year and self.instrument.maturity_year < self.reporting_year:
-                # This is the maturity year, so use a termination template.
+                # This is the maturity year of a past instrument. Use the specific maturity_value.
                 sentence_type = "terminated_individual"
+                notional = self.instrument.maturity_value or notional # Prioritize maturity_value
                 # Use alias for consistency in the story
                 name_to_use = self.instrument.instrument_alias
             else:
                 # --- NEW: Check for partial settlement ---
+                # Re-format the notional string here since it might have been updated for maturity
+                formatted_notional = _format_single_notional(
+                    notional, self.currency_symbol, self.prefer_abbreviated
+                )
                 # If notional decreased by more than 30%, it's a partial settlement.
                 if (
                     prev_notional
@@ -848,7 +853,13 @@ class TimelineSentence:
             instrument_id=self.instrument.instrument_id,
             status="timeline",  # A new status for our custom handler
             category=self.instrument.category,
-            notional=self.instrument.notional_history[final_year],
+            # --- FIX: Use maturity_value for terminated instruments in the evidence ---
+            notional=(
+                self.instrument.maturity_value
+                if self.instrument.maturity_year
+                and self.instrument.maturity_year < self.reporting_year
+                else self.instrument.notional_history.get(final_year, 0)
+            ),
             notional_str=timeline_notional_strings[final_year],
             prev_notional_str=timeline_notional_strings.get(inception_year),
             year=final_year,
