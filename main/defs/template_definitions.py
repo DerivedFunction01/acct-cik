@@ -918,7 +918,7 @@ class Table:
         Builds a table grouping instruments by maturity year ranges.
         Format:
             Maturity      | Notional Amount
-        """
+        """ # noqa
         maturity_groups = {
             "Less than 1 year": 0,
             "1-3 years": 0,
@@ -926,6 +926,7 @@ class Table:
             "More than 5 years": 0,
         }
 
+        evidence_list = []
         active_instruments = [
             inst
             for inst in self.instruments
@@ -965,13 +966,27 @@ class Table:
                 notional_str = _format_single_notional(
                     total_notional, self.currency_symbol, self.prefer_abbreviated, True
                 )
+                # Create aggregate evidence for this maturity group
+                evidence_list.append(NotionalEvidence(
+                    instrument_id=None,  # Aggregate, no single ID
+                    status="summary",
+                    category=self.category,
+                    notional=total_notional,
+                    year=self.reporting_year,
+                    instrument_type=f"Derivatives with maturity of {group.lower()}",
+                    reporting_year=self.reporting_year,
+                    value_type="notional",
+                    currency=self.currency_symbol,
+                    sentence_type="summary",
+                    aggregate=True,
+                ))
                 row_str = f"| {group:<20} | {notional_str:>20} |"
                 rows.append(row_str)
 
         if len(rows) <= 3:  # Only title, header, and separator
             return "", []
 
-        return "\n".join(rows), [] # TODO: add evidence
+        return "\n".join(rows), evidence_list
 
     def _build_asset_liability_fair_value_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
@@ -979,6 +994,7 @@ class Table:
         Format:
             Instrument | Asset Fair Value | Liability Fair Value
         """
+        evidence_list = []
         year = self.reporting_year
         active_instruments = [
             inst
@@ -1014,7 +1030,21 @@ class Table:
             row_str = f"| {inst.instrument_type:<45} | {asset_val_str:>20} | {liab_val_str:>22} |"
             rows.append(row_str)
 
+            # Create evidence for the fair value of this instrument
+            evidence_list.append(NotionalEvidence(
+                instrument_id=inst.instrument_id,
+                status="individual",
+                category=inst.category,
+                notional=fair_value,
+                year=year,
+                instrument_type=inst.instrument_type,
+                reporting_year=self.reporting_year,
+                value_type="fair_value",
+                currency=inst.currency,
+                sentence_type="individual",
+            ))
+
         if len(rows) <= 3:
             return "", []
 
-        return "\n".join(rows), [] # TODO: add table
+        return "\n".join(rows), evidence_list
