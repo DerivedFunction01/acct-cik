@@ -164,6 +164,16 @@ class FXContextSentence:
         # --- NEW: Randomly choose which currency format to use in the sentence ---
         currencies_to_display = random.choice([currencies_full_str, currencies_iso_str])
 
+        # --- NEW: Create exchange rate pair string ---
+        exchange_rate_pair_str = ""
+        if len(currencies_to_mention_objects) >= 2:
+            # e.g., "EUR/GBP"
+            pair = random.sample(currency_iso_codes, 2)
+            exchange_rate_pair_str = f"{pair[0]}/{pair[1]}"
+        elif len(currencies_to_mention_objects) == 1:
+            # e.g., "EUR/USD"
+            exchange_rate_pair_str = f"{currency_iso_codes[0]}/{self.currency_code}"
+
         if len(locations_to_mention) > 1:
             locations_str = ", ".join(locations_to_mention[:-1]) + f" and {locations_to_mention[-1]}"
         else:
@@ -219,6 +229,7 @@ class FXContextSentence:
                 "impact_adverb": impact_adverb,
                 "impact_verb_past": impact_verb_past,
                 "impact_adjective": impact_adj,
+                "exchange_rate_pair": exchange_rate_pair_str,
                 # New placeholders for functional currency
                 "primary_economic_env": random.choice(["the primary economic environment", "the economic environment", "the local economy"]),
                 "functional_currency_basis": random.choice(["is the local currency", "is typically the local currency", "is the currency of the primary economic environment in which the entity operates"]),
@@ -242,7 +253,7 @@ class FXContextSentence:
 fx_context_templates = {
     "exposure": [
         "{company} operates in multiple countries and is exposed to foreign currency exchange rate {risk_term}, particularly related to the {currencies}, that affect reported revenues and expenses.",
-        "{company}'s international operations in {locations} subject it to foreign currency {risk_term}, primarily related to the {currencies}.",
+        "{company}'s international operations in {locations} subject it to foreign currency {risk_term}, primarily related to the {exchange_rate_pair} exchange rate.",
         "Foreign currency transaction {gain_loss} related to our {locations} operations are {financial_outcome_verb} {location} as incurred.",
         "{quantifier_phrase} of {company}'s foreign subsidiaries in {locations} use their local currency as their functional currency, such as the {currencies}.",
         "{company}'s results of operations are {impact_adverb} affected by changes in foreign currency exchange rates, particularly {risk_term} in the {currencies}.",
@@ -253,7 +264,7 @@ fx_context_templates = {
         "The cumulative translation adjustment {financial_outcome_verb} accumulated other comprehensive income was {amount_str} as of {month} {end_day}, {year}.",
         "Foreign currency translation adjustments {impact_verb_past} stockholders' equity by {amount_str} during {year}.",
         "{company} {financial_outcome_verb} a foreign currency translation {gain_loss} of {amount_str} in other comprehensive income for the year ended {month} {end_day}, {year}.",
-        "The {strength_weakness} of the {currencies} against the {currency_code} resulted in an {impact_adjective} translation impact of {amount_str} in {year}.",
+        "The {strength_weakness} of the {exchange_rate_pair} exchange rate resulted in an {impact_adjective} translation impact of {amount_str} in {year}.",
         "Changes in foreign exchange rates resulted in translation {gain_loss} of {amount_str} {financial_outcome_verb} other comprehensive income during {year}.",
     ],
     "transaction": [
