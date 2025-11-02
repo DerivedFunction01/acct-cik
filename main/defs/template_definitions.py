@@ -1,15 +1,16 @@
 # New imports for generate_notional_sentence
 import re
-from typing import List, Literal, Tuple
+from typing import List, Literal, Optional, Tuple
 
 
 def _format_single_notional(
     amount: int | float,
-    currency_symbol: str,
+    symbol: str,
     prefer_abbreviated: bool,
     zero_format: Literal["nil", "zero", "amount"] = "amount",
+    is_currency: bool = True,
 ) -> str:
-    """Formats a single notional amount into a readable string like '$250.0 million'."""
+    """Formats a single notional amount into a readable string like '$250.0 million' or '250.0 thousand barrels'."""
     if amount == 0:
         if zero_format in ["nil", "zero"]:
             return zero_format
@@ -28,10 +29,16 @@ def _format_single_notional(
         ):
             if amount >= divisor:
                 # Format to one decimal place
-                return f"{currency_symbol} {amount / divisor:.1f} {unit_word}"
+                formatted_amount = f"{amount / divisor:.1f} {unit_word}"
+                if is_currency:
+                    return f"{symbol} {formatted_amount}"
+                else:
+                    return f"{formatted_amount} {symbol}"
 
     # Fallback to full numeric value with commas
-    return f"{currency_symbol} {amount:,.0f}"
+    if is_currency:
+        return f"{symbol} {amount:,.0f}"
+    return f"{amount:,.0f} {symbol}"
 
 
 def _cleanup_sentence(sentence: str) -> str:
