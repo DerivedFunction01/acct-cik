@@ -707,7 +707,11 @@ class NotionalSentence:
             amount_str=amount_str,
             hedge_designation_clause=hedge_designation_clause,
             state_descriptor=random.choice(state_descriptors),
-            historical_phrase=random.choice(historical_instrument_phrases),
+            historical_phrase=(
+                random.choice(historical_instrument_phrases)
+                if self.year == self.reporting_year
+                else f"from {self.year - 2}"
+            ),
             result_clause=result_clause,
             portfolio_term=random.choice(portfolio_terms).format(
                 swap_type=f"{self.swap_type}" + "s"
