@@ -1186,7 +1186,9 @@ def _generate_category_narrative(
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(
-            current_year_data and current_year_data["instruments"]
+            current_year_data and current_year_data["instruments"] and sum(
+                inst.notional_history.get(reporting_year, 0) for inst in current_year_data["instruments"]
+            ) > 0
         ) # type: ignore
         past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0))  # type: ignore
 
@@ -1528,10 +1530,6 @@ def _generate_category_narrative(
             ]
 
             for instrument in terminated_instruments:
-                # --- FIX: Skip terminated instruments that have already been described ---
-                # This prevents duplicates when a timeline was already generated for it.
-                if instrument.instrument_id in mentioned_instrument_ids:
-                    continue
 
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
