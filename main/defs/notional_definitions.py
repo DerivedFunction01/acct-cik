@@ -27,6 +27,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
     prev2_notional_str: Optional[str] = None
     reporting_year: Optional[int] = None
     maturity_year: Optional[int] = None
+    maturity_value: Optional[int] = None
     value_type: str = "notional"
     currency: str = "USD"
     sentence_type: Optional[str] = None
@@ -296,6 +297,7 @@ class NotionalSentence:
     # Optional descriptive elements
     company_name: Optional[str] = None
     verb: Optional[str] = None
+    maturity_value: Optional[int] = None
     maturity_year: Optional[int] = None
     specific_details: Optional[SpecificDetails] = None
     notional_multiplier: int = 1_000_000
