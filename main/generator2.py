@@ -732,7 +732,7 @@ def _create_instrument_with_history(
                 # Simulate a slightly different notional amount for the previous year
                 last_notional = int(last_notional * random.uniform(0.85, 1.15))
                 notional_history[historical_year] = max(0, last_notional)
-        base_instrument_args["maturity_value"] = last_notional # Placeholder for active instruments
+        base_instrument_args["maturity_value"] = 0 # Active instruments have not matured, so value is 0.
     else:
         # Past instrument: history exists only up to reporting_year - 1.
         # The 'current_notional' is the notional at maturity.
@@ -1327,6 +1327,7 @@ def _generate_category_narrative(
                         company_name=scenario.company_name,
                         sentence_type="terminated_individual",
                         maturity_year=instrument.maturity_year,
+                        maturity_value=instrument.maturity_value,
                         prefer_abbreviated=scenario.number_format_preference,
                         category=category, # type: ignore
                         reporting_year=reporting_year,
