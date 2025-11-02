@@ -8,10 +8,15 @@ from defs.common_data import (
     financial_outcome_verbs,
     balance_sheet_locations,
     comparison_phrases,
+    DEFAULT_SUFFIXES,
+    cost_metrics,
+    risk_management_verbs,
+    inventory_methods,
 )
 from defs.function_definitions import _get_company_reference
 from defs.template_definitions import _cleanup_sentence, _format_single_notional
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
+from defs.scenario_definitions import company_names
 
 
 @dataclass
@@ -311,9 +316,67 @@ class CPContextSentence:
 
     def build(self) -> str:
         """Builds a single contextual sentence for CP."""
-        # This method is a placeholder for now.
-        # The actual implementation will be done in a subsequent step.
-        return ""
+        num_sentences = random.choices([1, 2, 3], weights=[0.2, 0.6, 0.2], k=1)[0]
+        sentences = []
+
+        # Determine the primary commodity to talk about
+        if self.hedged_item:
+            commodity_name = self.hedged_item.commodity_type
+            unit = self.hedged_item.unit_of_volume
+            cost_type = self.hedged_item.cost_type
+        else:
+            commodity_name, unit, cost_type = get_random_commodity_and_unit()
+
+        # Select a few template categories to build the paragraph
+        template_categories = random.sample(list(cp_context_templates.keys()), k=num_sentences)
+
+        for category in template_categories:
+            template = random.choice(cp_context_templates[category])
+
+            # Generate random financial data for placeholders
+            amount1 = random.randint(1, 500) * 1_000_000
+            amount2 = random.randint(1, 500) * 1_000_000
+            impact_adverb = random.choice(["favorably", "unfavorably", "negatively", "positively"])
+            impact_verb_past = random.choice(["decreased", "increased", "reduced", "enhanced"])
+            impact_adj = random.choice(["favorable", "unfavorable", "adverse", "beneficial"])
+
+            # Format placeholders
+            placeholders = {
+                "company": _get_company_reference(self.company_name),
+                "company2": random.choice([c for c in company_names if c != self.company_name]),
+                "company3": random.choice([c for c in company_names if c != self.company_name]),
+                "year": self.reporting_year,
+                "prev_year": self.reporting_year - 1,
+                "month": self.reporting_month,
+                "end_day": self.reporting_day,
+                "risk_term": random.choice(risk_exposure_terms),
+                "commodities": commodity_name, # Can be expanded later if needed
+                "commodity": commodity_name,
+                "impact_verb": random.choice(["affect", "impact", "influence"]),
+                "cost_metric": random.choice(cost_metrics),
+                "cost_type": cost_type,
+                "supply_agreements": random.choice(DEFAULT_SUFFIXES) + "s",
+                "inventory_method": random.choice(inventory_methods),
+                "amount_str": _format_single_notional(amount1, self.currency_symbol, self.prefer_abbreviated),
+                "amount_str2": _format_single_notional(amount2, self.currency_symbol, self.prefer_abbreviated),
+                "small_int": random.randint(30, 90),
+                "large_int": random.randint(100_000, 5_000_000),
+                "impact_verb_past": impact_verb_past,
+                "pct": f"{random.uniform(1.5, 7.5):.1f}",
+                "impact_adverb": impact_adverb,
+                "income_statement_item": random.choice(income_statement_items),
+                "strength_weakness": random.choice(["strengthening", "weakening"]),
+                "impact_adjective": impact_adj,
+                "comparison_phrase": random.choice(comparison_phrases),
+                "risk_action_verb": random.choice([v for v in risk_management_verbs if not v.endswith("ing")]),
+                "unit": unit,
+            }
+
+            # Use format_map to safely populate the template
+            sentence = template.format_map(placeholders)
+            sentences.append(_cleanup_sentence(sentence))
+
+        return " ".join(sentences)
 
 
 # =============================================================================

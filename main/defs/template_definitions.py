@@ -343,9 +343,6 @@ hedge_counterparty_templates = [
     "Based upon certain factors, including a review of the {swap_type} for {company}'s counterparties, {company} determined its counterparty credit risk to be {materiality}.",
 ]
 
-# Outstanding active state descriptors
-state_descriptors = ["outstanding", "active", "remaining", "open"]
-
 # Hedge designation phrases (optional endings)
 hedge_designations = [
     "",

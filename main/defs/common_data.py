@@ -273,6 +273,23 @@ gain_loss_phrases = [
     "decrease",
 ]
 
+cost_metrics = [
+    "cost of goods sold",
+    "cost of sales",
+    "operating expenses",
+    "manufacturing costs",
+]
+
+inventory_methods = [
+    "first-in, first-out (FIFO)",
+    "last-in, first-out (LIFO)",
+    "weighted-average cost",
+    "specific identification",
+    "standard cost",
+    "moving average cost",
+    "retail inventory method",
+]
+
 # Optional / Immaterial terms
 immaterial = [
     "immaterial",
@@ -316,6 +333,25 @@ material = [
 # Outstanding active state descriptors
 state_descriptors = ["outstanding", "active", "remaining", "open"]
 
+income_statement_items = [
+    "revenues",
+    "cost of sales",
+    "gross profit",
+    "operating expenses",
+    "selling, general and administrative expenses",
+    "research and development expenses",
+    "other operating income, net",
+    "operating income",
+    "interest expense",
+    "other income (expense), net",
+    "income before income taxes",
+    "provision for income taxes",
+    "net income",
+    "earnings per share",
+    "comprehensive income",
+    "other comprehensive income",
+    "total comprehensive income",
+] 
 # =============================================================================
 # DERIVATIVES
 # =============================================================================
