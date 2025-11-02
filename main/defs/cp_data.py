@@ -405,7 +405,7 @@ cp_context_templates = {
         "{company} sources {commodity} from various suppliers to ensure a stable supply chain.",
         "We have long-term supply {supply_agreements} with {company2} and {company3} for the procurement of {commodity}.",
         "The cost of {commodity} purchased from suppliers is a significant component of our {cost_metric}.",
-        "Our procurement strategy for {commodity} involves a mix of spot market purchases and long-term contracts.",
+        "Our procurement strategy for {commodity} involves a mix of spot market purchases and long-term {supply_agreements}.",
         "We rely on a limited number of suppliers for our {commodity} needs, which exposes us to supply chain {risk_term}.",
     ],
     "inventory": [
