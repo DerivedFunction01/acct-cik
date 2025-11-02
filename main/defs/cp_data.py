@@ -380,6 +380,7 @@ class CPContextSentence:
                 ),
                 "unit": unit,
                 "maturity_year": self.reporting_year + random.randint(1, 5),
+                "next_year": self.reporting_year + 1,
                 "market_driver": random.choice(market_drivers)
             }
 
