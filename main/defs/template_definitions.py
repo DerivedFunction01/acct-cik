@@ -1,14 +1,15 @@
 # New imports for generate_notional_sentence
 import re
-from typing import List, Literal, Optional, Tuple
+from typing import List, Literal, Tuple
 
+# A set of common currency symbols to differentiate them from units
+KNOWN_CURRENCY_SYMBOLS = {'$', '€', '£', '¥', 'CHF', 'kr', 'zł', 'Ft', 'Kč', '₺', '₽', 'лв', 'lei', '₩', '฿', 'RM', 'R$', 'د.إ', 'ر.س', '₹'}
 
 def _format_single_notional(
     amount: int | float,
     symbol: str, # The currency symbol, e.g., '$'
     prefer_abbreviated: bool,
     zero_format: Literal["nil", "zero", "amount"] = "amount",
-    unit: Optional[str] = None, # The non-currency unit, e.g., 'barrels'
 ) -> str:
     """Formats a single notional amount into a readable string like '$250.0 million' or '250.0 thousand barrels'."""
     if amount == 0:
@@ -30,16 +31,17 @@ def _format_single_notional(
             if amount >= divisor:
                 # Format to one decimal place
                 formatted_number = f"{amount / divisor:.1f} {unit_word}"
-                if unit: # If a unit is provided, format as a quantity
-                    return f"{formatted_number} {unit}"
-                # Otherwise, format as a currency
-                return f"{symbol} {formatted_number}"
+                # If the symbol is a known currency symbol, place it before the number.
+                if symbol in KNOWN_CURRENCY_SYMBOLS:
+                    return f"{symbol}{formatted_number}"
+                # Otherwise, treat it as a unit and place it after.
+                return f"{formatted_number} {symbol}"
 
     # Fallback to full numeric value with commas
-    if unit:
-        return f"{amount:,.0f} {unit}"
+    if symbol in KNOWN_CURRENCY_SYMBOLS:
+        return f"{symbol}{amount:,.0f}"
     else:
-        return f"{symbol} {amount:,.0f}"
+        return f"{amount:,.0f} {symbol}"
 
 
 def _cleanup_sentence(sentence: str) -> str:

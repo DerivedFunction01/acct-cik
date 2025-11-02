@@ -496,6 +496,16 @@ class ScenarioBuilder:
                         all_scenario_base_types=self.all_scenario_base_types,
                     )
                 )
+            
+            # --- NEW: For CP, sometimes report in units instead of currency ---
+            instrument_currency = self.archetype.default_currency
+            instrument_symbol = _get_currency_and_unit_details(self.scenario)[0]
+            if category == "CP" and random.random() < 0.4: # 40% chance to use units
+                if isinstance(hedged_item, CommodityHedgedItem):
+                    # Use the commodity's unit as the "currency"
+                    instrument_currency = hedged_item.unit_of_volume.upper()
+                    instrument_symbol = hedged_item.unit_of_volume
+                    notional = hedged_item.quantity # Notional is now the quantity
 
             base_args = {
                 "instrument_type": name,
@@ -505,7 +515,7 @@ class ScenarioBuilder:
                 "start_year": random.randint(
                     self.reporting_year - 10, self.reporting_year - 1
                 ),
-                "currency": self.archetype.default_currency,
+                "currency": instrument_currency,
                 "maturity_year": maturity_year,
                 "hedged_item": hedged_item,
                 "instrument_prefix": prefix,
@@ -513,6 +523,7 @@ class ScenarioBuilder:
                 "base_type": base_type,
                 "suffix": suffix,
             }
+            base_args["symbol"] = instrument_symbol # Pass the symbol for formatting
 
             new_instrument = _create_instrument_with_history(
                 scenario=self.scenario,
@@ -610,6 +621,7 @@ class ScenarioBuilder:
                 "placeholder": placeholder,
                 "base_type": base_type,
                 "suffix": suffix,
+                "symbol": _get_currency_and_unit_details(self.scenario)[0], # Default currency symbol
             }
             new_instrument = _create_instrument_with_history(
                 scenario=self.scenario,
@@ -805,6 +817,7 @@ def _create_instrument_with_history(
     is_new: bool,
     is_past: bool,
 ) -> NotionalInstrument:
+    base_instrument_args.pop("symbol", None) # Remove symbol if it exists, not part of constructor
     """
     Creates a single instrument and populates its history (past and optionally future).
 
