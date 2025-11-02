@@ -3,7 +3,7 @@ import re
 from typing import List, Tuple
 
 def _format_single_notional(
-    amount: int,
+    amount: int | float,
     currency_symbol: str,
     money_units: List[Tuple[str, int]],
     prefer_abbreviated: bool,

@@ -321,31 +321,99 @@ debt_action_verbs = {
 
 
 @dataclass
-class IRContextSentence:
+class DebtContextSentence:
     """
-    Builds a sentence providing context about a specific debt instrument (exposure).
+    Builds a multi-sentence paragraph providing context about a company's debt.
     This class is defined here to live alongside its debt-specific templates.
     """
 
-    hedged_item: "DebtHedgedItem"
     company_name: str
+    reporting_year: int
+    # Pass all debt exposures for a more holistic summary
+    all_debt_items: List["DebtHedgedItem"]
+    money_units: List[Tuple[str, int]]
+    prefer_abbreviated: bool
+    currency_symbol: str = "$"
 
     def build(self) -> str:
-        """Builds a sentence about the debt exposure."""
+        """Builds a paragraph about the company's debt exposures."""
         # Lazy import to prevent circular dependency
         from .template_definitions import _cleanup_sentence, _format_single_notional
+        from .common_data import months, termination_noun, termination_verbs_past, interest_rate_terms
 
-        # Choose a random template from the "balance" category for a general statement
-        template = random.choice(debt_templates["balance"])
+        if not self.all_debt_items:
+            return ""
 
-        # Format the sentence
-        sentence = template.format(
-            company=self.company_name,
-            verb=random.choice(debt_action_verbs["balance"]),
-            debt_type=self.hedged_item.debt_type,
-            amount_str=_format_single_notional(self.hedged_item.principal_amount, "$", [("million", 1_000_000)], True),
-            # Add other placeholders as needed, leaving them blank if not used by the template
-            **{key: "" for key in ["time_prefix", "composition_clause", "state_descriptor", "time_suffix", "amount_str2", "debt_type2", "interest_rate_clause"]}
+        sentences = []
+        # --- 1. Generate the main "balance" sentence ---
+        total_debt = sum(d.principal_amount for d in self.all_debt_items)
+        total_debt_str = _format_single_notional(
+            total_debt, self.currency_symbol, self.money_units, self.prefer_abbreviated
         )
 
-        return _cleanup_sentence(sentence)
+        # Create a composition clause (e.g., "consisting of term loans and senior notes")
+        unique_debt_types = list({d.debt_type for d in self.all_debt_items})
+        composition_str = (
+            ", ".join(unique_debt_types[:-1]) + " and " + unique_debt_types[-1]
+            if len(unique_debt_types) > 1
+            else unique_debt_types[0]
+        )
+        composition_clause = random.choice(debt_composition_clauses).format(debt_types=composition_str)
+
+        balance_template = random.choice(debt_templates["balance"])
+        balance_sentence = balance_template.format(
+            company=self.company_name,
+            verb=random.choice(debt_action_verbs["balance"]),
+            debt_type="long-term debt",
+            amount_str=total_debt_str,
+            composition_clause=composition_clause,
+            time_prefix=f"As of December 31, {self.reporting_year}",
+            time_suffix=f"as of December 31, {self.reporting_year}",
+            state_descriptor=random.choice(["outstanding", "total"]),
+            # Fill other potential placeholders with blanks
+            amount_str2="", debt_type2="", interest_rate_clause=""
+        )
+        sentences.append(_cleanup_sentence(balance_sentence))
+
+        # --- 2. Optionally, add a second sentence about a specific event ---
+        if random.random() < 0.6: # 60% chance to add a second sentence
+            event_type = random.choice(["issuance", "repayment", "refinancing", "details"])
+            template = random.choice(debt_templates[event_type])
+            
+            # Pick a random debt item to talk about
+            focus_debt = random.choice(self.all_debt_items)
+            
+            # Populate clauses
+            ir_clause = random.choice(debt_interest_rate_clauses).format(
+                ir_term=random.choice(interest_rate_terms),
+                pct=f"{(focus_debt.spread_bps / 100 if focus_debt.spread_bps else random.uniform(2.5, 6.5)):.2f}",
+                pct2=f"{(focus_debt.spread_bps / 100 + random.uniform(1,2) if focus_debt.spread_bps else random.uniform(6.5, 8.5)):.2f}"
+            )
+            maturity_clause = random.choice(debt_maturity_clauses).format(
+                maturity_year=focus_debt.maturity_year,
+                termination_noun=random.choice(termination_noun),
+                termination_verb=random.choice(termination_verbs_past)
+            )
+            capex_purpose = random.choice(CAPEX_PURPOSES["generic"])
+
+            event_sentence = template.format(
+                company=self.company_name,
+                action_verb=random.choice(debt_action_verbs.get(event_type, [""])),
+                debt_type=focus_debt.debt_type,
+                debt_types=focus_debt.debt_type,
+                amount_str=_format_single_notional(focus_debt.principal_amount, self.currency_symbol, self.money_units, self.prefer_abbreviated),
+                amount_str2=_format_single_notional(focus_debt.principal_amount * random.uniform(0.8, 1.2), self.currency_symbol, self.money_units, self.prefer_abbreviated),
+                interest_rate_clause=ir_clause,
+                maturity_clause=maturity_clause,
+                purpose_clause=f"general corporate purposes, including {capex_purpose}",
+                capex_purpose=capex_purpose,
+                time_prefix=f"During {self.reporting_year}",
+                time_suffix=f"at year-end {self.reporting_year}",
+                year=self.reporting_year,
+                month=random.choice(months),
+                termination_noun=random.choice(termination_noun),
+                **{key: "" for key in ["pct", "pct2", "small_int", "frequency", "swap_type", "end_day", "state_descriptor"]} # Add other placeholders as needed
+            )
+            sentences.append(_cleanup_sentence(event_sentence))
+
+        return " ".join(sentences)
