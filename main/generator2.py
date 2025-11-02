@@ -1649,12 +1649,14 @@ def _generate_category_narrative(
             and random.random() < 0.7 # 70% chance to generate a table if preferred
         ):
             table_builder = Table(
-                instruments=current_year_data["instruments"],
-                yearly_data=yearly_data,
+                instruments=current_year_data["instruments"], 
+                category=category, yearly_data=yearly_data,
                 reporting_year=reporting_year,
+                reporting_day=reporting_day,
+                reporting_month=reporting_month,
                 currency_symbol=currency_symbol,
-                prefer_abbreviated=scenario.number_format_preference,
-                category=category,
+                notional_multiplier=scenario.archetype.notional_multiplier,
+                prefer_abbreviated=scenario.number_format_preference
             )
             table_str = table_builder.build()
             if table_str:

@@ -10,16 +10,30 @@ KNOWN_CURRENCY_SYMBOLS = {'$', '€', '£', '¥', 'CHF', 'kr', 'zł', 'Ft', 'Kč
 
 def _format_single_notional(
     amount: int | float,
-    symbol: str, # The currency symbol, e.g., '$'
+    symbol: str,  # The currency symbol, e.g., '$'
     prefer_abbreviated: bool,
     no_unit_word: bool = False,
     zero_format: Literal["nil", "zero", "amount"] = "amount",
+    skip_string: bool = False,  # OVERRIDES prefer_abbreviated
 ) -> str:
-    """Formats a single notional amount into a readable string like '$250.0 million' or '250.0 thousand barrels'."""
+    """
+    Formats a single notional amount into a readable string like '$250.0 million'
+    or '250.0 thousand barrels'.
+
+    - If skip_string=True, returns the raw amount (no scaling, no commas).
+    - If prefer_abbreviated=True, uses million/billion/etc. unless overridden.
+    """
     if amount == 0:
         if zero_format in ["nil", "zero"]:
             return zero_format
         # else, format as amount (e.g., "$0")
+
+    # 🔹 Skip-string override: just return the raw number
+    if skip_string:
+        if symbol in KNOWN_CURRENCY_SYMBOLS:
+            return f"{symbol}{int(amount) if amount == int(amount) else amount}"
+        else:
+            return f"{int(amount) if amount == int(amount) else amount} {symbol}"
 
     amount_to_string = {
         "trillion": 1_000_000_000_000,
@@ -29,25 +43,21 @@ def _format_single_notional(
     }
 
     if prefer_abbreviated:
-        # Sort units from largest to smallest
         for unit_word, divisor in sorted(
             amount_to_string.items(), key=lambda x: x[1], reverse=True
         ):
             if amount >= divisor:
-                # Format to one decimal place
                 if no_unit_word:
                     formatted_number = f"{amount / divisor:.1f}"
                 else:
                     formatted_number = f"{amount / divisor:.1f} {unit_word}"
-                # If the symbol is a known currency symbol, place it before the number.
                 if symbol in KNOWN_CURRENCY_SYMBOLS:
                     return f"{symbol}{formatted_number}"
-                # Otherwise, treat it as a unit and place it after.
                 return f"{formatted_number} {symbol}"
 
-    # Fallback to full numeric value with commas
+    # Fallback: full numeric value with commas
     if symbol in KNOWN_CURRENCY_SYMBOLS:
-        return f"{symbol} {amount:,.0f}"
+        return f"{symbol}{amount:,.0f}"
     else:
         return f"{amount:,.0f} {symbol}"
 
@@ -790,18 +800,35 @@ class Table:
         self,
         instruments: List[NotionalInstrument],
         yearly_data: Dict,
+        reporting_month: str,
+        reporting_day: int,
         reporting_year: int,
+        notional_multiplier: int,
         currency_symbol: str,
         prefer_abbreviated: bool,
         category: str,
     ):
         self.instruments = instruments
+        self.month = reporting_month
+        self.day = reporting_day
+        self.notional_multiplier = notional_multiplier # for (in millions, etc)
         self.yearly_data = yearly_data
         self.reporting_year = reporting_year
         self.currency_symbol = currency_symbol
         self.prefer_abbreviated = prefer_abbreviated
         self.category = category
 
+    def money_unit(self) -> str:
+        amount_to_string = {
+         1_000_000_000_000: "in trillions",
+         1_000_000_000: "in billions",
+         1_000_000: "in millions",
+         1_000: "in thousands"
+        }
+        if self.notional_multiplier in amount_to_string:
+            return amount_to_string[self.notional_multiplier]
+        return "in millions"
+        
     def build(self) -> str:
         """
         Selects a table format at random and builds the table string.
@@ -877,7 +904,7 @@ class Table:
             "EQ": "Equity",
             "GEN": "Generic",
         }
-        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} (in {self.currency_symbol} millions)"
+        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} (in {self.currency_symbol} {self.money_unit()})"
         return f"{title}\n" + "\n".join(rows)
 
     def _build_notional_vs_fair_value_table(self) -> str:
@@ -911,7 +938,7 @@ class Table:
             if not instruments_in_year:
                 continue
 
-            all_rows.append(f"\nAs of December 31, {year} (in millions)")
+            all_rows.append(f"\nAs of {self.month} {self.day}, {year} (in {self.money_unit()})")
             header = (
                 f"| {'Instrument':<45} | {'Notional Amount':>20} | {'Fair Value':>20} |"
             )
@@ -987,7 +1014,7 @@ class Table:
                     self.reporting_year, 0
                 )
 
-        title = f"Notional Amount by Maturity as of {self.reporting_year}"
+        title = f"Notional Amount by Maturity as of {self.month} {self.day}, {self.reporting_year}"
         header = f"| {'Maturity':<20} | {'Notional Amount':>20} |"
         separator = "-" * len(header)
         rows = [title, header, separator]
@@ -1021,7 +1048,7 @@ class Table:
         if not active_instruments:
             return ""
 
-        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} as of {year}"
+        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} as of {self.month} {self.day}, {self.reporting_year}"
         header = f"| {'Instrument':<45} | {'Asset Fair Value':>20} | {'Liability Fair Value':>22} |"
         separator = "-" * len(header)
         rows = [title, header, separator]
