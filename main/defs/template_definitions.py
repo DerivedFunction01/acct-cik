@@ -1028,9 +1028,18 @@ class Table:
 
         for exposure in hedged_item.exposures:
             # Current year amount is from the hedged item
-            amount_year1 = exposure.amount
-            # Simulate a prior year amount for comparison
-            amount_year2 = int(amount_year1 * random.uniform(0.8, 1.2))
+            amount_year1 = exposure.amount # This is the exposure amount for year1
+
+            # --- NEW: Calculate prior year exposure based on the instrument's notional history ratio ---
+            notional_year1 = instrument_to_detail.notional_history.get(year1, 0)
+            notional_year2 = instrument_to_detail.notional_history.get(year2, 0)
+
+            if notional_year1 > 0 and notional_year2 > 0:
+                # Use the ratio of the instrument's notional change to calculate the exposure change
+                ratio = notional_year2 / notional_year1
+                amount_year2 = int(amount_year1 * ratio)
+            else: # Fallback to simulation if history is not available for some reason
+                amount_year2 = int(amount_year1 * random.uniform(0.8, 1.2))
 
             amount_str1 = _format_single_notional(
                 amount_year1, exposure.symbol, self.prefer_abbreviated, True
