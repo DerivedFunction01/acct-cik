@@ -1,6 +1,7 @@
 from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple, TypeVar
 from dataclasses import dataclass, field
 import random
+import re
 
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 from defs.function_definitions import _get_company_reference
@@ -13,7 +14,6 @@ from defs.common_data import (
     state_descriptors,
     warrant_events,
     financing_types,
-    quarters,
 )
 
 stock_list = [
@@ -53,6 +53,23 @@ class EquityHedgedItem(HedgedItem):
 class EQInstrument(NotionalInstrument[EquityHedgedItem]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, category="EQ", **kwargs)
+
+
+def _generate_stock_symbol(company_name: str) -> str:
+    """Generates a plausible stock symbol from a company name."""
+    # Remove common suffixes like Inc, Corp, Ltd, etc.
+    name = re.sub(r'\b(Inc|Corp|Ltd|Co|Group|Holdings)\b', '', company_name, flags=re.IGNORECASE).strip()
+    words = name.split()
+    
+    if len(words) >= 2 and len(words) <= 4:
+        # Take the first letter of each word
+        symbol = "".join(word[0] for word in words).upper()
+    elif len(words) == 1:
+        # Take the first 3 or 4 letters of the single word
+        symbol = name[:random.choice([3, 4])].upper()
+    else: # Fallback for very long or short names
+        symbol = "".join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZ", k=random.randint(3, 4)))
+    return symbol
 
 
 @dataclass
@@ -127,7 +144,7 @@ class EQContextSentence:
                 "financing_type": random.choice(financing_types),
                 "short_int": short_int,
                 "state_descriptor": random.choice(state_descriptors),
-                "quarter": random.choice(quarters),
+                "quarter": random.choice(["first", "second", "third", "fourth"]),
             }
 
             # Use format_map to safely populate the template

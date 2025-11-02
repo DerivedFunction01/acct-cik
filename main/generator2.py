@@ -27,7 +27,7 @@ from defs.scenario_definitions import company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.template_definitions import hedge_no_trading_templates
-from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem
+from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -434,12 +434,12 @@ class ScenarioBuilder:
             equity_type = random.choice(
                 ["market_index", "own_stock", "third_party_stock"]
             )
-            stock_symbol = (
-                "".join(random.choices(string.ascii_uppercase, k=random.randint(3, 4)))
-                if equity_type != "market_index"
-                else None
-            )
-
+            stock_symbol = None
+            if equity_type == "third_party_stock":
+                third_party_name = random.choice([c for c in company_names if c != self.scenario.company_name])
+                stock_symbol = _generate_stock_symbol(third_party_name)
+            elif equity_type == "own_stock":
+                stock_symbol = _generate_stock_symbol(self.scenario.company_name)
             self.potential_hedged_items["equity"].append(
                 EquityHedgedItem(
                     hedged_item_id=self.hedged_item_id_counter,
@@ -1283,6 +1283,46 @@ def _generate_cp_narrative(
     return paragraphs, evidence
 
 
+def _generate_eq_narrative(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+    """
+    Generates a dedicated, detailed narrative section about the company's equity-related activities.
+    """
+    paragraphs = []
+    evidence = []
+
+    currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+    # Get all unique Equity hedged items from the scenario's instruments.
+    all_eq_items = list({
+        inst.hedged_item.hedged_item_id: inst.hedged_item
+        for inst in scenario.instruments
+        if isinstance(inst.hedged_item, EquityHedgedItem)
+    }.values())
+
+    if not all_eq_items:
+        return [], []
+
+    paragraphs.append("Equity Risk")
+
+    for eq_item in all_eq_items:
+        eq_context_builder = EQContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            hedged_item=eq_item,
+            prefer_abbreviated=scenario.number_format_preference,
+            currency_symbol=currency_symbol,
+        )
+        eq_paragraph = eq_context_builder.build()
+        if eq_paragraph:
+            paragraphs.append(eq_paragraph)
+
+    return paragraphs, evidence
+
+
 def _generate_category_narrative(
     category: str,
     yearly_data: Dict,
@@ -1418,10 +1458,12 @@ def _generate_category_narrative(
             # Describe context for one of the hedged items, if any exist.
             items_to_describe = random.sample(all_eq_hedged_items, k=min(len(all_eq_hedged_items), 1))
 
+            # --- FIX: If no specific hedged items, generate a generic context sentence ---
             for eq_item in items_to_describe:
                 eq_context_builder = EQContextSentence(
                     company_name=scenario.company_name,
                     reporting_year=scenario.reporting_year,
+                    # --- FIX: Pass correct date components ---
                     reporting_month=scenario.reporting_month,
                     reporting_day=scenario.reporting_day,
                     hedged_item=eq_item,
@@ -1431,6 +1473,15 @@ def _generate_category_narrative(
                 eq_paragraph = eq_context_builder.build()
                 if eq_paragraph:
                     sentences.append(eq_paragraph)
+            
+            # --- FIX: Handle case where there are no EQ instruments but exposure exists ---
+            if not all_eq_hedged_items:
+                eq_context_builder = EQContextSentence(
+                    company_name=scenario.company_name, reporting_year=scenario.reporting_year,
+                    reporting_month=scenario.reporting_month, reporting_day=scenario.reporting_day,
+                    hedged_item=None, prefer_abbreviated=scenario.number_format_preference, currency_symbol=currency_symbol,
+                )
+                sentences.append(eq_context_builder.build())
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(
@@ -2049,6 +2100,12 @@ def generate_narrative_from_scenario(
     if cp_paragraphs:
         derivative_details_sections.extend(cp_paragraphs)
         all_evidence.extend(cp_evidence)
+    
+    # --- NEW: Part 2.8: Build the dedicated "Equity Risk" Section ---
+    eq_paragraphs, eq_evidence = _generate_eq_narrative(scenario)
+    if eq_paragraphs:
+        derivative_details_sections.extend(eq_paragraphs)
+        all_evidence.extend(eq_evidence)
 
     # --- Part 2: Build the "Derivative Financial Instruments" Details Section ---
     # Add a title for this section if there are any details to report.
