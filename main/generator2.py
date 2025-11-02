@@ -959,15 +959,15 @@ def _generate_category_narrative(
     category: str,
     yearly_data: Dict,
     scenario: GenerationScenario,
-    part: Literal["summary", "details"],
-    mentioned_instrument_fingerprints: Optional[Set[Tuple[str, int, str]]] = None,
+    part: Literal["summary", "details"], # type: ignore
+    mentioned_instrument_types: Optional[Set[str]] = None,
 ) -> Tuple[List[str], List[BaseNarrativeEvidence], Optional[str]]:
     """
     Generates a narrative section for a single derivative category (e.g., Interest Rate Risk).
     This includes context, a summary of instruments, and details on changes.
 
     Args:
-        mentioned_instrument_fingerprints: A set to track instrument "fingerprints" that have already been mentioned.
+        mentioned_instrument_types: A set to track instrument full names that have already been mentioned.
         part: "summary" to generate policy/mitigation/aggregate, "details" for individual instruments.
     """
     sentences, evidence, used_name = [], [], None
@@ -1133,10 +1133,10 @@ def _generate_category_narrative(
 
     # --- Part 2: Generate Detailed Individual Instrument Sentences ---
     elif part == "details":
-        # NEW: This will be a list of paragraph strings.
-        if mentioned_instrument_fingerprints is None:
+        # This will be a list of paragraph strings.
+        if mentioned_instrument_types is None:
             # This should be passed from the calling function, but as a fallback, initialize it.
-            mentioned_instrument_fingerprints = set()
+            mentioned_instrument_types = set()
 
         paragraphs = []
 
@@ -1144,9 +1144,8 @@ def _generate_category_narrative(
         if current_year_data and current_year_data["instruments"]:
             for instrument in current_year_data["instruments"]:
                 use_fair_value = random.random() < 0.2
-                # --- NEW: Create a "fingerprint" for the instrument based on its properties ---
-                instrument_fingerprint = (instrument.instrument_type, instrument.maturity_year, instrument.currency)
-                is_repeated = instrument_fingerprint in mentioned_instrument_fingerprints
+                # --- FIX: Check if the full instrument type name has been mentioned before ---
+                is_repeated = instrument.instrument_type in mentioned_instrument_types
 
                 value_type = "fair_value" if use_fair_value else "notional"
                 value_to_report = instrument.notional_history.get(reporting_year, 0)
@@ -1155,7 +1154,7 @@ def _generate_category_narrative(
                         1, int(value_to_report / random.randint(20, 100))
                     )
 
-                # --- NEW: Decide whether to use the full name or the alias ---
+                # --- FIX: Decide whether to use the full name or the alias ---
                 # If we've seen this instrument before, there's a high chance of using its alias.
                 # Otherwise, there's a small chance to use the alias for variety.
                 use_alias = (is_repeated and random.random() < 0.75) or (random.random() < 0.2)
@@ -1194,7 +1193,7 @@ def _generate_category_narrative(
                         paragraphs.append(timeline_paragraph)
                         evidence.append(timeline_evidence)
                         # Mark as mentioned for all future references
-                        mentioned_instrument_fingerprints.add(instrument_fingerprint)
+                        mentioned_instrument_types.add(instrument.instrument_type)
 
                     continue  # Skip the normal individual sentence generation for this instrument
 
@@ -1234,7 +1233,7 @@ def _generate_category_narrative(
                 )
                 paragraphs.append(individual_sentence_text)
                 evidence.append(evidence_obj)
-                mentioned_instrument_fingerprints.add(instrument_fingerprint) # Mark as mentioned
+                mentioned_instrument_types.add(instrument.instrument_type) # Mark as mentioned
         # Describe terminated instruments by looking at the previous year's data
         if prev_year_data:
             terminated_instrument_ids = {
@@ -1260,7 +1259,7 @@ def _generate_category_narrative(
                 # 30% chance to generate a timeline for terminated instruments with 4+ years of history
                 use_timeline_for_terminated = history_length >= 4 and random.random() < 0.3
 
-                instrument_fingerprint_terminated = (instrument.instrument_type, instrument.maturity_year, instrument.currency)
+                is_repeated_terminated = instrument.instrument_type in mentioned_instrument_types
 
                 if use_timeline_for_terminated:
                     timeline_builder = TimelineSentence(
@@ -1276,13 +1275,11 @@ def _generate_category_narrative(
                     if timeline_paragraph:
                         paragraphs.append(timeline_paragraph)
                         evidence.append(timeline_evidence)
-                        mentioned_instrument_fingerprints.add(instrument_fingerprint_terminated)
+                        mentioned_instrument_types.add(instrument.instrument_type)
                 else:
                     # Fallback to the standard "terminated" sentence
                     value_type_terminated = "notional" # Keep it simple
                     value_to_report_terminated = instrument.notional_history.get(reporting_year - 1, 0)
-
-                    is_repeated_terminated = instrument_fingerprint_terminated in mentioned_instrument_fingerprints
                     use_alias_terminated = (is_repeated_terminated and random.random() < 0.75) or (random.random() < 0.2)
                     name_to_use_terminated = instrument.instrument_alias if use_alias_terminated and instrument.instrument_alias else instrument.instrument_type
 
@@ -1302,7 +1299,7 @@ def _generate_category_narrative(
                     terminated_instrument_text, evidence_obj = terminated_instrument_obj.build()
                     evidence_obj.instrument_id = instrument.instrument_id
                     paragraphs.append(terminated_instrument_text)
-                    mentioned_instrument_fingerprints.add(instrument_fingerprint_terminated)
+                    mentioned_instrument_types.add(instrument.instrument_type)
                     evidence.append(evidence_obj)
 
         # If there are no current instruments, check for a comparative no-outstanding sentence
@@ -1425,7 +1422,7 @@ def generate_narrative_from_scenario(
     # =========================================================================
 
     # --- NEW: Track which instruments have been mentioned (by fingerprint) to allow for "aha" moments ---
-    mentioned_instrument_fingerprints: Set[Tuple[str, int, str]] = set()
+    mentioned_instrument_types: Set[str] = set()
 
     # 1. Generate the top-level general policy statement.
     policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
@@ -1452,7 +1449,7 @@ def generate_narrative_from_scenario(
         if has_instruments or (has_exposure and category != "GEN"):
             yearly_data_for_cat = aggregated_data.get(category, {})
             summary_sentences, summary_evidence, _ = _generate_category_narrative(
-                category, yearly_data_for_cat, scenario, part="summary", mentioned_instrument_fingerprints=mentioned_instrument_fingerprints
+                category, yearly_data_for_cat, scenario, part="summary", mentioned_instrument_types=mentioned_instrument_types
             )
             item_7a_sections.append(" ".join(s.strip() for s in summary_sentences if s))
             all_evidence.extend(summary_evidence)
@@ -1476,7 +1473,7 @@ def generate_narrative_from_scenario(
         if category in aggregated_data:
             yearly_data_for_cat = aggregated_data.get(category, {})
             detail_sentences, detail_evidence, _ = _generate_category_narrative(
-                category, yearly_data_for_cat, scenario, part="details", mentioned_instrument_fingerprints=mentioned_instrument_fingerprints
+                category, yearly_data_for_cat, scenario, part="details", mentioned_instrument_types=mentioned_instrument_types
             )
             # NEW: Join the generated paragraphs with newlines.
             # This ensures timelines and individual instruments get their own paragraphs.
