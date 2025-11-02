@@ -830,6 +830,19 @@ def _create_instrument_with_history(
     # Sort years chronologically
     notional_history = dict(sorted(notional_history.items()))
 
+    # --- NEW: With a small chance, set a mid-history year to zero ---
+    # This simulates a temporary pause in the instrument's use.
+    # It should not be the start year or the most recent year of its history.
+    if len(notional_history) > 2 and random.random() < 0.15: # 15% chance
+        # Get all years except the first and last
+        eligible_years = sorted(list(notional_history.keys()))[1:-1]
+        if eligible_years:
+            year_to_zero = random.choice(eligible_years)
+            # Ensure we don't zero out the current reporting year for an active instrument
+            if not (not is_past and year_to_zero == scenario.reporting_year):
+                notional_history[year_to_zero] = 0
+
+
     # Create the instrument instance
     instrument = instrument_class(
         instrument_id=instrument_id,
