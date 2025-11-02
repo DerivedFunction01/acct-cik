@@ -406,6 +406,7 @@ class ScenarioBuilder:
             new_instrument = _create_instrument_with_history(
                 scenario=self.scenario,
                 instrument_class=instrument_class,
+                is_new=(item in items_to_hedge and random.random() < 0.3), # 30% chance a new hedge is brand new this year
                 is_past=(hedged_item not in items_to_hedge),
                 instrument_id=self.instrument_id_counter,
                 base_instrument_args=base_args,
@@ -502,6 +503,7 @@ class ScenarioBuilder:
             new_instrument = _create_instrument_with_history(
                 scenario=self.scenario,
                 instrument_class=GenericInstrument,
+                is_new=not is_terminated and random.random() < 0.3, # 30% chance an active instrument is brand new
                 is_past=is_terminated,
                 instrument_id=self.instrument_id_counter,
                 base_instrument_args=base_args,
@@ -681,14 +683,12 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
     return " ".join(filter(None, [quantifier, descriptor, plural_suffix]))
 
 
-import random
-from typing import Dict
-
 def _create_instrument_with_history(
     scenario: GenerationScenario,
     instrument_class: type,
     instrument_id: int,
     base_instrument_args: Dict,
+    is_new: bool,
     is_past: bool,
 ) -> NotionalInstrument:
     """
@@ -703,8 +703,9 @@ def _create_instrument_with_history(
         instrument_class: The class of the instrument to create (e.g., IRInstrument).
         instrument_id: The unique ID for this instrument and its history.
         base_instrument_args: A dictionary of arguments for the instrument constructor,
-                              including the notional amount for the *current* reporting year.
-        is_past: Whether the instrument must not have a current notional value
+                              including the notional amount.
+        is_new: A flag indicating if the instrument was initiated in the current reporting year.
+        is_past: A flag indicating if the instrument is historical (matured before reporting year).
 
     Returns:
         A single NotionalInstrument instance with its history populated.
@@ -718,36 +719,30 @@ def _create_instrument_with_history(
     notional_history = {}
 
     if not is_past:
-        # Active instrument: has current, past, and future values.
+        # Active instrument: must have a value for the current reporting year.
         notional_history[current_year] = current_notional
+        last_notional = current_notional # Start with the current notional
 
-        # Generate 0–7 years of history before current year
-        num_historical_years = random.randint(0, 7)
-        last_notional = current_notional
-        if num_historical_years > 0:
+        # Only generate prior-year history if the instrument is NOT new.
+        if not is_new:
+            # Generate history for 2-7 years *before* the current year.
+            num_historical_years = random.randint(2, 7)
             for i in range(1, num_historical_years + 1):
                 historical_year = current_year - i
+                # Simulate a slightly different notional amount for the previous year
                 last_notional = int(last_notional * random.uniform(0.85, 1.15))
                 notional_history[historical_year] = max(0, last_notional)
-
-        # Generate 1–5 years for target maturity
-        num_future_years = random.randint(1, 5)
-        maturity_year = random.randint(current_year + 1, current_year + num_future_years)
-
-        # Optionally set maturity_value based on final year
-        if maturity_year and maturity_year in notional_history:
-            base_instrument_args["maturity_value"] = notional_history[maturity_year]
-        else:
-            base_instrument_args["maturity_value"] = notional_history[max(notional_history)]
-
+        base_instrument_args["maturity_value"] = last_notional # Placeholder for active instruments
     else:
-        # Past instrument: history only before reporting year
+        # Past instrument: history exists only up to reporting_year - 1.
+        # The 'current_notional' is the notional at maturity.
         base_instrument_args["maturity_value"] = current_notional
         num_historical_years = random.randint(2, 7)
         last_notional = current_notional
+        # Generate history backwards from the maturity year.
         for i in range(num_historical_years):
             historical_year = maturity_year - i
-            if i == 0:
+            if i == 0: # The maturity year itself
                 notional_history[historical_year] = last_notional
             else:
                 last_notional = int(last_notional * random.uniform(0.85, 1.15))
