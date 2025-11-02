@@ -944,51 +944,55 @@ def _create_contextual_alias(
         A contextually appropriate alias string.
     """
     # NEW: Handle special suffixes like "put option" explicitly.
-    # This ensures the full two-word phrase is treated as the base.
+    # This ensures the full phrase is treated as the base.
     for special_suffix in DERIVATIVE_COMPONENTS["special_suffixes"]:
-        if special_suffix in base_type: # (put option), but both put and option are valid bases
+        if special_suffix in base_type:
             alias_base = special_suffix
             break
     else:
         # Fallback for other types.
-        alias_base = (
-            " ".join(base_type.split()[-2:])
-            if len(base_type.split()) > 1
-            else base_type
-        )
+        alias_base = base_type
 
     is_base_type_unique = base_type not in all_other_base_types
+    no_alias_types = DERIVATIVE_COMPONENTS.get("no_alias_types", [])
+    no_alias_independent = DERIVATIVE_COMPONENTS.get("no_alias_independent", [])
+    is_no_alias_type = any(no_alias_word in base_type for no_alias_word in no_alias_types)
+    is_dependent_type = base_type in DERIVATIVE_COMPONENTS.get("dependent_types", [])
 
-    # --- NEW: Prevent aliasing for certain generic types ---
-    no_alias_types = DERIVATIVE_COMPONENTS.get(
-        "no_alias_types", []
-    )  # (ex. derivative, hedge, hedging)
-    no_alias_independent = DERIVATIVE_COMPONENTS.get("no_alias_independent", []) #(ex. hedging)
-    base_dependent = base_type in DERIVATIVE_COMPONENTS.get("dependent_types", [])
+    # --- Logic for types that should not be aliased (e.g., "derivative", "hedge") ---
+    if is_no_alias_type:
+        # For independent no-alias types like "derivative", we might sometimes
+        # return just "interest rate derivative" instead of the full name with a suffix.
+        if base_type in no_alias_independent and random.random() < 0.3:
+            return f"{placeholder} {alias_base}".strip()  # e.g., "IR derivative"
+        # Otherwise, return the full name to avoid ambiguity.
+        return f"{placeholder} {alias_base} {suffix}".strip() # e.g., "IR hedging contract"
 
-    if any(no_alias_word in base_type for no_alias_word in no_alias_types):
-        if suffix and random.random() < 0.3 and base_type in no_alias_independent:
-            return f"{placeholder} {alias_base}".strip() # (ex. IR derivative)
-        if is_base_type_unique:
-            return f"{placeholder} {alias_base} {suffix}".strip() # dependent (ex. IR hedging contract)
-
-    # If the base type is unique don't add a prefix.
-    if is_base_type_unique:  
-        if not base_dependent:
-            # (ex. full name: ir swap contract)
+    # --- Logic for standard, aliasable types ---
+    if is_base_type_unique:
+        # If the base type is unique in the scenario (e.g., only one "swap"), we can use a shorter alias.
+        if not is_dependent_type:
+            # For standalone types like "swap".
+            # Full name: "interest-rate swap contract"
+            # Possible aliases: "swap contract", "interest-rate swap", or just "swap".
             if suffix and random.random() < 0.3:
-                return f"{alias_base} {suffix}".strip() # (ex. swap contract)
+                return f"{alias_base} {suffix}".strip()
             if placeholder and random.random() < 0.3:
-                return f"{placeholder} {alias_base}".strip() # (ex. IR swap)
-            return alias_base # (ex. swap)
+                return f"{placeholder} {alias_base}".strip()
+            return alias_base
         else:
-            # (ex. full name: ir collar contract)
+            # For dependent types like "collar", which need more context.
+            # Full name: "interest-rate collar agreement"
+            # Possible aliases: "collar agreement" or "interest-rate collar".
             if suffix and random.random() < 0.3:
-                return f"{alias_base} {suffix}".strip() # (ex. collar contract)
+                return f"{alias_base} {suffix}".strip()
             else:
-                return f"{placeholder} {alias_base}".strip() # (ex. ir collar)
-    else: # if it is not unique, return the full name
-        return f"{placeholder} {base_type} {suffix}".strip() # (ex. swap contract)"
+                return f"{placeholder} {alias_base}".strip()
+    else:
+        # If the base type is NOT unique (e.g., "swap" and "collar" both exist),
+        # return the full name to avoid ambiguity.
+        return f"{placeholder} {base_type} {suffix}".strip()
+
 
 
 # =============================================================================
