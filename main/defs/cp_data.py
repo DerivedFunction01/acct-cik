@@ -378,6 +378,7 @@ class CPContextSentence:
                     [v for v in risk_management_verbs if not v.endswith("ing")]
                 ),
                 "unit": unit,
+                "maturity_year": self.reporting_year + random.randint(1, 5),
             }
 
             # Use format_map to safely populate the template
