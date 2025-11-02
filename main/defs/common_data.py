@@ -368,7 +368,7 @@ DEPENDENT_TYPES = [
     "lock",
     "forward",
     "option",
-    "future",
+    "futures",
     "hedge",
     "hedging",
     "option",
