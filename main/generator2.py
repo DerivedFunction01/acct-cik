@@ -23,7 +23,7 @@ from defs.policy_definitions import (
     CategorySpecificPolicy,
 )
 from defs.scenario_definitions import company_names
-from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument
+from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.template_definitions import hedge_no_trading_templates
 from defs.eq_data import EQInstrument, EquityHedgedItem
@@ -953,6 +953,28 @@ def _generate_category_narrative(
         )
         context_sentence, _ = policy_sentence_obj.build()
         sentences.append(context_sentence)
+
+        # --- NEW: Add debt context for IR category ---
+        if category == "IR":
+            # Get all debt items from the scenario. This includes both hedged and unhedged debt.
+            all_debt_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, DebtHedgedItem)]
+
+            # For each debt item, generate a contextual paragraph.
+            # Let's limit it to 1-2 paragraphs to avoid making the text too long.
+            items_to_describe = random.sample(all_debt_hedged_items, k=min(len(all_debt_hedged_items), random.randint(1, 2)))
+
+            for debt_item in items_to_describe:
+                    debt_context_builder = DebtContextSentence(
+                        company_name=scenario.company_name,
+                        reporting_year=scenario.reporting_year,
+                        hedged_item=debt_item,
+                        money_units=scenario.archetype.money_units,
+                        prefer_abbreviated=scenario.number_format_preference,
+                        currency_symbol=currency_symbol,
+                    )
+                    debt_paragraph = debt_context_builder.build()
+                    if debt_paragraph:
+                        sentences.append(debt_paragraph)
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(

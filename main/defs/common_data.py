@@ -316,6 +316,8 @@ material = [
     "pivotal",
     "essential",
 ]
+# Outstanding active state descriptors
+state_descriptors = ["outstanding", "active", "remaining", "open"]
 
 # =============================================================================
 # DERIVATIVES
