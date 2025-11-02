@@ -964,19 +964,19 @@ def _generate_category_narrative(
             items_to_describe = random.sample(all_debt_hedged_items, k=min(len(all_debt_hedged_items), random.randint(1, 2)))
 
             for debt_item in items_to_describe:
-                    debt_context_builder = DebtContextSentence(
-                        company_name=scenario.company_name,
-                        reporting_year=scenario.reporting_year,
-                        reporting_month=scenario.reporting_month,
-                        reporting_day=scenario.reporting_day,
-                        hedged_item=debt_item,
-                        money_units=scenario.archetype.money_units,
-                        prefer_abbreviated=scenario.number_format_preference,
-                        currency_symbol=currency_symbol,
-                    )
-                    debt_paragraph = debt_context_builder.build()
-                    if debt_paragraph:
-                        sentences.append(debt_paragraph)
+                debt_context_builder = DebtContextSentence(
+                    company_name=scenario.company_name,
+                    reporting_year=scenario.reporting_year,
+                    reporting_month=scenario.reporting_month,
+                    reporting_day=scenario.reporting_day,
+                    hedged_item=debt_item,
+                    money_units=scenario.archetype.money_units,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    currency_symbol=currency_symbol,
+                )
+                debt_paragraph = debt_context_builder.build()
+                if debt_paragraph:
+                    sentences.append(debt_paragraph)
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(
