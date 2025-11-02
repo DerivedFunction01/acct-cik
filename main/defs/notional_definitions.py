@@ -50,25 +50,28 @@ class NotionalEvidence(BaseNarrativeEvidence):
         """Generates a concise temporal reasoning string, e.g., '(2023, current maturity)'."""
         if not self.reporting_year or not self.year:
             return ""
-
-        maturity_status = ""
         if (
-            self.maturity_year is not None
-            and self.sentence_type
+            self.sentence_type
             and self.sentence_type
             in [
                 "historical_individual",
                 "new_individual",
                 "individual",
                 "terminated_individual",
+                "inception",
+                "continuing",
             ]
         ):
-            if self.maturity_year >= self.reporting_year:
-                maturity_status = ", current maturity"
+            # --- FIX: Restore maturity year to the reasoning for individual instruments. ---
+            # This creates a more descriptive reasoning string like "(2020, matures: 2025)".
+            if self.maturity_year is not None and self.maturity_year != self.year:
+                return f" ({self.year}, matures: {self.maturity_year})"
             else:
-                maturity_status = ", historical maturity"
+                # If maturity is unknown or same as the data year, just show the year.
+                return f" ({self.year})"
 
-        return f" ({self.year}{maturity_status})"
+        # Fallback for aggregate summaries and other cases.
+        return f" ({self.year})"
 
     def _validate_temporal_consistency(self) -> Optional[str]:
         """Detect inconsistent or ambiguous temporal relationships."""
@@ -428,6 +431,16 @@ class NotionalSentence:
         all_possible_prefixes = specific_prefixes + amount_prefixes["generic"]
         chosen_prefix = random.choice(all_possible_prefixes)
 
+        # --- FIX: Dynamically add context words based on sentence type ---
+        swap_type_to_use = self.swap_type
+        if self.sentence_type == "new_individual":
+            swap_type_to_use = f"new {self.swap_type}"
+
+        amount_prefix_to_use = chosen_prefix
+        if self.sentence_type == "terminated_individual":
+            prefix_word = random.choice(["prior", "final"])
+            amount_prefix_to_use = f"{prefix_word} {chosen_prefix}"
+
         # --- Refine value_type based on the chosen connector/prefix ---
         # If a generic term was chosen, it's more likely to be interpreted as 'notional' in a real filing.
         final_value_type = self.value_type
@@ -632,9 +645,9 @@ class NotionalSentence:
             time_prefix=time_prefix,
             company=company_name,
             verb=verb,
-            swap_type=self.swap_type,
+            swap_type=swap_type_to_use,
             amount_connector=chosen_connector,
-            amount_prefix=chosen_prefix,
+            amount_prefix=amount_prefix_to_use,
             amount_str=amount_str,
             hedge_designation_clause=hedge_designation_clause,
             state_descriptor=random.choice(state_descriptors),
@@ -846,17 +859,5 @@ class TimelineSentence:
 
         # Combine sentences into a single, flowing paragraph
         full_paragraph = " ".join(sentences)
-
-        # --- NEW: Give the timeline a chance to use a maturity phrase if it has ended ---
-        if self.instrument.maturity_year and self.instrument.maturity_year < self.reporting_year and random.random() < 0.75: # 75% chance
-            # Choose a random past-tense termination verb
-            verb = random.choice([v for v in termination_verbs_past if v.endswith("ed")])
-            # Select a random concluding phrase template
-            maturity_phrase_template = random.choice([
-                ", before it {verb} in {maturity_year}.",
-                ", with the position ultimately being {verb} in {maturity_year}.",
-                " The instrument {verb} in {maturity_year}.",
-            ])
-            full_paragraph += maturity_phrase_template.format(verb=verb, maturity_year=self.instrument.maturity_year)
 
         return full_paragraph, consolidated_evidence
