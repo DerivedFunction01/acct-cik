@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import random
-from typing import List, Literal, Optional, Set, Tuple
+from typing import List, Literal, Optional, Tuple
 
 from defs.function_definitions import _get_company_reference
 
@@ -9,7 +9,7 @@ from defs.template_definitions import *
 from defs.cp_data import get_cost_types_for_commodity
 from defs.fx_data import all_currencies
 from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
-from defs.template_definitions import _cleanup_sentence
+from defs.function_definitions import _cleanup_sentence
 
 
 @dataclass

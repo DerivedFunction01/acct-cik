@@ -1,5 +1,5 @@
 import random
-from typing import Optional, Dict, List, Tuple
+from typing import Optional
 from dataclasses import dataclass
 from defs.common_data import (
     transaction_types,

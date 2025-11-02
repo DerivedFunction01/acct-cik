@@ -1,6 +1,6 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import random
-from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Callable, Dict, Literal, Optional, Tuple
 from defs.function_definitions import _get_company_reference, _format_single_notional, _cleanup_sentence
 from defs.common_data import *
 from defs.template_definitions import *

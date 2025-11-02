@@ -1,11 +1,10 @@
-from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple, TypeVar
-from dataclasses import dataclass, field
+from typing import Literal, Optional
+from dataclasses import dataclass
 import random
 import re
 
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
-from defs.function_definitions import _get_company_reference
-from defs.template_definitions import _cleanup_sentence, _format_single_notional
+from defs.function_definitions import _get_company_reference, _cleanup_sentence, _format_single_notional
 from defs.common_data import (
     risk_exposure_terms,
     gain_loss_phrases,

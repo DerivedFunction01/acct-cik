@@ -1,7 +1,6 @@
 # New imports for generate_notional_sentence
 from dataclasses import dataclass
 import random
-import re
 from typing import Dict, List, Literal, Tuple
 from defs.notional_definitions import NotionalEvidence
 from defs.instrument_definitions import NotionalInstrument

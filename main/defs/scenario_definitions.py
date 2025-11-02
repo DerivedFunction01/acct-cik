@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
-import string
-from typing import List, Literal, Optional, Dict, TypeVar, Generic, Tuple, Set
+from typing import List, Literal, Optional, Dict, Tuple
 import random
 import pandas as pd
 output_file = "./training_data.xlsx"

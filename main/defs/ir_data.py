@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple, TypeVar
+from typing import List, Optional
 
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
@@ -341,7 +341,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
     def build(self) -> str:
         """Builds a paragraph about the company's debt exposures."""
         # Lazy import to prevent circular dependency
-        from .template_definitions import _cleanup_sentence, _format_single_notional
+        from .function_definitions import _cleanup_sentence, _format_single_notional
         from .template_definitions import point_in_time_prefixes, period_of_time_prefixes
         from .common_data import (  # fmt: skip
             months,

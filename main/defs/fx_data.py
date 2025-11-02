@@ -1,11 +1,10 @@
 import random
-from typing import Callable, Dict, Generic, List, Literal, Optional, Set, Tuple, TypeVar
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
-from defs.common_data import months, balance_sheet_locations
-from defs.template_definitions import _cleanup_sentence, _format_single_notional
-from defs.function_definitions import _get_company_reference
+from defs.common_data import balance_sheet_locations
+from defs.function_definitions import _get_company_reference, _cleanup_sentence, _format_single_notional
 from defs.common_data import (
     risk_exposure_terms,
     gain_loss_phrases,
@@ -14,7 +13,6 @@ from defs.common_data import (
     comparison_phrases,
     geo_locations,
 )
-
 
 
 @dataclass
