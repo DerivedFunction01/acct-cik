@@ -319,8 +319,8 @@ class MitigationEvidence(BaseNarrativeEvidence):
         # --- FIX: Use more natural language for speculative status ---
         status_description = {
             "current": "a 'current' usage status",
-            "historical": "a 'historical' usage status",
-            "speculative": "likely future use",
+            "historical": "likely use",
+            "speculative": "likely use",
         }.get(
             self.usage_status, f"an '{self.usage_status}' usage status" # type: ignore
         )  # type: ignore

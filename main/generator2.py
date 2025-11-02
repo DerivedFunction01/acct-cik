@@ -2047,6 +2047,7 @@ def generate_json_from_scenario(
                 (ev.maturity_value is not None and ev.maturity_value > 0) or 
                 (ev.maturity_year and ev.maturity_year <= scenario.reporting_year)
                 or ev.notional == 0
+                or ev.sentence_type in ["terminated_individual", "comparative_no_outstanding", "historical_individual"]
             )
 
             if is_terminated_evidence:
@@ -2055,7 +2056,7 @@ def generate_json_from_scenario(
                 "type": ev.instrument_type or "Unknown",
                 "category": ev.category,
                 "status": "current",
-                "amount": 0,
+                "amount": ev.notional,
                 "currency": ev.currency,
                 "value_type": ev.value_type,
                 "level": "individual",
