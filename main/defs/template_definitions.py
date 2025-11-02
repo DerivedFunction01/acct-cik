@@ -21,10 +21,10 @@ def _format_single_notional(
 
 def _cleanup_sentence(sentence: str) -> str:
     """Clean up sentence by removing empty placeholders and extra spaces."""
-    # Add a space before a clause if the preceding character is not a space or comma
-    sentence = re.sub(r"([a-zA-Z0-9,])({hedge_designation_clause}|{result_clause}|{maturity_clause})", r"\1 \2", sentence) #noqa
+    # Add a space before a clause if the preceding character is not a space, comma, or newline
+    sentence = re.sub(r"([a-zA-Z0-9,])({hedge_designation_clause}|{result_clause}|{maturity_clause})", r"\1 \2", sentence)
 
-    # Remove any remaining optional placeholders that weren't filled
+    # Remove any remaining optional placeholders that weren't filled, and any leading/trailing spaces around them
     sentence = sentence.replace("{hedge_designation_clause}", "")
     sentence = sentence.replace("{result_clause}", "")
     sentence = sentence.replace("{maturity_clause}", "")
@@ -33,6 +33,9 @@ def _cleanup_sentence(sentence: str) -> str:
     # Clean up multiple spaces
     while "  " in sentence:
         sentence = sentence.replace("  ", " ")
+
+    # Remove leading commas that can result from empty prefixes
+    sentence = re.sub(r'^\s*,\s*', '', sentence)
 
     # Clean up comma/space issues more aggressively
     sentence = sentence.replace(" ,", ",")
@@ -294,7 +297,7 @@ hedge_no_trading_templates = [
 # Note: {time_adverb} was removed as it was not being populated by the class.
 hedge_counterparty_templates = [
     "Most of the counterparties to the {swap_type} are {counterparty_details} and {company} {policy_verb} the associated inherent credit risks.",
-    "{company} may enter into {swap_type} contracts with {counterparty_details} and {policy_verb} counterparty credit risk on an ongoing basis.",
+    "{company} may enter into {swap_type} contracts with {counterparty_details} and {policy_verb} counterparty credit risk on an ongoing basis.", # `policy_verb` should be a monitoring verb like 'monitors'
     "Counterparties for {swap_type} are limited to {counterparty_details} with strong credit ratings to minimize counterparty risk.",
     "Credit risk from {swap_type} is {risk_verb} by transacting only with highly-rated financial institution counterparties.",
     "{company} {risk_verb} counterparty credit exposure by diversifying its {swap_type} contracts among multiple {counterparty_details}.",
@@ -341,8 +344,8 @@ result_phrases = {
         "which {mitigation_verb} the potential impact of {gain_loss} in {ir_term} on its interest-bearing liabilities",
         "which effectively converts the {rate_term1} into a {rate_term2} of {debt_type}",
         "to hedge {formatted_amount} of various {debt_type}",
-        "which {financial_outcome_verb} interest income (expense) of {formatted_amount} related to these {swap_type}",
-        "to cap the our {ir_term} at {pct}% on a principal amount of {formatted_amount}",
+        "which {financial_outcome_verb} interest income (expense) of {formatted_amount} related to these {swap_type}", # `financial_outcome_verb` should be 'generated', 'resulted in'
+        "to cap our {ir_term} at {pct}% on a principal amount of {formatted_amount}",
         "to eliminate the incremental {ir_term} if the {debt_type} were to exceed {pct}%",
         "which {mitigation_verb} against the possible negative effects of {ir_term} {risk_term} on {debt_type} obligations",
         "to exchange {rate_term1} and {rate_term2} interest payment obligations",
