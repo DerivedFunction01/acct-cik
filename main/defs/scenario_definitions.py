@@ -32,9 +32,7 @@ class ScenarioArchetype:
     ]  # Per-category likelihood of hedging (past, current).
     policy_coverage: Literal["full", "partial", "light"]
     default_currency: str
-    money_units: List[
-        tuple[str, int]
-    ]  # e.g., [("million", 1_000_000), ("billion", 1_000_000_000)]
+    notional_multiplier: int = 1_000_000
     prefers_abbreviated_numbers: bool = True
     can_have_accounting_update: bool = True
     commodity_types: List[str] = field(

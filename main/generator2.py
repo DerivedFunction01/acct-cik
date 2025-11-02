@@ -31,19 +31,11 @@ from defs.eq_data import EQInstrument, EquityHedgedItem
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
-    # Get currency symbol
     currency_code = scenario.archetype.default_currency
     currency_obj = next((c for c in all_currencies if c.code == currency_code), None)
     currency_symbol = currency_obj.symbol if currency_obj else "$"  # Default to $
 
-    # Get money unit word (e.g., "million")
-    money_unit_word = (
-        scenario.archetype.money_units[0][0]
-        if scenario.archetype.money_units
-        else "million"
-    )
-
-    return currency_symbol, money_unit_word, currency_code
+    return currency_symbol, "million", currency_code
 
 
 # Define a list of company archetypes to choose from during generation.
@@ -59,7 +51,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (0.9, 0.9), "FX": (0.8, 0.8), "CP": (0.6, 0.6), "EQ": (0.3, 0.3), "GEN": (0.1, 0.1)},
         policy_coverage="full",
         default_currency="USD",
-        money_units=[("million", 1_000_000), ("billion", 1_000_000_000)],
+        notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
     ScenarioArchetype(
@@ -73,7 +65,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (0.7, 0.7), "FX": (0.2, 0.2), "CP": (0.8, 0.8), "EQ": (0.0, 0.0), "GEN": (0.1, 0.1)},
         policy_coverage="partial",
         default_currency="USD",
-        money_units=[("million", 1_000_000)],
+        notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
     ScenarioArchetype(
@@ -87,7 +79,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (0.5, 0.5), "FX": (0.7, 0.7), "CP": (0.0, 0.0), "EQ": (0.6, 0.6), "GEN": (0.1, 0.1)},
         policy_coverage="partial",
         default_currency="USD",
-        money_units=[("million", 1_000_000)],
+        notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,  # Tech companies sometimes use full numbers
     ),
     ScenarioArchetype(
@@ -101,7 +93,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (0.95, 0.95), "FX": (0.9, 0.9), "CP": (0.5, 0.5), "EQ": (0.5, 0.5), "GEN": (0.2, 0.2)},
         policy_coverage="full",
         default_currency="USD",
-        money_units=[("billion", 1_000_000_000)],
+        notional_multiplier=1_000_000_000,
         prefers_abbreviated_numbers=True,
     ),
     ScenarioArchetype(
@@ -115,7 +107,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (0.3, 0.3), "FX": (0.3, 0.3), "CP": (0.1, 0.1), "EQ": (0.0, 0.0), "GEN": (0.4, 0.4)},
         policy_coverage="light",
         default_currency="USD",
-        money_units=[("thousand", 1_000), ("million", 1_000_000)],
+        notional_multiplier=1_000,
         prefers_abbreviated_numbers=False,
     ),
     ScenarioArchetype(
@@ -129,7 +121,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (0.0, 0.0), "FX": (0.0, 0.0), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
         policy_coverage="light",
         default_currency="USD",
-        money_units=[("million", 1_000_000)],
+        notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,
     ),
     ScenarioArchetype(
@@ -143,7 +135,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (0.0, -1), "FX": (0.0, -1), "CP": (0.0, -1), "EQ": (0.0, -1), "GEN": (0.0, -1)},
         policy_coverage="light",
         default_currency="USD",
-        money_units=[("million", 1_000_000)],
+        notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,
     ),
     ScenarioArchetype(
@@ -158,7 +150,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (0.0, 0.9), "FX": (0.0, 0.9), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
         policy_coverage="light",
         default_currency="USD",
-        money_units=[("million", 1_000_000)],
+        notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
     ScenarioArchetype(
@@ -173,7 +165,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (1.0, 0.0), "FX": (1.0, 0.0), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
         policy_coverage="light",
         default_currency="USD",
-        money_units=[("million", 1_000_000)],
+        notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
     ScenarioArchetype(
@@ -188,7 +180,7 @@ SCENARIO_ARCHETYPES = [
         hedging_propensities={"IR": (1.0, 0.0), "FX": (0.5, 0.0), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
         policy_coverage="partial",
         default_currency="USD",
-        money_units=[("billion", 1_000_000_000)],
+        notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
 ]
@@ -209,7 +201,7 @@ class ScenarioBuilder:
         self.scenario = scenario
         self.archetype = scenario.archetype
         self.reporting_year = scenario.reporting_year
-        self.multiplier = random.choice(self.archetype.money_units)[1]
+        self.multiplier = self.archetype.notional_multiplier
         self.instrument_id_counter = 1
         self.hedged_item_id_counter = 1
         self.potential_hedged_items: Dict[str, List] = {
@@ -951,7 +943,7 @@ def _generate_debt_narrative(
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
             hedged_item=debt_item,
-            money_units=scenario.archetype.money_units,
+            money_units=NotionalSentence.money_units,
             prefer_abbreviated=scenario.number_format_preference,
             currency_symbol=currency_symbol,
         )
@@ -1042,7 +1034,7 @@ def _generate_category_narrative(
                     reporting_month=scenario.reporting_month,
                     reporting_day=scenario.reporting_day,
                     hedged_item=debt_item,
-                    money_units=scenario.archetype.money_units,
+            money_units=NotionalSentence.money_units,
                     prefer_abbreviated=scenario.number_format_preference,
                     currency_symbol=currency_symbol,
                 )
@@ -1128,7 +1120,7 @@ def _generate_category_narrative(
                 currency_symbol=currency_symbol,
                 month=reporting_month,
                 end_day=reporting_day,
-                money_units=scenario.archetype.money_units,
+                money_units=NotionalSentence.money_units,
                 prefer_abbreviated=scenario.number_format_preference,
                 category=category, # type: ignore
                 reporting_year=reporting_year,
@@ -1193,7 +1185,7 @@ def _generate_category_narrative(
                         reporting_year=reporting_year,
                         currency_symbol=currency_symbol,
                         currency_code=currency_code,
-                        money_units=scenario.archetype.money_units,
+                        money_units=NotionalSentence.money_units,
                         prefer_abbreviated=scenario.number_format_preference,
                         value_type=value_type,
                     )
@@ -1232,7 +1224,7 @@ def _generate_category_narrative(
                     individual_sentence_obj = NotionalSentence(
                         swap_type=name_to_use, year=year_to_report, notional=notional_to_report,
                         currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type=sentence_type, # type: ignore
-                        money_units=scenario.archetype.money_units,
+                        money_units=NotionalSentence.money_units,
                         maturity_year=instrument.maturity_year, prefer_abbreviated=scenario.number_format_preference,
                         category=category, reporting_year=reporting_year, value_type=value_type, # type: ignore
                         is_repeated_mention=is_repeated,
@@ -1285,7 +1277,7 @@ def _generate_category_narrative(
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
                         sentence_type="terminated_individual", # type: ignore
-                        money_units=scenario.archetype.money_units,
+                        money_units=NotionalSentence.money_units,
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
                         category=category, reporting_year=reporting_year, value_type=value_type_terminated, # type: ignore

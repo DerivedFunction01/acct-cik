@@ -298,11 +298,20 @@ class NotionalSentence:
 
     # Formatting preferences
     money_units: List[Tuple[str, int]] = field(
-        default_factory=lambda: [("million", 1_000_000)]
+        default_factory=lambda: [
+            ("billion", 1_000_000_000),
+            ("million", 1_000_000),
+            ("thousand", 1_000),
+        ]
     )
     prefer_abbreviated: bool = True
     is_repeated_mention: bool = False
     optional_chance: float = 0.5
+
+    def __post_init__(self):
+        # If comparative_no_outstanding is chosen but there's no prior notional, it's just a 'no_instruments' case.
+        if self.sentence_type == "comparative_no_outstanding" and self.notional is None:
+            self.sentence_type = "no_instruments"
 
     def build(self) -> Tuple[str, NotionalEvidence]:
         """

@@ -102,7 +102,6 @@ termination_verbs_past = [
     "ended",
     "were settled",
     "were terminated",
-    "reached their expiration date",
 ]
 
 termination_noun = [
