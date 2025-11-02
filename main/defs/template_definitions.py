@@ -728,10 +728,10 @@ class Table:
 
     def money_unit(self) -> str:
         amount_to_string = {
-         1_000_000_000_000: "in trillions",
-         1_000_000_000: "in billions",
-         1_000_000: "in millions",
-         1_000: "in thousands"
+         1_000_000_000_000: "trillions",
+         1_000_000_000: "billions",
+         1_000_000: "millions",
+         1_000: "thousands"
         }
         if self.notional_multiplier in amount_to_string:
             return amount_to_string[self.notional_multiplier]
