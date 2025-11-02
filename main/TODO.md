@@ -67,13 +67,14 @@ This is the most critical phase. Before any model training, the data generation 
     -   The old `generator.py` had functions like `generate_debt`, `generate_fx`, and `generate_commodity` that created realistic, non-derivative sentences to provide context around the main topic. This "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk.
     -   **[x] Port IR/Debt Context:** Done. `DebtContextSentence` has been created and integrated into the IR narrative generation in `generator2.py`.
     -   **[ ] Port FX Context:**
-        -   **Action:** Create a new `FXContextSentence` class in `defs/fx_data.py` that uses templates to describe foreign operations, international sales, or currency translation effects without mentioning derivatives.
+        -   **[x] Action:** Create a new `FXContextSentence` class in `defs/fx_data.py` that uses templates to describe foreign operations, international sales, or currency translation effects without mentioning derivatives. **Done.**
     -   **[ ] Port CP Context:**
-        -   **Action:** Create a new `CPContextSentence` class in `defs/cp_data.py` that uses templates to describe commodity-related business activities (e.g., "our primary raw material is crude oil...") without mentioning derivatives.
+        -   **[x] Action:** Create a new `CPContextSentence` class in `defs/cp_data.py` that uses templates to describe commodity-related business activities (e.g., "our primary raw material is crude oil...") without mentioning derivatives. **Done.**
     -   **[ ] Port EQ Context:**
         -   **Action:** Create a new `EQContextSentence` class in `defs/eq_data.py` that uses templates to describe equity-related activities (e.g., stock compensation plans, investments in other companies) without mentioning derivatives.
     -   **[ ] Integrate New Context Classes:**
-        -   **Action:** Integrate the `build()` methods for `FXContextSentence`, `CPContextSentence`, and `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for their respective categories. This should be done probabilistically to inject relevant, non-derivative context.
+        -   **[x] Action:** Integrate the `build()` methods for `FXContextSentence` and `CPContextSentence` into `generator2.py`'s `_generate_category_narrative` function for their respective categories. This should be done probabilistically to inject relevant, non-derivative context. **Done.**
+        -   **[ ] Action:** Integrate the `build()` method for `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for the EQ category.
 
 -   **[ ] Improve Generation Quality (Continued):**
     -   The user expressed a desire for "higher quality compared to using templates randomly selected."

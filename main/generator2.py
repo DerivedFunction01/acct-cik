@@ -27,7 +27,7 @@ from defs.scenario_definitions import company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.template_definitions import hedge_no_trading_templates
-from defs.eq_data import EQInstrument, EquityHedgedItem
+from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -1390,6 +1390,30 @@ def _generate_category_narrative(
                 cp_paragraph = cp_context_builder.build()
                 if cp_paragraph:
                     sentences.append(cp_paragraph)
+
+        # --- NEW: Add EQ context for EQ category ---
+        if category == "EQ":
+            all_eq_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, EquityHedgedItem)]
+            # Describe context for one of the hedged items, if any exist.
+            items_to_describe = random.sample(all_eq_hedged_items, k=min(len(all_eq_hedged_items), 1))
+
+            # If there are no hedged items for this category, still generate a generic context sentence.
+            if not items_to_describe:
+                items_to_describe.append(None)
+
+            for eq_item in items_to_describe:
+                eq_context_builder = EQContextSentence(
+                    company_name=scenario.company_name,
+                    reporting_year=scenario.reporting_year,
+                    reporting_month=scenario.reporting_month,
+                    reporting_day=scenario.reporting_day,
+                    hedged_item=eq_item,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    currency_symbol=currency_symbol,
+                )
+                eq_paragraph = eq_context_builder.build()
+                if eq_paragraph:
+                    sentences.append(eq_paragraph)
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(

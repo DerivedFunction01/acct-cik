@@ -13,6 +13,7 @@ from defs.common_data import (
     state_descriptors,
     warrant_events,
     financing_types,
+    quarters,
 )
 
 stock_list = [
@@ -126,7 +127,7 @@ class EQContextSentence:
                 "financing_type": random.choice(financing_types),
                 "short_int": short_int,
                 "state_descriptor": random.choice(state_descriptors),
-                "quarter": random.choice(["first", "second", "third", "fourth"]),
+                "quarter": random.choice(quarters),
             }
 
             # Use format_map to safely populate the template
