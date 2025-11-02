@@ -359,11 +359,23 @@ class CPContextSentence:
                 "cost_type": cost_type,
                 "supply_agreements": random.choice(DEFAULT_SUFFIXES) + "s",
                 "inventory_method": random.choice(inventory_methods),
-                "amount_str": _format_single_notional(
-                    amount1, self.currency_symbol, self.prefer_abbreviated
+                "amount_str": (
+                    _format_single_notional(
+                        amount1 / 1000, unit, self.prefer_abbreviated, is_currency=False
+                    )
+                    if random.random() < 0.3
+                    else _format_single_notional(
+                        amount1, self.currency_symbol, self.prefer_abbreviated
+                    )
                 ),
-                "amount_str2": _format_single_notional(
-                    amount2, self.currency_symbol, self.prefer_abbreviated
+                "amount_str2": (
+                    _format_single_notional(
+                        amount2 / 1000, unit, self.prefer_abbreviated, is_currency=False
+                    )
+                    if random.random() < 0.3
+                    else _format_single_notional(
+                        amount2, self.currency_symbol, self.prefer_abbreviated
+                    )
                 ),
                 "small_int": random.randint(30, 90),
                 "large_int": random.randint(100_000, 5_000_000),
