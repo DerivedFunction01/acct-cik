@@ -1397,10 +1397,6 @@ def _generate_category_narrative(
             # Describe context for one of the hedged items, if any exist.
             items_to_describe = random.sample(all_eq_hedged_items, k=min(len(all_eq_hedged_items), 1))
 
-            # If there are no hedged items for this category, still generate a generic context sentence.
-            if not items_to_describe:
-                items_to_describe.append(None)
-
             for eq_item in items_to_describe:
                 eq_context_builder = EQContextSentence(
                     company_name=scenario.company_name,
