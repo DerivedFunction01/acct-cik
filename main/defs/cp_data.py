@@ -10,6 +10,7 @@ from defs.common_data import (
     cost_metrics,
     risk_management_verbs,
     inventory_methods,
+    market_drivers,
 )
 from defs.function_definitions import _get_company_reference
 from defs.template_definitions import _cleanup_sentence, _format_single_notional
@@ -379,6 +380,7 @@ class CPContextSentence:
                 ),
                 "unit": unit,
                 "maturity_year": self.reporting_year + random.randint(1, 5),
+                "market_driver": random.choice(market_drivers)
             }
 
             # Use format_map to safely populate the template
