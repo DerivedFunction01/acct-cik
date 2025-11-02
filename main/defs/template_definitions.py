@@ -18,6 +18,7 @@ def _format_single_notional(
         # else, format as amount (e.g., "$0")
 
     amount_to_string = {
+        "trillion": 1_000_000_000_000,
         "billion": 1_000_000_000,
         "million": 1_000_000,
         "thousand": 1_000,
