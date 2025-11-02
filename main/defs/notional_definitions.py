@@ -895,15 +895,19 @@ class TimelineSentence:
         inception_year = selected_years[0]
         final_year = selected_years[-1]
 
+        # --- FIX: Determine the correct final status for the consolidated evidence ---
+        # If the instrument's maturity year is before the reporting year, it's terminated.
+        is_terminated_before_report = self.instrument.maturity_year and self.instrument.maturity_year < self.reporting_year
+        final_status = "terminated_individual" if is_terminated_before_report else "timeline"
+
         consolidated_evidence = NotionalEvidence(
             instrument_id=self.instrument.instrument_id,
-            status="timeline",  # A new status for our custom handler
+            status=final_status,  # Use the corrected status
             category=self.instrument.category,
             # --- FIX: Use maturity_value for terminated instruments in the evidence ---
             notional=(
-                self.instrument.maturity_value
-                if self.instrument.maturity_year
-                and self.instrument.maturity_year < self.reporting_year
+                self.instrument.maturity_value or self.instrument.notional_history.get(final_year, 0)
+                if is_terminated_before_report
                 else self.instrument.notional_history.get(final_year, 0)
             ),
             notional_str=timeline_notional_strings[final_year],
