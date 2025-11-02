@@ -5,10 +5,10 @@ from typing import List, Literal, Optional, Tuple
 
 def _format_single_notional(
     amount: int | float,
-    symbol: str,
+    symbol: str, # The currency symbol, e.g., '$'
     prefer_abbreviated: bool,
     zero_format: Literal["nil", "zero", "amount"] = "amount",
-    is_currency: bool = True,
+    unit: Optional[str] = None, # The non-currency unit, e.g., 'barrels'
 ) -> str:
     """Formats a single notional amount into a readable string like '$250.0 million' or '250.0 thousand barrels'."""
     if amount == 0:
@@ -29,16 +29,17 @@ def _format_single_notional(
         ):
             if amount >= divisor:
                 # Format to one decimal place
-                formatted_amount = f"{amount / divisor:.1f} {unit_word}"
-                if is_currency:
-                    return f"{symbol} {formatted_amount}"
-                else:
-                    return f"{formatted_amount} {symbol}"
+                formatted_number = f"{amount / divisor:.1f} {unit_word}"
+                if unit: # If a unit is provided, format as a quantity
+                    return f"{formatted_number} {unit}"
+                # Otherwise, format as a currency
+                return f"{symbol} {formatted_number}"
 
     # Fallback to full numeric value with commas
-    if is_currency:
+    if unit:
+        return f"{amount:,.0f} {unit}"
+    else:
         return f"{symbol} {amount:,.0f}"
-    return f"{amount:,.0f} {symbol}"
 
 
 def _cleanup_sentence(sentence: str) -> str:

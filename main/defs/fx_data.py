@@ -167,7 +167,7 @@ class FXContextSentence:
         # --- NEW: Create a list of currencies with their amounts ---
         currencies_with_amounts_list = []
         for exp in currencies_to_mention_objects:
-            amount_str = _format_single_notional(exp.amount if isinstance(exp, CurrencyExposure) else random.randint(1, 200) * 1_000, exp.symbol, self.prefer_abbreviated)
+            amount_str = _format_single_notional(exp.amount if isinstance(exp, CurrencyExposure) else random.randint(1, 200) * 1_000_000, exp.symbol, self.prefer_abbreviated)
             # e.g., "Euro (€50.0 million)"
             currencies_with_amounts_list.append(f"{exp.full_name} ({amount_str})")
         if len(currencies_with_amounts_list) > 1:

@@ -360,20 +360,20 @@ class CPContextSentence:
                 "supply_agreements": random.choice(DEFAULT_SUFFIXES) + "s",
                 "inventory_method": random.choice(inventory_methods),
                 "amount_str": (
-                    _format_single_notional(
-                        amount1 / 1000, unit, self.prefer_abbreviated, is_currency=False
-                    )
+                    _format_single_notional( # Format as a quantity with a unit
+                        amount1 / 1000, self.currency_symbol, self.prefer_abbreviated, unit=unit
+                    ) 
                     if random.random() < 0.3
-                    else _format_single_notional(
+                    else _format_single_notional( # Format as a currency
                         amount1, self.currency_symbol, self.prefer_abbreviated
                     )
                 ),
                 "amount_str2": (
-                    _format_single_notional(
-                        amount2 / 1000, unit, self.prefer_abbreviated, is_currency=False
-                    )
+                    _format_single_notional( # Format as a quantity with a unit
+                        amount2 / 1000, self.currency_symbol, self.prefer_abbreviated, unit=unit
+                    ) 
                     if random.random() < 0.3
-                    else _format_single_notional(
+                    else _format_single_notional( # Format as a currency
                         amount2, self.currency_symbol, self.prefer_abbreviated
                     )
                 ),
