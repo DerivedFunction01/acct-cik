@@ -523,7 +523,6 @@ class ScenarioBuilder:
                 "base_type": base_type,
                 "suffix": suffix,
             }
-            base_args["symbol"] = instrument_symbol # Pass the symbol for formatting
 
             new_instrument = _create_instrument_with_history(
                 scenario=self.scenario,
@@ -532,6 +531,7 @@ class ScenarioBuilder:
                 is_past=(hedged_item not in items_to_hedge),
                 instrument_id=self.instrument_id_counter,
                 base_instrument_args=base_args,
+                symbol=instrument_symbol, # Pass the symbol here
             )
             self.scenario.instruments.append(new_instrument)
             self.instrument_id_counter += 1
@@ -630,6 +630,7 @@ class ScenarioBuilder:
                 is_past=is_terminated,
                 instrument_id=self.instrument_id_counter,
                 base_instrument_args=base_args,
+                symbol=_get_currency_and_unit_details(self.scenario)[0], # Default currency symbol
             )
             self.scenario.instruments.append(new_instrument)
             self.instrument_id_counter += 1
@@ -823,10 +824,10 @@ def _create_instrument_with_history(
     instrument_class: type,
     instrument_id: int,
     base_instrument_args: Dict,
+    symbol: str,
     is_new: bool,
     is_past: bool,
 ) -> NotionalInstrument:
-    base_instrument_args.pop("symbol", None) # Remove symbol if it exists, not part of constructor
     """
     Creates a single instrument and populates its history (past and optionally future).
 
@@ -839,6 +840,7 @@ def _create_instrument_with_history(
         instrument_class: The class of the instrument to create (e.g., IRInstrument).
         instrument_id: The unique ID for this instrument and its history.
         base_instrument_args: A dictionary of arguments for the instrument constructor,
+        symbol: The currency symbol or unit to be used for formatting.
                               including the notional amount.
         is_new: A flag indicating if the instrument was initiated in the current reporting year.
         is_past: A flag indicating if the instrument is historical (matured before reporting year).
@@ -917,6 +919,7 @@ def _create_instrument_with_history(
     instrument = instrument_class(
         instrument_id=instrument_id,
         notional_history=notional_history,
+        symbol=symbol,
         **base_instrument_args,
     )
 
@@ -1678,7 +1681,7 @@ def _generate_category_narrative(
                         swap_type=name_to_use,
                         year=year_to_report,
                         notional=notional_to_report,
-                        currency_symbol=currency_symbol,
+                        currency_symbol=instrument.symbol,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type,  # type: ignore
                         prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None,  # type: ignore
@@ -1787,7 +1790,7 @@ def _generate_category_narrative(
                         swap_type=name_to_use_terminated,
                         year=reporting_year,
                         notional=notional_to_report,
-                        currency_symbol=currency_symbol,
+                        currency_symbol=instrument.symbol,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type_to_use,  # type: ignore
                         # Pass prior year data only for the 'comparative' type

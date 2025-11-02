@@ -76,6 +76,7 @@ class DerivativeInstrument:
     instrument_alias: str
     placeholder: str
     base_type: str
+    symbol: str
     suffix: str
     category: DerivativeCategory
     start_month: str
