@@ -155,18 +155,12 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         def summary_handler() -> str:
             # Summary is always aggregate, so it won't have a specific "aha" moment for an individual instrument.
-            # Its logic remains focused on aggregate values.
-            # --- NEW: Handle zero/nil values explicitly in the reasoning ---
-            if self.notional is not None and self.notional == 0:
-                # If the formatted string is 'nil' or 'zero', use it. Otherwise, default to 'a value of zero'.
-                zero_desc = self.notional_str if self.notional_str in ['nil', 'zero'] else "a value of zero"
-                value_part = f" of {zero_desc}"
-            elif self.notional_str:
-                value_part = f" of {self.notional_str}"
-            elif self.notional is not None:
-                 value_part = f" of {self.notional}" # Fallback to raw number
-            else:
-                value_part = " with no value specified"
+            # Its logic remains focused on aggregate values. The phrase "An aggregate..." is sufficient.
+            value_part = (
+                f" of {self.notional_str}"
+                if self.notional_str or self.notional is not None
+                else " with no value specified"
+            )
             return f"An aggregate {value_desc}{value_part} was identified for {base_desc} activity{temporal_info}"
 
         def new_individual_handler() -> str:
@@ -319,6 +313,7 @@ class NotionalSentence:
     notional_multiplier: int = 1_000_000
     prefer_abbreviated: bool = True
     zero_notional_format: Literal["nil", "zero", "amount"] = "amount"
+    instrument: Optional[NotionalInstrument] = None
     is_repeated_mention: bool = False
     optional_chance: float = 0.5
 
@@ -721,6 +716,7 @@ class NotionalSentence:
         # For this specific case, the 'notional' passed in is actually the *previous* year's notional.
         # The current year's notional is zero. We need to reflect this in the evidence.
         if self.sentence_type == "comparative_no_outstanding":
+            # The notional passed to the constructor is the prior year's value.
             evidence = NotionalEvidence(
                 instrument_id=None,
                 status=self.sentence_type,
@@ -728,7 +724,7 @@ class NotionalSentence:
                 aggregate=True,  # This is an aggregate statement
                 notional=0,  # Current year notional is zero
                 year=self.reporting_year,
-                notional_str=None,  # No notional string for current year
+                prev_notional=self.notional, # The value from the prior year
                 prev_notional_str=final_notional_str,  # The formatted amount is for the prior year
                 prev_year=self.year - 1,
                 instrument_type=self.swap_type,
@@ -849,11 +845,10 @@ class TimelineSentence:
                 formatted_notional = _format_single_notional(
                     notional, self.currency_symbol, self.prefer_abbreviated
                 )
-                # If notional is zero or decreased by more than 30%, it's a partial settlement.
+                # If notional decreased by more than 30%, it's a partial settlement.
                 if (
-                    notional == 0 or
-                    (prev_notional is not None
-                    and notional < prev_notional * 0.7)
+                    prev_notional
+                    and notional < prev_notional * 0.7
                     and random.random() < 0.8
                 ):
                     sentence_type = "partial_settlement"
@@ -895,19 +890,15 @@ class TimelineSentence:
         inception_year = selected_years[0]
         final_year = selected_years[-1]
 
-        # --- FIX: Determine the correct final status for the consolidated evidence ---
-        # If the instrument's maturity year is before the reporting year, it's terminated.
-        is_terminated_before_report = self.instrument.maturity_year and self.instrument.maturity_year < self.reporting_year
-        final_status = "terminated_individual" if is_terminated_before_report else "timeline"
-
         consolidated_evidence = NotionalEvidence(
             instrument_id=self.instrument.instrument_id,
-            status=final_status,  # Use the corrected status
+            status="timeline",  # A new status for our custom handler
             category=self.instrument.category,
             # --- FIX: Use maturity_value for terminated instruments in the evidence ---
             notional=(
-                self.instrument.maturity_value or self.instrument.notional_history.get(final_year, 0)
-                if is_terminated_before_report
+                self.instrument.maturity_value
+                if self.instrument.maturity_year
+                and self.instrument.maturity_year < self.reporting_year
                 else self.instrument.notional_history.get(final_year, 0)
             ),
             notional_str=timeline_notional_strings[final_year],

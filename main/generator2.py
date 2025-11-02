@@ -1545,10 +1545,6 @@ def _generate_category_narrative(
                     instrument.instrument_id in mentioned_instrument_ids
                 )
 
-                # --- NEW: Add a chance to use a comparative sentence for terminated instruments ---
-                # This tests the "nil" or "$0" formatting for the current year.
-                use_comparative_for_terminated = random.random() < 0.3  # 30% chance
-
                 if use_timeline_for_terminated:
                     timeline_builder = TimelineSentence(
                         instrument=instrument,
@@ -1566,43 +1562,55 @@ def _generate_category_narrative(
                         mentioned_instrument_ids.add(instrument.instrument_id)
                         mentioned_instrument_types.add(instrument.instrument_type)
                 else:
-                    # --- MODIFIED: Choose between standard "terminated" or "comparative_no_outstanding" ---
-                    value_type_terminated = "notional"  # Keep it simple
-                    # --- FIX: Prioritize maturity_value for the most accurate final amount ---
-                    value_to_report_terminated = (
-                        instrument.maturity_value
-                        or instrument.notional_history.get(reporting_year - 1, 0)
-                    )
+                    # --- NEW: Use a weighted choice for describing terminated instruments ---
+                    options = ["terminated_individual", "comparative_no_outstanding", "comparative"]
+                    weights = [0.50, 0.35, 0.15] # Base weights
 
-                    use_alias_terminated = (
-                        is_repeated_instance_terminated and random.random() < 0.75
-                    )
-                    name_to_use_terminated = (
-                        instrument.instrument_alias
-                        if use_alias_terminated and instrument.instrument_alias
-                        else instrument.instrument_type
-                    )
+                    # A 'comparative' sentence is only possible if there are at least two prior years of history.
+                    can_do_comparative = len(instrument.notional_history) >= 2
+                    if not can_do_comparative:
+                        # Remove 'comparative' option and re-normalize weights
+                        options.pop()
+                        weights.pop()
+                        total_weight = sum(weights)
+                        weights = [w / total_weight for w in weights]
 
-                    sentence_type_to_use = (
-                        "comparative_no_outstanding"
-                        if use_comparative_for_terminated
-                        else "terminated_individual"
-                    )
+                    sentence_type_to_use = random.choices(options, weights=weights, k=1)[0]
+
+                    # Set up data based on the chosen sentence type
+                    notional_to_report = 0
+                    if sentence_type_to_use == "terminated_individual":
+                        # The 'notional' is the final value from the prior year.
+                        notional_to_report = instrument.maturity_value or instrument.notional_history.get(reporting_year - 1, 0)
+                    elif sentence_type_to_use == "comparative_no_outstanding":
+                        # The 'notional' is the prior year's value, which will be compared against zero.
+                        notional_to_report = instrument.notional_history.get(reporting_year - 1, 0)
+                    elif sentence_type_to_use == "comparative":
+                        # The 'notional' is the value from reporting_year - 1.
+                        # The 'prev_notional' will be from reporting_year - 2.
+                        notional_to_report = instrument.notional_history.get(reporting_year - 1, 0)
+
+                    use_alias_terminated = is_repeated_instance_terminated and random.random() < 0.75
+                    name_to_use_terminated = instrument.instrument_alias if use_alias_terminated and instrument.instrument_alias else instrument.instrument_type
 
                     terminated_instrument_obj = NotionalSentence(
                         swap_type=name_to_use_terminated,
                         year=reporting_year,
-                        # For comparative, the 'notional' is the prior year's value. For terminated, it's the final value.
-                        notional=value_to_report_terminated,
+                        notional=notional_to_report,
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type_to_use,  # type: ignore
+                        # Pass prior year data only for the 'comparative' type
+                        prev_notional=instrument.notional_history.get(reporting_year - 2, 0) if sentence_type_to_use == "comparative" else None,
+                        prev_year=reporting_year - 1 if sentence_type_to_use == "comparative" else None,
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
+                        zero_notional_format=scenario.archetype.zero_notional_format,
                         category=category,  # type: ignore
                         reporting_year=reporting_year,
-                        value_type=value_type_terminated,
+                        value_type="notional",
                         is_repeated_mention=is_repeated_type_terminated,
+                        instrument=instrument,
                     )
                     terminated_instrument_text, evidence_obj = (
                         terminated_instrument_obj.build()
