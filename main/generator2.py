@@ -48,8 +48,15 @@ SCENARIO_ARCHETYPES = [
         commodity_types=["energy", "metals_minerals", "agriculture"],
         equity_exposure_range=(1, 3),
         generic_instrument_range=(0, 2),
-        hedging_propensities={"IR": (0.9, 0.9), "FX": (0.8, 0.8), "CP": (0.6, 0.6), "EQ": (0.3, 0.3), "GEN": (0.1, 0.1)},
+        hedging_propensities={
+            "IR": (0.9, 0.9),
+            "FX": (0.8, 0.8),
+            "CP": (0.6, 0.6),
+            "EQ": (0.3, 0.3),
+            "GEN": (0.1, 0.1),
+        },
         policy_coverage="full",
+        comparative_years=3,
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
@@ -62,8 +69,15 @@ SCENARIO_ARCHETYPES = [
         commodity_types=["metals_minerals", "lumber_wood", "chemicals_plastics"],
         equity_exposure_range=(0, 1),
         generic_instrument_range=(0, 1),
-        hedging_propensities={"IR": (0.7, 0.7), "FX": (0.2, 0.2), "CP": (0.8, 0.8), "EQ": (0.0, 0.0), "GEN": (0.1, 0.1)},
+        hedging_propensities={
+            "IR": (0.7, 0.7),
+            "FX": (0.2, 0.2),
+            "CP": (0.8, 0.8),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.1, 0.1),
+        },
         policy_coverage="partial",
+        comparative_years=2,
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
@@ -76,8 +90,15 @@ SCENARIO_ARCHETYPES = [
         commodity_types=[],
         equity_exposure_range=(2, 4),
         generic_instrument_range=(0, 1),
-        hedging_propensities={"IR": (0.5, 0.5), "FX": (0.7, 0.7), "CP": (0.0, 0.0), "EQ": (0.6, 0.6), "GEN": (0.1, 0.1)},
+        hedging_propensities={
+            "IR": (0.5, 0.5),
+            "FX": (0.7, 0.7),
+            "CP": (0.0, 0.0),
+            "EQ": (0.6, 0.6),
+            "GEN": (0.1, 0.1),
+        },
         policy_coverage="partial",
+        comparative_years=1,
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,  # Tech companies sometimes use full numbers
@@ -90,9 +111,16 @@ SCENARIO_ARCHETYPES = [
         commodity_types=["precious_metals", "energy"],
         equity_exposure_range=(1, 3),
         generic_instrument_range=(1, 2),
-        hedging_propensities={"IR": (0.95, 0.95), "FX": (0.9, 0.9), "CP": (0.5, 0.5), "EQ": (0.5, 0.5), "GEN": (0.2, 0.2)},
+        hedging_propensities={
+            "IR": (0.95, 0.95),
+            "FX": (0.9, 0.9),
+            "CP": (0.5, 0.5),
+            "EQ": (0.5, 0.5),
+            "GEN": (0.2, 0.2),
+        },
         policy_coverage="full",
         default_currency="USD",
+        comparative_years=2,
         notional_multiplier=1_000_000_000,
         prefers_abbreviated_numbers=True,
     ),
@@ -104,37 +132,58 @@ SCENARIO_ARCHETYPES = [
         commodity_types=["generic"],
         equity_exposure_range=(0, 0),
         generic_instrument_range=(1, 2),
-        hedging_propensities={"IR": (0.3, 0.3), "FX": (0.3, 0.3), "CP": (0.1, 0.1), "EQ": (0.0, 0.0), "GEN": (0.4, 0.4)},
+        hedging_propensities={
+            "IR": (0.3, 0.3),
+            "FX": (0.3, 0.3),
+            "CP": (0.1, 0.1),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.4, 0.4),
+        },
         policy_coverage="light",
+        comparative_years=1,
         default_currency="USD",
         notional_multiplier=1_000,
         prefers_abbreviated_numbers=False,
     ),
     ScenarioArchetype(
         name="Potential User",
-        debt_exposure_range=(1, 3), # Has exposures...
-        fx_exposure_range=(1, 3), # ...but won't hedge them.
+        debt_exposure_range=(1, 3),  # Has exposures...
+        fx_exposure_range=(1, 3),  # ...but won't hedge them.
         commodity_exposure_range=(1, 2),
         commodity_types=["agriculture", "energy"],
         equity_exposure_range=(0, 1),
         generic_instrument_range=(0, 1),
-        hedging_propensities={"IR": (0.0, 0.0), "FX": (0.0, 0.0), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
         policy_coverage="light",
+        comparative_years=2,
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,
     ),
     ScenarioArchetype(
         name="Non-User",
-        debt_exposure_range=(1, 2), # Has exposures...
-        fx_exposure_range=(1, 2), # ...but will never hedge them.
+        debt_exposure_range=(1, 2),  # Has exposures...
+        fx_exposure_range=(1, 2),  # ...but will never hedge them.
         commodity_exposure_range=(0, 1),
         commodity_types=["generic"],
         equity_exposure_range=(0, 0),
         generic_instrument_range=(0, 1),
-        hedging_propensities={"IR": (0.0, -1), "FX": (0.0, -1), "CP": (0.0, -1), "EQ": (0.0, -1), "GEN": (0.0, -1)},
+        hedging_propensities={
+            "IR": (0.0, -1),
+            "FX": (0.0, -1),
+            "CP": (0.0, -1),
+            "EQ": (0.0, -1),
+            "GEN": (0.0, -1),
+        },
         policy_coverage="light",
         default_currency="USD",
+        comparative_years=2,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,
     ),
@@ -147,9 +196,16 @@ SCENARIO_ARCHETYPES = [
         equity_exposure_range=(0, 0),
         generic_instrument_range=(0, 0),
         # Past propensity is 0, current is high.
-        hedging_propensities={"IR": (0.0, 0.9), "FX": (0.0, 0.9), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
+        hedging_propensities={
+            "IR": (0.0, 0.9),
+            "FX": (0.0, 0.9),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
         policy_coverage="light",
         default_currency="USD",
+        comparative_years=3,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
@@ -162,9 +218,16 @@ SCENARIO_ARCHETYPES = [
         equity_exposure_range=(0, 0),
         generic_instrument_range=(0, 0),
         # Past propensity was high, current is 0.
-        hedging_propensities={"IR": (1.0, 0.0), "FX": (1.0, 0.0), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
+        hedging_propensities={
+            "IR": (1.0, 0.0),
+            "FX": (1.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
         policy_coverage="light",
         default_currency="USD",
+        comparative_years=3,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
@@ -177,9 +240,16 @@ SCENARIO_ARCHETYPES = [
         equity_exposure_range=(0, 0),
         generic_instrument_range=(0, 0),
         # Past propensity for IR was high, current is 0.
-        hedging_propensities={"IR": (1.0, 0.0), "FX": (0.5, 0.0), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
+        hedging_propensities={
+            "IR": (1.0, 0.0),
+            "FX": (0.5, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
         policy_coverage="partial",
         default_currency="USD",
+        comparative_years=2,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
@@ -1151,11 +1221,17 @@ def _generate_category_narrative(
             prev_year_to_report = None
             prev2_year_to_report = None
             swap_type_for_summary = instrument_type  # Default to the single-year description
-
-            # --- DEBUG: Force comparative summary if flag is set ---
-            use_three_year_comparative = current_notional > 0 and prev_notional > 0 and prev2_notional > 0 and random.random() < 0.25 # 25% chance for 3-year
-            use_two_year_comparative = current_notional > 0 and prev_notional > 0 and random.random() < 0.4 # 40% chance for 2-year
-
+ 
+            # --- NEW: Use archetype to determine comparative years ---
+            comparative_years = scenario.archetype.comparative_years
+            use_three_year_comparative = (comparative_years == 3 and current_notional > 0 and prev_notional > 0 and prev2_notional > 0)
+            use_two_year_comparative = (comparative_years == 2 and current_notional > 0 and prev_notional > 0)
+ 
+            # Add a random chance to still generate a comparative sentence even if not the default
+            if not (use_three_year_comparative or use_two_year_comparative) and random.random() < 0.3:
+                if comparative_years > 1 and current_notional > 0 and prev_notional > 0:
+                    use_two_year_comparative = True
+ 
             if use_three_year_comparative:
                 sentence_type_to_use = "comparative"
                 notional_to_report = current_notional
@@ -1293,7 +1369,13 @@ def _generate_category_narrative(
                             sentence_type = "comparative_no_prior_outstanding"
                         else:
                             sentence_type = "new_individual"
-                    elif is_historical and random.random() < 0.4: # 40% chance for a comparative sentence
+                    # --- NEW: Use archetype to determine comparative years for individual instruments ---
+                    elif is_historical and scenario.archetype.comparative_years == 3 and instrument.notional_history.get(reporting_year - 2, 0) > 0:
+                        sentence_type = "comparative"
+                    elif is_historical and scenario.archetype.comparative_years == 2 and instrument.notional_history.get(reporting_year - 1, 0) > 0:
+                        sentence_type = "comparative"
+                    # Fallback random chance
+                    elif is_historical and random.random() < 0.2:
                         sentence_type = "comparative"
                     elif is_historical and random.random() < 0.35: # 35% chance for a historical sentence
                         sentence_type = "historical_individual"
@@ -1322,8 +1404,9 @@ def _generate_category_narrative(
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type,  # type: ignore
-                        prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None,
-                        prev_year=reporting_year - 1 if sentence_type == "comparative" else None,
+                        prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None, # type: ignore
+                        prev2_notional=instrument.notional_history.get(reporting_year - 2, 0) if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None, # type: ignore
+                        prev_year=reporting_year - 1 if sentence_type == "comparative" else None, # type: ignore
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
                         category=category,  # type: ignore
