@@ -909,7 +909,7 @@ def _generate_instrument_name(
 
     # --- NEW: Context-aware alias generation ---
     other_base_types = (all_scenario_base_types or set()) - {base_type}
-    alias = _create_contextual_alias(base_type, category, placeholder, other_base_types)
+    alias = _create_contextual_alias(base_type, category, placeholder, suffix, other_base_types)
 
     # --- Optional Prefix (for swaps, swaptions, rate locks) ---
     prefix = ""
@@ -927,7 +927,7 @@ def _generate_instrument_name(
 
 
 def _create_contextual_alias(
-    base_type: str, category: str, placeholder: str, all_other_base_types: Set[str]
+    base_type: str, category: str, placeholder: str, suffix: str, all_other_base_types: Set[str]
 ) -> str:
     """
     Creates a context-aware alias for an instrument. If the base type is unique
@@ -937,6 +937,7 @@ def _create_contextual_alias(
         base_type: The base type of the current instrument (e.g., "swap").
         category: The category of the current instrument (e.g., "IR").
         placeholder: The placeholder used in the instrument name (e.g., "cross-currency").
+        suffix: The suffix used in the instrument name (e.g., "agreement").
         all_other_base_types: A set of all base types present in the scenario.
 
     Returns:
@@ -963,8 +964,10 @@ def _create_contextual_alias(
     if any(no_alias_word in base_type for no_alias_word in no_alias_types):
         return base_type
 
-    # If the base type is unique, or a generic term, or already specific (like cross-currency), don't add a prefix.
-    if is_base_type_unique or alias_base in ["swap"] or "cross-currency" in placeholder:
+    # If the base type is unique don't add a prefix.
+    if is_base_type_unique:
+        if suffix and random.random() < 0.3:
+            return f"{alias_base} {suffix}".strip()
         return alias_base
 
     category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
@@ -974,7 +977,15 @@ def _create_contextual_alias(
     # e.g., "rate lock" instead of just "lock"
     if base_type in DERIVATIVE_COMPONENTS.get("dependent_types", []):
         # Use placeholder if it's not generic, otherwise fallback to category prefix
-        if placeholder and category.lower() not in placeholder:
+        if suffix and random.random() < 0.3:
+            return f"{alias_base} {suffix}".strip()
+
+        # Otherwise, use the placeholder if it's descriptive and not generic
+        if (
+            placeholder
+            and category.lower() not in placeholder
+            and "rate" in placeholder
+        ):
             return f"{placeholder} {alias_base}".strip()
 
     return f"{category_prefix} {alias_base}".strip()
