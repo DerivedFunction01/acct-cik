@@ -843,10 +843,11 @@ class TimelineSentence:
                 formatted_notional = _format_single_notional(
                     notional, self.currency_symbol, self.prefer_abbreviated
                 )
-                # If notional decreased by more than 30%, it's a partial settlement.
+                # If notional is zero or decreased by more than 30%, it's a partial settlement.
                 if (
-                    prev_notional
-                    and notional < prev_notional * 0.7
+                    notional == 0 or
+                    (prev_notional is not None
+                    and notional < prev_notional * 0.7)
                     and random.random() < 0.8
                 ):
                     sentence_type = "partial_settlement"
