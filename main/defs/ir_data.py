@@ -336,6 +336,8 @@ class DebtContextSentence: # Simplified to handle one item at a time
     money_units: List[Tuple[str, int]]
     prefer_abbreviated: bool
     currency_symbol: str = "$"
+    instrument: Optional["IRInstrument"] = None # Pass instrument to know if it's hedged
+    more_detail: bool = False
 
     def build(self) -> str:
         """Builds a paragraph about the company's debt exposures."""
@@ -447,5 +449,49 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 **{key: "" for key in ["pct", "pct2", "small_int", "frequency", "swap_type", "end_day"]} # Add other placeholders as needed
             )
             sentences.append(_cleanup_sentence(event_sentence))
+        if self.more_detail:
+            # --- NEW: Add 2-3 more sentences for extra detail ---
+            
+            # Define a dictionary of all possible placeholders to format any template
+            all_placeholders = {
+                "company": _get_company_reference(self.company_name),
+                "debt_type": self.hedged_item.debt_type,
+                "amount_str": debt_amount_str,
+                "amount_str2": _format_single_notional(
+                    self.hedged_item.principal_amount * random.uniform(0.8, 1.2),
+                    self.currency_symbol, self.money_units, self.prefer_abbreviated
+                ),
+                "month": self.reporting_month,
+                "end_day": self.reporting_day,
+                "year": self.reporting_year,
+                "time_suffix": time_suffix,
+                "small_int": random.randint(2, 5),
+                "small_int2": random.randint(2, 4),
+                "pct": f"{random.uniform(2.5, 6.5):.2f}",
+                "pct2": f"{random.uniform(6.5, 8.5):.2f}",
+                "swap_type": self.instrument.instrument_alias if self.instrument else "",
+                "ir_term": self.hedged_item.benchmark_rate or random.choice(interest_rate_terms),
+                "maturity_clause": maturity_clause,
+                "frequency": self.hedged_item.payment_frequency or random.choice(frequencies),
+                "termination_noun": random.choice(termination_noun),
+            }
+
+            # Define which template categories are suitable for "more detail"
+            # 'details' is included to add more specific financial metrics.
+            detail_categories = ["debt_covenant", "details"]
+            # --- NEW: Only add "unhedged" if there is no associated instrument ---
+            if self.instrument is None:
+                detail_categories.append("unhedged")
+
+            # Randomly select 2 or 3 categories to add sentences from
+            num_details = random.randint(2, 3)
+            # Use random.sample to ensure we don't pick the same category twice
+            categories_to_add = random.sample(detail_categories, k=min(num_details, len(detail_categories)))
+
+            for category in categories_to_add:
+                template = random.choice(debt_templates[category])
+                # Use a copy and update with any missing keys to prevent format errors
+                sentence = template.format_map({**all_placeholders, **{k: "" for k in ["action_verb", "debt_types", "purpose_clause", "capex_purpose", "time_prefix", "state_descriptor", "composition_clause", "debt_type2", "interest_rate_clause"]}})
+                sentences.append(_cleanup_sentence(sentence))
 
         return ". ".join(sentences) + "."
