@@ -181,6 +181,7 @@ historical_instrument_phrases = [
 # Base sentence structures for notional amounts
 # Placeholders: {time_prefix}, {company}, {verb}, {swap_type}, {amount_connector}, {amount_str}, {hedge_designation_clause}, {result_clause}, {time_suffix}
 NOTIONAL_SENTENCE_TEMPLATES = {
+    # For aggregate summaries of multiple instruments in a single period.
     "summary": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
         "{time_prefix}, {swap_type} {amount_connector} {amount_str} was {verb} by {company} {hedge_designation_clause} {result_clause}.",
@@ -192,6 +193,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause}.",
     ],
+    # For describing an instrument that was newly created in the reporting period.
     "new_individual": [
         "{time_prefix}, {company} {verb} a {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
         "{company} {verb} a {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
@@ -200,6 +202,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause}.",
     ],
+    # For instruments that ended, matured, or were settled during a period.
     "terminated_individual": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}.",
         "{time_prefix}, a {swap_type} with a {amount_prefix} of {amount_str} was {verb} by {company}.",
@@ -209,6 +212,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "In {year}, the {swap_type} {verb}, concluding with a {amount_prefix} of {amount_str}.",
         "The {swap_type} {verb} in {year}, having a {amount_prefix} of {amount_str} at {termination_noun}.",
     ],
+    # For comparing values across multiple years (e.g., "...totaling $100M and $120M, respectively...").
     "comparative": [
         "{company} {verb} {swap_type} {amount_connector} {amount_str}, respectively, {time_suffix} {hedge_designation_clause} {result_clause}.",
         "{time_prefix}, {company} were party to {swap_type} totaling {amount_str}, respectively {result_clause}.",
@@ -216,12 +220,14 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} held {swap_type} with aggregate {amount_prefix}s of {amount_str}, respectively, {time_suffix}.",
     ],
+    # For describing a single, active instrument in the current period.
     "individual": [
         "{time_prefix}, {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         "A {swap_type} was {state_descriptor} {time_suffix}, with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
     ],
+    # For describing an instrument that existed in a prior year but is still active.
     "historical_individual": [
         "A {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         "{company} {verb} a {swap_type} {historical_phrase}, which had a {state_descriptor} {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
@@ -229,16 +235,19 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} a {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
     ],
+    # For the first mention of an instrument in a historical timeline, describing its creation.
     "inception": [
         "In {year}, {company} {verb} a {swap_type} with an initial {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         "A {swap_type} was initiated by {company} in {year}, with a starting {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
     ],
+    # For subsequent mentions of an instrument in a historical timeline.
     "continuing": [
         "By {year}, its {amount_prefix} was {amount_str}.",
         "As of {year}, the {swap_type} had a {amount_prefix} of {amount_str}.",
         "The {amount_prefix} of this {swap_type} stood at {amount_str} in {year}.",
         "In {year}, the position's {amount_prefix} was {amount_str}.",
     ],
+    # For when a portion of an instrument was settled, reducing its notional amount.
     "partial_settlement": [
         "In {year}, a portion of the {swap_type} was {verb}, reducing its {amount_prefix} to {amount_str} {result_clause}.",
         "A partial {termination_noun} occurred in {year}, bringing the remaining {amount_prefix} to {amount_str} {result_clause}.",
@@ -247,12 +256,14 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "Following a partial {termination_noun} in {year}, the {swap_type} had an {state_descriptor} {amount_prefix} of {amount_str} {result_clause}.",
         "The {amount_prefix} of the {swap_type} was {comparison_phrase} {amount_str} in {year} due to a partial {termination_noun} {result_clause}.",
     ],
+    # For cases where there were instruments in a prior year, but none in the current year.
     "comparative_no_outstanding": [
         "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year.",
         "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year}.",
         "All {swap_type} {historical_phrase}, which had a {amount_prefix} of {amount_str}, were terminated or expired by year-end {year}.",
         "{company} did not hold any {swap_type} as of {month} {end_day}, {year}, whereas the prior year-end balance was {amount_str}.",
     ],
+    # For cases where there are instruments now, but there were none in the prior year.
     "comparative_no_prior_outstanding": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}, whereas no such instruments were {state_descriptor} in the prior year.",
         "{time_prefix}, {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}; no comparable instruments were {state_descriptor} during {prev_year}.",
