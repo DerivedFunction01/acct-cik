@@ -195,9 +195,11 @@ class NotionalEvidence(BaseNarrativeEvidence):
             return summary_handler()
 
         def comparative_no_outstanding_handler() -> str:
+            # This handler is for when there's no current activity, but there was in the prior year.
+            # The evidence object will have notional=0, but prev_notional and prev_notional_str will be populated.
             return (
                 f"The report confirms no outstanding {category_context} in {self.reporting_year}, "
-                f"compared to a prior {value_desc} of {self.prev_notional_str} in {self.prev_year}, indicating termination of activity{temporal_info}"
+                f"compared to a prior {value_desc} of {self.prev_notional_str} in {self.prev_year}, indicating termination of all activity in this category{temporal_info}"
             )
 
         def comparative_no_prior_outstanding_handler() -> str:
