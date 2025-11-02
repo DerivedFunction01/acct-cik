@@ -729,7 +729,11 @@ class TimelineSentence:
         evidence_list = []
 
         # --- Select years and sort them ---
-        history_years = sorted(list(self.instrument.notional_history.keys()))
+        # --- FIX: Filter out years from history that are after the instrument's maturity date ---
+        history_years = sorted([
+            year for year in self.instrument.notional_history.keys()
+            if self.instrument.maturity_year and year <= self.instrument.maturity_year
+        ])
         years_to_report = []
         if len(history_years) > 2:
             # Select start, a middle point, and the most recent year before the reporting year
@@ -836,4 +840,17 @@ class TimelineSentence:
 
         # Combine sentences into a single, flowing paragraph
         full_paragraph = " ".join(sentences)
+
+        # --- NEW: Give the timeline a chance to use a maturity phrase if it has ended ---
+        if self.instrument.maturity_year and self.instrument.maturity_year < self.reporting_year and random.random() < 0.75: # 75% chance
+            # Choose a random past-tense termination verb
+            verb = random.choice([v for v in termination_verbs_past if v.endswith("ed")])
+            # Select a random concluding phrase template
+            maturity_phrase_template = random.choice([
+                ", before it {verb} in {maturity_year}.",
+                ", with the position ultimately being {verb} in {maturity_year}.",
+                " The instrument {verb} in {maturity_year}.",
+            ])
+            full_paragraph += maturity_phrase_template.format(verb=verb, maturity_year=self.instrument.maturity_year)
+
         return full_paragraph, consolidated_evidence
