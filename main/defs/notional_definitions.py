@@ -218,10 +218,15 @@ class NotionalEvidence(BaseNarrativeEvidence):
         def timeline_handler() -> str:
             # Custom handler for the consolidated timeline evidence.
             # This creates a single, coherent reasoning statement for an instrument's history.
+            # --- FIX: Make the wording more flexible to handle timelines that don't start at inception ---
+            start_value_str = f" from {self.prev_notional_str} in {self.prev_year}" if self.prev_notional_str and self.prev_year else ""
+            end_value_str = f" to {self.notional_str} in {self.year}" if self.notional_str and self.year else ""
+
             return (
                 f"A historical timeline for a {base_desc} was identified, "
-                f"showing a {value_desc} of {self.prev_notional_str} at inception in {self.prev_year} "
-                f"and a value of {self.notional_str} in {self.year}{temporal_info}"
+                f"showing its {value_desc} changed"
+                f"{start_value_str}"
+                f"{end_value_str}{temporal_info}"
             )
 
         # Map statuses to handlers
