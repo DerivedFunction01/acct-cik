@@ -295,15 +295,7 @@ class NotionalSentence:
     maturity_year: Optional[int] = None
     specific_details: Optional[SpecificDetails] = None
     reporting_year: Optional[int] = None
-
-    # Formatting preferences
-    money_units: List[Tuple[str, int]] = field(
-        default_factory=lambda: [
-            ("billion", 1_000_000_000),
-            ("million", 1_000_000),
-            ("thousand", 1_000),
-        ]
-    )
+    notional_multiplier: int = 1_000_000
     prefer_abbreviated: bool = True
     is_repeated_mention: bool = False
     optional_chance: float = 0.5
@@ -383,7 +375,6 @@ class NotionalSentence:
             formatted_notional = _format_single_notional(
                 self.notional,
                 self.currency_symbol,
-                self.money_units,
                 self.prefer_abbreviated,
             )
             amount_str = formatted_notional
@@ -472,14 +463,14 @@ class NotionalSentence:
             # Generate a random amount for the result phrase and format it
 
             random_amount = int(
-                (self.notional or random.randint(1, 300) * self.money_units[0][1])
+                (self.notional or random.randint(1, 300) * self.notional_multiplier)
                 * random.randint(1, 50)
                 / 100
             )
             formatted_amount_result = _format_single_notional(
                 random_amount,
                 self.currency_symbol,
-                self.money_units,
+                
                 self.prefer_abbreviated,
             )
             # Format currencies into a readable string from the details object
@@ -722,7 +713,6 @@ class TimelineSentence:
     reporting_year: int
     currency_symbol: str
     currency_code: str
-    money_units: List[Tuple[str, int]]
     prefer_abbreviated: bool
     value_type: Literal["notional", "fair_value"]
 
@@ -774,7 +764,6 @@ class TimelineSentence:
             formatted_notional = _format_single_notional(
                 notional,
                 self.currency_symbol,
-                self.money_units,
                 self.prefer_abbreviated,
             )
             timeline_notional_strings[year] = formatted_notional
@@ -815,7 +804,7 @@ class TimelineSentence:
                 ),
                 currency_symbol=self.currency_symbol,
                 currency_code=self.currency_code,
-                money_units=self.money_units,
+                
                 prefer_abbreviated=self.prefer_abbreviated,
                 maturity_year=self.instrument.maturity_year,
                 category=self.instrument.category,

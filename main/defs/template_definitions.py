@@ -222,7 +222,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     "historical_individual": [
         "A {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         "{company} {verb} a {swap_type} {historical_phrase}, which had a {state_descriptor} {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
-        "{time_prefix}, a {swap_type} initiated in a prior period had a remaining {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "{time_prefix}, a {swap_type} initiated {historical_phrase} had a remaining {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} a {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
     ],
@@ -247,7 +247,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     "comparative_no_outstanding": [
         "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year.",
         "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year}.",
-        "All {swap_type} from the prior year, which had a {amount_prefix} of {amount_str}, were terminated or expired by year-end {year}.",
+        "All {swap_type} {historical_phrase}, which had a {amount_prefix} of {amount_str}, were terminated or expired by year-end {year}.",
         "{company} did not hold any {swap_type} as of {month} {end_day}, {year}, whereas the prior year-end balance was {amount_str}.",
     ],
     "comparative_no_prior_outstanding": [

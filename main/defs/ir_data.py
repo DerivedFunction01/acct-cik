@@ -333,7 +333,6 @@ class DebtContextSentence: # Simplified to handle one item at a time
     reporting_month: str
     reporting_day: int
     hedged_item: "DebtHedgedItem" # Changed from a list to a single item
-    money_units: List[Tuple[str, int]]
     prefer_abbreviated: bool
     currency_symbol: str = "$"
     instrument: Optional["IRInstrument"] = None # Pass instrument to know if it's hedged
@@ -358,7 +357,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
 
         # --- 1. Generate the main sentence about the specific debt item ---
         debt_amount_str = _format_single_notional(
-            self.hedged_item.principal_amount, self.currency_symbol, self.money_units, self.prefer_abbreviated
+            self.hedged_item.principal_amount, self.currency_symbol,  self.prefer_abbreviated
         )
 
         # Populate clauses using the single hedged_item
@@ -406,7 +405,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
             amount_str2=_format_single_notional(
                 self.hedged_item.principal_amount * random.uniform(0.1, 0.5),
                 self.currency_symbol,
-                self.money_units,
+                
                 self.prefer_abbreviated,
             ),
             termination_noun=random.choice(termination_noun),
@@ -435,7 +434,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 debt_type=self.hedged_item.debt_type,
                 debt_types=self.hedged_item.debt_type, # debt_types is often plural, but using singular is fine here
                 amount_str=debt_amount_str,
-                amount_str2=_format_single_notional(self.hedged_item.principal_amount * random.uniform(0.8, 1.2), self.currency_symbol, self.money_units, self.prefer_abbreviated),
+                amount_str2=_format_single_notional(self.hedged_item.principal_amount * random.uniform(0.8, 1.2), self.currency_symbol,  self.prefer_abbreviated),
                 interest_rate_clause=ir_clause,
                 maturity_clause=maturity_clause,
                 purpose_clause=f"general corporate purposes, including {capex_purpose}",
@@ -459,7 +458,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 "amount_str": debt_amount_str,
                 "amount_str2": _format_single_notional(
                     self.hedged_item.principal_amount * random.uniform(0.8, 1.2),
-                    self.currency_symbol, self.money_units, self.prefer_abbreviated
+                    self.currency_symbol,  self.prefer_abbreviated
                 ),
                 "month": self.reporting_month,
                 "end_day": self.reporting_day,

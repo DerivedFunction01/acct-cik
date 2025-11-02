@@ -943,7 +943,6 @@ def _generate_debt_narrative(
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
             hedged_item=debt_item,
-            money_units=NotionalSentence.money_units,
             prefer_abbreviated=scenario.number_format_preference,
             currency_symbol=currency_symbol,
         )
@@ -1034,7 +1033,6 @@ def _generate_category_narrative(
                     reporting_month=scenario.reporting_month,
                     reporting_day=scenario.reporting_day,
                     hedged_item=debt_item,
-            money_units=NotionalSentence.money_units,
                     prefer_abbreviated=scenario.number_format_preference,
                     currency_symbol=currency_symbol,
                 )
@@ -1120,7 +1118,7 @@ def _generate_category_narrative(
                 currency_symbol=currency_symbol,
                 month=reporting_month,
                 end_day=reporting_day,
-                money_units=NotionalSentence.money_units,
+                notional_multiplier=scenario.archetype.notional_multiplier,
                 prefer_abbreviated=scenario.number_format_preference,
                 category=category, # type: ignore
                 reporting_year=reporting_year,
@@ -1185,7 +1183,6 @@ def _generate_category_narrative(
                         reporting_year=reporting_year,
                         currency_symbol=currency_symbol,
                         currency_code=currency_code,
-                        money_units=NotionalSentence.money_units,
                         prefer_abbreviated=scenario.number_format_preference,
                         value_type=value_type,
                     )
@@ -1224,7 +1221,7 @@ def _generate_category_narrative(
                     individual_sentence_obj = NotionalSentence(
                         swap_type=name_to_use, year=year_to_report, notional=notional_to_report,
                         currency_symbol=currency_symbol, company_name=scenario.company_name, sentence_type=sentence_type, # type: ignore
-                        money_units=NotionalSentence.money_units,
+                        
                         maturity_year=instrument.maturity_year, prefer_abbreviated=scenario.number_format_preference,
                         category=category, reporting_year=reporting_year, value_type=value_type, # type: ignore
                         is_repeated_mention=is_repeated,
@@ -1277,7 +1274,7 @@ def _generate_category_narrative(
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
                         sentence_type="terminated_individual", # type: ignore
-                        money_units=NotionalSentence.money_units,
+                        
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
                         category=category, reporting_year=reporting_year, value_type=value_type_terminated, # type: ignore
