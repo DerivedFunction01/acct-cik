@@ -134,7 +134,7 @@ class FXContextSentence:
 
     def build(self) -> str:
         """Builds a multi-sentence paragraph about the company's FX exposures."""
-        num_sentences = random.randint(1, 3)
+        num_sentences = random.choices([1, 2, 3], weights=[0.2, 0.6, 0.2], k=1)[0]
         sentences = []
 
         # Determine the primary currencies and their locations to talk about
@@ -160,7 +160,7 @@ class FXContextSentence:
         if len(locations_to_mention) > 1:
             locations_str = ", ".join(locations_to_mention[:-1]) + f" and {locations_to_mention[-1]}"
         else:
-            locations_str = locations_to_mention[0] if locations_to_mention else "various international regions"
+            locations_str = locations_to_mention[0] if locations_to_mention else f"various international {random.choice(geo_locations)}"
 
         # Select a few template categories to build the paragraph
         template_categories = random.sample(list(fx_context_templates.keys()), k=num_sentences)
@@ -172,9 +172,10 @@ class FXContextSentence:
             amount1 = random.randint(1, 500) * 1_000_000
             amount2 = random.randint(1, 500) * 1_000_000
             gain_loss1, gain_loss2 = random.sample(gain_loss_phrases, 2)
-            impact_direction = random.choice(
-                ["favorable", "unfavorable", "negatively", "positively", "decreased", "increased"]
-            )
+            # --- NEW: Split impact placeholders for better grammar ---
+            impact_adverb = random.choice(["favorably", "unfavorably", "negatively", "positively"])
+            impact_verb_past = random.choice(["decreased", "increased", "reduced", "enhanced"])
+            impact_adj = random.choice(["favorable", "unfavorable", "adverse", "beneficial"])
             strength_weakness = random.choice(["strengthening", "weakening"])
 
             # Format placeholders
@@ -195,7 +196,6 @@ class FXContextSentence:
                 "currency_code": self.currency_code,
                 "amount_str": _format_single_notional(amount1, self.currency_symbol, self.prefer_abbreviated),
                 "amount_str2": _format_single_notional(amount2, self.currency_symbol, self.prefer_abbreviated),
-                "impact_direction": impact_direction,
                 "comparison_phrase": random.choice(comparison_phrases),
                 "pct": f"{random.uniform(1.5, 7.5):.1f}",
                 "pct2": f"{random.uniform(1.5, 7.5):.1f}",
@@ -208,6 +208,10 @@ class FXContextSentence:
                     ["intercompany balances", "monetary assets", "receivables and payables"]
                 ),
                 "strength_weakness": strength_weakness,
+                "quantifier_phrase": random.choice(["Substantially all", "A significant portion", "The majority"]),
+                "impact_adverb": impact_adverb,
+                "impact_verb_past": impact_verb_past,
+                "impact_adjective": impact_adj,
 
             }
 
@@ -229,16 +233,16 @@ fx_context_templates = {
         "{company} operates in multiple countries and is exposed to foreign currency exchange rate {risk_term}, particularly related to the {currencies}, that affect reported revenues and expenses.",
         "{company}'s international operations in {locations} subject it to foreign currency {risk_term}, primarily related to the {currencies}.",
         "Foreign currency transaction {gain_loss} related to our {locations} operations are {financial_outcome_verb} {location} as incurred.",
-        "Substantially all of {company}'s foreign subsidiaries in {locations} use their local currency as their functional currency, such as the {currencies}.",
-        "{company}'s results of operations are affected by changes in foreign currency exchange rates, particularly {risk_term} in the {currencies}.",
+        "{quantifier_phrase} of {company}'s foreign subsidiaries in {locations} use their local currency as their functional currency, such as the {currencies}.",
+        "{company}'s results of operations are {impact_adverb} affected by changes in foreign currency exchange rates, particularly {risk_term} in the {currencies}.",
     ],
     "translation": [
         "Assets and liabilities of foreign subsidiaries are translated to {currency_code} at period-end exchange rates, while revenues and expenses are translated at average exchange rates for the period.",
         "Translation adjustments resulting from the process of translating foreign currency financial statements into {currency_code} are {financial_outcome_verb} accumulated other comprehensive income.",
         "The cumulative translation adjustment {financial_outcome_verb} accumulated other comprehensive income was {amount_str} as of {month} {end_day}, {year}.",
-        "Foreign currency translation adjustments {impact_direction} stockholders' equity by {amount_str} during {year}.",
+        "Foreign currency translation adjustments {impact_verb_past} stockholders' equity by {amount_str} during {year}.",
         "{company} {financial_outcome_verb} a foreign currency translation {gain_loss} of {amount_str} in other comprehensive income for the year ended {month} {end_day}, {year}.",
-        "The weakening of the {currencies} against the {currency_code} resulted in an unfavorable translation impact of {amount_str} in {year}.",
+        "The {strength_weakness} of the {currencies} against the {currency_code} resulted in an {impact_adjective} translation impact of {amount_str} in {year}.",
         "Changes in foreign exchange rates resulted in translation {gain_loss} of {amount_str} {financial_outcome_verb} other comprehensive income during {year}.",
     ],
     "transaction": [
