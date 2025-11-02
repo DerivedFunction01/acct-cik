@@ -788,7 +788,9 @@ def _create_instrument_with_history(
     current_year = scenario.reporting_year
     current_notional = base_instrument_args.pop("notional_amount")
     base_instrument_args["maturity_value"] = 0  # Default maturity value
-    start_year = base_instrument_args.get("start_year", current_year - random.randint(3, 8))
+    start_year = base_instrument_args.get(
+        "start_year", current_year - random.randint(3, 8)
+    )
 
     notional_history = {}
 
@@ -827,13 +829,19 @@ def _create_instrument_with_history(
             last_notional = int(last_notional * random.uniform(0.85, 1.15))
             notional_history[year] = max(0, last_notional)
 
+        # NEW: Pad with zeros from maturity to current year
+        comparative_years = scenario.archetype.comparative_years
+        if maturity_year >= current_year - comparative_years:
+            for year in range(maturity_year + 1, current_year + 1):
+                notional_history[year] = 0
+
     # Sort years chronologically
     notional_history = dict(sorted(notional_history.items()))
 
     # --- NEW: With a small chance, set a mid-history year to zero ---
     # This simulates a temporary pause in the instrument's use.
     # It should not be the start year or the most recent year of its history.
-    if len(notional_history) > 2 and random.random() < 0.15: # 15% chance
+    if len(notional_history) > 2 and random.random() < 0.15:  # 15% chance
         # Get all years except the first and last
         eligible_years = sorted(list(notional_history.keys()))[1:-1]
         if eligible_years:
@@ -841,7 +849,6 @@ def _create_instrument_with_history(
             # Ensure we don't zero out the current reporting year for an active instrument
             if not (not is_past and year_to_zero == scenario.reporting_year):
                 notional_history[year_to_zero] = 0
-
 
     # Create the instrument instance
     instrument = instrument_class(
@@ -1520,7 +1527,8 @@ def _generate_category_narrative(
                 inst
                 for inst in current_year_data["instruments"]
                 if inst.notional_history.get(scenario.reporting_year, 0) == 0
-                and inst.notional_history.get(scenario.reporting_year - 1, 0) > 0
+                and (inst.notional_history.get(scenario.reporting_year - 1, 0) > 0
+                )
             ]
 
             for instrument in terminated_instruments:
