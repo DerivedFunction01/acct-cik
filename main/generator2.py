@@ -500,12 +500,26 @@ class ScenarioBuilder:
             # --- NEW: For CP, sometimes report in units instead of currency ---
             instrument_currency = self.archetype.default_currency
             instrument_symbol = _get_currency_and_unit_details(self.scenario)[0]
-            if category == "CP" and random.random() < 0.4: # 40% chance to use units
+            if category == "CP" and random.random() < 0.35: # 40% chance to use units
                 if isinstance(hedged_item, CommodityHedgedItem):
                     # Use the commodity's unit as the "currency"
                     instrument_currency = hedged_item.unit_of_volume.upper()
                     instrument_symbol = hedged_item.unit_of_volume
                     notional = hedged_item.quantity # Notional is now the quantity
+            
+            # --- NEW: For FX, sometimes report in one of the exposure currencies ---
+            if category == "FX" and random.random() < 0.35: # 35% chance
+                if isinstance(hedged_item, ForeignCurrencyHedgedItem) and hedged_item.exposures:
+                    # Pick one of the specific currency exposures to be the instrument's currency
+                    random_exposure = random.choice(hedged_item.exposures)
+                    instrument_currency = random_exposure.code
+                    instrument_symbol = random_exposure.symbol
+                    # The notional amount should now be the amount of that specific exposure
+                    notional = random_exposure.amount
+                    # For cross-currency swaps, the hedged item might be debt in another currency
+                    if isinstance(hedged_item, DebtHedgedItem):
+                        notional = hedged_item.principal_amount
+
 
             base_args = {
                 "instrument_type": name,
