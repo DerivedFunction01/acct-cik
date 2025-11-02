@@ -383,7 +383,7 @@ class NotionalSentence:
         # 1. Format amount string
         amount_str = ""
         prev_amount_str = ""
-        if self.sentence_type == "comparative" and self.notional is not None and self.prev_notional is not None:
+        if self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None:
             # Special formatting for comparative sentences
             formatted_current = _format_single_notional(
                 self.notional, self.currency_symbol, self.prefer_abbreviated
@@ -403,11 +403,10 @@ class NotionalSentence:
         time_prefix = ""
         time_suffix = ""
         if self.sentence_type in [
-            "summary",
-            "comparative",
+            "summary",    
             "no_instruments",
             "individual",
-        ]:
+        ] or self.sentence_type.startswith("comparative"):
             # Simplified: Always use single-year prefixes for now.
             if self.sentence_type.startswith("comparative") and self.prev_year:
                 time_prefix = random.choice(multi_year_time_prefixes["two_year"])
@@ -427,7 +426,7 @@ class NotionalSentence:
             prev_year=self.prev_year,
             quarter=quarter
         )
-        time_suffix = f"as of {month} {end_day}, {self.year}"
+        time_suffix = time_prefix
 
         # 3. Select verb
         verb = self.verb
