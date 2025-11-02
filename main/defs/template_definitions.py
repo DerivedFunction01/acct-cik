@@ -971,7 +971,7 @@ class Table:
         if len(rows) <= 3:  # Only title, header, and separator
             return "", []
 
-        return "\n".join(rows), [] # No individual evidence from this aggregate table
+        return "\n".join(rows), [] # TODO: add evidence
 
     def _build_asset_liability_fair_value_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
@@ -1017,4 +1017,4 @@ class Table:
         if len(rows) <= 3:
             return "", []
 
-        return "\n".join(rows), [] # This table shows fair value, not notional, so we don't create NotionalEvidence
+        return "\n".join(rows), [] # TODO: add table
