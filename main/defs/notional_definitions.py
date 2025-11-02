@@ -327,6 +327,13 @@ class NotionalSentence:
         Builds a notional sentence and a corresponding NotionalEvidence object.
         Returns: A tuple of (sentence_string, NotionalEvidence_instance).
         """
+        if self.value_type == "fair_value":
+            if self.notional is not None:
+                self.notional = self.generate_fair_value(self.notional)
+            if self.prev_notional is not None:
+                self.prev_notional = self.generate_fair_value(self.prev_notional)
+            if self.prev2_notional is not None:
+                self.prev2_notional = self.generate_fair_value(self.prev2_notional)
 
         # Default values for optional components
         month = self.month or random.choice(months)
@@ -763,6 +770,9 @@ class NotionalSentence:
 
         return sentence, evidence
 
+    def generate_fair_value(self, value: int):
+        return max(0, int(value / random.randint(20, 100)))
+
 
 @dataclass
 class TimelineSentence:
@@ -825,7 +835,7 @@ class TimelineSentence:
             )
             notional = self.instrument.notional_history[year]
             if self.value_type == "fair_value":
-                notional = max(1, int(notional / random.randint(20, 100)))
+                notional = max(0, int(notional / random.randint(20, 100)))
 
             # --- FIX: Correctly format the notional string for each year ---
             formatted_notional = _format_single_notional(

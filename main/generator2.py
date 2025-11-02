@@ -438,14 +438,13 @@ class ScenarioBuilder:
                 and hedged_item.currency != self.archetype.default_currency
                 and random.random() < 0.5
             ):
-                prefix, placeholder, base_type, suffix, name, alias = (
-                    "",
-                    "cross-currency interest rate",
-                    "swap",
-                    "agreement",
-                    "cross-currency interest rate swap agreement",
-                    "swap",
-                )
+                placeholder = "cross-currency interest rate"
+                prefix = ""
+                base_type = random.choice(DERIVATIVE_COMPONENTS["base_types"])
+                suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+                name = f"{placeholder} {base_type} {suffix}"
+                alias = base_type + suffix
+                
             else:
                 prefix, placeholder, base_type, suffix, name, alias = (
                     _generate_instrument_name(
@@ -1341,10 +1340,6 @@ def _generate_category_narrative(
 
                 value_type = "fair_value" if use_fair_value else "notional"
                 value_to_report = instrument.notional_history.get(reporting_year, 0)
-                if use_fair_value:
-                    value_to_report = max(
-                        1, int(value_to_report / random.randint(20, 100))
-                    )
 
                 # --- FIX: Decide whether to use the full name or the alias ---
                 # If we've seen this instrument before, there's a high chance of using its alias.
@@ -1447,13 +1442,6 @@ def _generate_category_narrative(
                                 notional_to_report = instrument.notional_history[
                                     instrument.start_year
                                 ]
-                                if use_fair_value:
-                                    notional_to_report = max(
-                                        1,
-                                        int(
-                                            notional_to_report / random.randint(20, 100)
-                                        ),
-                                    )
                             else:
                                 past_years = [
                                     y
@@ -1465,14 +1453,6 @@ def _generate_category_narrative(
                                     notional_to_report = instrument.notional_history[
                                         year_to_report
                                     ]
-                                    if use_fair_value:
-                                        notional_to_report = max(
-                                            1,
-                                            int(
-                                                notional_to_report
-                                                / random.randint(20, 100)
-                                            ),
-                                        )
                                 else:
                                     # Fallback if no past years exist (should be rare for historical)
                                     year_to_report = reporting_year
