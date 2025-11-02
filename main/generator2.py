@@ -1140,14 +1140,18 @@ def _generate_category_narrative(
             sentence_type_to_use = "summary"  # Default
             notional_to_report = current_notional
 
-            if current_notional > 0 and prior_notional > 0 and random.random() < 0.3:
-                # Not implemented yet, but this is where the logic would go.
-                # sentence_type_to_use = "comparative"
-                # notional_to_report = [current_notional, prior_notional] # This would require NotionalSentence to handle lists
-                pass  # Fallback to summary for now
+            # --- FIX: Implement comparative sentence logic ---
+            prev_notional_to_report = None
+            prev_year_to_report = None
+            if current_notional > 0 and prior_notional > 0 and random.random() < 0.4:
+                sentence_type_to_use = "comparative"
+                notional_to_report = current_notional
+                prev_notional_to_report = prior_notional
+                prev_year_to_report = reporting_year - 1
             elif current_notional > 0 and prior_notional == 0:
                 sentence_type_to_use = "comparative_no_prior_outstanding"
                 notional_to_report = current_notional
+
             if notional_to_report > 0:
                 use_fair_value = random.random() < 0.2
                 value_type_to_use = "fair_value" if use_fair_value else "notional"
@@ -1156,6 +1160,8 @@ def _generate_category_narrative(
                     swap_type=instrument_type,
                     year=reporting_year,
                     notional=notional_to_report,
+                    prev_notional=prev_notional_to_report,
+                    prev_year=prev_year_to_report,
                     currency_symbol=currency_symbol,
                     month=reporting_month,
                     end_day=reporting_day,

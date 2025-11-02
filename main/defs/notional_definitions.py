@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import random
-from typing import Callable, Dict, List, Literal, Optional, Tuple
+from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 from defs.function_definitions import _get_company_reference
 from defs.common_data import *
 from defs.template_definitions import *
@@ -17,14 +17,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
     aggregate: Optional[bool] = None
     notional: Optional[int] = None
+    prev_notional: Optional[int] = None
     month: Optional[str] = None
     year: Optional[int] = None
     prev_year: Optional[int] = None
-    prev2_year: Optional[int] = None
     instrument_type: Optional[str] = None
     notional_str: Optional[str] = None
     prev_notional_str: Optional[str] = None
-    prev2_notional_str: Optional[str] = None
     reporting_year: Optional[int] = None
     maturity_year: Optional[int] = None
     maturity_value: Optional[int] = None
@@ -191,7 +190,10 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
         def comparative_handler() -> str:
             # General comparative uses summary logic
-            return summary_handler()
+            return (
+                f"A comparative summary for {base_desc} was identified, showing a change in {value_desc} "
+                f"from {self.prev_notional_str} in {self.prev_year} to {self.notional_str} in {self.year}{temporal_info}"
+            )
 
         def comparative_no_outstanding_handler() -> str:
             return (
@@ -292,6 +294,7 @@ class NotionalSentence:
     ] = "summary"
 
     notional: Optional[int] = None
+    prev_notional: Optional[int] = None
     currency_symbol: str = "$"
     currency_code: str = "US Dollar"
     # Optional time components
@@ -302,6 +305,7 @@ class NotionalSentence:
     # Optional descriptive elements
     company_name: Optional[str] = None
     verb: Optional[str] = None
+    prev_year: Optional[int] = None
     maturity_value: Optional[int] = None
     maturity_year: Optional[int] = None
     specific_details: Optional[SpecificDetails] = None
@@ -381,13 +385,22 @@ class NotionalSentence:
 
         # 1. Format amount string
         amount_str = ""
-        if self.notional is not None:
-            formatted_notional = _format_single_notional(
-                self.notional,
-                self.currency_symbol,
-                self.prefer_abbreviated,
+        prev_amount_str = ""
+        if self.sentence_type == "comparative" and self.notional is not None and self.prev_notional is not None:
+            # Special formatting for comparative sentences
+            formatted_current = _format_single_notional(
+                self.notional, self.currency_symbol, self.prefer_abbreviated
             )
-            amount_str = formatted_notional
+            formatted_prev = _format_single_notional(
+                self.prev_notional, self.currency_symbol, self.prefer_abbreviated
+            )
+            amount_str = f"{formatted_current} and {formatted_prev}"
+            prev_amount_str = formatted_prev
+        elif self.notional is not None:
+            # Standard formatting for single-value sentences
+            amount_str = _format_single_notional(
+                self.notional, self.currency_symbol, self.prefer_abbreviated
+            )
 
         # 2. Select time prefix template
         time_prefix = ""
@@ -399,8 +412,10 @@ class NotionalSentence:
             "individual",
         ]:
             # Simplified: Always use single-year prefixes for now.
-            # Comparative logic will be handled by specific templates.
-            time_prefix = random.choice(point_in_time_prefixes)
+            if self.sentence_type == "comparative" and self.prev_year:
+                time_prefix = random.choice(multi_year_time_prefixes["two_year"])
+            else:
+                time_prefix = random.choice(point_in_time_prefixes)
         elif self.sentence_type in [
             "new_individual",
             "terminated_individual",
@@ -412,7 +427,8 @@ class NotionalSentence:
             month=month,
             end_day=end_day,
             year=self.year,
-            quarter=quarter,
+            prev_year=self.prev_year,
+            quarter=quarter
         )
         time_suffix = f"as of {month} {end_day}, {self.year}"
 
@@ -689,7 +705,7 @@ class NotionalSentence:
                 category=self.category,  # type: ignore
                 aggregate=True,  # This is an aggregate statement
                 notional=0,  # Current year notional is zero
-                year=self.year,
+                year=self.reporting_year,
                 notional_str=None,  # No notional string for current year
                 prev_notional_str=final_notional_str,  # The formatted amount is for the prior year
                 prev_year=self.year - 1,
@@ -707,9 +723,10 @@ class NotionalSentence:
             category=self.category,  # type: ignore
             aggregate=self.sentence_type in ["summary", "comparative"],
             notional=final_notional,  # Use the conditional notional value
+            prev_notional=self.prev_notional if self.sentence_type == "comparative" else None,
             year=self.year,
             notional_str=final_notional_str,
-            prev_notional_str=None,  # Explicitly set to None for single sentences
+            prev_notional_str=prev_amount_str or None,
             instrument_type=self.swap_type,
             maturity_year=self.maturity_year,
             reporting_year=self.reporting_year,
