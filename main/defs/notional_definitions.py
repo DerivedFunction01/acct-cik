@@ -312,6 +312,7 @@ class NotionalSentence:
     specific_details: Optional[SpecificDetails] = None
     notional_multiplier: int = 1_000_000
     prefer_abbreviated: bool = True
+    zero_notional_format: Literal["nil", "zero", "amount"] = "amount"
     is_repeated_mention: bool = False
     optional_chance: float = 0.5
 
@@ -390,29 +391,29 @@ class NotionalSentence:
         if self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None and self.prev2_notional is not None:
             # Special formatting for three-year comparative sentences
             formatted_current = _format_single_notional(
-                self.notional, self.currency_symbol, self.prefer_abbreviated
+                self.notional, self.currency_symbol, self.prefer_abbreviated, self.zero_notional_format
             )
             formatted_prev = _format_single_notional(
-                self.prev_notional, self.currency_symbol, self.prefer_abbreviated
+                self.prev_notional, self.currency_symbol, self.prefer_abbreviated, self.zero_notional_format
             )
             formatted_prev2 = _format_single_notional(
-                self.prev2_notional, self.currency_symbol, self.prefer_abbreviated
+                self.prev2_notional, self.currency_symbol, self.prefer_abbreviated, self.zero_notional_format
             )
             amount_str = f"{formatted_current}, {formatted_prev}, and {formatted_prev2}"
         elif self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None:
             # Special formatting for comparative sentences
             formatted_current = _format_single_notional(
-                self.notional, self.currency_symbol, self.prefer_abbreviated
+                self.notional, self.currency_symbol, self.prefer_abbreviated, self.zero_notional_format
             )
             formatted_prev = _format_single_notional(
-                self.prev_notional, self.currency_symbol, self.prefer_abbreviated
+                self.prev_notional, self.currency_symbol, self.prefer_abbreviated, self.zero_notional_format
             )
             amount_str = f"{formatted_current} and {formatted_prev}"
             prev_amount_str = formatted_prev
         elif self.notional is not None:
             # Standard formatting for single-value sentences
             amount_str = _format_single_notional(
-                self.notional, self.currency_symbol, self.prefer_abbreviated
+                self.notional, self.currency_symbol, self.prefer_abbreviated, self.zero_notional_format
             )
 
         # 2. Select time prefix template

@@ -1,14 +1,20 @@
 # New imports for generate_notional_sentence
 import re
-from typing import List, Tuple
+from typing import List, Literal, Tuple
 
 
 def _format_single_notional(
     amount: int | float,
     currency_symbol: str,
     prefer_abbreviated: bool,
+    zero_format: Literal["nil", "zero", "amount"] = "amount",
 ) -> str:
     """Formats a single notional amount into a readable string like '$250.0 million'."""
+    if amount == 0:
+        if zero_format in ["nil", "zero"]:
+            return zero_format
+        # else, format as amount (e.g., "$0")
+
     amount_to_string = {
         "billion": 1_000_000_000,
         "million": 1_000_000,

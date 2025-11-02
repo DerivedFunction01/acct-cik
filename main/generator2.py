@@ -1275,6 +1275,7 @@ def _generate_category_narrative(
                     prev_year=prev_year_to_report,
                     prev2_year=prev2_year_to_report,
                     currency_symbol=currency_symbol,
+                    zero_notional_format=scenario.archetype.zero_notional_format,
                     month=reporting_month,
                     end_day=reporting_day,
                     notional_multiplier=scenario.archetype.notional_multiplier,
@@ -1410,6 +1411,7 @@ def _generate_category_narrative(
                         prev_year=reporting_year - 1 if sentence_type == "comparative" else None, # type: ignore
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
+                        zero_notional_format=scenario.archetype.zero_notional_format,
                         category=category,  # type: ignore
                         reporting_year=reporting_year,
                         value_type=value_type,

@@ -33,6 +33,7 @@ class ScenarioArchetype:
     policy_coverage: Literal["full", "partial", "light"]
     default_currency: str
     comparative_years: Literal[1, 2, 3] = 2  # How many years to show in comparative sentences
+    zero_notional_format: Literal["nil", "zero", "amount"] = "amount"
     notional_multiplier: int = 1_000_000
     prefers_abbreviated_numbers: bool = True
     can_have_accounting_update: bool = True
