@@ -5,6 +5,7 @@ from typing import Dict, List, Literal, Tuple
 from defs.notional_definitions import NotionalEvidence
 from defs.instrument_definitions import NotionalInstrument
 from defs.common_data import DERIVATIVE_COMPONENTS
+from defs.fx_data import ForeignCurrencyHedgedItem
 from defs.function_definitions import _format_single_notional
 
 # Time prefixes for point-in-time statements (e.g., aggregate summaries, single year)
@@ -747,6 +748,10 @@ class Table:
             # self._build_maturity_grouping_table, # This one is aggregate, doesn't produce individual evidence
             self._build_asset_liability_fair_value_table,
         ]
+        # --- NEW: Add a specific table format for FX exposures ---
+        if self.category == "FX":
+            formats.append(self._build_fx_exposure_table)
+
         chosen_format = random.choice(formats)
         return chosen_format()
 
@@ -987,6 +992,59 @@ class Table:
 
         if len(rows) <= 3:  # Only title, header, and separator
             return "", []
+
+        return "\n".join(rows), evidence_list
+
+    def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence]]:
+        """
+        Builds a table listing the currency exposures for a specific FX instrument.
+        Format:
+            Currency Exposure | Amount
+        """
+        evidence_list = []
+        # Find instruments that are FX and have exposures to detail
+        fx_instruments_with_exposures = [
+            inst for inst in self.instruments
+            if inst.category == "FX"
+            and isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)
+            and inst.hedged_item.exposures
+        ]
+
+        if not fx_instruments_with_exposures:
+            return "", []
+
+        # Pick one instrument to detail its exposures
+        instrument_to_detail = random.choice(fx_instruments_with_exposures)
+        hedged_item = instrument_to_detail.hedged_item
+
+        title = f"Foreign Currency Exposures Hedged by {instrument_to_detail.instrument_type} (in {self.money_unit()})"
+        header = f"| {'Currency':<25} | {'Exposure Amount':>25} |"
+        separator = "-" * len(header)
+        rows = [title, header, separator]
+
+        for exposure in hedged_item.exposures:
+            amount_str = _format_single_notional(
+                exposure.amount, exposure.symbol, self.prefer_abbreviated, True
+            )
+            row_str = f"| {exposure.full_name:<25} | {amount_str:>25} |"
+            rows.append(row_str)
+
+            # Create evidence for this specific currency exposure amount
+            # This is a new type of evidence that is not directly a derivative notional,
+            # but a component of the hedged item.
+            evidence_list.append(NotionalEvidence(
+                instrument_id=instrument_to_detail.instrument_id,
+                status="individual",
+                category="FX",
+                notional=int(exposure.amount / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else exposure.amount,
+                year=self.reporting_year,
+                instrument_type=f"Exposure to {exposure.full_name}",
+                reporting_year=self.reporting_year,
+                value_type="notional_exposure", # A more specific value type
+                currency=exposure.code,
+                symbol=exposure.symbol,
+                sentence_type="individual", # From a table
+            ))
 
         return "\n".join(rows), evidence_list
 
