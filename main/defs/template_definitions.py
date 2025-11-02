@@ -736,7 +736,7 @@ class Table:
         if self.notional_multiplier in amount_to_string:
             return amount_to_string[self.notional_multiplier]
         return "in millions"
-        
+
     def build(self) -> Tuple[str, List[NotionalEvidence]]:
         """
         Selects a table format at random and builds the table string.
@@ -771,8 +771,8 @@ class Table:
         year2 = self.reporting_year - 1
         value_type_str = random.choice(["Notional Amount", "Fair Value"])
         value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
-        
-        header = f"| {'Instrument':<45} | {value_type} {year1} | {value_type} {year2} |"
+
+        header = f"| {'Instrument':<45} | {value_type_str} {year1} | {value_type_str} {year2} |"
         separator = "-" * len(header)
         rows = [header, separator]
 
@@ -892,7 +892,7 @@ class Table:
                     f"| {name_to_use:<45} | {notional_str:>20} | {fair_val_str:>20} |"
                 )
                 all_rows.append(row_str)
-                
+
                 # Create evidence for the current year if value is > 0
                 if year == self.reporting_year and notional_val > 0:
                     evidence_list.append(NotionalEvidence(
