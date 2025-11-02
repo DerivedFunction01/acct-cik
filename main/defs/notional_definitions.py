@@ -319,6 +319,7 @@ class NotionalSentence:
     instrument: Optional[NotionalInstrument] = None
     is_repeated_mention: bool = False
     optional_chance: float = 0.5
+    suppress_sentence: bool = False
 
     def __post_init__(self):
         # If comparative_no_outstanding is chosen but there's no prior notional, it's just a 'no_instruments' case.
@@ -784,6 +785,10 @@ class NotionalSentence:
         optional_sentence = self._build_optional_details(evidence)
         if optional_sentence:
             sentence += " " + optional_sentence
+
+        # --- NEW: Check for the suppress_sentence flag ---
+        if self.suppress_sentence:
+            return "", evidence
 
         return sentence, evidence
 

@@ -40,6 +40,7 @@ class ScenarioArchetype:
     commodity_types: List[str] = field(
         default_factory=list
     )  # e.g. ["energy", "metals_minerals"]
+    prefers_tables: bool = False
 
     def get_exposure_counts(self) -> Dict[str, int]:
         """Generates a dictionary of exposure counts based on the archetype's ranges."""

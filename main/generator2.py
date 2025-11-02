@@ -26,7 +26,7 @@ from defs.policy_definitions import (
 from defs.scenario_definitions import company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
-from defs.template_definitions import hedge_no_trading_templates
+from defs.template_definitions import hedge_no_trading_templates, Table
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
@@ -60,6 +60,7 @@ SCENARIO_ARCHETYPES = [
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
+        prefers_tables=True,
     ),
     ScenarioArchetype(
         name="Domestic Industrial",
@@ -123,6 +124,7 @@ SCENARIO_ARCHETYPES = [
         comparative_years=2,
         notional_multiplier=1_000_000_000,
         prefers_abbreviated_numbers=True,
+        prefers_tables=True,
     ),
     ScenarioArchetype(
         name="Policy Only / Light User",
@@ -1637,6 +1639,30 @@ def _generate_category_narrative(
             mentioned_instrument_types = set()
 
         paragraphs = []
+
+        # --- NEW: Table Generation Logic ---
+        # If the archetype prefers tables and there are instruments, generate a table instead of individual paragraphs.
+        if (
+            scenario.archetype.prefers_tables
+            and current_year_data
+            and current_year_data["instruments"]
+            and random.random() < 0.7 # 70% chance to generate a table if preferred
+        ):
+            table_builder = Table(
+                instruments=current_year_data["instruments"],
+                yearly_data=yearly_data,
+                reporting_year=reporting_year,
+                currency_symbol=currency_symbol,
+                prefer_abbreviated=scenario.number_format_preference,
+                category=category,
+            )
+            table_str = table_builder.build()
+            if table_str:
+                # The table string itself is the "paragraph". We also need to generate evidence for the instruments in it.
+                paragraphs.append(table_str)
+                # For now, we'll let the JSON generation handle evidence from the scenario.
+                # A future improvement could be to have the Table class also return evidence.
+                return paragraphs, [], None
 
         if current_year_data and current_year_data["instruments"]:
             for instrument in current_year_data["instruments"]:

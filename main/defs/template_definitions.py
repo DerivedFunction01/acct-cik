@@ -1,6 +1,9 @@
 # New imports for generate_notional_sentence
+from dataclasses import dataclass
+import random
 import re
-from typing import List, Literal, Tuple
+from typing import Dict, List, Literal, Tuple
+from defs.instrument_definitions import NotionalInstrument
 
 # A set of common currency symbols to differentiate them from units
 KNOWN_CURRENCY_SYMBOLS = {'$', '€', '£', '¥', 'CHF', 'kr', 'zł', 'Ft', 'Kč', '₺', '₽', 'лв', 'lei', '₩', '฿', 'RM', 'R$', 'د.إ', 'ر.س', '₹'}
@@ -772,3 +775,166 @@ hedge_standards = ["ASC 815", "applicable accounting guidance", "U.S. GAAP", "ac
 # For simplicity in the AccountingPolicySentence class, we can combine the split templates.
 hedge_documentation_templates = general_hedge_documentation_templates + specific_hedge_documentation_templates
 hedge_effectiveness_policy_templates = general_hedge_effectiveness_templates + specific_hedge_effectiveness_templates
+
+@dataclass
+class Table:
+    """
+    Generates formatted text-based tables for displaying derivative instrument data.
+    """
+
+    def __init__(
+        self,
+        instruments: List[NotionalInstrument],
+        yearly_data: Dict,
+        reporting_year: int,
+        currency_symbol: str,
+        prefer_abbreviated: bool,
+        category: str,
+    ):
+        self.instruments = instruments
+        self.yearly_data = yearly_data
+        self.reporting_year = reporting_year
+        self.currency_symbol = currency_symbol
+        self.prefer_abbreviated = prefer_abbreviated
+        self.category = category
+
+    def build(self) -> str:
+        """
+        Selects a table format at random and builds the table string.
+        """
+        formats = [
+            self._build_year_over_year_table,
+            self._build_notional_vs_fair_value_table,
+        ]
+        chosen_format = random.choice(formats)
+        return chosen_format()
+
+    def _get_value(
+        self, instrument: NotionalInstrument, year: int, value_type: str
+    ) -> int:
+        """Helper to get notional or fair value for a given year."""
+        notional = instrument.notional_history.get(year, 0)
+        if value_type == "fair_value":
+            # Simulate a fair value that is a small fraction of the notional
+            return max(0, int(notional * random.uniform(0.01, 0.1)))
+        return notional
+
+    def _build_year_over_year_table(self) -> str:
+        """
+        Builds a table comparing notional/fair values year-over-year.
+        Format:
+            Instrument | Year 1 | Year 2
+        """
+        year1 = self.reporting_year
+        year2 = self.reporting_year - 1
+        value_type = random.choice(["Notional Amount", "Fair Value"])
+
+        header = f"| {'Instrument':<45} | {value_type} {year1} | {value_type} {year2} |"
+        separator = "-" * len(header)
+        rows = [header, separator]
+
+        # Use a set to avoid describing the same instrument type multiple times
+        described_types = set()
+
+        for inst in self.instruments:
+            # Use alias for subsequent mentions of the same type
+            name_to_use = inst.instrument_type
+            if inst.instrument_type in described_types:
+                name_to_use = inst.instrument_alias
+            described_types.add(inst.instrument_type)
+
+            val1 = self._get_value(inst, year1, value_type.lower().replace(" ", "_"))
+            val2 = self._get_value(inst, year2, value_type.lower().replace(" ", "_"))
+
+            # Only include instruments that were active in at least one of the years
+            if val1 == 0 and val2 == 0:
+                continue
+
+            val1_str = _format_single_notional(
+                val1, inst.symbol, self.prefer_abbreviated
+            )
+            val2_str = _format_single_notional(
+                val2, inst.symbol, self.prefer_abbreviated
+            )
+
+            row_str = f"| {name_to_use:<45} | {val1_str:>15} | {val2_str:>15} |"
+            rows.append(row_str)
+
+        if len(rows) <= 2:  # Only header and separator
+            return ""
+
+        # Add a title
+        category_map = {
+            "IR": "Interest Rate",
+            "FX": "Foreign Exchange",
+            "CP": "Commodity",
+            "EQ": "Equity",
+            "GEN": "Generic",
+        }
+        title = f"Outstanding {category_map.get(self.category, 'Derivative')} Contracts (in {self.currency_symbol} millions)"
+        return f"{title}\n" + "\n".join(rows)
+
+    def _build_notional_vs_fair_value_table(self) -> str:
+        """
+        Builds a table comparing notional vs. fair value, grouped by year.
+        Format:
+            Year 20XX
+            Instrument | Notional | Fair Value
+        """
+        year1 = self.reporting_year
+        year2 = self.reporting_year - 1
+        all_rows = []
+
+        category_map = {
+            "IR": "Interest Rate",
+            "FX": "Foreign Exchange",
+            "CP": "Commodity",
+            "EQ": "Equity",
+            "GEN": "Generic",
+        }
+        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} Contracts"
+        all_rows.append(title)
+
+        for year in [year1, year2]:
+            instruments_in_year = [
+                inst
+                for inst in self.instruments
+                if inst.notional_history.get(year, 0) > 0
+            ]
+
+            if not instruments_in_year:
+                continue
+
+            all_rows.append(f"\nAs of December 31, {year} (in millions)")
+            header = (
+                f"| {'Instrument':<45} | {'Notional Amount':>20} | {'Fair Value':>20} |"
+            )
+            separator = "-" * len(header)
+            all_rows.extend([header, separator])
+
+            described_types = set()
+            for inst in instruments_in_year:
+                name_to_use = inst.instrument_type
+                if inst.instrument_type in described_types:
+                    name_to_use = inst.instrument_alias
+                described_types.add(inst.instrument_type)
+
+                notional_val = self._get_value(inst, year, "notional")
+                fair_val = self._get_value(inst, year, "fair_value")
+
+                notional_str = _format_single_notional(
+                    notional_val, inst.symbol, self.prefer_abbreviated
+                )
+                fair_val_str = _format_single_notional(
+                    fair_val, self.currency_symbol, self.prefer_abbreviated
+                )
+
+                row_str = (
+                    f"| {name_to_use:<45} | {notional_str:>20} | {fair_val_str:>20} |"
+                )
+                all_rows.append(row_str)
+
+        if len(all_rows) <= 1:  # Only title
+            return ""
+
+        return "\n".join(all_rows)
