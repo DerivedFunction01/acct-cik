@@ -29,9 +29,6 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.template_definitions import hedge_no_trading_templates
 from defs.eq_data import EQInstrument, EquityHedgedItem
 
-# --- DEBUG FLAG ---
-FORCE_COMPARATIVE_SUMMARY = True # Set to True to always generate comparative summaries when possible
-
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
     currency_code = scenario.archetype.default_currency
@@ -1152,7 +1149,7 @@ def _generate_category_narrative(
             swap_type_for_summary = instrument_type  # Default to the single-year description
 
             # --- DEBUG: Force comparative summary if flag is set ---
-            force_comparative = FORCE_COMPARATIVE_SUMMARY and current_notional > 0 and prior_notional > 0
+            force_comparative = current_notional > 0 and prior_notional > 0
             if force_comparative or (current_notional > 0 and prior_notional > 0 and random.random() < 0.4):
                 sentence_type_to_use = "comparative"
                 notional_to_report = current_notional
@@ -1269,13 +1266,14 @@ def _generate_category_narrative(
                     # --- FIX: Use the 'new_individual' sentence type for new instruments ---
                     is_new_instrument = instrument.start_year == reporting_year
                     if is_new_instrument:
-                        sentence_type = "new_individual"
-                    else:
-                        sentence_type = "individual"
-                    year_to_report = reporting_year
-                    notional_to_report = value_to_report
-
-                    if is_historical and random.random() < 0.35: # 35% chance for a historical sentence
+                        # --- NEW: For new instruments, check if there were none prior to use comparative sentence ---
+                        if prev_year_data and prev_year_data["total_notional"] == 0 and random.random() < 0.4:
+                            sentence_type = "comparative_no_prior_outstanding"
+                        else:
+                            sentence_type = "new_individual"
+                    elif is_historical and random.random() < 0.4: # 40% chance for a comparative sentence
+                        sentence_type = "comparative"
+                    elif is_historical and random.random() < 0.35: # 35% chance for a historical sentence
                         sentence_type = "historical_individual"
                         # 50% chance to talk about the inception year vs. a random past year
                         if random.random() < 0.5 and instrument.start_year in instrument.notional_history:
@@ -1290,6 +1288,10 @@ def _generate_category_narrative(
                                 notional_to_report = instrument.notional_history[year_to_report]
                                 if use_fair_value:
                                     notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
+                    else:
+                        sentence_type = "individual"
+                    year_to_report = reporting_year
+                    notional_to_report = value_to_report
 
                     individual_sentence_obj = NotionalSentence(
                         swap_type=name_to_use,
@@ -1298,6 +1300,8 @@ def _generate_category_narrative(
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type,  # type: ignore
+                        prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None,
+                        prev_year=reporting_year - 1 if sentence_type == "comparative" else None,
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
                         category=category,  # type: ignore
