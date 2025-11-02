@@ -1002,8 +1002,6 @@ class Table:
             Currency Exposure | Amount 20XX | Amount 20XX-1
         """
         evidence_list = []
-        year1 = self.reporting_year
-        year2 = year1 - 1
 
         # Find instruments that are FX and have exposures to detail
         fx_instruments_with_exposures = [
@@ -1011,7 +1009,6 @@ class Table:
             if inst.category == "FX"
             and isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)
             and inst.hedged_item.exposures
-            and inst.notional_history.get(year1, 0) > 0 # Ensure it's active in the current year
         ]
 
         if not fx_instruments_with_exposures:
@@ -1021,14 +1018,26 @@ class Table:
         instrument_to_detail = random.choice(fx_instruments_with_exposures)
         hedged_item: ForeignCurrencyHedgedItem = instrument_to_detail.hedged_item # type: ignore
 
+        # --- NEW: Find the last active year to use as the primary year for the table ---
+        # This allows the table to be generated even for expired instruments.
+        last_active_year = None
+        for year in sorted(instrument_to_detail.notional_history.keys(), reverse=True):
+            if instrument_to_detail.notional_history[year] > 0:
+                last_active_year = year
+                break
+
+        # If no active year is found (unlikely), fall back to the reporting year.
+        year1 = last_active_year if last_active_year is not None else self.reporting_year
+        year2 = year1 - 1
+
         title = f"Foreign Currency Exposures Hedged by {instrument_to_detail.instrument_type}"
         header = f"| {'Currency':<25} | {'Amount ' + str(year1):>25} | {'Amount ' + str(year2):>25} |"
         separator = "-" * len(header)
         rows = [title, header, separator]
 
         for exposure in hedged_item.exposures:
-            # Current year amount is from the hedged item
-            amount_year1 = exposure.amount # This is the exposure amount for year1
+            # The exposure amount from the hedged item corresponds to the last active year.
+            amount_year1 = exposure.amount
 
             # --- NEW: Calculate prior year exposure based on the instrument's notional history ratio ---
             notional_year1 = instrument_to_detail.notional_history.get(year1, 0)
@@ -1038,7 +1047,7 @@ class Table:
                 # Use the ratio of the instrument's notional change to calculate the exposure change
                 ratio = notional_year2 / notional_year1
                 amount_year2 = int(amount_year1 * ratio)
-            else: # Fallback to simulation if history is not available for some reason
+            else: # Fallback to simulation if history is not available for one of the years
                 amount_year2 = int(amount_year1 * random.uniform(0.8, 1.2))
 
             amount_str1 = _format_single_notional(
@@ -1053,12 +1062,12 @@ class Table:
 
             # --- Create evidence for BOTH years ---
 
-            # Evidence for the current year (year1)
+            # Evidence for the primary year (year1)
             if amount_year1 > 0:
                 evidence_amount_str1 = _format_single_notional(amount_year1, exposure.symbol, self.prefer_abbreviated, False)
                 evidence_list.append(NotionalEvidence(
                     instrument_id=instrument_to_detail.instrument_id,
-                    status="individual", category="FX",
+                    status="individual" if year1 == self.reporting_year else "historical_individual", category="FX",
                     notional=int(amount_year1 / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else amount_year1,
                     year=year1, notional_str=evidence_amount_str1,
                     instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
@@ -1066,12 +1075,12 @@ class Table:
                     currency=exposure.code, symbol=exposure.symbol, sentence_type="individual",
                 ))
 
-            # Evidence for the prior year (year2)
+            # Evidence for the preceding year (year2)
             if amount_year2 > 0:
                 evidence_amount_str2 = _format_single_notional(amount_year2, exposure.symbol, self.prefer_abbreviated, False)
                 evidence_list.append(NotionalEvidence(
                     instrument_id=instrument_to_detail.instrument_id,
-                    status="historical_individual", category="FX",
+                    status="historical_individual", category="FX", # This will always be historical
                     notional=int(amount_year2 / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else amount_year2,
                     year=year2, notional_str=evidence_amount_str2,
                     instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
