@@ -55,42 +55,42 @@ def _cleanup_sentence(sentence: str) -> str:
 
 # Time prefixes for point-in-time statements (e.g., aggregate summaries, single year)
 point_in_time_prefixes = [
-    "As of {month} {end_day}, {year}", # This is used by generate_notional_sentence
-    "At year-end {year}",
-    "As of year-end {year}",
-    "At the end of {year}",
-    "At the close of {year}",
-    "As of {month} {year}",
-    "At {month} {end_day}, {year}",
-    "At {month} {year}",
+    "as of {month} {end_day}, {year}", # This is used by generate_notional_sentence
+    "at year-end {year}",
+    "as of year-end {year}",
+    "at the end of {year}",
+    "at the close of {year}",
+    "as of {month} {year}",
+    "at {month} {end_day}, {year}",
+    "at {month} {year}",
 ]
 
 # Time prefixes for period-of-time statements (e.g., new or terminated instruments, single year)
 period_of_time_prefixes = [
-    "During {year}", # This is used by generate_notional_sentence
-    "In {year}",
-    "Throughout {year}",
-    "During {month} {year}",
-    "In {month} {year}",
-    "In the {quarter} quarter of {year}",
-    "During the {quarter} quarter of {year}",
+    "during {year}", # This is used by generate_notional_sentence
+    "in {year}",
+    "throughout {year}",
+    "during {month} {year}",
+    "in {month} {year}",
+    "in the {quarter} quarter of {year}",
+    "during the {quarter} quarter of {year}",
 ]
 
 # Multi-year time prefixes (patterns for 2 or 3 years)
 multi_year_time_prefixes = {
     "two_year": [
-        "At {month} {end_day}, {year} and {prev_year}", # This is used by generate_notional_sentence
-        "As of {month} {end_day}, {year} and {prev_year}",
-        "At {month} {year} and {month} {prev_year}",
-        "As of {month} {end_day}, {year} and {month} {end_day}, {prev_year}",
-        "During {month} {year} and {prev_year}",
+        "at {month} {end_day}, {year} and {prev_year}", # This is used by generate_notional_sentence
+        "as of {month} {end_day}, {year} and {prev_year}",
+        "at {month} {year} and {month} {prev_year}",
+        "as of {month} {end_day}, {year} and {month} {end_day}, {prev_year}",
+        "during {month} {year} and {prev_year}",
     ],
     "three_year": [
-        "At {month} {end_day}, {year}, {prev_year}, and {prev2_year}", # This is used by generate_notional_sentence
-        "As of {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
-        "At {month} {year}, {month} {prev_year}, and {month} {prev2_year}",
-        "As of {month} {end_day}, {year}, {month} {end_day}, {prev_year}, and {month} {end_day}, {prev2_year}",
-        "During {month} {year}, {prev_year}, and {prev2_year}",
+        "at {month} {end_day}, {year}, {prev_year}, and {prev2_year}", # This is used by generate_notional_sentence
+        "as of {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
+        "at {month} {year}, {month} {prev_year}, and {month} {prev2_year}",
+        "as of {month} {end_day}, {year}, {month} {end_day}, {prev_year}, and {month} {end_day}, {prev2_year}",
+        "during {month} {year}, {prev_year}, and {prev2_year}",
     ],
 }
 
@@ -165,9 +165,6 @@ historical_instrument_phrases = [
     "entered into in a previous year",
     "originating from a prior reporting period",
 ]
-
-# Outstanding active state descriptors
-state_descriptors = ["outstanding", "active", "remaining", "open"]
 
 # Base sentence structures for notional amounts
 # Placeholders: {time_prefix}, {company}, {verb}, {swap_type}, {amount_connector}, {amount_str}, {hedge_designation_clause}, {result_clause}, {time_suffix}

@@ -890,6 +890,51 @@ def _generate_narrative_policy(
     return sentences, evidence
 
 
+def _generate_debt_narrative(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+    """
+    Generates a dedicated, detailed narrative section about the company's debt.
+    This is separate from the high-level summary in the IR risk section.
+    """
+    paragraphs = []
+    evidence = []
+
+    # Get currency and money unit details for sentence generation
+    currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+    # Get all debt items from the scenario.
+    all_debt_items = [
+        inst.hedged_item
+        for inst in scenario.instruments
+        if isinstance(inst.hedged_item, DebtHedgedItem)
+    ]
+
+    if not all_debt_items:
+        return [], []
+
+    # Add a title for this section.
+    paragraphs.append("Debt")
+
+    # For each debt item, generate a detailed contextual paragraph.
+    for debt_item in all_debt_items:
+        debt_context_builder = DebtContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            hedged_item=debt_item,
+            money_units=scenario.archetype.money_units,
+            prefer_abbreviated=scenario.number_format_preference,
+            currency_symbol=currency_symbol,
+        )
+        debt_paragraph = debt_context_builder.build()
+        if debt_paragraph:
+            paragraphs.append(debt_paragraph)
+
+    return paragraphs, evidence
+
+
 def _generate_category_narrative(
     category: str,
     yearly_data: Dict,
@@ -961,7 +1006,7 @@ def _generate_category_narrative(
 
             # For each debt item, generate a contextual paragraph.
             # Let's limit it to 1-2 paragraphs to avoid making the text too long.
-            items_to_describe = random.sample(all_debt_hedged_items, k=min(len(all_debt_hedged_items), random.randint(1, 2)))
+            items_to_describe = random.sample(all_debt_hedged_items, k=min(len(all_debt_hedged_items), 2))
 
             for debt_item in items_to_describe:
                 debt_context_builder = DebtContextSentence(
@@ -1377,6 +1422,12 @@ def generate_narrative_from_scenario(
             item_7a_sections.append(" ".join(s.strip() for s in summary_sentences if s))
             all_evidence.extend(summary_evidence)
 
+    # --- NEW: Part 2.5: Build the dedicated "Debt" Section ---
+    # This section provides detailed context on all debt instruments.
+    debt_paragraphs, debt_evidence = _generate_debt_narrative(scenario)
+    if debt_paragraphs:
+        derivative_details_sections.extend(debt_paragraphs)
+        all_evidence.extend(debt_evidence)
     # --- Part 2: Build the "Derivative Financial Instruments" Details Section ---
     # Add a title for this section if there are any details to report.
     has_any_details = any(
