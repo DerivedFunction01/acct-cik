@@ -586,7 +586,7 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
     builder = ScenarioBuilder(scenario)
     return builder.build()
 
-def _get_smart_instrument_description(instruments: List[NotionalInstrument], category: str) -> str:
+def _get_smart_instrument_description(instruments: List[NotionalInstrument], category: str, summary:bool = False) -> str:
     """
     Generates a smart, concatenated description of the instruments used.
     """
@@ -610,7 +610,10 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
 
     if count == 1:
         return instruments[0].instrument_type
-
+    # The same instrument
+    if count >= 2 and len(unique_types) == 1:
+        return f"{unique_types[0]}s"
+    # two instruments
     if count == 2 and len(unique_types) > 1:
         return f"{unique_types[0]} and {unique_types[1]}"
 
@@ -640,7 +643,7 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
         placeholder_counts = Counter(i.placeholder for i in instruments)
         most_common_placeholder, num_most_common = placeholder_counts.most_common(1)[0]
 
-        if num_most_common >= 2:
+        if num_most_common >= 2 and not summary:
             # "interest-rate swaps and other interest rate instruments"
             dominant_instrument_example = next(i.instrument_type for i in instruments if i.placeholder == most_common_placeholder)
             # --- FIX: Use a random suffix for more variety ---
@@ -650,7 +653,7 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
                 if other_suffix and not other_suffix.endswith("s")
                 else other_suffix
             )
-            return f"{dominant_instrument_example} and other {most_common_placeholder} {plural_suffix}"
+            return f"{dominant_instrument_example} and other {plural_suffix}"
         else:
             # "a portfolio of derivative instruments"
             # --- FIX: Use the full category name for a more natural phrase ---
@@ -1104,7 +1107,7 @@ def _generate_category_narrative(
         )
 
         if has_active_instruments and current_year_data:
-            instrument_type = _get_smart_instrument_description(current_year_data["instruments"], category)
+            instrument_type = _get_smart_instrument_description(current_year_data["instruments"], category, random.random() < 0.5)
         else:
             # For speculative cases, generate a plausible instrument name instead of just "derivatives"
             _, _, _, _, name, _ = _generate_instrument_name(category)
@@ -1161,7 +1164,7 @@ def _generate_category_narrative(
                                         prev_year_data.get("instruments", [])) # type: ignore
                 # Remove duplicates by instrument ID
                 unique_instruments = list({inst.instrument_id: inst for inst in combined_instruments}.values())
-                swap_type_for_summary = _get_smart_instrument_description(unique_instruments, category)
+                swap_type_for_summary = _get_smart_instrument_description(unique_instruments, category, True)
             elif current_notional > 0 and prior_notional == 0:
                 sentence_type_to_use = "comparative_no_prior_outstanding"
                 notional_to_report = current_notional

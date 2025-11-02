@@ -190,10 +190,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
         def comparative_handler() -> str:
             # General comparative uses summary logic
-            return (
-                f"A comparative summary for {base_desc} was identified, showing a change in {value_desc} "
-                f"from {self.prev_notional_str} in {self.prev_year} to {self.notional_str} in {self.year}{temporal_info}"
-            )
+            return summary_handler()
 
         def comparative_no_outstanding_handler() -> str:
             return (
@@ -412,7 +409,7 @@ class NotionalSentence:
             "individual",
         ]:
             # Simplified: Always use single-year prefixes for now.
-            if self.sentence_type == "comparative" and self.prev_year:
+            if self.sentence_type.startswith("comparative") and self.prev_year:
                 time_prefix = random.choice(multi_year_time_prefixes["two_year"])
             else:
                 time_prefix = random.choice(point_in_time_prefixes)
