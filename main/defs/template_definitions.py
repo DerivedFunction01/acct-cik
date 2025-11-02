@@ -997,17 +997,21 @@ class Table:
 
     def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
-        Builds a table listing the currency exposures for a specific FX instrument.
+        Builds a two-year comparative table listing the currency exposures for a specific FX instrument.
         Format:
-            Currency Exposure | Amount
+            Currency Exposure | Amount 20XX | Amount 20XX-1
         """
         evidence_list = []
+        year1 = self.reporting_year
+        year2 = year1 - 1
+
         # Find instruments that are FX and have exposures to detail
         fx_instruments_with_exposures = [
             inst for inst in self.instruments
             if inst.category == "FX"
             and isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)
             and inst.hedged_item.exposures
+            and inst.notional_history.get(year1, 0) > 0 # Ensure it's active in the current year
         ]
 
         if not fx_instruments_with_exposures:
@@ -1015,42 +1019,56 @@ class Table:
 
         # Pick one instrument to detail its exposures
         instrument_to_detail = random.choice(fx_instruments_with_exposures)
-        hedged_item = instrument_to_detail.hedged_item
+        hedged_item: ForeignCurrencyHedgedItem = instrument_to_detail.hedged_item # type: ignore
 
-        title = f"Foreign Currency Exposures Hedged by {instrument_to_detail.instrument_type} (in {self.money_unit()})"
-        header = f"| {'Currency':<25} | {'Exposure Amount':>25} |"
+        title = f"Foreign Currency Exposures Hedged by {instrument_to_detail.instrument_type}"
+        header = f"| {'Currency':<25} | {'Amount ' + str(year1):>25} | {'Amount ' + str(year2):>25} |"
         separator = "-" * len(header)
         rows = [title, header, separator]
 
         for exposure in hedged_item.exposures:
-            amount_str = _format_single_notional(
-                exposure.amount, exposure.symbol, self.prefer_abbreviated, True
+            # Current year amount is from the hedged item
+            amount_year1 = exposure.amount
+            # Simulate a prior year amount for comparison
+            amount_year2 = int(amount_year1 * random.uniform(0.8, 1.2))
+
+            amount_str1 = _format_single_notional(
+                amount_year1, exposure.symbol, self.prefer_abbreviated, True
             )
-            row_str = f"| {exposure.full_name:<25} | {amount_str:>25} |"
+            amount_str2 = _format_single_notional(
+                amount_year2, exposure.symbol, self.prefer_abbreviated, True
+            )
+
+            row_str = f"| {exposure.full_name:<25} | {amount_str1:>25} | {amount_str2:>25} |"
             rows.append(row_str)
 
-            # Format the notional string for the evidence object, but without the table padding
-            evidence_amount_str = _format_single_notional(
-                exposure.amount, exposure.symbol, self.prefer_abbreviated, False
-            )
+            # --- Create evidence for BOTH years ---
 
-            # Create evidence for this specific currency exposure amount
-            # This is a new type of evidence that is not directly a derivative notional,
-            # but a component of the hedged item.
-            evidence_list.append(NotionalEvidence(
-                instrument_id=instrument_to_detail.instrument_id,
-                status="individual",
-                category="FX",
-                notional=int(exposure.amount / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else exposure.amount,
-                year=self.reporting_year,
-                notional_str=evidence_amount_str,
-                instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
-                reporting_year=self.reporting_year,
-                value_type="notional", # A more specific value type
-                currency=exposure.code,
-                symbol=exposure.symbol,
-                sentence_type="individual", # From a table
-            ))
+            # Evidence for the current year (year1)
+            if amount_year1 > 0:
+                evidence_amount_str1 = _format_single_notional(amount_year1, exposure.symbol, self.prefer_abbreviated, False)
+                evidence_list.append(NotionalEvidence(
+                    instrument_id=instrument_to_detail.instrument_id,
+                    status="individual", category="FX",
+                    notional=int(amount_year1 / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else amount_year1,
+                    year=year1, notional_str=evidence_amount_str1,
+                    instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
+                    reporting_year=self.reporting_year, value_type="notional",
+                    currency=exposure.code, symbol=exposure.symbol, sentence_type="individual",
+                ))
+
+            # Evidence for the prior year (year2)
+            if amount_year2 > 0:
+                evidence_amount_str2 = _format_single_notional(amount_year2, exposure.symbol, self.prefer_abbreviated, False)
+                evidence_list.append(NotionalEvidence(
+                    instrument_id=instrument_to_detail.instrument_id,
+                    status="historical_individual", category="FX",
+                    notional=int(amount_year2 / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else amount_year2,
+                    year=year2, notional_str=evidence_amount_str2,
+                    instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
+                    reporting_year=self.reporting_year, value_type="notional",
+                    currency=exposure.code, symbol=exposure.symbol, sentence_type="historical_individual",
+                ))
 
         return "\n".join(rows), evidence_list
 
