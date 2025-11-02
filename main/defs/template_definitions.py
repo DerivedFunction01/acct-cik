@@ -2,21 +2,30 @@
 import re
 from typing import List, Tuple
 
+
 def _format_single_notional(
     amount: int | float,
     currency_symbol: str,
-    money_units: List[Tuple[str, int]],
     prefer_abbreviated: bool,
 ) -> str:
     """Formats a single notional amount into a readable string like '$250.0 million'."""
+    amount_to_string = {
+        "billion": 1_000_000_000,
+        "million": 1_000_000,
+        "thousand": 1_000,
+    }
+
     if prefer_abbreviated:
         # Sort units from largest to smallest
-        for unit_word, divisor in sorted(money_units, key=lambda x: x[1], reverse=True):
+        for unit_word, divisor in sorted(
+            amount_to_string.items(), key=lambda x: x[1], reverse=True
+        ):
             if amount >= divisor:
                 # Format to one decimal place
-                return f"{currency_symbol} {amount / divisor:.1f} {unit_word}"
+                return f"{currency_symbol}{amount / divisor:.1f} {unit_word}"
+
     # Fallback to full numeric value with commas
-    return f"{currency_symbol} {amount:,}"
+    return f"{currency_symbol}{amount:,.0f}"
 
 
 def _cleanup_sentence(sentence: str) -> str:
