@@ -261,12 +261,16 @@ def get_random_commodity_and_unit(selected_types: Optional[list[str]] = None) ->
     """
     # 1. Pick a random commodity from the flattened list, if we don't have selected types
     commodity_name = "commodity"
-    if not selected_types:
+    if not selected_types or len(selected_types) == 0:
         commodity_name = random.choice(commodities)
     else:
         types_to_pick_from = random.choice(selected_types) if len(selected_types) else "generic"
         # Now pick a random one for that type
-        commodity_name = random.choice(COMMODITIES.get(types_to_pick_from, []))
+        commodities_for_type = COMMODITIES.get(types_to_pick_from, [])
+        if commodities_for_type:
+            commodity_name = random.choice(commodities_for_type)
+        else: # Fallback if the selected type has no commodities
+            commodity_name = random.choice(commodities)
 
     # 2. Get the list of appropriate units for that commodity
     appropriate_units = get_units_for_commodity(commodity_name)
