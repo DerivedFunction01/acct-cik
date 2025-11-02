@@ -64,10 +64,16 @@ This is the most critical phase. Before any model training, the data generation 
         -   Inclusion of embedded derivatives alongside standard hedges.
 
 -   **[ ] Port Contextual "Noise" Generation:**
-    -   The old `generator.py` had functions like `generate_debt`, `generate_fx`, and `generate_commodity` that created realistic, non-derivative sentences to provide context around the main topic (e.g., discussing debt facilities in a paragraph about interest rate swaps).
-    -   This contextual "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk.
-    -   **Action:** Create a new `ContextSentence` class in `defs/class_definitions.py`. This class will use templates from `defs/noise_templates.py` (to be created) to generate these sentences.
-    -   **Action:** Integrate the `ContextSentence.build()` method into `generator2.py`'s `_generate_category_narrative` function. It should be called probabilistically to inject relevant, non-derivative context into the generated paragraphs, similar to the old `generate_derivative_sentences` logic.
+    -   The old `generator.py` had functions like `generate_debt`, `generate_fx`, and `generate_commodity` that created realistic, non-derivative sentences to provide context around the main topic. This "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk.
+    -   **[x] Port IR/Debt Context:** Done. `DebtContextSentence` has been created and integrated into the IR narrative generation in `generator2.py`.
+    -   **[ ] Port FX Context:**
+        -   **Action:** Create a new `FXContextSentence` class in `defs/fx_data.py` that uses templates to describe foreign operations, international sales, or currency translation effects without mentioning derivatives.
+    -   **[ ] Port CP Context:**
+        -   **Action:** Create a new `CPContextSentence` class in `defs/cp_data.py` that uses templates to describe commodity-related business activities (e.g., "our primary raw material is crude oil...") without mentioning derivatives.
+    -   **[ ] Port EQ Context:**
+        -   **Action:** Create a new `EQContextSentence` class in `defs/eq_data.py` that uses templates to describe equity-related activities (e.g., stock compensation plans, investments in other companies) without mentioning derivatives.
+    -   **[ ] Integrate New Context Classes:**
+        -   **Action:** Integrate the `build()` methods for `FXContextSentence`, `CPContextSentence`, and `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for their respective categories. This should be done probabilistically to inject relevant, non-derivative context.
 
 -   **[ ] Improve Generation Quality (Continued):**
     -   The user expressed a desire for "higher quality compared to using templates randomly selected."
