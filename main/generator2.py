@@ -10,7 +10,7 @@ from typing import List, Dict, Literal, Optional, Set, Tuple
 from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
 from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
 from defs.common_data import *
-from defs.cp_data import CommodityHedgedItem, CPInstrument, get_random_commodity_and_unit
+from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument, get_random_commodity_and_unit
 from defs.instrument_definitions import DERIVATIVE_CATEGORIES, BaseNarrativeEvidence, NotionalInstrument, HedgedItem, GenericInstrument
 from defs.policy_definitions import (
     AccountingPolicySentence,
@@ -1244,6 +1244,25 @@ def _generate_category_narrative(
                 fx_paragraph = fx_context_builder.build()
                 if fx_paragraph:
                     sentences.append(fx_paragraph)
+        
+        # --- NEW: Add CP context for CP category ---
+        if category == "CP":
+            all_cp_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, CommodityHedgedItem)]
+            items_to_describe = random.sample(all_cp_hedged_items, k=min(len(all_cp_hedged_items), 1))
+
+            for cp_item in items_to_describe:
+                cp_context_builder = CPContextSentence(
+                    company_name=scenario.company_name,
+                    reporting_year=scenario.reporting_year,
+                    reporting_month=scenario.reporting_month,
+                    reporting_day=scenario.reporting_day,
+                    hedged_item=cp_item,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    currency_symbol=currency_symbol,
+                )
+                cp_paragraph = cp_context_builder.build()
+                if cp_paragraph:
+                    sentences.append(cp_paragraph)
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(

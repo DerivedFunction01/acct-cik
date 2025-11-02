@@ -1,7 +1,16 @@
 import random
-from typing import Optional
+from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass
-from defs.common_data import transaction_types
+from defs.common_data import (
+    transaction_types,
+    risk_exposure_terms,
+    gain_loss_phrases,
+    financial_outcome_verbs,
+    balance_sheet_locations,
+    comparison_phrases,
+)
+from defs.function_definitions import _get_company_reference
+from defs.template_definitions import _cleanup_sentence, _format_single_notional
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
 
@@ -286,3 +295,60 @@ def get_random_commodity_and_unit(selected_types: Optional[list[str]] = None) ->
     cost_type = random.choice(possible_costs) if possible_costs else "purchase"
 
     return commodity_name, unit, cost_type
+
+
+@dataclass
+class CPContextSentence:
+    """Generates contextual sentences about commodity exposure without mentioning derivatives."""
+
+    company_name: str
+    reporting_year: int
+    reporting_month: str
+    reporting_day: int
+    hedged_item: Optional[CommodityHedgedItem]
+    prefer_abbreviated: bool
+    currency_symbol: str
+
+    def build(self) -> str:
+        """Builds a single contextual sentence for CP."""
+        # This method is a placeholder for now.
+        # The actual implementation will be done in a subsequent step.
+        return ""
+
+
+# =============================================================================
+# CP Contextual "Noise" Templates
+# Ported from old/template/other.py
+# These describe CP-related business activities without mentioning derivatives.
+# =============================================================================
+
+cp_context_templates = {
+    "exposure": [
+        "{company}'s operating results are subject to {risk_term} in the price of {commodities}.",
+        "Our primary raw material is {commodity}, and changes in its price can significantly {impact_verb} our {cost_metric}.",
+        "{company} is exposed to price {risk_term} for {commodities} used in our production processes.",
+        "The market for {commodity} is subject to significant price {risk_term}, which can affect our profitability.",
+        "Our {cost_type} costs are directly impacted by the market price of {commodity}.",
+    ],
+    "procurement": [
+        "{company} sources {commodity} from various suppliers to ensure a stable supply chain.",
+        "We have long-term supply {supply_agreements} with {company2} and {company3} for the procurement of {commodity}.",
+        "The cost of {commodity} purchased from suppliers is a significant component of our {cost_metric}.",
+        "Our procurement strategy for {commodity} involves a mix of spot market purchases and long-term contracts.",
+        "We rely on a limited number of suppliers for our {commodity} needs, which exposes us to supply chain {risk_term}.",
+    ],
+    "inventory": [
+        "Inventories of {commodity} are stated at the lower of cost or net realizable value, with cost being determined using the {inventory_method} method.",
+        "As of {month} {end_day}, {year}, our inventory of {commodity} was valued at {amount_str}.",
+        "We maintain a {small_int}-day supply of {commodity} to support our production schedule.",
+        "The value of our {commodity} inventory {impact_verb_past} by {amount_str} during {year} due to price {risk_term} in the market.",
+        "Write-downs of {commodity} inventory to net realizable value totaled {amount_str} in {year}.",
+    ],
+    "impact": [
+        "An increase of {pct}% in the price of {commodity} would have {impact_adverb} impacted our {income_statement_item} by approximately {amount_str} in {year}.",
+        "Changes in {commodity} prices {impact_adverb} affected our {cost_metric} by {pct}% during the last fiscal quarter.",
+        "Our {cost_metric} {impact_verb_past} by {amount_str} in {year}, primarily due to higher {commodity} prices.",
+        "The {strength_weakness} of {commodity} prices had an {impact_adjective} impact on our operating results for {year}.",
+        "We estimate that a {pct}% change in the average price of {commodity} would result in a {amount_str} change in annual {income_statement_item}.",
+    ],
+}
