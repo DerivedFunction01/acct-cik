@@ -1135,6 +1135,46 @@ def _generate_fx_narrative(
     return paragraphs, evidence
 
 
+def _generate_cp_narrative(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+    """
+    Generates a dedicated, detailed narrative section about the company's commodity price exposures.
+    """
+    paragraphs = []
+    evidence = []
+
+    currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+    # Get all unique Commodity hedged items from the scenario's instruments.
+    all_cp_items = list({
+        inst.hedged_item.hedged_item_id: inst.hedged_item
+        for inst in scenario.instruments
+        if isinstance(inst.hedged_item, CommodityHedgedItem)
+    }.values())
+
+    if not all_cp_items:
+        return [], []
+
+    paragraphs.append("Commodity Price Risk")
+
+    for cp_item in all_cp_items:
+        cp_context_builder = CPContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            hedged_item=cp_item,
+            prefer_abbreviated=scenario.number_format_preference,
+            currency_symbol=currency_symbol,
+        )
+        cp_paragraph = cp_context_builder.build()
+        if cp_paragraph:
+            paragraphs.append(cp_paragraph)
+
+    return paragraphs, evidence
+
+
 def _generate_category_narrative(
     category: str,
     yearly_data: Dict,
@@ -1871,6 +1911,12 @@ def generate_narrative_from_scenario(
     if fx_paragraphs:
         derivative_details_sections.extend(fx_paragraphs)
         all_evidence.extend(fx_evidence)
+
+    # --- NEW: Part 2.7: Build the dedicated "Commodity Price Risk" Section ---
+    cp_paragraphs, cp_evidence = _generate_cp_narrative(scenario)
+    if cp_paragraphs:
+        derivative_details_sections.extend(cp_paragraphs)
+        all_evidence.extend(cp_evidence)
 
     # --- Part 2: Build the "Derivative Financial Instruments" Details Section ---
     # Add a title for this section if there are any details to report.
