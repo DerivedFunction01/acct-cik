@@ -1,5 +1,6 @@
 # %%
 import random
+import sys
 import string
 import pandas as pd
 from collections import Counter
@@ -173,6 +174,21 @@ SCENARIO_ARCHETYPES = [
         policy_coverage="light",
         default_currency="USD",
         money_units=[("million", 1_000_000)],
+        prefers_abbreviated_numbers=True,
+    ),
+    ScenarioArchetype(
+        name="Debt-Heavy Exiter",
+        debt_exposure_range=(5, 8),
+        fx_exposure_range=(1, 3),
+        commodity_exposure_range=(0, 1),
+        commodity_types=["energy"],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        # Past propensity for IR was high, current is 0.
+        hedging_propensities={"IR": (1.0, 0.0), "FX": (0.5, 0.0), "CP": (0.0, 0.0), "EQ": (0.0, 0.0), "GEN": (0.0, 0.0)},
+        policy_coverage="partial",
+        default_currency="USD",
+        money_units=[("billion", 1_000_000_000)],
         prefers_abbreviated_numbers=True,
     ),
 ]
@@ -501,18 +517,24 @@ class ScenarioBuilder:
         return self.scenario
 
 
-def create_random_scenario() -> GenerationScenario:
+def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationScenario:
     """
     Creates a random, complex scenario by building a structured `GenerationScenario` object.
     This function acts as the "story planner," deciding upfront which instruments
     a company has, their status (active or terminated), and their key properties.
+
+    Args:
+        archetype_index: If provided, selects a specific archetype by its index.
     """
     reporting_year = random.randint(2020, 2024)
     reporting_day = random.randint(28, 31)
     reporting_month = random.choice(months)
 
     # --- Decide on a company archetype and get exposure counts ---
-    archetype = random.choice(SCENARIO_ARCHETYPES)
+    if archetype_index is not None and 0 <= archetype_index < len(SCENARIO_ARCHETYPES):
+        archetype = SCENARIO_ARCHETYPES[archetype_index]
+    else:
+        archetype = random.choice(SCENARIO_ARCHETYPES)
 
     def generate_policy_for_archetype(
         archetype: ScenarioArchetype,
@@ -1756,11 +1778,23 @@ def generate_training_sample():
 # %%
 if __name__ == "__main__":
     # Example of how to generate one sample
-    text, json_data = generate_training_sample()
+    # --- NEW: Allow selecting a scenario via command-line argument ---
+    archetype_idx = None
+    if len(sys.argv) > 1:
+        try:
+            archetype_idx = int(sys.argv[1])
+            if not (0 <= archetype_idx < len(SCENARIO_ARCHETYPES)):
+                print(f"Error: Index {archetype_idx} is out of bounds. Please use an index between 0 and {len(SCENARIO_ARCHETYPES) - 1}.")
+                sys.exit(1)
+            print(f"--- Generating specific scenario for archetype index: {archetype_idx} ({SCENARIO_ARCHETYPES[archetype_idx].name}) ---")
+        except ValueError:
+            print(f"Error: Could not parse '{sys.argv[1]}' as an integer index.")
+            sys.exit(1)
+
+    text, json_data = generate_training_sample(archetype_index=archetype_idx)
 
     print("--- GENERATED NARRATIVE ---")
     print(text)
     print("\n--- GENERATED JSON ---")
     print(json.dumps(json_data, indent=2))
-
 # %%
