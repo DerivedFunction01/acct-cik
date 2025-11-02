@@ -212,6 +212,10 @@ class FXContextSentence:
                 "impact_adverb": impact_adverb,
                 "impact_verb_past": impact_verb_past,
                 "impact_adjective": impact_adj,
+                # New placeholders for functional currency
+                "primary_economic_env": random.choice(["the primary economic environment", "the economic environment", "the local economy"]),
+                "functional_currency_basis": random.choice(["is the local currency", "is typically the local currency", "is the currency of the primary economic environment in which the entity operates"]),
+                "inflation_level": random.choice(["highly inflationary", "hyperinflationary", "inflationary"]),
 
             }
 
@@ -253,19 +257,19 @@ fx_context_templates = {
         "Transaction {gain_loss} on foreign currency ({currencies}) denominated receivables and payables are {financial_outcome_verb} earnings as exchange rates fluctuate.",
     ],
     "functional_currency": [
-        "The functional currency for most of {company}'s foreign subsidiaries is the local currency of the country in which the subsidiary operates.",
-        "For subsidiaries operating in highly inflationary economies, the {currency_code} is used as the functional currency.",
-        "{company} determines the functional currency of each subsidiary based on the primary economic environment in which the entity operates.",
+        "The functional currency for most of {company}'s foreign subsidiaries {functional_currency_basis} of the country in which the subsidiary operates.",
+        "For subsidiaries operating in {inflation_level} economies, the {currency_code} is used as the functional currency.",
+        "{company} determines the functional currency of each subsidiary based on {primary_economic_env} in which the entity operates.",
         "The functional currencies of {company}'s significant foreign operations include {currencies_list}.",
         "Remeasurement of foreign subsidiary financial statements from local currency to functional currency resulted in {gain_loss} of {amount_str} in {year}.",
     ],
     "impact": [
-        "Foreign currency exchange rate {risk_term} had an {impact_direction} impact on revenues of approximately {amount_str}, or {pct}%, during {year}.",
-        "Changes in foreign exchange rates {impact_direction} impacted operating income by {amount_str} in {year}.",
-        "Foreign currency {risk_term} had a {impact_direction} effect on revenues of {pct}% in {year}, primarily due to the strengthening of the {currencies}.",
-        "Excluding the impact of foreign currency translation, revenues would have increased {pct}% in {year} compared to {prev_year}.",
-        "The translation impact of changes in foreign exchange rates {impact_direction} reported revenues by {amount_str} year-over-year.",
-        "On a constant currency basis, revenues increased {pct}% compared to the prior year, versus {pct2}% on a reported basis.",
+        "Foreign currency exchange rate {risk_term} had an {impact_adjective} impact on {income_statement_item} of approximately {amount_str}, or {pct}%, during {year}.",
+        "Changes in foreign exchange rates {impact_adverb} impacted {income_statement_item} by {amount_str} in {year}.",
+        "Foreign currency {risk_term} had a {impact_adjective} effect on {income_statement_item} of {pct}% in {year}, primarily due to the {strength_weakness} of the {currencies}.",
+        "Excluding the impact of foreign currency translation, {income_statement_item} would have {impact_verb_past} by {pct}% in {year} {comparison_phrase} {prev_year}.",
+        "The translation impact of changes in foreign exchange rates {impact_verb_past} reported {income_statement_item} by {amount_str} year-over-year.",
+        "On a constant currency basis, {income_statement_item} {impact_verb_past} by {pct}% {comparison_phrase} the prior year, versus {pct2}% on a reported basis.",
     ],
     "intercompany": [
         "{company} has intercompany loans denominated in various currencies that are remeasured each reporting period with gains and losses recorded in earnings.",
