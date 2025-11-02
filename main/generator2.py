@@ -1146,6 +1146,8 @@ def _generate_category_narrative(
             # --- FIX: Implement comparative sentence logic ---
             prev_notional_to_report = None
             prev_year_to_report = None
+            swap_type_for_summary = instrument_type  # Default to the single-year description
+
             # --- DEBUG: Force comparative summary if flag is set ---
             force_comparative = FORCE_COMPARATIVE_SUMMARY and current_notional > 0 and prior_notional > 0
             if force_comparative or (current_notional > 0 and prior_notional > 0 and random.random() < 0.4):
@@ -1153,6 +1155,13 @@ def _generate_category_narrative(
                 notional_to_report = current_notional
                 prev_notional_to_report = prior_notional
                 prev_year_to_report = reporting_year - 1
+                # --- FIX: Generate a combined description for the comparative sentence ---
+                # This ensures the description covers instruments from both years.
+                combined_instruments = (current_year_data.get("instruments", []) +
+                                        prev_year_data.get("instruments", [])) # type: ignore
+                # Remove duplicates by instrument ID
+                unique_instruments = list({inst.instrument_id: inst for inst in combined_instruments}.values())
+                swap_type_for_summary = _get_smart_instrument_description(unique_instruments, category)
             elif current_notional > 0 and prior_notional == 0:
                 sentence_type_to_use = "comparative_no_prior_outstanding"
                 notional_to_report = current_notional
@@ -1162,7 +1171,7 @@ def _generate_category_narrative(
                 value_type_to_use = "fair_value" if use_fair_value else "notional"
 
                 summary_sentence_obj = NotionalSentence(
-                    swap_type=instrument_type,
+                    swap_type=swap_type_for_summary,
                     year=reporting_year,
                     notional=notional_to_report,
                     prev_notional=prev_notional_to_report,
