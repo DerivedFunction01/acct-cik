@@ -709,11 +709,16 @@ def _create_instrument_with_history(
     Returns:
         A single NotionalInstrument instance with its history populated.
     """
+    maturity_year = base_instrument_args.get("maturity_year", 0)
     current_year = scenario.reporting_year
     current_notional = base_instrument_args.pop("notional_amount")
 
     # The history dictionary will store {year: notional}
-    notional_history = {current_year: current_notional}
+    notional_history = {}
+    # --- FIX: Only add a notional for the current year if the instrument has not yet matured ---
+    # This correctly handles "exiter" scenarios where all instruments are historical.
+    if maturity_year >= current_year:
+        notional_history[current_year] = current_notional
 
     # Create historical versions for the previous 2-7 years
     num_historical_years = random.randint(2, 7)
@@ -1632,20 +1637,20 @@ def generate_json_from_scenario(
                 )
             })
         )
-        
+
         # --- NEW: Select a few similar-sounding instruments to mention ---
         # If there are only a few, list them all. Otherwise, be selective.
         if len(all_seen_types) > 4:
             # Pick a random instrument as a "seed"
             seed_instrument = random.choice(all_seen_types)
             seed_words = set(seed_instrument.split())
-            
+
             # Find other instruments that share at least one word with the seed
             similar_instruments = {seed_instrument}
             for inst_type in all_seen_types:
                 if inst_type != seed_instrument and seed_words.intersection(inst_type.split()):
                     similar_instruments.add(inst_type)
-            
+
             # Limit to a small, random number (2 to 4) of examples
             # FIX: The lower bound must not be greater than the upper bound.
             # If there's only 1 similar instrument, randint(2, 1) would fail.
@@ -1655,7 +1660,7 @@ def generate_json_from_scenario(
             display_types = sorted(list(random.sample(list(similar_instruments), num_to_show)))
         else:
             display_types = all_seen_types
-            
+
         generic_reasoning = (
             "After reviewing the full text, I found a reference to a derivative that lacks sufficient context "
             "to determine its specific category"
@@ -1668,7 +1673,6 @@ def generate_json_from_scenario(
         else:
             generic_reasoning += ", so it is treated as a generic reference."
         chain_of_thought += "\n" + generic_reasoning.strip()
-
 
     # --- Build the derivatives list ONLY from what was mentioned in the evidence. ---
 
@@ -1716,7 +1720,6 @@ def generate_json_from_scenario(
         if ev.status == "terminated_individual":
             instrument_evidence_map[instrument_id]["status"] = "terminated"
 
-
     # Convert the aggregated map into the final list, matching the TODO.md schema.
     # This creates one entry per unique instrument ID found in the evidence.
     derivatives_list = list(instrument_evidence_map.values())
@@ -1756,11 +1759,11 @@ def generate_json_from_scenario(
 # =============================================================================
 
 
-def generate_training_sample():
+def generate_training_sample(archetype_index=None):
     """Generates a single, complete training sample (narrative + JSON)."""
 
     # 1. Create a random scenario that defines the story.
-    scenario = create_random_scenario()
+    scenario = create_random_scenario(archetype_index)
 
     # 2. Generate the narrative text and the evidence list based on that scenario.
     narrative_text, evidence = generate_narrative_from_scenario(scenario)
@@ -1771,9 +1774,10 @@ def generate_training_sample():
 
     # 3. Generate the corresponding JSON label using the evidence from the narrative.
     json_output = generate_json_from_scenario(scenario, evidence)
-    
+
     # The final output is a tuple of the text and the JSON object (or string).
     return (narrative_text, json_output)
+
 
 # %%
 if __name__ == "__main__":

@@ -650,6 +650,8 @@ class NotionalSentence:
             termination_noun=termination_noun_local,
             comparison_phrase=comparison_phrase_local,
             year=self.year,
+            prev_year=self.year - 1,
+            prev2_year=self.year - 2,
             month=month,
             end_day=end_day,
             begin_mitigation=begin_mitigation,
