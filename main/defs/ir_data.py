@@ -6,6 +6,7 @@ from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
 # --- NEW: Import common verb lists for reuse --- (This was already here, but I'm confirming its good use)
 from defs.common_data import individual_use_verbs, aggregate_use_verbs, termination_verbs_past
+from defs.function_definitions import _get_company_reference
 
 
 @dataclass
@@ -385,12 +386,13 @@ class DebtContextSentence: # Simplified to handle one item at a time
 
         # Format the main sentence
         main_sentence = template.format(
-            company=self.company_name,
+            company=_get_company_reference(self.company_name),
             debt_type=self.hedged_item.debt_type,
             amount_str=debt_amount_str,
             maturity_clause=maturity_clause,
             interest_rate_clause=ir_clause,
-            ir_term=self.hedged_item.benchmark_rate or random.choice(interest_rate_terms),
+            ir_term=self.hedged_item.benchmark_rate
+            or random.choice(interest_rate_terms),
             pct=f"{(self.hedged_item.spread_bps / 100 if self.hedged_item.spread_bps else random.uniform(2.5, 6.5)):.2f}",
             pct2=f"{(self.hedged_item.spread_bps / 100 + random.uniform(1,2) if self.hedged_item.spread_bps else random.uniform(6.5, 8.5)):.2f}",
             small_int=self.hedged_item.maturity_year - self.reporting_year,
@@ -399,9 +401,17 @@ class DebtContextSentence: # Simplified to handle one item at a time
             time_suffix=time_suffix,
             state_descriptor=random.choice(state_descriptors),
             frequency=self.hedged_item.payment_frequency or random.choice(frequencies),
-            amount_str2=_format_single_notional(self.hedged_item.principal_amount * random.uniform(0.1, 0.5), self.currency_symbol, self.money_units, self.prefer_abbreviated),
+            amount_str2=_format_single_notional(
+                self.hedged_item.principal_amount * random.uniform(0.1, 0.5),
+                self.currency_symbol,
+                self.money_units,
+                self.prefer_abbreviated,
+            ),
             termination_noun=random.choice(termination_noun),
-            **{key: "" for key in ["composition_clause", "debt_type2", "swap_type", "end_day"]} # Fill unused placeholders
+            **{
+                key: ""
+                for key in ["composition_clause", "debt_type2", "swap_type", "end_day"]
+            },  # Fill unused placeholders
         )
         sentences.append(_cleanup_sentence(main_sentence))
 
