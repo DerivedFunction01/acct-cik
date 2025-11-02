@@ -714,12 +714,18 @@ def _create_instrument_with_history(
 
     # Create historical versions for the previous 2-7 years
     num_historical_years = random.randint(2, 7)
-    last_notional = current_notional
+    # --- FIX: Correctly initialize last_notional for historical generation ---
+    # If the instrument is already mature, its current_notional is 0.
+    # We should use the original notional from args as the basis for past values.
+    last_notional = current_notional if maturity_year >= current_year else base_instrument_args.get("notional_amount_for_history", current_notional)
+
     # --- FIX: Ensure generated history does not extend beyond the maturity year ---
     # This is the correct place to enforce temporal consistency.
     if maturity_year > 0: # Only generate history if maturity is set
+        # --- FIX: Start generating history from the year *before* the current reporting year ---
+        # The loop now correctly works backwards from `current_year - 1`.
         for i in range(1, num_historical_years + 1):
-            historical_year = current_year - i
+            historical_year = current_year - i # e.g., 2023, 2022, 2021...
             if historical_year <= maturity_year:
                 # Simulate a slightly different notional amount for the previous year
                 last_notional = int(last_notional * random.uniform(0.85, 1.15))
@@ -1173,8 +1179,8 @@ def _generate_category_narrative(
 
                 # --- NEW: Timeline generation for instruments with a long history ---
                 history_length = len(instrument.notional_history)
-                # 25% chance to generate a timeline for instruments with 5+ years of history
-                is_long_history_timeline = is_historical and history_length > 4 and random.random() < 0.25
+                # DEBUG: Force timeline generation for all historical instruments with any history.
+                is_long_history_timeline = is_historical and history_length > 1
 
                 # --- NEW: Use TimelineSentence class for long histories ---
                 if is_long_history_timeline:
@@ -1264,8 +1270,8 @@ def _generate_category_narrative(
 
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
-                # 30% chance to generate a timeline for terminated instruments with 4+ years of history
-                use_timeline_for_terminated = history_length >= 4 and random.random() < 0.3
+                # DEBUG: Force timeline generation for all terminated instruments with any history.
+                use_timeline_for_terminated = history_length > 1
 
                 is_repeated_type_terminated = instrument.instrument_type in mentioned_instrument_types
                 is_repeated_instance_terminated = instrument.instrument_id in mentioned_instrument_ids

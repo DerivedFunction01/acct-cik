@@ -22,10 +22,10 @@ def _format_single_notional(
         ):
             if amount >= divisor:
                 # Format to one decimal place
-                return f"{currency_symbol}{amount / divisor:.1f} {unit_word}"
+                return f"{currency_symbol} {amount / divisor:.1f} {unit_word}"
 
     # Fallback to full numeric value with commas
-    return f"{currency_symbol}{amount:,.0f}"
+    return f"{currency_symbol} {amount:,.0f}"
 
 
 def _cleanup_sentence(sentence: str) -> str:
@@ -185,8 +185,8 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
         "{time_prefix}, {swap_type} {amount_connector} {amount_str} was {verb} by {company} {hedge_designation_clause} {result_clause}.",
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
-        "{time_prefix}, the {amount_prefix} of the {swap_type} was {amount_str}{result_clause}.",
-        "The {amount_prefix} of the {swap_type} was {amount_str} {time_suffix}{result_clause}.",
+        "{time_prefix}, the {amount_prefix} of the {swap_type} was {amount_str} {result_clause}.",
+        "The {amount_prefix} of the {swap_type} was {amount_str} {time_suffix} {result_clause}.",
         # Using portfolio terms (ex. portfolio consists of swap)
         "{time_prefix}, {company}'s {portfolio_term} {portfolio_verb} {swap_type} has {amount_str} {hedge_designation_clause} {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
@@ -240,12 +240,12 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "In {year}, the position's {amount_prefix} was {amount_str}.",
     ],
     "partial_settlement": [
-        "In {year}, a portion of the {swap_type} was {verb}, reducing its {amount_prefix} to {amount_str}{result_clause}.",
-        "A partial {termination_noun} occurred in {year}, bringing the remaining {amount_prefix} to {amount_str}{result_clause}.",
-        "By {year}, after a partial {termination_noun}, the {state_descriptor} {amount_prefix} was {amount_str}{result_clause}.",
-        "{company} partially {verb} its {swap_type} position in {year}, with the remaining {amount_prefix} at {amount_str}{result_clause}.",
-        "Following a partial {termination_noun} in {year}, the {swap_type} had an {state_descriptor} {amount_prefix} of {amount_str}{result_clause}.",
-        "The {amount_prefix} of the {swap_type} was {comparison_phrase} {amount_str} in {year} due to a partial {termination_noun}{result_clause}.",
+        "In {year}, a portion of the {swap_type} was {verb}, reducing its {amount_prefix} to {amount_str} {result_clause}.",
+        "A partial {termination_noun} occurred in {year}, bringing the remaining {amount_prefix} to {amount_str} {result_clause}.",
+        "By {year}, after a partial {termination_noun}, the {state_descriptor} {amount_prefix} was {amount_str} {result_clause}.",
+        "{company} partially {verb} its {swap_type} position in {year}, with the remaining {amount_prefix} at {amount_str} {result_clause}.",
+        "Following a partial {termination_noun} in {year}, the {swap_type} had an {state_descriptor} {amount_prefix} of {amount_str} {result_clause}.",
+        "The {amount_prefix} of the {swap_type} was {comparison_phrase} {amount_str} in {year} due to a partial {termination_noun} {result_clause}.",
     ],
     "comparative_no_outstanding": [
         "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year.",
