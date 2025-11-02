@@ -1503,6 +1503,7 @@ def _generate_category_narrative(
                     prev2_notional=prev2_notional_to_report,
                     prev_year=prev_year_to_report,
                     prev2_year=prev2_year_to_report,
+                    currency_code=currency_code,
                     currency_symbol=currency_symbol,
                     zero_notional_format=scenario.archetype.zero_notional_format,
                     month=reporting_month,
@@ -1586,7 +1587,7 @@ def _generate_category_narrative(
                         company_name=scenario.company_name,
                         reporting_year=reporting_year,
                         currency_symbol=currency_symbol,
-                        currency_code=currency_code,
+                        currency_code=instrument.currency,
                         prefer_abbreviated=scenario.number_format_preference,
                         value_type=value_type,
                     )
@@ -1681,7 +1682,7 @@ def _generate_category_narrative(
                         year=year_to_report,
                         notional=notional_to_report,
                         currency_symbol=instrument.symbol,
-                        currency=instrument.currency,
+                        currency_code=instrument.currency,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type,  # type: ignore
                         prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None,  # type: ignore
@@ -1791,7 +1792,7 @@ def _generate_category_narrative(
                         year=reporting_year,
                         notional=notional_to_report,
                         currency_symbol=instrument.symbol,
-                        currency=instrument.currency,
+                        currency_code=instrument.currency,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type_to_use,  # type: ignore
                         # Pass prior year data only for the 'comparative' type

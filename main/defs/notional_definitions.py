@@ -299,8 +299,7 @@ class NotionalSentence:
     prev_notional: Optional[int] = None
     prev2_notional: Optional[int] = None
     currency_symbol: str = "$"
-    currency: str = "USD"
-    currency_code: str = "US Dollar"
+    currency_code: str = "USD"
     # Optional time components
     month: Optional[str] = None
     end_day: Optional[int] = None
@@ -920,6 +919,7 @@ class TimelineSentence:
             instrument_id=self.instrument.instrument_id,
             status="timeline",  # A new status for our custom handler
             category=self.instrument.category,
+            currency=self.currency_code,
             # --- FIX: Use maturity_value for terminated instruments in the evidence ---
             notional=(
                 self.instrument.maturity_value
