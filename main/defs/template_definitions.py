@@ -4,7 +4,7 @@ import random
 import re
 from typing import Dict, List, Literal, Tuple
 from defs.instrument_definitions import NotionalInstrument
-
+from defs.common_data import DERIVATIVE_COMPONENTS
 # A set of common currency symbols to differentiate them from units
 KNOWN_CURRENCY_SYMBOLS = {'$', '€', '£', '¥', 'CHF', 'kr', 'zł', 'Ft', 'Kč', '₺', '₽', 'лв', 'lei', '₩', '฿', 'RM', 'R$', 'د.إ', 'ر.س', '₹'}
 
@@ -12,6 +12,7 @@ def _format_single_notional(
     amount: int | float,
     symbol: str, # The currency symbol, e.g., '$'
     prefer_abbreviated: bool,
+    no_unit_word: bool = False,
     zero_format: Literal["nil", "zero", "amount"] = "amount",
 ) -> str:
     """Formats a single notional amount into a readable string like '$250.0 million' or '250.0 thousand barrels'."""
@@ -34,7 +35,10 @@ def _format_single_notional(
         ):
             if amount >= divisor:
                 # Format to one decimal place
-                formatted_number = f"{amount / divisor:.1f} {unit_word}"
+                if no_unit_word:
+                    formatted_number = f"{amount / divisor:.1f}"
+                else:
+                    formatted_number = f"{amount / divisor:.1f} {unit_word}"
                 # If the symbol is a known currency symbol, place it before the number.
                 if symbol in KNOWN_CURRENCY_SYMBOLS:
                     return f"{symbol}{formatted_number}"
@@ -805,6 +809,8 @@ class Table:
         formats = [
             self._build_year_over_year_table,
             self._build_notional_vs_fair_value_table,
+            self._build_maturity_grouping_table,
+            self._build_asset_liability_fair_value_table,
         ]
         chosen_format = random.choice(formats)
         return chosen_format()
@@ -871,7 +877,7 @@ class Table:
             "EQ": "Equity",
             "GEN": "Generic",
         }
-        title = f"Outstanding {category_map.get(self.category, 'Derivative')} Contracts (in {self.currency_symbol} millions)"
+        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} (in {self.currency_symbol} millions)"
         return f"{title}\n" + "\n".join(rows)
 
     def _build_notional_vs_fair_value_table(self) -> str:
@@ -892,7 +898,7 @@ class Table:
             "EQ": "Equity",
             "GEN": "Generic",
         }
-        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} Contracts"
+        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}"
         all_rows.append(title)
 
         for year in [year1, year2]:
@@ -923,10 +929,10 @@ class Table:
                 fair_val = self._get_value(inst, year, "fair_value")
 
                 notional_str = _format_single_notional(
-                    notional_val, inst.symbol, self.prefer_abbreviated
+                    notional_val, inst.symbol, self.prefer_abbreviated, no_unit_word=True
                 )
                 fair_val_str = _format_single_notional(
-                    fair_val, self.currency_symbol, self.prefer_abbreviated
+                    fair_val, self.currency_symbol, self.prefer_abbreviated, no_unit_word=True
                 )
 
                 row_str = (
@@ -938,3 +944,109 @@ class Table:
             return ""
 
         return "\n".join(all_rows)
+
+    def _build_maturity_grouping_table(self) -> str:
+        """
+        Builds a table grouping instruments by maturity year ranges.
+        Format:
+            Maturity      | Notional Amount
+        """
+        maturity_groups = {
+            "Less than 1 year": 0,
+            "1-3 years": 0,
+            "3-5 years": 0,
+            "More than 5 years": 0,
+        }
+
+        active_instruments = [
+            inst
+            for inst in self.instruments
+            if inst.notional_history.get(self.reporting_year, 0) > 0
+        ]
+
+        if not active_instruments:
+            return ""
+
+        for inst in active_instruments:
+            years_to_maturity = inst.maturity_year - self.reporting_year if inst.maturity_year else 100
+
+            if years_to_maturity <= 1:
+                maturity_groups["Less than 1 year"] += inst.notional_history.get(
+                    self.reporting_year, 0
+                )
+            elif 1 < years_to_maturity <= 3:
+                maturity_groups["1-3 years"] += inst.notional_history.get(
+                    self.reporting_year, 0
+                )
+            elif 3 < years_to_maturity <= 5:
+                maturity_groups["3-5 years"] += inst.notional_history.get(
+                    self.reporting_year, 0
+                )
+            else:
+                maturity_groups["More than 5 years"] += inst.notional_history.get(
+                    self.reporting_year, 0
+                )
+
+        title = f"Notional Amount by Maturity as of {self.reporting_year}"
+        header = f"| {'Maturity':<20} | {'Notional Amount':>20} |"
+        separator = "-" * len(header)
+        rows = [title, header, separator]
+
+        for group, total_notional in maturity_groups.items():
+            if total_notional > 0:
+                notional_str = _format_single_notional(
+                    total_notional, self.currency_symbol, self.prefer_abbreviated
+                )
+                row_str = f"| {group:<20} | {notional_str:>20} |"
+                rows.append(row_str)
+
+        if len(rows) <= 3:  # Only title, header, and separator
+            return ""
+
+        return "\n".join(rows)
+
+    def _build_asset_liability_fair_value_table(self) -> str:
+        """
+        Builds a table showing derivative assets and liabilities.
+        Format:
+            Instrument | Asset Fair Value | Liability Fair Value
+        """
+        year = self.reporting_year
+        active_instruments = [
+            inst
+            for inst in self.instruments
+            if inst.notional_history.get(year, 0) > 0
+        ]
+
+        if not active_instruments:
+            return ""
+
+        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} as of {year}"
+        header = f"| {'Instrument':<45} | {'Asset Fair Value':>20} | {'Liability Fair Value':>22} |"
+        separator = "-" * len(header)
+        rows = [title, header, separator]
+
+        for inst in active_instruments:
+            fair_value = self._get_value(inst, year, "fair_value")
+            # Randomly decide if the fair value is an asset or liability
+            is_asset = random.random() < 0.5
+
+            asset_val_str = "-"
+            liab_val_str = "-"
+
+            if is_asset:
+                asset_val_str = _format_single_notional(
+                    fair_value, self.currency_symbol, self.prefer_abbreviated
+                )
+            else:
+                liab_val_str = _format_single_notional(
+                    fair_value, self.currency_symbol, self.prefer_abbreviated
+                )
+
+            row_str = f"| {inst.instrument_type:<45} | {asset_val_str:>20} | {liab_val_str:>22} |"
+            rows.append(row_str)
+
+        if len(rows) <= 3:
+            return ""
+
+        return "\n".join(rows)
