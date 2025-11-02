@@ -155,12 +155,18 @@ class NotionalEvidence(BaseNarrativeEvidence):
         # -----------------------------------------------------------------
         def summary_handler() -> str:
             # Summary is always aggregate, so it won't have a specific "aha" moment for an individual instrument.
-            # Its logic remains focused on aggregate values. The phrase "An aggregate..." is sufficient.
-            value_part = (
-                f" of {self.notional_str}"
-                if self.notional_str or self.notional is not None
-                else " with no value specified"
-            )
+            # Its logic remains focused on aggregate values.
+            # --- NEW: Handle zero/nil values explicitly in the reasoning ---
+            if self.notional is not None and self.notional == 0:
+                # If the formatted string is 'nil' or 'zero', use it. Otherwise, default to 'a value of zero'.
+                zero_desc = self.notional_str if self.notional_str in ['nil', 'zero'] else "a value of zero"
+                value_part = f" of {zero_desc}"
+            elif self.notional_str:
+                value_part = f" of {self.notional_str}"
+            elif self.notional is not None:
+                 value_part = f" of {self.notional}" # Fallback to raw number
+            else:
+                value_part = " with no value specified"
             return f"An aggregate {value_desc}{value_part} was identified for {base_desc} activity{temporal_info}"
 
         def new_individual_handler() -> str:
