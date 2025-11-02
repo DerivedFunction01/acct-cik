@@ -1029,6 +1029,11 @@ class Table:
             row_str = f"| {exposure.full_name:<25} | {amount_str:>25} |"
             rows.append(row_str)
 
+            # Format the notional string for the evidence object, but without the table padding
+            evidence_amount_str = _format_single_notional(
+                exposure.amount, exposure.symbol, self.prefer_abbreviated, False
+            )
+
             # Create evidence for this specific currency exposure amount
             # This is a new type of evidence that is not directly a derivative notional,
             # but a component of the hedged item.
@@ -1038,9 +1043,10 @@ class Table:
                 category="FX",
                 notional=int(exposure.amount / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else exposure.amount,
                 year=self.reporting_year,
-                instrument_type=f"Exposure to {exposure.full_name}",
+                notional_str=evidence_amount_str,
+                instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
                 reporting_year=self.reporting_year,
-                value_type="notional_exposure", # A more specific value type
+                value_type="notional", # A more specific value type
                 currency=exposure.code,
                 symbol=exposure.symbol,
                 sentence_type="individual", # From a table
