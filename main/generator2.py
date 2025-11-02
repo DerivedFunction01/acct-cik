@@ -1406,6 +1406,7 @@ def _generate_category_narrative(
                         sentence_type=sentence_type,  # type: ignore
                         prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None, # type: ignore
                         prev2_notional=instrument.notional_history.get(reporting_year - 2, 0) if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None, # type: ignore
+                        prev2_year=reporting_year - 2 if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None, # type: ignore
                         prev_year=reporting_year - 1 if sentence_type == "comparative" else None, # type: ignore
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
