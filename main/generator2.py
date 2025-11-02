@@ -1205,8 +1205,7 @@ def _generate_category_narrative(
 
                 # --- NEW: Timeline generation for instruments with a long history ---
                 history_length = len(instrument.notional_history)
-                # DEBUG: Force timeline generation for all historical instruments with any history.
-                is_long_history_timeline = is_historical and history_length > 1
+                is_long_history_timeline = is_historical and history_length > 1 and random.random() < 0.35
 
                 # --- NEW: Use TimelineSentence class for long histories ---
                 if is_long_history_timeline:
@@ -1296,8 +1295,7 @@ def _generate_category_narrative(
 
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
-                # DEBUG: Force timeline generation for all terminated instruments with any history.
-                use_timeline_for_terminated = history_length > 1
+                use_timeline_for_terminated = history_length > 1 and random.random() < 0.35
 
                 is_repeated_type_terminated = instrument.instrument_type in mentioned_instrument_types
                 is_repeated_instance_terminated = instrument.instrument_id in mentioned_instrument_ids
