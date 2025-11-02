@@ -184,7 +184,7 @@ COMMODITIES = {
         "sulfur",
     ],
     "textiles": ["textiles", "cotton", "wool"],
-    "generic": ["commodity", "raw materials"],
+    "generic": ["commodity", "raw materials", "energy"],
 }
 
 # Flattened lists for random selection when no category is specified
@@ -264,7 +264,12 @@ def get_random_commodity_and_unit(selected_types: Optional[list[str]] = None) ->
     if not selected_types or len(selected_types) == 0:
         commodity_name = random.choice(commodities)
     else:
-        types_to_pick_from = random.choice(selected_types) if len(selected_types) else "generic"
+        # Filter out any empty strings from the list before choosing
+        valid_types = [t for t in selected_types if t]
+        if valid_types:
+            types_to_pick_from = random.choice(valid_types)
+        else: # If the list is empty or only contained empty strings, fall back to generic
+            types_to_pick_from = "generic"
         # Now pick a random one for that type
         commodities_for_type = COMMODITIES.get(types_to_pick_from, [])
         if commodities_for_type:
