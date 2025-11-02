@@ -1250,20 +1250,37 @@ def _generate_category_narrative(
                     ),
                     None,
                 )
-                if instrument:
-                    use_fair_value_terminated = random.random() < 0.2
-                    value_type_terminated = (
-                        "fair_value" if use_fair_value_terminated else "notional"
-                    ) # type: ignore
-                    value_to_report_terminated = instrument.notional_history.get(reporting_year - 1, 0)
-                    if use_fair_value_terminated:
-                        value_to_report_terminated = max( # type: ignore
-                            1, int(value_to_report_terminated / random.randint(20, 100))
-                        )
+                if not instrument:
+                    continue
 
-                    instrument_fingerprint_terminated = (instrument.instrument_type, instrument.maturity_year, instrument.currency)
+                # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
+                history_length = len(instrument.notional_history)
+                # 30% chance to generate a timeline for terminated instruments with 4+ years of history
+                use_timeline_for_terminated = history_length >= 4 and random.random() < 0.3
+
+                instrument_fingerprint_terminated = (instrument.instrument_type, instrument.maturity_year, instrument.currency)
+
+                if use_timeline_for_terminated:
+                    timeline_builder = TimelineSentence(
+                        instrument=instrument,
+                        company_name=scenario.company_name,
+                        reporting_year=reporting_year,
+                        currency_symbol=currency_symbol,
+                        currency_code=currency_code,
+                        prefer_abbreviated=scenario.number_format_preference,
+                        value_type="notional", # Keep it simple for terminated timelines
+                    )
+                    timeline_paragraph, timeline_evidence = timeline_builder.build()
+                    if timeline_paragraph:
+                        paragraphs.append(timeline_paragraph)
+                        evidence.append(timeline_evidence)
+                        mentioned_instrument_fingerprints.add(instrument_fingerprint_terminated)
+                else:
+                    # Fallback to the standard "terminated" sentence
+                    value_type_terminated = "notional" # Keep it simple
+                    value_to_report_terminated = instrument.notional_history.get(reporting_year - 1, 0)
+
                     is_repeated_terminated = instrument_fingerprint_terminated in mentioned_instrument_fingerprints
-                    # Decide whether to use alias for terminated instruments as well
                     use_alias_terminated = (is_repeated_terminated and random.random() < 0.75) or (random.random() < 0.2)
                     name_to_use_terminated = instrument.instrument_alias if use_alias_terminated and instrument.instrument_alias else instrument.instrument_type
 
@@ -1273,19 +1290,17 @@ def _generate_category_narrative(
                         notional=value_to_report_terminated,
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
-                        sentence_type="terminated_individual", # type: ignore
-                        
+                        sentence_type="terminated_individual",
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
-                        category=category, reporting_year=reporting_year, value_type=value_type_terminated, # type: ignore
+                        category=category, # type: ignore
+                        reporting_year=reporting_year, value_type=value_type_terminated,
                         is_repeated_mention=is_repeated_terminated,
                     )
-                    terminated_instrument_text, evidence_obj = (
-                        terminated_instrument_obj.build()
-                    )
+                    terminated_instrument_text, evidence_obj = terminated_instrument_obj.build()
                     evidence_obj.instrument_id = instrument.instrument_id
                     paragraphs.append(terminated_instrument_text)
-                    mentioned_instrument_fingerprints.add(instrument_fingerprint_terminated) # Mark as mentioned
+                    mentioned_instrument_fingerprints.add(instrument_fingerprint_terminated)
                     evidence.append(evidence_obj)
 
         # If there are no current instruments, check for a comparative no-outstanding sentence
