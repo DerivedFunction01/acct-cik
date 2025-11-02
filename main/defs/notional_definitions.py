@@ -562,13 +562,14 @@ class NotionalSentence:
             if should_include_maturity:
                 if self.reporting_year and self.maturity_year > self.reporting_year:
                     adverb = random.choice(future_adverbs)
+                    termination = random.choice(termination_noun)
                     verb_tense = random.choice(
                         [v for v in termination_verbs_present if not v.endswith("ed")]
                     )  # Ensure present tense
                     maturity_clause = (
                         f"which {adverb} {verb_tense} in {self.maturity_year}"
                         if random.random() < 0.5
-                        else f"with a maturity date in {self.maturity_year}"
+                        else f"with a {termination} date in {self.maturity_year}"
                     )
                 else:  # maturity_year <= reporting_year
                     verb_tense = random.choice(
