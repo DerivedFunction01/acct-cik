@@ -325,6 +325,7 @@ class NotionalSentence:
             self.sentence_type = "no_instruments"
 
     def build(self) -> Tuple[str, NotionalEvidence]:
+        print(self.sentence_type, self.is_summary)
         """
         Builds a notional sentence and a corresponding NotionalEvidence object.
         Returns: A tuple of (sentence_string, NotionalEvidence_instance).
@@ -694,6 +695,7 @@ class NotionalSentence:
                 reporting_year=self.reporting_year,
                 sentence_type=self.sentence_type,
             )
+            sentence = _cleanup_sentence(sentence)
             return sentence, evidence
 
         # 8. Populate placeholders
