@@ -715,13 +715,15 @@ def _create_instrument_with_history(
     # Create historical versions for the previous 2-7 years
     num_historical_years = random.randint(2, 7)
     last_notional = current_notional
-    for i in range(1, num_historical_years + 1):
-        historical_year = current_year - i
-        # Simulate a slightly different notional amount for the previous year
-        last_notional = int(last_notional * random.uniform(0.85, 1.15))
-        notional_history[historical_year] = max(
-            0, last_notional
-        )  # Ensure notional doesn't become negative
+    # --- FIX: Ensure generated history does not extend beyond the maturity year ---
+    # This is the correct place to enforce temporal consistency.
+    if maturity_year > 0: # Only generate history if maturity is set
+        for i in range(1, num_historical_years + 1):
+            historical_year = current_year - i
+            if historical_year <= maturity_year:
+                # Simulate a slightly different notional amount for the previous year
+                last_notional = int(last_notional * random.uniform(0.85, 1.15))
+                notional_history[historical_year] = max(0, last_notional)
 
     # Create the single instrument instance with the complete history
     instrument = instrument_class(
