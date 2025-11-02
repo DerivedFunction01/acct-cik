@@ -946,6 +946,14 @@ def _generate_instrument_name(
             if random.random() < 0.35
             else random.choice(placeholders)
         )
+    elif category == "CP" and isinstance(hedged_item, CommodityHedgedItem):
+        # For commodities, we can make the placeholder more specific.
+        generic_placeholder = random.choice(placeholders)
+        if random.random() < 0.85:  # 85% chance to use the specific commodity name
+            # e.g., replace "commodity" in "commodity price" with "crude oil" -> "crude oil price"
+            placeholder = re.sub(r'commodity', hedged_item.commodity_type, generic_placeholder, flags=re.IGNORECASE)
+        else:
+            placeholder = generic_placeholder
     else:
         placeholder = random.choice(placeholders)
 
