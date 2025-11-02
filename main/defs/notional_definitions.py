@@ -492,9 +492,16 @@ class NotionalSentence:
 
         # 5. Hedge designation clause
         # --- FIX: Make hedge designation clause optional ---
+        # NEW: If notional is 0 for a single-year sentence, don't add designation or result clauses.
+        is_single_year_zero_notional = (
+            self.notional == 0
+            and self.sentence_type
+            not in ["comparative", "comparative_no_outstanding"]
+        )
+
         hedge_designation_clause = ""
         # Use the provided seed or a new random float
-        if random.random() < self.optional_chance:  # 50% chance to add this clause
+        if not is_single_year_zero_notional and random.random() < self.optional_chance:
             # Choose from templates that are not empty
             designation_template = random.choice([d for d in hedge_designations if d])
             hedge_designation_clause = designation_template.format(
@@ -505,7 +512,7 @@ class NotionalSentence:
         # NEW: The result phrase template is now selected inside the build method.
         result_clause = ""
         # --- FIX: Make result phrase clause optional ---
-        if random.random() < self.optional_chance:  # 50% chance to add this clause
+        if not is_single_year_zero_notional and random.random() < self.optional_chance:
             # Choose from templates that are not empty
             result_phrase_template = random.choice([r for r in result_phrases.get(self.category, result_phrases["GEN"]) if r])  # type: ignore
             # Populate new placeholders within the result phrase itself
