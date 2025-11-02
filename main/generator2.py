@@ -295,6 +295,27 @@ SCENARIO_ARCHETYPES = [
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
     ),
+    ScenarioArchetype(
+        name="Biotech/Pharma",
+        debt_exposure_range=(1, 3),
+        fx_exposure_range=(2, 4),
+        commodity_exposure_range=(0, 1),
+        commodity_types=["chemicals_plastics"],
+        equity_exposure_range=(3, 6),
+        generic_instrument_range=(0, 1),
+        hedging_propensities={
+            "IR": (0.4, 0.4),
+            "FX": (0.7, 0.7),
+            "CP": (0.1, 0.1),
+            "EQ": (0.8, 0.8),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="partial",
+        default_currency="CHF",
+        comparative_years=2,
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+    ),
 ]
 
 
