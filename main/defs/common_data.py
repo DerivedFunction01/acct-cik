@@ -100,8 +100,6 @@ termination_verbs_past = [
     "liquidated",
     "concluded",
     "ended",
-    "were settled",
-    "were terminated",
 ]
 
 termination_noun = [
