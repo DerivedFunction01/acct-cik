@@ -81,7 +81,6 @@ class DerivativeInstrument:
     start_month: str
     start_year: int
     maturity_month: Optional[str] = None
-    hedge_designation: Optional[str] = None
     maturity_year: Optional[int] = None
     maturity_value: Optional[int] = None
 
@@ -95,8 +94,7 @@ class DerivativeInstrument:
             "placeholder": self.placeholder,
             "base_type": self.base_type,
             "suffix": self.suffix,
-            "category": self.category,
-            "hedge_designation": self.hedge_designation,
+            "category": self.category
         }
 
 
