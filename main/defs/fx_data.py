@@ -291,7 +291,7 @@ fx_context_templates = {
         "For our {locations} subsidiaries operating in {inflation_level} economies, the {currency_code} is used as the functional currency.",
         "{company} determines the functional currency of each subsidiary based on {primary_economic_env} in which the entity operates.",
         "The functional currencies of {company}'s significant foreign operations include {currencies}, representing exposures of {currencies_with_amounts}.",
-        "Remeasurement of our subsidiary financial statements in {locaitons} from local currency to functional currency resulted in {gain_loss} of {amount_str} in {year}.",
+        "Remeasurement of our subsidiary financial statements in {locations} from local currency to functional currency resulted in {gain_loss} of {amount_str} in {year}.",
     ],
     "impact": [
         "Foreign currency exchange rate {risk_term} had an {impact_adjective} impact on {income_statement_item} of approximately {amount_str}, or {pct}%, during {year}.",

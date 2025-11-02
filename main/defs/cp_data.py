@@ -335,7 +335,7 @@ class CPContextSentence:
             amount1 = random.randint(1, 500) * 1_000_000
             amount2 = random.randint(1, 500) * 1_000_000
             impact_adverb = random.choice(["favorably", "unfavorably", "negatively", "positively"])
-            impact_verb_past = random.choice(["decreased", "increased", "reduced", "enhanced"])
+            impact_verb_past = random.choice(["decreased", "{comparison_phrase}d", "reduced", "enhanced"])
             impact_adj = random.choice(["favorable", "unfavorable", "adverse", "beneficial"])
 
             # Format placeholders
@@ -416,7 +416,7 @@ cp_context_templates = {
         "Write-downs of {commodity} inventory to net realizable value totaled {amount_str} in {year}.",
     ],
     "impact": [
-        "An increase of {pct}% in the price of {commodity} would have {impact_adverb} impacted our {income_statement_item} by approximately {amount_str} in {year}.",
+        "An {comparison_phrase} of {pct}% in the price of {commodity} would have {impact_adverb} impacted our {income_statement_item} by approximately {amount_str} in {year}.",
         "Changes in {commodity} prices {impact_adverb} affected our {cost_metric} by {pct}% during the last fiscal quarter.",
         "Our {cost_metric} {impact_verb_past} by {amount_str} in {year}, primarily due to higher {commodity} prices.",
         "The {strength_weakness} of {commodity} prices had an {impact_adjective} impact on our operating results for {year}.",
@@ -424,16 +424,30 @@ cp_context_templates = {
     ],
     "pricing_strategy": [
         "{company} generally seeks to pass through {commodity} cost {risk_term} to customers through pricing mechanisms.",
-        "{company} has implemented price increases totaling {pct}% to {risk_action_verb} {commodity} cost {risk_term} during {year}.",
+        "{company} has implemented price {comparison_phrase}s totaling {pct}% to {risk_action_verb} {commodity} cost {risk_term} during {year}.",
         "Pricing adjustments are typically implemented with a {small_int}-month lag following {risk_term} in {commodity} costs.",
         "{company} utilizes index-based pricing formulas for certain products to {risk_action_verb} the impact of {commodity} price {risk_term}.",
         "Customer {supply_agreements} include provisions that allow {company} to adjust prices in response to significant {commodity} cost {risk_term}.",
     ],
     "physical_operations": [
         "{company} owns and operates {commodity} production facilities with annual capacity of {large_int} {unit}.",
-        "{company} produced {large_int} {unit} of {commodity} during {year}, a {pct}% increase from the prior year.",
+        "{company} produced {large_int} {unit} of {commodity} during {year}, a {pct}% {comparison_phrase} from the prior year.",
         "{company}'s {commodity} operations generated revenues of {amount_str} in {year}.",
         "Production costs for {commodity} averaged {amount_str} per {unit} in {year}, {comparison_phrase} {amount_str2} in {prev_year}.",
         "{company} maintains proved reserves of {large_int} {unit} of {commodity} as of {month} {end_day}, {year}.",
+    ],
+    "contract_cost": [
+        "Our supply {supply_agreements} for {commodity} are based on a fixed price of {amount_str} per {unit} through {maturity_year}.",
+        "The total cost of our {commodity} procurement {supply_agreements} for {year} was approximately {amount_str2}.",
+        "{company} has committed to purchase {large_int} {unit} of {commodity} from {company2} at a cost of {amount_str} over the next {small_int} years.",
+        "The cost of sales for {commodity} was {amount_str} in {year}, representing {pct}% of total revenue.",
+        "We have entered into fixed-price purchase commitments for {commodity} totaling {amount_str} for delivery in {next_year}.",
+    ],
+    "market_prices": [
+        "The average market price for {commodity} during {year} was {amount_str} per {unit}, an {comparison_phrase} of {pct}% from the prior year.",
+        "Market prices for {commodity} fluctuated between {amount_str} and {amount_str2} per {unit} during the fiscal year.",
+        "Spot prices for {commodity} at year-end {year} were {amount_str} per {unit}.",
+        "The {risk_term} in {commodity} prices during {year} was primarily driven by {market_driver}.",
+        "We anticipate continued price {risk_term} in the {commodity} market for the foreseeable future.",
     ],
 }

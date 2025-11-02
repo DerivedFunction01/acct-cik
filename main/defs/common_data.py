@@ -290,6 +290,13 @@ inventory_methods = [
     "retail inventory method",
 ]
 
+market_drivers = [
+    "geopolitical tensions and supply chain disruptions",
+    "changes in global supply and demand",
+    "weather patterns and their impact on production",
+    "speculative trading activity in the futures market",
+    "fluctuations in currency exchange rates",
+]
 # Optional / Immaterial terms
 immaterial = [
     "immaterial",
