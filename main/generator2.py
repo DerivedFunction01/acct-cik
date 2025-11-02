@@ -1304,6 +1304,7 @@ def _generate_category_narrative(
                     value_type=value_type_to_use,
                     specific_details=specific_details,
                     sentence_type=sentence_type_to_use,  # type: ignore
+                    is_summary=True,
                 )
                 summary_sentence_text, evidence_obj = summary_sentence_obj.build()
                 sentences.append(summary_sentence_text)

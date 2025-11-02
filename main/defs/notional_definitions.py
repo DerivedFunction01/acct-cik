@@ -293,7 +293,7 @@ class NotionalSentence:
         "continuing",
         "partial_settlement",  # For TimelineSentence
     ] = "summary"
-
+    is_summary: bool = False
     notional: Optional[int] = None
     prev_notional: Optional[int] = None
     prev2_notional: Optional[int] = None
@@ -755,10 +755,10 @@ class NotionalSentence:
             instrument_id=None,  # This is set later for individual instruments
             status=self.sentence_type,  # type: ignore
             category=self.category,  # type: ignore
-            aggregate=self.sentence_type in ["summary", "comparative"],
+            aggregate=self.is_summary,
             notional=final_notional,  # Use the conditional notional value
-            prev_notional=self.prev_notional if self.sentence_type == "comparative" else None,
-            prev2_notional=self.prev2_notional if self.sentence_type == "comparative" else None,
+            prev_notional=self.prev_notional if self.sentence_type.startswith("comparative") else None,
+            prev2_notional=self.prev2_notional if self.sentence_type.startswith("comparative") else None,
             year=self.year,
             notional_str=final_notional_str,
             prev_notional_str=prev_amount_str or None,
