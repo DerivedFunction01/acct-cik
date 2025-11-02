@@ -437,7 +437,7 @@ class MitigationSentence:
             ]
         sentence_template = random.choice(sentence_structures)
         sentence = sentence_template.format(
-            company=self.company_name,
+            company=_get_company_reference(self.company_name),
             adverb=adverb,
             verb=verb,
             swap_type=self.swap_type,
