@@ -829,7 +829,7 @@ class Table:
             "EQ": "Equity",
             "GEN": "Derivative",
         }
-        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} (in {self.currency_symbol} {self.money_unit()})"
+        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s (in {self.currency_symbol} {self.money_unit()})"
         return f"{title}\n" + "\n".join(rows), evidence_list
 
     def _build_notional_vs_fair_value_table(self) -> Tuple[str, List[NotionalEvidence]]:
@@ -851,7 +851,7 @@ class Table:
             "EQ": "Equity",
             "GEN": "Generic",
         }
-        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}"
+        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s"
         all_rows.append(title)
 
         for year in [year1, year2]:
