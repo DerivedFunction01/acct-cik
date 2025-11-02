@@ -946,7 +946,7 @@ def _create_contextual_alias(
     # NEW: Handle special suffixes like "put option" explicitly.
     # This ensures the full two-word phrase is treated as the base.
     for special_suffix in DERIVATIVE_COMPONENTS["special_suffixes"]:
-        if special_suffix in base_type:
+        if special_suffix in base_type: # (put option), but both put and option are valid bases
             alias_base = special_suffix
             break
     else:
@@ -987,26 +987,8 @@ def _create_contextual_alias(
                 return f"{alias_base} {suffix}".strip() # (ex. collar contract)
             else:
                 return f"{placeholder} {alias_base}".strip() # (ex. ir collar)
-
-    category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
-    category_prefix = category_prefix_map.get(category, "")
-
-    # --- NEW: For dependent types, prefer a more descriptive alias ---
-    # e.g., "rate lock" instead of just "lock"
-    if base_dependent:
-        # Use placeholder if it's not generic, otherwise fallback to category prefix
-        if suffix and random.random() < 0.3:
-            return f"{alias_base} {suffix}".strip()
-
-        # Otherwise, use the placeholder if it's descriptive and not generic
-        if (
-            placeholder
-            and category.lower() not in placeholder
-            and "rate" in placeholder
-        ):
-            return f"{placeholder} {alias_base}".strip()
-
-    return f"{category_prefix} {alias_base}".strip()
+    else: # if it is not unique, return the full name
+        return f"{placeholder} {base_type} {suffix}".strip() # (ex. swap contract)"
 
 
 # =============================================================================
