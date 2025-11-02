@@ -1006,7 +1006,7 @@ def _generate_instrument_name(
     base_type = random.choice(base_types)
 
     # --- Assemble the name ---
-    use_special = special_suffixes and random.random() < special_ratio
+    use_special = special_suffixes and random.random() < special_ratio and category != "GEN"
     suffix = ""
     if use_special:
         chosen = random.choice(special_suffixes)
