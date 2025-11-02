@@ -439,7 +439,6 @@ class NotionalSentence:
             final_value_type = "notional"
 
         # 5. Hedge designation clause
-        # TODO: Replace hardcoded hedge designation clauses with generative logic.
         # --- FIX: Make hedge designation clause optional ---
         hedge_designation_clause = ""
         # Use the provided seed or a new random float
@@ -659,6 +658,27 @@ class NotionalSentence:
 
         # 9. Cleanup
         sentence = _cleanup_sentence(sentence)
+
+        # --- FIX for comparative_no_outstanding ---
+        # For this specific case, the 'notional' passed in is actually the *previous* year's notional.
+        # The current year's notional is zero. We need to reflect this in the evidence.
+        if self.sentence_type == "comparative_no_outstanding":
+            evidence = NotionalEvidence(
+                instrument_id=None,
+                status=self.sentence_type,
+                category=self.category,  # type: ignore
+                aggregate=True,  # This is an aggregate statement
+                notional=0,  # Current year notional is zero
+                year=self.year,
+                notional_str=None,  # No notional string for current year
+                prev_notional_str=final_notional_str,  # The formatted amount is for the prior year
+                prev_year=self.year - 1,
+                instrument_type=self.swap_type,
+                reporting_year=self.reporting_year,
+                value_type=final_value_type,
+                sentence_type=self.sentence_type,
+            )
+            return sentence, evidence
 
         # 10. Create NotionalEvidence object
         evidence = NotionalEvidence(

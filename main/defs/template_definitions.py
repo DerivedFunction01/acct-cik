@@ -236,8 +236,10 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "The {amount_prefix} of the {swap_type} was {comparison_phrase} {amount_str} in {year} due to a partial {termination_noun}{result_clause}.",
     ],
     "comparative_no_outstanding": [
-        "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year{result_clause}.",
-        "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year}{result_clause}.",
+        "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year.",
+        "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year}.",
+        "All {swap_type} from the prior year, which had a {amount_prefix} of {amount_str}, were terminated or expired by year-end {year}.",
+        "{company} did not hold any {swap_type} as of {month} {end_day}, {year}, whereas the prior year-end balance was {amount_str}.",
     ],
     "comparative_no_prior_outstanding": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}, whereas no such instruments were {state_descriptor} in the prior year.",
