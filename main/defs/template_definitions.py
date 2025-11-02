@@ -183,7 +183,7 @@ historical_instrument_phrases = [
 NOTIONAL_SENTENCE_TEMPLATES = {
     "summary": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
-        "{time_prefix}, {swap_type} {amount_connector} {amount_str} {verb} by {company} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, {swap_type} {amount_connector} {amount_str} was {verb} by {company} {hedge_designation_clause} {result_clause}.",
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
         "{time_prefix}, the {amount_prefix} of the {swap_type} was {amount_str}{result_clause}.",
         "The {amount_prefix} of the {swap_type} was {amount_str} {time_suffix}{result_clause}.",
@@ -195,16 +195,19 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     "new_individual": [
         "{time_prefix}, {company} {verb} new {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
         "{company} {verb} new {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
-        "{time_prefix}, new {swap_type} {amount_connector} {amount_str} {verb} by {company} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, new {swap_type} {amount_connector} {amount_str} was {verb} by {company} {hedge_designation_clause} {result_clause}.",
         "{time_prefix}, a new {swap_type} was entered into with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} a new {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause}.",
     ],
     "terminated_individual": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}.",
-        "{time_prefix}, {swap_type} {amount_connector} {amount_str} {verb} by {company}.",
+        "{time_prefix}, a {swap_type} with a prior {amount_prefix} of {amount_str} was {verb} by {company}.",
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix}.",
         "{time_prefix}, {swap_type} with a {amount_prefix} of {amount_str} were {verb}.",
+        "The {swap_type}, which had a final {amount_prefix} of {amount_str}, reached {termination_noun} in {year}.",
+        "In {year}, the {swap_type} {verb}, concluding with a {amount_prefix} of {amount_str}.",
+        "The {swap_type} {verb} in {year}, having a {amount_prefix} of {amount_str} at {termination_noun}.",
     ],
     "comparative": [
         "{company} {verb} {swap_type} {amount_connector} {amount_str}, respectively, {time_suffix} {hedge_designation_clause} {result_clause}.",

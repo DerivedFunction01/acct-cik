@@ -776,6 +776,12 @@ class TimelineSentence:
                 # First mention: Use "inception" template
                 sentence_type = "inception"
                 name_to_use = self.instrument.instrument_type
+            # --- NEW: Check if this is the final year of a terminated instrument's life ---
+            elif self.instrument.maturity_year and year == self.instrument.maturity_year and self.instrument.maturity_year < self.reporting_year:
+                # This is the maturity year, so use a termination template.
+                sentence_type = "terminated_individual"
+                # Use alias for consistency in the story
+                name_to_use = self.instrument.instrument_alias
             else:
                 # --- NEW: Check for partial settlement ---
                 # If notional decreased by more than 30%, it's a partial settlement.
