@@ -148,15 +148,22 @@ class FXContextSentence:
                 [c for c in all_currencies if c.code != self.currency_code], num_currencies
             )
         
-        currencies_to_mention = [c.full_name for c in currencies_to_mention_objects]
+        # --- NEW: Create both full name and ISO code lists ---
+        currency_full_names = [c.full_name for c in currencies_to_mention_objects]
+        currency_iso_codes = [c.code for c in currencies_to_mention_objects]
         locations_to_mention = list(set([c.location for c in currencies_to_mention_objects]))
 
         # Format the currency list for display
-        if len(currencies_to_mention) > 1:
-            currencies_str = ", ".join(currencies_to_mention[:-1]) + f" and {currencies_to_mention[-1]}"
+        if len(currency_full_names) > 1:
+            currencies_full_str = ", ".join(currency_full_names[:-1]) + f" and {currency_full_names[-1]}"
+            currencies_iso_str = ", ".join(currency_iso_codes[:-1]) + f" and {currency_iso_codes[-1]}"
         else:
-            currencies_str = currencies_to_mention[0]
+            currencies_full_str = currency_full_names[0]
+            currencies_iso_str = currency_iso_codes[0]
         
+        # --- NEW: Randomly choose which currency format to use in the sentence ---
+        currencies_to_display = random.choice([currencies_full_str, currencies_iso_str])
+
         if len(locations_to_mention) > 1:
             locations_str = ", ".join(locations_to_mention[:-1]) + f" and {locations_to_mention[-1]}"
         else:
@@ -186,8 +193,8 @@ class FXContextSentence:
                 "month": self.reporting_month,
                 "end_day": self.reporting_day,
                 "risk_term": random.choice(risk_exposure_terms),
-                "currencies": currencies_str,
-                "currencies_list": currencies_str, # Alias for the same thing
+                "currencies": currencies_to_display,
+                "currencies_list": currencies_to_display, # Alias for the same thing
                 "locations": locations_str,
                 "gain_loss": gain_loss1,
                 "gain_loss2": gain_loss2,
