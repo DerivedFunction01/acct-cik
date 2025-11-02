@@ -264,6 +264,8 @@ class NotionalSentence:
     # Core sentence components
     swap_type: str
     year: int
+    category: DerivativeCategory
+    reporting_year: int
     value_type: Literal["notional", "fair_value"] = "notional"
     sentence_type: Literal[
         "summary",  # phrases stating total amount across all derivative type
@@ -291,10 +293,8 @@ class NotionalSentence:
     # Optional descriptive elements
     company_name: Optional[str] = None
     verb: Optional[str] = None
-    category: Optional[DerivativeCategory] = None
     maturity_year: Optional[int] = None
     specific_details: Optional[SpecificDetails] = None
-    reporting_year: Optional[int] = None
     notional_multiplier: int = 1_000_000
     prefer_abbreviated: bool = True
     is_repeated_mention: bool = False

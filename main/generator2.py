@@ -1321,6 +1321,7 @@ def _generate_category_narrative(
                 notional=prev_year_data["total_notional"], # Pass the prior year notional for the template
                 sentence_type="comparative_no_outstanding", # type: ignore
                 category=category, # type: ignore
+                reporting_year=reporting_year,
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             paragraphs.append(no_instrument_text)
