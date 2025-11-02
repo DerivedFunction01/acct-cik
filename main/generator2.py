@@ -1320,6 +1320,7 @@ def _generate_category_narrative(
                 year=reporting_year,
                 notional=prev_year_data["total_notional"], # Pass the prior year notional for the template
                 sentence_type="comparative_no_outstanding", # type: ignore
+                category=category, # type: ignore
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             paragraphs.append(no_instrument_text)
@@ -1677,6 +1678,15 @@ def generate_json_from_scenario(
         else:
             generic_reasoning += ", so it is treated as a generic reference."
         chain_of_thought += "\n" + generic_reasoning.strip()
+
+    # --- NEW: Add warning checks to the chain of thought, similar to the narrative ---
+    warnings = []
+    if "None" in chain_of_thought:
+        warnings.append("The word 'none' was found.")
+    if re.search(r'[\{\}\[\]]', chain_of_thought):
+        warnings.append("Leftover template characters like '{}' or '[]' were found.")
+    if warnings:
+        chain_of_thought += f"\n\n[WARNING: Chain of thought may be flawed. Issues found: {'; '.join(warnings)}]"
 
     # --- Build the derivatives list ONLY from what was mentioned in the evidence. ---
 
