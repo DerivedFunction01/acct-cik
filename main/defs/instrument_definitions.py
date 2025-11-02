@@ -83,6 +83,7 @@ class DerivativeInstrument:
     maturity_month: Optional[str] = None
     hedge_designation: Optional[str] = None
     maturity_year: Optional[int] = None
+    maturity_value: Optional[int] = None
 
     def to_dict(self) -> Dict:
         """Serializes the common instrument data to a dictionary for JSON output."""
