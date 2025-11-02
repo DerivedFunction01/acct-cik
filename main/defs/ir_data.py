@@ -417,7 +417,6 @@ class DebtContextSentence: # Simplified to handle one item at a time
             )
 
             capex_purpose = random.choice(CAPEX_PURPOSES["generic"])
-
             event_sentence = template.format(
                 company=self.company_name,
                 action_verb=random.choice(debt_action_verbs.get(event_type, [""])),
@@ -430,7 +429,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 purpose_clause=f"general corporate purposes, including {capex_purpose}",
                 capex_purpose=capex_purpose,
                 time_prefix=event_time_prefix,
-                time_suffix=f"at year-end {self.reporting_year}",
+                time_suffix=time_suffix,
                 year=self.reporting_year,
                 month=self.hedged_item.issuance_month or random.choice(months),
                 termination_noun=random.choice(termination_noun),
