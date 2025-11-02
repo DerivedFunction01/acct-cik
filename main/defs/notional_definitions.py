@@ -31,6 +31,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
     maturity_value: Optional[int] = None
     value_type: str = "notional"
     currency: str = "USD"
+    symbol: Optional[str] = None
     sentence_type: Optional[str] = None
     is_repeated_mention: bool = False
 
@@ -298,6 +299,7 @@ class NotionalSentence:
     prev_notional: Optional[int] = None
     prev2_notional: Optional[int] = None
     currency_symbol: str = "$"
+    currency: str = "USD"
     currency_code: str = "US Dollar"
     # Optional time components
     month: Optional[str] = None

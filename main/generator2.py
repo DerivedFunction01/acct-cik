@@ -621,7 +621,6 @@ class ScenarioBuilder:
                 "placeholder": placeholder,
                 "base_type": base_type,
                 "suffix": suffix,
-                "symbol": _get_currency_and_unit_details(self.scenario)[0], # Default currency symbol
             }
             new_instrument = _create_instrument_with_history(
                 scenario=self.scenario,
@@ -1682,6 +1681,7 @@ def _generate_category_narrative(
                         year=year_to_report,
                         notional=notional_to_report,
                         currency_symbol=instrument.symbol,
+                        currency=instrument.currency,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type,  # type: ignore
                         prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None,  # type: ignore
@@ -1791,6 +1791,7 @@ def _generate_category_narrative(
                         year=reporting_year,
                         notional=notional_to_report,
                         currency_symbol=instrument.symbol,
+                        currency=instrument.currency,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type_to_use,  # type: ignore
                         # Pass prior year data only for the 'comparative' type
@@ -2269,7 +2270,7 @@ def generate_json_from_scenario(
                 "level": "individual",
             }
 
-    # Convert the aggregated map into the final list, matching the TODO.md schema.
+    # Convert the aggregated map into the final list.
     # This creates one entry per unique instrument ID found in the evidence.
     derivatives_list = list(instrument_evidence_map.values())
 
