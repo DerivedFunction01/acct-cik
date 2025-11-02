@@ -721,9 +721,18 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
             None
         )
         if commodity_name:
-            # e.g., "crude oil swaps and contracts"
-            base_types = sorted(list({f"{i.base_type} {i.suffix}".strip() for i in instruments}))
-            return f"{commodity_name} {', '.join(base_types)}"
+            # --- NEW: Handle multiple commodity types more gracefully ---
+            unique_base_types = sorted(list({f"{i.base_type} {i.suffix}".strip() for i in instruments}))
+            if len(unique_base_types) <= 2:
+                # e.g., "crude oil swaps and contracts"
+                return f"{commodity_name} {', '.join(unique_base_types)}"
+            else:
+                # e.g., "various crude oil hedging instruments"
+                quantifier = random.choice(GENERIC_QUANTIFIERS)
+                descriptor = random.choice(DERIVATIVE_COMPONENTS["no_alias_types"])
+                suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+                plural_suffix = f"{suffix}s" if not suffix.endswith('s') else suffix
+                return " ".join(filter(None, [quantifier, commodity_name, descriptor, plural_suffix]))
 
     count = len(instruments)
     unique_types = sorted(list({i.instrument_type for i in instruments}))
@@ -1055,7 +1064,6 @@ def _create_contextual_alias(
         # If the base type is NOT unique (e.g., "swap" and "collar" both exist),
         # return the full name to avoid ambiguity.
         return f"{placeholder} {base_type} {suffix}".strip()
-
 
 
 # =============================================================================
