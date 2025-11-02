@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from defs.common_data import (
     transaction_types,
     risk_exposure_terms,
-    gain_loss_phrases,
-    financial_outcome_verbs,
     balance_sheet_locations,
     comparison_phrases,
     DEFAULT_SUFFIXES,
@@ -343,32 +341,42 @@ class CPContextSentence:
             # Format placeholders
             placeholders = {
                 "company": _get_company_reference(self.company_name),
-                "company2": random.choice([c for c in company_names if c != self.company_name]),
-                "company3": random.choice([c for c in company_names if c != self.company_name]),
+                "company2": random.choice(
+                    [c for c in company_names if c != self.company_name]
+                ),
+                "company3": random.choice(
+                    [c for c in company_names if c != self.company_name]
+                ),
                 "year": self.reporting_year,
                 "prev_year": self.reporting_year - 1,
                 "month": self.reporting_month,
                 "end_day": self.reporting_day,
                 "risk_term": random.choice(risk_exposure_terms),
-                "commodities": commodity_name, # Can be expanded later if needed
+                "commodities": commodity_name,  # Can be expanded later if needed
                 "commodity": commodity_name,
                 "impact_verb": random.choice(["affect", "impact", "influence"]),
                 "cost_metric": random.choice(cost_metrics),
                 "cost_type": cost_type,
                 "supply_agreements": random.choice(DEFAULT_SUFFIXES) + "s",
                 "inventory_method": random.choice(inventory_methods),
-                "amount_str": _format_single_notional(amount1, self.currency_symbol, self.prefer_abbreviated),
-                "amount_str2": _format_single_notional(amount2, self.currency_symbol, self.prefer_abbreviated),
+                "amount_str": _format_single_notional(
+                    amount1, self.currency_symbol, self.prefer_abbreviated
+                ),
+                "amount_str2": _format_single_notional(
+                    amount2, self.currency_symbol, self.prefer_abbreviated
+                ),
                 "small_int": random.randint(30, 90),
                 "large_int": random.randint(100_000, 5_000_000),
                 "impact_verb_past": impact_verb_past,
                 "pct": f"{random.uniform(1.5, 7.5):.1f}",
                 "impact_adverb": impact_adverb,
-                "income_statement_item": random.choice(income_statement_items),
+                "income_statement_item": random.choice(balance_sheet_locations),
                 "strength_weakness": random.choice(["strengthening", "weakening"]),
                 "impact_adjective": impact_adj,
                 "comparison_phrase": random.choice(comparison_phrases),
-                "risk_action_verb": random.choice([v for v in risk_management_verbs if not v.endswith("ing")]),
+                "risk_action_verb": random.choice(
+                    [v for v in risk_management_verbs if not v.endswith("ing")]
+                ),
                 "unit": unit,
             }
 
