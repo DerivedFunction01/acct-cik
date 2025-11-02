@@ -360,11 +360,12 @@ BASE_TYPES = STANDALONE_TYPES + DEPENDENT_TYPES
 NO_ALIAS_TYPES_INDEPENDENT = [
     "derivative",
     "hedge",
-    "hedging",
+    
 ]
 
 # Types that should not have an alias
 NO_ALIAS_TYPES = [
+    "hedging",
 ] + NO_ALIAS_TYPES_INDEPENDENT
 
 DEFAULT_SUFFIXES = [
@@ -440,6 +441,7 @@ DERIVATIVE_COMPONENTS = {
     "swap_prefixes": SWAP_PREFIXES,
     "global_prefixes": GLOBAL_PREFIXES,
     "no_alias_types": NO_ALIAS_TYPES,
+    "no_alias_independent": NO_ALIAS_TYPES_INDEPENDENT,
 }
 
 # --- NEW: Components for dynamically generating generic descriptions ---

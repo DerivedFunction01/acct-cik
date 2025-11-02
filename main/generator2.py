@@ -961,8 +961,11 @@ def _create_contextual_alias(
 
     # --- NEW: Prevent aliasing for certain generic types ---
     no_alias_types = DERIVATIVE_COMPONENTS.get("no_alias_types", [])
+    no_alias_independent = DERIVATIVE_COMPONENTS.get("no_alias_independent", [])
     if any(no_alias_word in base_type for no_alias_word in no_alias_types):
-        return base_type
+        if suffix and random.random() < 0.3 and base_type in no_alias_independent:
+            return f"{placeholder} {suffix}".strip()
+        return f"{placeholder} {alias_base}".strip()
 
     # If the base type is unique don't add a prefix.
     if is_base_type_unique:
