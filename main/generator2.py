@@ -2398,6 +2398,8 @@ def generate_json_from_scenario(
 
     for ev in evidence:
         # We only care about evidence that has an instrument ID and notional value.
+        # Why evidence? Because during training, we would not append every reference to every instrument
+        # To prevent hallucinations on fictional instruments it hasn't seen via evidence.
         if (
             not isinstance(ev, NotionalEvidence)
             or ev.instrument_id is None
