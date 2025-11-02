@@ -167,7 +167,7 @@ class FXContextSentence:
         # --- NEW: Create a list of currencies with their amounts ---
         currencies_with_amounts_list = []
         for exp in currencies_to_mention_objects:
-            amount_str = _format_single_notional(exp.amount, exp.symbol, self.prefer_abbreviated)
+            amount_str = _format_single_notional(exp.amount if isinstance(exp, CurrencyExposure) else random.randint(1, 200) * 1_000, exp.symbol, self.prefer_abbreviated)
             # e.g., "Euro (€50.0 million)"
             currencies_with_amounts_list.append(f"{exp.full_name} ({amount_str})")
         if len(currencies_with_amounts_list) > 1:
@@ -299,10 +299,10 @@ fx_context_templates = {
         "Foreign currency {risk_term} had a {impact_adjective} effect on {income_statement_item} of {pct}% in {year}, primarily due to the {strength_weakness} of the {currencies}.",
         "Excluding the impact of foreign currency translation, {income_statement_item} would have {impact_verb_past} by {pct}% in {year} {comparison_phrase} {prev_year}.",
         "The translation impact of changes in foreign exchange rates {impact_verb_past} reported {income_statement_item} by {amount_str} year-over-year.",
-        "On a constant currency basis, {income_statement_item} {impact_verb_past} by {pct}% {comparison_phrase} the prior year, versus {pct2}% on a reported basis.",
+        "On a constant currency basis, {income_statement_item} {impact_verb_past} by {pct}%  the prior year, versus {pct2}% on a reported basis.",
     ],
     "intercompany": [
-        "{company} has intercompany loans denominated in various currencies that are remeasured each reporting period with gains and losses recorded in earnings.",
+        "{company} has intercompany loans denominated in {currencies} that are remeasured each reporting period with {gain_loss} {financial_outcome_verb} in earnings.",
         "Intercompany foreign currency transactions resulted in remeasurement {gain_loss} of {amount_str} during {year}.",
         "{company} has {amount_str} in intercompany receivables denominated in {currencies} as of {month} {end_day}, {year}.",
         "Remeasurement of intercompany balances denominated in currencies other than the functional currency resulted in {gain_loss} of {amount_str} in {year}.",
