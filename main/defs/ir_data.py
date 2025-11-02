@@ -174,6 +174,8 @@ debt_templates = {
         "{time_prefix}, {company} {action_verb} {amount_str} in {debt_types} {maturity_clause} {interest_rate_clause}",
         "{time_prefix}, {company} completed a private placement of {amount_str} of {debt_types}, {interest_rate_clause}",
         "Proceeds from the {debt_type} issuance were used for {purpose_clause}",
+        "In connection with the {capex_purpose}, {company} {action_verb} {amount_str} of {debt_types} to partially fund the transaction",
+        "The proceeds from the {debt_type} issuance were primarily allocated to capital expenditures, including {capex_purpose}.",
     ],
     "repayment": [
         "{time_prefix}, {company} {action_verb} {amount_str} of its {state_descriptor} {debt_type} prior to {termination_noun}",
@@ -231,6 +233,18 @@ debt_maturity_clauses = [
     "that {termination_verb} in {maturity_year}",
 ]
 CAPEX_PURPOSES = {
+    "acquisition": [
+        "acquisition of a competitor",
+        "purchase of a new subsidiary",
+        "strategic acquisition to expand market share",
+        "acquisition of a complementary business",
+        "purchase of key technology assets",
+        "acquisition to enter a new geographic market",
+        "merger with a strategic partner",
+        "buyout of a minority shareholder",
+        "acquisition of a product line",
+        "takeover of a publicly-traded company",
+    ],
     "energy": [
         "exploration and development of new energy sources",
         "renewable energy and sustainability projects",
