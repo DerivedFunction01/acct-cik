@@ -602,6 +602,39 @@ MITIGATION_TEMPLATES = {
 }
 
 # ==============================================================================
+# OPTIONAL DETAIL TEMPLATES (Gains/Losses, Fair Value, etc.)
+# Sourced from old/template/w_emb.py and other files.
+# ==============================================================================
+
+OPTIONAL_DETAIL_TEMPLATES = {
+    "gain_loss": [
+        "For the year ended {month} {end_day}, {year}, the Company recognized a {gain_loss} of {amount_str} on these {swap_type}s in {location}.",
+        "The change in fair value of the {swap_type} resulted in a {gain_loss} of {amount_str} for the year, which was recorded in {location}.",
+        "Unrealized {gain_loss}es on the {swap_type} portfolio totaled {amount_str} for the year ended {month} {end_day}, {year}.",
+        "During {year}, the Company recorded a {gain_loss} of {amount_str} related to the change in fair value of its derivative instruments.",
+        "The mark-to-market adjustment on the {swap_type}s contributed a {gain_loss} of {amount_str} to {location} in {year}.",
+    ],
+    "fair_value_level": [
+        "The fair value of these {swap_type}s is determined using Level {level_num} inputs, such as {level_input_examples}.",
+        "These derivative instruments are classified as Level {level_num} within the fair value hierarchy.",
+        "The Company estimates the fair value of its {swap_type}s based on Level {level_num} inputs, which include {level_input_examples}.",
+        "As of {month} {end_day}, {year}, the {swap_type}s were measured at fair value on a recurring basis using Level {level_num} inputs.",
+    ],
+    "settlement_payment": [
+        "Under the terms of the {swap_type}, settlements occur {frequency}, with net payments of {amount_str} made during {year}.",
+        "The {swap_type} requires {frequency} cash settlement of the net differential between the fixed and floating rates.",
+        "During {year}, the Company {paid_received} a net amount of {amount_str} related to the settlement of its {swap_type}s.",
+        "Net cash {paid_received} on the {swap_type}s for the year ended {month} {end_day}, {year} was {amount_str}.",
+    ],
+}
+
+fair_value_level_examples = {
+    1: "quoted prices in active markets for identical assets",
+    2: "quoted prices for similar instruments, interest rate curves, and credit spreads",
+    3: "internally developed models, discounted cash flow analyses, and other unobservable inputs",
+}
+
+# ==============================================================================
 # HEDGE POLICY TEMPLATES (Ported from old/template/hedges.py)
 # ==============================================================================
 

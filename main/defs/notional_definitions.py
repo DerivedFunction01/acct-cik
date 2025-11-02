@@ -780,8 +780,58 @@ class NotionalSentence:
             sentence_type=self.sentence_type,
             is_repeated_mention=self.is_repeated_mention,
         )
+        # --- NEW: Append optional detail sentences ---
+        optional_sentence = self._build_optional_details(evidence)
+        if optional_sentence:
+            sentence += " " + optional_sentence
 
         return sentence, evidence
+
+    def _build_optional_details(self, evidence: NotionalEvidence) -> str:
+        """
+        Generates an optional, additional sentence with specific details like
+        gains/losses, fair value levels, or payments.
+        """
+        # Only add details for sentences that describe an actual instrument with a value.
+        if (
+            evidence.status in ["no_instruments", "comparative_no_outstanding"]
+            or evidence.notional is None
+            or evidence.notional == 0
+        ):
+            return ""
+
+        # Randomly decide whether to add a detail, and if so, which kind.
+        if random.random() < 0.35:  # 35% chance to add an extra detail sentence
+            detail_type = random.choice(list(OPTIONAL_DETAIL_TEMPLATES.keys()))
+            template = random.choice(OPTIONAL_DETAIL_TEMPLATES[detail_type])
+
+            # Generate a smaller random amount for the detail sentence
+            detail_amount = int(evidence.notional * random.uniform(0.01, 0.15))
+            detail_amount_str = _format_single_notional(
+                detail_amount, self.currency_symbol, self.prefer_abbreviated
+            )
+
+            level_num = random.randint(1, 3)
+
+            placeholders = {
+                "company": _get_company_reference(self.company_name or "The Company"),
+                "year": self.year,
+                "month": self.month or random.choice(months),
+                "end_day": self.end_day or random.randint(28, 31),
+                "gain_loss": random.choice(gain_loss_phrases),
+                "amount_str": detail_amount_str,
+                "swap_type": self.swap_type,
+                "location": random.choice(balance_sheet_locations),
+                "level_num": level_num,
+                "level_input_examples": fair_value_level_examples[level_num],
+                "frequency": random.choice(frequencies),
+                "paid_received": random.choice(["paid", "received"]),
+            }
+
+            sentence = template.format_map(placeholders)
+            return _cleanup_sentence(sentence)
+
+        return ""
 
     def generate_fair_value(self, value: int):
         return max(0, int(value / random.randint(20, 100)))
