@@ -1696,6 +1696,7 @@ def _generate_category_narrative(
                         reporting_year=reporting_year,
                         value_type=value_type,
                         is_repeated_mention=is_repeated_type,  # Pass the TYPE check for contextual phrasing
+                        instrument=instrument, # Pass the full instrument object
                     )
                     individual_sentence_text, evidence_obj = (
                         individual_sentence_obj.build()
@@ -2080,6 +2081,7 @@ def _generate_debug_output(scenario: GenerationScenario) -> str:
         debug_lines.append(f"\nInstrument {i+1}/{len(scenario.instruments)} (ID: {inst.instrument_id})")
         debug_lines.append(f"  - Type: {inst.instrument_type}")
         debug_lines.append(f"  - Category: {inst.category}")
+        debug_lines.append(f"  - Currency: {inst.currency}")
         debug_lines.append(f"  - Start: {inst.start_month} {inst.start_year}")
         debug_lines.append(f"  - Maturity: {inst.maturity_year}")
         debug_lines.append(f"  - Maturity Value: {inst.maturity_value}")

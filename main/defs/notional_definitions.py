@@ -759,6 +759,11 @@ class NotionalSentence:
         # 10. Create NotionalEvidence object
         evidence = NotionalEvidence(
             instrument_id=None,  # This is set later for individual instruments
+            # --- FIX: Prioritize the instrument's specific currency/symbol if available ---
+            # This ensures units like 'LTR' or 'Btu' are passed to the evidence.
+            currency=self.instrument.currency if self.instrument else self.currency_code,
+            symbol=self.instrument.symbol if self.instrument else self.currency_symbol,
+            # -------------------------------------------------------------------------
             status=self.sentence_type,  # type: ignore
             category=self.category,  # type: ignore
             aggregate=self.is_summary,
