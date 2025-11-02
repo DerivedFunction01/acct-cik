@@ -11,6 +11,8 @@ from defs.common_data import (
     financial_outcome_verbs,
     balance_sheet_locations,
     state_descriptors,
+    warrant_events,
+    financing_types,
 )
 
 stock_list = [
@@ -132,38 +134,6 @@ class EQContextSentence:
             sentences.append(_cleanup_sentence(sentence))
 
         return " ".join(sentences)
-
-# Sourced from old/template/other.py
-warrant_events = [
-    "a debt financing transaction",
-    "the series B preferred stock offering",
-    "a credit facility agreement",
-    "consulting services agreements",
-    "a strategic partnership agreement",
-    "the convertible note issuance",
-    "a private placement",
-    "the acquisition financing",
-    "vendor financing arrangements",
-    "financing",
-    "the initial public offering (IPO)",
-    "a merger or acquisition transaction",
-    "a joint venture agreement",
-    "the issuance of senior secured notes",
-    "bridge financing arrangements",
-    "a restructuring or recapitalization",
-    "a collaboration agreement with a strategic partner",
-    "the issuance of subordinated debt securities",
-    "a technology licensing agreement",
-    "the spin-off of a subsidiary",
-    "equity line financing arrangements",
-    "the settlement of outstanding litigation",
-    "an employee retention or incentive program",
-    "royalty financing arrangements",
-    "a PIPE (private investment in public equity) transaction",
-    "mezzanine financing agreements",
-]
-
-financing_types = ["Bridge Financing", "short-term bridge financing", "mezzanine financing", "subordinated debt financing", "convertible debt financing", "senior secured financing"]
 
 # =============================================================================
 # EQ Contextual "Noise" Templates

@@ -368,7 +368,7 @@ class CPContextSentence:
                 ),
                 "small_int": random.randint(30, 90),
                 "large_int": random.randint(100_000, 5_000_000),
-                "impact_verb_past": impact_verb_past,
+                "impact_verb_past": impact_verb_past.format(comparison_phrase=random.choice(comparison_phrases)),
                 "pct": f"{random.uniform(1.5, 7.5):.1f}",
                 "impact_adverb": impact_adverb,
                 "income_statement_item": random.choice(balance_sheet_locations),
