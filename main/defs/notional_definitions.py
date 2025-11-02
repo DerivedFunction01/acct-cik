@@ -387,7 +387,6 @@ class NotionalSentence:
         # 2. Select time prefix template
         time_prefix = ""
         time_suffix = ""
-        # TODO: The logic for selecting and formatting time prefixes/suffixes is template-based and should be replaced by generative logic.
         if self.sentence_type in [
             "summary",
             "comparative",
