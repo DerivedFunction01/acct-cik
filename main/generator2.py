@@ -1528,6 +1528,10 @@ def _generate_category_narrative(
             ]
 
             for instrument in terminated_instruments:
+                # --- FIX: Skip terminated instruments that have already been described ---
+                # This prevents duplicates when a timeline was already generated for it.
+                if instrument.instrument_id in mentioned_instrument_ids:
+                    continue
 
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
