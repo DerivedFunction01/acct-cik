@@ -30,6 +30,8 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.template_definitions import hedge_no_trading_templates, Table
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
+DEBUG = False
+
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
     currency_code = scenario.archetype.default_currency
@@ -2196,6 +2198,9 @@ def generate_narrative_from_scenario(
 
 
 def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]) -> str:
+    global DEBUG
+    if not DEBUG:
+        return ""
     """
     Generates a formatted string containing debug information about the scenario,
     including archetype, instruments, and their hedged items (exposures).
@@ -2320,7 +2325,7 @@ def generate_json_from_scenario(
 
     # --- Append a final reasoning statement for any GENERIC derivatives ---
     # This logic is now centralized here, instead of in the Evidence class.
-    has_generic_evidence = any(ev.category == "GEN" for ev in evidence)
+    has_generic_evidence = any(ev.category == "GEN" and ev.status =="current" for ev in evidence)
     if has_generic_evidence:
         # Find other specific instrument types that were identified in the text.
         all_seen_types = sorted(
@@ -2427,7 +2432,7 @@ def generate_json_from_scenario(
                 "status": "current",
                 "amount": ev.notional,
                 "currency": instrument_obj.currency if instrument_obj else ev.currency,
-                "value_type": ev.value_type,
+                "value_type": ev.value_type.replace("_", " "),
                 "level": "individual",
             }
 
