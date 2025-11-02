@@ -769,7 +769,7 @@ class NotionalSentence:
             notional_str=final_notional_str,
             prev_notional_str=prev_amount_str or None,
             instrument_type=self.swap_type,
-            maturity_year=self.maturity_year,
+            maturity_year=self.maturity_year if self.sentence_type == "terminated_individual" else None,
             reporting_year=self.reporting_year,
             value_type=final_value_type,
             sentence_type=self.sentence_type,
