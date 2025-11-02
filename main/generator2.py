@@ -2459,7 +2459,7 @@ def generate_json_from_scenario(
                     "status": "current",
                     "amount": ev.notional,
                     "currency": ev.currency,
-                    "value_type": ev.value_type,
+                    "value_type": ev.value_type.replace("_", " ")
                 }
             )
 
