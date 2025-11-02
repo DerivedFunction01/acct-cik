@@ -47,9 +47,9 @@ SCENARIO_ARCHETYPES = [
         name="Large Multinational",
         debt_exposure_range=(3, 6),
         fx_exposure_range=(3, 6),
-        commodity_exposure_range=(2, 4),
+        commodity_exposure_range=(3, 6),
         commodity_types=["energy", "metals_minerals", "agriculture"],
-        equity_exposure_range=(1, 3),
+        equity_exposure_range=(3, 5),
         generic_instrument_range=(0, 2),
         hedging_propensities={
             "IR": (0.9, 0.9),
