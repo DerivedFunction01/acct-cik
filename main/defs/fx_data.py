@@ -137,24 +137,30 @@ class FXContextSentence:
         num_sentences = random.randint(1, 3)
         sentences = []
 
-        # Determine the primary currencies to talk about
+        # Determine the primary currencies and their locations to talk about
+        currencies_to_mention_objects = []
         if self.hedged_item and self.hedged_item.exposures:
-            currencies_to_mention = [e.full_name for e in self.hedged_item.exposures]
-            geography = self.hedged_item.exposures[0].location
+            currencies_to_mention_objects = self.hedged_item.exposures
         else:
             # Pick 1-3 random currencies if no specific hedged item is provided
             num_currencies = random.randint(1, 3)
-            random_currencies = random.sample(
+            currencies_to_mention_objects = random.sample(
                 [c for c in all_currencies if c.code != self.currency_code], num_currencies
             )
-            currencies_to_mention = [c.full_name for c in random_currencies]
-            geography = random_currencies[0].location
+        
+        currencies_to_mention = [c.full_name for c in currencies_to_mention_objects]
+        locations_to_mention = list(set([c.location for c in currencies_to_mention_objects]))
 
         # Format the currency list for display
         if len(currencies_to_mention) > 1:
             currencies_str = ", ".join(currencies_to_mention[:-1]) + f" and {currencies_to_mention[-1]}"
         else:
             currencies_str = currencies_to_mention[0]
+        
+        if len(locations_to_mention) > 1:
+            locations_str = ", ".join(locations_to_mention[:-1]) + f" and {locations_to_mention[-1]}"
+        else:
+            locations_str = locations_to_mention[0] if locations_to_mention else "various international regions"
 
         # Select a few template categories to build the paragraph
         template_categories = random.sample(list(fx_context_templates.keys()), k=num_sentences)
@@ -181,7 +187,7 @@ class FXContextSentence:
                 "risk_term": random.choice(risk_exposure_terms),
                 "currencies": currencies_str,
                 "currencies_list": currencies_str, # Alias for the same thing
-                "geography": geography,
+                "locations": locations_str,
                 "gain_loss": gain_loss1,
                 "gain_loss2": gain_loss2,
                 "financial_outcome_verb": random.choice(financial_outcome_verbs),
@@ -221,9 +227,9 @@ class FXContextSentence:
 fx_context_templates = {
     "exposure": [
         "{company} operates in multiple countries and is exposed to foreign currency exchange rate {risk_term}, particularly related to the {currencies}, that affect reported revenues and expenses.",
-        "{company}'s international operations subject it to foreign currency {risk_term}, primarily related to the {currencies}.",
-        "Foreign currency transaction {gain_loss} related to our {geography} operations are {financial_outcome_verb} {location} as incurred.",
-        "Substantially all of {company}'s foreign subsidiaries use their local currency as their functional currency, such as the {currencies}.",
+        "{company}'s international operations in {locations} subject it to foreign currency {risk_term}, primarily related to the {currencies}.",
+        "Foreign currency transaction {gain_loss} related to our {locations} operations are {financial_outcome_verb} {location} as incurred.",
+        "Substantially all of {company}'s foreign subsidiaries in {locations} use their local currency as their functional currency, such as the {currencies}.",
         "{company}'s results of operations are affected by changes in foreign currency exchange rates, particularly {risk_term} in the {currencies}.",
     ],
     "translation": [
@@ -238,7 +244,7 @@ fx_context_templates = {
     "transaction": [
         "Foreign currency transaction {gain_loss} included in {location} totaled {amount_str} for the year ended {month} {end_day}, {year}.",
         "{company} recognized foreign exchange {gain_loss} of {amount_str} during {year}, primarily related to intercompany balances denominated in {currencies}.",
-        "{company} {financial_outcome_verb} foreign currency transaction {gain_loss} of {amount_str} in {year} {comparison_phrase} {gain_loss2} of {amount_str2} in {prev_year}.",
+        "{company} {financial_outcome_verb} foreign currency transaction {gain_loss} of {amount_str} in {year} {comparison_phrase} {gain_loss2} of {amount_str2} in {prev_year} from its operations in {locations}.",
         "Foreign exchange {gain_loss} on remeasurement of monetary assets and liabilities totaled {amount_str} in {year}.",
         "Transaction {gain_loss} on foreign currency ({currencies}) denominated receivables and payables are {financial_outcome_verb} earnings as exchange rates fluctuate.",
     ],
