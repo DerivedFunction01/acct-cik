@@ -967,6 +967,8 @@ def _generate_category_narrative(
                     debt_context_builder = DebtContextSentence(
                         company_name=scenario.company_name,
                         reporting_year=scenario.reporting_year,
+                        reporting_month=scenario.reporting_month,
+                        reporting_day=scenario.reporting_day,
                         hedged_item=debt_item,
                         money_units=scenario.archetype.money_units,
                         prefer_abbreviated=scenario.number_format_preference,

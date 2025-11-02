@@ -329,6 +329,8 @@ class DebtContextSentence: # Simplified to handle one item at a time
 
     company_name: str
     reporting_year: int
+    reporting_month: str
+    reporting_day: int
     hedged_item: "DebtHedgedItem" # Changed from a list to a single item
     money_units: List[Tuple[str, int]]
     prefer_abbreviated: bool
@@ -338,7 +340,8 @@ class DebtContextSentence: # Simplified to handle one item at a time
         """Builds a paragraph about the company's debt exposures."""
         # Lazy import to prevent circular dependency
         from .template_definitions import _cleanup_sentence, _format_single_notional
-        from .common_data import (
+        from .template_definitions import point_in_time_prefixes, period_of_time_prefixes
+        from .common_data import ( # fmt: skip
             months,
             termination_noun,
             termination_verbs_past,
@@ -369,6 +372,16 @@ class DebtContextSentence: # Simplified to handle one item at a time
         # Choose a template that describes the details of a single instrument
         template = random.choice(debt_templates["details"])
 
+        # --- NEW: Use dynamic time prefixes ---
+        time_prefix_template = random.choice(point_in_time_prefixes)
+        time_prefix = time_prefix_template.format(
+            month=self.reporting_month, end_day=self.reporting_day, year=self.reporting_year, quarter=random.choice(["first", "second", "third", "fourth"])
+        )
+        time_suffix_template = random.choice(point_in_time_prefixes)
+        time_suffix = time_suffix_template.format(
+            month=self.reporting_month, end_day=self.reporting_day, year=self.reporting_year, quarter=random.choice(["first", "second", "third", "fourth"])
+        )
+
         # Format the main sentence
         main_sentence = template.format(
             company=self.company_name,
@@ -381,8 +394,8 @@ class DebtContextSentence: # Simplified to handle one item at a time
             pct2=f"{(self.hedged_item.spread_bps / 100 + random.uniform(1,2) if self.hedged_item.spread_bps else random.uniform(6.5, 8.5)):.2f}",
             small_int=self.hedged_item.maturity_year - self.reporting_year,
             year=self.reporting_year,
-            time_prefix=f"As of December 31, {self.reporting_year}",
-            time_suffix=f"as of December 31, {self.reporting_year}",
+            time_prefix=time_prefix,
+            time_suffix=time_suffix,
             state_descriptor=random.choice(state_descriptors),
             frequency=self.hedged_item.payment_frequency or random.choice(frequencies),
             amount_str2=_format_single_notional(self.hedged_item.principal_amount * random.uniform(0.1, 0.5), self.currency_symbol, self.money_units, self.prefer_abbreviated),
@@ -395,6 +408,12 @@ class DebtContextSentence: # Simplified to handle one item at a time
         if random.random() < 0.4: # 40% chance to add a second sentence
             event_type = random.choice(["issuance", "repayment", "refinancing"])
             template = random.choice(debt_templates[event_type])
+
+            # --- NEW: Use dynamic time prefixes for events ---
+            event_time_prefix_template = random.choice(period_of_time_prefixes)
+            event_time_prefix = event_time_prefix_template.format(
+                month=self.hedged_item.issuance_month or random.choice(months), year=self.reporting_year, quarter=random.choice(["first", "second", "third", "fourth"])
+            )
 
             capex_purpose = random.choice(CAPEX_PURPOSES["generic"])
 
@@ -409,7 +428,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 maturity_clause=maturity_clause,
                 purpose_clause=f"general corporate purposes, including {capex_purpose}",
                 capex_purpose=capex_purpose,
-                time_prefix=f"During {self.reporting_year}",
+                time_prefix=event_time_prefix,
                 time_suffix=f"at year-end {self.reporting_year}",
                 year=self.reporting_year,
                 month=self.hedged_item.issuance_month or random.choice(months),
@@ -419,4 +438,4 @@ class DebtContextSentence: # Simplified to handle one item at a time
             )
             sentences.append(_cleanup_sentence(event_sentence))
 
-        return " ".join(sentences)
+        return ". ".join(sentences) + ". "
