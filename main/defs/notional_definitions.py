@@ -3,7 +3,6 @@ import random
 from typing import Callable, Dict, Literal, Optional, Tuple
 from defs.function_definitions import _get_company_reference, _format_single_notional, _cleanup_sentence
 from defs.common_data import *
-from defs.template_definitions import *
 from defs.cp_data import get_random_commodity_and_unit, get_units_for_commodity
 from defs.fx_data import all_currencies
 from defs.instrument_definitions import NotionalInstrument
@@ -325,6 +324,23 @@ class NotionalSentence:
             self.sentence_type = "no_instruments"
 
     def build(self) -> Tuple[str, NotionalEvidence]:
+        from defs.template_definitions import (
+            multi_year_time_prefixes,
+            point_in_time_prefixes,
+            NOTIONAL_SENTENCE_TEMPLATES,
+            period_of_time_prefixes,
+            amount_connectors,
+            amount_prefixes,
+            hedge_designations,
+            hedge_types,
+            result_phrases,
+            NO_INSTRUMENTS_TEMPLATES,
+            portfolio_terms,
+            historical_instrument_phrases,
+            portfolio_verbs,
+            MITIGATION_TEMPLATES,
+        )
+
         """
         Builds a notional sentence and a corresponding NotionalEvidence object.
         Returns: A tuple of (sentence_string, NotionalEvidence_instance).
@@ -791,6 +807,9 @@ class NotionalSentence:
         return sentence, evidence
 
     def _build_optional_details(self, evidence: NotionalEvidence) -> str:
+        from defs.template_definitions import (
+            OPTIONAL_DETAIL_TEMPLATES, fair_value_level_examples
+        )
         """
         Generates an optional, additional sentence with specific details like
         gains/losses, fair value levels, or payments.
