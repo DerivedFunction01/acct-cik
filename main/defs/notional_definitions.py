@@ -66,7 +66,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
         ):
             # --- FIX: Restore maturity year to the reasoning for individual instruments. ---
             # This creates a more descriptive reasoning string like "(2020, matures: 2025)".
-            if self.maturity_year is not None and self.maturity_year != self.year:
+            if self.maturity_year is not None and self.maturity_year != self.year and self.maturity_year > 0:
                 return f" ({self.year}, matures: {self.maturity_year})"
             else:
                 # If maturity is unknown or same as the data year, just show the year.
