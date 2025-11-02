@@ -2248,6 +2248,12 @@ def generate_json_from_scenario(
 
         instrument_id = ev.instrument_id
 
+        # --- FIX: Look up the instrument directly to get the correct currency/unit ---
+        # This is the single source of truth for the instrument's properties.
+        instrument_obj = next(
+            (inst for inst in scenario.instruments if inst.instrument_id == instrument_id), None
+        )
+
         # Initialize the instrument if it's the first time we see it
         if instrument_id not in instrument_evidence_map:
             # --- FIX: Correctly determine status for terminated instruments ---
@@ -2262,11 +2268,11 @@ def generate_json_from_scenario(
             if is_terminated_evidence:
                 continue  # Skip, we only want current
             instrument_evidence_map[instrument_id] = {
-                "type": ev.instrument_type or "Unknown",
-                "category": ev.category,
+                "type": instrument_obj.instrument_type if instrument_obj else (ev.instrument_type or "Unknown"),
+                "category": instrument_obj.category if instrument_obj else ev.category,
                 "status": "current",
                 "amount": ev.notional,
-                "currency": ev.currency,
+                "currency": instrument_obj.currency if instrument_obj else ev.currency,
                 "value_type": ev.value_type,
                 "level": "individual",
             }
