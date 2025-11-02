@@ -2042,9 +2042,15 @@ def generate_json_from_scenario(
 
         # Initialize the instrument if it's the first time we see it
         if instrument_id not in instrument_evidence_map:
-            # Determine status directly from the evidence's own status field. # type: ignore
-            status = "terminated" if ev.status == "terminated_individual" else "current"
-
+            # --- FIX: Correctly determine status for terminated instruments ---
+            # Any evidence type that implies termination should result in a "terminated" status.
+            is_terminated_evidence = ev.status in [
+                "terminated_individual",
+                "comparative_no_outstanding",
+            ]
+            status = "terminated" if is_terminated_evidence else "current"
+            if status == "terminated":
+                continue # Skip, we only want current
             instrument_evidence_map[instrument_id] = {
                 "type": ev.instrument_type or "Unknown",
                 "category": ev.category,
@@ -2057,13 +2063,16 @@ def generate_json_from_scenario(
 
         # Update the notional amount. This will capture the most relevant value
         # (e.g., the 'new' or 'terminated' value for that instrument).
-        # --- FIX: Use the notional from the evidence, which could be a fair value ---
-        # This ensures the JSON amount matches what was stated in the narrative.
-        if ev.notional is not None:
+        # --- FIX: For terminated instruments, use the prior notional if the current is zero ---
+        if ev.status == "comparative_no_outstanding" and ev.prev_notional is not None:
+            # For this case, the meaningful amount is the prior year's value.
+            instrument_evidence_map[instrument_id]["amount"] = ev.prev_notional
+        elif ev.notional is not None:
+            # For all other cases, use the primary notional from the evidence.
             instrument_evidence_map[instrument_id]["amount"] = ev.notional
 
         # Update status based on evidence type. 'terminated' is a final state.
-        if ev.status == "terminated_individual":
+        if ev.status in ["terminated_individual", "comparative_no_outstanding"]:
             instrument_evidence_map[instrument_id]["status"] = "terminated"
 
     # Convert the aggregated map into the final list, matching the TODO.md schema.
