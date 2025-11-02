@@ -960,25 +960,40 @@ def _create_contextual_alias(
     is_base_type_unique = base_type not in all_other_base_types
 
     # --- NEW: Prevent aliasing for certain generic types ---
-    no_alias_types = DERIVATIVE_COMPONENTS.get("no_alias_types", [])
-    no_alias_independent = DERIVATIVE_COMPONENTS.get("no_alias_independent", [])
+    no_alias_types = DERIVATIVE_COMPONENTS.get(
+        "no_alias_types", []
+    )  # (ex. derivative, hedge, hedging)
+    no_alias_independent = DERIVATIVE_COMPONENTS.get("no_alias_independent", []) #(ex. hedging)
+    base_dependent = base_type in DERIVATIVE_COMPONENTS.get("dependent_types", [])
+
     if any(no_alias_word in base_type for no_alias_word in no_alias_types):
         if suffix and random.random() < 0.3 and base_type in no_alias_independent:
-            return f"{placeholder} {suffix}".strip()
-        return f"{placeholder} {alias_base}".strip()
+            return f"{placeholder} {alias_base}".strip() # (ex. IR derivative)
+        if is_base_type_unique:
+            return f"{placeholder} {alias_base} {suffix}".strip() # dependent (ex. IR hedging contract)
 
     # If the base type is unique don't add a prefix.
-    if is_base_type_unique:
-        if suffix and random.random() < 0.3:
-            return f"{alias_base} {suffix}".strip()
-        return alias_base
+    if is_base_type_unique:  
+        if not base_dependent:
+            # (ex. full name: ir swap contract)
+            if suffix and random.random() < 0.3:
+                return f"{alias_base} {suffix}".strip() # (ex. swap contract)
+            if placeholder and random.random() < 0.3:
+                return f"{placeholder} {alias_base}".strip() # (ex. IR swap)
+            return alias_base # (ex. swap)
+        else:
+            # (ex. full name: ir collar contract)
+            if suffix and random.random() < 0.3:
+                return f"{alias_base} {suffix}".strip() # (ex. collar contract)
+            else:
+                return f"{placeholder} {alias_base}".strip() # (ex. ir collar)
 
     category_prefix_map = {"IR": "IR", "FX": "FX", "CP": "commodity", "EQ": "equity"}
     category_prefix = category_prefix_map.get(category, "")
 
     # --- NEW: For dependent types, prefer a more descriptive alias ---
     # e.g., "rate lock" instead of just "lock"
-    if base_type in DERIVATIVE_COMPONENTS.get("dependent_types", []):
+    if base_dependent:
         # Use placeholder if it's not generic, otherwise fallback to category prefix
         if suffix and random.random() < 0.3:
             return f"{alias_base} {suffix}".strip()
