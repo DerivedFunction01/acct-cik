@@ -870,7 +870,7 @@ class Table:
                 continue
 
             all_rows.append(
-                f"\nAs of {self.month} {self.day}, {year} (in {self.money_unit()}) (in {self.currency_symbol} {self.money_unit()})"
+                f"\nAs of {self.month} {self.day}, {year} (in {self.currency_symbol} {self.money_unit()})"
             )
             header = (
                 f"| {'Instrument':<45} | {'Notional Amount':>20} | {'Fair Value':>20} |"
