@@ -29,6 +29,9 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.template_definitions import hedge_no_trading_templates
 from defs.eq_data import EQInstrument, EquityHedgedItem
 
+# --- DEBUG FLAG ---
+FORCE_COMPARATIVE_SUMMARY = True # Set to True to always generate comparative summaries when possible
+
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
     currency_code = scenario.archetype.default_currency
@@ -1143,7 +1146,9 @@ def _generate_category_narrative(
             # --- FIX: Implement comparative sentence logic ---
             prev_notional_to_report = None
             prev_year_to_report = None
-            if current_notional > 0 and prior_notional > 0 and random.random() < 0.4:
+            # --- DEBUG: Force comparative summary if flag is set ---
+            force_comparative = FORCE_COMPARATIVE_SUMMARY and current_notional > 0 and prior_notional > 0
+            if force_comparative or (current_notional > 0 and prior_notional > 0 and random.random() < 0.4):
                 sentence_type_to_use = "comparative"
                 notional_to_report = current_notional
                 prev_notional_to_report = prior_notional
@@ -1342,7 +1347,9 @@ def _generate_category_narrative(
                 else:
                     # Fallback to the standard "terminated" sentence
                     value_type_terminated = "notional" # Keep it simple
-                    value_to_report_terminated = instrument.notional_history.get(reporting_year - 1, 0)
+                    # --- FIX: Prioritize maturity_value for the most accurate final amount ---
+                    value_to_report_terminated = instrument.maturity_value or instrument.notional_history.get(reporting_year - 1, 0)
+
                     use_alias_terminated = (is_repeated_instance_terminated and random.random() < 0.75)
                     name_to_use_terminated = instrument.instrument_alias if use_alias_terminated and instrument.instrument_alias else instrument.instrument_type
 
