@@ -423,7 +423,7 @@ class NotionalSentence:
             "no_instruments",
             "individual",
         ] or self.sentence_type.startswith("comparative"):
-            # Simplified: Always use single-year prefixes for now.
+            # --- FIX: Explicitly check for prev2_year to select the correct multi-year prefix ---
             if self.sentence_type.startswith("comparative") and self.prev_year and self.prev2_year:
                 time_prefix = random.choice(multi_year_time_prefixes["three_year"])
             elif self.sentence_type.startswith("comparative") and self.prev_year:

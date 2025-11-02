@@ -91,18 +91,17 @@ period_of_time_prefixes = [
 # Multi-year time prefixes (patterns for 2 or 3 years)
 multi_year_time_prefixes = {
     "two_year": [
-        "at {month} {end_day}, {year} and {prev_year}", # This is used by generate_notional_sentence
+        "at {month} {end_day}, {year} and {prev_year}, respectively", # This is used by generate_notional_sentence
         "as of {month} {end_day}, {year} and {prev_year}",
-        "at {month} {year} and {month} {prev_year}",
-        "as of {month} {end_day}, {year} and {month} {end_day}, {prev_year}",
-        "during {month} {year} and {prev_year}",
+        "at {month} {year} and {prev_year}, respectively",
+        "as of {month} {end_day}, {year} and {prev_year}, respectively",
+        "for the years ended {month} {end_day}, {year} and {prev_year}",
     ],
     "three_year": [
-        "at {month} {end_day}, {year}, {prev_year}, and {prev2_year}", # This is used by generate_notional_sentence
-        "as of {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
-        "at {month} {year}, {month} {prev_year}, and {month} {prev2_year}",
-        "as of {month} {end_day}, {year}, {month} {end_day}, {prev_year}, and {month} {end_day}, {prev2_year}",
-        "during {month} {year}, {prev_year}, and {prev2_year}",
+        "at {month} {end_day}, {year}, {prev_year}, and {prev2_year}, respectively", # This is used by generate_notional_sentence
+        "as of {month} {end_day}, {year}, {prev_year}, and {prev2_year}, respectively",
+        "at {month} {year}, {prev_year}, and {prev2_year}, respectively",
+        "for the years ended {month} {end_day}, {year}, {prev_year}, and {prev2_year}",
     ],
 }
 
@@ -268,6 +267,8 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}, whereas no such instruments were {state_descriptor} in the prior year.",
         "{time_prefix}, {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}; no comparable instruments were {state_descriptor} during {prev_year}.",
         "The {amount_prefix} of {swap_type} was {amount_str} {time_suffix} {result_clause}; there were no such instruments reported in {prev_year}.",
+        "{company} initiated the use of {swap_type} {time_suffix}, with an outstanding {amount_prefix} of {amount_str}, where none existed in the prior year.",
+        "Activity in {swap_type} commenced {time_suffix}, resulting in a {amount_prefix} of {amount_str}, up from zero in the previous year.",
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {time_suffix}, whereas no such instruments were held in the prior year.",
     ],
