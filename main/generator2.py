@@ -8,7 +8,7 @@ import json, re
 from typing import List, Dict, Literal, Optional, Set, Tuple
 
 from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
-from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument
+from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
 from defs.common_data import *
 from defs.cp_data import CommodityHedgedItem, CPInstrument, get_random_commodity_and_unit
 from defs.instrument_definitions import DERIVATIVE_CATEGORIES, BaseNarrativeEvidence, NotionalInstrument, HedgedItem, GenericInstrument
@@ -1094,6 +1094,47 @@ def _generate_debt_narrative(
     return paragraphs, evidence
 
 
+def _generate_fx_narrative(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+    """
+    Generates a dedicated, detailed narrative section about the company's foreign currency exposures.
+    """
+    paragraphs = []
+    evidence = []
+
+    currency_symbol, _, currency_code = _get_currency_and_unit_details(scenario)
+
+    # Get all unique FX hedged items from the scenario's instruments.
+    all_fx_items = list({
+        inst.hedged_item.hedged_item_id: inst.hedged_item
+        for inst in scenario.instruments
+        if isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)
+    }.values())
+
+    if not all_fx_items:
+        return [], []
+
+    paragraphs.append("Foreign Currency Risk")
+
+    for fx_item in all_fx_items:
+        fx_context_builder = FXContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            hedged_item=fx_item,
+            prefer_abbreviated=scenario.number_format_preference,
+            currency_symbol=currency_symbol,
+            currency_code=currency_code,
+        )
+        fx_paragraph = fx_context_builder.build()
+        if fx_paragraph:
+            paragraphs.append(fx_paragraph)
+
+    return paragraphs, evidence
+
+
 def _generate_category_narrative(
     category: str,
     yearly_data: Dict,
@@ -1183,6 +1224,26 @@ def _generate_category_narrative(
                 debt_paragraph = debt_context_builder.build()
                 if debt_paragraph:
                     sentences.append(debt_paragraph)
+
+        # --- NEW: Add FX context for FX category (similar to IR/Debt) ---
+        if category == "FX":
+            all_fx_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)]
+            items_to_describe = random.sample(all_fx_hedged_items, k=min(len(all_fx_hedged_items), 1)) # Describe 1 item
+
+            for fx_item in items_to_describe:
+                fx_context_builder = FXContextSentence(
+                    company_name=scenario.company_name,
+                    reporting_year=scenario.reporting_year,
+                    reporting_month=scenario.reporting_month,
+                    reporting_day=scenario.reporting_day,
+                    hedged_item=fx_item,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    currency_symbol=currency_symbol,
+                    currency_code=currency_code,
+                )
+                fx_paragraph = fx_context_builder.build()
+                if fx_paragraph:
+                    sentences.append(fx_paragraph)
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(
@@ -1785,6 +1846,13 @@ def generate_narrative_from_scenario(
     if debt_paragraphs:
         derivative_details_sections.extend(debt_paragraphs)
         all_evidence.extend(debt_evidence)
+
+    # --- NEW: Part 2.6: Build the dedicated "Foreign Currency Risk" Section ---
+    fx_paragraphs, fx_evidence = _generate_fx_narrative(scenario)
+    if fx_paragraphs:
+        derivative_details_sections.extend(fx_paragraphs)
+        all_evidence.extend(fx_evidence)
+
     # --- Part 2: Build the "Derivative Financial Instruments" Details Section ---
     # Add a title for this section if there are any details to report.
     has_any_details = any(

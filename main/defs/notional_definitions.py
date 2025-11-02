@@ -325,7 +325,6 @@ class NotionalSentence:
             self.sentence_type = "no_instruments"
 
     def build(self) -> Tuple[str, NotionalEvidence]:
-        print(self.sentence_type, self.is_summary)
         """
         Builds a notional sentence and a corresponding NotionalEvidence object.
         Returns: A tuple of (sentence_string, NotionalEvidence_instance).
