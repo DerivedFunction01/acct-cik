@@ -1131,33 +1131,45 @@ def _generate_category_narrative(
             and not is_non_use_mitigation
             and random.random() < 0.5
         ):
-            # --- FIX: Only report a value if the template is likely to use it ---
-            # Decide upfront if we're going to mention a value.
-            # This prevents passing a value to a template that doesn't display it,
-            # which avoids creating evidence with a "None" notional string.
-            mentions_amount = random.random() < 0.8  # 80% chance to generate a sentence with a value
-
-            total_notional = current_year_data["total_notional"]
-            use_fair_value = random.random() < 0.2 # type: ignore
-            value_type_to_use = "fair_value" if use_fair_value else "notional"
-            assert total_notional is not None and isinstance(total_notional, int)
-            summary_sentence_obj = NotionalSentence(
-                swap_type=instrument_type,
-                year=reporting_year,
-                notional=total_notional,
-                currency_symbol=currency_symbol,
-                month=reporting_month,
-                end_day=reporting_day,
-                notional_multiplier=scenario.archetype.notional_multiplier,
-                prefer_abbreviated=scenario.number_format_preference,
-                category=category,  # type: ignore
-                reporting_year=reporting_year,
-                value_type=value_type_to_use,
-                specific_details=specific_details,
+            # --- NEW: Logic to choose between summary, comparative, or comparative_no_prior ---
+            current_notional = (
+                current_year_data["total_notional"] if current_year_data else 0
             )
-            summary_sentence_text, evidence_obj = summary_sentence_obj.build()
-            sentences.append(summary_sentence_text)
-            evidence.append(evidence_obj)
+            prior_notional = prev_year_data["total_notional"] if prev_year_data else 0
+
+            sentence_type_to_use = "summary"  # Default
+            notional_to_report = current_notional
+
+            if current_notional > 0 and prior_notional > 0 and random.random() < 0.3:
+                # Not implemented yet, but this is where the logic would go.
+                # sentence_type_to_use = "comparative"
+                # notional_to_report = [current_notional, prior_notional] # This would require NotionalSentence to handle lists
+                pass  # Fallback to summary for now
+            elif current_notional > 0 and prior_notional == 0:
+                sentence_type_to_use = "comparative_no_prior_outstanding"
+                notional_to_report = current_notional
+            if notional_to_report > 0:
+                use_fair_value = random.random() < 0.2
+                value_type_to_use = "fair_value" if use_fair_value else "notional"
+
+                summary_sentence_obj = NotionalSentence(
+                    swap_type=instrument_type,
+                    year=reporting_year,
+                    notional=notional_to_report,
+                    currency_symbol=currency_symbol,
+                    month=reporting_month,
+                    end_day=reporting_day,
+                    notional_multiplier=scenario.archetype.notional_multiplier,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    category=category,  # type: ignore
+                    reporting_year=reporting_year,
+                    value_type=value_type_to_use,
+                    specific_details=specific_details,
+                    sentence_type=sentence_type_to_use,  # type: ignore
+                )
+                summary_sentence_text, evidence_obj = summary_sentence_obj.build()
+                sentences.append(summary_sentence_text)
+                evidence.append(evidence_obj)
 
     # --- Part 2: Generate Detailed Individual Instrument Sentences ---
     elif part == "details":
@@ -1231,7 +1243,12 @@ def _generate_category_narrative(
 
                 # --- Standard sentence generation (current, historical, or inception) ---
                 else:
-                    sentence_type = "individual"
+                    # --- FIX: Use the 'new_individual' sentence type for new instruments ---
+                    is_new_instrument = instrument.start_year == reporting_year
+                    if is_new_instrument:
+                        sentence_type = "new_individual"
+                    else:
+                        sentence_type = "individual"
                     year_to_report = reporting_year
                     notional_to_report = value_to_report
 
