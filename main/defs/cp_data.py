@@ -352,17 +352,17 @@ cp_context_templates = {
         "We estimate that a {pct}% change in the average price of {commodity} would result in a {amount_str} change in annual {income_statement_item}.",
     ],
     "pricing_strategy": [
-        "{company} generally seeks to pass through commodity cost changes to customers through pricing mechanisms, though timing differences can affect margins.",
-        "{company} has implemented price increases totaling {pct}% to offset {commodity} cost inflation during {year}.",
-        "Pricing adjustments are typically implemented with a {small_int}-month lag following changes in {commodity} costs.",
-        "{company} utilizes index-based pricing formulas for certain products to mitigate the impact of {commodity} price volatility.",
-        "Customer contracts include provisions that allow {company} to adjust prices in response to significant {commodity} cost movements.",
+        "{company} generally seeks to pass through {commodity} cost {risk_term} to customers through pricing mechanisms.",
+        "{company} has implemented price increases totaling {pct}% to {risk_action_verb} {commodity} cost {risk_term} during {year}.",
+        "Pricing adjustments are typically implemented with a {small_int}-month lag following {risk_term} in {commodity} costs.",
+        "{company} utilizes index-based pricing formulas for certain products to {risk_action_verb} the impact of {commodity} price {risk_term}.",
+        "Customer {supply_agreements} include provisions that allow {company} to adjust prices in response to significant {commodity} cost {risk_term}.",
     ],
     "physical_operations": [
         "{company} owns and operates {commodity} production facilities with annual capacity of {large_int} {unit}.",
         "{company} produced {large_int} {unit} of {commodity} during {year}, a {pct}% increase from the prior year.",
         "{company}'s {commodity} operations generated revenues of {amount_str} in {year}.",
-        "Production costs for {commodity} averaged {amount_str} per {unit} in {year}, compared to {amount_str2} in {prev_year}.",
+        "Production costs for {commodity} averaged {amount_str} per {unit} in {year}, {comparison_phrase} {amount_str2} in {prev_year}.",
         "{company} maintains proved reserves of {large_int} {unit} of {commodity} as of {month} {end_day}, {year}.",
-    ]
+    ],
 }
