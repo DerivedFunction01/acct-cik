@@ -333,25 +333,6 @@ material = [
 # Outstanding active state descriptors
 state_descriptors = ["outstanding", "active", "remaining", "open"]
 
-income_statement_items = [
-    "revenues",
-    "cost of sales",
-    "gross profit",
-    "operating expenses",
-    "selling, general and administrative expenses",
-    "research and development expenses",
-    "other operating income, net",
-    "operating income",
-    "interest expense",
-    "other income (expense), net",
-    "income before income taxes",
-    "provision for income taxes",
-    "net income",
-    "earnings per share",
-    "comprehensive income",
-    "other comprehensive income",
-    "total comprehensive income",
-] 
 # =============================================================================
 # DERIVATIVES
 # =============================================================================
