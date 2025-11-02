@@ -82,7 +82,6 @@ class DerivativeInstrument:
     start_year: int
     maturity_month: Optional[str] = None
     maturity_year: Optional[int] = None
-    maturity_value: Optional[int] = None
 
     def to_dict(self) -> Dict:
         """Serializes the common instrument data to a dictionary for JSON output."""
@@ -113,6 +112,7 @@ class NotionalInstrument(DerivativeInstrument, Generic[T_HedgedItem]):
     )  # {year: notional_amount}
     currency: str = "USD"
     hedged_item: Optional[T_HedgedItem] = None
+    maturity_value: Optional[int] = 0
 
     def to_dict(self) -> Dict:
         """Extends the base to_dict to include notional-specific fields."""
