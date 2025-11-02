@@ -1,4 +1,5 @@
 # %%
+from dataclasses import asdict
 import random
 import sys
 import string
@@ -1658,13 +1659,14 @@ def _generate_category_narrative(
                 notional_multiplier=scenario.archetype.notional_multiplier,
                 prefer_abbreviated=scenario.number_format_preference
             )
-            table_str = table_builder.build()
+            table_str, table_evidence = table_builder.build()
             if table_str:
                 # The table string itself is the "paragraph". We also need to generate evidence for the instruments in it.
                 paragraphs.append(table_str)
+                evidence.extend(table_evidence)
                 # For now, we'll let the JSON generation handle evidence from the scenario.
                 # A future improvement could be to have the Table class also return evidence.
-                return paragraphs, [], None
+                return paragraphs, evidence, None
 
         if current_year_data and current_year_data["instruments"]:
             for instrument in current_year_data["instruments"]:
@@ -2193,7 +2195,7 @@ def generate_narrative_from_scenario(
     return full_narrative, all_evidence
 
 
-def _generate_debug_output(scenario: GenerationScenario) -> str:
+def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]) -> str:
     """
     Generates a formatted string containing debug information about the scenario,
     including archetype, instruments, and their hedged items (exposures).
@@ -2239,6 +2241,16 @@ def _generate_debug_output(scenario: GenerationScenario) -> str:
                 debug_lines.append(f"    - Details: {json.dumps(details, indent=4)}")
         else:
             debug_lines.append("  - Hedged Item (Exposure): None")
+
+    # --- NEW: Add evidence objects to debug output ---
+    debug_lines.append("\n" + "=" * 20)
+    debug_lines.append(f"\nEvidence Objects ({len(evidence)}):")
+    for i, ev in enumerate(evidence):
+        # Use asdict for a clean, serializable representation
+        evidence_dict = asdict(ev)
+        debug_lines.append(f"  - Evidence {i+1}:")
+        # Pretty-print the dictionary
+        debug_lines.append(f"    {json.dumps(evidence_dict, indent=6)}")
 
     return "\n".join(debug_lines)
 
@@ -2468,7 +2480,7 @@ def generate_training_sample(archetype_index=None):
     narrative_text, evidence = generate_narrative_from_scenario(scenario)
 
     # --- NEW: Append debug output to the narrative text ---
-    debug_output = _generate_debug_output(scenario)
+    debug_output = _generate_debug_output(scenario, evidence)
     narrative_text += debug_output
 
     # 3. Generate the corresponding JSON label using the evidence from the narrative.

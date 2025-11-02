@@ -3,100 +3,10 @@ from dataclasses import dataclass
 import random
 import re
 from typing import Dict, List, Literal, Tuple
+from defs.notional_definitions import NotionalEvidence
 from defs.instrument_definitions import NotionalInstrument
 from defs.common_data import DERIVATIVE_COMPONENTS
-# A set of common currency symbols to differentiate them from units
-KNOWN_CURRENCY_SYMBOLS = {'$', '€', '£', '¥', 'CHF', 'kr', 'zł', 'Ft', 'Kč', '₺', '₽', 'лв', 'lei', '₩', '฿', 'RM', 'R$', 'د.إ', 'ر.س', '₹'}
-
-from typing import Literal
-
-KNOWN_CURRENCY_SYMBOLS = {"$", "€", "£", "¥"}  # Example set
-
-
-def _format_single_notional(
-    amount: int | float,
-    symbol: str,  # The currency symbol, e.g., '$'
-    prefer_abbreviated: bool,
-    no_unit_word: bool = False,  # Suppresses "million/billion/etc."
-    zero_format: Literal["nil", "zero", "amount"] = "amount",
-) -> str:
-    """
-    Formats a single notional amount into a readable string like '$250.0 million'
-    or '250.0 thousand barrels'.
-
-    - If no_unit_word=True, abbreviates numerically but omits the unit word
-      (e.g., '$250.0' instead of '$250.0 million').
-    - If prefer_abbreviated=False, shows full number with commas.
-    """
-    if amount == 0:
-        if zero_format in ["nil", "zero"]:
-            return zero_format
-        # else, format as amount (e.g., "$0")
-
-    amount_to_string = {
-        "trillion": 1_000_000_000_000,
-        "billion": 1_000_000_000,
-        "million": 1_000_000,
-        "thousand": 1_000,
-    }
-
-    if prefer_abbreviated:
-        for unit_word, divisor in sorted(
-            amount_to_string.items(), key=lambda x: x[1], reverse=True
-        ):
-            if amount >= divisor:
-                # If no_unit_word=True, drop the unit word entirely
-                formatted_number = f"{amount / divisor:.1f}"
-                if not no_unit_word:
-                    formatted_number += f" {unit_word}"
-
-                if symbol in KNOWN_CURRENCY_SYMBOLS:
-                    return f"{symbol}{formatted_number}"
-                return f"{formatted_number} {symbol}"
-
-    # Fallback: full numeric value with commas
-    if symbol in KNOWN_CURRENCY_SYMBOLS:
-        return f"{symbol}{amount:,.0f}"
-    else:
-        return f"{amount:,.0f} {symbol}"
-
-
-def _cleanup_sentence(sentence: str) -> str:
-    """Clean up sentence by removing empty placeholders and extra spaces."""
-    # Add a space before a clause if the preceding character is not a space, comma, or newline
-    sentence = re.sub(r"([a-zA-Z0-9,])({hedge_designation_clause}|{result_clause}|{maturity_clause})", r"\1 \2", sentence)
-
-    # Remove any remaining optional placeholders that weren't filled, and any leading/trailing spaces around them
-    sentence = sentence.replace("{hedge_designation_clause}", "")
-    sentence = sentence.replace("{result_clause}", "")
-    sentence = sentence.replace("{maturity_clause}", "")
-    sentence = sentence.replace("{time_suffix}", "")  # If not used, remove it
-
-    # Clean up multiple spaces
-    while "  " in sentence:
-        sentence = sentence.replace("  ", " ")
-
-    # Remove leading commas that can result from empty prefixes
-    sentence = re.sub(r'^\s*,\s*', '', sentence)
-
-    # Clean up comma/space issues more aggressively
-    sentence = sentence.replace(" ,", ",")
-    sentence = sentence.replace(" ,", ",")
-    sentence = sentence.replace(",,", ",")
-    sentence = sentence.replace(" .", ".")
-
-    # Remove trailing commas before period
-    sentence = sentence.replace(", .", ".")
-    sentence = sentence.replace(" .", ".")  # In case of empty clauses
-
-    # Correctly pluralize words ending in a consonant followed by 'y' (e.g., "company" -> "companies").
-    # This avoids incorrectly changing words like "always" or "employs".
-    sentence = re.sub(r"([^aeiou])ys\b", r"\1ies", sentence, flags=re.IGNORECASE)
-    
-    # capitalize the 1st char
-    sentence = sentence[0].upper() + sentence[1:]
-
-    return sentence.strip()
+from defs.function_definitions import _format_single_notional
 
 # Time prefixes for point-in-time statements (e.g., aggregate summaries, single year)
 point_in_time_prefixes = [
@@ -828,21 +738,21 @@ class Table:
             return amount_to_string[self.notional_multiplier]
         return "in millions"
         
-    def build(self) -> str:
+    def build(self) -> Tuple[str, List[NotionalEvidence]]:
         """
         Selects a table format at random and builds the table string.
         """
         formats = [
             self._build_year_over_year_table,
             self._build_notional_vs_fair_value_table,
-            self._build_maturity_grouping_table,
+            # self._build_maturity_grouping_table, # This one is aggregate, doesn't produce individual evidence
             self._build_asset_liability_fair_value_table,
         ]
         chosen_format = random.choice(formats)
         return chosen_format()
 
     def _get_value(
-        self, instrument: NotionalInstrument, year: int, value_type: str
+        self, instrument: NotionalInstrument, year: int, value_type: Literal["notional", "fair_value"]
     ) -> int:
         """Helper to get notional or fair value for a given year."""
         notional = instrument.notional_history.get(year, 0)
@@ -851,16 +761,18 @@ class Table:
             return max(0, int(notional * random.uniform(0.01, 0.1)))
         return notional
 
-    def _build_year_over_year_table(self) -> str:
+    def _build_year_over_year_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
         Builds a table comparing notional/fair values year-over-year.
         Format:
             Instrument | Year 1 | Year 2
         """
+        evidence_list = []
         year1 = self.reporting_year
         year2 = self.reporting_year - 1
-        value_type = random.choice(["Notional Amount", "Fair Value"])
-
+        value_type_str = random.choice(["Notional Amount", "Fair Value"])
+        value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
+        
         header = f"| {'Instrument':<45} | {value_type} {year1} | {value_type} {year2} |"
         separator = "-" * len(header)
         rows = [header, separator]
@@ -875,8 +787,8 @@ class Table:
                 name_to_use = inst.instrument_alias
             described_types.add(inst.instrument_type)
 
-            val1 = self._get_value(inst, year1, value_type.lower().replace(" ", "_"))
-            val2 = self._get_value(inst, year2, value_type.lower().replace(" ", "_"))
+            val1 = self._get_value(inst, year1, value_type)
+            val2 = self._get_value(inst, year2, value_type)
 
             # Only include instruments that were active in at least one of the years
             if val1 == 0 and val2 == 0:
@@ -892,8 +804,23 @@ class Table:
             row_str = f"| {name_to_use:<45} | {val1_str:>15} | {val2_str:>15} |"
             rows.append(row_str)
 
+            # Create evidence for the current year if value is > 0
+            if val1 > 0:
+                evidence_list.append(NotionalEvidence(
+                    instrument_id=inst.instrument_id,
+                    status="individual",
+                    category=inst.category,
+                    notional=val1,
+                    year=year1,
+                    instrument_type=name_to_use,
+                    reporting_year=self.reporting_year,
+                    value_type=value_type,
+                    currency=inst.currency,
+                    sentence_type="individual", # From a table
+                ))
+
         if len(rows) <= 2:  # Only header and separator
-            return ""
+            return "", []
 
         # Add a title
         category_map = {
@@ -904,15 +831,16 @@ class Table:
             "GEN": "Generic",
         }
         title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} (in {self.currency_symbol} {self.money_unit()})"
-        return f"{title}\n" + "\n".join(rows)
+        return f"{title}\n" + "\n".join(rows), evidence_list
 
-    def _build_notional_vs_fair_value_table(self) -> str:
+    def _build_notional_vs_fair_value_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
         Builds a table comparing notional vs. fair value, grouped by year.
         Format:
             Year 20XX
             Instrument | Notional | Fair Value
         """
+        evidence_list = []
         year1 = self.reporting_year
         year2 = self.reporting_year - 1
         all_rows = []
@@ -965,13 +893,28 @@ class Table:
                     f"| {name_to_use:<45} | {notional_str:>20} | {fair_val_str:>20} |"
                 )
                 all_rows.append(row_str)
+                
+                # Create evidence for the current year if value is > 0
+                if year == self.reporting_year and notional_val > 0:
+                    evidence_list.append(NotionalEvidence(
+                        instrument_id=inst.instrument_id,
+                        status="individual",
+                        category=inst.category,
+                        notional=notional_val,
+                        year=self.reporting_year,
+                        instrument_type=name_to_use,
+                        reporting_year=self.reporting_year,
+                        value_type="notional",
+                        currency=inst.currency,
+                        sentence_type="individual", # From a table
+                    ))
 
         if len(all_rows) <= 1:  # Only title
-            return ""
+            return "", []
 
-        return "\n".join(all_rows)
+        return "\n".join(all_rows), evidence_list
 
-    def _build_maturity_grouping_table(self) -> str:
+    def _build_maturity_grouping_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
         Builds a table grouping instruments by maturity year ranges.
         Format:
@@ -991,7 +934,7 @@ class Table:
         ]
 
         if not active_instruments:
-            return ""
+            return "", []
 
         for inst in active_instruments:
             years_to_maturity = inst.maturity_year - self.reporting_year if inst.maturity_year else 100
@@ -1027,11 +970,11 @@ class Table:
                 rows.append(row_str)
 
         if len(rows) <= 3:  # Only title, header, and separator
-            return ""
+            return "", []
 
-        return "\n".join(rows)
+        return "\n".join(rows), [] # No individual evidence from this aggregate table
 
-    def _build_asset_liability_fair_value_table(self) -> str:
+    def _build_asset_liability_fair_value_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
         Builds a table showing derivative assets and liabilities.
         Format:
@@ -1045,7 +988,7 @@ class Table:
         ]
 
         if not active_instruments:
-            return ""
+            return "", []
 
         title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} as of {self.month} {self.day}, {self.reporting_year}"
         header = f"| {'Instrument':<45} | {'Asset Fair Value':>20} | {'Liability Fair Value':>22} |"
@@ -1073,6 +1016,6 @@ class Table:
             rows.append(row_str)
 
         if len(rows) <= 3:
-            return ""
+            return "", []
 
-        return "\n".join(rows)
+        return "\n".join(rows), [] # This table shows fair value, not notional, so we don't create NotionalEvidence

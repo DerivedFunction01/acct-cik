@@ -12,8 +12,7 @@ from defs.common_data import (
     inventory_methods,
     market_drivers,
 )
-from defs.function_definitions import _get_company_reference
-from defs.template_definitions import _cleanup_sentence, _format_single_notional
+from defs.function_definitions import _get_company_reference, _cleanup_sentence, _format_single_notional
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 from defs.scenario_definitions import company_names
 
