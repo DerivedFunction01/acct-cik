@@ -864,7 +864,9 @@ class Table:
             if not instruments_in_year:
                 continue
 
-            all_rows.append(f"\nAs of {self.month} {self.day}, {year} (in {self.money_unit()})")
+            all_rows.append(
+                f"\nAs of {self.month} {self.day}, {year} (in {self.money_unit()}) (in {self.currency_symbol} {self.money_unit()})"
+            )
             header = (
                 f"| {'Instrument':<45} | {'Notional Amount':>20} | {'Fair Value':>20} |"
             )
@@ -956,7 +958,7 @@ class Table:
                     self.reporting_year, 0
                 )
 
-        title = f"Notional Amount by Maturity as of {self.month} {self.day}, {self.reporting_year}"
+        title = f"Notional Amount by Maturity as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
         header = f"| {'Maturity':<20} | {'Notional Amount':>20} |"
         separator = "-" * len(header)
         rows = [title, header, separator]
@@ -1005,7 +1007,7 @@ class Table:
         if not active_instruments:
             return "", []
 
-        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s as of {self.month} {self.day}, {self.reporting_year}"
+        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
         header = f"| {'Instrument':<45} | {'Asset Fair Value':>20} | {'Liability Fair Value':>22} |"
         separator = "-" * len(header)
         rows = [title, header, separator]
