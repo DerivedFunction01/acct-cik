@@ -1005,7 +1005,7 @@ class Table:
         if not active_instruments:
             return "", []
 
-        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} as of {self.month} {self.day}, {self.reporting_year}"
+        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s as of {self.month} {self.day}, {self.reporting_year}"
         header = f"| {'Instrument':<45} | {'Asset Fair Value':>20} | {'Liability Fair Value':>22} |"
         separator = "-" * len(header)
         rows = [title, header, separator]
