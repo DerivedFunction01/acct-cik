@@ -2446,8 +2446,7 @@ def generate_json_from_scenario(
     for ev in evidence:
         if (
             isinstance(ev, NotionalEvidence)
-            and ev.instrument_id is None
-            and ev.status == "summary"
+            and ev.sentence_type == "summary"
             and ev.notional is not None
             and ev.notional > 0
         ):

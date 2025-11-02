@@ -827,7 +827,7 @@ class Table:
             "FX": "Foreign Exchange",
             "CP": "Commodity",
             "EQ": "Equity",
-            "GEN": "Generic",
+            "GEN": "Derivative",
         }
         title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])} (in {self.currency_symbol} {self.money_unit()})"
         return f"{title}\n" + "\n".join(rows), evidence_list
