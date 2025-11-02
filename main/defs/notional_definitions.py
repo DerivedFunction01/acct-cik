@@ -18,9 +18,11 @@ class NotionalEvidence(BaseNarrativeEvidence):
     aggregate: Optional[bool] = None
     notional: Optional[int] = None
     prev_notional: Optional[int] = None
+    prev2_notional: Optional[int] = None
     month: Optional[str] = None
     year: Optional[int] = None
     prev_year: Optional[int] = None
+    prev2_year: Optional[int] = None
     instrument_type: Optional[str] = None
     notional_str: Optional[str] = None
     prev_notional_str: Optional[str] = None
@@ -292,6 +294,7 @@ class NotionalSentence:
 
     notional: Optional[int] = None
     prev_notional: Optional[int] = None
+    prev2_notional: Optional[int] = None
     currency_symbol: str = "$"
     currency_code: str = "US Dollar"
     # Optional time components
@@ -303,6 +306,7 @@ class NotionalSentence:
     company_name: Optional[str] = None
     verb: Optional[str] = None
     prev_year: Optional[int] = None
+    prev2_year: Optional[int] = None
     maturity_value: Optional[int] = None
     maturity_year: Optional[int] = None
     specific_details: Optional[SpecificDetails] = None
@@ -383,7 +387,19 @@ class NotionalSentence:
         # 1. Format amount string
         amount_str = ""
         prev_amount_str = ""
-        if self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None:
+        if self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None and self.prev2_notional is not None:
+            # Special formatting for three-year comparative sentences
+            formatted_current = _format_single_notional(
+                self.notional, self.currency_symbol, self.prefer_abbreviated
+            )
+            formatted_prev = _format_single_notional(
+                self.prev_notional, self.currency_symbol, self.prefer_abbreviated
+            )
+            formatted_prev2 = _format_single_notional(
+                self.prev2_notional, self.currency_symbol, self.prefer_abbreviated
+            )
+            amount_str = f"{formatted_current}, {formatted_prev}, and {formatted_prev2}"
+        elif self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None:
             # Special formatting for comparative sentences
             formatted_current = _format_single_notional(
                 self.notional, self.currency_symbol, self.prefer_abbreviated
@@ -408,7 +424,9 @@ class NotionalSentence:
             "individual",
         ] or self.sentence_type.startswith("comparative"):
             # Simplified: Always use single-year prefixes for now.
-            if self.sentence_type.startswith("comparative") and self.prev_year:
+            if self.sentence_type.startswith("comparative") and self.prev_year and self.prev2_year:
+                time_prefix = random.choice(multi_year_time_prefixes["three_year"])
+            elif self.sentence_type.startswith("comparative") and self.prev_year:
                 time_prefix = random.choice(multi_year_time_prefixes["two_year"])
             else:
                 time_prefix = random.choice(point_in_time_prefixes)
@@ -424,6 +442,7 @@ class NotionalSentence:
             end_day=end_day,
             year=self.year,
             prev_year=self.prev_year,
+            prev2_year=self.prev2_year,
             quarter=quarter
         )
         time_suffix = time_prefix
@@ -720,6 +739,7 @@ class NotionalSentence:
             aggregate=self.sentence_type in ["summary", "comparative"],
             notional=final_notional,  # Use the conditional notional value
             prev_notional=self.prev_notional if self.sentence_type == "comparative" else None,
+            prev2_notional=self.prev2_notional if self.sentence_type == "comparative" else None,
             year=self.year,
             notional_str=final_notional_str,
             prev_notional_str=prev_amount_str or None,

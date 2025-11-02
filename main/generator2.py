@@ -1015,6 +1015,7 @@ def _generate_category_narrative(
     )
     current_year_data = yearly_data.get(reporting_year)
     prev_year_data = yearly_data.get(reporting_year - 1)
+    prev2_year_data = yearly_data.get(reporting_year - 2)
 
     # Get currency and money unit details for sentence generation
     currency_symbol, money_unit_word, currency_code = _get_currency_and_unit_details(
@@ -1138,22 +1139,41 @@ def _generate_category_narrative(
             current_notional = (
                 current_year_data["total_notional"] if current_year_data else 0
             )
-            prior_notional = prev_year_data["total_notional"] if prev_year_data else 0
+            prev_notional = prev_year_data["total_notional"] if prev_year_data else 0
+            prev2_notional = prev2_year_data["total_notional"] if prev2_year_data else 0
 
             sentence_type_to_use = "summary"  # Default
             notional_to_report = current_notional
 
             # --- FIX: Implement comparative sentence logic ---
             prev_notional_to_report = None
+            prev2_notional_to_report = None
             prev_year_to_report = None
+            prev2_year_to_report = None
             swap_type_for_summary = instrument_type  # Default to the single-year description
 
             # --- DEBUG: Force comparative summary if flag is set ---
-            force_comparative = current_notional > 0 and prior_notional > 0
-            if force_comparative or (current_notional > 0 and prior_notional > 0 and random.random() < 0.4):
+            use_three_year_comparative = current_notional > 0 and prev_notional > 0 and prev2_notional > 0 and random.random() < 0.25 # 25% chance for 3-year
+            use_two_year_comparative = current_notional > 0 and prev_notional > 0 and random.random() < 0.4 # 40% chance for 2-year
+
+            if use_three_year_comparative:
                 sentence_type_to_use = "comparative"
                 notional_to_report = current_notional
-                prev_notional_to_report = prior_notional
+                prev_notional_to_report = prev_notional
+                prev2_notional_to_report = prev2_notional
+                prev_year_to_report = reporting_year - 1
+                prev2_year_to_report = reporting_year - 2
+                # Generate a combined description for all three years
+                combined_instruments = (current_year_data.get("instruments", []) +
+                                        prev_year_data.get("instruments", []) + # type: ignore
+                                        prev2_year_data.get("instruments", [])) # type: ignore
+                # Remove duplicates by instrument ID
+                unique_instruments = list({inst.instrument_id: inst for inst in combined_instruments}.values())
+                swap_type_for_summary = _get_smart_instrument_description(unique_instruments, category, True)
+            elif use_two_year_comparative:
+                sentence_type_to_use = "comparative"
+                notional_to_report = current_notional
+                prev_notional_to_report = prev_notional
                 prev_year_to_report = reporting_year - 1
                 # --- FIX: Generate a combined description for the comparative sentence ---
                 # This ensures the description covers instruments from both years.
@@ -1162,7 +1182,7 @@ def _generate_category_narrative(
                 # Remove duplicates by instrument ID
                 unique_instruments = list({inst.instrument_id: inst for inst in combined_instruments}.values())
                 swap_type_for_summary = _get_smart_instrument_description(unique_instruments, category, True)
-            elif current_notional > 0 and prior_notional == 0:
+            elif current_notional > 0 and prev_notional == 0:
                 sentence_type_to_use = "comparative_no_prior_outstanding"
                 notional_to_report = current_notional
 
@@ -1175,7 +1195,9 @@ def _generate_category_narrative(
                     year=reporting_year,
                     notional=notional_to_report,
                     prev_notional=prev_notional_to_report,
+                    prev2_notional=prev2_notional_to_report,
                     prev_year=prev_year_to_report,
+                    prev2_year=prev2_year_to_report,
                     currency_symbol=currency_symbol,
                     month=reporting_month,
                     end_day=reporting_day,
