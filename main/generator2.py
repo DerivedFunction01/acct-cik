@@ -1237,12 +1237,12 @@ def _generate_category_narrative(
 
             # --- NEW: Use archetype to determine comparative years ---
             comparative_years = scenario.archetype.comparative_years
-            use_three_year_comparative = (comparative_years == 3 and current_notional > 0 and prev_notional > 0 and prev2_notional > 0)
-            use_two_year_comparative = (comparative_years == 2 and current_notional > 0 and prev_notional > 0)
+            use_three_year_comparative = (comparative_years == 3 and prev_notional > 0 and prev2_notional > 0)
+            use_two_year_comparative = (comparative_years == 2 and prev_notional > 0)
 
             # Add a random chance to still generate a comparative sentence even if not the default
             if not (use_three_year_comparative or use_two_year_comparative) and random.random() < 0.3:
-                if comparative_years > 1 and current_notional > 0 and prev_notional > 0:
+                if comparative_years > 1 and prev_notional > 0:
                     use_two_year_comparative = True
 
             if use_three_year_comparative:
@@ -1513,24 +1513,17 @@ def _generate_category_narrative(
                     )  # Mark as mentioned
 
         # Describe terminated instruments by looking at the previous year's data
-        if prev_year_data:
-            terminated_instrument_ids = {
-                i.instrument_id for i in prev_year_data["instruments"]
-            } - {
-                i.instrument_id
-                for i in (current_year_data["instruments"] if current_year_data else [])
-            }
-            for instrument_id in terminated_instrument_ids:
-                instrument = next(
-                    (
-                        i
-                        for i in prev_year_data["instruments"]
-                        if i.instrument_id == instrument_id
-                    ),
-                    None,
-                )
-                if not instrument:
-                    continue
+        # Describe terminated instruments by checking for zero notional in current year
+        if current_year_data and prev_year_data:
+            # Find instruments that have zero notional this year but had value last year
+            terminated_instruments = [
+                inst
+                for inst in current_year_data["instruments"]
+                if inst.notional_history.get(scenario.reporting_year, 0) == 0
+                and inst.notional_history.get(scenario.reporting_year - 1, 0) > 0
+            ]
+
+            for instrument in terminated_instruments:
 
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
