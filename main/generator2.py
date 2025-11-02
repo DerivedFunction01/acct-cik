@@ -1234,17 +1234,17 @@ def _generate_category_narrative(
             prev_year_to_report = None
             prev2_year_to_report = None
             swap_type_for_summary = instrument_type  # Default to the single-year description
- 
+
             # --- NEW: Use archetype to determine comparative years ---
             comparative_years = scenario.archetype.comparative_years
             use_three_year_comparative = (comparative_years == 3 and current_notional > 0 and prev_notional > 0 and prev2_notional > 0)
             use_two_year_comparative = (comparative_years == 2 and current_notional > 0 and prev_notional > 0)
- 
+
             # Add a random chance to still generate a comparative sentence even if not the default
             if not (use_three_year_comparative or use_two_year_comparative) and random.random() < 0.3:
                 if comparative_years > 1 and current_notional > 0 and prev_notional > 0:
                     use_two_year_comparative = True
- 
+
             if use_three_year_comparative:
                 sentence_type_to_use = "comparative"
                 notional_to_report = current_notional
@@ -1316,12 +1316,21 @@ def _generate_category_narrative(
 
         if current_year_data and current_year_data["instruments"]:
             for instrument in current_year_data["instruments"]:
+                # --- FIX: Initialize report variables at the top of the loop ---
+                year_to_report = reporting_year
+                notional_to_report = 0
+                sentence_type = "individual"  # Default sentence type
+
                 use_fair_value = random.random() < 0.2
                 # --- FIX: Distinguish between a repeated TYPE and a repeated INSTANCE ---
                 # is_repeated_type is for context ("another swap...")
                 # is_repeated_instance is for aliasing ("the swap...")
-                is_repeated_type = instrument.instrument_type in mentioned_instrument_types
-                is_repeated_instance = instrument.instrument_id in mentioned_instrument_ids
+                is_repeated_type = (
+                    instrument.instrument_type in mentioned_instrument_types
+                )
+                is_repeated_instance = (
+                    instrument.instrument_id in mentioned_instrument_ids
+                )
 
                 value_type = "fair_value" if use_fair_value else "notional"
                 value_to_report = instrument.notional_history.get(reporting_year, 0)
@@ -1333,8 +1342,12 @@ def _generate_category_narrative(
                 # --- FIX: Decide whether to use the full name or the alias ---
                 # If we've seen this instrument before, there's a high chance of using its alias.
                 # An alias is only used if this specific instrument INSTANCE has been seen before.
-                use_alias = (is_repeated_instance and random.random() < 0.75)
-                name_to_use = instrument.instrument_alias if use_alias and instrument.instrument_alias else instrument.instrument_type
+                use_alias = is_repeated_instance and random.random() < 0.75
+                name_to_use = (
+                    instrument.instrument_alias
+                    if use_alias and instrument.instrument_alias
+                    else instrument.instrument_type
+                )
 
                 # Determine if the instrument is "historical" (existed in a prior year) # type: ignore
                 is_historical = False
@@ -1343,13 +1356,15 @@ def _generate_category_narrative(
                     if (
                         instrument.instrument_id in prev_ids
                         and instrument.instrument_id
-                        not in (current_year_data.get("new_ids", set())) # type: ignore
+                        not in (current_year_data.get("new_ids", set()))  # type: ignore
                     ):
                         is_historical = True
 
                 # --- NEW: Timeline generation for instruments with a long history ---
                 history_length = len(instrument.notional_history)
-                is_long_history_timeline = is_historical and history_length > 1 and random.random() < 0.15
+                is_long_history_timeline = (
+                    is_historical and history_length > 1 and random.random() < 0.15
+                )
 
                 # --- NEW: Use TimelineSentence class for long histories ---
                 if is_long_history_timeline:
@@ -1379,37 +1394,89 @@ def _generate_category_narrative(
                     is_new_instrument = instrument.start_year == reporting_year
                     if is_new_instrument:
                         # --- NEW: For new instruments, check if there were none prior to use comparative sentence ---
-                        if prev_year_data and prev_year_data["total_notional"] == 0 and random.random() < 0.4:
+                        if (
+                            prev_year_data
+                            and prev_year_data["total_notional"] == 0
+                            and random.random() < 0.4
+                        ):
                             sentence_type = "comparative_no_prior_outstanding"
                         else:
                             sentence_type = "new_individual"
-                    # --- NEW: Use archetype to determine comparative years for individual instruments ---
-                    elif is_historical and scenario.archetype.comparative_years == 3 and instrument.notional_history.get(reporting_year - 2, 0) > 0:
-                        sentence_type = "comparative"
-                    elif is_historical and scenario.archetype.comparative_years == 2 and instrument.notional_history.get(reporting_year - 1, 0) > 0:
-                        sentence_type = "comparative"
-                    # Fallback random chance
-                    elif is_historical and random.random() < 0.2:
-                        sentence_type = "comparative"
-                    elif is_historical and random.random() < 0.35: # 35% chance for a historical sentence
-                        sentence_type = "historical_individual"
-                        # 50% chance to talk about the inception year vs. a random past year
-                        if random.random() < 0.5 and instrument.start_year in instrument.notional_history:
-                            year_to_report = instrument.start_year
-                            notional_to_report = instrument.notional_history[instrument.start_year]
-                            if use_fair_value:
-                                notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
-                        else:
-                            past_years = [y for y in instrument.notional_history.keys() if y < reporting_year]
-                            if past_years:
-                                year_to_report = random.choice(past_years)
-                                notional_to_report = instrument.notional_history[year_to_report]
+                    elif is_historical:
+                        # --- NEW: Use a weighted choice system for historical instruments ---
+                        options = ["individual", "historical_individual", "comparative"]
+                        weights = [0.45, 0.35, 0.20]  # Base weights
+
+                        # Adjust weights based on archetype and data availability
+                        if (
+                            scenario.archetype.comparative_years == 3
+                            and instrument.notional_history.get(reporting_year - 2, 0)
+                            > 0
+                        ):
+                            weights[2] += 0.25  # Boost comparative chance
+                        elif (
+                            scenario.archetype.comparative_years == 2
+                            and instrument.notional_history.get(reporting_year - 1, 0)
+                            > 0
+                        ):
+                            weights[2] += 0.15  # Boost comparative chance
+
+                        # Normalize weights to sum to 1
+                        total_weight = sum(weights)
+                        normalized_weights = [w / total_weight for w in weights]
+
+                        sentence_type = random.choices(
+                            options, weights=normalized_weights, k=1
+                        )[0]
+
+                        # If historical_individual is chosen, set up its specific data
+                        if sentence_type == "historical_individual":
+                            # 50% chance to talk about the inception year vs. a random past year
+                            if (
+                                random.random() < 0.5
+                                and instrument.start_year in instrument.notional_history
+                            ):
+                                year_to_report = instrument.start_year
+                                notional_to_report = instrument.notional_history[
+                                    instrument.start_year
+                                ]
                                 if use_fair_value:
-                                    notional_to_report = max(1, int(notional_to_report / random.randint(20, 100)))
+                                    notional_to_report = max(
+                                        1,
+                                        int(
+                                            notional_to_report / random.randint(20, 100)
+                                        ),
+                                    )
+                            else:
+                                past_years = [
+                                    y
+                                    for y in instrument.notional_history.keys()
+                                    if y < reporting_year
+                                ]
+                                if past_years:
+                                    year_to_report = random.choice(past_years)
+                                    notional_to_report = instrument.notional_history[
+                                        year_to_report
+                                    ]
+                                    if use_fair_value:
+                                        notional_to_report = max(
+                                            1,
+                                            int(
+                                                notional_to_report
+                                                / random.randint(20, 100)
+                                            ),
+                                        )
+                                else:
+                                    # Fallback if no past years exist (should be rare for historical)
+                                    year_to_report = reporting_year
+                                    notional_to_report = value_to_report
                     else:
                         sentence_type = "individual"
-                    year_to_report = reporting_year
-                    notional_to_report = value_to_report
+
+                    # If the sentence type wasn't a special historical case, set defaults
+                    if sentence_type not in ["historical_individual"]:
+                        year_to_report = reporting_year
+                        notional_to_report = value_to_report
 
                     individual_sentence_obj = NotionalSentence(
                         swap_type=name_to_use,
@@ -1418,10 +1485,10 @@ def _generate_category_narrative(
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
                         sentence_type=sentence_type,  # type: ignore
-                        prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None, # type: ignore
-                        prev2_notional=instrument.notional_history.get(reporting_year - 2, 0) if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None, # type: ignore
-                        prev2_year=reporting_year - 2 if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None, # type: ignore
-                        prev_year=reporting_year - 1 if sentence_type == "comparative" else None, # type: ignore
+                        prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None,  # type: ignore
+                        prev2_notional=instrument.notional_history.get(reporting_year - 2, 0) if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None,  # type: ignore
+                        prev_year=reporting_year - 1 if sentence_type == "comparative" else None,  # type: ignore
+                        prev2_year=reporting_year - 2 if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None,  # type: ignore
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
                         zero_notional_format=scenario.archetype.zero_notional_format,
@@ -1430,14 +1497,21 @@ def _generate_category_narrative(
                         value_type=value_type,
                         is_repeated_mention=is_repeated_type,  # Pass the TYPE check for contextual phrasing
                     )
-                individual_sentence_text, evidence_obj = individual_sentence_obj.build()
-                evidence_obj.instrument_id = (
-                    instrument.instrument_id # type: ignore
-                )
-                paragraphs.append(individual_sentence_text)
-                evidence.append(evidence_obj)
-                mentioned_instrument_ids.add(instrument.instrument_id) # Mark instance as mentioned
-                mentioned_instrument_types.add(instrument.instrument_type) # Mark as mentioned
+                    individual_sentence_text, evidence_obj = (
+                        individual_sentence_obj.build()
+                    )
+                    evidence_obj.instrument_id = (
+                        instrument.instrument_id  # type: ignore
+                    )
+                    paragraphs.append(individual_sentence_text)
+                    evidence.append(evidence_obj)
+                    mentioned_instrument_ids.add(
+                        instrument.instrument_id
+                    )  # Mark instance as mentioned
+                    mentioned_instrument_types.add(
+                        instrument.instrument_type
+                    )  # Mark as mentioned
+
         # Describe terminated instruments by looking at the previous year's data
         if prev_year_data:
             terminated_instrument_ids = {
@@ -1460,10 +1534,20 @@ def _generate_category_narrative(
 
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
-                use_timeline_for_terminated = history_length > 1 and random.random() < 0.25
+                use_timeline_for_terminated = (
+                    history_length > 1 and random.random() < 0.15
+                )
 
-                is_repeated_type_terminated = instrument.instrument_type in mentioned_instrument_types
-                is_repeated_instance_terminated = instrument.instrument_id in mentioned_instrument_ids
+                is_repeated_type_terminated = (
+                    instrument.instrument_type in mentioned_instrument_types
+                )
+                is_repeated_instance_terminated = (
+                    instrument.instrument_id in mentioned_instrument_ids
+                )
+
+                # --- NEW: Add a chance to use a comparative sentence for terminated instruments ---
+                # This tests the "nil" or "$0" formatting for the current year.
+                use_comparative_for_terminated = random.random() < 0.3  # 30% chance
 
                 if use_timeline_for_terminated:
                     timeline_builder = TimelineSentence(
@@ -1473,7 +1557,7 @@ def _generate_category_narrative(
                         currency_symbol=currency_symbol,
                         currency_code=currency_code,
                         prefer_abbreviated=scenario.number_format_preference,
-                        value_type="notional", # Keep it simple for terminated timelines
+                        value_type="notional",  # Keep it simple for terminated timelines
                     )
                     timeline_paragraph, timeline_evidence = timeline_builder.build()
                     if timeline_paragraph:
@@ -1482,29 +1566,47 @@ def _generate_category_narrative(
                         mentioned_instrument_ids.add(instrument.instrument_id)
                         mentioned_instrument_types.add(instrument.instrument_type)
                 else:
-                    # Fallback to the standard "terminated" sentence
-                    value_type_terminated = "notional" # Keep it simple
+                    # --- MODIFIED: Choose between standard "terminated" or "comparative_no_outstanding" ---
+                    value_type_terminated = "notional"  # Keep it simple
                     # --- FIX: Prioritize maturity_value for the most accurate final amount ---
-                    value_to_report_terminated = instrument.maturity_value or instrument.notional_history.get(reporting_year - 1, 0)
+                    value_to_report_terminated = (
+                        instrument.maturity_value
+                        or instrument.notional_history.get(reporting_year - 1, 0)
+                    )
 
-                    use_alias_terminated = (is_repeated_instance_terminated and random.random() < 0.75)
-                    name_to_use_terminated = instrument.instrument_alias if use_alias_terminated and instrument.instrument_alias else instrument.instrument_type
+                    use_alias_terminated = (
+                        is_repeated_instance_terminated and random.random() < 0.75
+                    )
+                    name_to_use_terminated = (
+                        instrument.instrument_alias
+                        if use_alias_terminated and instrument.instrument_alias
+                        else instrument.instrument_type
+                    )
+
+                    sentence_type_to_use = (
+                        "comparative_no_outstanding"
+                        if use_comparative_for_terminated
+                        else "terminated_individual"
+                    )
 
                     terminated_instrument_obj = NotionalSentence(
                         swap_type=name_to_use_terminated,
                         year=reporting_year,
+                        # For comparative, the 'notional' is the prior year's value. For terminated, it's the final value.
                         notional=value_to_report_terminated,
                         currency_symbol=currency_symbol,
                         company_name=scenario.company_name,
-                        sentence_type="terminated_individual",
+                        sentence_type=sentence_type_to_use,  # type: ignore
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
-                        category=category, # type: ignore
+                        category=category,  # type: ignore
                         reporting_year=reporting_year,
                         value_type=value_type_terminated,
                         is_repeated_mention=is_repeated_type_terminated,
                     )
-                    terminated_instrument_text, evidence_obj = terminated_instrument_obj.build()
+                    terminated_instrument_text, evidence_obj = (
+                        terminated_instrument_obj.build()
+                    )
                     evidence_obj.instrument_id = instrument.instrument_id
                     paragraphs.append(terminated_instrument_text)
                     mentioned_instrument_ids.add(instrument.instrument_id)
@@ -1526,9 +1628,11 @@ def _generate_category_narrative(
             comparative_no_outstanding_obj = NotionalSentence(
                 swap_type=instrument_type,
                 year=reporting_year,
-                notional=prev_year_data["total_notional"], # Pass the prior year notional for the template
-                sentence_type="comparative_no_outstanding", # type: ignore
-                category=category, # type: ignore
+                notional=prev_year_data[
+                    "total_notional"
+                ],  # Pass the prior year notional for the template
+                sentence_type="comparative_no_outstanding",  # type: ignore
+                category=category,  # type: ignore
                 reporting_year=reporting_year,
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
