@@ -8,32 +8,30 @@ from defs.common_data import DERIVATIVE_COMPONENTS
 # A set of common currency symbols to differentiate them from units
 KNOWN_CURRENCY_SYMBOLS = {'$', '€', '£', '¥', 'CHF', 'kr', 'zł', 'Ft', 'Kč', '₺', '₽', 'лв', 'lei', '₩', '฿', 'RM', 'R$', 'د.إ', 'ر.س', '₹'}
 
+from typing import Literal
+
+KNOWN_CURRENCY_SYMBOLS = {"$", "€", "£", "¥"}  # Example set
+
+
 def _format_single_notional(
     amount: int | float,
     symbol: str,  # The currency symbol, e.g., '$'
     prefer_abbreviated: bool,
-    no_unit_word: bool = False,
+    no_unit_word: bool = False,  # Suppresses "million/billion/etc."
     zero_format: Literal["nil", "zero", "amount"] = "amount",
-    skip_string: bool = False,  # OVERRIDES prefer_abbreviated
 ) -> str:
     """
     Formats a single notional amount into a readable string like '$250.0 million'
     or '250.0 thousand barrels'.
 
-    - If skip_string=True, returns the raw amount (no scaling, no commas).
-    - If prefer_abbreviated=True, uses million/billion/etc. unless overridden.
+    - If no_unit_word=True, abbreviates numerically but omits the unit word
+      (e.g., '$250.0' instead of '$250.0 million').
+    - If prefer_abbreviated=False, shows full number with commas.
     """
     if amount == 0:
         if zero_format in ["nil", "zero"]:
             return zero_format
         # else, format as amount (e.g., "$0")
-
-    # 🔹 Skip-string override: just return the raw number
-    if skip_string:
-        if symbol in KNOWN_CURRENCY_SYMBOLS:
-            return f"{symbol}{int(amount) if amount == int(amount) else amount}"
-        else:
-            return f"{int(amount) if amount == int(amount) else amount} {symbol}"
 
     amount_to_string = {
         "trillion": 1_000_000_000_000,
@@ -47,10 +45,11 @@ def _format_single_notional(
             amount_to_string.items(), key=lambda x: x[1], reverse=True
         ):
             if amount >= divisor:
-                if no_unit_word:
-                    formatted_number = f"{amount / divisor:.1f}"
-                else:
-                    formatted_number = f"{amount / divisor:.1f} {unit_word}"
+                # If no_unit_word=True, drop the unit word entirely
+                formatted_number = f"{amount / divisor:.1f}"
+                if not no_unit_word:
+                    formatted_number += f" {unit_word}"
+
                 if symbol in KNOWN_CURRENCY_SYMBOLS:
                     return f"{symbol}{formatted_number}"
                 return f"{formatted_number} {symbol}"
@@ -884,10 +883,10 @@ class Table:
                 continue
 
             val1_str = _format_single_notional(
-                val1, inst.symbol, self.prefer_abbreviated
+                val1, inst.symbol, self.prefer_abbreviated, False
             )
             val2_str = _format_single_notional(
-                val2, inst.symbol, self.prefer_abbreviated
+                val2, inst.symbol, self.prefer_abbreviated, False
             )
 
             row_str = f"| {name_to_use:<45} | {val1_str:>15} | {val2_str:>15} |"
@@ -1022,7 +1021,7 @@ class Table:
         for group, total_notional in maturity_groups.items():
             if total_notional > 0:
                 notional_str = _format_single_notional(
-                    total_notional, self.currency_symbol, self.prefer_abbreviated
+                    total_notional, self.currency_symbol, self.prefer_abbreviated, True
                 )
                 row_str = f"| {group:<20} | {notional_str:>20} |"
                 rows.append(row_str)
@@ -1063,11 +1062,11 @@ class Table:
 
             if is_asset:
                 asset_val_str = _format_single_notional(
-                    fair_value, self.currency_symbol, self.prefer_abbreviated
+                    fair_value, self.currency_symbol, self.prefer_abbreviated, True
                 )
             else:
                 liab_val_str = _format_single_notional(
-                    fair_value, self.currency_symbol, self.prefer_abbreviated
+                    fair_value, self.currency_symbol, self.prefer_abbreviated, True
                 )
 
             row_str = f"| {inst.instrument_type:<45} | {asset_val_str:>20} | {liab_val_str:>22} |"

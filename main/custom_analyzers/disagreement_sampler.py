@@ -316,8 +316,11 @@ class DisagreementSampler(BaseAnalyzer):
         import os
         try:
             os.rename(temp_output_path, output_path)
-        except: # Try replaceing
-            os.replace(temp_output_path, output_path)
+        except OSError: # On Windows, rename fails if the destination exists.
+            try:
+                os.replace(temp_output_path, output_path)
+            except Exception as e:
+                print(f"❌ Failed to move temp file to final destination: {e}")
         print(
             f"✅ Disagreement analysis complete ({total_processed:,} records processed)"
         )
