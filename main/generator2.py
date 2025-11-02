@@ -715,7 +715,7 @@ def _create_instrument_with_history(
     current_year = scenario.reporting_year
     current_notional = base_instrument_args.pop("notional_amount")
     base_instrument_args["maturity_value"] = 0  # Default maturity value
-    start_year = base_instrument_args.get("start_year", current_year - 5)
+    start_year = base_instrument_args.get("start_year", current_year - random.randint(3, 8))
 
     notional_history = {}
 
@@ -733,7 +733,8 @@ def _create_instrument_with_history(
                 last_notional = int(last_notional * random.uniform(0.90, 1.10))
                 notional_history[year] = max(0, last_notional)
 
-        base_instrument_args["maturity_value"] = notional_history.get(current_year, 0) # Placeholder for active instruments
+        # Active instruments have not matured, so their maturity_value is not yet known.
+        base_instrument_args["maturity_value"] = None
     else:
         # Past instrument: history exists only up to reporting_year - 1.
         # The 'current_notional' is the notional at maturity.
