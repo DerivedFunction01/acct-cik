@@ -30,7 +30,7 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.template_definitions import hedge_no_trading_templates, Table
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
-DEBUG = False
+DEBUG = True
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -436,7 +436,7 @@ class ScenarioBuilder:
                     hedged_item_id=self.hedged_item_id_counter,
                     commodity_type=commodity_name,
                     transaction_type=random.choice(transaction_types),
-                    quantity=random.randint(100, 10000),
+                    quantity=random.randint(100, 400) * self.multiplier,
                     unit_of_volume=unit,
                     price_per_unit=random.uniform(10, 200),
                     cost_type=cost_type,
