@@ -40,6 +40,9 @@ class ScenarioArchetype:
         default_factory=list
     )  # e.g. ["energy", "metals_minerals"]
     prefers_tables: bool = False
+    preferred_negative_format: Literal[-1, 0, 1, 2] = (
+        0  # -1: (num), 0: -num, 1: (num) post-symbol, 2: symbol-num
+    )
 
     def get_exposure_counts(self) -> Dict[str, int]:
         """Generates a dictionary of exposure counts based on the archetype's ranges."""

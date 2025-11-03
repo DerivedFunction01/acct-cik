@@ -64,6 +64,7 @@ SCENARIO_ARCHETYPES = [
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
         prefers_tables=True,
+        preferred_negative_format=-1,  # Accounting style: ($100)
     ),
     ScenarioArchetype(
         name="Domestic Industrial",
@@ -85,6 +86,7 @@ SCENARIO_ARCHETYPES = [
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
+        preferred_negative_format=0,  # Standard minus sign: -$100
     ),
     ScenarioArchetype(
         name="Tech Company",
@@ -106,6 +108,7 @@ SCENARIO_ARCHETYPES = [
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,  # Tech companies sometimes use full numbers
+        preferred_negative_format=0,  # Standard minus sign: -$100
     ),
     ScenarioArchetype(
         name="Financial Institution",
@@ -128,6 +131,7 @@ SCENARIO_ARCHETYPES = [
         notional_multiplier=1_000_000_000,
         prefers_abbreviated_numbers=True,
         prefers_tables=True,
+        preferred_negative_format=-1,  # Accounting style: ($100)
     ),
     ScenarioArchetype(
         name="Policy Only / Light User",
@@ -149,6 +153,7 @@ SCENARIO_ARCHETYPES = [
         default_currency="USD",
         notional_multiplier=1_000,
         prefers_abbreviated_numbers=False,
+        preferred_negative_format=0,
     ),
     ScenarioArchetype(
         name="Potential User",
@@ -170,6 +175,7 @@ SCENARIO_ARCHETYPES = [
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,
+        preferred_negative_format=0,
     ),
     ScenarioArchetype(
         name="Non-User",
@@ -191,6 +197,7 @@ SCENARIO_ARCHETYPES = [
         comparative_years=2,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=False,
+        preferred_negative_format=0,
     ),
     ScenarioArchetype(
         name="New Hedger",
@@ -213,6 +220,7 @@ SCENARIO_ARCHETYPES = [
         comparative_years=3,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
+        preferred_negative_format=1,  # Parentheses around number: $(100)
     ),
     ScenarioArchetype(
         name="Exiting Hedger",
@@ -235,6 +243,7 @@ SCENARIO_ARCHETYPES = [
         comparative_years=3,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
+        preferred_negative_format=1,
     ),
     ScenarioArchetype(
         name="Debt-Heavy Exiter",
@@ -257,6 +266,7 @@ SCENARIO_ARCHETYPES = [
         comparative_years=2,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
+        preferred_negative_format=-1,
     ),
     ScenarioArchetype(
         name="Global Consumer Goods",
@@ -278,6 +288,7 @@ SCENARIO_ARCHETYPES = [
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
+        preferred_negative_format=0,
     ),
     ScenarioArchetype(
         name="Airline",
@@ -299,6 +310,7 @@ SCENARIO_ARCHETYPES = [
         default_currency="USD",
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
+        preferred_negative_format=-1,
     ),
     ScenarioArchetype(
         name="Biotech/Pharma",
@@ -320,6 +332,7 @@ SCENARIO_ARCHETYPES = [
         comparative_years=2,
         notional_multiplier=1_000_000,
         prefers_abbreviated_numbers=True,
+        preferred_negative_format=2,  # Minus after symbol: $-100
     ),
 ]
 
