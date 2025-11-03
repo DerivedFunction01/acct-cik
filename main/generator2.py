@@ -2424,6 +2424,8 @@ def generate_narrative_from_scenario(
     narrative_sections.extend(item_7a_sections)
     narrative_sections.extend(derivative_details_sections)
     narrative = "\n\n".join(section for section in narrative_sections if section)
+    # strip out more than 2 newlines
+    narrative = re.sub(r"\n{3,}", "\n\n", narrative)
     # Prepend the reporting year tag.
     full_narrative = (
         f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
