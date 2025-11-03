@@ -2431,15 +2431,33 @@ def generate_json_from_scenario(
             continue # Don't care about terminated, only about active ones
 
         # --- FIX: Always process the evidence, don't skip if key exists ---
+
+        # Precompute values to avoid nested conditionals in the dict
+        if instrument_obj:
+            inst_type = instrument_obj.instrument_type
+            category = instrument_obj.category
+            currency = (
+                instrument_obj.currency
+                if ev.value_type != "notional_exposure"
+                else ev.currency
+            )
+        else:
+            inst_type = ev.instrument_type or "Unknown"
+            category = ev.category
+            currency = ev.currency
+
+        value_type = ev.value_type.replace("_", " ")
+
         instrument_evidence_map[unique_key] = {
-                "type": instrument_obj.instrument_type if instrument_obj else (ev.instrument_type or "Unknown"),
-                "category": instrument_obj.category if instrument_obj else ev.category,
-                "status": "current",
-                "amount": ev.notional, # This will be updated if more evidence is found
-                "currency": instrument_obj.currency if instrument_obj else ev.currency,
-                "value_type": ev.value_type.replace("_", " "),
-                "level": "individual",
-            }
+            "type": inst_type,
+            "category": category,
+            "status": "current",
+            "amount": ev.notional,  # This will be updated if more evidence is found
+            "currency": currency,
+            "value_type": value_type,
+            "level": "individual",
+        }
+
 
     # Convert the aggregated map into the final list.
     # This creates one entry per unique instrument ID found in the evidence.
