@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Union
 import textwrap
 from defs.function_definitions import _format_single_notional
 
@@ -61,7 +61,7 @@ class GenericTable:
     title: str
 
     def _format_row_with_wrapping(
-        self, cells: List[str], widths: List[int], alignments: List[str]
+        self, cells: List[str] | List[List[str]], widths: List[int], alignments: List[str]
     ) -> List[str]:
         """
         Formats a single logical row into multiple physical lines with text wrapping.
@@ -69,7 +69,7 @@ class GenericTable:
         wrapped_cells = []
         max_lines = 0
         for i, cell_content in enumerate(cells):
-            lines = textwrap.wrap(cell_content, width=widths[i], break_long_words=False)
+            lines = textwrap.wrap(cell_content, width=widths[i], break_long_words=False)  # type: ignore
             if not lines:  # Handle empty cells
                 lines = [""]
             wrapped_cells.append(lines)
@@ -103,9 +103,11 @@ class GenericTable:
         if self.headers and isinstance(self.headers[0], list):
             # It's a list of lists (multi-line header)
             for header_row in self.headers:
+                assert isinstance(header_row, list)
                 header_lines.extend(self._format_row_with_wrapping(header_row, self.widths, self.alignments))
         else:
-            # It's a single list of strings (single-line header)
+            # It's a single list of strings, but we need to assert its type for the type checker.
+            assert all(isinstance(h, str) for h in self.headers)
             header_lines.extend(self._format_row_with_wrapping(self.headers, self.widths, self.alignments))
 
         separator = "  ".join(['-' * w for w in self.widths])

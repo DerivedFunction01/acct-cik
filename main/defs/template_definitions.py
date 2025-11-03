@@ -1986,8 +1986,8 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         hedged_item_val = int(total_notional * random.uniform(-0.08, 0.08))
                         derivative_val = -hedged_item_val + int(total_notional * random.uniform(-0.01, 0.01)) # Simulate ineffectiveness
                         
-                        hedged_row = ["  → Hedged items"] + [""] * (num_data_cols * 2)
-                        deriv_row = ["  → Derivatives"] + [""] * (num_data_cols * 2)
+                        hedged_row = ["   Hedged items"] + [""] * (num_data_cols * 2)
+                        deriv_row = ["    Derivatives"] + [""] * (num_data_cols * 2)
                         
                         col_offset = year_idx * num_data_cols
                         hedged_row[4 + col_offset] = self._format_value(hedged_item_val)
@@ -2000,8 +2000,8 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         income_val = int(total_notional * random.uniform(-0.05, 0.05))
                         aoci_val = int(total_notional * random.uniform(-0.1, 0.1))
 
-                        income_row = ["  → Gain/(loss) in income"] + [""] * (num_data_cols * 2)
-                        aoci_row = ["  → Gain/(loss) in AOCI"] + [""] * (num_data_cols * 2)
+                        income_row = ["    Gain/(loss) in income"] + [""] * (num_data_cols * 2)
+                        aoci_row = ["    Gain/(loss) in AOCI"] + [""] * (num_data_cols * 2)
 
                         col_offset = year_idx * num_data_cols
                         income_row[5 + col_offset] = self._format_value(income_val)
@@ -2014,8 +2014,8 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         reclass_val = int(total_notional * random.uniform(-0.05, 0.05))
                         aoci_val = int(total_notional * random.uniform(-0.1, 0.1))
 
-                        reclass_row = ["  → Reclassified to income"] + [""] * (num_data_cols * 2)
-                        aoci_row = ["  → In AOCI"] + [""] * (num_data_cols * 2)
+                        reclass_row = ["    Reclassified to income"] + [""] * (num_data_cols * 2)
+                        aoci_row = ["    In AOCI"] + [""] * (num_data_cols * 2)
 
                         # Distribute values across a few random columns
                         affected_indices = random.sample(range(num_data_cols), k=random.randint(1, 2))
