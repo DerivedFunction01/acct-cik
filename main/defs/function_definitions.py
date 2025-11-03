@@ -75,7 +75,9 @@ def _format_single_notional(
         return f"{symbol}{amount:,.0f}"
     else:
         return f"{amount:,.0f} {symbol}"
-
+    
+def _get_correct_rounding(amount: int | float, multiplier: int):
+    return round(amount / multiplier) * multiplier
 
 def _cleanup_sentence(sentence: str) -> str:
     """Clean up sentence by removing empty placeholders and extra spaces."""
