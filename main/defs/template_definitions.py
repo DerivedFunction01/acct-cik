@@ -1004,11 +1004,11 @@ class DerivativeTableBuilder:
             NotionalVsFairValueTableBuilder,
         ]
         additional_format_builders = [
-            MaturityGroupingTableBuilder,
-            AssetLiabilityFairValueTableBuilder,
-            AOCIReconciliationTableBuilder,
-            AOCIReclassificationImpactTableBuilder,
-            FairValueHierarchyTableBuilder,
+            # MaturityGroupingTableBuilder,
+            # AssetLiabilityFairValueTableBuilder,
+            # AOCIReconciliationTableBuilder,
+            # AOCIReclassificationImpactTableBuilder,
+            # FairValueHierarchyTableBuilder,
             DerivativeImpactTableBuilder,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
@@ -1947,10 +1947,10 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
         alignments = ['l'] + ['r'] * num_data_cols * 2
         data_rows = []
         evidence_list = []
-
-        # 2. Group instruments by hedge type and category
+        
+        # 2. Group instruments by hedge type
         hedge_groups = {
-            "Fair Value Hedge": [i for i in self.instruments if i.category == "IR"],
+            "Fair Value Hedge": [i for i in self.instruments if i.category == "IR"], # Simplified for example
             "Net Investment Hedge": [i for i in self.instruments if i.category == "FX"],
             "Cash Flow Hedge": [i for i in self.instruments if i.category in ["FX", "CP", "IR"]],
         }
@@ -1960,6 +1960,9 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
             if not instruments:
                 continue
 
+            # Add a main header for the hedge type
+            data_rows.append([f"Gain (Loss) on {hedge_type} relationship:"] + [""] * (num_data_cols * 2))
+
             # Further group by instrument type for more detail
             sub_groups = {}
             for inst in instruments:
@@ -1968,7 +1971,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                 sub_groups[inst.base_type].append(inst)
 
             for base_type, sub_instruments in sub_groups.items():
-                group_name = f"Gain (Loss) on {hedge_type} relationship:\n  {base_type.capitalize()} contracts:"
+                group_name = f"  {base_type.capitalize()} contracts:"
                 data_rows.append([group_name] + [""] * (num_data_cols * 2))
 
                 # Simulate data for this group
@@ -1986,7 +1989,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         hedged_item_val = int(total_notional * random.uniform(0.01, 0.08))
                         derivative_val = -hedged_item_val + int(total_notional * random.uniform(-0.005, 0.005)) # Simulate ineffectiveness
                         
-                        hedged_row = ["    Hedged items"] + ["-"] * (num_data_cols * 2)
+                        hedged_row = ["    Amount of gain or (loss) on hedged items"] + ["-"] * (num_data_cols * 2)
                         deriv_row = ["    Derivatives designated as hedging instruments"] + ["-"] * (num_data_cols * 2)
                         
                         col_offset = year_idx * num_data_cols
@@ -1998,14 +2001,15 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                     elif hedge_type == "Net Investment Hedge":
                         # Affects Other Expense for income and AOCI
                         income_val = int(total_notional * random.uniform(0.01, 0.05))
-                        aoci_val = int(total_notional * random.uniform(0.01, 0.1))
+                        aoci_val = int(total_notional * random.uniform(-0.1, 0.1)) # Can be gain or loss
 
                         income_row = ["    Amount of gain or (loss) recognized in income"] + ["-"] * (num_data_cols * 2)
                         aoci_row = ["    Amount of gain or (loss) recognized in AOCI"] + ["-"] * (num_data_cols * 2)
 
                         col_offset = year_idx * num_data_cols
                         income_row[1 + 4 + col_offset] = self._format_value(income_val)
-                        aoci_row[1 + 4 + col_offset] = self._format_value(aoci_val)
+                        # For Net Investment Hedges, the main impact is in AOCI, which is not an income statement line. We'll represent it in the "Other" column.
+                        aoci_row[1 + 4 + col_offset] = self._format_value(aoci_val) 
 
                         data_rows.extend([income_row, aoci_row])
 
@@ -2028,6 +2032,8 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                             aoci_row[1 + idx + col_offset] = self._format_value(aoci_part)
 
                         data_rows.extend([reclass_row, aoci_row])
+            
+            data_rows.append([""] * (num_data_cols * 2 + 1)) # Add a spacer row between hedge types
 
         if not data_rows:
             return "", [], []
