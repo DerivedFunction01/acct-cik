@@ -745,8 +745,10 @@ class ScenarioBuilder:
     def build(self) -> GenerationScenario:
         exposure_counts = self.archetype.get_exposure_counts()
 
-        # Reserve base types for GEN category
-        all_base_types = DERIVATIVE_COMPONENTS["base_types"]
+        # --- FIX: Reserve base types for GEN from the SCENARIO's pool, not the global pool ---
+        # This ensures all categories in a single scenario share the same limited vocabulary.
+        all_base_types = self.scenario_components["base_types"]
+        # From the scenario's pool, reserve 1 or 2 for the 'GEN' category.
         gen_reserved_base_types = random.sample(all_base_types, random.randint(1, 2))
         other_available_base_types = [
             bt for bt in all_base_types if bt not in gen_reserved_base_types
