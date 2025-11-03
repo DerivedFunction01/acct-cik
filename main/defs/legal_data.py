@@ -1,8 +1,9 @@
 import random
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 from defs.function_definitions import _get_company_reference, _cleanup_sentence, _format_single_notional
+from defs.instrument_definitions import ContextEvidence
 from defs.common_data import assessment_verbs, quarters, immaterial, material, change_phrases_noun
 
 
@@ -17,7 +18,7 @@ class LegalContextSentence:
     currency_code: str
     prefer_abbreviated: bool
 
-    def build(self) -> str:
+    def build(self) -> Tuple[str, ContextEvidence]:
         """Builds a multi-sentence paragraph about the company's legal proceedings."""
         num_sentences = random.randint(1, 3)
         sentences: List[str] = []
@@ -41,7 +42,14 @@ class LegalContextSentence:
             placeholders = self._get_placeholders()
             sentences.append(_cleanup_sentence(template.format_map(placeholders)))
 
-        return " ".join(sentences)
+        full_paragraph = " ".join(sentences)
+        evidence = ContextEvidence(
+            category="LAW",
+            status="context_mention",
+            details=full_paragraph
+        )
+
+        return full_paragraph, evidence
 
     def _get_placeholders(self) -> dict:
         """Helper to generate a dictionary of placeholders for formatting templates."""

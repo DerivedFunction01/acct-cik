@@ -160,3 +160,25 @@ class AccountingStandardEvidence(BaseNarrativeEvidence):
     standard_name: str = ""
     adoption_status: Literal["adopted", "evaluating", "will_adopt", "monitoring", "issuance"] = "monitoring"
     details: str = "" # The specific sentence providing the evidence
+
+
+@dataclass
+class ContextEvidence(BaseNarrativeEvidence):
+    """Evidence that a sentence provides context about a risk exposure but does not mention a derivative."""
+
+    details: str = ""
+
+    def to_string(self) -> str:
+        """Generates a reasoning statement for the contextual evidence."""
+        exposure_type_map = {
+            "IR": "interest rate risk from debt obligations",
+            "FX": "foreign currency exchange risk",
+            "CP": "commodity price risk",
+            "EQ": "equity price risk",
+            "LAW": "legal proceedings",
+            "GEN": "general market risks",
+        }
+        exposure_description = exposure_type_map.get(
+            self.category, "an unknown risk category"
+        )
+        return f"The text discusses exposure to {exposure_description} but does not mention any derivative instruments used to hedge this exposure."

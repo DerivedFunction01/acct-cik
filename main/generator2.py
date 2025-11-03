@@ -12,7 +12,7 @@ from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
 from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
 from defs.common_data import *
 from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument, get_random_commodity_and_unit
-from defs.instrument_definitions import DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, NotionalInstrument, HedgedItem, GenericInstrument
+from defs.instrument_definitions import DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, ContextEvidence, NotionalInstrument, HedgedItem, GenericInstrument
 from defs.policy_definitions import (
     AccountingPolicySentence,
     AccountingStandardUpdateSentence,
@@ -29,6 +29,7 @@ from defs.policy_definitions import (
 )
 from defs.scenario_definitions import AccountingStandardUpdate, company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
+from defs.legal_data import LegalContextSentence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
@@ -2911,6 +2912,12 @@ def generate_json_from_scenario(
         # --- NEW: Collect accounting evidence instead of processing immediately ---
         elif isinstance(ev, AccountingStandardEvidence):
             accounting_evidence_list.append(ev)
+        # --- NEW: Handle ContextEvidence ---
+        elif isinstance(ev, ContextEvidence):
+            # For LAW, we can add a specific reasoning string.
+            if ev.category == "LAW":
+                reasoning = f"The text discusses legal proceedings, including shareholder derivative lawsuits, which are contextually related to but distinct from derivative financial instruments."
+                other_evidence_strings.append(reasoning)
         elif isinstance(ev, ExposureEvidence):
             # Collect descriptions from ExposureEvidence
             exposure_descriptions.append(ev.to_string())
