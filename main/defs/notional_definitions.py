@@ -353,6 +353,18 @@ class NotionalSentence:
             if self.prev2_notional is not None:
                 self.prev2_notional = self.generate_fair_value(self.prev2_notional)
 
+        # --- FIX: Round the notional amounts to match the multiplier for clean JSON output ---
+        # This ensures that a narrative saying "$2.7 million" results in a JSON amount of 2700000, not 2722266.
+        # This is the single source of truth for rounding before evidence is created.
+        if self.notional_multiplier > 1:
+            if self.notional is not None:
+                self.notional = round(self.notional / self.notional_multiplier) * self.notional_multiplier
+            if self.prev_notional is not None:
+                self.prev_notional = round(self.prev_notional / self.notional_multiplier) * self.notional_multiplier
+            if self.prev2_notional is not None:
+                self.prev2_notional = round(self.prev2_notional / self.notional_multiplier) * self.notional_multiplier
+
+
         # Default values for optional components
         month = self.month or random.choice(months)
         end_day = self.end_day or random.randint(28, 31)
@@ -765,7 +777,7 @@ class NotionalSentence:
                 prev_notional_str=final_notional_str,  # The formatted amount is for the prior year
                 prev_year=self.year - 1,
                 instrument_type=self.swap_type,
-            reporting_year=self.reporting_year, # type: ignore
+                reporting_year=self.reporting_year, # type: ignore
                 value_type=final_value_type,
                 sentence_type=self.sentence_type,
             )

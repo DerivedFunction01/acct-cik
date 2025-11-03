@@ -1605,11 +1605,10 @@ def _generate_category_narrative(
             if notional_to_report > 0:
                 use_fair_value = random.random() < 0.2
                 value_type_to_use = "fair_value" if use_fair_value else "notional"
-
-                summary_sentence_obj = NotionalSentence(
-                    swap_type=swap_type_for_summary,
-                    year=reporting_year,
-                    notional=notional_to_report,
+                summary_sentence_obj = NotionalSentence( # type: ignore
+                    swap_type=swap_type_for_summary, # type: ignore
+                    year=reporting_year, # type: ignore
+                    notional=notional_to_report, # type: ignore
                     prev_notional=prev_notional_to_report,
                     prev2_notional=prev2_notional_to_report,
                     prev_year=prev_year_to_report,
