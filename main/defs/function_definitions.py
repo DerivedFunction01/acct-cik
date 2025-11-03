@@ -26,13 +26,6 @@ KNOWN_CURRENCY_SYMBOLS = {
     "₹",
 }
 
-KNOWN_CURRENCY_SYMBOLS = {"$", "€", "£", "¥"}  # Example set
-
-
-from typing import Literal
-
-KNOWN_CURRENCY_SYMBOLS = {"$", "€", "£", "¥"}  # example set
-
 
 def _format_single_notional(
     amount: int | float,

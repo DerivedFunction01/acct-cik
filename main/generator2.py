@@ -92,6 +92,7 @@ SCENARIO_ARCHETYPES = [
         prefers_abbreviated_numbers=True,
         prefers_tables=True,
         preferred_negative_format=-1,  # Accounting style: ($100)
+        prefers_currency_code=True
     ),
     ScenarioArchetype(
         name="Domestic Industrial",
