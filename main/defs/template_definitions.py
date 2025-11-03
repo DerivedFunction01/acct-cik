@@ -914,6 +914,26 @@ class Table:
                         currency=inst.currency,
                         sentence_type="individual", # From a table
                     ))
+                    evidence_list.append(
+                        NotionalEvidence(
+                            instrument_id=inst.instrument_id,
+                            status="individual",
+                            category=inst.category,
+                            notional=(
+                                _get_correct_rounding(
+                                    fair_val, self.notional_multiplier
+                                )
+                                if self.notional_multiplier > 1
+                                else fair_val
+                            ),
+                            year=self.reporting_year,
+                            instrument_type=name_to_use,
+                            reporting_year=self.reporting_year,
+                            value_type="fair_value",
+                            currency=inst.currency,
+                            sentence_type="individual",  # From a table
+                        )
+                    )
 
         if len(all_rows) <= 1:  # Only title
             return "", []
