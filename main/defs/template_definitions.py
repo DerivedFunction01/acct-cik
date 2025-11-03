@@ -1937,8 +1937,8 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
         sub_headers = ["Sales", "Cost of Products Sold", "R&D Expense", "Interest Expense", "Other Expense"]
         num_data_cols = len(sub_headers)
 
-        header_line_1 = ["Hedging Type & Line Item"] + sub_headers + sub_headers
-        header_line_2 = [f"Period: Dec {self.day}, {year1}"] + [""] * num_data_cols + [f"Dec {self.day}, {year2}"] + [""] * (num_data_cols -1)
+        header_line_1 = [""] + sub_headers + sub_headers
+        header_line_2 = [f"For the Year Ended {self.month} {self.day}, {year1}"] + [""] * (num_data_cols) + [str(year2)] + [""] * (num_data_cols - 1)
         
         headers = [header_line_1, header_line_2]
         label_width = 45
@@ -1968,7 +1968,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                 sub_groups[inst.base_type].append(inst)
 
             for base_type, sub_instruments in sub_groups.items():
-                group_name = f"{hedge_type} – {base_type.capitalize()}s"
+                group_name = f"Gain (Loss) on {hedge_type} relationship:\n  {base_type.capitalize()} contracts:"
                 data_rows.append([group_name] + [""] * (num_data_cols * 2))
 
                 # Simulate data for this group
@@ -1983,46 +1983,47 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                     # Simulate values based on hedge type
                     if hedge_type == "Fair Value Hedge":
                         # Hedged items and derivatives affect Interest Expense
-                        hedged_item_val = int(total_notional * random.uniform(-0.08, 0.08))
-                        derivative_val = -hedged_item_val + int(total_notional * random.uniform(-0.01, 0.01)) # Simulate ineffectiveness
+                        hedged_item_val = int(total_notional * random.uniform(0.01, 0.08))
+                        derivative_val = -hedged_item_val + int(total_notional * random.uniform(-0.005, 0.005)) # Simulate ineffectiveness
                         
-                        hedged_row = ["   Hedged items"] + [""] * (num_data_cols * 2)
-                        deriv_row = ["    Derivatives"] + [""] * (num_data_cols * 2)
+                        hedged_row = ["    Hedged items"] + ["-"] * (num_data_cols * 2)
+                        deriv_row = ["    Derivatives designated as hedging instruments"] + ["-"] * (num_data_cols * 2)
                         
                         col_offset = year_idx * num_data_cols
-                        hedged_row[4 + col_offset] = self._format_value(hedged_item_val)
-                        deriv_row[4 + col_offset] = self._format_value(derivative_val)
+                        hedged_row[1 + 3 + col_offset] = self._format_value(hedged_item_val)
+                        deriv_row[1 + 3 + col_offset] = self._format_value(derivative_val)
                         
                         data_rows.extend([hedged_row, deriv_row])
 
                     elif hedge_type == "Net Investment Hedge":
                         # Affects Other Expense for income and AOCI
-                        income_val = int(total_notional * random.uniform(-0.05, 0.05))
-                        aoci_val = int(total_notional * random.uniform(-0.1, 0.1))
+                        income_val = int(total_notional * random.uniform(0.01, 0.05))
+                        aoci_val = int(total_notional * random.uniform(0.01, 0.1))
 
-                        income_row = ["    Gain/(loss) in income"] + [""] * (num_data_cols * 2)
-                        aoci_row = ["    Gain/(loss) in AOCI"] + [""] * (num_data_cols * 2)
+                        income_row = ["    Amount of gain or (loss) recognized in income"] + ["-"] * (num_data_cols * 2)
+                        aoci_row = ["    Amount of gain or (loss) recognized in AOCI"] + ["-"] * (num_data_cols * 2)
 
                         col_offset = year_idx * num_data_cols
-                        income_row[5 + col_offset] = self._format_value(income_val)
-                        aoci_row[5 + col_offset] = self._format_value(aoci_val)
+                        income_row[1 + 4 + col_offset] = self._format_value(income_val)
+                        aoci_row[1 + 4 + col_offset] = self._format_value(aoci_val)
 
                         data_rows.extend([income_row, aoci_row])
 
                     elif hedge_type == "Cash Flow Hedge":
                         # Affects multiple lines for reclassification and AOCI
-                        reclass_val = int(total_notional * random.uniform(-0.05, 0.05))
-                        aoci_val = int(total_notional * random.uniform(-0.1, 0.1))
+                        reclass_val = int(total_notional * random.uniform(0.01, 0.05))
+                        aoci_val = int(total_notional * random.uniform(0.01, 0.1))
 
-                        reclass_row = ["    Reclassified to income"] + [""] * (num_data_cols * 2)
-                        aoci_row = ["    In AOCI"] + [""] * (num_data_cols * 2)
+                        reclass_row = ["    Amount of gain or (loss) reclassified from AOCI into income"] + ["-"] * (num_data_cols * 2)
+                        aoci_row = ["    Amount of gain or (loss) recognized in AOCI"] + ["-"] * (num_data_cols * 2)
 
                         # Distribute values across a few random columns
                         affected_indices = random.sample(range(num_data_cols), k=random.randint(1, 2))
                         col_offset = year_idx * num_data_cols
                         for idx in affected_indices:
-                            reclass_part = int(reclass_val / len(affected_indices))
-                            aoci_part = int(aoci_val / len(affected_indices))
+                            # Make values positive or negative
+                            reclass_part = int(reclass_val / len(affected_indices)) * random.choice([-1, 1])
+                            aoci_part = int(aoci_val / len(affected_indices)) * random.choice([-1, 1])
                             reclass_row[1 + idx + col_offset] = self._format_value(reclass_part)
                             aoci_row[1 + idx + col_offset] = self._format_value(aoci_part)
 
