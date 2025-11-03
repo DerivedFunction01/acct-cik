@@ -32,10 +32,14 @@ from defs.template_definitions import hedge_no_trading_templates, DerivativeTabl
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
 DEBUG = True
-PROB_ACTIVE_INSTRUMENT = 0
-PROB_TERMINATED_MENTION = 0
-PROB_REPEAT_MENTION = 0
-PROB_ADDITIONAL_HEDGE = 0
+
+# Probabilities for generating specific narrative elements to increase variety.
+GENERATION_PROBABILITIES = {
+    "active_instrument_mention": 0.9,  # Chance to mention an active instrument.
+    "terminated_instrument_mention": 0.7, # Chance to mention a terminated instrument.
+    "repeat_instrument_mention": 0.25, # Chance to mention the same instrument again (for aliasing).
+    "additional_table": 0.3, # Chance to generate an extra table (AOCI, Maturity, etc.).
+}
 
 # Probabilities for dropping narrative components to increase variety.
 # Using a dictionary for better organization.
@@ -1878,8 +1882,8 @@ def _generate_category_narrative(
             scenario.archetype.prefers_tables
             and current_year_data
             and current_year_data["instruments"]
-            and random.random() < 0.7 # 70% chance to generate a table if preferred
-            and random.random() < PROB_ACTIVE_INSTRUMENT
+            and random.random() < 0.7  # 70% chance to generate a table if preferred
+            and random.random() < GENERATION_PROBABILITIES["active_instrument_mention"]
         ): # type: ignore
             cat_to_map = {
                 "IR": "Interest Rate",
@@ -1920,14 +1924,14 @@ def _generate_category_narrative(
             # This simulates incomplete disclosure by sometimes omitting an instrument,
             # but only when `allow_random_drops` is True.
             instruments_to_mention = current_year_data["instruments"]
-            if allow_random_drops:
-                instruments_to_mention = [
-                    inst for inst in instruments_to_mention if random.random() < PROB_ACTIVE_INSTRUMENT
-                ]
+            if allow_random_drops and random.random() < (1 - GENERATION_PROBABILITIES["active_instrument_mention"]):
+                # Drop a random number of instruments
+                num_to_keep = random.randint(0, len(instruments_to_mention) -1) if instruments_to_mention else 0
+                instruments_to_mention = random.sample(instruments_to_mention, k=num_to_keep)
                 active_instruments_were_dropped = not instruments_to_mention
 
             # --- NEW: With a small chance, add a duplicate instrument to the list to test aliasing ---
-            if instruments_to_mention and random.random() < PROB_REPEAT_MENTION: # 25% chance to add a repeat mention
+            if instruments_to_mention and random.random() < GENERATION_PROBABILITIES["repeat_instrument_mention"]: # 25% chance to add a repeat mention
                 # Pick a random instrument that is already slated to be mentioned
                 instrument_to_repeat = random.choice(instruments_to_mention)
                 # Insert it at a random position in the list
@@ -2133,9 +2137,7 @@ def _generate_category_narrative(
             # --- NEW: Randomly decide which terminated instruments to mention ---
             terminated_to_mention = terminated_instruments
             if allow_random_drops:
-                terminated_to_mention = [
-                    inst for inst in terminated_instruments if random.random() < PROB_TERMINATED_MENTION
-                ]
+                terminated_to_mention = [inst for inst in terminated_instruments if random.random() < GENERATION_PROBABILITIES["terminated_instrument_mention"]]
 
             for instrument in terminated_to_mention:
 
@@ -2239,7 +2241,7 @@ def _generate_category_narrative(
             and prev_year_data
             and prev_year_data["total_notional"] > 0
             and not active_instruments_were_dropped
-            and random.random() < PROB_TERMINATED_MENTION
+            and random.random() < GENERATION_PROBABILITIES["terminated_instrument_mention"]
         ):
             instrument_type = (
                 prev_year_data["instrument_types"][0]
@@ -2496,7 +2498,7 @@ def generate_narrative_from_scenario(
 
     # --- NEW: Part 2.9: Generate Optional Standalone "Additional" Tables ---
     # These tables (AOCI, Maturity, etc.) often appear as separate disclosures.
-    if has_any_details and scenario.archetype.prefers_tables and not allow_random_drops and random.random() < PROB_ADDITIONAL_HEDGE:
+    if has_any_details and scenario.archetype.prefers_tables and not allow_random_drops and random.random() < GENERATION_PROBABILITIES["additional_table"]:
         # Get currency and money unit details for table generation.
         currency_symbol, _, currency_code = _get_currency_and_unit_details(scenario)
 
