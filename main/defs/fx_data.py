@@ -68,7 +68,7 @@ americas_currencies = [
 
 other_currencies = [
     Currency("NZD", "New Zealand Dollar", "$", "New Zealand", "Oceania"),
-    Currency("ZAR", "South African Rand", "R", "South African", "African"),
+    Currency("ZAR", "South African Rand", "R", "South African", "south Africa"),
     Currency("AED", "UAE Dirham", "د.إ", "Emirati", "United Arab Emirates"),
     Currency("SAR", "Saudi Riyal", "ر.س", "Saudi", "Saudi Arabia"),
 ]
