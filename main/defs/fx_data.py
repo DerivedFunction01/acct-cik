@@ -129,8 +129,8 @@ class FXContextSentence:
     hedged_item: Optional[Union[ForeignCurrencyHedgedItem, List[ForeignCurrencyHedgedItem]]]
     prefer_abbreviated: bool
     currency_symbol: str
-    notional_multiplier: int = 1_000_000  # Default to millions
     currency_code: str
+    notional_multiplier: int = 1_000_000  # Default to millions
 
     def build(self) -> str:
         """Builds a multi-sentence paragraph about the company's FX exposures."""
@@ -174,7 +174,7 @@ class FXContextSentence:
         all_tables_str = []
         available_table_types = ["exposure_summary", "translation_impact", "transaction_gains", "exchange_rates"]
         num_tables = random.randint(1, min(len(available_table_types), 3)) # Generate 1, 2, or 3 tables
-        
+
         # Ensure we don't pick the same table type twice
         selected_table_types = random.sample(available_table_types, num_tables)
 
