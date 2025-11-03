@@ -2742,7 +2742,28 @@ def generate_json_from_scenario(
     if return_mitigation_map_only:
         return mitigation_map
 
-    chain_of_thought = "\n".join([e.to_string() for e in evidence])
+    # --- NEW: Consolidate ExposureEvidence into a single final sentence ---
+    other_evidence_strings = []
+    exposure_descriptions = []
+
+    for ev in evidence:
+        if isinstance(ev, ExposureEvidence):
+            # Collect descriptions from ExposureEvidence
+            exposure_descriptions.append(ev.to_string())
+        else:
+            # Collect reasoning strings from all other evidence types
+            reasoning = ev.to_string()
+            if reasoning:  # Only add if the string is not empty
+                other_evidence_strings.append(reasoning)
+
+    chain_of_thought = "\n".join(other_evidence_strings)
+
+    # If there were any exposure-only mentions, join them into a single sentence and append it.
+    if exposure_descriptions:
+        # Join with ", " and use " and " for the last item.
+        joined_descriptions = (", ".join(exposure_descriptions[:-1]) + " and " + exposure_descriptions[-1]) if len(exposure_descriptions) > 1 else exposure_descriptions[0]
+        exposure_sentence = f"The text also mentions {joined_descriptions}, but does not mention specific derivatives used for hedging."
+        chain_of_thought += "\n" + exposure_sentence
 
     # --- Append a final reasoning statement for any GENERIC derivatives ---
     # This logic is now centralized here, instead of in the Evidence class.

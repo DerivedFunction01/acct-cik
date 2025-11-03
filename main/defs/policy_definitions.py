@@ -31,8 +31,8 @@ class ExposureEvidence(BaseNarrativeEvidence):
             self.category, "an unknown risk category"
         )
         # Return a concise statement for the chain of thought.
-        # The full sentence is in the 'details' if needed, but this is cleaner.
-        return f"The text mentions exposure to {exposure_description} but does not mention specific derivatives used for hedging."
+        # This now returns just the description, to be combined later.
+        return exposure_description
 
 
 @dataclass
