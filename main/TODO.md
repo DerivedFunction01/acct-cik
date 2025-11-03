@@ -77,6 +77,32 @@ This is the most critical phase. Before any model training, the data generation 
         -   **[x] Action:** Integrate the `build()` method for `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for the EQ category.
 
 -   **[ ] Improve Generation Quality (Continued):**
+    -   **[ ] Further Improvements to Generation Quality:**
+        -   **[ ] Probabilistic Component Generation:** In `generator2.py`, introduce probabilities for generating certain narrative sections to increase variety.
+            -   **[ ] Action: Drop Mitigation:** Add a random chance to skip generating the `MitigationSentence` for a category, even if instruments exist. This simulates filings that are less explicit about their strategy.
+            -   **[ ] Action: Drop Policy:** Add a random chance to skip generating the `AccountingPolicySentence` section.
+            -   **[ ] Action: Drop Details:** Add a random chance to skip generating detailed instrument disclosures (`TimelineSentence`, individual `NotionalSentence`), relying only on the aggregate summary.
+        -   **[ ] Implement "Noise-Only" Scenarios:** Create scenarios containing only contextual "noise" without any derivative instruments to improve negative sampling.
+            -   **[ ] Action: Create "Noise-Only" logic:** In `generator2.py`, add a path that, for a given category (e.g., IR), generates only `DebtContextSentence` paragraphs without any `IRInstrument` or `NotionalSentence` for derivatives. This is crucial for training the model to distinguish between discussions *about* risk (e.g., having debt) and the use of derivatives to *hedge* that risk.
+        -   **[ ] Create Evidence for Contextual Noise:** Create a new evidence class for contextual noise sentences so the model can explain *why* a text is not a derivative disclosure.
+            -   **[ ] Action: Define `ContextEvidence` class:** In a relevant `defs` file (e.g., `instrument_definitions.py`), create a `ContextEvidence` class that inherits from `BaseNarrativeEvidence`.
+                -   It should store the category of the context (e.g., "IR", "FX") and the text of the sentence.
+                -   Its `to_string()` method should generate a `chain_of_thought` entry like: "The text discusses debt obligations but does not mention any derivative instruments used to hedge this interest rate exposure."
+            -   **[ ] Action: Integrate into Context Sentence classes:** Modify the `build()` methods of `DebtContextSentence`, `FXContextSentence`, etc., to return a `ContextEvidence` object along with the sentence string.
+            -   **[ ] Action: Update `generate_json_from_scenario`:** The logic will need to be updated. If the only evidence objects are `ContextEvidence`, the `analysis_summary` should reflect that, and the `derivatives` list should be empty.
+        -   **[ ] Refactor `Table` Class for Reusability:**
+            -   **[ ] Action: Create `defs/table_definitions.py`:** Move the `Table` class from `defs/template_definitions.py` to a new, more general file.
+            -   **[ ] Action: Generalize `Table` class:** Refactor the `Table` class to be a generic table builder.
+                -   It should accept a list of headers, a list of data rows (as lists of strings), column widths, and alignments.
+                -   The `build()` method should focus solely on formatting the text-based table with proper spacing and SEC tags (`<S>`, `<C>`).
+            -   **[ ] Action: Create Specific Table Builders:** Create new classes (e.g., `DerivativeNotionalTable`, `AOCITable`) that *use* the generic `Table` class. These new classes will contain the logic for preparing the specific data and headers for their respective table types.
+            -   **[ ] Action: Update `generator2.py`:** Modify the `_generate_category_narrative` function to call the new specific table builder classes instead of the old `Table` class directly.
+        -   **[ ] Implement "Policy-Only" Scenarios:** Create scenarios that only contain policy discussions about derivatives (e.g., effectiveness testing, accounting treatment) without any corresponding instruments. This will train the model to recognize disclosures that talk *about* derivatives but don't confirm their *use*.
+            -   **[ ] Action: Create "Policy-Only" Archetype/Logic:** In `generator2.py`, add a path or a new `ScenarioArchetype` that generates a `GenerationScenario` with a `RiskManagementPolicy` containing `CategorySpecificPolicy` objects, but an empty `instruments` list.
+            -   **[ ] Action: Update Narrative Generation:** Ensure `generate_narrative_from_scenario` correctly generates paragraphs from `_generate_narrative_accounting` and `_generate_narrative_policy` even when no instruments are present. The narrative should contain text about hedge effectiveness, documentation, and accounting, but no sentences with notional amounts.
+            -   **[ ] Action: Verify JSON Output:** For these scenarios, the final JSON should have an empty `derivatives` list. The `analysis_summary` should reflect that no active derivatives were found, and the `chain_of_thought` should explain that while policies were discussed, no evidence of active instruments was found.
+
+-   **[ ] Improve Generation Quality (Continued):**
     -   The user expressed a desire for "higher quality compared to using templates randomly selected."
     -   **[x] Action: Implement a "Narrative Generation" strategy.** The `generator2.py` script now constructs a coherent, multi-paragraph narrative that mimics the structure of a real SEC filing's risk disclosure section (e.g., Item 7A). This creates more realistic and complex training data.
     -   **[x] Complex Scenarios:** The narratives now include more complex situations to train a robust model, such as:
