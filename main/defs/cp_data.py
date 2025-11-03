@@ -314,6 +314,7 @@ class CPContextSentence:
     hedged_item: Optional[Union[CommodityHedgedItem, List[CommodityHedgedItem]]]
     prefer_abbreviated: bool
     currency_symbol: str
+    notional_multiplier: int = 1_000_000  # Default to millions
 
     def build(self) -> str:
         """Builds a single contextual sentence for CP."""
@@ -498,12 +499,17 @@ class CPContextSentence:
 
     # --- NEW: Helper to get units string, mirroring DerivativeTableBuilder ---
     def _money_unit(self) -> str:
-        # This should ideally come from the scenario/archetype
-        # For now, we assume millions if not specified.
-        # A better implementation would pass the notional_multiplier down.
-        return "millions" # Assuming for now.
+        """Returns the string for the money unit (e.g., 'millions', 'billions')."""
+        amount_to_string = {
+            1_000_000_000_000: "trillions",
+            1_000_000_000: "billions",
+            1_000_000: "millions",
+            1_000: "thousands",
+        }
+        return amount_to_string.get(self.notional_multiplier, "millions")
 
     def _get_units(self) -> str:
+        """Returns the formatted unit string for table titles, e.g., '($ in millions)'."""
         # A simplified version for CP context.
         if self.prefer_abbreviated:
             return f"({self.currency_symbol} in {self._money_unit()})"

@@ -1398,6 +1398,7 @@ def _generate_cp_narrative(
                 hedged_item=cp_item,
                 prefer_abbreviated=scenario.number_format_preference,
                 currency_symbol=currency_symbol,
+                notional_multiplier=scenario.archetype.notional_multiplier,
             )
             cp_paragraph = cp_context_builder.build()
             if cp_paragraph:
@@ -1411,6 +1412,7 @@ def _generate_cp_narrative(
             hedged_item=all_cp_items,
             prefer_abbreviated=scenario.number_format_preference,
             currency_symbol=currency_symbol,
+            notional_multiplier=scenario.archetype.notional_multiplier,
         )
         cp_paragraph = cp_context_builder.build()
         if cp_paragraph:
@@ -1597,6 +1599,7 @@ def _generate_category_narrative(
             hedged_item=items_to_describe,
                 prefer_abbreviated=scenario.number_format_preference,
                 currency_symbol=currency_symbol,
+                notional_multiplier=scenario.archetype.notional_multiplier,
             )
             cp_paragraph = cp_context_builder.build()
             if cp_paragraph:
