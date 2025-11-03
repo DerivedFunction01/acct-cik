@@ -30,7 +30,10 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.template_definitions import hedge_no_trading_templates, Table
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
-DEBUG = True
+DEBUG = False
+ACTIVE_INSTRUMENT_MENTION_PROB = 1.0
+TERMINATED_INSTRUMENT_MENTION_PROB = 1.0
+REPEAT_MENTION_PROB = 1.0
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -497,11 +500,17 @@ class ScenarioBuilder:
                         self.reporting_year + 1, self.reporting_year + 3
                     )
                     notional = sum(e.amount for e in item.exposures)
-                else:  # CP, EQ
+                elif isinstance(item, CommodityHedgedItem):
                     maturity_year = random.randint(
                         self.reporting_year + 1, self.reporting_year + 5
                     )
-                    notional = random.randint(5, 100) * self.multiplier
+                    notional = int(item.quantity * item.price_per_unit)
+                elif isinstance(item, EquityHedgedItem):
+                    maturity_year = random.randint(
+                        self.reporting_year + 1, self.reporting_year + 5
+                    )
+                    assert item.number_of_shares is not None and item.share_price is not None
+                    notional = int(item.number_of_shares * item.share_price)
             else:
                 is_exiting = past_prop > 0 and current_prop == 0
                 if is_exiting or random.random() < past_prop:
@@ -729,9 +738,13 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
         if archetype.policy_coverage == "full":
             num_policies = len(possible_policy_categories)
         elif archetype.policy_coverage == "partial":
-            num_policies = random.randint(1, min(2, len(possible_policy_categories)))
+            num_policies = (
+                random.randint(1, min(2, len(possible_policy_categories)))
+                if len(possible_policy_categories) >= 2
+                else 1
+            )
         else: # "light"
-            num_policies = random.randint(0, min(1, len(possible_policy_categories)))
+            num_policies = random.randint(0, min(1, len(possible_policy_categories))) if len(possible_policy_categories) >= 2 else 1
 
         if possible_policy_categories and num_policies > 0:
             cats_with_policies = random.sample(possible_policy_categories, num_policies)
@@ -1769,8 +1782,16 @@ def _generate_category_narrative(
             instruments_to_mention = current_year_data["instruments"]
             if allow_random_drops:
                 instruments_to_mention = [
-                    inst for inst in instruments_to_mention if random.random() < 0.90 # 90% chance to mention
+                    inst for inst in instruments_to_mention if random.random() < ACTIVE_INSTRUMENT_MENTION_PROB
                 ]
+
+            # --- NEW: With a small chance, add a duplicate instrument to the list to test aliasing ---
+            if instruments_to_mention and random.random() < REPEAT_MENTION_PROB: # 25% chance to add a repeat mention
+                # Pick a random instrument that is already slated to be mentioned
+                instrument_to_repeat = random.choice(instruments_to_mention)
+                # Insert it at a random position in the list
+                insert_position = random.randint(0, len(instruments_to_mention))
+                instruments_to_mention.insert(insert_position, instrument_to_repeat)
 
             for instrument in instruments_to_mention:
                 # --- FIX: Initialize report variables at the top of the loop ---
@@ -1970,7 +1991,7 @@ def _generate_category_narrative(
             terminated_to_mention = terminated_instruments
             if allow_random_drops:
                 terminated_to_mention = [
-                    inst for inst in terminated_instruments if random.random() < 0.80 # 80% chance to mention
+                    inst for inst in terminated_instruments if random.random() < TERMINATED_INSTRUMENT_MENTION_PROB
                 ]
 
             for instrument in terminated_to_mention:
