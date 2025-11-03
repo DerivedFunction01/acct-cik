@@ -184,6 +184,29 @@ SCENARIO_ARCHETYPES = [
         preferred_negative_format=0,
     ),
     ScenarioArchetype(
+        name="Policy Only",
+        debt_exposure_range=(2, 4),      # Has exposures...
+        fx_exposure_range=(2, 4),
+        commodity_exposure_range=(1, 3),
+        commodity_types=["energy", "metals_minerals"],
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 0), # ...but will not hedge them.
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="full", # Has full policies...
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False, # No instruments, so no tables.
+        preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
         name="Potential User",
         debt_exposure_range=(1, 3),  # Has exposures...
         fx_exposure_range=(1, 3),  # ...but won't hedge them.
@@ -2308,16 +2331,18 @@ def _generate_narrative_accounting(
     all_evidence: List[BaseNarrativeEvidence] = []  # type: ignore
     mentioned_policies = set()
     
-    # --- NEW: Generate accounting policies for each category with instruments ---
+    # --- MODIFIED: Generate accounting policies for each category with a policy, even if no instruments ---
     if scenario.policy and scenario.policy.category_policies:
         active_categories = {
             inst.category
             for inst in scenario.instruments
             if inst.notional_history.get(scenario.reporting_year, 0) > 0
         }
+        # --- NEW: For Policy-Only scenarios, we need to generate policies for categories that *could* have them.
+        policy_categories = {p.category for p in scenario.policy.category_policies}
 
         policies_to_generate = [
-            p for p in scenario.policy.category_policies if p.category in active_categories
+            p for p in scenario.policy.category_policies if p.category in (active_categories or policy_categories)
         ]
 
         # --- FIX: Create a separate paragraph for each category's policies ---
@@ -2325,7 +2350,11 @@ def _generate_narrative_accounting(
         for cat_policy in policies_to_generate:
             category_sentences = []
             instruments_in_cat = [i for i in scenario.instruments if i.category == cat_policy.category]
-            swap_type_desc = _get_smart_instrument_description(instruments_in_cat, cat_policy.category)
+            if instruments_in_cat:
+                swap_type_desc = _get_smart_instrument_description(instruments_in_cat, cat_policy.category)
+            else: # For policy-only scenarios, generate a plausible name
+                _, _, _, _, name, _ = _generate_instrument_name(cat_policy.category)
+                swap_type_desc = f"{name}s"
 
             policy_sentence_builder = AccountingPolicySentence(
                 cat_policy=cat_policy,
@@ -2750,6 +2779,12 @@ def generate_json_from_scenario(
                     elif status == "historical": mitigation_map[category] = "historical"
                     elif status == "non_use": mitigation_map[category] = "never"
                     elif status == "speculative": mitigation_map[category] = "likely"
+    
+    # --- NEW: For policy-only scenarios, if no instruments are found but policies exist, mark as 'policy_only' ---
+    if not scenario.instruments and scenario.policy and scenario.policy.category_policies:
+        for policy in scenario.policy.category_policies:
+            if mitigation_map[policy.category] == "unknown":
+                mitigation_map[policy.category] = "policy_only"
 
     if return_mitigation_map_only:
         return mitigation_map
@@ -2759,7 +2794,13 @@ def generate_json_from_scenario(
     exposure_descriptions = []
 
     for ev in evidence:
-        if isinstance(ev, ExposureEvidence):
+        if isinstance(ev, PolicyEvidence):
+            # For policy-only, we want to explain why it's not a current user
+            if mitigation_map.get(ev.category) == "policy_only":
+                reasoning = f"The text discusses accounting policies for {ev.category} derivatives (e.g., '{ev.policy_type}') but does not mention any specific, active instruments for the reporting period."
+                if reasoning not in other_evidence_strings:
+                    other_evidence_strings.append(reasoning)
+        elif isinstance(ev, ExposureEvidence):
             # Collect descriptions from ExposureEvidence
             exposure_descriptions.append(ev.to_string())
         else:
