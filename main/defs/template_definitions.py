@@ -829,12 +829,15 @@ class Table:
 
             # Create evidence for the current year if value is > 0
             if val1 > 0:
+                evidence_notional_str = _format_single_notional(
+                    val1, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
+                )
                 evidence_list.append(NotionalEvidence(
                     instrument_id=inst.instrument_id,
                     status="individual",
                     category=inst.category,
                     notional=_get_correct_rounding(val1, self.notional_multiplier) if self.notional_multiplier > 1 else val1,
-                    notional_str=val1_str,
+                    notional_str=evidence_notional_str,
                     year=year1,
                     instrument_type=name_to_use,
                     reporting_year=self.reporting_year, # type: ignore
@@ -932,12 +935,18 @@ class Table:
 
                 # Create evidence for the current year if value is > 0
                 if year == self.reporting_year and notional_val > 0:
+                    evidence_notional_str = _format_single_notional(
+                        notional_val, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+                    )
+                    evidence_fair_val_str = _format_single_notional(
+                        fair_val, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+                    )
                     evidence_list.append(NotionalEvidence(
                         instrument_id=inst.instrument_id,
                         status="individual",
                         category=inst.category,
                         notional=_get_correct_rounding(notional_val, self.notional_multiplier) if self.notional_multiplier > 1 else notional_val,
-                        notional_str=notional_str,
+                        notional_str=evidence_notional_str,
                         year=self.reporting_year,
                         instrument_type=name_to_use,
                         reporting_year=self.reporting_year, # type: ignore
@@ -957,7 +966,7 @@ class Table:
                                 if self.notional_multiplier > 1
                                 else fair_val
                             ),
-                            notional_str=fair_val_str,
+                            notional_str=evidence_fair_val_str,
                             year=self.reporting_year,
                             instrument_type=name_to_use,
                             reporting_year=self.reporting_year, # type: ignore
@@ -1029,13 +1038,20 @@ class Table:
                     True,
                     negative_format=self.preferred_negative_format,  # type: ignore
                 )
+                evidence_notional_str = _format_single_notional(
+                    total_notional,
+                    self.currency_symbol,
+                    self.prefer_abbreviated,
+                    False,  # Generate with unit word for sentence
+                    negative_format=self.preferred_negative_format,  # type: ignore
+                )
                 # Create aggregate evidence for this maturity group
                 evidence_list.append(NotionalEvidence(
                     instrument_id=None,  # Aggregate, no single ID
                     status="summary",
                     category=self.category,
                     notional=_get_correct_rounding(total_notional, self.notional_multiplier) if self.notional_multiplier > 1 else total_notional,
-                    notional_str=notional_str,
+                    notional_str=evidence_notional_str,
                     year=self.reporting_year,
                     instrument_type=f"Derivatives with maturity of {group.lower()}",
                     reporting_year=self.reporting_year,
@@ -1121,12 +1137,15 @@ class Table:
         ]
 
         # Create a single, aggregate evidence object for the table's main point
+        evidence_end_bal_str = _format_single_notional(
+            ending_balance, self.currency_symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+        )
         evidence_list.append(NotionalEvidence(
             instrument_id=None,
             status="summary",
             category=self.category,
             notional=_get_correct_rounding(ending_balance, self.notional_multiplier) if self.notional_multiplier > 1 else int(ending_balance),
-            notional_str=end_bal_str,
+            notional_str=evidence_end_bal_str,
             year=year,
             instrument_type=f"AOCI balance for {self.category} cash flow hedges",
             reporting_year=self.reporting_year,
@@ -1201,10 +1220,13 @@ class Table:
             rows.append(row_str)
 
             if val1 > 0:
+                evidence_notional_str = _format_single_notional(
+                    val1, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+                )
                 evidence_list.append(NotionalEvidence(
                     instrument_id=inst.instrument_id, status="individual", category=inst.category,
                     notional=_get_correct_rounding(val1, self.notional_multiplier) if self.notional_multiplier > 1 else val1,
-                    notional_str=val1_str, year=year1, instrument_type=name_to_use,
+                    notional_str=evidence_notional_str, year=year1, instrument_type=name_to_use,
                     reporting_year=self.reporting_year, value_type=value_type, currency=inst.currency,
                     sentence_type="individual",
                 ))
@@ -1256,10 +1278,17 @@ class Table:
             row_str = f"| {inst.instrument_type:<35} | {reclass_str:>25} | {location:<40} |"
             rows.append(row_str)
 
+            evidence_reclass_str = _format_single_notional(
+                reclass_amount,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                False, # Generate with unit word for sentence
+                negative_format=self.preferred_negative_format, # type: ignore
+            )
             evidence_list.append(NotionalEvidence(
                 instrument_id=inst.instrument_id, status="individual", category=inst.category,
                 notional=_get_correct_rounding(reclass_amount, self.notional_multiplier) if self.notional_multiplier > 1 else int(reclass_amount),
-                notional_str=reclass_str, year=year,
+                notional_str=evidence_reclass_str, year=year,
                 instrument_type=f"AOCI reclassification for {inst.instrument_type}",
                 reporting_year=self.reporting_year, value_type="fair_value",
                 currency=self.currency_code, sentence_type="individual",
@@ -1439,23 +1468,16 @@ class Table:
             rows.append(row_str)
 
             # Create evidence for the fair value of this instrument
+            evidence_fair_value_str = _format_single_notional(
+                fair_value, self.currency_symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+            )
             evidence_list.append(
                 NotionalEvidence(
                     instrument_id=inst.instrument_id,
                     status="individual",
                     category=inst.category,
-                    notional=(
-                        _get_correct_rounding(fair_value, self.notional_multiplier)
-                        if self.notional_multiplier > 1
-                        else fair_value
-                    ),
-                    notional_str=_format_single_notional(
-                        fair_value,
-                        self.currency_symbol,
-                        self.prefer_abbreviated,
-                        True,
-                        negative_format=self.preferred_negative_format,  # type: ignore
-                    ),
+                    notional=_get_correct_rounding(fair_value, self.notional_multiplier) if self.notional_multiplier > 1 else fair_value,
+                    notional_str=evidence_fair_value_str,
                     year=year,
                     instrument_type=inst.instrument_type,
                     reporting_year=self.reporting_year,
