@@ -379,9 +379,10 @@ class CPContextSentence:
                 alignments = ['l', 'r', 'r']
                 unique_commodities = list({item.commodity_type: item for item in self.hedged_item}.values())
                 for item in unique_commodities:
-                    impact_amount = int((item.quantity * item.price_per_unit) * 0.10 * random.uniform(-1.5, 1.5))
+                    change_val = random.randint(5, 20)
+                    impact_amount = int((item.quantity * item.price_per_unit) * change_val * random.uniform(-1.5, 1.5))
                     impact_str = _format_single_notional(impact_amount, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
-                    data_rows.append([item.commodity_type, "+/- 10%", impact_str])
+                    data_rows.append([item.commodity_type, f"+/- {change_val}%", impact_str])
 
             else: # inventory_rollforward
                 title = f"Commodity Inventory Roll-Forward\nFor the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
