@@ -79,8 +79,8 @@ This is the most critical phase. Before any model training, the data generation 
 -   **[ ] Improve Generation Quality (Continued):**
     -   **[ ] Further Improvements to Generation Quality:**
         -   **[ ] Probabilistic Component Generation:** In `generator2.py`, introduce probabilities for generating certain narrative sections to increase variety.
-            -   **[ ] Action: Drop Mitigation:** Add a random chance to skip generating the `MitigationSentence` for a category, even if instruments exist. This simulates filings that are less explicit about their strategy.
-            -   **[ ] Action: Drop Policy:** Add a random chance to skip generating the `AccountingPolicySentence` section.
+            -   **[x] Action: Drop Mitigation:** Add a random chance to skip generating the `MitigationSentence` for a category, even if instruments exist. This simulates filings that are less explicit about their strategy.
+            -   **[x] Action: Drop Policy:** Add a random chance to skip generating the `AccountingPolicySentence` section.
             -   **[ ] Action: Drop Details:** Add a random chance to skip generating detailed instrument disclosures (`TimelineSentence`, individual `NotionalSentence`), relying only on the aggregate summary.
         -   **[ ] Implement "Noise-Only" Scenarios:** Create scenarios containing only contextual "noise" without any derivative instruments to improve negative sampling.
             -   **[ ] Action: Create "Noise-Only" logic:** In `generator2.py`, add a path that, for a given category (e.g., IR), generates only `DebtContextSentence` paragraphs without any `IRInstrument` or `NotionalSentence` for derivatives. This is crucial for training the model to distinguish between discussions *about* risk (e.g., having debt) and the use of derivatives to *hedge* that risk.

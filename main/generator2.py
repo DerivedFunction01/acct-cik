@@ -37,7 +37,8 @@ REPEAT_MENTION_PROB = 1.0
 
 # Probabilities for dropping narrative components to increase variety
 PROB_DROP_MITIGATION = 1.0  # 15% chance to skip the MitigationSentence
-PROB_DROP_ACCOUNTING_POLICY = 1.0  # 20% chance to skip the entire accounting policy section
+PROB_DROP_ACCOUNTING_POLICY = 1.0 # 20% chance to skip the entire accounting policy section
+PROB_DROP_7A_SUMMARY = 1.0 # 10% chance to skip the entire Item 7A-style summary section
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -1487,6 +1488,7 @@ def _generate_category_narrative(
     part: Literal["summary", "details"],
     mentioned_instrument_types: Optional[Set[str]] = None,
     allow_random_drops: bool = False,
+    suppress_text_output: bool = False,
     mentioned_instrument_ids: Optional[Set[int]] = None,
 ) -> Tuple[List[str], List[BaseNarrativeEvidence], Optional[str]]:
     """
@@ -1497,6 +1499,7 @@ def _generate_category_narrative(
         mentioned_instrument_ids: A set to track specific instrument IDs that have been mentioned.
         mentioned_instrument_types: A set to track instrument full names that have already been mentioned.
         part: "summary" to generate policy/mitigation/aggregate, "details" for individual instruments.
+        suppress_text_output: If True, only generate evidence, not sentences.
     """
     sentences, evidence, used_name = [], [], None
     reporting_year, reporting_month, reporting_day = (
@@ -1550,7 +1553,8 @@ def _generate_category_narrative(
             specific_details=specific_details,
         )
         context_sentence, _ = policy_sentence_obj.build()
-        sentences.append(context_sentence)
+        if not suppress_text_output:
+            sentences.append(context_sentence)
 
         # --- NEW: Add debt context for IR category ---
         if category == "IR":
@@ -1570,7 +1574,7 @@ def _generate_category_narrative(
                 currency_symbol=currency_symbol,
             )
             debt_paragraph = debt_context_builder.build()
-            if debt_paragraph:
+            if debt_paragraph and not suppress_text_output:
                 sentences.append(debt_paragraph)
 
         # --- NEW: Add FX context for FX category (similar to IR/Debt) ---
@@ -1589,7 +1593,7 @@ def _generate_category_narrative(
                 currency_code=currency_code,
             )
             fx_paragraph = fx_context_builder.build()
-            if fx_paragraph:
+            if fx_paragraph and not suppress_text_output:
                 sentences.append(fx_paragraph)
 
         # --- NEW: Add CP context for CP category ---
@@ -1607,7 +1611,7 @@ def _generate_category_narrative(
                 notional_multiplier=scenario.archetype.notional_multiplier,
             )
             cp_paragraph = cp_context_builder.build()
-            if cp_paragraph:
+            if cp_paragraph and not suppress_text_output:
                 sentences.append(cp_paragraph)
 
         # --- NEW: Add EQ context for EQ category ---
@@ -1628,7 +1632,7 @@ def _generate_category_narrative(
                 currency_symbol=currency_symbol,
             )
             eq_paragraph = eq_context_builder.build()
-            if eq_paragraph:
+            if eq_paragraph and not suppress_text_output:
                 sentences.append(eq_paragraph)
 
             # --- FIX: Handle case where there are no EQ instruments but exposure exists ---
@@ -1638,7 +1642,8 @@ def _generate_category_narrative(
                     reporting_month=scenario.reporting_month, reporting_day=scenario.reporting_day,
                 hedged_item=None, prefer_abbreviated=scenario.number_format_preference, currency_symbol=currency_symbol,
                 )
-                sentences.append(eq_context_builder.build())
+                if not suppress_text_output:
+                    sentences.append(eq_context_builder.build())
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(
@@ -1689,13 +1694,18 @@ def _generate_category_narrative(
 
         # --- NEW: Probabilistically drop the mitigation sentence ---
         # This simulates filings that are less explicit about their strategy.
-        if allow_random_drops and random.random() < PROB_DROP_MITIGATION:
+        # If the whole 7A is suppressed, this is always implied.
+        if suppress_text_output or (allow_random_drops and random.random() < PROB_DROP_MITIGATION):
             # We still generate the evidence so the JSON output is correct,
             # but we mark it as implied since the sentence won't be in the text.
             mitigation_evidence.is_implied = True
             # but we don't add the sentence to the narrative text.
             evidence.append(mitigation_evidence)
         else:
+            # If we are suppressing text output, we should not append the sentence.
+            # This check is redundant due to the `if` condition but adds clarity.
+            if suppress_text_output:
+                raise Exception("Logic error: Should not be generating sentence text when suppress_text_output is True.")
             # The common case: generate both the sentence and the evidence.
             sentences.append(mitigation_sentence)
             evidence.append(mitigation_evidence)
@@ -1706,7 +1716,7 @@ def _generate_category_narrative(
             current_year_data
             and mitigation_evidence.usage_status != "non_use" # Don't summarize if we just said we don't use them
             and current_year_data["instruments"]
-            and not is_non_use_mitigation
+            and not is_non_use_mitigation and not suppress_text_output
             and random.random() < 0.5
         ):
             # --- NEW: Logic to choose between summary, comparative, or comparative_no_prior ---
@@ -2318,22 +2328,36 @@ def generate_narrative_from_scenario(
     random.shuffle(category_order)
 
     # --- Part 1: Build the "Item 7A" Summary Section ---
-    for category in category_order:
-        has_instruments = category in aggregated_data
-        has_exposure = all_relevant_categories.get(category, False)
+    # --- NEW: Probabilistically drop the entire 7A summary section ---
+    # This simulates filings that jump straight to the detailed notes.
+    if allow_random_drops and random.random() < PROB_DROP_7A_SUMMARY:
+        # Even if we drop the text, we MUST generate the underlying evidence
+        # (especially MitigationEvidence) so the JSON output is correct.
+        # We mark the evidence as 'implied' since the text isn't there.
+        for category in category_order:
+            if category in aggregated_data or all_relevant_categories.get(category, False):
+                _, summary_evidence, _ = _generate_category_narrative(
+                    category,
+                    aggregated_data.get(category, {}),
+                    scenario,
+                    part="summary",
+                    suppress_text_output=True, # New flag to only generate evidence
+                )
+                all_evidence.extend(summary_evidence)
+    else:
+        # The common case: generate the full summary text and evidence.
+        for category in category_order:
+            has_instruments = category in aggregated_data
+            has_exposure = all_relevant_categories.get(category, False)
 
-        if has_instruments or (has_exposure and category != "GEN"):
-            yearly_data_for_cat = aggregated_data.get(category, {})
-            summary_sentences, summary_evidence, _ = _generate_category_narrative(
-                category,
-                yearly_data_for_cat,
-                scenario,
-                part="summary",
-                mentioned_instrument_types=mentioned_instrument_types,
-                allow_random_drops=allow_random_drops,
-            )
-            item_7a_sections.append(" ".join(s for s in summary_sentences if s))
-            all_evidence.extend(summary_evidence)
+            if has_instruments or (has_exposure and category != "GEN"):
+                yearly_data_for_cat = aggregated_data.get(category, {})
+                summary_sentences, summary_evidence, _ = _generate_category_narrative(
+                    category, yearly_data_for_cat, scenario, part="summary",
+                    allow_random_drops=allow_random_drops,
+                )
+                item_7a_sections.append(" ".join(s for s in summary_sentences if s))
+                all_evidence.extend(summary_evidence)
 
     # --- NEW: Part 2.5: Build the dedicated "Debt" Section ---
     # This section provides detailed context on all debt instruments.
