@@ -196,24 +196,24 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "By {year}, after a partial {termination_noun}, the {state_descriptor} {amount_prefix} was {amount_str} {result_clause}.",
         "{company} partially {verb} its {swap_type} position in {year}, with the remaining {amount_prefix} at {amount_str} {result_clause}.",
         "Following a partial {termination_noun} in {year}, the {swap_type} had an {state_descriptor} {amount_prefix} of {amount_str} {result_clause}.",
-        "The {amount_prefix} of the {swap_type} was {comparison_phrase} {amount_str} in {year} due to a partial {termination_noun} {result_clause}.",
+        "The {amount_prefix} of the {swap_type} was {amount_str} in {year} due to a partial {termination_noun} {result_clause}.",
     ],
     # For cases where there were instruments in a prior year, but none in the current year.
     "comparative_no_outstanding": [
         "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year.",
         "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year}.",
         "All {swap_type} {historical_phrase}, which had a {amount_prefix} of {amount_str}, were terminated or expired by year-end {year}.",
-        "{company} did not hold any {swap_type} as of {month} {end_day}, {year}, whereas the prior year-end balance was {amount_str}.",
+        "{company} did not hold any {swap_type} as of {month} {end_day}, {year}, {comparison_phrase} the prior year-end balance was {amount_str}.",
     ],
     # For cases where there are instruments now, but there were none in the prior year.
     "comparative_no_prior_outstanding": [
-        "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}, whereas no such instruments were {state_descriptor} in the prior year.",
+        "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}, {comparison_phrase} no such instruments were {state_descriptor} in the prior year.",
         "{time_prefix}, {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}; no comparable instruments were {state_descriptor} during {prev_year}.",
         "The {amount_prefix} of {swap_type} was {amount_str} {time_suffix} {result_clause}; there were no such instruments reported in {prev_year}.",
-        "{company} initiated the use of {swap_type} {time_suffix}, with an outstanding {amount_prefix} of {amount_str}, where none existed in the prior year.",
+        "{company} initiated the use of {swap_type} {time_suffix}, with an outstanding {amount_prefix} of {amount_str}, {comparison_phrase} none existing in the prior year.",
         "Activity in {swap_type} commenced {time_suffix}, resulting in a {amount_prefix} of {amount_str}, up from zero in the previous year.",
         # --- NEW: begin_mitigation at the beginning ---
-        "{begin_mitigation} {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {time_suffix}, whereas no such instruments were held in the prior year.",
+        "{begin_mitigation} {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {time_suffix}, {comparison_phrase} no such instruments were held in the prior year.",
     ],
 }
 

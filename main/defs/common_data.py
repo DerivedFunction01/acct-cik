@@ -118,12 +118,59 @@ termination_noun = [
 comparison_phrases = [
     "compared to",
     "versus",
-    "down from",
-    "up from",
-    "an increase from",
-    "reduced from",
     "as against",
     "in comparison with",
+    "whereas",   
+    "compared with",
+    "relative to",
+    "in contrast to",
+    "as opposed to",
+    "vis-à-vis",
+    "when compared with",
+    "in comparison with",
+]
+
+# Verbs for describing changes in notional amounts
+change_verbs = [
+    "increased",
+    "decreased",
+    "rose",
+    "fell",
+    "grew",
+    "shrank",
+    "expanded",
+    "contracted",
+    "declined",
+    "reduced",
+    "augmented",
+    "diminished",
+    "fluctuated",
+    "varied",
+    "changed",
+]
+
+change_phrases_noun = [
+    "change",
+    "increase",
+    "rise",
+    "decrease",
+    "reduction",    
+    "decline",
+    "fluctuation",
+    "movement",
+    "shift",
+    "variation",
+]
+
+change_phrases_past = [
+    "increased",
+    "decreased",
+    "rose",
+    "fell",
+    "shifted",
+    "declined",
+    "grew",
+    "fluctuated",
 ]
 
 # Verbs for expressing non-use or absence of instruments

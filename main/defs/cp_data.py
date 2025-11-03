@@ -11,6 +11,8 @@ from defs.common_data import (
     risk_management_verbs,
     inventory_methods,
     market_drivers,
+    change_phrases_past,
+    change_phrases_noun,
 )
 from defs.function_definitions import _get_company_reference, _cleanup_sentence, _format_single_notional
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
@@ -335,7 +337,7 @@ class CPContextSentence:
             amount1 = random.randint(1, 500) * 1_000_000
             amount2 = random.randint(1, 500) * 1_000_000
             impact_adverb = random.choice(["favorably", "unfavorably", "negatively", "positively"])
-            impact_verb_past = random.choice(["decreased", "{comparison_phrase}d", "reduced", "enhanced"])
+            impact_verb_past = random.choice(change_phrases_past)
             impact_adj = random.choice(["favorable", "unfavorable", "adverse", "beneficial"])
 
             # Format placeholders
@@ -367,20 +369,21 @@ class CPContextSentence:
                 ),
                 "small_int": random.randint(30, 90),
                 "large_int": random.randint(100_000, 5_000_000),
-                "impact_verb_past": impact_verb_past.format(comparison_phrase=random.choice(comparison_phrases)),
+                "impact_verb_past": impact_verb_past,
                 "pct": f"{random.uniform(1.5, 7.5):.1f}",
                 "impact_adverb": impact_adverb,
                 "income_statement_item": random.choice(balance_sheet_locations),
                 "strength_weakness": random.choice(["strengthening", "weakening"]),
                 "impact_adjective": impact_adj,
                 "comparison_phrase": random.choice(comparison_phrases),
+                "change_noun": random.choice(change_phrases_noun),
                 "risk_action_verb": random.choice(
                     [v for v in risk_management_verbs if not v.endswith("ing")]
                 ),
                 "unit": unit,
                 "maturity_year": self.reporting_year + random.randint(1, 5),
                 "next_year": self.reporting_year + 1,
-                "market_driver": random.choice(market_drivers)
+                "market_driver": random.choice(market_drivers),
             }
 
             # Use format_map to safely populate the template
@@ -419,7 +422,7 @@ cp_context_templates = {
         "Write-downs of {commodity} inventory to net realizable value totaled {amount_str} in {year}.",
     ],
     "impact": [
-        "An {comparison_phrase} of {pct}% in the price of {commodity} would have {impact_adverb} impacted our {income_statement_item} by approximately {amount_str} in {year}.",
+        "A {change_noun} of {pct}% in the price of {commodity} would have {impact_adverb} impacted our {income_statement_item} by approximately {amount_str} in {year}.",
         "Changes in {commodity} prices {impact_adverb} affected our {cost_metric} by {pct}% during the last fiscal quarter.",
         "Our {cost_metric} {impact_verb_past} by {amount_str} in {year}, primarily due to higher {commodity} prices.",
         "The {strength_weakness} of {commodity} prices had an {impact_adjective} impact on our operating results for {year}.",
@@ -427,14 +430,14 @@ cp_context_templates = {
     ],
     "pricing_strategy": [
         "{company} generally seeks to pass through {commodity} cost {risk_term} to customers through pricing mechanisms.",
-        "{company} has implemented price {comparison_phrase}s totaling {pct}% to {risk_action_verb} {commodity} cost {risk_term} during {year}.",
+        "{company} has implemented price changes totaling {pct}% to {risk_action_verb} {commodity} cost {risk_term} during {year}.",
         "Pricing adjustments are typically implemented with a {small_int}-month lag following {risk_term} in {commodity} costs.",
         "{company} utilizes index-based pricing formulas for certain products to {risk_action_verb} the impact of {commodity} price {risk_term}.",
         "Customer {supply_agreements} include provisions that allow {company} to adjust prices in response to significant {commodity} cost {risk_term}.",
     ],
     "physical_operations": [
         "{company} owns and operates {commodity} production facilities with annual capacity of {large_int} {unit}.",
-        "{company} produced {large_int} {unit} of {commodity} during {year}, a {pct}% {comparison_phrase} from the prior year.",
+        "{company} produced {large_int} {unit} of {commodity} during {year}, a {pct}% {change_noun} from the prior year.",
         "{company}'s {commodity} operations generated revenues of {amount_str} in {year}.",
         "Production costs for {commodity} averaged {amount_str} per {unit} in {year}, {comparison_phrase} {amount_str2} in {prev_year}.",
         "{company} maintains proved reserves of {large_int} {unit} of {commodity} as of {month} {end_day}, {year}.",
@@ -447,7 +450,7 @@ cp_context_templates = {
         "We have entered into fixed-price purchase commitments for {commodity} totaling {amount_str} for delivery in {next_year}.",
     ],
     "market_prices": [
-        "The average market price for {commodity} during {year} was {amount_str} per {unit}, an {comparison_phrase} of {pct}% from the prior year.",
+        "The average market price for {commodity} during {year} was {amount_str} per {unit}, an {change_noun} of {pct}% from the prior year.",
         "Market prices for {commodity} fluctuated between {amount_str} and {amount_str2} per {unit} during the fiscal year.",
         "Spot prices for {commodity} at year-end {year} were {amount_str} per {unit}.",
         "The {risk_term} in {commodity} prices during {year} was primarily driven by {market_driver}.",
