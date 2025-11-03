@@ -107,8 +107,9 @@ class EQContextSentence:
         if not isinstance(self.hedged_item, list) or not self.hedged_item:
             return ""
 
-        # --- NEW: Add more table types for variety ---
+        # --- NEW: Add more table types for variety --- (This was already here, but I'm confirming its good use)
         table_type = random.choice(["investments", "stock_comp_activity", "stock_comp_expense", "share_repurchase"])
+        data_rows = []
 
         # --- 1. Equity Investments Summary ---
         if table_type == "investments":
@@ -116,7 +117,6 @@ class EQContextSentence:
             headers = ["Investment (Symbol)", "Shares", "Fair Value"]
             widths = [30, 20, 20]
             alignments = ['l', 'r', 'r']
-            data_rows = []
             for item in self.hedged_item:
                 if item.equity_type == "third_party_stock" and item.stock_symbol and item.number_of_shares and item.share_price:
                     value = item.number_of_shares * item.share_price
@@ -129,7 +129,6 @@ class EQContextSentence:
             headers = ["", "Shares", "Weighted-Avg. Price"]
             widths = [35, 20, 20]
             alignments = ['l', 'r', 'r']
-            data_rows = []
             # Simulate stock comp activity
             data_rows.append(["Beginning balance", f"{random.randint(1,5)*1_000_000:,}", f"{self.currency_symbol}{random.uniform(10, 20):.2f}"])
             data_rows.append(["Granted", f"{random.randint(100_000, 500_000):,}", f"{self.currency_symbol}{random.uniform(20, 30):.2f}"])
@@ -142,7 +141,6 @@ class EQContextSentence:
             headers = ["Award Type", "Compensation Cost"]
             widths = [35, 25]
             alignments = ['l', 'r']
-            data_rows = []
             total_cost = 0
             award_types = ["Stock options", "Restricted stock units (RSUs)", "Performance share units (PSUs)"]
             for award in award_types:
@@ -160,7 +158,6 @@ class EQContextSentence:
             headers = ["", "Shares", "Average Price Paid"]
             widths = [40, 20, 25]
             alignments = ['l', 'r', 'r']
-            data_rows = []
             shares_repurchased = random.randint(500_000, 5_000_000)
             avg_price = random.uniform(25.0, 150.0)
             total_cost = shares_repurchased * avg_price

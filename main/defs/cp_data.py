@@ -338,26 +338,25 @@ class CPContextSentence:
         if not isinstance(self.hedged_item, list) or not self.hedged_item:
             return ""
 
-        table_type = random.choice(["commitments", "inventory"])
+        table_type = random.choice(["commitments", "inventory_summary"])
+        data_rows = []
 
         if table_type == "commitments":
             title = f"Summary of Commodity Purchase Commitments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
             headers = ["Commodity", "Quantity", "Unit", "Avg. Price"]
             widths = [25, 20, 15, 15]
             alignments = ['l', 'r', 'l', 'r']
-        else: # inventory
+            for item in self.hedged_item:
+                quantity_str = f"{item.quantity:,}"
+                price_str = f"{self.currency_symbol}{item.price_per_unit:.2f}"
+                data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, price_str])
+        else: # inventory_summary
             title = f"Summary of Commodity Inventory as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
             headers = ["Commodity", "Quantity", "Unit", "Carrying Value"]
             widths = [25, 20, 15, 20]
             alignments = ['l', 'r', 'l', 'r']
-
-        data_rows = []
-        for item in self.hedged_item:
-            quantity_str = f"{item.quantity:,}"
-            if table_type == "commitments":
-                price_str = f"{self.currency_symbol}{item.price_per_unit:.2f}"
-                data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, price_str])
-            else: # inventory
+            for item in self.hedged_item:
+                quantity_str = f"{item.quantity:,}"
                 value = item.quantity * item.price_per_unit
                 value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
                 data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, value_str])

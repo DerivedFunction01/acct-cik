@@ -364,15 +364,15 @@ class DebtContextSentence: # Simplified to handle one item at a time
             return ""
 
         # --- NEW: Randomly choose one of several table formats ---
-        table_type = random.choice(["summary", "maturity_schedule", "rate_profile"])
+        table_type = random.choice(["debt_summary", "maturity_schedule", "rate_profile"])
+        data_rows = []
 
         # --- 1. Debt Portfolio Summary (existing logic) ---
-        if table_type == "summary":
+        if table_type == "debt_summary":
             title = f"Summary of Outstanding Debt as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
             headers = ["Debt Instrument", "Principal Amount", "Interest Rate (%)", "Maturity"]
             widths = [35, 20, 18, 12]
             alignments = ['l', 'r', 'r', 'c']
-            data_rows = []
             for item in self.hedged_item:
                 principal_str = _format_single_notional(item.principal_amount, self.currency_symbol, self.prefer_abbreviated, True)
                 rate = (item.spread_bps / 100 if item.spread_bps else random.uniform(2.5, 8.5))
@@ -397,7 +397,6 @@ class DebtContextSentence: # Simplified to handle one item at a time
                     maturity_groups["3-5 years"] += item.principal_amount
                 else:
                     maturity_groups["More than 5 years"] += item.principal_amount
-            data_rows = []
             for group, total in maturity_groups.items():
                 if total > 0:
                     amount_str = _format_single_notional(total, self.currency_symbol, self.prefer_abbreviated, True)
@@ -409,7 +408,6 @@ class DebtContextSentence: # Simplified to handle one item at a time
             headers = ["Debt Instrument", "Principal Amount", "Benchmark", "Spread (bps)", "Effective Rate (%)"]
             widths = [30, 20, 15, 15, 20]
             alignments = ['l', 'r', 'l', 'r', 'r']
-            data_rows = []
             for item in self.hedged_item:
                 if not item.benchmark_rate or not item.spread_bps: continue # Skip items without detailed rate info
                 principal_str = _format_single_notional(item.principal_amount, self.currency_symbol, self.prefer_abbreviated, True)
