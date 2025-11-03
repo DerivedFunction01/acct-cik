@@ -29,12 +29,18 @@ KNOWN_CURRENCY_SYMBOLS = {
 KNOWN_CURRENCY_SYMBOLS = {"$", "€", "£", "¥"}  # Example set
 
 
+from typing import Literal
+
+KNOWN_CURRENCY_SYMBOLS = {"$", "€", "£", "¥"}  # example set
+
+
 def _format_single_notional(
     amount: int | float,
-    symbol: str,  # The currency symbol, e.g., '$'
+    symbol: str,  # The currency symbol or unit, e.g., '$' or 'barrels'
     prefer_abbreviated: bool,
     no_unit_word: bool = False,  # Suppresses "million/billion/etc."
     zero_format: Literal["nil", "zero", "amount"] = "amount",
+    negative_format: Literal[-1, 0, 1] = 1,  # default = 1 → (num) unit
 ) -> str:
     """
     Formats a single notional amount into a readable string like '$250.0 million'
@@ -43,11 +49,17 @@ def _format_single_notional(
     - If no_unit_word=True, abbreviates numerically but omits the unit word
       (e.g., '$250.0' instead of '$250.0 million').
     - If prefer_abbreviated=False, shows full number with commas.
+    - negative_format:
+        -1 → accounting style, e.g. '($250.0 million)' or '(2.5 million barrels)'
+         0 → minus sign, e.g. '-$250.0 million' or '-2.5 million barrels'
+         1 → parentheses only around the number, e.g. '$(2.5) million' or '(2.5) million barrels'
     """
     if amount == 0:
         if zero_format in ["nil", "zero"]:
             return zero_format
-        # else, format as amount (e.g., "$0")
+
+    is_negative = amount < 0
+    abs_amount = abs(amount)
 
     amount_to_string = {
         "trillion": 1_000_000_000_000,
@@ -56,25 +68,43 @@ def _format_single_notional(
         "thousand": 1_000,
     }
 
+    formatted_number = None
+    unit_word = ""
+
     if prefer_abbreviated:
-        for unit_word, divisor in sorted(
+        for word, divisor in sorted(
             amount_to_string.items(), key=lambda x: x[1], reverse=True
         ):
-            if amount >= divisor:
-                # If no_unit_word=True, drop the unit word entirely
-                formatted_number = f"{amount / divisor:.1f}"
+            if abs_amount >= divisor:
+                formatted_number = f"{abs_amount / divisor:.1f}"
                 if not no_unit_word:
-                    formatted_number += f" {unit_word}"
+                    unit_word = f" {word}"
+                break
 
-                if symbol in KNOWN_CURRENCY_SYMBOLS:
-                    return f"{symbol}{formatted_number}"
-                return f"{formatted_number} {symbol}"
+    if formatted_number is None:
+        formatted_number = f"{abs_amount:,.0f}"
 
-    # Fallback: full numeric value with commas
+    # Build base string
     if symbol in KNOWN_CURRENCY_SYMBOLS:
-        return f"{symbol}{amount:,.0f}"
+        base = f"{symbol}{formatted_number}{unit_word}"
     else:
-        return f"{amount:,.0f} {symbol}"
+        base = f"{formatted_number}{unit_word} {symbol}".strip()
+
+    # Apply negative formatting
+    if is_negative:
+        if negative_format == -1:
+            return f"({base})"
+        elif negative_format == 0:
+            return f"-{base}"
+        elif negative_format == 1:
+            if symbol in KNOWN_CURRENCY_SYMBOLS:
+                return f"{symbol}({formatted_number}){unit_word}"
+            else:
+                return f"({formatted_number}){unit_word} {symbol}".strip()
+        else:
+            raise ValueError("negative_format must be -1, 0, or 1")
+
+    return base
 
 def _get_correct_rounding(amount: int | float, multiplier: int):
     return round(amount / multiplier) * multiplier
