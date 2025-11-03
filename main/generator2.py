@@ -36,8 +36,8 @@ TERMINATED_INSTRUMENT_MENTION_PROB = 1.0
 REPEAT_MENTION_PROB = 1.0
 
 # Probabilities for dropping narrative components to increase variety
-PROB_DROP_MITIGATION = 0.15  # 15% chance to skip the MitigationSentence
-PROB_DROP_ACCOUNTING_POLICY = 0.20  # 20% chance to skip the entire accounting policy section
+PROB_DROP_MITIGATION = 1.0  # 15% chance to skip the MitigationSentence
+PROB_DROP_ACCOUNTING_POLICY = 1.0  # 20% chance to skip the entire accounting policy section
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
