@@ -1931,13 +1931,23 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         # 1. Define table structure and headers
         year1, year2 = self.reporting_year, self.reporting_year - 1
-        title = (
-            f"The following table summarizes the effect of derivative instruments on the Consolidated Statements of Operations "
-            f"for the fiscal years ended {self.month} {self.day}, {year1} and {year2}, net of tax: {self._get_units()}"
+
+        # --- NEW: Use a list of dynamic title templates ---
+        title_templates = [
+            "Effect of Derivative Instruments on Accumulated Other Comprehensive Income (AOCI)\nFor the Fiscal Years Ended {month} {day}, {year1} and {year2} {units}",
+            "The following table summarizes the gains and (losses) on derivative instruments recognized in AOCI for the years ended {month} {day}, {year1} and {year2} {units}",
+            "Summary of Gains and (Losses) on Derivatives Recognized in AOCI\n(net of tax) {units}",
+            "Derivative Impact on Accumulated Other Comprehensive Income (AOCI) {units}",
+        ]
+        title_template = random.choice(title_templates)
+        title = title_template.format(
+            month=self.month, day=self.day, year1=year1, year2=year2, units=self._get_units()
         )
+        suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+        base = random.choice(DERIVATIVE_COMPONENTS['no_alias_types'])
 
         # Define the multi-level header structure
-        headers = ["", f"Amount of Gain or (Loss) Recognized in AOCI on Derivatives ({year1})", f"Amount of Gain or (Loss) Recognized in AOCI on Derivatives ({year2})"]
+        headers = ["", f"Amount of Gain or (Loss) Recognized in AOCI on {base} {suffix}s ({year1})", f"Amount of Gain or (Loss) Recognized in AOCI on Derivatives ({year2})"]
         widths = [45, 40, 40]
         alignments = ['l', 'r', 'r']
         data_rows = []
@@ -1947,10 +1957,10 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
         for inst in self.instruments:
             # Group by a simplified type name
             type_name = (
-                "Interest rate contracts" if inst.category == "IR" else
-                "Foreign exchange contracts" if inst.category == "FX" else
-                "Commodity contracts" if inst.category == "CP" else
-                "Other derivative contracts"
+                f"Interest rate {suffix}s" if inst.category == "IR" else
+                f"Foreign exchange {suffix}s" if inst.category == "FX" else
+                f"Commodity {suffix}s" if inst.category == "CP" else
+                f"Other {base} {suffix}s"
             )
             if type_name not in instrument_groups:
                 instrument_groups[type_name] = []
