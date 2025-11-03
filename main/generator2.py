@@ -2626,27 +2626,32 @@ def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarr
 def _generate_analysis_summary(
     scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]
 ) -> str:
-    """Dynamically generates a one-sentence analysis summary."""
-    summary_phrases = set()
-    for item in evidence:
-        if item.status in ["summary", "new", "comparative", "individual"]:
-            summary_phrases.add(f"utilizes {item.category} derivatives")
+    """Dynamically generates a one-sentence analysis summary based on the final mitigation map."""
+    # This function is now called *after* the mitigation map is finalized.
+    # We pass the final map to it to ensure consistency.
+    final_mitigation_map = generate_json_from_scenario(scenario, evidence, return_mitigation_map_only=True) # type: ignore
 
-    if not summary_phrases:
+    active_cats = {
+        cat for cat, status in final_mitigation_map.items() if status == "current"
+    }
+
+    if not active_cats:
         return "The company does not appear to use derivative instruments."
 
+    # Create phrases like "utilizes IR derivatives", "utilizes FX derivatives"
+    summary_phrases = {f"utilizes {cat} derivatives" for cat in sorted(list(active_cats))}
     return f"The company's risk management strategy {', '.join(sorted(list(summary_phrases)))} to hedge market exposures."
 
 
 def generate_json_from_scenario(
-    scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]
+    scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence], return_mitigation_map_only: bool = False
 ) -> Dict:
     """
     Generates the target JSON output from the scenario object.
     The `evidence` from the narrative is used to generate the summary and chain_of_thought.
     """
-    analysis_summary = _generate_analysis_summary(scenario, evidence)
-
+    # --- FIX: Defer summary generation until after the mitigation map is finalized ---
+    
     # --- NEW: Generate exposure map based on the collected ExposureEvidence ---
     # This ensures the map only reflects what was actually written in the narrative.
     exposure_map = {
@@ -2665,6 +2670,7 @@ def generate_json_from_scenario(
         cat: "unknown" if exposure_map.get(cat) else "none"
         for cat in DERIVATIVE_CATEGORIES
     }
+    implied_evidence_map = {cat: False for cat in DERIVATIVE_CATEGORIES}
     for ev in evidence:
         if isinstance(ev, MitigationEvidence):
             status = ev.usage_status
@@ -2674,6 +2680,7 @@ def generate_json_from_scenario(
                 # if it's based on concrete instrument presence ('current' or 'historical').
                 # A speculative or non-use statement that was never written should not change the status from 'unknown'.
                 if ev.is_implied:
+                    implied_evidence_map[category] = True
                     if status in ("current", "historical"):
                         mitigation_map[category] = status
                 # If the evidence is from a written sentence, trust its status.
@@ -2685,6 +2692,10 @@ def generate_json_from_scenario(
                     mitigation_map[category] = "never"
                 elif status == "speculative": # "may use", "from time to time", etc.
                     mitigation_map[category] = "likely"
+
+    if return_mitigation_map_only:
+        return mitigation_map
+
     chain_of_thought = "\n".join([e.to_string() for e in evidence])
 
     # --- Append a final reasoning statement for any GENERIC derivatives ---
@@ -2847,6 +2858,20 @@ def generate_json_from_scenario(
                     "value_type": ev.value_type.replace("_", " ")
                 }
             )
+
+    # --- FIX: Post-processing step to resolve contradictions from dropped sentences ---
+    # If mitigation evidence was implied but no actual derivatives were found in the
+    # final list, downgrade the mitigation status to 'unknown'.
+    final_derivative_categories = {d["category"] for d in derivatives_list}
+    for category, was_implied in implied_evidence_map.items():
+        if was_implied and category not in final_derivative_categories:
+            # This category had implied evidence of use, but no notional evidence was
+            # ever generated. This is a contradiction.
+            if mitigation_map[category] in ["current", "historical"]:
+                mitigation_map[category] = "unknown"
+
+    # --- FIX: Generate the summary last, using the finalized mitigation map ---
+    analysis_summary = _generate_analysis_summary(scenario, evidence)
 
     return {
         "chain_of_thought": chain_of_thought,

@@ -313,7 +313,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the mitigation evidence."""
-        # --- NEW: Handle implied evidence from dropped sentences ---
+        # --- FIX: Handle implied evidence from dropped sentences ---
         if self.is_implied:
             if self.usage_status == "current":
                 return f"The presence of active {self._category_label()} derivatives implies a 'current' usage status."
@@ -322,32 +322,33 @@ class MitigationEvidence(BaseNarrativeEvidence):
             # For 'non_use' or 'speculative', if the sentence is dropped, there's no evidence to generate.
             return ""
 
-        # --- NEW: More analytical reasoning statement ---
+        # --- FIX: More analytical reasoning statement ---
         category_name = self._category_label()
         instrument_desc = (
             f"'{self.instrument_type}'" if self.instrument_type else "derivatives"
         )
 
-        # --- NEW: Add a classification note for generic categories ---
+        # --- FIX: Add a classification note for generic categories ---
         classification_note = ""
         if self.category in (None, "GEN"):
             classification_note = (
                 "The disclosure does not specify a clear derivative category (e.g., interest rate, "
                 "foreign exchange), so this is being treated as a generic reference. "
-                "I will look for more context to classify it later."
+                "I will look for more context to classify it later. "
             )
 
         # Build the linguistic cue description
         linguistic_cue = ""
         if self.adverb and self.verb:
-            linguistic_cue = f"The use of the phrase '{self.adverb} {self.verb}'"
+            linguistic_cue = f"The use of the phrase '{self.adverb} {self.verb}'" # type: ignore
         elif self.verb:
             linguistic_cue = f"The use of the verb '{self.verb}'"
 
         if self.usage_status == "non_use":
-            return f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging.{classification_note}"
+            base_sentence = f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging."
+            return " ".join(filter(None, [base_sentence, classification_note]))
 
-        # --- FIX: Use more natural language for speculative status ---
+        # --- FIX: Use more natural language for speculative/historical status ---
         status_description = {
             "current": "a 'current' usage status",
             "historical": "likely use",
@@ -356,9 +357,9 @@ class MitigationEvidence(BaseNarrativeEvidence):
             self.usage_status, f"an '{self.usage_status}' usage status" # type: ignore
         )  # type: ignore
 
-        base_sentence = f"{linguistic_cue} for {instrument_desc} suggests {status_description} for {category_name} derivatives."
+        base_sentence = f"{linguistic_cue} for {instrument_desc} suggests {status_description} for {category_name} risk."
 
-        return " ".join(filter(None, [base_sentence, classification_note]))
+        return " ".join(filter(None, [base_sentence, classification_note])).strip()
 
 
 @dataclass
@@ -387,7 +388,7 @@ class MitigationSentence:
         if self.has_active_instruments and self.usage_status == "non_use":
             final_usage_status = "current"
 
-        # --- NEW: Treat 'historical' like 'speculative' to imply potential future use. ---
+        # --- FIX: Treat 'historical' like 'speculative' to imply potential future use. ---
         # Choose an adverb and verb based on the usage status.
         effective_status = (
             "speculative" if final_usage_status == "historical" else final_usage_status

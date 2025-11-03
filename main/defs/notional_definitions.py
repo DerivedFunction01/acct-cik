@@ -60,6 +60,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 "terminated_individual",
                 "inception",
                 "continuing",
+                "timeline",
             ]
         ):
             # --- FIX: Restore maturity year to the reasoning for individual instruments. ---
