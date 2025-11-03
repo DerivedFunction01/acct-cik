@@ -263,13 +263,13 @@ class FXContextSentence:
 fx_context_templates = {
     "exposure": [
         "{company} operates in multiple countries and is exposed to foreign currency exchange rate {risk_term}, particularly related to {currencies_with_amounts}, that affect reported revenues and expenses.",
-        "{company}'s international operations in {locations} subject it to foreign currency {risk_term}, primarily related to the {exchange_rate_pair} exchange rate.",
-        "Foreign currency transaction {gain_loss} related to our {locations} operations are {financial_outcome_verb} {location} as incurred.",
-        "{quantifier_phrase} of {company}'s foreign subsidiaries in {locations} use their local currency as their functional currency, such as the {currencies}.",
+        "{company}'s international operations in {geography} subject it to foreign currency {risk_term}, primarily related to the {exchange_rate_pair} exchange rate.",
+        "Foreign currency transaction {gain_loss} related to our {geography} operations are {financial_outcome_verb} {location} as incurred.",
+        "{quantifier_phrase} of {company}'s foreign subsidiaries in {geography} use their local currency as their functional currency, such as the {currencies}.",
         "{company}'s results of operations are {impact_adverb} affected by changes in foreign currency exchange rates, particularly {risk_term} in the {currencies}.",
     ],
     "translation": [
-        "Assets and liabilities of foreign subsidiaries in {location} are translated to {currency_code} at period-end exchange rates, while revenues and expenses are translated at average exchange rates for the period.",
+        "Assets and liabilities of foreign subsidiaries in {geography} are translated to {currency_code} at period-end exchange rates, while revenues and expenses are translated at average exchange rates for the period.",
         "Translation adjustments resulting from the process of translating foreign currency financial statements into {currency_code} are {financial_outcome_verb} accumulated other comprehensive income.",
         "The cumulative translation adjustment {financial_outcome_verb} accumulated other comprehensive income was {amount_str} as of {month} {end_day}, {year}.",
         "Foreign currency translation adjustments {impact_verb_past} stockholders' equity by {amount_str} during {year}.",
@@ -278,18 +278,18 @@ fx_context_templates = {
         "Changes in foreign exchange rates resulted in translation {gain_loss} of {amount_str} {financial_outcome_verb} other comprehensive income during {year}.",
     ],
     "transaction": [
-        "Foreign currency transaction {gain_loss} included in {location} totaled {amount_str} for the year ended {month} {end_day}, {year}.",
+        "Foreign currency transaction {gain_loss} included in {geography} totaled {amount_str} for the year ended {month} {end_day}, {year}.",
         "{company} recognized foreign exchange {gain_loss} of {amount_str} during {year}, primarily related to intercompany balances denominated in {currencies}.",
-        "{company} {financial_outcome_verb} foreign currency transaction {gain_loss} of {amount_str} in {year} {comparison_phrase} {gain_loss2} of {amount_str2} in {prev_year} from its operations in {locations}.",
+        "{company} {financial_outcome_verb} foreign currency transaction {gain_loss} of {amount_str} in {year} {comparison_phrase} {gain_loss2} of {amount_str2} in {prev_year} from its operations in {geography}.",
         "Foreign exchange {gain_loss} on remeasurement of monetary assets and liabilities totaled {amount_str} in {year}.",
         "Transaction {gain_loss} on foreign currency ({currencies}) denominated receivables and payables are {financial_outcome_verb} earnings as exchange rates fluctuate.",
     ],
     "functional_currency": [
         "The functional currency for most of {company}'s foreign subsidiaries {functional_currency_basis} of the country in which the subsidiary operates.",
-        "For our {locations} subsidiaries operating in {inflation_level} economies, the {currency_code} is used as the functional currency.",
+        "For our {geography} subsidiaries operating in {inflation_level} economies, the {currency_code} is used as the functional currency.",
         "{company} determines the functional currency of each subsidiary based on {primary_economic_env} in which the entity operates.",
         "The functional currencies of {company}'s significant foreign operations include {currencies}, representing exposures of {currencies_with_amounts}.",
-        "Remeasurement of our subsidiary financial statements in {locations} from local currency to functional currency resulted in {gain_loss} of {amount_str} in {year}.",
+        "Remeasurement of our subsidiary financial statements in {geography} from local currency to functional currency resulted in {gain_loss} of {amount_str} in {year}.",
     ],
     "impact": [
         "Foreign currency exchange rate {risk_term} had an {impact_adjective} impact on {income_statement_item} of approximately {amount_str}, or {pct}%, during {year}.",
