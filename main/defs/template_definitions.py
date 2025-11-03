@@ -1004,11 +1004,11 @@ class DerivativeTableBuilder:
             NotionalVsFairValueTableBuilder,
         ]
         additional_format_builders = [
-            MaturityGroupingTableBuilder,
-            AssetLiabilityFairValueTableBuilder,
-            AOCIReconciliationTableBuilder,
-            AOCIReclassificationImpactTableBuilder,
-            FairValueHierarchyTableBuilder,
+            # MaturityGroupingTableBuilder,
+            # AssetLiabilityFairValueTableBuilder,
+            # AOCIReconciliationTableBuilder,
+            # AOCIReclassificationImpactTableBuilder,
+            # FairValueHierarchyTableBuilder,
             DerivativeImpactTableBuilder,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
@@ -1996,14 +1996,21 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
             val1_str = self._format_value(val1) if val1 != 0 else "—"
             val2_str = self._format_value(val2) if val2 != 0 else "—"
 
-            data_rows.append([group_name, val1_str, val2_str])
+            # Append both string and raw numerical values.
+            # The numerical values will be used for summation later.
+            data_rows.append([group_name, val1_str, val2_str, val1, val2])
 
         if not has_data:
             return "", [], []
 
         # Add a total row
-        total_val1 = sum(int(row[1].replace('(', '-').replace(')', '').replace('$', '').replace(',', '')) for row in data_rows if row[1] != "—")
-        total_val2 = sum(int(row[2].replace('(', '-').replace(')', '').replace('$', '').replace(',', '')) for row in data_rows if row[2] != "—")
+        # --- REFACTORED: Sum the raw numerical values instead of parsing strings ---
+        total_val1 = 0
+        total_val2 = 0
+        for row in data_rows:
+            # The raw numerical values are stored at indices 3 and 4
+            total_val1 += row[3]
+            total_val2 += row[4]
 
         total_val1_str = self._format_value(total_val1) if total_val1 != 0 else "—"
         total_val2_str = self._format_value(total_val2) if total_val2 != 0 else "—"
@@ -2014,7 +2021,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
         # Use GenericTable to build the final string
         table_builder = GenericTable(
             headers=headers,
-            data_rows=data_rows,
+            data_rows=[row[:3] for row in data_rows], # Pass only the string columns to the builder
             widths=widths,
             alignments=alignments,
             title=title
