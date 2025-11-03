@@ -738,22 +738,26 @@ class Table:
             return amount_to_string[self.notional_multiplier]
         return "in millions"
 
-    def build(self) -> Tuple[str, List[NotionalEvidence]]:
+    def build(self, additional: bool = False) -> Tuple[str, List[NotionalEvidence]]:
         """
         Selects a table format at random and builds the table string.
         """
         formats = [
             self._build_year_over_year_table,
             self._build_notional_vs_fair_value_table,
-            self._build_maturity_grouping_table, # This one is aggregate, doesn't produce individual evidence
+        ]
+        additional_formats = [
+            self._build_maturity_grouping_table,  # This one is aggregate, doesn't produce individual evidence
             self._build_asset_liability_fair_value_table,
             self._build_aoci_reconciliation_table,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
         if self.category == "FX":
             formats.append(self._build_fx_exposure_table)
-
-        chosen_format = random.choice(formats)
+        if additional:
+            chosen_format = random.choice(additional_formats)
+        else:
+            chosen_format = random.choice(formats)
         return chosen_format()
 
     def _get_value(
