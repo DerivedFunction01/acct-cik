@@ -2559,13 +2559,38 @@ def generate_narrative_from_scenario(
     full_narrative = (
         f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
     )
+
+    # --- NEW: Post-process evidence to remove redundant ExposureEvidence ---
+    # This makes the chain_of_thought cleaner. We only want to mention exposure
+    # if there's no other evidence of derivative use for that category.
+    final_evidence = []
+    # Get categories that have more specific evidence (Notional or Mitigation)
+    categories_with_instruments = {
+        ev.category
+        for ev in all_evidence
+        if isinstance(ev, (NotionalEvidence, MitigationEvidence))
+    }
+    # Keep track of exposure categories we've already added to avoid duplicates
+    added_exposure_categories = set()
+
+    for ev in all_evidence:
+        if isinstance(ev, ExposureEvidence):
+            # Only add ExposureEvidence if there's no other instrument evidence for that category
+            # and we haven't already added an exposure mention for it.
+            if ev.category not in categories_with_instruments and ev.category not in added_exposure_categories:
+                final_evidence.append(ev)
+                added_exposure_categories.add(ev.category)
+        else:
+            # Keep all other types of evidence
+            final_evidence.append(ev)
+
     # --- NEW: Post-generation warnings for leftover placeholders ---
     warnings = []
     if "None" in full_narrative: warnings.append("The word 'none' was found.")
     if re.search(r'[\{\}\[\]]', full_narrative): warnings.append("Leftover template characters like '{}' or '[]' were found.")
     if warnings:
         full_narrative += f"\n\n[WARNING: Please review for potential ambiguity or unintended implications. Issues found: {'; '.join(warnings)}]"
-    return full_narrative, all_evidence
+    return full_narrative, final_evidence
 
 
 def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]) -> str:
