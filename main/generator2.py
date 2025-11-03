@@ -1605,10 +1605,11 @@ def _generate_category_narrative(
             if notional_to_report > 0:
                 use_fair_value = random.random() < 0.2
                 value_type_to_use = "fair_value" if use_fair_value else "notional"
-                summary_sentence_obj = NotionalSentence( # type: ignore
-                    swap_type=swap_type_for_summary, # type: ignore
-                    year=reporting_year, # type: ignore
-                    notional=notional_to_report, # type: ignore
+
+                summary_sentence_obj = NotionalSentence(
+                    swap_type=swap_type_for_summary,
+                    year=reporting_year,
+                    notional=notional_to_report,
                     prev_notional=prev_notional_to_report,
                     prev2_notional=prev2_notional_to_report,
                     prev_year=prev_year_to_report,
@@ -2391,25 +2392,27 @@ def generate_json_from_scenario(
     # This ensures the JSON perfectly matches the narrative. Each piece of evidence
     # that points to a specific instrument contributes to its entry in the final JSON.
     derivatives_list = []
+
     # --- NEW: Use a more specific key to handle multiple evidence types for one instrument ID ---
     # (e.g., a parent FX Forward and its multiple currency exposures from a table)
-    # The key will be a tuple: (instrument_id, instrument_type)
-    instrument_evidence_map: Dict[Tuple[int, str], Dict] = {}
+    # The key will be a tuple: (instrument_id, instrument_type, value_type)
+    instrument_evidence_map: Dict[Tuple[int, str, str], Dict] = {}
 
     for ev in evidence:
         # We only care about evidence that has an instrument ID and notional value.
         # Why evidence? Because during training, we would not append every reference to every instrument
         # To prevent hallucinations on fictional instruments it hasn't seen via evidence.
         if (
-            not isinstance(ev, NotionalEvidence)
-            or ev.instrument_id is None or ev.instrument_type is None
+            not isinstance(ev, NotionalEvidence) or ev.instrument_id is None
+            or ev.instrument_type is None or ev.value_type is None
             or ev.notional is None
         ):
             continue
 
         instrument_id = ev.instrument_id
+        value_type_key = ev.value_type
         instrument_type_key = ev.instrument_type
-        unique_key = (instrument_id, instrument_type_key)
+        unique_key = (instrument_id, instrument_type_key, value_type_key)
 
         # --- FIX: Look up the instrument directly to get the correct currency/unit ---
         # This is the single source of truth for the instrument's properties.
@@ -2426,16 +2429,15 @@ def generate_json_from_scenario(
         )
         if is_terminated_evidence:
             continue # Don't care about terminated, only about active ones
-        
+
         # --- FIX: Always process the evidence, don't skip if key exists ---
-        type_inst = instrument_obj.instrument_type if instrument_obj else (ev.instrument_type or "Unknown")
         instrument_evidence_map[unique_key] = {
-                "type": type_inst.strip(),
+                "type": instrument_obj.instrument_type if instrument_obj else (ev.instrument_type or "Unknown"),
                 "category": instrument_obj.category if instrument_obj else ev.category,
                 "status": "current",
                 "amount": ev.notional, # This will be updated if more evidence is found
-                "currency": instrument_obj.currency if instrument_obj and ev.value_type != "notional_exposure" else ev.currency,
-                "value_type": ev.value_type.replace("_", " ").replace(" exposure", ""),
+                "currency": instrument_obj.currency if instrument_obj else ev.currency,
+                "value_type": ev.value_type.replace("_", " "),
                 "level": "individual",
             }
 
@@ -2463,7 +2465,7 @@ def generate_json_from_scenario(
                     "value_type": ev.value_type.replace("_", " ")
                 }
             )
-    
+
     return {
         "chain_of_thought": chain_of_thought,
         "analysis_summary": analysis_summary,
