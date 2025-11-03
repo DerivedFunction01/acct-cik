@@ -439,6 +439,21 @@ class ScenarioBuilder:
         }
         self.all_scenario_base_types: Set[str] = set()
 
+        # --- NEW: Pre-define a limited pool of commodities for this scenario ---
+        # This ensures that all commodity exposures are of a similar type (e.g., only crude oil and natural gas).
+        possible_commodities = []
+        if self.archetype.commodity_types:
+            for cat in self.archetype.commodity_types:
+                from defs.cp_data import COMMODITIES
+                possible_commodities.extend(COMMODITIES.get(cat, []))
+        
+        # If no specific commodities are available for the archetype, fall back to a generic list.
+        if not possible_commodities:
+            from defs.cp_data import commodities as all_commodities_flat
+            possible_commodities = all_commodities_flat
+
+        self.scenario_commodities = random.sample(possible_commodities, k=min(len(possible_commodities), random.randint(2, 3)))
+
         # --- NEW: Pre-define a limited pool of terms for this specific scenario ---
         # This makes the generated text more consistent and realistic.
         self.scenario_components = {
@@ -526,11 +541,14 @@ class ScenarioBuilder:
 
     def _generate_commodity_exposures(self, count: int):
         for _ in range(count):
-            # --- FIX: Ensure unit and cost_type are specific to the chosen commodity ---
-            # 1. Select a random commodity from the full list.
-            commodity_name, unit, cost_type = get_random_commodity_and_unit(
-                self.scenario.archetype.commodity_types
-            )
+            # --- FIX: Use the pre-selected small pool of commodities for this scenario ---
+            if not self.scenario_commodities:
+                continue # Should not happen, but as a safeguard.
+            
+            commodity_name = random.choice(self.scenario_commodities)
+            from defs.cp_data import get_units_for_commodity, get_cost_types_for_commodity
+            unit = random.choice(get_units_for_commodity(commodity_name))
+            cost_type = random.choice(get_cost_types_for_commodity(commodity_name))
 
             self.potential_hedged_items["commodity"].append(
                 CommodityHedgedItem(
