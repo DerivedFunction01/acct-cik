@@ -30,7 +30,7 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
-DEBUG = False
+DEBUG = True
 ACTIVE_INSTRUMENT_MENTION_PROB = 0
 TERMINATED_INSTRUMENT_MENTION_PROB = 0
 REPEAT_MENTION_PROB = 1.0
@@ -1652,10 +1652,11 @@ def _generate_category_narrative(
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(
             current_year_data and current_year_data["instruments"] and sum(
-                inst.notional_history.get(reporting_year, 0) for inst in current_year_data["instruments"]
+                inst.notional_history.get(reporting_year, 0) > 0 for inst in current_year_data["instruments"]
             ) > 0
         ) # type: ignore
         past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0))  # type: ignore
+        has_past_instruments = bool(prev_year_data and prev_year_data["instruments"] and sum(inst.notional_history.get(reporting_year - 1, 0) > 0 for inst in prev_year_data["instruments"]) > 0)
 
         # --- FIX: Only sometimes generate an explicit "no use" statement ---
         # This reflects that firms don't always state their non-use.
@@ -1668,8 +1669,8 @@ def _generate_category_narrative(
                 "non_use"  # This will only be chosen if the conditions above are met
                 if is_explicit_non_use
                 else (
-                    "historical"
-                    if past_prop > 0 and current_prop == 0
+                    "historical" # If no active instruments now, but there were in the past
+                    if not has_active_instruments and has_past_instruments
                     else "speculative"
                 )
             )
@@ -2623,8 +2624,13 @@ def generate_json_from_scenario(
             status = ev.usage_status
             category = ev.category
             if category in mitigation_map:
-                # Map the detailed usage_status to the simpler "current", "historical", "never"
-                if status == "current":
+                # If the evidence is implied, it means the sentence was dropped.
+                # The status should be directly inferred from the presence of instruments.
+                if ev.is_implied:
+                    if status in ("current", "historical"):
+                        mitigation_map[category] = status
+                # Otherwise, process the evidence from the written sentence.
+                elif status == "current":
                     mitigation_map[category] = "current"
                 elif status == "historical":
                     mitigation_map[category] = "historical"
@@ -2632,10 +2638,9 @@ def generate_json_from_scenario(
                 # This is more specific than the default.
                 elif status == "non_use":
                     mitigation_map[category] = "never"
-                elif status == "speculative": # "may use", "from time to time", etc.
+                # If the evidence is implied (sentence was dropped) and not for current/historical/non-use,
+                elif status == "speculative" and not ev.is_implied: # "may use", "from time to time", etc.
                     mitigation_map[category] = "likely"
-                # "non_use" maps to "never" as it's an explicit statement of non-activity.
-    # --- NEW: Join with newlines for readability ---
     chain_of_thought = "\n".join([e.to_string() for e in evidence])
 
     # --- Append a final reasoning statement for any GENERIC derivatives ---
