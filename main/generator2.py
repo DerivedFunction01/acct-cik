@@ -31,6 +31,7 @@ from defs.scenario_definitions import AccountingStandardUpdate, company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.legal_data import LegalContextSentence, ContextEvidence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
+from defs.noise_definitions import BalanceSheetTableBuilder, CashFlowStatementTableBuilder, IncomeStatementTableBuilder
 from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
@@ -2450,6 +2451,36 @@ def _generate_narrative_accounting(
     return all_paragraphs, all_evidence
 
 
+def _generate_financial_statement_tables(scenario: GenerationScenario) -> List[str]:
+    """
+    With a certain probability, generates a random financial statement table (Balance Sheet,
+    Income Statement, or Cash Flow) to act as realistic "noise" in the document.
+    """
+    paragraphs = []
+    # Add a probability to generate these tables. Let's say 25% chance.
+    if random.random() < 0.25:
+        currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+        # Choose one of the statement types to generate
+        builder_class = random.choice([
+            BalanceSheetTableBuilder,
+            IncomeStatementTableBuilder,
+            CashFlowStatementTableBuilder
+        ])
+
+        builder = builder_class(
+            year=scenario.reporting_year,
+            currency_symbol=currency_symbol,
+            notional_multiplier=scenario.archetype.notional_multiplier,
+            prefer_abbreviated=scenario.archetype.prefers_abbreviated_numbers,
+            preferred_negative_format=scenario.archetype.preferred_negative_format,
+        )
+
+        table_str = builder.build()
+        if table_str:
+            paragraphs.append(table_str)
+
+    return paragraphs
 def generate_narrative_from_scenario(
     scenario: GenerationScenario,
     allow_random_drops: bool = False,
@@ -2710,6 +2741,12 @@ def generate_narrative_from_scenario(
             derivative_details_sections.append(legal_paragraph)
             all_evidence.append(legal_evidence)
 
+    # --- NEW: With a chance, add a full financial statement table as noise ---
+    financial_statement_paragraphs = _generate_financial_statement_tables(scenario)
+    if financial_statement_paragraphs:
+        # Prepend a title to give context to the random financial statement
+        derivative_details_sections.append("Consolidated Financial Statements")
+        derivative_details_sections.extend(financial_statement_paragraphs)
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
     # =========================================================================
