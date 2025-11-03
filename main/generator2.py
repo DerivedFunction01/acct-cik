@@ -31,14 +31,15 @@ from defs.template_definitions import hedge_no_trading_templates, DerivativeTabl
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
 DEBUG = False
-ACTIVE_INSTRUMENT_MENTION_PROB = 1.0
-TERMINATED_INSTRUMENT_MENTION_PROB = 1.0
+ACTIVE_INSTRUMENT_MENTION_PROB = 0
+TERMINATED_INSTRUMENT_MENTION_PROB = 0
 REPEAT_MENTION_PROB = 1.0
 
 # Probabilities for dropping narrative components to increase variety
 PROB_DROP_MITIGATION = 1.0  # 15% chance to skip the MitigationSentence
 PROB_DROP_ACCOUNTING_POLICY = 1.0 # 20% chance to skip the entire accounting policy section
 PROB_DROP_7A_SUMMARY = 1.0 # 10% chance to skip the entire Item 7A-style summary section
+PROB_DROP_GENERAL_POLICY = 1.0 # 15% chance to skip the top-level policy statements
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -2307,10 +2308,13 @@ def generate_narrative_from_scenario(
     mentioned_instrument_ids: Set[int] = set() # Tracks specific instrument IDs
 
     # 1. Generate the top-level general policy statement.
-    policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
-    if policy_sentences: # This becomes its own section
-        item_7a_sections.append(" ".join(s for s in policy_sentences if s))
-        all_evidence.extend(policy_evidence)
+    # --- NEW: Probabilistically drop the entire general policy section ---
+    # This simulates cases where the initial summary text is not extracted.
+    if not (allow_random_drops and random.random() < PROB_DROP_GENERAL_POLICY):
+        policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
+        if policy_sentences: # This becomes its own section
+            item_7a_sections.append(" ".join(s for s in policy_sentences if s))
+            all_evidence.extend(policy_evidence)
 
     # 2. Category-Specific Sections (IR, FX, CP, etc.)
     # --- NEW: Get all potential categories from the archetype's exposures to ensure we discuss risk even if not hedged. ---
