@@ -3196,49 +3196,18 @@ def generate_json_from_scenario(
 # =============================================================================
 
 
-def generate_training_sample(archetype_index=None):
-    """Generates a single, complete training sample (narrative + JSON)."""
-    # --- NEW: Determine if random drops should be allowed ---
-    # Drops are only allowed if no specific archetype index is given.
-    allow_random_drops = archetype_index is None
+def generate_training_sample(archetype_index=None, allow_random_drops: bool = True):
+    """
+    Generates a single, complete training sample (narrative + JSON).
 
-    # 1. Create a random scenario that defines the story.
-    scenario = create_random_scenario(archetype_index)
-
-    # 2. Generate the narrative text and the evidence list based on that scenario.
-    narrative_text, evidence = generate_narrative_from_scenario(scenario, allow_random_drops=allow_random_drops)
-
-    # --- NEW: Append debug output to the narrative text ---
-    debug_output = _generate_debug_output(scenario, evidence)
-    narrative_text += debug_output
-
-    # 3. Generate the corresponding JSON label using the evidence from the narrative.
-    json_output = generate_json_from_scenario(scenario, evidence)
-
-    # The final output is a tuple of the text and the JSON object (or string).
-    return (narrative_text, json_output)
-
-
-# %%
-if __name__ == "__main__":
-    # Example of how to generate one sample
-    # --- NEW: Allow selecting a scenario via command-line argument ---
-    archetype_idx = None
-    if len(sys.argv) > 1:
-        try:
-            archetype_idx = int(sys.argv[1])
-            if not (0 <= archetype_idx < len(SCENARIO_ARCHETYPES)):
-                print(f"Error: Index {archetype_idx} is out of bounds. Please use an index between 0 and {len(SCENARIO_ARCHETYPES) - 1}.")
-                sys.exit(1)
-            print(f"--- Generating specific scenario for archetype index: {archetype_idx} ({SCENARIO_ARCHETYPES[archetype_idx].name}) ---")
-        except ValueError:
-            print(f"Error: Could not parse '{sys.argv[1]}' as an integer index.")
-            sys.exit(1)
-
-    text, json_data = generate_training_sample(archetype_index=archetype_idx)
-
-    print("--- GENERATED NARRATIVE ---")
-    print(text)
-    print("\n--- GENERATED JSON ---")
-    print(json.dumps(json_data, indent=2))
-# %%
+    Args:
+        archetype_index: The index of the archetype to use. If None, a random one is chosen.
+        allow_random_drops: If True, simulates incomplete text by randomly dropping sections.
+    """
+    # 1. Create the "story" or scenario
+    scenario = create_random_scenario(archetype_index=archetype_index)
+    # 2. Generate the narrative text and the evidence list from the scenario
+    narrative, evidence = generate_narrative_from_scenario(scenario, allow_random_drops=allow_random_drops)
+    # 3. Generate the structured JSON output from the evidence
+    target_json = generate_json_from_scenario(scenario, evidence)
+    return narrative, target_json
