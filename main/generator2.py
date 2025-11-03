@@ -2429,13 +2429,14 @@ def generate_json_from_scenario(
             continue # Don't care about terminated, only about active ones
         
         # --- FIX: Always process the evidence, don't skip if key exists ---
+        type_inst = instrument_obj.instrument_type if instrument_obj else (ev.instrument_type or "Unknown")
         instrument_evidence_map[unique_key] = {
-                "type": instrument_obj.instrument_type if instrument_obj else (ev.instrument_type or "Unknown"),
+                "type": type_inst.strip(),
                 "category": instrument_obj.category if instrument_obj else ev.category,
                 "status": "current",
                 "amount": ev.notional, # This will be updated if more evidence is found
                 "currency": instrument_obj.currency if instrument_obj and ev.value_type != "notional_exposure" else ev.currency,
-                "value_type": ev.value_type.replace("_", " "),
+                "value_type": ev.value_type.replace("_", " ").replace(" exposure", ""),
                 "level": "individual",
             }
 
