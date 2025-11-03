@@ -2119,13 +2119,17 @@ def _generate_category_narrative(
                 instruments_to_mention = random.sample(instruments_to_mention, k=num_to_keep)
                 active_instruments_were_dropped = not instruments_to_mention
 
-            # --- NEW: With a small chance, add a duplicate instrument to the list to test aliasing ---
-            if instruments_to_mention and random.random() < GENERATION_PROBABILITIES["repeat_instrument_mention"]: # 25% chance to add a repeat mention
-                # Pick a random instrument that is already slated to be mentioned
-                instrument_to_repeat = random.choice(instruments_to_mention)
-                # Insert it at a random position in the list
-                insert_position = random.randint(0, len(instruments_to_mention))
-                instruments_to_mention.insert(insert_position, instrument_to_repeat)
+            # --- MODIFIED: With a chance, add multiple duplicate instruments to test aliasing and repetition ---
+            if instruments_to_mention and random.random() < GENERATION_PROBABILITIES["repeat_instrument_mention"]:
+                # Add 1 to 3 duplicates to test repeated mentions more than twice.
+                num_repeats = random.randint(1, 3)
+                for _ in range(num_repeats):
+                    if not instruments_to_mention: break # Safeguard
+                    # Pick a random instrument that is already slated to be mentioned
+                    instrument_to_repeat = random.choice(instruments_to_mention)
+                    # Insert it at a random position in the list
+                    insert_position = random.randint(0, len(instruments_to_mention))
+                    instruments_to_mention.insert(insert_position, instrument_to_repeat)
 
             for instrument in instruments_to_mention:
                 # --- FIX: Initialize report variables at the top of the loop ---
