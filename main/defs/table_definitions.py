@@ -1,6 +1,50 @@
 from dataclasses import dataclass
 from typing import List
 import textwrap
+from defs.function_definitions import _format_single_notional
+
+
+@dataclass
+class FinancialStatementTable:
+    """Base class for financial statement table builders."""
+
+    year: int
+    month: str
+    day: int
+    currency_symbol: str
+    notional_multiplier: int
+    prefer_abbreviated: bool
+    preferred_negative_format: int
+
+    def _money_unit(self) -> str:
+        """Returns the string for the money unit (e.g., 'millions', 'billions')."""
+        amount_to_string = {
+            1_000_000_000_000: "trillions",
+            1_000_000_000: "billions",
+            1_000_000: "millions",
+            1_000: "thousands",
+        }
+        return amount_to_string.get(self.notional_multiplier, "millions")
+
+    def _get_units(self) -> str:
+        """Returns the formatted unit string for table titles, e.g., '($ in millions)'."""
+        if self.prefer_abbreviated:
+            return f"({self.currency_symbol} in {self._money_unit()})"
+        return ""
+
+    def _format_value(self, value: int) -> str:
+        """Formats a numerical value into a string for the table."""
+        return _format_single_notional(
+            value,
+            self.currency_symbol,
+            self.prefer_abbreviated,
+            True,
+            negative_format=self.preferred_negative_format, # type: ignore
+        )
+
+    def build(self) -> str:
+        """Builds the financial statement table. To be implemented by subclasses."""
+        raise NotImplementedError
 
 
 @dataclass

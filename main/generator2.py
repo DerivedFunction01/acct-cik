@@ -32,7 +32,7 @@ from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument,
 from defs.legal_data import LegalContextSentence, ContextEvidence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.noise_definitions import BalanceSheetTableBuilder, CashFlowStatementTableBuilder, IncomeStatementTableBuilder
-from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
+from defs.template_definitions import hedge_no_trading_templates, DerivativeTable, DerivativeImpactTableBuilder
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
 DEBUG = True
@@ -2466,7 +2466,8 @@ def _generate_financial_statement_tables(scenario: GenerationScenario) -> List[s
         builder_class = random.choice([
             BalanceSheetTableBuilder,
             IncomeStatementTableBuilder,
-            CashFlowStatementTableBuilder
+            CashFlowStatementTableBuilder,
+            DerivativeImpactTableBuilder,
         ])
 
         builder = builder_class(

@@ -5,8 +5,8 @@ from typing import Dict, List, Literal, Tuple
 from defs.notional_definitions import NotionalEvidence
 from defs.instrument_definitions import NotionalInstrument
 from defs.common_data import DERIVATIVE_COMPONENTS
-from defs.fx_data import ForeignCurrencyHedgedItem, CurrencyExposure
-from defs.table_definitions import GenericTable
+from defs.fx_data import CurrencyExposure, ForeignCurrencyHedgedItem
+from defs.table_definitions import FinancialStatementTable, GenericTable
 from defs.function_definitions import _format_single_notional, _get_correct_rounding
 
 # Time prefixes for point-in-time statements (e.g., aggregate summaries, single year)
@@ -1905,3 +1905,106 @@ class DerivativeTable(DerivativeTableBuilder):
     It inherits from DerivativeTableBuilder and uses its `build` method.
     """
     pass
+
+
+class DerivativeImpactTableBuilder(FinancialStatementTable):
+    """
+    Builds a table summarizing the impact of derivative hedging activities on the
+    income statement, similar to a common disclosure format.
+    """
+
+    def build(self) -> str:
+        # 1. Define table structure and headers
+        year1, year2 = self.year, self.year - 1
+        title = (
+            f"The following table is a summary of the activity related to derivatives and hedges "
+            f"for the fiscal years ended {self.month} {self.day}, {year1} and {year2}, net of tax:"
+        )
+
+        # Define the multi-level header structure
+        main_headers = ["", f"December {self.day}, {year1}", f"December {self.day}, {year2}"]
+        sub_headers = [
+            "Sales", "Cost of Products Sold", "R&D Expense",
+            "Interest (Income) Expense", "Other (Income) Expense"
+        ]
+        
+        # Define column widths
+        label_width = 45
+        data_width = 12
+        num_data_cols = len(sub_headers)
+        widths = [label_width] + [data_width] * num_data_cols * 2
+
+        # Build header strings manually
+        header_line_1 = "".ljust(label_width) + "  " + \
+                        main_headers[1].center(data_width * num_data_cols + (num_data_cols - 1) * 2) + "  " + \
+                        main_headers[2].center(data_width * num_data_cols + (num_data_cols - 1) * 2)
+
+        header_line_2 = f"({self._money_unit()})".ljust(label_width) + "  " + \
+                        "  ".join(h.center(data_width) for h in sub_headers) + "  " + \
+                        "  ".join(h.center(data_width) for h in sub_headers)
+
+        separator = "  ".join(['-' * w for w in widths])
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "".join(["<C>".ljust(w + 2) for w in widths[1:]]).rstrip()
+
+        table_rows = [header_line_1, header_line_2, separator, sec_tags_line]
+
+        # 2. Define row data structure and generate values
+        row_definitions = [
+            ("The effects of fair value, net investment and cash flow hedging:", None),
+            ("Gain (Loss) on fair value hedging relationship:", None),
+            ("Interest rate swaps contracts:", None),
+            ("  Hedged items", 3, True),  # Data in column index 3, is positive
+            ("  Derivatives designated as hedging instruments", 3, False), # Data in col index 3, is negative
+            ("Gain (Loss) on net investment hedging relationship:", None),
+            ("Cross currency interest rate swaps contracts:", None),
+            ("  Amount of gain or (loss) recognized in income on derivative amount excluded from effectiveness testing", 3, True),
+            ("  Amount of gain or (loss) recognized in AOCI", 3, True),
+            ("Gain (Loss) on cash flow hedging relationship:", None),
+            ("Forward foreign exchange contracts:", None),
+            ("  Amount of gain or (loss) reclassified from AOCI into income", [0, 1, 2, 4], True),
+            ("  Amount of gain or (loss) recognized in AOCI", [0, 1, 2, 4], False),
+            ("Cross currency interest rate swaps contracts:", None),
+            ("  Amount of gain or (loss) reclassified from AOCI into income", 3, True),
+            ("  Amount of gain or (loss) recognized in AOCI", 3, False),
+        ]
+
+        for row_def in row_definitions:
+            label, data_indices, is_positive = row_def if len(row_def) == 3 else (row_def[0], None, None)
+            
+            if data_indices is None:
+                # This is a header row
+                table_rows.append(label.ljust(sum(widths) + (len(widths) - 1) * 2))
+                continue
+
+            # This is a data row
+            row_data = ["—"] * (num_data_cols * 2)
+            indices = [data_indices] if isinstance(data_indices, int) else data_indices
+
+            # Populate data for year 1
+            for idx in indices:
+                val = random.randint(10, 300) * self.notional_multiplier / 1_000_000
+                if not is_positive:
+                    val = -val
+                row_data[idx] = self._format_value(int(val))
+
+            # Populate data for year 2 (offset by num_data_cols)
+            for idx in indices:
+                val = random.randint(10, 300) * self.notional_multiplier / 1_000_000
+                if not is_positive:
+                    val = -val
+                row_data[idx + num_data_cols] = self._format_value(int(val))
+
+            # Format the full row string
+            formatted_row = label.ljust(label_width) + "  " + \
+                            "  ".join(d.rjust(data_width) for d in row_data[:num_data_cols]) + "  " + \
+                            "  ".join(d.rjust(data_width) for d in row_data[num_data_cols:])
+            table_rows.append(formatted_row)
+
+        # 3. Assemble the final table string
+        full_table_str = (
+            f"\n\n<TABLE>\n<CAPTION>\n{title}\n"
+            + "\n".join(table_rows)
+            + "\n</TABLE>\n\n"
+        )
+
+        return full_table_str
