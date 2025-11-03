@@ -1640,8 +1640,10 @@ def _generate_category_narrative(
                     specific_details=specific_details,
                     sentence_type=sentence_type_to_use,  # type: ignore
                     is_summary=True,
+                    preferred_negative_format=scenario.archetype.preferred_negative_format,
                 )
                 summary_sentence_text, evidence_obj = summary_sentence_obj.build()
+                summary_sentence_obj.preferred_negative_format = scenario.archetype.preferred_negative_format
                 sentences.append(summary_sentence_text)
                 evidence.append(evidence_obj)
 
@@ -1678,6 +1680,7 @@ def _generate_category_narrative(
                 reporting_month=reporting_month,
                 currency_symbol=currency_symbol,
                 notional_multiplier=scenario.archetype.notional_multiplier,
+                preferred_negative_format=scenario.archetype.preferred_negative_format,
                 prefer_abbreviated=scenario.number_format_preference,
                 currency_code=currency_code, # type: ignore
             )
@@ -1749,6 +1752,7 @@ def _generate_category_narrative(
                         company_name=scenario.company_name,
                         reporting_year=reporting_year,
                         currency_symbol=currency_symbol,
+                        preferred_negative_format=scenario.archetype.preferred_negative_format,
                         currency_code=instrument.currency,
                         prefer_abbreviated=scenario.number_format_preference,
                         value_type=value_type,
@@ -1858,6 +1862,7 @@ def _generate_category_narrative(
                         reporting_year=reporting_year,
                         value_type=value_type,
                         is_repeated_mention=is_repeated_type,  # Pass the TYPE check for contextual phrasing
+                        preferred_negative_format=scenario.archetype.preferred_negative_format,
                         instrument=instrument, # Pass the full instrument object
                     )
                     individual_sentence_text, evidence_obj = (
@@ -1908,6 +1913,7 @@ def _generate_category_narrative(
                         company_name=scenario.company_name,
                         reporting_year=reporting_year,
                         currency_symbol=currency_symbol,
+                        preferred_negative_format=scenario.archetype.preferred_negative_format,
                         currency_code=currency_code,
                         prefer_abbreviated=scenario.number_format_preference,
                         value_type="notional",  # Keep it simple for terminated timelines
@@ -1968,6 +1974,7 @@ def _generate_category_narrative(
                         reporting_year=reporting_year,
                         value_type="notional",
                         is_repeated_mention=is_repeated_type_terminated,
+                        preferred_negative_format=scenario.archetype.preferred_negative_format,
                         instrument=instrument,
                     )
                     terminated_instrument_text, evidence_obj = (
@@ -2000,6 +2007,8 @@ def _generate_category_narrative(
                 sentence_type="comparative_no_outstanding",  # type: ignore
                 category=category,  # type: ignore
                 reporting_year=reporting_year,
+                preferred_negative_format=scenario.archetype.preferred_negative_format,
+                prefer_abbreviated=scenario.number_format_preference,
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             paragraphs.append(no_instrument_text)
@@ -2224,6 +2233,7 @@ def generate_narrative_from_scenario(
                     notional_multiplier=scenario.archetype.notional_multiplier,
                     prefer_abbreviated=scenario.number_format_preference,
                     currency_code=currency_code,
+                    preferred_negative_format=scenario.archetype.preferred_negative_format,
                 )
                 # Call build with additional=True to get the other table formats
                 table_str, table_evidence, _ = table_builder.build(additional=True)

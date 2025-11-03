@@ -716,6 +716,7 @@ class Table:
         currency_symbol: str,
         currency_code: str,
         prefer_abbreviated: bool,
+        preferred_negative_format: Literal[-1, 0, 1, 2],
         category: str,
     ):
         self.instruments = instruments
@@ -727,6 +728,7 @@ class Table:
         self.currency_symbol = currency_symbol
         self.currency_code = currency_code
         self.prefer_abbreviated = prefer_abbreviated
+        self.preferred_negative_format = preferred_negative_format
         self.category = category
 
     def money_unit(self) -> str:
@@ -808,10 +810,18 @@ class Table:
                 continue
 
             val1_str = _format_single_notional(
-                val1, inst.symbol, self.prefer_abbreviated, True
+                val1,
+                inst.symbol,
+                self.prefer_abbreviated,
+                True,
+                negative_format=self.preferred_negative_format, # type: ignore
             )
             val2_str = _format_single_notional(
-                val2, inst.symbol, self.prefer_abbreviated, True
+                val2,
+                inst.symbol,
+                self.prefer_abbreviated,
+                True,
+                negative_format=self.preferred_negative_format,  # type: ignore
             )
 
             row_str = f"| {name_to_use:<45} | {val1_str:>15} | {val2_str:>15} |"
@@ -901,10 +911,18 @@ class Table:
                 fair_val = self._get_value(inst, year, "fair_value")
 
                 notional_str = _format_single_notional(
-                    notional_val, inst.symbol, self.prefer_abbreviated, True
+                    notional_val,
+                    inst.symbol,
+                    self.prefer_abbreviated,
+                    True,
+                    negative_format=self.preferred_negative_format,  # type: ignore
                 )
                 fair_val_str = _format_single_notional(
-                    fair_val, inst.symbol, self.prefer_abbreviated, True
+                    fair_val,
+                    inst.symbol,
+                    self.prefer_abbreviated,
+                    True,
+                    negative_format=self.preferred_negative_format,  # type: ignore
                 )
 
                 row_str = (
@@ -1005,7 +1023,11 @@ class Table:
         for group, total_notional in maturity_groups.items():
             if total_notional > 0:
                 notional_str = _format_single_notional(
-                    total_notional, self.currency_symbol, self.prefer_abbreviated, True
+                    total_notional,
+                    self.currency_symbol,
+                    self.prefer_abbreviated,
+                    True,
+                    negative_format=self.preferred_negative_format,  # type: ignore
                 )
                 # Create aggregate evidence for this maturity group
                 evidence_list.append(NotionalEvidence(
@@ -1058,10 +1080,34 @@ class Table:
         ending_balance = beginning_balance + unrealized_gain_loss + reclassification
 
         # Format values for the table
-        bal_str = _format_single_notional(beginning_balance, self.currency_symbol, self.prefer_abbreviated, True)
-        gain_str = _format_single_notional(unrealized_gain_loss, self.currency_symbol, self.prefer_abbreviated, True)
-        reclass_str = f"({_format_single_notional(abs(reclassification), self.currency_symbol, self.prefer_abbreviated, True)})" if reclassification < 0 else _format_single_notional(reclassification, self.currency_symbol, self.prefer_abbreviated, True)
-        end_bal_str = _format_single_notional(ending_balance, self.currency_symbol, self.prefer_abbreviated, True)
+        bal_str = _format_single_notional(
+            beginning_balance,
+            self.currency_symbol,
+            self.prefer_abbreviated,
+            True,
+            negative_format=self.preferred_negative_format,   # type: ignore
+        )
+        gain_str = _format_single_notional(
+            unrealized_gain_loss,
+            self.currency_symbol,
+            self.prefer_abbreviated,
+            True,
+            negative_format=self.preferred_negative_format,  # type: ignore
+        )
+        reclass_str = _format_single_notional(
+            reclassification,
+            self.currency_symbol,
+            self.prefer_abbreviated,
+            True,
+            negative_format=self.preferred_negative_format,  # type: ignore
+        )
+        end_bal_str = _format_single_notional(
+            ending_balance,
+            self.currency_symbol,
+            self.prefer_abbreviated,
+            True,
+            negative_format=self.preferred_negative_format,  # type: ignore
+        )
 
         # Build table
         title = f"Accumulated Other Comprehensive Income (AOCI) Activity for Cash Flow Hedges\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
@@ -1133,9 +1179,23 @@ class Table:
             if val1 == 0 and val2 == 0 and val3 == 0:
                 continue
 
-            val1_str = _format_single_notional(val1, inst.symbol, self.prefer_abbreviated, True)
-            val2_str = _format_single_notional(val2, inst.symbol, self.prefer_abbreviated, True)
-            val3_str = _format_single_notional(val3, inst.symbol, self.prefer_abbreviated, True)
+            val1_str = _format_single_notional(
+                val1, inst.symbol, self.prefer_abbreviated, True, negative_format=self.preferred_negative_format   # type: ignore
+            )
+            val2_str = _format_single_notional(
+                val2,
+                inst.symbol,
+                self.prefer_abbreviated,
+                True,
+                negative_format=self.preferred_negative_format,  # type: ignore
+            )
+            val3_str = _format_single_notional(
+                val3,
+                inst.symbol,
+                self.prefer_abbreviated,
+                True,
+                negative_format=self.preferred_negative_format,  # type: ignore
+            )
 
             row_str = f"| {name_to_use:<40} | {val1_str:>15} | {val2_str:>15} | {val3_str:>15} |"
             rows.append(row_str)
@@ -1184,7 +1244,13 @@ class Table:
             if reclass_amount == 0:
                 continue
 
-            reclass_str = f"({_format_single_notional(abs(reclass_amount), self.currency_symbol, self.prefer_abbreviated, True)})" if reclass_amount < 0 else _format_single_notional(reclass_amount, self.currency_symbol, self.prefer_abbreviated, True)
+            reclass_str = _format_single_notional(
+                reclass_amount,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                True,
+                negative_format=self.preferred_negative_format,  # type: ignore
+            )
             location = random.choice(income_statement_locations)
 
             row_str = f"| {inst.instrument_type:<35} | {reclass_str:>25} | {location:<40} |"
@@ -1261,10 +1327,18 @@ class Table:
                 amount_year2 = int(amount_year1 * random.uniform(0.8, 1.2))
 
             amount_str1 = _format_single_notional(
-                amount_year1, exposure.symbol, self.prefer_abbreviated, True
+                amount_year1,
+                exposure.symbol,
+                self.prefer_abbreviated,
+                True,
+                negative_format=self.preferred_negative_format,   # type: ignore
             )
             amount_str2 = _format_single_notional(
-                amount_year2, exposure.symbol, self.prefer_abbreviated, True
+                amount_year2,
+                exposure.symbol,
+                self.prefer_abbreviated,
+                True,
+                negative_format=self.preferred_negative_format,  # type: ignore
             )
 
             row_str = f"| {exposure.full_name:<25} | {amount_str1:>25} | {amount_str2:>25} |"
@@ -1274,7 +1348,9 @@ class Table:
 
             # Evidence for the primary year (year1)
             if amount_year1 > 0:
-                evidence_amount_str1 = _format_single_notional(amount_year1, exposure.symbol, self.prefer_abbreviated, False)
+                evidence_amount_str1 = _format_single_notional(
+                    amount_year1, exposure.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+                )
                 evidence_list.append(NotionalEvidence(
                     instrument_id=instrument_to_detail.instrument_id,
                     status="individual" if year1 == self.reporting_year else "historical_individual", category="FX",
@@ -1287,7 +1363,9 @@ class Table:
 
             # Evidence for the preceding year (year2)
             if amount_year2 > 0:
-                evidence_amount_str2 = _format_single_notional(amount_year2, exposure.symbol, self.prefer_abbreviated, False)
+                evidence_amount_str2 = _format_single_notional(
+                    amount_year2, exposure.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+                )
                 evidence_list.append(
                     NotionalEvidence(
                         instrument_id=instrument_to_detail.instrument_id,
@@ -1342,30 +1420,50 @@ class Table:
 
             if is_asset:
                 asset_val_str = _format_single_notional(
-                    fair_value, inst.symbol, self.prefer_abbreviated, True
+                    fair_value,
+                    inst.symbol,
+                    self.prefer_abbreviated,
+                    True,
+                    negative_format=self.preferred_negative_format,  # type: ignore
                 )
             else:
                 liab_val_str = _format_single_notional(
-                    fair_value, inst.symbol, self.prefer_abbreviated, True
+                    fair_value,
+                    inst.symbol,
+                    self.prefer_abbreviated,
+                    True,
+                    negative_format=self.preferred_negative_format,  # type: ignore
                 )
 
             row_str = f"| {inst.instrument_type:<45} | {asset_val_str:>20} | {liab_val_str:>22} |"
             rows.append(row_str)
 
             # Create evidence for the fair value of this instrument
-            evidence_list.append(NotionalEvidence(
-                instrument_id=inst.instrument_id,
-                status="individual",
-                category=inst.category,
-                notional=_get_correct_rounding(fair_value, self.notional_multiplier) if self.notional_multiplier > 1 else fair_value,
-                notional_str=_format_single_notional(fair_value, self.currency_symbol, self.prefer_abbreviated, True),
-                year=year,
-                instrument_type=inst.instrument_type,
-                reporting_year=self.reporting_year,
-                value_type="fair_value",
-                currency=inst.currency,
-                sentence_type="individual",
-            ))
+            evidence_list.append(
+                NotionalEvidence(
+                    instrument_id=inst.instrument_id,
+                    status="individual",
+                    category=inst.category,
+                    notional=(
+                        _get_correct_rounding(fair_value, self.notional_multiplier)
+                        if self.notional_multiplier > 1
+                        else fair_value
+                    ),
+                    notional_str=_format_single_notional(
+                        fair_value,
+                        self.currency_symbol,
+                        self.prefer_abbreviated,
+                        True,
+                        negative_format=self.preferred_negative_format,  # type: ignore
+                    ),
+                    year=year,
+                    instrument_type=inst.instrument_type,
+                    reporting_year=self.reporting_year,
+                    value_type="fair_value",
+                    currency=inst.currency,
+                    sentence_type="individual",
+                )
+            )
 
         if len(rows) <= 3:
             return "", [], []

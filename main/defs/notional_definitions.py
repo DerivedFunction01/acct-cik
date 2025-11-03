@@ -310,6 +310,7 @@ class NotionalSentence:
     notional_multiplier: int = 1_000_000
     prefer_abbreviated: bool = True
     zero_notional_format: Literal["nil", "zero", "amount"] = "amount"
+    preferred_negative_format: Literal[-1, 0, 1, 2] = 0
     instrument: Optional[NotionalInstrument] = None
     is_repeated_mention: bool = False
     optional_chance: float = 0.5
@@ -426,29 +427,59 @@ class NotionalSentence:
         if self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None and self.prev2_notional is not None:
             # Special formatting for three-year comparative sentences
             formatted_current = _format_single_notional(
-                self.notional, self.currency_symbol, self.prefer_abbreviated, False, self.zero_notional_format
+                self.notional,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                False,
+                self.zero_notional_format,
+                self.preferred_negative_format,
             )
             formatted_prev = _format_single_notional(
-                self.prev_notional, self.currency_symbol, self.prefer_abbreviated, False, self.zero_notional_format
+                self.prev_notional,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                False,
+                self.zero_notional_format,
+                self.preferred_negative_format,
             )
             formatted_prev2 = _format_single_notional(
-                self.prev2_notional, self.currency_symbol, self.prefer_abbreviated, False, self.zero_notional_format
+                self.prev2_notional,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                False,
+                self.zero_notional_format,
+                self.preferred_negative_format,
             )
             amount_str = f"{formatted_current}, {formatted_prev}, and {formatted_prev2}"
         elif self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None:
             # Special formatting for comparative sentences
             formatted_current = _format_single_notional(
-                self.notional, self.currency_symbol, self.prefer_abbreviated, False, self.zero_notional_format
+                self.notional,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                False,
+                self.zero_notional_format,
+                self.preferred_negative_format,
             )
             formatted_prev = _format_single_notional(
-                self.prev_notional, self.currency_symbol, self.prefer_abbreviated, False, self.zero_notional_format
+                self.prev_notional,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                False,
+                self.zero_notional_format,
+                self.preferred_negative_format,
             )
             amount_str = f"{formatted_current} and {formatted_prev}"
             prev_amount_str = formatted_prev
         elif self.notional is not None:
             # Standard formatting for single-value sentences
             amount_str = _format_single_notional(
-                self.notional, self.currency_symbol, self.prefer_abbreviated, False, self.zero_notional_format
+                self.notional,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                False,
+                self.zero_notional_format,
+                self.preferred_negative_format,
             )
 
         # 2. Select time prefix template
@@ -563,8 +594,9 @@ class NotionalSentence:
             formatted_amount_result = _format_single_notional(
                 random_amount,
                 self.currency_symbol,
-                
                 self.prefer_abbreviated,
+                negative_format=self.preferred_negative_format,
+                zero_format=self.zero_notional_format,
             )
             # Format currencies into a readable string from the details object
             details = self.specific_details or SpecificDetails()
@@ -839,7 +871,11 @@ class NotionalSentence:
             # Generate a smaller random amount for the detail sentence
             detail_amount = int(evidence.notional * random.uniform(0.01, 0.15))
             detail_amount_str = _format_single_notional(
-                detail_amount, self.currency_symbol, self.prefer_abbreviated
+                detail_amount,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                no_unit_word=False,
+                negative_format=self.preferred_negative_format,
             )
 
             level_num = random.randint(1, 3)
@@ -882,6 +918,7 @@ class TimelineSentence:
     currency_code: str
     prefer_abbreviated: bool
     value_type: Literal["notional", "fair_value"]
+    preferred_negative_format: Literal[-1, 0, 1, 2] = 0
     notional_multiplier: int = 1000
 
     def build(self) -> Tuple[str, NotionalEvidence]:
@@ -946,6 +983,7 @@ class TimelineSentence:
                 notional,
                 self.currency_symbol,
                 self.prefer_abbreviated,
+                negative_format=self.preferred_negative_format,
             )
             timeline_notional_strings[year] = formatted_notional
 
@@ -964,7 +1002,10 @@ class TimelineSentence:
                 # --- NEW: Check for partial settlement ---
                 # Re-format the notional string here since it might have been updated for maturity
                 formatted_notional = _format_single_notional(
-                    notional, self.currency_symbol, self.prefer_abbreviated
+                    notional,
+                    self.currency_symbol,
+                    self.prefer_abbreviated,
+                    negative_format=self.preferred_negative_format,
                 )
                 # If notional decreased by more than 30%, it's a partial settlement.
                 if (
@@ -996,8 +1037,8 @@ class TimelineSentence:
                 ),
                 currency_symbol=self.currency_symbol,
                 currency_code=self.currency_code,
-                
                 prefer_abbreviated=self.prefer_abbreviated,
+                preferred_negative_format=self.preferred_negative_format,
                 maturity_year=self.instrument.maturity_year,
                 category=self.instrument.category,
                 reporting_year=self.reporting_year,
