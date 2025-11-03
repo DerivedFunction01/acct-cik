@@ -924,11 +924,12 @@ class Table:
         all_rows.append(title)
 
         for year in [year1, year2]:
-            instruments_in_year = [
-                inst
-                for inst in self.instruments
-                if inst.notional_history.get(year, 0) > 0
-            ]
+            instruments_in_year = [inst for inst in self.instruments if inst.notional_history.get(year, 0) > 0]
+
+            # Define column properties for each year's sub-table
+            columns = [random.choice(DERIVATIVE_COMPONENTS["suffixes"]).capitalize(), "Notional Amount", "Fair Value"]
+            widths = [45, 20, 20]
+            alignments = ['l', 'r', 'r']
 
             if not instruments_in_year:
                 continue
@@ -936,13 +937,10 @@ class Table:
             all_rows.append(
                 f"\nAs of {self.month} {self.day}, {year} (in {self.currency_symbol} {self.money_unit()})"
             )
-            header = (
-                f" {'{suffix}':<45}  {'Notional Amount':>20}  {'Fair Value':>20} ".format(
-                    suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"])
-                )
-            )
-            separator = "-" * len(header)
-            all_rows.extend([header, separator])
+            header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+            all_rows.extend(header_lines)
+            separator = "  ".join(['-' * w for w in widths])
+            all_rows.append(separator)
 
             described_types = set()
             for inst in instruments_in_year:
@@ -969,10 +967,9 @@ class Table:
                     negative_format=self.preferred_negative_format,  # type: ignore
                 )
 
-                row_str = (
-                    f" {name_to_use:<45}  {notional_str:>20}  {fair_val_str:>20} "
-                )
-                all_rows.append(row_str)
+                row_cells = [name_to_use, notional_str, fair_val_str]
+                formatted_lines = self._format_row_with_wrapping(row_cells, widths, alignments)
+                all_rows.extend(formatted_lines)
 
                 # Create evidence for the current year if value is > 0
                 if year == self.reporting_year and notional_val > 0:
@@ -1066,9 +1063,14 @@ class Table:
                 )
 
         title = f"Notional Amount of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])} by Maturity as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
-        header = f" {'Maturity':<20}  {'Notional Amount':>20} "
-        separator = "-" * len(header)
-        rows = [title, header, separator]
+        columns = ["Maturity", "Notional Amount"]
+        widths = [25, 25]
+        alignments = ['l', 'r']
+        rows = [title]
+        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        rows.extend(header_lines)
+        separator = "  ".join(['-' * w for w in widths])
+        rows.append(separator)
 
         for group, total_notional in maturity_groups.items():
             if total_notional > 0:
@@ -1101,10 +1103,10 @@ class Table:
                     sentence_type="summary", # type: ignore
                     aggregate=True,
                 ))
-                row_str = f" {group:<20}  {notional_str:>20} "
-                rows.append(row_str)
+                row_cells = [group, notional_str]
+                rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
 
-        if len(rows) <= 3:  # Only title, header, and separator
+        if len(rows) <= 3:  # Only title, header lines, and separator
             return "", [], []
 
         return "\n".join(rows), evidence_list, []
@@ -1221,10 +1223,15 @@ class Table:
         value_type_str = random.choice(["Notional Amount", "Fair Value"])
         value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
 
-        header = f" {'{suffix}':<40}   {year1:>15}  {year2:>15}   {year3:>15} ".format(suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"]))
-        separator = "-" * len(header)
-        rows = [header, separator]
+        # Define column properties
+        columns = [random.choice(DERIVATIVE_COMPONENTS["suffixes"]).capitalize(), str(year1), str(year2), str(year3)]
+        widths = [40, 18, 18, 18]
+        alignments = ['l', 'r', 'r', 'r']
 
+        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        separator = "  ".join(['-' * w for w in widths])
+        rows = header_lines + [separator]
+        
         described_types = set()
         for inst in self.instruments:
             name_to_use = inst.instrument_type
@@ -1257,9 +1264,9 @@ class Table:
                 negative_format=self.preferred_negative_format,  # type: ignore
             )
 
-            row_str = f" {name_to_use:<40}  {val1_str:>15}  {val2_str:>15}  {val3_str:>15} "
-            rows.append(row_str)
-
+            row_cells = [name_to_use, val1_str, val2_str, val3_str]
+            rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+            
             if val1 > 0:
                 evidence_notional_str = _format_single_notional(
                     val1, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
@@ -1290,11 +1297,15 @@ class Table:
 
         if not active_instruments:
             return "", [], []
-
         title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
-        header = f" {'Derivative {suffix}':<35}  {'Gain/(Loss) from AOCI':>25}  {'Affected Line Item in Income Statement':<40} ".format(suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"]))
-        separator = "-" * len(header)
-        rows = [title, header, separator]
+        columns = [f"Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}", "Gain/(Loss) Reclassified from AOCI", "Affected Line Item in Income Statement"]
+        widths = [35, 25, 40]
+        alignments = ['l', 'r', 'l']
+        rows = [title]
+        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        rows.extend(header_lines)
+        separator = "  ".join(['-' * w for w in widths])
+        rows.append(separator)
 
         income_statement_locations = [
             "Cost of sales", "Net sales", "Interest expense, net",
@@ -1316,9 +1327,9 @@ class Table:
             )
             location = random.choice(income_statement_locations)
 
-            row_str = f" {inst.instrument_type:<35}  {reclass_str:>25}  {location:<40} "
-            rows.append(row_str)
-
+            row_cells = [inst.instrument_type, reclass_str, location]
+            rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+            
             evidence_reclass_str = _format_single_notional(
                 reclass_amount,
                 self.currency_symbol,
@@ -1335,7 +1346,7 @@ class Table:
                 currency=self.currency_code, sentence_type="individual",
             ))
 
-        if len(rows) <= 3:
+        if len(rows) <= 3: # Title, header, separator
             return "", [], []
 
         return "\n".join(rows), evidence_list, []
@@ -1377,10 +1388,15 @@ class Table:
         year2 = year1 - 1
 
         title = f"Foreign Currency Exposures Hedged by {instrument_to_detail.instrument_type}"
-        header = f" {'Currency':<25}  {'Amount ' + str(year1):>25}  {'Amount ' + str(year2):>25} "
-        separator = "-" * len(header)
-        rows = [title, header, separator]
-
+        columns = ["Currency", f"Amount {year1}", f"Amount {year2}"]
+        widths = [25, 25, 25]
+        alignments = ['l', 'r', 'r']
+        rows = [title]
+        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        rows.extend(header_lines)
+        separator = "  ".join(['-' * w for w in widths])
+        rows.append(separator)
+        
         for exposure in hedged_item.exposures:
             # The exposure amount from the hedged item corresponds to the last active year.
             amount_year1 = exposure.amount
@@ -1411,9 +1427,9 @@ class Table:
                 negative_format=self.preferred_negative_format,  # type: ignore
             )
 
-            row_str = f" {exposure.full_name:<25}  {amount_str1:>25}  {amount_str2:>25} "
-            rows.append(row_str)
-
+            row_cells = [exposure.full_name, amount_str1, amount_str2]
+            rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+            
             # --- Create evidence for BOTH years ---
 
             # Evidence for the primary year (year1)
@@ -1476,10 +1492,15 @@ class Table:
             return "", [], []
 
         title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
-        header = f" {'Instrument':<45}  {'Asset Fair Value':>20}  {'Liability Fair Value':>22} "
-        separator = "-" * len(header)
-        rows = [title, header, separator]
-
+        columns = ["Instrument", "Asset Fair Value", "Liability Fair Value"]
+        widths = [45, 20, 22]
+        alignments = ['l', 'r', 'r']
+        rows = [title]
+        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        rows.extend(header_lines)
+        separator = "  ".join(['-' * w for w in widths])
+        rows.append(separator)
+        
         for inst in active_instruments:
             fair_value = self._get_value(inst, year, "fair_value")
             # Randomly decide if the fair value is an asset or liability
@@ -1505,9 +1526,9 @@ class Table:
                     negative_format=self.preferred_negative_format,  # type: ignore
                 )
 
-            row_str = f" {inst.instrument_type:<45}  {asset_val_str:>20}  {liab_val_str:>22} "
-            rows.append(row_str)
-
+            row_cells = [inst.instrument_type, asset_val_str, liab_val_str]
+            rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+            
             # Create evidence for the fair value of this instrument
             evidence_fair_value_str = _format_single_notional(
                 fair_value, self.currency_symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
@@ -1528,7 +1549,7 @@ class Table:
                 )
             )
 
-        if len(rows) <= 3:
+        if len(rows) <= 3: # Title, header, separator
             return "", [], []
 
         return "\n".join(rows), evidence_list, []
