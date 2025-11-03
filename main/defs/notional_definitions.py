@@ -413,7 +413,7 @@ class NotionalSentence:
                     risk_term=random.choice(risk_exposure_terms),
                     risk_term2=random.choice(risk_exposure_terms),
                     currencies=currencies_str or "various currencies",
-                    geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
+                    geography=random.choice([c.location for c in all_currencies]),  # type: ignore
                     commodity=commodities_str,
                     rate_term1=random.choice(specific_rate_terms),
                     rate_term2=random.choice(specific_rate_terms),
@@ -648,7 +648,7 @@ class NotionalSentence:
                 rate_term2=random.choice(specific_rate_terms),
                 formatted_amount=formatted_amount_result,  # type: ignore
                 pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
-                geography=details.geography or random.choice([c.location for c in all_currencies]),  # type: ignore
+                geography=random.choice([c.location for c in all_currencies]),  # type: ignore
                 commodity=commodities_str,
                 unit=details.unit
                 or unit_name,  # Use the unit from details if provided, otherwise the derived one

@@ -30,7 +30,7 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.template_definitions import hedge_no_trading_templates, Table
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
-DEBUG = True
+DEBUG = False
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -1392,7 +1392,11 @@ def _generate_category_narrative(
                     locations = [exp.location for exp in hedged_item.exposures]
                     location_names = list(set(locations))
                     if location_names:
-                        specific_details.geography = random.choice(location_names)
+                        specific_details.geography = location_names
+                    currencies = [exp.full_name for exp in hedged_item.exposures]
+                    currency_names = list(set(currencies))
+                    if currency_names:
+                        specific_details.currencies = currency_names
                 elif isinstance(hedged_item, DebtHedgedItem):
                     specific_details.debt_type = hedged_item.debt_type
                     specific_details.pct = (

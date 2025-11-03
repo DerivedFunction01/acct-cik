@@ -81,11 +81,11 @@ class PolicySentence:
             else:
                 commodities_str = details.commodity[0]
         locations_str = f"international {random.choice(geo_locations)}"
-        if details.locations:
+        if details.geography:
             locations_str = (
-                ", ".join(details.locations[:-1]) + " and " + details.locations[-1]
-                if len(details.locations) > 1
-                else details.locations[0]
+                ", ".join(details.geography[:-1]) + " and " + details.geography[-1]
+                if len(details.geography) > 1
+                else details.geography[0]
             )
         risk_terms = random.sample(risk_exposure_terms, k=2)
         sentence = template.format(
@@ -97,7 +97,7 @@ class PolicySentence:
             policy_verb=random.choice(policy_verbs),
             risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
             currencies=currencies_str,
-            locations=locations_str,
+            geography=locations_str,
             commodity=commodities_str,
             cost_type=random.choice(
                 get_cost_types_for_commodity(

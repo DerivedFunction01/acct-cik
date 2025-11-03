@@ -39,9 +39,8 @@ class SpecificDetails:
     frequency: Optional[str] = None
 
     # FX specific
-    geography: Optional[str] = None
+    geography: List[str] = field(default_factory=list)
     currencies: List[str] = field(default_factory=list)
-    locations: List[str] = field(default_factory=list)
 
     # CP specific
     commodity: List[str] = field(default_factory=list)
