@@ -1004,11 +1004,11 @@ class DerivativeTableBuilder:
             NotionalVsFairValueTableBuilder,
         ]
         additional_format_builders = [
-            # MaturityGroupingTableBuilder,
-            # AssetLiabilityFairValueTableBuilder,
-            # AOCIReconciliationTableBuilder,
-            # AOCIReclassificationImpactTableBuilder,
-            # FairValueHierarchyTableBuilder,
+            MaturityGroupingTableBuilder,
+            AssetLiabilityFairValueTableBuilder,
+            AOCIReconciliationTableBuilder,
+            AOCIReclassificationImpactTableBuilder,
+            FairValueHierarchyTableBuilder,
             DerivativeImpactTableBuilder,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
@@ -1989,7 +1989,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         hedged_item_val = int(total_notional * random.uniform(0.01, 0.08))
                         derivative_val = -hedged_item_val + int(total_notional * random.uniform(-0.005, 0.005)) # Simulate ineffectiveness
                         
-                        hedged_row = ["    Amount of gain or (loss) on hedged items"] + ["-"] * (num_data_cols * 2)
+                        hedged_row = [f"    Amount of gain or (loss) on hedged items ({base_type})"] + ["-"] * (num_data_cols * 2)
                         deriv_row = ["    Derivatives designated as hedging instruments"] + ["-"] * (num_data_cols * 2)
                         
                         col_offset = year_idx * num_data_cols
@@ -1997,6 +1997,25 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         deriv_row[1 + 3 + col_offset] = self._format_value(derivative_val)
                         
                         data_rows.extend([hedged_row, deriv_row])
+                        
+                        # --- NEW: Create evidence for these values ---
+                        evidence_list.append(NotionalEvidence(
+                            status="individual", category=self.category, notional=hedged_item_val,
+                            notional_str=self._format_value(hedged_item_val), year=year,
+                            instrument_type=f"hedged item impact for {base_type} contracts",
+                            reporting_year=self.reporting_year, value_type="fair_value",
+                            currency=self.currency_code, sentence_type="individual",
+                            additional_details={"hedge_type": hedge_type, "line_item": "Interest Expense"}
+                        ))
+                        evidence_list.append(NotionalEvidence(
+                            status="individual", category=self.category, notional=derivative_val,
+                            notional_str=self._format_value(derivative_val), year=year,
+                            instrument_type=f"derivative impact for {base_type} contracts",
+                            reporting_year=self.reporting_year, value_type="fair_value",
+                            currency=self.currency_code, sentence_type="individual",
+                            additional_details={"hedge_type": hedge_type, "line_item": "Interest Expense"}
+                        ))
+
 
                     elif hedge_type == "Net Investment Hedge":
                         # Affects Other Expense for income and AOCI
@@ -2012,6 +2031,24 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         aoci_row[1 + 4 + col_offset] = self._format_value(aoci_val) 
 
                         data_rows.extend([income_row, aoci_row])
+                        
+                        # --- NEW: Create evidence for these values ---
+                        evidence_list.append(NotionalEvidence(
+                            status="individual", category=self.category, notional=income_val,
+                            notional_str=self._format_value(income_val), year=year,
+                            instrument_type=f"income impact for {base_type} contracts",
+                            reporting_year=self.reporting_year, value_type="fair_value",
+                            currency=self.currency_code, sentence_type="individual",
+                            additional_details={"hedge_type": hedge_type, "line_item": "Other Expense"}
+                        ))
+                        evidence_list.append(NotionalEvidence(
+                            status="individual", category=self.category, notional=aoci_val,
+                            notional_str=self._format_value(aoci_val), year=year,
+                            instrument_type=f"AOCI impact for {base_type} contracts",
+                            reporting_year=self.reporting_year, value_type="fair_value",
+                            currency=self.currency_code, sentence_type="individual",
+                            additional_details={"hedge_type": hedge_type, "line_item": "AOCI (Other Expense)"}
+                        ))
 
                     elif hedge_type == "Cash Flow Hedge":
                         # Affects multiple lines for reclassification and AOCI
@@ -2032,6 +2069,26 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                             aoci_row[1 + idx + col_offset] = self._format_value(aoci_part)
 
                         data_rows.extend([reclass_row, aoci_row])
+                        
+                        # --- NEW: Create evidence for these values ---
+                        evidence_list.append(NotionalEvidence(
+                            status="individual", category=self.category, notional=reclass_val,
+                            notional_str=self._format_value(reclass_val), year=year,
+                            instrument_type=f"reclassification from AOCI for {base_type} contracts",
+                            reporting_year=self.reporting_year, value_type="fair_value",
+                            currency=self.currency_code, sentence_type="individual",
+                            additional_details={"hedge_type": hedge_type, "line_item": "Various"}
+                        ))
+                        evidence_list.append(NotionalEvidence(
+                            status="individual", category=self.category, notional=aoci_val,
+                            notional_str=self._format_value(aoci_val), year=year,
+                            instrument_type=f"AOCI impact for {base_type} contracts",
+                            reporting_year=self.reporting_year, value_type="fair_value",
+                            currency=self.currency_code, sentence_type="individual",
+                            additional_details={"hedge_type": hedge_type, "line_item": "AOCI"}
+                        ))
+
+
             
             data_rows.append([""] * (num_data_cols * 2 + 1)) # Add a spacer row between hedge types
 
@@ -2048,9 +2105,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
         )
         table_str = table_builder.build()
 
-        # For this complex table, we can return an empty evidence list as the primary goal is the visual representation.
-        # The individual instrument tables will provide the detailed, machine-readable evidence.
-        return table_str, evidence_list, []
+        return table_str, evidence_list, self.instruments
 
     def _format_value(self, value: int) -> str:
         """Formats a numerical value into a string for the table."""
