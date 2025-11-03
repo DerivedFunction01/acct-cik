@@ -34,7 +34,7 @@ from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _gen
 DEBUG = True
 ACTIVE_INSTRUMENT_MENTION_PROB = 0
 TERMINATED_INSTRUMENT_MENTION_PROB = 0
-REPEAT_MENTION_PROB = 1.0
+REPEAT_MENTION_PROB = 0
 
 # Probabilities for dropping narrative components to increase variety
 PROB_DROP_MITIGATION = 1.0  # 15% chance to skip the MitigationSentence
@@ -2662,22 +2662,20 @@ def generate_json_from_scenario(
             status = ev.usage_status
             category = ev.category
             if category in mitigation_map:
-                # If the evidence is implied, it means the sentence was dropped.
-                # The status should be directly inferred from the presence of instruments.
+                # If the evidence is from a dropped sentence (is_implied), only trust it
+                # if it's based on concrete instrument presence ('current' or 'historical').
+                # A speculative or non-use statement that was never written should not change the status from 'unknown'.
                 if ev.is_implied:
                     if status in ("current", "historical"):
                         mitigation_map[category] = status
-                # Otherwise, process the evidence from the written sentence.
+                # If the evidence is from a written sentence, trust its status.
                 elif status == "current":
                     mitigation_map[category] = "current"
                 elif status == "historical":
                     mitigation_map[category] = "historical"
-                # --- FIX: If there's an explicit "non_use" statement, it means "never". ---
-                # This is more specific than the default.
                 elif status == "non_use":
                     mitigation_map[category] = "never"
-                # If the evidence is implied (sentence was dropped) and not for current/historical/non-use,
-                elif status == "speculative" and not ev.is_implied: # "may use", "from time to time", etc.
+                elif status == "speculative": # "may use", "from time to time", etc.
                     mitigation_map[category] = "likely"
     chain_of_thought = "\n".join([e.to_string() for e in evidence])
 
