@@ -2,6 +2,9 @@ import random
 import re
 from typing import Literal, Optional
 
+# --- NEW: Global cache for currencies to avoid circular import overhead ---
+_ALL_CURRENCIES = None
+
 
 def _format_single_notional(
     amount: int | float,
@@ -25,9 +28,14 @@ def _format_single_notional(
          1 → parentheses only around the number, e.g. '$(2.5) million' or '(2.5) million barrels'
          2 → minus sign after currency symbol, e.g. '$-250.0 million' (currency only)
     """
-    from defs.fx_data import all_currencies
+    # --- NEW: Lazy load currencies to prevent circular import issues ---
+    global _ALL_CURRENCIES
+    if _ALL_CURRENCIES is None:
+        from defs.fx_data import all_currencies
+        _ALL_CURRENCIES = all_currencies
+
     # Find the currency object to determine its formatting rules
-    currency_obj = next((c for c in all_currencies if c.symbol == symbol or c.code == symbol), None)
+    currency_obj = next((c for c in _ALL_CURRENCIES if c.symbol == symbol or c.code == symbol), None)
     is_currency = currency_obj is not None
     symbol_first = currency_obj.symbol_first if currency_obj else True
     if amount == 0:
