@@ -459,6 +459,9 @@ class ScenarioBuilder:
             },
             "special_suffixes": DERIVATIVE_COMPONENTS["special_suffixes"], # Keep all special suffixes
             "no_alias_types": DERIVATIVE_COMPONENTS["no_alias_types"],
+            # --- FIX: Add missing keys to prevent KeyErrors ---
+            "swap_prefixes": DERIVATIVE_COMPONENTS["swap_prefixes"],
+            "global_prefixes": DERIVATIVE_COMPONENTS["global_prefixes"],
         }
 
     def _generate_debt_exposures(self, count: int):
@@ -3240,6 +3243,37 @@ def generate_json_from_scenario(
         "derivatives": derivatives_list,
     }
 
+# =============================================================================
+# MAIN EXECUTION (for standalone testing)
+# =============================================================================
+
+def main():
+    """
+    Generates and prints a single random training sample for debugging purposes.
+    This function is only executed when the script is run directly.
+    """
+    print("--- Generating a single random sample for debugging ---")
+
+    # 1. Create the "story" or scenario
+    # Using a random archetype index
+    archetype_index = random.randint(0, len(SCENARIO_ARCHETYPES) - 1)
+    scenario = create_random_scenario(archetype_index=archetype_index)
+
+    # 2. Generate the narrative text and the evidence list from the scenario
+    narrative, evidence = generate_narrative_from_scenario(scenario, allow_random_drops=True)
+
+    # 3. Generate the structured JSON output from the evidence
+    target_json = generate_json_from_scenario(scenario, evidence)
+
+    print("\n" + "="*30 + " NARRATIVE " + "="*30)
+    print(narrative)
+    print("\n" + "="*30 + " TARGET JSON " + "="*29)
+    print(json.dumps(target_json, indent=2))
+    print("\n" + "="*73)
+
+
+if __name__ == "__main__":
+    main()
 # =============================================================================
 # PHASE 3: MAIN GENERATION LOOP
 # This will be the new entry point, replacing the old `generate()` function.
