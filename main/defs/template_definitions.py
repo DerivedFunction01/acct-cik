@@ -701,7 +701,7 @@ hedge_documentation_templates = general_hedge_documentation_templates + specific
 hedge_effectiveness_policy_templates = general_hedge_effectiveness_templates + specific_hedge_effectiveness_templates
 
 @dataclass
-class BaseTableBuilder:
+class DerivativeTableBuilder:
     """Base class for specific table builders."""
 
     def __init__(
@@ -782,7 +782,7 @@ class BaseTableBuilder:
         return notional
 
 
-class YearOverYearTableBuilder(BaseTableBuilder): # Already refactored, shown for context
+class YearOverYearTableBuilder(DerivativeTableBuilder): # Already refactored, shown for context
     """Builds a table comparing notional/fair values year-over-year."""
 
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
@@ -881,7 +881,7 @@ class YearOverYearTableBuilder(BaseTableBuilder): # Already refactored, shown fo
         return table_str, evidence_list, []
 
 
-class NotionalVsFairValueTableBuilder(BaseTableBuilder):
+class NotionalVsFairValueTableBuilder(DerivativeTableBuilder):
     """Builds a table comparing notional vs. fair value, grouped by year."""
 
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
@@ -1007,7 +1007,7 @@ class NotionalVsFairValueTableBuilder(BaseTableBuilder):
 
         return full_table_str, evidence_list, []
 
-class MaturityGroupingTableBuilder(BaseTableBuilder):
+class MaturityGroupingTableBuilder(DerivativeTableBuilder):
     """Builds a table grouping instruments by maturity year ranges."""
 
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
@@ -1106,7 +1106,7 @@ class MaturityGroupingTableBuilder(BaseTableBuilder):
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
-class AOCIReconciliationTableBuilder(BaseTableBuilder):
+class AOCIReconciliationTableBuilder(DerivativeTableBuilder):
     """Builds a table showing the roll-forward of the AOCI balance for cash flow hedges."""
 
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
@@ -1199,7 +1199,7 @@ class AOCIReconciliationTableBuilder(BaseTableBuilder):
         full_table_str = "<TABLE>\n<CAPTION>\n" + f"{title}\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
-class ThreeYearComparativeTableBuilder(BaseTableBuilder):
+class ThreeYearComparativeTableBuilder(DerivativeTableBuilder):
     """Builds a table comparing notional/fair values over three years."""
 
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
@@ -1287,7 +1287,7 @@ class ThreeYearComparativeTableBuilder(BaseTableBuilder):
         full_table_str = "<TABLE>\n<CAPTION>\n" + title + "\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
-class AOCIReclassificationImpactTableBuilder(BaseTableBuilder):
+class AOCIReclassificationImpactTableBuilder(DerivativeTableBuilder):
     """Builds a table showing the impact of amounts reclassified from AOCI to the income statement."""
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
@@ -1359,7 +1359,7 @@ class AOCIReclassificationImpactTableBuilder(BaseTableBuilder):
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
-class FXExposureTableBuilder(BaseTableBuilder):
+class FXExposureTableBuilder(DerivativeTableBuilder):
     """Builds a two-year comparative table listing the currency exposures for a specific FX instrument."""
 
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
@@ -1489,7 +1489,7 @@ class FXExposureTableBuilder(BaseTableBuilder):
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, remaining_instruments
 
-class AssetLiabilityFairValueTableBuilder(BaseTableBuilder):
+class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
     """Builds a table showing derivative assets and liabilities."""
 
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
@@ -1577,9 +1577,9 @@ class AssetLiabilityFairValueTableBuilder(BaseTableBuilder):
         return full_table_str, evidence_list, []
 
 
-class Table(BaseTableBuilder):
+class Table(DerivativeTableBuilder):
     """
     This class now acts as a factory for building various table types.
-    It inherits from BaseTableBuilder and uses its `build` method.
+    It inherits from DerivativeTableBuilder and uses its `build` method.
     """
     pass

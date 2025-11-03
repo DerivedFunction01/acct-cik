@@ -1750,7 +1750,7 @@ def _generate_category_narrative(
                 "GEN": "",
             }
             table_builder = Table(
-                instruments=current_year_data["instruments"], # type: ignore
+                instruments=current_year_data["instruments"],
                 category=cat_to_map.get(category, ""), yearly_data=yearly_data,
                 reporting_year=reporting_year,
                 reporting_day=reporting_day,
@@ -1759,10 +1759,10 @@ def _generate_category_narrative(
                 notional_multiplier=scenario.archetype.notional_multiplier,
                 preferred_negative_format=scenario.archetype.preferred_negative_format,
                 prefer_abbreviated=scenario.number_format_preference,
-                currency_code=currency_code, # type: ignore
+                currency_code=currency_code,
             )
             # --- MODIFIED: build() now returns remaining instruments ---
-            table_str, table_evidence, remaining_instruments = table_builder.build()
+            table_str, table_evidence, remaining_instruments = table_builder.choose_and_build()
             if table_str:
                 # The table string itself is the "paragraph". We also need to generate evidence for the instruments in it.
                 paragraphs.append(table_str)
@@ -2345,7 +2345,7 @@ def generate_narrative_from_scenario(
                     preferred_negative_format=scenario.archetype.preferred_negative_format,
                 )
                 # Call build with additional=True to get the other table formats
-                table_str, table_evidence, _ = table_builder.build(additional=True)
+                table_str, table_evidence, _ = table_builder.choose_and_build(additional=True)
                 if table_str:
                     derivative_details_sections.append(table_str)
                     all_evidence.extend(table_evidence)
