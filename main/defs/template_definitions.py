@@ -1041,69 +1041,64 @@ class YearOverYearTableBuilder(DerivativeTableBuilder): # Already refactored, sh
         Builds a table comparing notional/fair values year-over-year.
         Format:
             Instrument      Notional Amount 20XX    Notional Amount 20XX-1
-        """
+        """ # noqa
         evidence_list = []
         year1 = self.reporting_year
         year2 = self.reporting_year - 1
         value_type_str = random.choice(["Notional Amount", "Fair Value"])
         value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
-        
+
         headers = ["Instrument", f"{value_type_str} {year1}", f"{value_type_str} {year2}"]
         widths = [45, 20, 20]
         alignments = ['l', 'r', 'r'] # l for left, r for right
 
         data_rows = []
 
-        # Use a set to avoid describing the same instrument type multiple times
-        described_types = set()
+        # --- NEW: Group instruments by placeholder and base_type ---
+        grouped_instruments: Dict[Tuple[str, str], Dict] = {}
         for inst in self.instruments:
-            name_to_use = inst.instrument_type
-            if inst.instrument_type in described_types:
-                name_to_use = inst.instrument_alias
-            described_types.add(inst.instrument_type)
+            key = (inst.placeholder, inst.base_type)
+            if key not in grouped_instruments:
+                grouped_instruments[key] = {"year1_val": 0, "year2_val": 0, "currency": inst.currency, "symbol": inst.symbol, "category": inst.category}
 
-            val1 = self._get_value(inst, year1, value_type)
-            val2 = self._get_value(inst, year2, value_type)
+            grouped_instruments[key]["year1_val"] += self._get_value(inst, year1, value_type)
+            grouped_instruments[key]["year2_val"] += self._get_value(inst, year2, value_type)
 
-            # Only include instruments that were active in at least one of the years
-            if val1 == 0 and val2 == 0:
-                continue
+        for (placeholder, base_type), values in grouped_instruments.items():
+            val1 = values["year1_val"]
+            val2 = values["year2_val"]
 
-            val1_str = _format_single_notional(
-                val1,
-                inst.symbol,
-                self.prefer_abbreviated,
-                True,
-                negative_format=self.preferred_negative_format, # type: ignore
-            )
-            val2_str = _format_single_notional(
-                val2,
-                inst.symbol,
-                self.prefer_abbreviated,
-                True,
-                negative_format=self.preferred_negative_format,  # type: ignore
-            )
+            if val1 == 0 and val2 == 0: continue
+
+            # --- NEW: Create a descriptive name for the group ---
+            # e.g., "Interest rate swap agreements"
+            plural_suffix = "s" if not base_type.endswith("s") else ""
+            name_to_use = f"{placeholder} {base_type}{plural_suffix}".strip().capitalize()
+
+            val1_str = _format_single_notional(val1, values["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format) # type: ignore
+            val2_str = _format_single_notional(val2, values["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format) # type: ignore
 
             row_cells = [name_to_use, val1_str, val2_str]
             data_rows.append(row_cells)
 
-            # Create evidence for the current year if value is > 0
+            # --- NEW: Create a single summary evidence object for the group ---
             if val1 > 0:
                 evidence_notional_str = _format_single_notional(
-                    val1, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
+                    val1, values["symbol"], self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
                 )
                 evidence_list.append(NotionalEvidence(
-                    instrument_id=inst.instrument_id,
-                    status="individual",
-                    category=inst.category,
+                    instrument_id=None, # This is an aggregate of a group
+                    status="summary",
+                    category=values["category"],
+                    aggregate=True,
                     notional=_get_correct_rounding(val1, self.notional_multiplier) if self.notional_multiplier > 1 else val1,
                     notional_str=evidence_notional_str,
                     year=year1,
                     instrument_type=name_to_use,
                     reporting_year=self.reporting_year, # type: ignore
                     value_type=value_type,
-                    currency=inst.currency,
-                    sentence_type="individual", # From a table
+                    currency=values["currency"],
+                    sentence_type="summary", # From a table
                 ))
 
         if not data_rows:
