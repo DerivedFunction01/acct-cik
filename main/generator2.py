@@ -2165,6 +2165,41 @@ def generate_narrative_from_scenario(
             derivative_details_sections.append(category_details_paragraph)
             all_evidence.extend(detail_evidence)
 
+    # --- NEW: Part 2.9: Generate Optional Standalone "Additional" Tables ---
+    # These tables (AOCI, Maturity, etc.) often appear as separate disclosures.
+    if has_any_details and scenario.archetype.prefers_tables and random.random() < 0.6:
+        # Get currency and money unit details for table generation
+        currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+        # We can generate one of these tables for each category that has instruments.
+        # Let's pick one or two categories at random to generate a table for.
+        cats_with_instruments = list(aggregated_data.keys())
+        if cats_with_instruments:
+            num_tables_to_gen = random.randint(1, min(len(cats_with_instruments), 2))
+            cats_for_tables = random.sample(cats_with_instruments, num_tables_to_gen)
+
+            for category in cats_for_tables:
+                # We need all instruments for the table, not just the ones for a specific year.
+                all_instruments_for_cat = [
+                    inst for inst in scenario.instruments if inst.category == category
+                ]
+                table_builder = Table(
+                    instruments=all_instruments_for_cat,
+                    category=category,
+                    yearly_data=aggregated_data.get(category, {}),
+                    reporting_year=scenario.reporting_year,
+                    reporting_day=scenario.reporting_day,
+                    reporting_month=scenario.reporting_month,
+                    currency_symbol=currency_symbol,
+                    notional_multiplier=scenario.archetype.notional_multiplier,
+                    prefer_abbreviated=scenario.number_format_preference,
+                )
+                # Call build with additional=True to get the other table formats
+                table_str, table_evidence = table_builder.build(additional=True)
+                if table_str:
+                    derivative_details_sections.append(table_str)
+                    all_evidence.extend(table_evidence)
+
     # 3. Effectiveness and Accounting Section
     accounting_sentences, accounting_evidence = _generate_narrative_accounting(scenario)
     # This can be appended to the details section or be its own section.
