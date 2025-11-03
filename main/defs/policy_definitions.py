@@ -759,7 +759,7 @@ class HedgeDefinitionSentence:
         # Choose a base type to define, like "swap" or "option"
         base_type = random.choice(DERIVATIVE_COMPONENTS["base_types"])
         # Make it plural for the definition title
-        swap_type = f"{base_type}s"
+        swap_type = f"{base_type}s" if not base_type.endswith("s") else base_type
 
         # Build up a list of definitions
         num_definitions = random.randint(1, 3)
