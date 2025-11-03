@@ -1004,11 +1004,11 @@ class DerivativeTableBuilder:
             NotionalVsFairValueTableBuilder,
         ]
         additional_format_builders = [
-            # MaturityGroupingTableBuilder,
-            # AssetLiabilityFairValueTableBuilder,
-            # AOCIReconciliationTableBuilder,
-            # AOCIReclassificationImpactTableBuilder,
-            # FairValueHierarchyTableBuilder,
+            MaturityGroupingTableBuilder,
+            AssetLiabilityFairValueTableBuilder,
+            AOCIReconciliationTableBuilder,
+            AOCIReclassificationImpactTableBuilder,
+            FairValueHierarchyTableBuilder,
             DerivativeImpactTableBuilder,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
