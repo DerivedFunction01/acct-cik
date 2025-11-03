@@ -754,6 +754,16 @@ class ScenarioBuilder:
             bt for bt in all_base_types if bt not in gen_reserved_base_types
         ]
 
+        # --- FIX: Prevent IndexError and maintain GEN/specific separation ---
+        # If all scenario base types were reserved for GEN, add a new, non-generic
+        # type from the global pool to avoid using a GEN-reserved type for a specific category.
+        if not other_available_base_types:
+            fallback_options = [bt for bt in DERIVATIVE_COMPONENTS["base_types"] if bt not in gen_reserved_base_types]
+            if fallback_options:
+                other_available_base_types.append(random.choice(fallback_options))
+            else: # In the very rare case all global types were reserved, use the GEN pool as a last resort.
+                other_available_base_types = gen_reserved_base_types
+
         # Determine all base types that will appear in the scenario for context-aware aliasing
         if exposure_counts["debt"] > 0:
             self.all_scenario_base_types.add(random.choice(other_available_base_types))
