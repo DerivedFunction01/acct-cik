@@ -30,7 +30,7 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.template_definitions import hedge_no_trading_templates, Table
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
-DEBUG = False
+DEBUG = True
 
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
@@ -780,13 +780,17 @@ def _create_truly_random_archetype() -> ScenarioArchetype:
 
     commodity_keys = list(COMMODITIES.keys())
     num_commodity_types = random.randint(0, 4)
-    
+
     return ScenarioArchetype(
         name="Truly Random",
         debt_exposure_range=rand_range(),
         fx_exposure_range=rand_range(),
         commodity_exposure_range=rand_range(5),
-        commodity_types=random.sample(commodity_keys, num_commodity_types) if num_commodity_types > 0 else [],
+        commodity_types=(
+            random.sample(commodity_keys, num_commodity_types)
+            if num_commodity_types > 0
+            else []
+        ),
         equity_exposure_range=rand_range(6),
         generic_instrument_range=rand_range(2),
         hedging_propensities={
@@ -797,13 +801,15 @@ def _create_truly_random_archetype() -> ScenarioArchetype:
             "GEN": rand_propensity(),
         },
         policy_coverage=random.choice(["full", "partial", "light"]),
-        comparative_years=random.randint(1, 3),
-        default_currency=random.choice([c.code for c in all_currencies if c.code in ["USD", "EUR", "GBP", "JPY"]]),
+        comparative_years=random.randint(1, 3), # type: ignore
+        default_currency=random.choice(
+            [c.code for c in all_currencies]
+        ),
         notional_multiplier=random.choice([1_000, 1_000_000, 1_000_000_000]),
         prefers_abbreviated_numbers=random.choice([True, False]),
         prefers_tables=random.choice([True, False]),
         preferred_negative_format=random.choice([-1, 0, 1, 2]),
-        zero_notional_format=random.choice(["$0", "$—", "$-"]),
+        zero_notional_format=random.choice(["nil", "zero", "amount"]),
     )
 
 def _get_smart_instrument_description(instruments: List[NotionalInstrument], category: str, summary:bool = False) -> str:

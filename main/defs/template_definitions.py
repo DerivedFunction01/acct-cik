@@ -800,6 +800,8 @@ class Table:
         else:
             chosen_format = random.choice(formats)
         return chosen_format()
+    def get_units(self) -> str:
+        return f"(in {self.currency_symbol} {self.money_unit()})" if self.prefer_abbreviated else f"(in {self.currency_code})"
 
     def _get_value(
         self, instrument: NotionalInstrument, year: int, value_type: Literal["notional", "fair_value"]
@@ -899,7 +901,7 @@ class Table:
             "EQ": "Equity",
             "GEN": "Derivative",
         }
-        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s (in {self.currency_symbol} {self.money_unit()})"
+        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s {self.get_units()}"
         full_table = f"<TABLE>\n<CAPTION>\n{title}\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table, evidence_list, []
 
@@ -937,7 +939,7 @@ class Table:
                 continue
 
             all_rows.append(
-                f"\nAs of {self.month} {self.day}, {year} (in {self.currency_symbol} {self.money_unit()})"
+                f"\nAs of {self.month} {self.day}, {year} {self.get_units()}"
             )
 
             header_lines = self._format_row_with_wrapping(columns, widths, alignments)
@@ -1071,7 +1073,7 @@ class Table:
                     self.reporting_year, 0
                 )
 
-        title = f"Notional Amount of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])} by Maturity as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
+        title = f"Notional Amount of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])} by Maturity as of {self.month} {self.day}, {self.reporting_year} {self.get_units()}"
         columns = ["Maturity", "Notional Amount"]
         widths = [25, 25]
         alignments = ['l', 'r']
@@ -1184,7 +1186,7 @@ class Table:
         )
 
         # Build table
-        title = f"Accumulated Other Comprehensive Income (AOCI) Activity for Cash Flow Hedges\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
+        title = f"Accumulated Other Comprehensive Income (AOCI) Activity for Cash Flow Hedges\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} {self.get_units()}"
 
         rows = [
             f"Beginning Balance, {self.month} {self.day}, {year - 1:<28} {bal_str}",
@@ -1301,7 +1303,7 @@ class Table:
         if len(rows) <= 3: # header, separator, tags
             return "", [], []
 
-        title = f"{value_type_str}s of Outstanding {self.category} Derivatives (in {self.currency_symbol} {self.money_unit()})"
+        title = f"{value_type_str}s of Outstanding {self.category} Derivatives {self.get_units()}"
         # --- SEC Tag ---
         full_table_str = "<TABLE>\n<CAPTION>\n" + title + "\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
@@ -1318,7 +1320,7 @@ class Table:
 
         if not active_instruments:
             return "", [], []
-        title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
+        title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} {self.get_units()}"
         columns = [f"Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}", "Gain/(Loss) Reclassified from AOCI", "Affected Line Item in Income Statement"]
         widths = [35, 25, 40]
         alignments = ['l', 'r', 'l']
@@ -1524,7 +1526,7 @@ class Table:
         if not active_instruments:
             return "", [], []
 
-        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
+        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s as of {self.month} {self.day}, {self.reporting_year} {self.get_units()}"
         columns = ["Instrument", "Asset Fair Value", "Liability Fair Value"]
         widths = [45, 20, 22]
         alignments = ['l', 'r', 'r']
