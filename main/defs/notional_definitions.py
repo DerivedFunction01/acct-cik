@@ -125,12 +125,6 @@ class NotionalEvidence(BaseNarrativeEvidence):
         category_name = self._category_label()
         category_context = f"{category_name} derivative activity"
         classification_note = ""
-        if self.category in (None, "GEN"):
-            classification_note = (
-                ". Based on the surrounding context, the disclosure does not specify a clear derivative category "
-                ", so it is treated as a generic reference "
-                "and I'll come back to it later."
-            )
 
         value_desc = (
             "fair value" if self.value_type == "fair_value" else "notional value"
