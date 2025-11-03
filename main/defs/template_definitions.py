@@ -993,7 +993,7 @@ class Table:
                     self.reporting_year, 0
                 )
 
-        title = f"Notional Amount by Maturity as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
+        title = f"Notional Amount of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])} by Maturity as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
         header = f"| {'Maturity':<20} | {'Notional Amount':>20} |"
         separator = "-" * len(header)
         rows = [title, header, separator]
