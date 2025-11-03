@@ -75,51 +75,53 @@ def _format_single_notional(
         return f"{symbol}{amount:,.0f}"
     else:
         return f"{amount:,.0f} {symbol}"
-    
+
 def _get_correct_rounding(amount: int | float, multiplier: int):
     return round(amount / multiplier) * multiplier
 
+import re
+
+
 def _cleanup_sentence(sentence: str) -> str:
-    """Clean up sentence by removing empty placeholders and extra spaces."""
+    """Clean up sentence by removing placeholders, fixing spacing, and capitalizing properly."""
+
     # Add a space before a clause if the preceding character is not a space, comma, or newline
     sentence = re.sub(
-        r"([a-zA-Z0-9,])({hedge_designation_clause}|{result_clause}|{maturity_clause})",
+        r"([a-zA-Z0-9,])(\{[^}]+\})",
         r"\1 \2",
         sentence,
     )
 
-    # Remove any remaining optional placeholders that weren't filled, and any leading/trailing spaces around them
-    sentence = sentence.replace("{hedge_designation_clause}", "")
-    sentence = sentence.replace("{result_clause}", "")
-    sentence = sentence.replace("{maturity_clause}", "")
-    sentence = sentence.replace("{time_suffix}", "")  # If not used, remove it
+    # Remove ALL placeholders of the form {something}
+    sentence = re.sub(r"\{[^}]*\}", "", sentence)
 
     # Clean up multiple spaces
-    while "  " in sentence:
-        sentence = sentence.replace("  ", " ")
+    sentence = re.sub(r"\s{2,}", " ", sentence)
 
-    # Remove leading commas that can result from empty prefixes
+    # Remove leading commas/spaces
     sentence = re.sub(r"^\s*,\s*", "", sentence)
 
-    # Clean up comma/space issues more aggressively
-    sentence = sentence.replace(" ,", ",")
+    # Fix common punctuation issues
     sentence = sentence.replace(" ,", ",")
     sentence = sentence.replace(",,", ",")
     sentence = sentence.replace(" .", ".")
-
-    # Remove trailing commas before period
     sentence = sentence.replace(", .", ".")
-    sentence = sentence.replace(" .", ".")  # In case of empty clauses
 
-    # Correctly pluralize words ending in a consonant followed by 'y' (e.g., "company" -> "companies").
-    # This avoids incorrectly changing words like "always" or "employs".
+    # Correct pluralization (company -> companies, but not always/employs)
     sentence = re.sub(r"([^aeiou])ys\b", r"\1ies", sentence, flags=re.IGNORECASE)
 
-    # capitalize the 1st char
-    sentence = sentence[0].upper() + sentence[1:]
+    # Capitalize first letter of the sentence and after periods
+    def capitalize_after_period(match):
+        return match.group(1) + match.group(2).upper()
+
+    sentence = sentence.strip()
+    if sentence:
+        # Capitalize first character
+        sentence = sentence[0].upper() + sentence[1:]
+        # Capitalize after ". " or "? " or "! "
+        sentence = re.sub(r"([.!?]\s+)([a-z])", capitalize_after_period, sentence)
 
     return sentence.strip()
-
 
 def _get_company_reference(company_name: str, chance: float = 0.25) -> str:
     """Randomly returns either the full company name or a generic placeholder."""
