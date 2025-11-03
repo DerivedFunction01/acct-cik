@@ -2194,8 +2194,12 @@ def generate_narrative_from_scenario(
         "GEN": archetype_exposures["generic"] > 0,
     }
 
+    # --- NEW: Randomize the order of category processing ---
+    category_order = ["IR", "FX", "CP", "EQ", "GEN"]
+    random.shuffle(category_order)
+
     # --- Part 1: Build the "Item 7A" Summary Section ---
-    for category in ["IR", "FX", "CP", "EQ", "GEN"]:
+    for category in category_order:
         has_instruments = category in aggregated_data
         has_exposure = all_relevant_categories.get(category, False)
 
@@ -2245,7 +2249,7 @@ def generate_narrative_from_scenario(
         # This is a simple way to add a section header.
         derivative_details_sections.append("Derivative Financial Instruments")
 
-    for category in ["IR", "FX", "CP", "EQ", "GEN"]:
+    for category in category_order:
         if category in aggregated_data:
             yearly_data_for_cat = aggregated_data.get(category, {})
             detail_sentences, detail_evidence, _ = _generate_category_narrative(
