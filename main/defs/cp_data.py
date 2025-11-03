@@ -496,6 +496,19 @@ class CPContextSentence:
 
         return " ".join(sentences)
 
+    # --- NEW: Helper to get units string, mirroring DerivativeTableBuilder ---
+    def _money_unit(self) -> str:
+        # This should ideally come from the scenario/archetype
+        # For now, we assume millions if not specified.
+        # A better implementation would pass the notional_multiplier down.
+        return "millions" # Assuming for now.
+
+    def _get_units(self) -> str:
+        # A simplified version for CP context.
+        if self.prefer_abbreviated:
+            return f"({self.currency_symbol} in {self._money_unit()})"
+        return "" # No units for non-abbreviated full values
+
 
 # =============================================================================
 # CP Contextual "Noise" Templates
