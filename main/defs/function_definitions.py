@@ -113,7 +113,16 @@ def _format_single_notional(
     return base
 
 def _get_correct_rounding(amount: int | float, multiplier: int):
-    return round(amount / multiplier) * multiplier
+    """
+    Rounds an amount to the nearest significant figure based on the multiplier,
+    matching the .1f formatting used for abbreviated numbers.
+    For example, with a multiplier of 1,000,000, 1,234,567 becomes 1,200,000.
+    """
+    if multiplier <= 1:
+        return round(amount)
+
+    # Round to one decimal place relative to the multiplier's scale.
+    return int(round(amount / multiplier, 1) * multiplier)
 
 import re
 
