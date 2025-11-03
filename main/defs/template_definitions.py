@@ -740,7 +740,7 @@ class Table:
             return amount_to_string[self.notional_multiplier]
         return "in millions"
 
-    def build(self, additional: bool = False) -> Tuple[str, List[NotionalEvidence]]:
+    def build(self, additional: bool = False) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Selects a table format at random and builds the table string.
         """
@@ -774,7 +774,7 @@ class Table:
             return max(0, int(notional * random.uniform(0.01, 0.1)))
         return notional
 
-    def _build_year_over_year_table(self) -> Tuple[str, List[NotionalEvidence]]:
+    def _build_year_over_year_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table comparing notional/fair values year-over-year.
         Format:
@@ -834,7 +834,7 @@ class Table:
                 ))
 
         if len(rows) <= 2:  # Only header and separator
-            return "", []
+            return "", [], []
 
         # Add a title
         category_map = {
@@ -845,9 +845,9 @@ class Table:
             "GEN": "Derivative",
         }
         title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s (in {self.currency_symbol} {self.money_unit()})"
-        return f"{title}\n" + "\n".join(rows), evidence_list
+        return f"{title}\n" + "\n".join(rows), evidence_list, []
 
-    def _build_notional_vs_fair_value_table(self) -> Tuple[str, List[NotionalEvidence]]:
+    def _build_notional_vs_fair_value_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table comparing notional vs. fair value, grouped by year.
         Format:
@@ -950,11 +950,11 @@ class Table:
                     )
 
         if len(all_rows) <= 1:  # Only title
-            return "", []
+            return "", [], []
 
-        return "\n".join(all_rows), evidence_list
+        return "\n".join(all_rows), evidence_list, []
 
-    def _build_maturity_grouping_table(self) -> Tuple[str, List[NotionalEvidence]]:
+    def _build_maturity_grouping_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table grouping instruments by maturity year ranges.
         Format:
@@ -975,7 +975,7 @@ class Table:
         ]
 
         if not active_instruments:
-            return "", []
+            return "", [], []
 
         for inst in active_instruments:
             years_to_maturity = inst.maturity_year - self.reporting_year if inst.maturity_year else 100
@@ -1026,11 +1026,11 @@ class Table:
                 rows.append(row_str)
 
         if len(rows) <= 3:  # Only title, header, and separator
-            return "", []
+            return "", [], []
 
-        return "\n".join(rows), evidence_list
+        return "\n".join(rows), evidence_list, []
 
-    def _build_aoci_reconciliation_table(self) -> Tuple[str, List[NotionalEvidence]]:
+    def _build_aoci_reconciliation_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table showing the roll-forward of the AOCI balance for cash flow hedges.
         Format:
@@ -1049,7 +1049,7 @@ class Table:
         ]
 
         if not active_instruments:
-            return "", []
+            return "", [], []
 
         # Simulate AOCI roll-forward values
         beginning_balance = random.randint(-50, 50) * self.notional_multiplier / 100
@@ -1090,7 +1090,7 @@ class Table:
             aggregate=True,
         ))
 
-        return f"{title}\n" + "\n".join(rows), evidence_list
+        return f"{title}\n" + "\n".join(rows), evidence_list, []
 
     def _build_three_year_comparative_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
@@ -1202,11 +1202,12 @@ class Table:
 
         return "\n".join(rows), evidence_list
 
-    def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence]]:
+    def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a two-year comparative table listing the currency exposures for a specific FX instrument.
         Format:
             Currency Exposure | Amount 20XX | Amount 20XX-1
+        Returns the table string, evidence, and the list of instruments NOT used in this table.
         """
         evidence_list = []
 
@@ -1219,7 +1220,7 @@ class Table:
         ]
 
         if not fx_instruments_with_exposures:
-            return "", []
+            return "", [], self.instruments
 
         # Pick one instrument to detail its exposures
         instrument_to_detail = random.choice(fx_instruments_with_exposures)
@@ -1302,9 +1303,12 @@ class Table:
                     )
                 )
 
-        return "\n".join(rows), evidence_list
+        # --- NEW: Return the list of instruments that were NOT detailed in this table ---
+        remaining_instruments = [inst for inst in self.instruments if inst.instrument_id != instrument_to_detail.instrument_id]
 
-    def _build_asset_liability_fair_value_table(self) -> Tuple[str, List[NotionalEvidence]]:
+        return "\n".join(rows), evidence_list, remaining_instruments
+
+    def _build_asset_liability_fair_value_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table showing derivative assets and liabilities.
         Format:
@@ -1319,7 +1323,7 @@ class Table:
         ]
 
         if not active_instruments:
-            return "", []
+            return "", [], []
 
         title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s as of {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
         header = f"| {'Instrument':<45} | {'Asset Fair Value':>20} | {'Liability Fair Value':>22} |"
@@ -1362,6 +1366,6 @@ class Table:
             ))
 
         if len(rows) <= 3:
-            return "", []
+            return "", [], []
 
-        return "\n".join(rows), evidence_list
+        return "\n".join(rows), evidence_list, []

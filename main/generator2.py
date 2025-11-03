@@ -1635,13 +1635,12 @@ def _generate_category_narrative(
     # --- Part 2: Generate Detailed Individual Instrument Sentences ---
     elif part == "details":
         # This will be a list of paragraph strings.
+        paragraphs = []
         if mentioned_instrument_ids is None:
             mentioned_instrument_ids = set()
         if mentioned_instrument_types is None:
             # This should be passed from the calling function, but as a fallback, initialize it.
             mentioned_instrument_types = set()
-
-        paragraphs = []
 
         # --- NEW: Table Generation Logic ---
         # If the archetype prefers tables and there are instruments, generate a table instead of individual paragraphs.
@@ -1650,7 +1649,7 @@ def _generate_category_narrative(
             and current_year_data
             and current_year_data["instruments"]
             and random.random() < 0.7 # 70% chance to generate a table if preferred
-        ):
+        ): # type: ignore
             cat_to_map = {
                 "IR": "Interest Rate",
                 "FX": "Foreign Currency",
@@ -1659,24 +1658,28 @@ def _generate_category_narrative(
                 "GEN": "",
             }
             table_builder = Table(
-                instruments=current_year_data["instruments"], 
-                category=cat_to_map[category], yearly_data=yearly_data,
+                instruments=current_year_data["instruments"], # type: ignore
+                category=cat_to_map.get(category, ""), yearly_data=yearly_data,
                 reporting_year=reporting_year,
                 reporting_day=reporting_day,
                 reporting_month=reporting_month,
                 currency_symbol=currency_symbol,
                 notional_multiplier=scenario.archetype.notional_multiplier,
                 prefer_abbreviated=scenario.number_format_preference,
-                currency_code=currency_code,
+                currency_code=currency_code, # type: ignore
             )
-            table_str, table_evidence = table_builder.build()
+            # --- MODIFIED: build() now returns remaining instruments ---
+            table_str, table_evidence, remaining_instruments = table_builder.build()
             if table_str:
                 # The table string itself is the "paragraph". We also need to generate evidence for the instruments in it.
                 paragraphs.append(table_str)
                 evidence.extend(table_evidence)
-                # For now, we'll let the JSON generation handle evidence from the scenario.
-                # A future improvement could be to have the Table class also return evidence.
-                return paragraphs, evidence, None
+                # --- NEW: Update the list of instruments to process with the remainder ---
+                # This allows us to process the rest of the instruments below.
+                current_year_data["instruments"] = remaining_instruments
+            
+            # If no table was generated, or if there are remaining instruments,
+            # the code will now continue to the loop below instead of returning.
 
         if current_year_data and current_year_data["instruments"]:
             for instrument in current_year_data["instruments"]:
@@ -2210,7 +2213,7 @@ def generate_narrative_from_scenario(
                     currency_code=currency_code,
                 )
                 # Call build with additional=True to get the other table formats
-                table_str, table_evidence = table_builder.build(additional=True)
+                table_str, table_evidence, _ = table_builder.build(additional=True)
                 if table_str:
                     derivative_details_sections.append(table_str)
                     all_evidence.extend(table_evidence)
