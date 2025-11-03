@@ -2056,6 +2056,10 @@ def _generate_category_narrative(
             # This should be passed from the calling function, but as a fallback, initialize it.
             mentioned_instrument_types = set()
         
+        # --- NEW: Track core instrument components (placeholder, base_type) for better contextual phrasing ---
+        mentioned_instrument_cores: Set[Tuple[str, str]] = set()
+
+        
         # --- FIX: Track if active instruments were intentionally dropped ---
         # --- MODIFIED: Track if we actually generated any evidence ---
         any_notional_evidence_generated = False
@@ -2131,10 +2135,11 @@ def _generate_category_narrative(
 
                 use_fair_value = random.random() < 0.2
                 # --- FIX: Distinguish between a repeated TYPE and a repeated INSTANCE ---
-                # is_repeated_type is for context ("another swap...")
+                # is_repeated_core is for context ("another swap...")
                 # is_repeated_instance is for aliasing ("the swap...")
-                is_repeated_type = (
-                    instrument.instrument_type in mentioned_instrument_types
+                instrument_core = (instrument.placeholder, instrument.base_type)
+                is_repeated_core = (
+                    instrument_core in mentioned_instrument_cores
                 )
                 is_repeated_instance = (
                     instrument.instrument_id in mentioned_instrument_ids
@@ -2287,7 +2292,7 @@ def _generate_category_narrative(
                         category=category,  # type: ignore
                         reporting_year=reporting_year,
                         value_type=value_type,
-                        is_repeated_mention=is_repeated_type,  # Pass the TYPE check for contextual phrasing
+                        is_repeated_mention=is_repeated_core,  # Pass the CORE component check for contextual phrasing
                         preferred_negative_format=scenario.archetype.preferred_negative_format,
                         instrument=instrument, # Pass the full instrument object
                     )
@@ -2306,6 +2311,9 @@ def _generate_category_narrative(
                     mentioned_instrument_types.add(
                         instrument.instrument_type
                     )  # Mark as mentioned
+                    mentioned_instrument_cores.add(
+                        instrument_core
+                    ) # Mark core as mentioned
 
         # Describe terminated instruments by looking at the previous year's data
         # Describe terminated instruments by checking for zero notional in current year
@@ -2332,8 +2340,9 @@ def _generate_category_narrative(
                     history_length > 1 and random.random() < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
                 )
 
-                is_repeated_type_terminated = (
-                    instrument.instrument_type in mentioned_instrument_types
+                instrument_core_terminated = (instrument.placeholder, instrument.base_type)
+                is_repeated_core_terminated = (
+                    instrument_core_terminated in mentioned_instrument_cores
                 )
                 is_repeated_instance_terminated = (
                     instrument.instrument_id in mentioned_instrument_ids
@@ -2357,6 +2366,9 @@ def _generate_category_narrative(
                         any_notional_evidence_generated = True
                         mentioned_instrument_ids.add(instrument.instrument_id)
                         mentioned_instrument_types.add(instrument.instrument_type)
+                        mentioned_instrument_cores.add(
+                            instrument_core_terminated
+                        )
                 else:
                     # --- NEW: Use a weighted choice for describing terminated instruments ---
                     options = ["terminated_individual", "comparative_no_outstanding", "comparative"]
@@ -2406,7 +2418,7 @@ def _generate_category_narrative(
                         category=category,  # type: ignore
                         reporting_year=reporting_year,
                         value_type="notional",
-                        is_repeated_mention=is_repeated_type_terminated,
+                        is_repeated_mention=is_repeated_core_terminated,
                         preferred_negative_format=scenario.archetype.preferred_negative_format,
                         instrument=instrument,
                     )
@@ -2417,6 +2429,9 @@ def _generate_category_narrative(
                     paragraphs.append(terminated_instrument_text)
                     mentioned_instrument_ids.add(instrument.instrument_id)
                     mentioned_instrument_types.add(instrument.instrument_type)
+                    mentioned_instrument_cores.add(
+                        instrument_core_terminated
+                    )
                     any_notional_evidence_generated = True
                     evidence.append(evidence_obj)
 
@@ -2711,6 +2726,7 @@ def generate_narrative_from_scenario(
                 part="details",
                 mentioned_instrument_types=mentioned_instrument_types,
                 mentioned_instrument_ids=mentioned_instrument_ids,
+                # mentioned_instrument_cores is managed internally in this part
                 allow_random_drops=allow_random_drops,
             )
             # NEW: Join the generated paragraphs with newlines.
