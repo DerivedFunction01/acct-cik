@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import random
-from typing import Callable, Dict, Literal, Optional, Tuple
-from defs.function_definitions import _get_company_reference, _format_single_notional, _cleanup_sentence
+from typing import Callable, Dict, List, Literal, Optional, Tuple
+from defs.function_definitions import _get_company_reference, _format_single_notional, _cleanup_sentence, _get_correct_rounding
 from defs.common_data import *
 from defs.cp_data import get_random_commodity_and_unit, get_units_for_commodity
 from defs.fx_data import all_currencies
@@ -358,11 +358,11 @@ class NotionalSentence:
         # This is the single source of truth for rounding before evidence is created.
         if self.notional_multiplier > 1:
             if self.notional is not None:
-                self.notional = round(self.notional / self.notional_multiplier) * self.notional_multiplier
+                self.notional = _get_correct_rounding(self.notional, self.notional_multiplier)
             if self.prev_notional is not None:
-                self.prev_notional = round(self.prev_notional / self.notional_multiplier) * self.notional_multiplier
+                self.prev_notional = _get_correct_rounding(self.prev_notional, self.notional_multiplier)
             if self.prev2_notional is not None:
-                self.prev2_notional = round(self.prev2_notional / self.notional_multiplier) * self.notional_multiplier
+                self.prev2_notional = _get_correct_rounding(self.prev2_notional, self.notional_multiplier)
 
 
         # Default values for optional components
@@ -773,7 +773,7 @@ class NotionalSentence:
                 aggregate=True,  # This is an aggregate statement
                 notional=0,  # Current year notional is zero
                 year=self.reporting_year,
-                prev_notional=self.notional, # The value from the prior year
+                prev_notional=_get_correct_rounding(self.notional or 0, self.notional_multiplier), # The value from the prior year
                 prev_notional_str=final_notional_str,  # The formatted amount is for the prior year
                 prev_year=self.year - 1,
                 instrument_type=self.swap_type,
@@ -794,9 +794,9 @@ class NotionalSentence:
             status=self.sentence_type,  # type: ignore
             category=self.category,  # type: ignore
             aggregate=self.is_summary,
-            notional=final_notional,  # Use the conditional notional value
-            prev_notional=self.prev_notional if self.sentence_type.startswith("comparative") else None,
-            prev2_notional=self.prev2_notional if self.sentence_type.startswith("comparative") else None,
+            notional=_get_correct_rounding(final_notional or 0, self.notional_multiplier),  # Use the conditional notional value
+            prev_notional=_get_correct_rounding(self.prev_notional or 0, self.notional_multiplier) if self.sentence_type.startswith("comparative") else None,
+            prev2_notional=_get_correct_rounding(self.prev2_notional or 0, self.notional_multiplier) if self.sentence_type.startswith("comparative") else None,
             year=self.year,
             notional_str=final_notional_str,
             prev_notional_str=prev_amount_str or None,
@@ -885,6 +885,7 @@ class TimelineSentence:
     currency_code: str
     prefer_abbreviated: bool
     value_type: Literal["notional", "fair_value"]
+    notional_multiplier: int = 1000
 
     def build(self) -> Tuple[str, NotionalEvidence]:
         """
@@ -919,7 +920,7 @@ class TimelineSentence:
             if len(history_years) > 3:
                 mid_index = len(history_years) // 2
                 years_to_report.append(history_years[mid_index])
-            
+
             # Add the most recent year from its history, which could be the current reporting year.
             if history_years[-1] != history_years[0]:
                 years_to_report.append(history_years[-1])
@@ -1020,10 +1021,14 @@ class TimelineSentence:
             currency=self.currency_code,
             # --- FIX: Use maturity_value for terminated instruments in the evidence ---
             notional=(
-                self.instrument.maturity_value
+                _get_correct_rounding(
+                    self.instrument.maturity_value or 0, self.notional_multiplier
+                )
                 if self.instrument.maturity_year
                 and self.instrument.maturity_year < self.reporting_year
-                else self.instrument.notional_history.get(final_year, 0)
+                else _get_correct_rounding(self.instrument.notional_history.get(
+                    final_year, 0
+                ), self.notional_multiplier)
             ),
             notional_str=timeline_notional_strings[final_year],
             prev_notional_str=timeline_notional_strings.get(inception_year),

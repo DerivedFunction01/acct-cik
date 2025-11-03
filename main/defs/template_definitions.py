@@ -5,8 +5,8 @@ from typing import Dict, List, Literal, Tuple
 from defs.notional_definitions import NotionalEvidence
 from defs.instrument_definitions import NotionalInstrument
 from defs.common_data import DERIVATIVE_COMPONENTS
-from defs.fx_data import ForeignCurrencyHedgedItem
-from defs.function_definitions import _format_single_notional
+from defs.fx_data import ForeignCurrencyHedgedItem, CurrencyExposure
+from defs.function_definitions import _format_single_notional, _get_correct_rounding
 
 # Time prefixes for point-in-time statements (e.g., aggregate summaries, single year)
 point_in_time_prefixes = [
@@ -814,7 +814,7 @@ class Table:
                     instrument_id=inst.instrument_id,
                     status="individual",
                     category=inst.category,
-                    notional=int(val1 / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else val1,
+                    notional=_get_correct_rounding(val1, self.notional_multiplier) if self.notional_multiplier > 1 else val1,
                     year=year1,
                     instrument_type=name_to_use,
                     reporting_year=self.reporting_year,
@@ -906,7 +906,7 @@ class Table:
                         instrument_id=inst.instrument_id,
                         status="individual",
                         category=inst.category,
-                        notional=int(notional_val / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else notional_val,
+                        notional=_get_correct_rounding(notional_val, self.notional_multiplier) if self.notional_multiplier > 1 else notional_val,
                         year=self.reporting_year,
                         instrument_type=name_to_use,
                         reporting_year=self.reporting_year,
@@ -978,7 +978,7 @@ class Table:
                     instrument_id=None,  # Aggregate, no single ID
                     status="summary",
                     category=self.category,
-                    notional=int(total_notional / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else total_notional,
+                    notional=_get_correct_rounding(total_notional, self.notional_multiplier) if self.notional_multiplier > 1 else total_notional,
                     year=self.reporting_year,
                     instrument_type=f"Derivatives with maturity of {group.lower()}",
                     reporting_year=self.reporting_year,
@@ -1068,7 +1068,7 @@ class Table:
                 evidence_list.append(NotionalEvidence(
                     instrument_id=instrument_to_detail.instrument_id,
                     status="individual" if year1 == self.reporting_year else "historical_individual", category="FX",
-                    notional=int(amount_year1 / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else amount_year1,
+                    notional=_get_correct_rounding(amount_year1, self.notional_multiplier) if self.notional_multiplier > 1 else amount_year1,
                     year=year1, notional_str=evidence_amount_str1,
                     instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
                     reporting_year=self.reporting_year, value_type="notional_exposure",
@@ -1083,12 +1083,7 @@ class Table:
                         instrument_id=instrument_to_detail.instrument_id,
                         status="historical_individual",
                         category="FX",  # This will always be historical
-                        notional=(
-                            int(amount_year2 / self.notional_multiplier)
-                            * self.notional_multiplier
-                            if self.notional_multiplier > 1
-                            else amount_year2
-                        ),
+                        notional=_get_correct_rounding(amount_year2, self.notional_multiplier) if self.notional_multiplier > 1 else amount_year2,
                         year=year2,
                         notional_str=evidence_amount_str2,
                         instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
@@ -1149,7 +1144,7 @@ class Table:
                 instrument_id=inst.instrument_id,
                 status="individual",
                 category=inst.category,
-                notional=int(fair_value / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else fair_value,
+                notional=_get_correct_rounding(fair_value, self.notional_multiplier) if self.notional_multiplier > 1 else fair_value,
                 year=year,
                 instrument_type=inst.instrument_type,
                 reporting_year=self.reporting_year,
