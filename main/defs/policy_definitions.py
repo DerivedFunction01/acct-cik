@@ -20,17 +20,19 @@ class ExposureEvidence(BaseNarrativeEvidence):
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the exposure evidence."""
-        category_map = {
-            "IR": "Interest Rate",
-            "FX": "Foreign Exchange",
-            "CP": "Commodity",
-            "EQ": "Equity",
-            "GEN": "Generic Market",
+        exposure_type_map = {
+            "IR": "debt obligations or other interest-rate sensitive items",
+            "FX": "foreign currency transactions or international operations",
+            "CP": "commodity price fluctuations",
+            "EQ": "equity price changes or stock-based activities",
+            "GEN": "general market risks",
         }
-        category_name = category_map.get(self.category, "Unknown")
+        exposure_description = exposure_type_map.get(
+            self.category, "an unknown risk category"
+        )
         # Return a concise statement for the chain of thought.
         # The full sentence is in the 'details' if needed, but this is cleaner.
-        return f"The text confirms the company has exposure to {category_name} risk."
+        return f"The text mentions exposure to {exposure_description} but does not mention specific derivatives used for hedging."
 
 
 @dataclass
