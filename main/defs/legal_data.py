@@ -29,12 +29,15 @@ class LegalContextSentence:
 
         # Add more specific sentences
         for _ in range(num_sentences - 1):
-            # 50% chance to add a specific lawsuit, 50% for an assessment
-            if random.random() < 0.5:
+            # Randomly choose between a specific lawsuit detail, an assessment, or an outcome.
+            choice = random.random()
+            if choice < 0.4:
                 template = random.choice(specific_lawsuit_templates)
-            else:
+            elif choice < 0.8:
                 template = random.choice(litigation_assessment_templates)
-            
+            else:
+                template = random.choice(lawsuit_outcome_templates)
+
             placeholders = self._get_placeholders()
             sentences.append(_cleanup_sentence(template.format_map(placeholders)))
 
@@ -206,6 +209,22 @@ specific_lawsuit_templates = [
     "During {year}, {company} reached a settlement in a lawsuit related to {lawsuit_allegation} for a {materiality} amount of {currency_code}{amount} {money_unit}, which was accrued in prior periods",
     "A complaint was filed against {company} in the {court_name} during {quarter} quarter {year} alleging {lawsuit_allegation}",
     "A provision of {currency_code}{amount} {money_unit} was recorded in the {quarter} quarter of {year} for a potential settlement related to claims of {lawsuit_allegation}, though the final outcome is uncertain.",
+]
+
+lawsuit_outcome_templates = [
+    # Settlements
+    "{company} reached a settlement agreement in the matter of {lawsuit_allegation}, agreeing to pay {currency_code}{amount} {money_unit} without admitting any wrongdoing.",
+    "A settlement was reached in the {court_name} regarding claims of {lawsuit_allegation}, for which {company} has accrued {currency_code}{amount} {money_unit}.",
+    "In {month} {year}, the parties agreed to a settlement to resolve the litigation concerning {lawsuit_allegation}, the financial terms of which are confidential but are not expected to be {materiality}.",
+    "The shareholder derivative action was settled for a {materiality} amount of {currency_code}{amount} {money_unit}, funded by insurance proceeds.",
+    # Dismissals
+    "The {court_name} granted {company}'s motion to dismiss the lawsuit alleging {lawsuit_allegation} in its entirety.",
+    "On {month} {end_day}, {year}, the court dismissed all claims against {company} related to the {lawsuit_allegation} matter.",
+    "{company} successfully obtained a dismissal of the class action lawsuit concerning {lawsuit_allegation}.",
+    # Judgments (Favorable and Adverse)
+    "A judgment was entered in favor of {company} in the {court_name} on all counts related to the {lawsuit_allegation} case.",
+    "An adverse judgment of {currency_code}{amount} {money_unit} was entered against {company} in the lawsuit alleging {lawsuit_allegation}, which {company} intends to appeal.",
+    "Following a trial, the jury returned a verdict in favor of {company}, finding no liability on the claims of {lawsuit_allegation}.",
 ]
 
 # --- Dynamic Court Name Components ---
