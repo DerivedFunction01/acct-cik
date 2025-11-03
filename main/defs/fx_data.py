@@ -126,22 +126,22 @@ class FXContextSentence:
     reporting_year: int
     reporting_month: str
     reporting_day: int
-    hedged_item: Union[Optional[ForeignCurrencyHedgedItem], List[ForeignCurrencyHedgedItem]]
+    hedged_item: Optional[Union[ForeignCurrencyHedgedItem, List[ForeignCurrencyHedgedItem]]]
     prefer_abbreviated: bool
     currency_symbol: str
     currency_code: str
 
     def build(self) -> str:
         """Builds a multi-sentence paragraph about the company's FX exposures."""
-        # --- NEW: Add table generation logic ---
-        # If a list of items is provided and with a 40% chance, build a table.
+        # If a list of items is provided, there's a chance to build a table.
         if isinstance(self.hedged_item, list) and random.random() < 0.4:
             return self._build_fx_exposure_table()
 
         # Fallback to existing sentence generation.
         if isinstance(self.hedged_item, list):
             # If it's a list but we're not building a table, just describe the first item.
-            item_to_describe = self.hedged_item[0] if self.hedged_item else None
+            if not self.hedged_item: return ""
+            item_to_describe = self.hedged_item[0]
         else:
             item_to_describe = self.hedged_item
 

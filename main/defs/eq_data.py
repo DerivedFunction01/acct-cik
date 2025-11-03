@@ -80,7 +80,7 @@ class EQContextSentence:
     reporting_year: int
     reporting_month: str
     reporting_day: int
-    hedged_item: Union[Optional[EquityHedgedItem], List[EquityHedgedItem]]
+    hedged_item: Optional[Union[EquityHedgedItem, List[EquityHedgedItem]]]
     prefer_abbreviated: bool
     currency_symbol: str
 
@@ -90,7 +90,8 @@ class EQContextSentence:
             return self._build_equity_table()
 
         if isinstance(self.hedged_item, list):
-            item_to_describe = self.hedged_item[0] if self.hedged_item else None
+            if not self.hedged_item: return ""
+            item_to_describe = self.hedged_item[0]
         else:
             item_to_describe = self.hedged_item
 
