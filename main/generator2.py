@@ -37,11 +37,14 @@ PROB_TERMINATED_MENTION = 0
 PROB_REPEAT_MENTION = 0
 PROB_ADDITIONAL_HEDGE = 0
 
-# Probabilities for dropping narrative components to increase variety
-PROB_DROP_MITIGATION = 1.0  # 15% chance to skip the MitigationSentence
-PROB_DROP_ACCOUNTING_POLICY = 1.0 # 20% chance to skip the entire accounting policy section
-PROB_DROP_7A_SUMMARY = 1.0 # 10% chance to skip the entire Item 7A-style summary section
-PROB_DROP_GENERAL_POLICY = 1.0 # 15% chance to skip the top-level policy statements
+# Probabilities for dropping narrative components to increase variety.
+# Using a dictionary for better organization.
+DROP_PROBABILITIES = {
+    "mitigation": 0.15,  # Chance to skip the MitigationSentence
+    "accounting_policy": 0.20,  # Chance to skip the entire accounting policy section
+    "summary_7a": 0.10,  # Chance to skip the entire Item 7A-style summary section
+    "general_policy": 0.15,  # Chance to skip the top-level policy statements
+}
 
 # NEW: Global list to track dropped sentences for debugging or analysis
 DROPPED_SENTENCES: List[str] = []
@@ -1742,7 +1745,7 @@ def _generate_category_narrative(
         mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
 
         # --- MODIFIED: Only generate mitigation evidence if sentence is NOT dropped ---
-        if suppress_text_output or (allow_random_drops and random.random() < PROB_DROP_MITIGATION):
+        if suppress_text_output or (allow_random_drops and random.random() < DROP_PROBABILITIES["mitigation"]):
             # If dropping AND no instruments were mentioned, don't generate evidence at all
             if not has_active_instruments or suppress_text_output:
                 pass  # No evidence generated
@@ -2285,7 +2288,7 @@ def _generate_narrative_accounting(
     all_paragraphs: List[str] = []  # Each string in this list will be a full paragraph
 
     # --- NEW: Probabilistically drop the entire accounting policy section ---
-    if random.random() < PROB_DROP_ACCOUNTING_POLICY:
+    if random.random() < DROP_PROBABILITIES["accounting_policy"]:
         # NEW: Log that the section was dropped.
         # Since sentences are generated inside the loop, we can't log them here.
         # We'll just log a general message.
@@ -2383,11 +2386,11 @@ def generate_narrative_from_scenario(
 
     # 1. Generate the top-level general policy statement.
     # --- NEW: Probabilistically drop the entire general policy section ---
-    # This simulates cases where the initial summary text is not extracted.
-    if not (allow_random_drops and random.random() < PROB_DROP_GENERAL_POLICY):
+    if allow_random_drops and random.random() < DROP_PROBABILITIES["general_policy"]:
+        DROPPED_SENTENCES.append("[GENERAL_POLICY_DROP] General policy section was dropped.")
+    else:
         policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
-        DROPPED_SENTENCES.append(f"[GENERAL_POLICY_DROP] General policy section was dropped.")
-        if policy_sentences: # This becomes its own section
+        if policy_sentences:  # This becomes its own section
             item_7a_sections.append(" ".join(s for s in policy_sentences if s))
             all_evidence.extend(policy_evidence)
 
@@ -2409,7 +2412,7 @@ def generate_narrative_from_scenario(
     # --- Part 1: Build the "Item 7A" Summary Section ---
     # --- NEW: Probabilistically drop the entire 7A summary section ---
     # This simulates filings that jump straight to the detailed notes.
-    if allow_random_drops and random.random() < PROB_DROP_7A_SUMMARY:
+    if allow_random_drops and random.random() < DROP_PROBABILITIES["summary_7a"]:
         # Even if we drop the text, we MUST generate the underlying evidence
         DROPPED_SENTENCES.append("[7A_SUMMARY_DROP] Entire Item 7A summary section was dropped.")
         # (especially MitigationEvidence) so the JSON output is correct.
