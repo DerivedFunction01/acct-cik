@@ -1,10 +1,11 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Union, List
 from dataclasses import dataclass
 import random
 import re
 
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 from defs.function_definitions import _get_company_reference, _cleanup_sentence, _format_single_notional
+from defs.table_definitions import GenericTable
 from defs.common_data import (
     risk_exposure_terms,
     gain_loss_phrases,
@@ -79,19 +80,68 @@ class EQContextSentence:
     reporting_year: int
     reporting_month: str
     reporting_day: int
-    hedged_item: Optional[EquityHedgedItem]
+    hedged_item: Union[Optional[EquityHedgedItem], List[EquityHedgedItem]]
     prefer_abbreviated: bool
     currency_symbol: str
 
     def build(self) -> str:
         """Builds a multi-sentence paragraph about the company's equity exposures."""
+        if isinstance(self.hedged_item, list) and random.random() < 0.4:
+            return self._build_equity_table()
+
+        if isinstance(self.hedged_item, list):
+            item_to_describe = self.hedged_item[0] if self.hedged_item else None
+        else:
+            item_to_describe = self.hedged_item
+
+        return self._build_eq_sentence(item_to_describe)
+
+    def _build_equity_table(self) -> str:
+        """Builds a text-based table summarizing equity investments or stock-based compensation."""
+        if not isinstance(self.hedged_item, list) or not self.hedged_item:
+            return ""
+
+        table_type = random.choice(["investments", "stock_comp"])
+
+        if table_type == "investments":
+            title = f"Summary of Equity Investments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+            headers = ["Investment (Symbol)", "Shares", "Fair Value"]
+            widths = [30, 20, 20]
+            alignments = ['l', 'r', 'r']
+        else: # stock_comp
+            title = f"Stock Option Activity For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+            headers = ["", "Shares", "Weighted-Avg. Price"]
+            widths = [35, 20, 20]
+            alignments = ['l', 'r', 'r']
+
+        data_rows = []
+        if table_type == "investments":
+            for item in self.hedged_item:
+                if item.equity_type == "third_party_stock" and item.stock_symbol and item.number_of_shares and item.share_price:
+                    value = item.number_of_shares * item.share_price
+                    value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
+                    data_rows.append([f"Investment in {item.stock_symbol}", f"{item.number_of_shares:,}", value_str])
+        else: # stock_comp
+            # Simulate stock comp activity
+            data_rows.append(["Beginning balance", f"{random.randint(1,5)*1_000_000:,}", f"{self.currency_symbol}{random.uniform(10, 20):.2f}"])
+            data_rows.append(["Granted", f"{random.randint(100_000, 500_000):,}", f"{self.currency_symbol}{random.uniform(20, 30):.2f}"])
+            data_rows.append(["Exercised", f"({random.randint(50_000, 200_000):,})", f"{self.currency_symbol}{random.uniform(12, 18):.2f}"])
+            data_rows.append(["Ending balance", f"{random.randint(1,5)*1_000_000:,}", f"{self.currency_symbol}{random.uniform(22, 28):.2f}"])
+
+        if not data_rows:
+            return ""
+
+        table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
+        return table_builder.build()
+
+    def _build_eq_sentence(self, item_to_describe: Optional[EquityHedgedItem]) -> str:
         num_sentences = random.choices([1, 2, 3], weights=[0.2, 0.6, 0.2], k=1)[0]
         sentences = []
 
         # Determine the primary equity type to talk about
-        if self.hedged_item:
-            equity_type = self.hedged_item.equity_type
-            stock_symbol = self.hedged_item.stock_symbol
+        if item_to_describe:
+            equity_type = item_to_describe.equity_type
+            stock_symbol = item_to_describe.stock_symbol
         else:
             equity_type = random.choice(["market_index", "own_stock", "third_party_stock"])
             stock_symbol = "".join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZ", k=4)) if equity_type != "market_index" else None

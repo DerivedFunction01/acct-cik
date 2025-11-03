@@ -1,10 +1,11 @@
 import random
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from dataclasses import dataclass, field
 
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 from defs.common_data import balance_sheet_locations
 from defs.function_definitions import _get_company_reference, _cleanup_sentence, _format_single_notional
+from defs.table_definitions import GenericTable
 from defs.common_data import (
     risk_exposure_terms,
     gain_loss_phrases,
@@ -125,20 +126,69 @@ class FXContextSentence:
     reporting_year: int
     reporting_month: str
     reporting_day: int
-    hedged_item: Optional[ForeignCurrencyHedgedItem]
+    hedged_item: Union[Optional[ForeignCurrencyHedgedItem], List[ForeignCurrencyHedgedItem]]
     prefer_abbreviated: bool
     currency_symbol: str
     currency_code: str
 
     def build(self) -> str:
         """Builds a multi-sentence paragraph about the company's FX exposures."""
+        # --- NEW: Add table generation logic ---
+        # If a list of items is provided and with a 40% chance, build a table.
+        if isinstance(self.hedged_item, list) and random.random() < 0.4:
+            return self._build_fx_exposure_table()
+
+        # Fallback to existing sentence generation.
+        if isinstance(self.hedged_item, list):
+            # If it's a list but we're not building a table, just describe the first item.
+            item_to_describe = self.hedged_item[0] if self.hedged_item else None
+        else:
+            item_to_describe = self.hedged_item
+
+        return self._build_fx_sentence(item_to_describe)
+
+    def _build_fx_exposure_table(self) -> str:
+        """Builds a text-based table summarizing foreign currency exposures."""
+        if not isinstance(self.hedged_item, list) or not self.hedged_item:
+            return ""
+
+        # Aggregate all exposures from all items
+        all_exposures: Dict[str, CurrencyExposure] = {}
+        for item in self.hedged_item:
+            for exp in item.exposures:
+                if exp.code in all_exposures:
+                    all_exposures[exp.code].amount += exp.amount
+                else:
+                    # Create a copy to avoid modifying the original object
+                    all_exposures[exp.code] = CurrencyExposure(**exp.__dict__)
+
+        title = f"Summary of Foreign Currency Exposure as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+        headers = ["Currency", "Exposure Amount"]
+        widths = [30, 25]
+        alignments = ['l', 'r']
+        data_rows = []
+
+        for code, exposure in all_exposures.items():
+            amount_str = _format_single_notional(
+                exposure.amount, exposure.symbol, self.prefer_abbreviated, True
+            )
+            data_rows.append([exposure.full_name, amount_str])
+
+        if not data_rows:
+            return ""
+
+        table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
+        return table_builder.build()
+
+    def _build_fx_sentence(self, item_to_describe: Optional[ForeignCurrencyHedgedItem]) -> str:
+        """Generates the narrative sentence(s) for FX context."""
         num_sentences = random.choices([1, 2, 3], weights=[0.2, 0.6, 0.2], k=1)[0]
         sentences = []
 
         # Determine the primary currencies and their locations to talk about
         currencies_to_mention_objects = []
-        if self.hedged_item and self.hedged_item.exposures:
-            currencies_to_mention_objects = self.hedged_item.exposures
+        if item_to_describe and item_to_describe.exposures:
+            currencies_to_mention_objects = item_to_describe.exposures
         else:
             # Pick 1-3 random currencies if no specific hedged item is provided
             num_currencies = random.randint(1, 3)

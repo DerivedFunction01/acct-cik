@@ -1,12 +1,13 @@
 import random
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
 # --- NEW: Import common verb lists for reuse --- (This was already here, but I'm confirming its good use)
 from defs.common_data import individual_use_verbs, aggregate_use_verbs, termination_verbs_past
 from defs.function_definitions import _get_company_reference
+from defs.table_definitions import GenericTable
 
 
 @dataclass
@@ -327,12 +328,13 @@ class DebtContextSentence: # Simplified to handle one item at a time
     Builds a multi-sentence paragraph providing context about a single debt instrument.
     This class is defined here to live alongside its debt-specific templates.
     """
-
+    # --- NEW: Allow a list of items for table generation ---
     company_name: str
     reporting_year: int
     reporting_month: str
     reporting_day: int
-    hedged_item: "DebtHedgedItem" # Changed from a list to a single item
+    # Can be a single item for a sentence or a list for a table
+    hedged_item: Union["DebtHedgedItem", List["DebtHedgedItem"]]
     prefer_abbreviated: bool
     currency_symbol: str = "$"
     instrument: Optional["IRInstrument"] = None # Pass instrument to know if it's hedged
@@ -340,6 +342,55 @@ class DebtContextSentence: # Simplified to handle one item at a time
 
     def build(self) -> str:
         """Builds a paragraph about the company's debt exposures."""
+        # --- NEW: Add table generation logic ---
+        # If a list of items is provided and with a 40% chance, build a table.
+        if isinstance(self.hedged_item, list) and random.random() < 0.4:
+            return self._build_debt_table()
+
+        # Fallback to existing sentence generation for a single item.
+        if isinstance(self.hedged_item, list):
+            # If it's a list but we're not building a table, just describe the first item.
+            if not self.hedged_item:
+                return ""
+            item_to_describe = self.hedged_item[0]
+        else:
+            item_to_describe = self.hedged_item
+
+        return self._build_debt_sentence(item_to_describe)
+
+    def _build_debt_table(self) -> str:
+        """Builds a text-based table summarizing the debt portfolio."""
+        from .function_definitions import _format_single_notional
+
+        if not isinstance(self.hedged_item, list) or not self.hedged_item:
+            return ""
+
+        title = f"Summary of Outstanding Debt as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+        headers = ["Debt Instrument", "Principal Amount", "Interest Rate (%)", "Maturity"]
+        widths = [35, 20, 18, 12]
+        alignments = ['l', 'r', 'r', 'c']
+        data_rows = []
+
+        for item in self.hedged_item:
+            principal_str = _format_single_notional(
+                item.principal_amount, self.currency_symbol, self.prefer_abbreviated, True
+            )
+            rate = (item.spread_bps / 100 if item.spread_bps else random.uniform(2.5, 8.5))
+            rate_str = f"{rate:.2f}"
+            maturity_str = str(item.maturity_year)
+
+            data_rows.append([item.debt_type, principal_str, rate_str, maturity_str])
+
+        if not data_rows:
+            return ""
+
+        table_builder = GenericTable(
+            headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title
+        )
+        return table_builder.build()
+
+    def _build_debt_sentence(self, item_to_describe: "DebtHedgedItem") -> str:
+        """Generates the narrative sentence(s) for a single debt item."""
         # Lazy import to prevent circular dependency
         from .function_definitions import _cleanup_sentence, _format_single_notional
         from .template_definitions import point_in_time_prefixes, period_of_time_prefixes
@@ -357,17 +408,17 @@ class DebtContextSentence: # Simplified to handle one item at a time
 
         # --- 1. Generate the main sentence about the specific debt item ---
         debt_amount_str = _format_single_notional(
-            self.hedged_item.principal_amount, self.currency_symbol,  self.prefer_abbreviated
+            item_to_describe.principal_amount, self.currency_symbol,  self.prefer_abbreviated
         )
 
         # Populate clauses using the single hedged_item
         ir_clause = random.choice(debt_interest_rate_clauses).format(
-            ir_term=self.hedged_item.benchmark_rate or random.choice(interest_rate_terms),
-            pct=f"{(self.hedged_item.spread_bps / 100 if self.hedged_item.spread_bps else random.uniform(2.5, 6.5)):.2f}",
-            pct2=f"{(self.hedged_item.spread_bps / 100 + random.uniform(1,2) if self.hedged_item.spread_bps else random.uniform(6.5, 8.5)):.2f}"
+            ir_term=item_to_describe.benchmark_rate or random.choice(interest_rate_terms),
+            pct=f"{(item_to_describe.spread_bps / 100 if item_to_describe.spread_bps else random.uniform(2.5, 6.5)):.2f}",
+            pct2=f"{(item_to_describe.spread_bps / 100 + random.uniform(1,2) if item_to_describe.spread_bps else random.uniform(6.5, 8.5)):.2f}"
         )
         maturity_clause = random.choice(debt_maturity_clauses).format(
-            maturity_year=self.hedged_item.maturity_year,
+            maturity_year=item_to_describe.maturity_year,
             termination_noun=random.choice(termination_noun),
             termination_verb=random.choice(termination_verbs_past)
         )
@@ -388,22 +439,22 @@ class DebtContextSentence: # Simplified to handle one item at a time
         # Format the main sentence
         main_sentence = template.format(
             company=_get_company_reference(self.company_name),
-            debt_type=self.hedged_item.debt_type,
+            debt_type=item_to_describe.debt_type,
             amount_str=debt_amount_str,
             maturity_clause=maturity_clause,
             interest_rate_clause=ir_clause,
-            ir_term=self.hedged_item.benchmark_rate
+            ir_term=item_to_describe.benchmark_rate
             or random.choice(interest_rate_terms),
-            pct=f"{(self.hedged_item.spread_bps / 100 if self.hedged_item.spread_bps else random.uniform(2.5, 6.5)):.2f}",
-            pct2=f"{(self.hedged_item.spread_bps / 100 + random.uniform(1,2) if self.hedged_item.spread_bps else random.uniform(6.5, 8.5)):.2f}",
-            small_int=self.hedged_item.maturity_year - self.reporting_year,
+            pct=f"{(item_to_describe.spread_bps / 100 if item_to_describe.spread_bps else random.uniform(2.5, 6.5)):.2f}",
+            pct2=f"{(item_to_describe.spread_bps / 100 + random.uniform(1,2) if item_to_describe.spread_bps else random.uniform(6.5, 8.5)):.2f}",
+            small_int=item_to_describe.maturity_year - self.reporting_year,
             year=self.reporting_year,
             time_prefix=time_prefix,
             time_suffix=time_suffix,
             state_descriptor=random.choice(state_descriptors),
-            frequency=self.hedged_item.payment_frequency or random.choice(frequencies),
+            frequency=item_to_describe.payment_frequency or random.choice(frequencies),
             amount_str2=_format_single_notional(
-                self.hedged_item.principal_amount * random.uniform(0.1, 0.5),
+                item_to_describe.principal_amount * random.uniform(0.1, 0.5),
                 self.currency_symbol,
                 
                 self.prefer_abbreviated,
@@ -424,17 +475,17 @@ class DebtContextSentence: # Simplified to handle one item at a time
             # --- NEW: Use dynamic time prefixes for events ---
             event_time_prefix_template = random.choice(period_of_time_prefixes)
             event_time_prefix = event_time_prefix_template.format(
-                month=self.hedged_item.issuance_month or random.choice(months), year=self.reporting_year, quarter=random.choice(quarters)
+                month=item_to_describe.issuance_month or random.choice(months), year=self.reporting_year, quarter=random.choice(quarters)
             )
 
             capex_purpose = random.choice(CAPEX_PURPOSES["generic"])
             event_sentence = template.format(
                 company=self.company_name,
                 action_verb=random.choice(debt_action_verbs.get(event_type, [""])),
-                debt_type=self.hedged_item.debt_type,
-                debt_types=self.hedged_item.debt_type, # debt_types is often plural, but using singular is fine here
+                debt_type=item_to_describe.debt_type,
+                debt_types=item_to_describe.debt_type, # debt_types is often plural, but using singular is fine here
                 amount_str=debt_amount_str,
-                amount_str2=_format_single_notional(self.hedged_item.principal_amount * random.uniform(0.8, 1.2), self.currency_symbol,  self.prefer_abbreviated),
+                amount_str2=_format_single_notional(item_to_describe.principal_amount * random.uniform(0.8, 1.2), self.currency_symbol,  self.prefer_abbreviated),
                 interest_rate_clause=ir_clause,
                 maturity_clause=maturity_clause,
                 purpose_clause=f"general corporate purposes, including {capex_purpose}",
@@ -442,7 +493,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 time_prefix=event_time_prefix,
                 time_suffix=time_suffix,
                 year=self.reporting_year,
-                month=self.hedged_item.issuance_month or random.choice(months),
+                month=item_to_describe.issuance_month or random.choice(months),
                 termination_noun=random.choice(termination_noun),
                 state_descriptor=random.choice(state_descriptors),
                 **{key: "" for key in ["pct", "pct2", "small_int", "frequency", "swap_type", "end_day"]} # Add other placeholders as needed
@@ -454,10 +505,10 @@ class DebtContextSentence: # Simplified to handle one item at a time
             # Define a dictionary of all possible placeholders to format any template
             all_placeholders = {
                 "company": _get_company_reference(self.company_name),
-                "debt_type": self.hedged_item.debt_type,
+                "debt_type": item_to_describe.debt_type,
                 "amount_str": debt_amount_str,
                 "amount_str2": _format_single_notional(
-                    self.hedged_item.principal_amount * random.uniform(0.8, 1.2),
+                    item_to_describe.principal_amount * random.uniform(0.8, 1.2),
                     self.currency_symbol,  self.prefer_abbreviated
                 ),
                 "month": self.reporting_month,
@@ -469,9 +520,9 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 "pct": f"{random.uniform(2.5, 6.5):.2f}",
                 "pct2": f"{random.uniform(6.5, 8.5):.2f}",
                 "swap_type": self.instrument.instrument_alias if self.instrument else "",
-                "ir_term": self.hedged_item.benchmark_rate or random.choice(interest_rate_terms),
+                "ir_term": item_to_describe.benchmark_rate or random.choice(interest_rate_terms),
                 "maturity_clause": maturity_clause,
-                "frequency": self.hedged_item.payment_frequency or random.choice(frequencies),
+                "frequency": item_to_describe.payment_frequency or random.choice(frequencies),
                 "termination_noun": random.choice(termination_noun),
             }
 

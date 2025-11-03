@@ -1,5 +1,5 @@
 import random
-from typing import Optional
+from typing import Optional, Union, List
 from dataclasses import dataclass
 from defs.common_data import (
     transaction_types,
@@ -16,6 +16,7 @@ from defs.common_data import (
 )
 from defs.function_definitions import _get_company_reference, _cleanup_sentence, _format_single_notional
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
+from defs.table_definitions import GenericTable
 from defs.scenario_definitions import company_names
 
 
@@ -310,20 +311,66 @@ class CPContextSentence:
     reporting_year: int
     reporting_month: str
     reporting_day: int
-    hedged_item: Optional[CommodityHedgedItem]
+    hedged_item: Union[Optional[CommodityHedgedItem], List[CommodityHedgedItem]]
     prefer_abbreviated: bool
     currency_symbol: str
 
     def build(self) -> str:
         """Builds a single contextual sentence for CP."""
+        if isinstance(self.hedged_item, list) and random.random() < 0.4:
+            return self._build_commodity_table()
+
+        if isinstance(self.hedged_item, list):
+            item_to_describe = self.hedged_item[0] if self.hedged_item else None
+        else:
+            item_to_describe = self.hedged_item
+
+        return self._build_cp_sentence(item_to_describe)
+
+    def _build_commodity_table(self) -> str:
+        """Builds a text-based table summarizing commodity commitments or inventory."""
+        if not isinstance(self.hedged_item, list) or not self.hedged_item:
+            return ""
+
+        table_type = random.choice(["commitments", "inventory"])
+
+        if table_type == "commitments":
+            title = f"Summary of Commodity Purchase Commitments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+            headers = ["Commodity", "Quantity", "Unit", "Avg. Price"]
+            widths = [25, 20, 15, 15]
+            alignments = ['l', 'r', 'l', 'r']
+        else: # inventory
+            title = f"Summary of Commodity Inventory as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+            headers = ["Commodity", "Quantity", "Unit", "Carrying Value"]
+            widths = [25, 20, 15, 20]
+            alignments = ['l', 'r', 'l', 'r']
+
+        data_rows = []
+        for item in self.hedged_item:
+            quantity_str = f"{item.quantity:,}"
+            if table_type == "commitments":
+                price_str = f"{self.currency_symbol}{item.price_per_unit:.2f}"
+                data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, price_str])
+            else: # inventory
+                value = item.quantity * item.price_per_unit
+                value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
+                data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, value_str])
+
+        if not data_rows:
+            return ""
+
+        table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
+        return table_builder.build()
+
+    def _build_cp_sentence(self, item_to_describe: Optional[CommodityHedgedItem]) -> str:
         num_sentences = random.choices([1, 2, 3], weights=[0.2, 0.6, 0.2], k=1)[0]
         sentences = []
 
         # Determine the primary commodity to talk about
-        if self.hedged_item:
-            commodity_name = self.hedged_item.commodity_type
-            unit = self.hedged_item.unit_of_volume
-            cost_type = self.hedged_item.cost_type
+        if item_to_describe:
+            commodity_name = item_to_describe.commodity_type
+            unit = item_to_describe.unit_of_volume
+            cost_type = item_to_describe.cost_type
         else:
             commodity_name, unit, cost_type = get_random_commodity_and_unit()
 

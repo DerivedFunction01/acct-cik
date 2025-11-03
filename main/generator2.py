@@ -1263,9 +1263,9 @@ def _generate_debt_narrative(
     # Get all debt items from the scenario.
     all_debt_items = [
         inst.hedged_item
-        for inst in scenario.instruments
-        if isinstance(inst.hedged_item, DebtHedgedItem)
+        for inst in scenario.instruments if isinstance(inst.hedged_item, DebtHedgedItem)
     ]
+    all_debt_items = list({item.hedged_item_id: item for item in all_debt_items}.values())
 
     if not all_debt_items:
         return [], []
@@ -1273,14 +1273,30 @@ def _generate_debt_narrative(
     # Add a title for this section.
     paragraphs.append("Debt")
 
-    # For each debt item, generate a detailed contextual paragraph.
-    for debt_item in all_debt_items:
+    # --- NEW: Decide whether to generate a table or individual paragraphs ---
+    if random.random() < 0.6 or len(all_debt_items) <= 2: # More likely to generate paragraphs for fewer items
+        # For each debt item, generate a detailed contextual paragraph.
+        for debt_item in all_debt_items:
+            debt_context_builder = DebtContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=debt_item,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            debt_paragraph = debt_context_builder.build()
+            if debt_paragraph:
+                paragraphs.append(debt_paragraph)
+    else:
+        # Generate a single table for all debt items
         debt_context_builder = DebtContextSentence(
             company_name=scenario.company_name,
             reporting_year=scenario.reporting_year,
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
-            hedged_item=debt_item,
+            hedged_item=all_debt_items, # Pass the whole list
             prefer_abbreviated=scenario.number_format_preference,
             currency_symbol=currency_symbol,
         )
@@ -1314,13 +1330,29 @@ def _generate_fx_narrative(
 
     paragraphs.append("Foreign Currency Risk")
 
-    for fx_item in all_fx_items:
+    # --- NEW: Decide whether to generate a table or individual paragraphs ---
+    if random.random() < 0.6 or len(all_fx_items) <= 2:
+        for fx_item in all_fx_items:
+            fx_context_builder = FXContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=fx_item,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+                currency_code=currency_code,
+            )
+            fx_paragraph = fx_context_builder.build()
+            if fx_paragraph:
+                paragraphs.append(fx_paragraph)
+    else:
         fx_context_builder = FXContextSentence(
             company_name=scenario.company_name,
             reporting_year=scenario.reporting_year,
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
-            hedged_item=fx_item,
+            hedged_item=all_fx_items,
             prefer_abbreviated=scenario.number_format_preference,
             currency_symbol=currency_symbol,
             currency_code=currency_code,
@@ -1355,13 +1387,28 @@ def _generate_cp_narrative(
 
     paragraphs.append("Commodity Price Risk")
 
-    for cp_item in all_cp_items:
+    # --- NEW: Decide whether to generate a table or individual paragraphs ---
+    if random.random() < 0.6 or len(all_cp_items) <= 2:
+        for cp_item in all_cp_items:
+            cp_context_builder = CPContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=cp_item,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            cp_paragraph = cp_context_builder.build()
+            if cp_paragraph:
+                paragraphs.append(cp_paragraph)
+    else:
         cp_context_builder = CPContextSentence(
             company_name=scenario.company_name,
             reporting_year=scenario.reporting_year,
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
-            hedged_item=cp_item,
+            hedged_item=all_cp_items,
             prefer_abbreviated=scenario.number_format_preference,
             currency_symbol=currency_symbol,
         )
@@ -1395,13 +1442,28 @@ def _generate_eq_narrative(
 
     paragraphs.append("Equity Risk")
 
-    for eq_item in all_eq_items:
+    # --- NEW: Decide whether to generate a table or individual paragraphs ---
+    if random.random() < 0.6 or len(all_eq_items) <= 2:
+        for eq_item in all_eq_items:
+            eq_context_builder = EQContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=eq_item,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            eq_paragraph = eq_context_builder.build()
+            if eq_paragraph:
+                paragraphs.append(eq_paragraph)
+    else:
         eq_context_builder = EQContextSentence(
             company_name=scenario.company_name,
             reporting_year=scenario.reporting_year,
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
-            hedged_item=eq_item,
+            hedged_item=all_eq_items,
             prefer_abbreviated=scenario.number_format_preference,
             currency_symbol=currency_symbol,
         )
@@ -1492,59 +1554,53 @@ def _generate_category_narrative(
             # For each debt item, generate a contextual paragraph.
             # Let's limit it to 1-2 paragraphs to avoid making the text too long.
             items_to_describe = random.sample(all_debt_hedged_items, k=min(len(all_debt_hedged_items), 2))
-
-            for debt_item in items_to_describe:
-                debt_context_builder = DebtContextSentence(
-                    company_name=scenario.company_name,
-                    reporting_year=scenario.reporting_year,
-                    reporting_month=scenario.reporting_month,
-                    reporting_day=scenario.reporting_day,
-                    hedged_item=debt_item,
-                    prefer_abbreviated=scenario.number_format_preference,
-                    currency_symbol=currency_symbol,
-                )
-                debt_paragraph = debt_context_builder.build()
-                if debt_paragraph:
-                    sentences.append(debt_paragraph)
+            debt_context_builder = DebtContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=items_to_describe,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            debt_paragraph = debt_context_builder.build()
+            if debt_paragraph:
+                sentences.append(debt_paragraph)
 
         # --- NEW: Add FX context for FX category (similar to IR/Debt) ---
         if category == "FX":
             all_fx_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)]
             items_to_describe = random.sample(all_fx_hedged_items, k=min(len(all_fx_hedged_items), 1)) # Describe 1 item
-
-            for fx_item in items_to_describe:
-                fx_context_builder = FXContextSentence(
-                    company_name=scenario.company_name,
-                    reporting_year=scenario.reporting_year,
-                    reporting_month=scenario.reporting_month,
-                    reporting_day=scenario.reporting_day,
-                    hedged_item=fx_item,
-                    prefer_abbreviated=scenario.number_format_preference,
-                    currency_symbol=currency_symbol,
-                    currency_code=currency_code,
-                )
-                fx_paragraph = fx_context_builder.build()
-                if fx_paragraph:
-                    sentences.append(fx_paragraph)
+            fx_context_builder = FXContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+            hedged_item=items_to_describe,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+                currency_code=currency_code,
+            )
+            fx_paragraph = fx_context_builder.build()
+            if fx_paragraph:
+                sentences.append(fx_paragraph)
 
         # --- NEW: Add CP context for CP category ---
         if category == "CP":
             all_cp_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, CommodityHedgedItem)]
             items_to_describe = random.sample(all_cp_hedged_items, k=min(len(all_cp_hedged_items), 1))
-
-            for cp_item in items_to_describe:
-                cp_context_builder = CPContextSentence(
-                    company_name=scenario.company_name,
-                    reporting_year=scenario.reporting_year,
-                    reporting_month=scenario.reporting_month,
-                    reporting_day=scenario.reporting_day,
-                    hedged_item=cp_item,
-                    prefer_abbreviated=scenario.number_format_preference,
-                    currency_symbol=currency_symbol,
-                )
-                cp_paragraph = cp_context_builder.build()
-                if cp_paragraph:
-                    sentences.append(cp_paragraph)
+            cp_context_builder = CPContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+            hedged_item=items_to_describe,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            cp_paragraph = cp_context_builder.build()
+            if cp_paragraph:
+                sentences.append(cp_paragraph)
 
         # --- NEW: Add EQ context for EQ category ---
         if category == "EQ":
@@ -1553,27 +1609,26 @@ def _generate_category_narrative(
             items_to_describe = random.sample(all_eq_hedged_items, k=min(len(all_eq_hedged_items), 1))
 
             # --- FIX: If no specific hedged items, generate a generic context sentence ---
-            for eq_item in items_to_describe:
-                eq_context_builder = EQContextSentence(
-                    company_name=scenario.company_name,
-                    reporting_year=scenario.reporting_year,
-                    # --- FIX: Pass correct date components ---
-                    reporting_month=scenario.reporting_month,
-                    reporting_day=scenario.reporting_day,
-                    hedged_item=eq_item,
-                    prefer_abbreviated=scenario.number_format_preference,
-                    currency_symbol=currency_symbol,
-                )
-                eq_paragraph = eq_context_builder.build()
-                if eq_paragraph:
-                    sentences.append(eq_paragraph)
+            eq_context_builder = EQContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                # --- FIX: Pass correct date components ---
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+            hedged_item=items_to_describe if items_to_describe else None,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            eq_paragraph = eq_context_builder.build()
+            if eq_paragraph:
+                sentences.append(eq_paragraph)
 
             # --- FIX: Handle case where there are no EQ instruments but exposure exists ---
             if not all_eq_hedged_items:
                 eq_context_builder = EQContextSentence(
                     company_name=scenario.company_name, reporting_year=scenario.reporting_year,
                     reporting_month=scenario.reporting_month, reporting_day=scenario.reporting_day,
-                    hedged_item=None, prefer_abbreviated=scenario.number_format_preference, currency_symbol=currency_symbol,
+                hedged_item=None, prefer_abbreviated=scenario.number_format_preference, currency_symbol=currency_symbol,
                 )
                 sentences.append(eq_context_builder.build())
 
