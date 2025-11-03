@@ -208,7 +208,7 @@ litigation_assessment_templates = [
     "{company} intend to vigorously defend against these claims. At this time, {company} cannot predict the outcome, or provide a reasonable estimate or range of estimates of the possible outcome or loss, if any, in this matter",
     "Based on currently available information, management does not expect these matters to result in a {materiality} loss",
     "{company} has {assess_verb} the likelihood of loss as remote and has not recorded any provisions related to these contingencies",
-    "The potential {change_noun} in the estimated liability for these legal matters is considered {materiality} by management.",
+    "The potential {change_noun} in the estimated liability for these legal matters is considered {materiality} by management",
 ]
 
 specific_lawsuit_templates = [
@@ -216,29 +216,29 @@ specific_lawsuit_templates = [
     "{company} is defending a class action lawsuit filed in {year} claiming {lawsuit_allegation}, with damages sought of approximately {amount}",
     "During {year}, {company} reached a settlement in a lawsuit related to {lawsuit_allegation} for a {materiality} amount of {amount}, which was accrued in prior periods",
     "A complaint was filed against {company} in the {court_name} during {quarter} quarter {year} alleging {lawsuit_allegation}",
-    "A provision of {amount} was recorded in the {quarter} quarter of {year} for a potential settlement related to claims of {lawsuit_allegation}, though the final outcome is uncertain.",
+    "A provision of {amount} was recorded in the {quarter} quarter of {year} for a potential settlement related to claims of {lawsuit_allegation}, though the final outcome is uncertain",
 ]
 
 lawsuit_outcome_templates = [
     # Settlements
-    "{company} reached a settlement agreement in the matter of {lawsuit_allegation}, agreeing to pay {amount} without admitting any wrongdoing.",
-    "A settlement was reached in the {court_name} regarding claims of {lawsuit_allegation}, for which {company} has accrued {amount}.",
-    "In {month} {year}, the parties agreed to a settlement to resolve the litigation concerning {lawsuit_allegation}, the financial terms of which are confidential but are not expected to be {materiality}.",
-    "The shareholder derivative action was settled for a {materiality} amount of {amount}, funded by insurance proceeds.",
+    "{company} reached a settlement agreement in the matter of {lawsuit_allegation}, agreeing to pay {amount} without admitting any wrongdoing",
+    "A settlement was reached in the {court_name} regarding claims of {lawsuit_allegation}, for which {company} has accrued {amount}",
+    "In {month} {year}, the parties agreed to a settlement to resolve the litigation concerning {lawsuit_allegation}, the financial terms of which are confidential but are not expected to be {materiality}",
+    "The shareholder derivative action was settled for a {materiality} amount of {amount}, funded by insurance proceeds",
     # Dismissals
-    "The {court_name} granted {company}'s motion to dismiss the lawsuit alleging {lawsuit_allegation} in its entirety.",
-    "On {month} {end_day}, {year}, the court dismissed all claims against {company} related to the {lawsuit_allegation} matter.",
-    "{company} successfully obtained a dismissal of the class action lawsuit concerning {lawsuit_allegation}.",
+    "The {court_name} granted {company}'s motion to dismiss the lawsuit alleging {lawsuit_allegation} in its entirety",
+    "On {month} {end_day}, {year}, the court dismissed all claims against {company} related to the {lawsuit_allegation} matter",
+    "{company} successfully obtained a dismissal of the class action lawsuit concerning {lawsuit_allegation}",
     # Judgments (Favorable and Adverse)
-    "A judgment was entered in favor of {company} in the {court_name} on all counts related to the {lawsuit_allegation} case.",
-    "An adverse judgment of {amount} was entered against {company} in the lawsuit alleging {lawsuit_allegation}, which {company} intends to appeal.",
-    "Following a trial, the jury returned a verdict in favor of {company}, finding no liability on the claims of {lawsuit_allegation}.",
+    "A judgment was entered in favor of {company} in the {court_name} on all counts related to the {lawsuit_allegation} case",
+    "An adverse judgment of {amount} was entered against {company} in the lawsuit alleging {lawsuit_allegation}, which {company} intends to appeal",
+    "Following a trial, the jury returned a verdict in favor of {company}, finding no liability on the claims of {lawsuit_allegation}",
 ]
 
 # --- Dynamic Court Name Components ---
 
 federal_districts = ["Northern District", "Southern District", "Eastern District", "Western District", "Central District", "District"]
-federal_circuits = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth", "Eleventh", "D.C.", "Federal"]
+federal_circuits = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth", "Eleventh", "D.C", "Federal"]
 state_court_types = ["Superior Court", "Circuit Court", "District Court", "Court of Common Pleas"]
 
 # A sample of states and major counties to create realistic local court names
