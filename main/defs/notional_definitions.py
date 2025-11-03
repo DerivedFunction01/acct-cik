@@ -107,7 +107,6 @@ class NotionalEvidence(BaseNarrativeEvidence):
         ):
             reason = (
                 f"Wait, the term '{instrument_name_in_sentence}' appears to be an alias for the previously mentioned '{base_desc}'. "
-                f"Given the similar context, I'll treat this as another reference to the same instrument."
             )
         else:
             reason = f"Wait, another mention of the same '{base_desc}' has appeared."
@@ -167,7 +166,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str
                 else ""
             )
-            return f"A new individual {base_desc} was identified{value_part}{classification_note}{temporal_info}"
+            return f"A new {base_desc} was identified{value_part}{classification_note}{temporal_info}"
 
         def individual_handler() -> str:
             value_part = (
@@ -175,7 +174,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str
                 else ""
             )
-            return f"An individual {base_desc} was identified{value_part}{classification_note}{temporal_info}"
+            return f"A {base_desc} was identified{value_part}{classification_note}{temporal_info}"
 
         def terminated_individual_handler() -> str:
             value_part = (
