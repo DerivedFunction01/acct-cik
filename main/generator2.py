@@ -1,6 +1,6 @@
 # %%
 from dataclasses import asdict
-import random
+import random, copy
 import sys
 import string
 import pandas as pd
@@ -15,6 +15,7 @@ from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument, g
 from defs.instrument_definitions import DERIVATIVE_CATEGORIES, BaseNarrativeEvidence, NotionalInstrument, HedgedItem, GenericInstrument
 from defs.policy_definitions import (
     AccountingPolicySentence,
+    AccountingStandardUpdateSentence,
     CounterpartyRiskSentence,
     ExposureEvidence,
     GeneralHedgingPolicy,
@@ -25,7 +26,7 @@ from defs.policy_definitions import (
     RiskManagementPolicy,
     CategorySpecificPolicy,
 )
-from defs.scenario_definitions import company_names
+from defs.scenario_definitions import AccountingStandardUpdate, company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
@@ -646,6 +647,50 @@ class ScenarioBuilder:
             self.scenario.instruments.append(new_instrument)
             self.instrument_id_counter += 1
 
+    def _generate_accounting_updates(self):
+        """With a chance, generates an AccountingStandardUpdate object for the scenario."""
+        if not self.archetype.can_have_accounting_update or random.random() > 0.4:
+            return
+
+        # Decide if it's a hedge-related update or a general (noise) one.
+        is_hedge_update = random.random() < 0.5
+
+        if is_hedge_update:
+            # Use hedge-specific data
+            from defs.template_definitions import hedge_standards, hedging_descriptions
+            standard_name = random.choice(hedge_standards)
+            topic = "hedging activities"
+            impact = random.choice(hedging_descriptions)
+        else:
+            # Use general accounting data (the "counter-example")
+            from defs.template_definitions import other_standards, other_topics, general_descriptions
+            standard_name = random.choice(other_standards)
+            topic = random.choice(other_topics)
+            impact = random.choice(general_descriptions)
+
+        # Determine adoption status and year
+        is_adopted = random.random() < 0.6
+        effective_year = self.reporting_year + random.randint(0, 2)
+        adoption_year = random.randint(self.reporting_year - 1, self.reporting_year) if is_adopted else 0
+
+        from defs.template_definitions import shared_issuers, shared_adoption_methods
+
+        update = AccountingStandardUpdate(
+            standard_name=standard_name,
+            issuer=random.choice(shared_issuers),
+            topic=topic,
+            is_hedge_related=is_hedge_update,
+            is_adopted=is_adopted,
+            adoption_year=adoption_year,
+            effective_year=effective_year,
+            impact_description=impact,
+            adoption_method=random.choice(shared_adoption_methods)
+        )
+
+        # Add the update to the scenario. It will be processed later during narrative generation.
+        if not self.scenario.accounting_updates:
+            self.scenario.accounting_updates = []
+        self.scenario.accounting_updates.append(update)
 
     def build(self) -> GenerationScenario:
         exposure_counts = self.archetype.get_exposure_counts()
@@ -743,6 +788,9 @@ class ScenarioBuilder:
             )
             self.scenario.instruments.append(new_instrument)
             self.instrument_id_counter += 1
+
+        # --- NEW: Generate accounting standard updates ---
+        self._generate_accounting_updates()
 
         return self.scenario
 
@@ -2584,6 +2632,22 @@ def generate_narrative_from_scenario(
         accounting_section_paragraph = "\n\n".join(s for s in accounting_sentences if s)
         derivative_details_sections.append(accounting_section_paragraph)
         all_evidence.extend(accounting_evidence)
+
+    # --- NEW: Part 4: Generate Accounting Standard Update Section ---
+    # This will generate paragraphs about both derivative and non-derivative standards.
+    if scenario.accounting_updates:
+        # Add a title for this section.
+        derivative_details_sections.append("Recently Issued Accounting Pronouncements")
+        for update in scenario.accounting_updates:
+            update_builder = AccountingStandardUpdateSentence(
+                company_name=scenario.company_name,
+                update=update,
+                year=scenario.reporting_year,
+                month=scenario.reporting_month,
+                day=scenario.reporting_day,
+            )
+            update_paragraph = update_builder.build()
+            derivative_details_sections.append(update_paragraph)
 
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.

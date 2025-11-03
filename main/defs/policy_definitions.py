@@ -1,11 +1,49 @@
 from dataclasses import dataclass, field
 import random
-from typing import List, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 
 from defs.function_definitions import _get_company_reference
 
 from defs.common_data import *
-from defs.template_definitions import *
+from defs.template_definitions import (
+    POLICY_CONTEXT_TEMPLATES,
+    MITIGATION_TEMPLATES,
+    general_hedge_documentation_templates,
+    specific_hedge_documentation_templates,
+    general_hedge_effectiveness_templates,
+    specific_hedge_effectiveness_templates,
+    hedge_accounting_policy_templates,
+    hedge_ineffectiveness_policy_templates,
+    hedge_discontinuation_templates,
+    hedge_accounting_subjects,
+    hedged_item_subjects,
+    deferred_gain_loss_subjects,
+    hedge_types,
+    hedge_methods,
+    hedge_standards,
+    hedge_counterparty_templates,
+    hedge_no_trading_templates,
+    hedge_change_policy_templates,
+    hedge_additional_definition_templates,
+    general_policy_templates,
+    shared_effective_date_templates,
+    shared_adoption_status_templates,
+    shared_adoption_impact_templates,
+    shared_transition_templates,
+    shared_disclosure_change_templates,
+    shared_practical_expedient_templates,
+    shared_evaluation_templates,
+    shared_adoption_methods,
+    shared_transition_features,
+    shared_purposes,
+    general_descriptions,
+    general_additional_features,
+    hedging_descriptions,
+    hedging_additional_features,
+    other_topics,
+    other_standards,
+    hedge_definition_templates,
+)
 from defs.cp_data import get_cost_types_for_commodity
 from defs.fx_data import all_currencies
 from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
@@ -170,7 +208,7 @@ class AccountingPolicySentence:
             "effectiveness": (
                 general_hedge_effectiveness_templates,
                 specific_hedge_effectiveness_templates,
-                "effectiveness_testing",
+                "effectiveness_testing", # type: ignore
                 "effectiveness_testing_method",
             ),
             "accounting": (
@@ -263,6 +301,7 @@ class AccountingStandardUpdate:
     adoption_year: int
     impact_description: str
     adoption_method: Optional[str] = None
+    is_hedge_related: bool = False
     effective_year: Optional[int] = None
     is_adopted: bool = False
 
@@ -531,3 +570,133 @@ class CounterpartyRiskSentence:
         )
 
         return _cleanup_sentence(sentence)
+
+
+@dataclass
+class AccountingStandardUpdateSentence:
+    """Generates a paragraph about the adoption or evaluation of a new accounting standard."""
+
+    company_name: str
+    update: "AccountingStandardUpdate"
+    year: int
+    month: str
+    day: int
+
+    def build(self) -> str:
+        """Builds a multi-sentence paragraph about the accounting standard update."""
+        sentences = []
+
+        # --- 1. ISSUANCE STATEMENT ---
+        # Decide if it's a general standard or a hedging-specific one
+        is_hedge_specific = self.update.is_hedge_related
+
+        if is_hedge_specific:
+            template = random.choice(hedge_change_policy_templates)
+            description = random.choice(hedging_descriptions)
+            feature = random.choice(hedging_additional_features)
+            sentence = template.format(
+                month=random.choice(months),
+                year=self.update.effective_year - random.randint(1, 3) if self.update.effective_year else self.year - 2,
+                issuer=self.update.issuer,
+                standard=self.update.standard_name,
+                topic=self.update.topic,
+                hedge_description=description,
+                hedge_feature=feature,
+                eff_day=random.randint(15, 31),
+            )
+        else: # General standard
+            template = random.choice(general_policy_templates)
+            description = random.choice(general_descriptions)
+            feature = random.choice(general_additional_features)
+            sentence = template.format(
+                month=random.choice(months),
+                year=self.update.effective_year - random.randint(1, 3) if self.update.effective_year else self.year - 2,
+                issuer=self.update.issuer,
+                standard=self.update.standard_name,
+                topic=self.update.topic,
+                standard_purpose=random.choice(shared_purposes),
+                policy_description=description,
+                policy_feature=feature,
+            )
+        sentences.append(_cleanup_sentence(sentence))
+
+        # --- 2. EFFECTIVE DATE (Optional) ---
+        if self.update.effective_year and random.random() < 0.7:
+            template = random.choice(shared_effective_date_templates)
+            sentence = template.format(
+                month=random.choice(months),
+                day=random.randint(1, 28),
+                end_day=random.randint(28, 31),
+                year=self.update.effective_year,
+                company=_get_company_reference(self.company_name),
+            )
+            sentences.append(_cleanup_sentence(sentence))
+
+        # --- 3. ADOPTION STATUS & IMPACT ---
+        if self.update.is_adopted:
+            template = random.choice(shared_adoption_status_templates)
+            # Ensure we don't pick a "will adopt" or "evaluating" template
+            while "will adopt" in template or "evaluating" in template:
+                template = random.choice(shared_adoption_status_templates)
+
+            sentence = template.format(
+                company=_get_company_reference(self.company_name),
+                standard=self.update.standard_name,
+                month=random.choice(months),
+                day=random.randint(1, 28),
+                year=self.update.adoption_year,
+                adoption_method=self.update.adoption_method or random.choice(shared_adoption_methods),
+            )
+            sentences.append(_cleanup_sentence(sentence))
+
+            # Add impact sentence
+            if self.update.impact_description:
+                impact_template = random.choice(shared_adoption_impact_templates)
+                impact_sentence = impact_template.format(
+                    company=_get_company_reference(self.company_name),
+                    adoption_impact=self.update.impact_description,
+                )
+                sentences.append(_cleanup_sentence(impact_sentence))
+        else: # Not yet adopted
+            # Choose between "will adopt" and "evaluating"
+            if random.random() < 0.6: # "will adopt"
+                template = random.choice([s for s in shared_adoption_status_templates if "will adopt" in s])
+                sentence = template.format(
+                    company=_get_company_reference(self.company_name),
+                    year=self.update.effective_year or self.year + 1,
+                )
+                sentences.append(_cleanup_sentence(sentence))
+            else: # "evaluating"
+                template = random.choice(shared_evaluation_templates)
+                sentence = template.format(company=_get_company_reference(self.company_name))
+                sentences.append(_cleanup_sentence(sentence))
+
+        # --- 4. OTHER DETAILS (Optional) ---
+        if random.random() < 0.25:
+            template = random.choice(shared_transition_templates)
+            sentence = template.format(
+                company=_get_company_reference(self.company_name),
+                adoption_method=self.update.adoption_method or random.choice(shared_adoption_methods),
+                transition_feature=random.choice(shared_transition_features),
+            )
+            sentences.append(_cleanup_sentence(sentence))
+
+        if random.random() < 0.25:
+            template = random.choice(shared_disclosure_change_templates)
+            sentence = template.format(
+                disclosure_topic=random.choice(other_topics),
+                disclosure_topic2=random.choice(other_topics),
+                company=_get_company_reference(self.company_name),
+                year=self.update.effective_year or self.year + 1,
+            )
+            sentences.append(_cleanup_sentence(sentence))
+
+        if random.random() < 0.2:
+            template = random.choice(shared_practical_expedient_templates)
+            sentence = template.format(
+                company=_get_company_reference(self.company_name),
+                expedient_description=random.choice(shared_transition_features),
+            )
+            sentences.append(_cleanup_sentence(sentence))
+
+        return " ".join(sentences)

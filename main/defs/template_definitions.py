@@ -700,6 +700,240 @@ hedge_standards = ["ASC 815", "applicable accounting guidance", "U.S. GAAP", "ac
 hedge_documentation_templates = general_hedge_documentation_templates + specific_hedge_documentation_templates
 hedge_effectiveness_policy_templates = general_hedge_effectiveness_templates + specific_hedge_effectiveness_templates
 
+
+# ==============================================================================
+# ACCOUNTING STANDARDS TEMPLATES (Ported from old/template/hedges.py and other.py)
+# ==============================================================================
+
+shared_issuers = [
+    "FASB",
+    "Financial Accounting Standards Board",
+    "SEC",
+    "IASB",
+    "International Accounting Standards Board",
+    "PCAOB",
+    "FASB's Emerging Issues Task Force",
+]
+
+other_topics = [
+    "revenue recognition",
+    "lease accounting",
+    "credit losses",
+    "financial instruments",
+    "business combinations",
+    "stock compensation",
+    "fair value measurements",
+    "income taxes",
+    "segment reporting",
+    "consolidation",
+    "intangible assets",
+    "debt modifications",
+    "defined benefit plans",
+    "collaborative arrangements",
+    "insurance contracts",
+]
+
+other_standards = [
+    "ASU 2016-02",  # Leases (ASC 842)
+    "ASU 2014-09",  # Revenue Recognition (ASC 606)
+    "ASU 2016-13",  # Credit Losses (ASC 326)
+    "ASC 842",  # Leases
+    "ASC 606",  # Revenue
+    "ASC 326",  # Credit Losses
+    "ASC 718",  # Stock Compensationg
+    "ASC 805",  # Business Combinations
+    "ASC 740",  # Income Taxes
+    "ASC 820",  # Fair Value Measurement
+    "Topic 842",  # Leases
+    "Topic 606",  # Revenue Recognition
+]
+
+shared_purposes = [
+    "improve financial reporting and provide additional disclosures",
+    "align accounting practices with economic substance",
+    "enhance transparency and comparability",
+    "simplify the accounting model",
+    "provide clarification on implementation issues",
+    "expand presentation and disclosure requirements",
+    "address practice diversity and implementation questions",
+    "converge U.S. GAAP with international standards",
+    "expand the related presentation and disclosure requirements",
+    "change how companies assess effectiveness",
+    "eliminate the separate measurement and reporting of hedge ineffectiveness",
+]
+
+shared_additional_features_templates = [
+    "The guidance also {policy_feature}",
+    "Additionally, the standard {policy_feature}",
+    "The new guidance {policy_feature}",
+    "The update also {policy_feature}",
+]
+
+shared_effective_date_templates = [
+    "The guidance is effective in fiscal year {year}, with early adoption permitted",
+    "The standard is effective for fiscal years beginning after {month} {day}, {year}",
+    "This guidance becomes effective for annual periods beginning after {month} {end_day}, {year}, with early application permitted",
+    "The amendments are effective for fiscal years, and interim periods within those years, beginning after {month} {end_day}, {year}",
+    "Effective date is for annual reporting periods beginning after {month} {end_day}, {year}",
+    "{company} must adopt this guidance no later than fiscal year {year}",
+]
+
+shared_adoption_status_templates = [
+    "{company} adopted this guidance on {month} {day}, {year} using the {adoption_method}",
+    "{company} adopted {standard} effective {month} {day}, {year}",
+    "{company} early adopted the standard in {year}",
+    "{company} will adopt the guidance in fiscal year {year}",
+    "{company} is currently evaluating the impact of adopting this guidance",
+    "{company} does not expect the adoption of this standard to have a material impact on its consolidated financial statements",
+    "{company} adopted the new guidance prospectively",
+    "The standard was adopted retrospectively with a cumulative-effect adjustment to retained earnings",
+]
+
+shared_adoption_methods = [
+    "modified retrospective approach",
+    "full retrospective method",
+    "prospective method",
+    "cumulative-effect adjustment",
+    "practical expedient package",
+    "modified retrospective transition method",
+]
+
+shared_adoption_impact_templates = [
+    "The adoption resulted in {adoption_impact}",
+    "Upon adoption, {company} recognized {adoption_impact}",
+    "The cumulative effect of adoption was {adoption_impact}",
+    "Implementation of the standard resulted in {adoption_impact}",
+    "As a result of adoption, {adoption_impact}",
+]
+
+shared_evaluation_templates = [
+    "{company} is currently evaluating the potential impact of this guidance on its consolidated financial statements and related disclosures",
+    "{company} has not yet completed its assessment of the impact of adopting this standard",
+    "{company} is analyzing the effects of the new guidance on its accounting policies and internal controls",
+    "Management is in the process of evaluating the provisions of the standard to determine its impact",
+    "{company} has established an implementation team to assess the requirements and impacts of the new guidance",
+    "{company} does not expect this guidance to have a material effect on its financial position or results of operations",
+]
+
+shared_transition_templates = [
+    "{company} will apply the {adoption_method} upon adoption",
+    "{company} elected to apply the practical expedients available under the transition guidance",
+    "{company} intends to adopt the standard using the {adoption_method} with {transition_feature}",
+    "{company} selected the {adoption_method} for transition purposes",
+]
+
+shared_transition_features = [
+    "the option to not restate comparative periods",
+    "application of hindsight",
+    "certain relief provisions",
+    "portfolio-level application where appropriate",
+    "use of transition practical expedients",
+]
+
+shared_disclosure_change_templates = [
+    "The new standard requires additional disclosures regarding {disclosure_topic}",
+    "Enhanced disclosures are required for {disclosure_topic}",
+    "The guidance eliminates disclosure of {disclosure_topic} while adding requirements for {disclosure_topic2}",
+    "New qualitative and quantitative disclosure requirements focus on {disclosure_topic}",
+    "{company} will provide expanded disclosures about {disclosure_topic} beginning in fiscal year {year}",
+]
+
+shared_practical_expedient_templates = [
+    "{company} elected to apply the practical expedient to {expedient_description}",
+    "{company} utilized practical expedients available under the transition guidance, including {expedient_description}",
+    "{company} did not elect the practical expedient related to {expedient_description}",
+    "Available practical expedients include the option to {expedient_description}",
+]
+
+shared_recent_pronouncement_templates = [
+    "Recently issued accounting pronouncements not yet adopted include {standard}, which addresses {topic}",
+    "In {month} {year}, the {issuer} issued {standard} related to {topic}, which {company} will adopt in {year}",
+    "Management continues to monitor new accounting pronouncements issued by the {issuer} for potential impact",
+    "Other new accounting guidance issued but not yet effective is not expected to have a material impact on the consolidated financial statements",
+    "{company} reviews all recently issued accounting standards to determine their applicability and impact",
+]
+
+shared_standards_templates = [
+    "In {month} {year}, the {issuer} issued guidance on {topic} to {standard_purpose}",
+    "The {issuer} issued {standard} in {year}, which {standard_description}",
+    "New accounting guidance issued by the {issuer} in {month} {year} addresses {topic}",
+    "{standard} was issued in {year} to {standard_purpose}",
+    "During {year}, the {issuer} released updated guidance on {topic}",
+]
+
+# ========== HEDGING / DERIVATIVE POLICY ==========
+hedging_descriptions = [
+    "expand presentation and disclosure requirements, change how companies assess hedge effectiveness, and eliminate separate measurement of hedge ineffectiveness",
+    "improves alignment of hedge accounting with risk management strategies",
+    "modifies the treatment of fair value and cash flow hedges to reflect underlying economics",
+]
+
+hedging_additional_features = [
+    "enables more financial and nonfinancial hedging strategies to become eligible for hedge accounting",
+    "aligns accounting treatment with risk management activities",
+    "simplifies the application of hedge accounting",
+    "allows designation of component risks in nonfinancial hedges",
+    "permits hedging of contractually specified components in cash flow exposures",
+]
+
+hedge_change_policy_templates = [
+    "In {month} {year}, the {issuer} issued {standard} related to hedging activities. The guidance {hedge_description}. Additionally, it {hedge_feature}",
+    "The {issuer} issued {standard} to address {topic}. This update {hedge_description}. The new guidance {hedge_feature}",
+    "Hedging Activities: In {month} {year}, {issuer} released guidance on {topic}. It {hedge_description} and {hedge_feature}",
+    "The amendment to Topic 815 {hedge_description} and {hedge_feature}. Effective for fiscal years beginning after {month} {eff_day}, {year}",
+]
+
+hedge_definition_templates = [
+    '"{swap_type}" means: any {swap_definitions}',
+    '"{swap_type}" refers to: {swap_definitions}',
+]
+
+hedge_additional_definition_templates = [
+    "any other similar {suffix}",
+    "any option to enter any {suffix}",
+    "any {suffix} providing any of the foregoing",
+    "any combination of the {suffix}",
+    "any master agreement for any of the foregoing",
+    "any confirmation for any of the foregoing",
+    "any schedule for any of the foregoing",
+    "any document or {suffix} evidencing any of the foregoing",
+    "any {suffix} (including any guarantee or collateral agreement) with respect to any of the foregoing",
+]
+
+# ========== GENERAL ACCOUNTING POLICY ==========
+general_descriptions = [
+    "requires recognition of lease assets and liabilities for operating leases",
+    "changes the impairment model for financial instruments to an expected credit loss model",
+    "establishes a revenue recognition framework based on transfer of control",
+    "updates classification and measurement guidance for financial instruments",
+    "updates accounting for share-based payments",
+    "clarifies business combination definition and asset vs business acquisition criteria",
+    "simplifies goodwill impairment testing",
+    "updates income tax recognition for intra-entity asset transfers",
+]
+
+general_additional_features = [
+    "simplifies certain aspects of accounting application",
+    "provides transition relief and expedients",
+    "permits practical expedients for implementation",
+    "reduces disclosure complexity while maintaining transparency",
+    "allows entities to apply hindsight in transition",
+]
+
+general_policy_templates = [
+    "In {month} {year}, the {issuer} issued {standard} addressing {topic}. The standard {policy_description}. Additionally, it {policy_feature}",
+    "The {issuer} issued {standard} to {standard_purpose}. The guidance {policy_description} and {policy_feature}",
+    "Accounting Update: In {month} {year}, {issuer} released {standard} covering {topic}. It {policy_description}. The update {policy_feature}",
+    "During {year}, the {issuer} issued guidance under {standard} to {standard_purpose}. {policy_description}. Additionally, it {policy_feature}",
+]
+
+hedge_topics = [
+    "derivatives and hedging",
+    "hedging activities",
+    "cash flow hedges",
+    "fair value hedges",
+]
+
 @dataclass
 class DerivativeTableBuilder:
     """Base class for specific table builders."""
