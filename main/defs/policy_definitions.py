@@ -713,7 +713,7 @@ class AccountingStandardUpdateSentence:
             )
             sentences.append(_cleanup_sentence(sentence))
 
-        return " ".join(sentences)
+        return ". ".join(sentences) + "."
 
 
 @dataclass
