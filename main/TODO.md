@@ -67,19 +67,19 @@ This is the most critical phase. Before any model training, the data generation 
     -   The old `generator.py` had functions like `generate_debt`, `generate_fx`, and `generate_commodity` that created realistic, non-derivative sentences to provide context around the main topic. This "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk.
     -   **[x] Port IR/Debt Context:** Done. `DebtContextSentence` has been created and integrated into the IR narrative generation in `generator2.py`.
     -   **[ ] Port FX Context:**
-        -   **[x] Action:** Create a new `FXContextSentence` class in `defs/fx_data.py` that uses templates to describe foreign operations, international sales, or currency translation effects without mentioning derivatives. **Done.**
+        -   **[x] Action:** Create a new `FXContextSentence` class in `defs/fx_data.py` that uses templates to describe foreign operations, international sales, or currency translation effects without mentioning derivatives.
     -   **[ ] Port CP Context:**
-        -   **[x] Action:** Create a new `CPContextSentence` class in `defs/cp_data.py` that uses templates to describe commodity-related business activities (e.g., "our primary raw material is crude oil...") without mentioning derivatives. **Done.**
+        -   **[x] Action:** Create a new `CPContextSentence` class in `defs/cp_data.py` that uses templates to describe commodity-related business activities (e.g., "our primary raw material is crude oil...") without mentioning derivatives.
     -   **[ ] Port EQ Context:**
-        -   **Action:** Create a new `EQContextSentence` class in `defs/eq_data.py` that uses templates to describe equity-related activities (e.g., stock compensation plans, investments in other companies) without mentioning derivatives.
+        -   **[x] Action:** Create a new `EQContextSentence` class in `defs/eq_data.py` that uses templates to describe equity-related activities (e.g., stock compensation plans, investments in other companies) without mentioning derivatives.
     -   **[ ] Integrate New Context Classes:**
-        -   **[x] Action:** Integrate the `build()` methods for `FXContextSentence` and `CPContextSentence` into `generator2.py`'s `_generate_category_narrative` function for their respective categories. This should be done probabilistically to inject relevant, non-derivative context. **Done.**
-        -   **[ ] Action:** Integrate the `build()` method for `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for the EQ category.
+        -   **[x] Action:** Integrate the `build()` methods for `FXContextSentence` and `CPContextSentence` into `generator2.py`'s `_generate_category_narrative` function for their respective categories. This should be done probabilistically to inject relevant, non-derivative context.
+        -   **[x] Action:** Integrate the `build()` method for `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for the EQ category.
 
 -   **[ ] Improve Generation Quality (Continued):**
     -   The user expressed a desire for "higher quality compared to using templates randomly selected."
-    -   **Action: Implement a "Narrative Generation" strategy.** **Done.** The `generator2.py` script now constructs a coherent, multi-paragraph narrative that mimics the structure of a real SEC filing's risk disclosure section (e.g., Item 7A). This creates more realistic and complex training data.
-    -   **Complex Scenarios:** **Done.** The narratives now include more complex situations to train a robust model, such as:
+    -   **[x] Action: Implement a "Narrative Generation" strategy.** The `generator2.py` script now constructs a coherent, multi-paragraph narrative that mimics the structure of a real SEC filing's risk disclosure section (e.g., Item 7A). This creates more realistic and complex training data.
+    -   **[x] Complex Scenarios:** The narratives now include more complex situations to train a robust model, such as:
         -   Multiple active instruments of the same type (e.g., two different interest rate swaps).
         -   Conflicting timelines within the same paragraph (e.g., terminating an old FX forward while entering a new FX collar).
         -   Mentions of accounting treatments (e.g., OCI, fair value).
