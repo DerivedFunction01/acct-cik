@@ -1437,7 +1437,7 @@ def _generate_category_narrative(
                 fx_paragraph = fx_context_builder.build()
                 if fx_paragraph:
                     sentences.append(fx_paragraph)
-        
+
         # --- NEW: Add CP context for CP category ---
         if category == "CP":
             all_cp_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, CommodityHedgedItem)]
@@ -1478,7 +1478,7 @@ def _generate_category_narrative(
                 eq_paragraph = eq_context_builder.build()
                 if eq_paragraph:
                     sentences.append(eq_paragraph)
-            
+
             # --- FIX: Handle case where there are no EQ instruments but exposure exists ---
             if not all_eq_hedged_items:
                 eq_context_builder = EQContextSentence(
@@ -1651,9 +1651,16 @@ def _generate_category_narrative(
             and current_year_data["instruments"]
             and random.random() < 0.7 # 70% chance to generate a table if preferred
         ):
+            cat_to_map = {
+                "IR": "Interest Rate",
+                "FX": "Foreign Currency",
+                "CP": "Commodity",
+                "EQ": "Equity",
+                "GEN": "",
+            }
             table_builder = Table(
                 instruments=current_year_data["instruments"], 
-                category=category, yearly_data=yearly_data,
+                category=cat_to_map[category], yearly_data=yearly_data,
                 reporting_year=reporting_year,
                 reporting_day=reporting_day,
                 reporting_month=reporting_month,
@@ -2175,9 +2182,15 @@ def generate_narrative_from_scenario(
         # Let's pick one or two categories at random to generate a table for.
         cats_with_instruments = list(aggregated_data.keys())
         if cats_with_instruments:
-            num_tables_to_gen = random.randint(1, min(len(cats_with_instruments), 2))
+            num_tables_to_gen = random.randint(1, len(cats_with_instruments))
             cats_for_tables = random.sample(cats_with_instruments, num_tables_to_gen)
-
+            cat_to_map = {
+                "IR": "interest rate",
+                "FX": "foreign currency",
+                "CP": "commodity",
+                "EQ": "equity",
+                "GEN": "",
+            }
             for category in cats_for_tables:
                 # We need all instruments for the table, not just the ones for a specific year.
                 all_instruments_for_cat = [
@@ -2185,7 +2198,7 @@ def generate_narrative_from_scenario(
                 ]
                 table_builder = Table(
                     instruments=all_instruments_for_cat,
-                    category=category,
+                    category=cat_to_map.get(category, ""),
                     yearly_data=aggregated_data.get(category, {}),
                     reporting_year=scenario.reporting_year,
                     reporting_day=scenario.reporting_day,
