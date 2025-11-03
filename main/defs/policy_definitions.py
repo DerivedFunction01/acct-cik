@@ -399,15 +399,20 @@ class MitigationSentence:
                 )
             else:
                 commodities_str = details.commodity[0]
-
+        locations_str = f"various {random.choice(geo_locations)}"
+        if details.geography:
+            locations_str = (
+                ", ".join(details.geography[:-1]) + " and " + details.geography[-1]
+                if len(details.geography) > 1
+                else details.geography[0]
+            )
         # Populate placeholders in the chosen mitigation phrase
         interest_rates = random.sample(specific_rate_terms, k=2)
         risk_terms = random.sample(risk_exposure_terms, k=2)
         populated_phrase = mitigation_phrase.format(
             debt_type=details.debt_type or "debt",
             currencies=currencies_str,
-            geography=details.geography
-            or random.choice([c.location for c in all_currencies]),
+            geography=locations_str,
             commodity=commodities_str,
             rate_term1=interest_rates[0],
             rate_term2=interest_rates[1],

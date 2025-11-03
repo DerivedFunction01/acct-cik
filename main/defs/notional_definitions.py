@@ -362,7 +362,6 @@ class NotionalSentence:
             if self.prev2_notional is not None:
                 self.prev2_notional = _get_correct_rounding(self.prev2_notional, self.notional_multiplier)
 
-
         # Default values for optional components
         month = self.month or random.choice(months)
         end_day = self.end_day or random.randint(28, 31)
@@ -402,7 +401,13 @@ class NotionalSentence:
                     )
                 else:
                     commodities_str = details.commodity[0]
-
+            locations_str = f"various {random.choice(geo_locations)}"
+            if details.geography:
+                locations_str = (
+                    ", ".join(details.geography[:-1]) + " and " + details.geography[-1]
+                    if len(details.geography) > 1
+                    else details.geography[0]
+                )
             begin_mitigation = (
                 mitigation_phrase_template.format(
                     risk_action_verb=random.choice(
@@ -413,7 +418,7 @@ class NotionalSentence:
                     risk_term=random.choice(risk_exposure_terms),
                     risk_term2=random.choice(risk_exposure_terms),
                     currencies=currencies_str or "various currencies",
-                    geography=random.choice([c.location for c in all_currencies]),  # type: ignore
+                    geography=locations_str,  # type: ignore
                     commodity=commodities_str,
                     rate_term1=random.choice(specific_rate_terms),
                     rate_term2=random.choice(specific_rate_terms),
@@ -624,6 +629,13 @@ class NotionalSentence:
                     if len(details.currencies) > 1
                     else details.currencies[0]
                 )
+            locations_str = f"various {random.choice(geo_locations)}"
+            if details.geography:
+                locations_str = (
+                    ", ".join(details.geography[:-1]) + " and " + details.geography[-1]
+                    if len(details.geography) > 1
+                    else details.geography[0]
+                )
 
             # Fallback if no commodity is provided in details
             if not details.commodity:
@@ -648,7 +660,7 @@ class NotionalSentence:
                 rate_term2=random.choice(specific_rate_terms),
                 formatted_amount=formatted_amount_result,  # type: ignore
                 pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
-                geography=random.choice([c.location for c in all_currencies]),  # type: ignore
+                geography=locations_str,  # type: ignore
                 commodity=commodities_str,
                 unit=details.unit
                 or unit_name,  # Use the unit from details if provided, otherwise the derived one
