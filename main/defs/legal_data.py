@@ -20,7 +20,7 @@ class LegalContextSentence:
 
     def build(self) -> Tuple[str, ContextEvidence]:
         """Builds a multi-sentence paragraph about the company's legal proceedings."""
-        num_sentences = random.randint(1, 3)
+        num_sentences = random.randint(1, 4)
         sentences: List[str] = []
 
         # The first sentence is often a general statement.
@@ -42,7 +42,7 @@ class LegalContextSentence:
             placeholders = self._get_placeholders()
             sentences.append(_cleanup_sentence(template.format_map(placeholders)))
 
-        full_paragraph = " ".join(sentences)
+        full_paragraph = ". ".join(sentences) + "."
         evidence = ContextEvidence(
             category="LAW",
             status="context_mention",
@@ -67,6 +67,7 @@ class LegalContextSentence:
             "currency_code": self.currency_code,
             "amount": _format_single_notional(amount, self.currency_symbol, self.prefer_abbreviated, no_unit_word=True),
             "money_unit": "million" if self.prefer_abbreviated else "",
+            "materiality": random.choice(immaterial + material)
         }
 
 

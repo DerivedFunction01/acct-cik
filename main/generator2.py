@@ -61,7 +61,7 @@ GENERATION_PROBABILITIES = {
     "add_other_pronouncements": 0.4, # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
     "can_have_accounting_update": 0.4, # Chance a scenario will include an accounting standard update section.
     "accounting_update_is_hedge_related": 0.5, # If an update is generated, the chance it's about hedging.
-    "legal_context": 0.25, # If we generate a paragraph on derivative lawsuits
+    "legal_context": 1, # If we generate a paragraph on derivative lawsuits
 }
 
 # Probabilities for dropping narrative components to increase variety.
@@ -1369,21 +1369,6 @@ def _generate_narrative_policy(
             )
             sentence = counterparty_sentence_obj.build()
             sentences.append(sentence) # No evidence is generated for this policy statement
-            # --- NEW: With a chance, add a paragraph about legal proceedings ---
-        if random.random() < GENERATION_PROBABILITIES["legal_context"]:  # 20% chance to add legal context
-            legal_context_builder = LegalContextSentence(
-                company_name=scenario.company_name,
-                reporting_year=scenario.reporting_year,
-                reporting_month=scenario.reporting_month,
-                reporting_day=scenario.reporting_day,
-                currency_symbol=_get_currency_and_unit_details(scenario)[0],
-                currency_code=_get_currency_and_unit_details(scenario)[2],
-                prefer_abbreviated=scenario.number_format_preference,
-            )
-            legal_paragraph, legal_evidence = legal_context_builder.build()
-            if legal_paragraph:
-                sentences.append(legal_paragraph)
-                evidence.append(legal_evidence)
     return sentences, evidence
 
 
@@ -2583,7 +2568,7 @@ def generate_narrative_from_scenario(
     if cp_paragraphs:
         derivative_details_sections.extend(cp_paragraphs)
         all_evidence.extend(cp_evidence)
-    
+
     # --- NEW: Part 2.8: Build the dedicated "Equity Risk" Section ---
     eq_paragraphs, eq_evidence = _generate_eq_narrative(scenario)
     if eq_paragraphs:
@@ -2669,13 +2654,12 @@ def generate_narrative_from_scenario(
         accounting_section_paragraph = "\n\n".join(s for s in accounting_sentences if s)
         derivative_details_sections.append(accounting_section_paragraph)
         all_evidence.extend(accounting_evidence)
-        
+
         # --- NEW: With a chance, add a legalistic definition of a derivative ---
         if random.random() < GENERATION_PROBABILITIES["add_legalistic_definition"]:
             definition_builder = HedgeDefinitionSentence()
             definition_sentence = definition_builder.build()
             derivative_details_sections.append(definition_sentence)
-
 
     # --- NEW: Part 4: Generate Accounting Standard Update Section ---
     # This will generate paragraphs about both derivative and non-derivative standards.
@@ -2693,7 +2677,7 @@ def generate_narrative_from_scenario(
             update_paragraph, update_evidence = update_builder.build()
             derivative_details_sections.append(update_paragraph)
             all_evidence.extend(update_evidence)
-        
+
         # --- NEW: Add a generic "other pronouncements" sentence ---
         if random.random() < GENERATION_PROBABILITIES["add_other_pronouncements"]:
             from defs.template_definitions import shared_recent_pronouncement_templates, other_standards, other_topics, shared_issuers
@@ -2708,6 +2692,23 @@ def generate_narrative_from_scenario(
             )
             derivative_details_sections.append(pronouncement_sentence)
 
+    # --- NEW: With a chance, add a paragraph about legal proceedings ---
+    if (
+        random.random() < GENERATION_PROBABILITIES["legal_context"]
+    ):  # 20% chance to add legal context
+        legal_context_builder = LegalContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            currency_symbol=_get_currency_and_unit_details(scenario)[0],
+            currency_code=_get_currency_and_unit_details(scenario)[2],
+            prefer_abbreviated=scenario.number_format_preference,
+        )
+        legal_paragraph, legal_evidence = legal_context_builder.build()
+        if legal_paragraph:
+            derivative_details_sections.append(legal_paragraph)
+            all_evidence.append(legal_evidence)
 
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
