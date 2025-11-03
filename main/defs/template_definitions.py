@@ -1092,7 +1092,9 @@ class Table:
 
         return f"{title}\n" + "\n".join(rows), evidence_list, []
 
-    def _build_three_year_comparative_table(self) -> Tuple[str, List[NotionalEvidence]]:
+    def _build_three_year_comparative_table(
+        self,
+    ) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table comparing notional/fair values over three years.
         Format:
@@ -1105,10 +1107,10 @@ class Table:
 
         available_years = list(self.yearly_data.keys())
         if not available_years:
-            return "", []
+            return "", [], []
         # This table is only useful if there's data for 3 years.
         if self.reporting_year - min(available_years) < 2:
-            return "", []
+            return "", [], []
 
         value_type_str = random.choice(["Notional Amount", "Fair Value"])
         value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
@@ -1148,12 +1150,12 @@ class Table:
                 ))
 
         if len(rows) <= 2:
-            return "", []
+            return "", [], []
 
         title = f"{value_type_str}s of Outstanding {self.category} Derivatives (in {self.currency_symbol} {self.money_unit()})"
-        return f"{title}\n" + "\n".join(rows), evidence_list
+        return f"{title}\n" + "\n".join(rows), evidence_list, []
 
-    def _build_aoci_reclassification_impact_table(self) -> Tuple[str, List[NotionalEvidence]]:
+    def _build_aoci_reclassification_impact_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table showing the impact of amounts reclassified from AOCI to the income statement.
         Format:
@@ -1164,7 +1166,7 @@ class Table:
         active_instruments = [inst for inst in self.instruments if inst.notional_history.get(year, 0) > 0]
 
         if not active_instruments:
-            return "", []
+            return "", [], []
 
         title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
         header = f"| {'Derivative {suffix}':<35} | {'Gain/(Loss) from AOCI':>25} | {'Affected Line Item in Income Statement':<40} |".format(suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"]))
@@ -1198,9 +1200,9 @@ class Table:
             ))
 
         if len(rows) <= 3:
-            return "", []
+            return "", [], []
 
-        return "\n".join(rows), evidence_list
+        return "\n".join(rows), evidence_list, []
 
     def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
