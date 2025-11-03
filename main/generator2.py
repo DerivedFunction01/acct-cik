@@ -444,16 +444,16 @@ class ScenarioBuilder:
         self.scenario_components = {
             "base_types": random.sample(
                 DERIVATIVE_COMPONENTS["base_types"],
-                k=random.randint(3, 5)
+                k=random.randint(2, 3)
             ),
             "suffixes": random.sample(
                 DERIVATIVE_COMPONENTS["suffixes"],
-                k=random.randint(2, 4)
+                k=random.randint(1, 2)
             ),
             "placeholders": {
                 cat: random.sample(
                     placeholders,
-                    k=min(len(placeholders), random.randint(2, 4))
+                    k=min(len(placeholders), random.randint(1, 3))
                 )
                 for cat, placeholders in DERIVATIVE_COMPONENTS["placeholders"].items()
             },
