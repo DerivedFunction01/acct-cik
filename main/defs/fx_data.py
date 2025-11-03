@@ -134,8 +134,13 @@ class FXContextSentence:
     def build(self) -> str:
         """Builds a multi-sentence paragraph about the company's FX exposures."""
         # If a list of items is provided, there's a chance to build a table.
-        if isinstance(self.hedged_item, list) and random.random() < 0.4:
-            return self._build_fx_exposure_table()
+        if isinstance(self.hedged_item, list) and self.hedged_item and random.random() < 0.4:
+            table_str = self._build_fx_exposure_table()
+            if table_str:
+                # Prepend an introductory sentence to the table.
+                intro_sentence = self._build_fx_sentence(None) # Generate a generic intro
+                return f"{intro_sentence}\n\n{table_str}"
+            # Fall through to generate a normal sentence if table building fails
 
         # Fallback to existing sentence generation.
         if isinstance(self.hedged_item, list):
