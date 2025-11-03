@@ -3221,6 +3221,25 @@ def generate_json_from_scenario(
 
     chain_of_thought = "\n".join(other_evidence_strings)
 
+    # --- NEW: Aggregate repeated instrument mentions at the end ---
+    # This is cleaner than saying "another mention found" multiple times.
+    instrument_type_counts = Counter(
+        ev.instrument_type
+        for ev in evidence
+        if isinstance(ev, NotionalEvidence) and ev.instrument_type
+    )
+
+    repeated_mentions = []
+    for inst_type, count in instrument_type_counts.items():
+        if count > 1:
+            repeated_mentions.append(f"'{inst_type}' ({count} times)")
+
+    if repeated_mentions:
+        repetition_summary = (
+            f"Multiple mentions were found for: {', '.join(repeated_mentions)}."
+        )
+        chain_of_thought += "\n" + repetition_summary
+
     # --- NEW: Process and append the consolidated accounting evidence ---
     if accounting_evidence_list:
         hedge_standards = {ev.standard_name for ev in accounting_evidence_list if "hedging" in ev.details.lower() or "derivative" in ev.details.lower()}

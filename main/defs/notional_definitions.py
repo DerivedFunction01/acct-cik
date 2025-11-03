@@ -93,28 +93,6 @@ class NotionalEvidence(BaseNarrativeEvidence):
             return f"[Warning] Negative notional value ({self.notional}) is not valid for a summary disclosure."
         return None
 
-    def _get_repetition_reasoning(self, base_desc: str) -> str:
-        """Generates the 'aha' moment reasoning for a repeated instrument mention."""
-        if not self.is_repeated_mention:
-            return ""
-
-        # The instrument_type here is the name used in the sentence (could be full name or alias)
-        instrument_name_in_sentence = self.instrument_type or "the instrument"
-
-        # A simple heuristic is to check if the base description contains the used name, but not vice-versa, suggesting an alias.
-        if (
-            base_desc
-            and instrument_name_in_sentence
-            and base_desc != instrument_name_in_sentence
-            and instrument_name_in_sentence in base_desc
-            and len(instrument_name_in_sentence.split()) < len(base_desc.split())
-        ):
-            reason = f"Alias found: '{instrument_name_in_sentence}' refers to '{base_desc}'. "
-        else:
-            reason = f"Another mention of '{base_desc}' was found. "
-
-        return reason + " "
-
     # ---------------------------------------------------------------------
     # Core logic
     # ---------------------------------------------------------------------
@@ -247,10 +225,6 @@ class NotionalEvidence(BaseNarrativeEvidence):
             self.status,
             lambda: f"Uncategorized notional evidence found for {category_name}.",
         )()
-
-        # --- NEW: Prepend the "aha" moment reasoning ---
-        repetition_reasoning = self._get_repetition_reasoning(base_desc)
-        text = repetition_reasoning + text
 
         # Append warning if present
         if warning:
