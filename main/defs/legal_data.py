@@ -67,7 +67,8 @@ class LegalContextSentence:
             "currency_code": self.currency_code,
             "amount": _format_single_notional(amount, self.currency_symbol, self.prefer_abbreviated, no_unit_word=True),
             "money_unit": "million" if self.prefer_abbreviated else "",
-            "materiality": random.choice(immaterial + material)
+            "materiality": random.choice(immaterial + material),
+            "change_noun": random.choice(change_phrases_noun),
         }
 
 
