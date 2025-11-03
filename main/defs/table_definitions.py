@@ -62,4 +62,4 @@ class GenericTable:
         for row_data in self.data_rows:
             all_rows.extend(self._format_row_with_wrapping(row_data, self.widths, self.alignments))
 
-        return f"\n<TABLE>\n<CAPTION>\n{self.title}\n" + "\n".join(all_rows) + "\n</TABLE>\n"
+        return f"\n\n<TABLE>\n<CAPTION>\n{self.title}\n" + "\n".join(all_rows) + "\n</TABLE>\n\n"

@@ -150,14 +150,13 @@ def _cleanup_sentence(sentence: str) -> str:
     def capitalize_after_period(match):
         return match.group(1) + match.group(2).upper()
 
-    sentence = sentence.strip()
     if sentence:
         # Capitalize first character
         sentence = sentence[0].upper() + sentence[1:]
         # Capitalize after ". " or "? " or "! "
         sentence = re.sub(r"([.!?]\s+)([a-z])", capitalize_after_period, sentence)
 
-    return sentence.strip()
+    return sentence
 
 def _get_company_reference(company_name: str, chance: float = 0.25) -> str:
     """Randomly returns either the full company name or a generic placeholder."""

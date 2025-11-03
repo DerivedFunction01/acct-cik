@@ -91,7 +91,7 @@ class EQContextSentence:
             if table_str:
                 # Prepend an introductory sentence to the table.
                 intro_sentence = self._build_eq_sentence(None) # Generate a generic intro
-                return f"{intro_sentence}\n\n{table_str}"
+                return f"{intro_sentence}{table_str}"
             # Fall through to generate a normal sentence if table building fails
 
         if isinstance(self.hedged_item, list):
