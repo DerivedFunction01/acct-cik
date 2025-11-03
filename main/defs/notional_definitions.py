@@ -12,7 +12,7 @@ from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategor
 class NotionalEvidence(BaseNarrativeEvidence):
     """Evidence related to notional or fair value amounts of derivative instruments, with temporal reasoning and validation."""
 
-    aggregate: Optional[bool] = None
+    aggregate: bool = False
     notional: Optional[int] = None
     prev_notional: Optional[int] = None
     prev2_notional: Optional[int] = None
@@ -24,7 +24,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
     notional_str: Optional[str] = None
     prev_notional_str: Optional[str] = None
     reporting_year: Optional[int] = None
-    maturity_year: Optional[int] = None
+    maturity_year: Optional[int] = 0
     maturity_value: Optional[int] = None
     value_type: str = "notional"
     currency: str = "USD"
@@ -288,7 +288,7 @@ class NotionalSentence:
         "comparative_no_prior_outstanding",  # Phrases with current value for current year, but no other values in prior
         "no_instruments",  # No such derivatives at all
         "inception",
-        "continuing",
+        "continuing", # For TimelineSentence
         "partial_settlement",  # For TimelineSentence
     ] = "summary"
     is_summary: bool = False
@@ -307,7 +307,7 @@ class NotionalSentence:
     verb: Optional[str] = None
     prev_year: Optional[int] = None
     prev2_year: Optional[int] = None
-    maturity_value: Optional[int] = None
+    maturity_value: Optional[int] = 0
     maturity_year: Optional[int] = None
     specific_details: Optional[SpecificDetails] = None
     notional_multiplier: int = 1_000_000
@@ -765,7 +765,7 @@ class NotionalSentence:
                 prev_notional_str=final_notional_str,  # The formatted amount is for the prior year
                 prev_year=self.year - 1,
                 instrument_type=self.swap_type,
-                reporting_year=self.reporting_year,
+            reporting_year=self.reporting_year, # type: ignore
                 value_type=final_value_type,
                 sentence_type=self.sentence_type,
             )
@@ -788,7 +788,7 @@ class NotionalSentence:
             year=self.year,
             notional_str=final_notional_str,
             prev_notional_str=prev_amount_str or None,
-            instrument_type=self.swap_type,
+            instrument_type=self.swap_type, # type: ignore
             maturity_year=self.maturity_year if self.sentence_type == "terminated_individual" else None,
             reporting_year=self.reporting_year,
             value_type=final_value_type,

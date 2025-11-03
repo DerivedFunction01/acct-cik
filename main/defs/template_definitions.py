@@ -984,7 +984,7 @@ class Table:
                     reporting_year=self.reporting_year,
                     value_type="notional",
                     currency=self.currency_symbol,
-                    sentence_type="summary",
+                    sentence_type="summary", # type: ignore
                     aggregate=True,
                 ))
                 row_str = f"| {group:<20} | {notional_str:>20} |"

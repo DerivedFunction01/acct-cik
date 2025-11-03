@@ -2445,8 +2445,7 @@ def generate_json_from_scenario(
     # Additionally, add entries for aggregate summaries that don't have an instrument ID
     for ev in evidence:
         if (
-            isinstance(ev, NotionalEvidence)
-            and (ev.sentence_type == "summary" or ev.status == "summary")
+            isinstance(ev, NotionalEvidence) and ev.aggregate
             and ev.notional is not None
             and ev.notional > 0
             and ev.year == scenario.reporting_year # Only include current year summaries
