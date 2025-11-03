@@ -40,7 +40,7 @@ def _format_single_notional(
     prefer_abbreviated: bool,
     no_unit_word: bool = False,  # Suppresses "million/billion/etc."
     zero_format: Literal["nil", "zero", "amount"] = "amount",
-    negative_format: Literal[-1, 0, 1] = 1,  # default = 1 → (num) unit
+    negative_format: Literal[-1, 0, 1, 2] = 1,  # default = 1 → (num) unit
 ) -> str:
     """
     Formats a single notional amount into a readable string like '$250.0 million'
@@ -53,6 +53,7 @@ def _format_single_notional(
         -1 → accounting style, e.g. '($250.0 million)' or '(2.5 million barrels)'
          0 → minus sign, e.g. '-$250.0 million' or '-2.5 million barrels'
          1 → parentheses only around the number, e.g. '$(2.5) million' or '(2.5) million barrels'
+         2 → minus sign after currency symbol, e.g. '$-250.0 million' (currency only)
     """
     if amount == 0:
         if zero_format in ["nil", "zero"]:
@@ -101,8 +102,13 @@ def _format_single_notional(
                 return f"{symbol}({formatted_number}){unit_word}"
             else:
                 return f"({formatted_number}){unit_word} {symbol}".strip()
+        elif negative_format == 2:
+            if symbol in KNOWN_CURRENCY_SYMBOLS:
+                return f"{symbol}-{formatted_number}{unit_word}"
+            else:
+                return f"-{base}"  # Fallback to format 0 for non-currencies
         else:
-            raise ValueError("negative_format must be -1, 0, or 1")
+            raise ValueError("negative_format must be -1, 0, 1, or 2")
 
     return base
 
