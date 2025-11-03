@@ -51,7 +51,7 @@ GENERATION_PROBABILITIES = {
     # Narrative Generation
     "active_instrument_mention": 0.9,  # Chance to mention an active instrument.
     "terminated_instrument_mention": 0.7, # Chance to mention a terminated instrument.
-    "repeat_instrument_mention": 0.25, # Chance to mention the same instrument again (for aliasing).
+    "repeat_instrument_mention": 1, # Chance to mention the same instrument again (for aliasing).
     "additional_table": 0.3, # Chance to generate an extra table (AOCI, Maturity, etc.).
     "use_table_for_exposure": 0.4, # Chance to use a table for exposure context instead of paragraphs.
     "add_secondary_debt_sentence": 0.4, # Chance to add a second sentence about a debt event (issuance, repayment).
@@ -1788,7 +1788,7 @@ def _generate_category_narrative(
                     specific_details.frequency = hedged_item.payment_frequency
 
         policy_sentence_obj = PolicySentence(
-            category=category, # type: ignore
+            category=category,  # type: ignore
             company_name=scenario.company_name,
             specific_details=specific_details,
         )
@@ -1799,11 +1799,17 @@ def _generate_category_narrative(
         # --- NEW: Add debt context for IR category ---
         if category == "IR":
             # Get all debt items from the scenario. This includes both hedged and unhedged debt.
-            all_debt_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, DebtHedgedItem)]
+            all_debt_hedged_items = [
+                inst.hedged_item
+                for inst in scenario.instruments
+                if isinstance(inst.hedged_item, DebtHedgedItem)
+            ]
 
             # For each debt item, generate a contextual paragraph.
             # Let's limit it to 1-2 paragraphs to avoid making the text too long.
-            items_to_describe = random.sample(all_debt_hedged_items, k=min(len(all_debt_hedged_items), 2))
+            items_to_describe = random.sample(
+                all_debt_hedged_items, k=min(len(all_debt_hedged_items), 2)
+            )
             debt_context_builder = DebtContextSentence(
                 company_name=scenario.company_name,
                 reporting_year=scenario.reporting_year,
@@ -1819,8 +1825,14 @@ def _generate_category_narrative(
 
         # --- NEW: Add FX context for FX category (similar to IR/Debt) ---
         if category == "FX":
-            all_fx_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)]
-            items_to_describe = random.sample(all_fx_hedged_items, k=min(len(all_fx_hedged_items), 1)) # Describe 1 item
+            all_fx_hedged_items = [
+                inst.hedged_item
+                for inst in scenario.instruments
+                if isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)
+            ]
+            items_to_describe = random.sample(
+                all_fx_hedged_items, k=min(len(all_fx_hedged_items), 1)
+            )  # Describe 1 item
             fx_context_builder = FXContextSentence(
                 company_name=scenario.company_name,
                 reporting_year=scenario.reporting_year,
@@ -1838,14 +1850,20 @@ def _generate_category_narrative(
 
         # --- NEW: Add CP context for CP category ---
         if category == "CP":
-            all_cp_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, CommodityHedgedItem)]
-            items_to_describe = random.sample(all_cp_hedged_items, k=min(len(all_cp_hedged_items), 1))
+            all_cp_hedged_items = [
+                inst.hedged_item
+                for inst in scenario.instruments
+                if isinstance(inst.hedged_item, CommodityHedgedItem)
+            ]
+            items_to_describe = random.sample(
+                all_cp_hedged_items, k=min(len(all_cp_hedged_items), 1)
+            )
             cp_context_builder = CPContextSentence(
                 company_name=scenario.company_name,
                 reporting_year=scenario.reporting_year,
                 reporting_month=scenario.reporting_month,
                 reporting_day=scenario.reporting_day,
-            hedged_item=items_to_describe,
+                hedged_item=items_to_describe,
                 prefer_abbreviated=scenario.number_format_preference,
                 currency_symbol=currency_symbol,
                 notional_multiplier=scenario.archetype.notional_multiplier,
@@ -1856,9 +1874,15 @@ def _generate_category_narrative(
 
         # --- NEW: Add EQ context for EQ category ---
         if category == "EQ":
-            all_eq_hedged_items = [inst.hedged_item for inst in scenario.instruments if isinstance(inst.hedged_item, EquityHedgedItem)]
+            all_eq_hedged_items = [
+                inst.hedged_item
+                for inst in scenario.instruments
+                if isinstance(inst.hedged_item, EquityHedgedItem)
+            ]
             # Describe context for one of the hedged items, if any exist.
-            items_to_describe = random.sample(all_eq_hedged_items, k=min(len(all_eq_hedged_items), 1))
+            items_to_describe = random.sample(
+                all_eq_hedged_items, k=min(len(all_eq_hedged_items), 1)
+            )
 
             # --- FIX: If no specific hedged items, generate a generic context sentence ---
             eq_context_builder = EQContextSentence(
@@ -1867,7 +1891,7 @@ def _generate_category_narrative(
                 # --- FIX: Pass correct date components ---
                 reporting_month=scenario.reporting_month,
                 reporting_day=scenario.reporting_day,
-            hedged_item=items_to_describe if items_to_describe else None,
+                hedged_item=items_to_describe if items_to_describe else None,
                 prefer_abbreviated=scenario.number_format_preference,
                 currency_symbol=currency_symbol,
             )
@@ -1878,25 +1902,43 @@ def _generate_category_narrative(
             # --- FIX: Handle case where there are no EQ instruments but exposure exists ---
             if not all_eq_hedged_items:
                 eq_context_builder = EQContextSentence(
-                    company_name=scenario.company_name, reporting_year=scenario.reporting_year,
-                    reporting_month=scenario.reporting_month, reporting_day=scenario.reporting_day,
-                hedged_item=None, prefer_abbreviated=scenario.number_format_preference, currency_symbol=currency_symbol,
+                    company_name=scenario.company_name,
+                    reporting_year=scenario.reporting_year,
+                    reporting_month=scenario.reporting_month,
+                    reporting_day=scenario.reporting_day,
+                    hedged_item=None,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    currency_symbol=currency_symbol,
                 )
                 if not suppress_text_output:
                     sentences.append(eq_context_builder.build())
 
         # 1b. Mitigation/Purpose Sentence
         has_active_instruments = bool(
-            current_year_data and current_year_data["instruments"] and sum(
-                inst.notional_history.get(reporting_year, 0) > 0 for inst in current_year_data["instruments"]
-            ) > 0
-        ) # type: ignore
+            current_year_data
+            and current_year_data["instruments"]
+            and sum(
+                inst.notional_history.get(reporting_year, 0) > 0
+                for inst in current_year_data["instruments"]
+            )
+            > 0
+        )  # type: ignore
         past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0))  # type: ignore
-        has_past_instruments = bool(prev_year_data and prev_year_data["instruments"] and sum(inst.notional_history.get(reporting_year - 1, 0) > 0 for inst in prev_year_data["instruments"]) > 0)
+        has_past_instruments = bool(
+            prev_year_data
+            and prev_year_data["instruments"]
+            and sum(
+                inst.notional_history.get(reporting_year - 1, 0) > 0
+                for inst in prev_year_data["instruments"]
+            )
+            > 0
+        )
 
         # --- FIX: Only sometimes generate an explicit "no use" statement ---
         # This reflects that firms don't always state their non-use.
-        is_explicit_non_use = current_prop < 0 and random.random() < 0.6  # 60% chance to state non-use
+        is_explicit_non_use = (
+            current_prop < 0 and random.random() < 0.6
+        )  # 60% chance to state non-use
 
         usage = (
             "current"
@@ -1905,7 +1947,7 @@ def _generate_category_narrative(
                 "non_use"  # This will only be chosen if the conditions above are met
                 if is_explicit_non_use
                 else (
-                    "historical" # If no active instruments now, but there were in the past
+                    "historical"  # If no active instruments now, but there were in the past
                     if not has_active_instruments and has_past_instruments
                     else "speculative"
                 )
@@ -1913,7 +1955,9 @@ def _generate_category_narrative(
         )
 
         if has_active_instruments and current_year_data:
-            instrument_type = _get_smart_instrument_description(current_year_data["instruments"], category, random.random() < 0.5)
+            instrument_type = _get_smart_instrument_description(
+                current_year_data["instruments"], category, random.random() < 0.5
+            )
         else:
             # For speculative cases, generate a plausible instrument name instead of just "derivatives"
             _, _, _, _, name, _ = _generate_instrument_name(category)
@@ -1921,7 +1965,7 @@ def _generate_category_narrative(
             instrument_type = f"{name}s" if random.random() < 0.5 else name
 
         mitigation_sentence_obj = MitigationSentence(
-            category=category, # type: ignore
+            category=category,  # type: ignore
             company_name=scenario.company_name,
             swap_type=instrument_type,
             has_active_instruments=has_active_instruments,
@@ -1934,7 +1978,9 @@ def _generate_category_narrative(
         mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
 
         # --- MODIFIED: Only generate mitigation evidence if sentence is NOT dropped ---
-        if suppress_text_output or (allow_random_drops and random.random() < DROP_PROBABILITIES["mitigation"]):
+        if suppress_text_output or (
+            allow_random_drops and random.random() < DROP_PROBABILITIES["mitigation"]
+        ):
             # If dropping AND no instruments were mentioned, don't generate evidence at all
             if not has_active_instruments or suppress_text_output:
                 pass  # No evidence generated
@@ -1942,7 +1988,9 @@ def _generate_category_narrative(
                 # Has instruments but sentence was dropped - mark as implied
                 mitigation_evidence.is_implied = True
                 evidence.append(mitigation_evidence)
-            DROPPED_SENTENCES.append(f"[MITIGATION_DROP][{category}] {mitigation_sentence}")
+            DROPPED_SENTENCES.append(
+                f"[MITIGATION_DROP][{category}] {mitigation_sentence}"
+            )
         else:
             # Normal case: add both sentence and evidence
             sentences.append(mitigation_sentence)
@@ -1952,9 +2000,12 @@ def _generate_category_narrative(
         is_non_use_mitigation = mitigation_evidence.usage_status == "non_use"
         if (
             current_year_data
-            and mitigation_evidence.usage_status != "non_use" # Don't summarize if we just said we don't use them
+            and mitigation_evidence.usage_status
+            != "non_use"  # Don't summarize if we just said we don't use them
             and current_year_data["instruments"]
-            and not is_non_use_mitigation and not suppress_text_output and not active_instruments_were_dropped
+            and not is_non_use_mitigation
+            and not suppress_text_output
+            and not active_instruments_were_dropped
             and random.random() < GENERATION_PROBABILITIES["generate_aggregate_summary"]
         ):
             # --- NEW: Logic to choose between summary, comparative, or comparative_no_prior ---
@@ -1972,15 +2023,22 @@ def _generate_category_narrative(
             prev2_notional_to_report = None
             prev_year_to_report = None
             prev2_year_to_report = None
-            swap_type_for_summary = instrument_type  # Default to the single-year description
+            swap_type_for_summary = (
+                instrument_type  # Default to the single-year description
+            )
 
             # --- NEW: Use archetype to determine comparative years ---
             comparative_years = scenario.archetype.comparative_years
-            use_three_year_comparative = (comparative_years == 3 and prev_notional > 0 and prev2_notional > 0)
-            use_two_year_comparative = (comparative_years == 2 and prev_notional > 0)
+            use_three_year_comparative = (
+                comparative_years == 3 and prev_notional > 0 and prev2_notional > 0
+            )
+            use_two_year_comparative = comparative_years == 2 and prev_notional > 0
 
             # Add a random chance to still generate a comparative sentence even if not the default
-            if not (use_three_year_comparative or use_two_year_comparative) and random.random() < 0.3:
+            if (
+                not (use_three_year_comparative or use_two_year_comparative)
+                and random.random() < 0.3
+            ):
                 if comparative_years > 1 and prev_notional > 0:
                     use_two_year_comparative = True
 
@@ -1992,12 +2050,18 @@ def _generate_category_narrative(
                 prev_year_to_report = reporting_year - 1
                 prev2_year_to_report = reporting_year - 2
                 # Generate a combined description for all three years
-                combined_instruments = (current_year_data.get("instruments", []) +
-                                        prev_year_data.get("instruments", []) + # type: ignore
-                                        prev2_year_data.get("instruments", [])) # type: ignore
+                combined_instruments = (
+                    current_year_data.get("instruments", [])
+                    + prev_year_data.get("instruments", [])  # type: ignore
+                    + prev2_year_data.get("instruments", [])
+                )  # type: ignore
                 # Remove duplicates by instrument ID
-                unique_instruments = list({inst.instrument_id: inst for inst in combined_instruments}.values())
-                swap_type_for_summary = _get_smart_instrument_description(unique_instruments, category, True)
+                unique_instruments = list(
+                    {inst.instrument_id: inst for inst in combined_instruments}.values()
+                )
+                swap_type_for_summary = _get_smart_instrument_description(
+                    unique_instruments, category, True
+                )
             elif use_two_year_comparative:
                 sentence_type_to_use = "comparative"
                 notional_to_report = current_notional
@@ -2005,17 +2069,27 @@ def _generate_category_narrative(
                 prev_year_to_report = reporting_year - 1
                 # --- FIX: Generate a combined description for the comparative sentence ---
                 # This ensures the description covers instruments from both years.
-                combined_instruments = (current_year_data.get("instruments", []) +
-                                        prev_year_data.get("instruments", [])) # type: ignore
+                combined_instruments = current_year_data.get(
+                    "instruments", []
+                ) + prev_year_data.get(
+                    "instruments", []
+                )  # type: ignore
                 # Remove duplicates by instrument ID
-                unique_instruments = list({inst.instrument_id: inst for inst in combined_instruments}.values())
-                swap_type_for_summary = _get_smart_instrument_description(unique_instruments, category, True)
+                unique_instruments = list(
+                    {inst.instrument_id: inst for inst in combined_instruments}.values()
+                )
+                swap_type_for_summary = _get_smart_instrument_description(
+                    unique_instruments, category, True
+                )
             elif current_notional > 0 and prev_notional == 0:
                 sentence_type_to_use = "comparative_no_prior_outstanding"
                 notional_to_report = current_notional
 
             if notional_to_report > 0:
-                use_fair_value = random.random() < GENERATION_PROBABILITIES["use_fair_value_for_summary"]
+                use_fair_value = (
+                    random.random()
+                    < GENERATION_PROBABILITIES["use_fair_value_for_summary"]
+                )
                 value_type_to_use = "fair_value" if use_fair_value else "notional"
 
                 summary_sentence_obj = NotionalSentence(
@@ -2042,7 +2116,9 @@ def _generate_category_narrative(
                     preferred_negative_format=scenario.archetype.preferred_negative_format,
                 )
                 summary_sentence_text, evidence_obj = summary_sentence_obj.build()
-                summary_sentence_obj.preferred_negative_format = scenario.archetype.preferred_negative_format
+                summary_sentence_obj.preferred_negative_format = (
+                    scenario.archetype.preferred_negative_format
+                )
                 sentences.append(summary_sentence_text)
                 evidence.append(evidence_obj)
 
@@ -2055,11 +2131,11 @@ def _generate_category_narrative(
         if mentioned_instrument_types is None:
             # This should be passed from the calling function, but as a fallback, initialize it.
             mentioned_instrument_types = set()
-        
-        # --- NEW: Track core instrument components (placeholder, base_type) for better contextual phrasing ---
-        mentioned_instrument_cores: Set[Tuple[str, str]] = set()
 
-        
+        # --- NEW: Track core instrument components (placeholder, base_type) for better contextual phrasing ---
+        # --- FIX: Use a Counter to track how many times a core type is mentioned ---
+        mentioned_instrument_cores: Counter[Tuple[str, str]] = Counter()
+
         # --- FIX: Track if active instruments were intentionally dropped ---
         # --- MODIFIED: Track if we actually generated any evidence ---
         any_notional_evidence_generated = False
@@ -2073,7 +2149,7 @@ def _generate_category_narrative(
             and current_year_data["instruments"]
             and random.random() < 0.7  # 70% chance to generate a table if preferred
             and random.random() < GENERATION_PROBABILITIES["active_instrument_mention"]
-        ): # type: ignore
+        ):  # type: ignore
             cat_to_map = {
                 "IR": "Interest Rate",
                 "FX": "Foreign Currency",
@@ -2083,7 +2159,8 @@ def _generate_category_narrative(
             }
             table_builder = DerivativeTable(
                 instruments=current_year_data["instruments"],
-                category=cat_to_map.get(category, ""), yearly_data=yearly_data,
+                category=cat_to_map.get(category, ""),
+                yearly_data=yearly_data,
                 reporting_year=reporting_year,
                 reporting_day=reporting_day,
                 reporting_month=reporting_month,
@@ -2094,7 +2171,9 @@ def _generate_category_narrative(
                 currency_code=currency_code,
             )
             # --- MODIFIED: build() now returns remaining instruments ---
-            table_str, table_evidence, remaining_instruments = table_builder.choose_and_build()
+            table_str, table_evidence, remaining_instruments = (
+                table_builder.choose_and_build()
+            )
             if table_str:
                 # The table string itself is the "paragraph". We also need to generate evidence for the instruments in it.
                 paragraphs.append(table_str)
@@ -2104,7 +2183,7 @@ def _generate_category_narrative(
                 table_generated_for_category = True
                 # This allows us to process the rest of the instruments below.
                 current_year_data["instruments"] = remaining_instruments
-            
+
             # If no table was generated, or if there are remaining instruments,
             # the code will now continue to the loop below instead of returning.
 
@@ -2113,18 +2192,31 @@ def _generate_category_narrative(
             # This simulates incomplete disclosure by sometimes omitting an instrument,
             # but only when `allow_random_drops` is True.
             instruments_to_mention = current_year_data["instruments"]
-            if allow_random_drops and random.random() < (1 - GENERATION_PROBABILITIES["active_instrument_mention"]):
+            if allow_random_drops and random.random() < (
+                1 - GENERATION_PROBABILITIES["active_instrument_mention"]
+            ):
                 # Drop a random number of instruments
-                num_to_keep = random.randint(0, len(instruments_to_mention) -1) if instruments_to_mention else 0
-                instruments_to_mention = random.sample(instruments_to_mention, k=num_to_keep)
+                num_to_keep = (
+                    random.randint(0, len(instruments_to_mention) - 1)
+                    if instruments_to_mention
+                    else 0
+                )
+                instruments_to_mention = random.sample(
+                    instruments_to_mention, k=num_to_keep
+                )
                 active_instruments_were_dropped = not instruments_to_mention
 
             # --- MODIFIED: With a chance, add multiple duplicate instruments to test aliasing and repetition ---
-            if instruments_to_mention and random.random() < GENERATION_PROBABILITIES["repeat_instrument_mention"]:
+            if (
+                instruments_to_mention
+                and random.random()
+                < GENERATION_PROBABILITIES["repeat_instrument_mention"]
+            ):
                 # Add 1 to 3 duplicates to test repeated mentions more than twice.
                 num_repeats = random.randint(1, 3)
                 for _ in range(num_repeats):
-                    if not instruments_to_mention: break # Safeguard
+                    if not instruments_to_mention:
+                        break  # Safeguard
                     # Pick a random instrument that is already slated to be mentioned
                     instrument_to_repeat = random.choice(instruments_to_mention)
                     # Insert it at a random position in the list
@@ -2139,12 +2231,11 @@ def _generate_category_narrative(
 
                 use_fair_value = random.random() < 0.2
                 # --- FIX: Distinguish between a repeated TYPE and a repeated INSTANCE ---
-                # is_repeated_core is for context ("another swap...")
+                # is_first_repetition is for context ("another swap...")
                 # is_repeated_instance is for aliasing ("the swap...")
                 instrument_core = (instrument.placeholder, instrument.base_type)
-                is_repeated_core = (
-                    instrument_core in mentioned_instrument_cores
-                )
+                # --- FIX: Only use "another" on the *first* repetition of a core type ---
+                is_first_repetition = mentioned_instrument_cores[instrument_core] == 1
                 is_repeated_instance = (
                     instrument.instrument_id in mentioned_instrument_ids
                 )
@@ -2176,7 +2267,10 @@ def _generate_category_narrative(
                 # --- NEW: Timeline generation for instruments with a long history ---
                 history_length = len(instrument.notional_history)
                 is_long_history_timeline = (
-                    is_historical and history_length > 1 and random.random() < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
+                    is_historical
+                    and history_length > 1
+                    and random.random()
+                    < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
                 )
 
                 # --- NEW: Use TimelineSentence class for long histories ---
@@ -2296,9 +2390,9 @@ def _generate_category_narrative(
                         category=category,  # type: ignore
                         reporting_year=reporting_year,
                         value_type=value_type,
-                        is_repeated_mention=is_repeated_core,  # Pass the CORE component check for contextual phrasing
+                        is_repeated_mention=is_first_repetition,  # Pass the check for contextual phrasing
                         preferred_negative_format=scenario.archetype.preferred_negative_format,
-                        instrument=instrument, # Pass the full instrument object
+                        instrument=instrument,  # Pass the full instrument object
                     )
                     individual_sentence_text, evidence_obj = (
                         individual_sentence_obj.build()
@@ -2315,10 +2409,12 @@ def _generate_category_narrative(
                     mentioned_instrument_types.add(
                         instrument.instrument_type
                     )  # Mark as mentioned
-                    mentioned_instrument_cores.add(
+                    mentioned_instrument_cores[
                         instrument_core
-                    ) # Mark core as mentioned
+                    ] += 1  # Increment the count for this core
 
+        # Describe terminated instruments by looking at the previous year's data
+        # Describe terminated instruments by checking for zero notional in current year
         # Describe terminated instruments by looking at the previous year's data
         # Describe terminated instruments by checking for zero notional in current year
         if current_year_data and prev_year_data and not active_instruments_were_dropped:
@@ -2327,26 +2423,35 @@ def _generate_category_narrative(
                 inst
                 for inst in current_year_data["instruments"]
                 if inst.notional_history.get(scenario.reporting_year, 0) == 0
-                and (inst.notional_history.get(scenario.reporting_year - 1, 0) > 0
-                )
+                and (inst.notional_history.get(scenario.reporting_year - 1, 0) > 0)
             ]
 
             # --- NEW: Randomly decide which terminated instruments to mention ---
             terminated_to_mention = terminated_instruments
             if allow_random_drops:
-                terminated_to_mention = [inst for inst in terminated_instruments if random.random() < GENERATION_PROBABILITIES["terminated_instrument_mention"]]
+                terminated_to_mention = [
+                    inst
+                    for inst in terminated_instruments
+                    if random.random()
+                    < GENERATION_PROBABILITIES["terminated_instrument_mention"]
+                ]
 
             for instrument in terminated_to_mention:
 
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
                 use_timeline_for_terminated = (
-                    history_length > 1 and random.random() < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
+                    history_length > 1
+                    and random.random()
+                    < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
                 )
 
-                instrument_core_terminated = (instrument.placeholder, instrument.base_type)
-                is_repeated_core_terminated = (
-                    instrument_core_terminated in mentioned_instrument_cores
+                instrument_core_terminated = (
+                    instrument.placeholder,
+                    instrument.base_type,
+                )
+                is_first_repetition_terminated = (
+                    mentioned_instrument_cores[instrument_core_terminated] == 1
                 )
                 is_repeated_instance_terminated = (
                     instrument.instrument_id in mentioned_instrument_ids
@@ -2370,13 +2475,15 @@ def _generate_category_narrative(
                         any_notional_evidence_generated = True
                         mentioned_instrument_ids.add(instrument.instrument_id)
                         mentioned_instrument_types.add(instrument.instrument_type)
-                        mentioned_instrument_cores.add(
-                            instrument_core_terminated
-                        )
+                        mentioned_instrument_cores[instrument_core_terminated] += 1
                 else:
                     # --- NEW: Use a weighted choice for describing terminated instruments ---
-                    options = ["terminated_individual", "comparative_no_outstanding", "comparative"]
-                    weights = [0.50, 0.35, 0.15] # Base weights
+                    options = [
+                        "terminated_individual",
+                        "comparative_no_outstanding",
+                        "comparative",
+                    ]
+                    weights = [0.50, 0.35, 0.15]  # Base weights
 
                     # A 'comparative' sentence is only possible if there are at least two prior years of history.
                     can_do_comparative = len(instrument.notional_history) >= 2
@@ -2387,23 +2494,38 @@ def _generate_category_narrative(
                         total_weight = sum(weights)
                         weights = [w / total_weight for w in weights]
 
-                    sentence_type_to_use = random.choices(options, weights=weights, k=1)[0]
+                    sentence_type_to_use = random.choices(
+                        options, weights=weights, k=1
+                    )[0]
 
                     # Set up data based on the chosen sentence type
                     notional_to_report = 0
                     if sentence_type_to_use == "terminated_individual":
                         # The 'notional' is the final value from the prior year.
-                        notional_to_report = instrument.maturity_value or instrument.notional_history.get(reporting_year - 1, 0)
+                        notional_to_report = (
+                            instrument.maturity_value
+                            or instrument.notional_history.get(reporting_year - 1, 0)
+                        )
                     elif sentence_type_to_use == "comparative_no_outstanding":
                         # The 'notional' is the prior year's value, which will be compared against zero.
-                        notional_to_report = instrument.notional_history.get(reporting_year - 1, 0)
+                        notional_to_report = instrument.notional_history.get(
+                            reporting_year - 1, 0
+                        )
                     elif sentence_type_to_use == "comparative":
                         # The 'notional' is the value from reporting_year - 1.
                         # The 'prev_notional' will be from reporting_year - 2.
-                        notional_to_report = instrument.notional_history.get(reporting_year - 1, 0)
+                        notional_to_report = instrument.notional_history.get(
+                            reporting_year - 1, 0
+                        )
 
-                    use_alias_terminated = is_repeated_instance_terminated and random.random() < 0.75
-                    name_to_use_terminated = instrument.instrument_alias if use_alias_terminated and instrument.instrument_alias else instrument.instrument_type
+                    use_alias_terminated = (
+                        is_repeated_instance_terminated and random.random() < 0.75
+                    )
+                    name_to_use_terminated = (
+                        instrument.instrument_alias
+                        if use_alias_terminated and instrument.instrument_alias
+                        else instrument.instrument_type
+                    )
 
                     terminated_instrument_obj = NotionalSentence(
                         swap_type=name_to_use_terminated,
@@ -2414,15 +2536,23 @@ def _generate_category_narrative(
                         company_name=scenario.company_name,
                         sentence_type=sentence_type_to_use,  # type: ignore
                         # Pass prior year data only for the 'comparative' type
-                        prev_notional=instrument.notional_history.get(reporting_year - 2, 0) if sentence_type_to_use == "comparative" else None,
-                        prev_year=reporting_year - 1 if sentence_type_to_use == "comparative" else None,
+                        prev_notional=(
+                            instrument.notional_history.get(reporting_year - 2, 0)
+                            if sentence_type_to_use == "comparative"
+                            else None
+                        ),
+                        prev_year=(
+                            reporting_year - 1
+                            if sentence_type_to_use == "comparative"
+                            else None
+                        ),
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
                         zero_notional_format=scenario.archetype.zero_notional_format,
                         category=category,  # type: ignore
                         reporting_year=reporting_year,
                         value_type="notional",
-                        is_repeated_mention=is_repeated_core_terminated,
+                        is_repeated_mention=is_first_repetition_terminated,
                         preferred_negative_format=scenario.archetype.preferred_negative_format,
                         instrument=instrument,
                     )
@@ -2433,19 +2563,19 @@ def _generate_category_narrative(
                     paragraphs.append(terminated_instrument_text)
                     mentioned_instrument_ids.add(instrument.instrument_id)
                     mentioned_instrument_types.add(instrument.instrument_type)
-                    mentioned_instrument_cores.add(
-                        instrument_core_terminated
-                    )
+                    mentioned_instrument_cores[instrument_core_terminated] += 1
                     any_notional_evidence_generated = True
                     evidence.append(evidence_obj)
 
         # If there are no current instruments, check for a comparative no-outstanding sentence
         if (
-            not (current_year_data and current_year_data["instruments"]) and not table_generated_for_category
+            not (current_year_data and current_year_data["instruments"])
+            and not table_generated_for_category
             and prev_year_data
             and prev_year_data["total_notional"] > 0
             and not active_instruments_were_dropped
-            and random.random() < GENERATION_PROBABILITIES["terminated_instrument_mention"]
+            and random.random()
+            < GENERATION_PROBABILITIES["terminated_instrument_mention"]
         ):
             instrument_type = (
                 prev_year_data["instrument_types"][0]
@@ -2476,14 +2606,17 @@ def _generate_category_narrative(
         if allow_random_drops and not any_notional_evidence_generated:
             # Find and remove or modify any "current" mitigation evidence for this category
             evidence = [
-                ev for ev in evidence 
-                if not (isinstance(ev, MitigationEvidence) 
-                        and ev.category == category 
-                        and ev.usage_status == "current")
+                ev
+                for ev in evidence
+                if not (
+                    isinstance(ev, MitigationEvidence)
+                    and ev.category == category
+                    and ev.usage_status == "current"
+                )
             ]
         sentences = paragraphs
 
-    return sentences, evidence, used_name # type: ignore
+    return sentences, evidence, used_name  # type: ignore
 
 
 def _generate_narrative_accounting(
@@ -2730,7 +2863,6 @@ def generate_narrative_from_scenario(
                 part="details",
                 mentioned_instrument_types=mentioned_instrument_types,
                 mentioned_instrument_ids=mentioned_instrument_ids,
-                # mentioned_instrument_cores is managed internally in this part
                 allow_random_drops=allow_random_drops,
             )
             # NEW: Join the generated paragraphs with newlines.
@@ -3314,6 +3446,8 @@ def main():
 
     # 3. Generate the structured JSON output from the evidence
     target_json = generate_json_from_scenario(scenario, evidence)
+    if DEBUG:
+        print(_generate_debug_output(scenario, evidence))
 
     print("\n" + "="*30 + " NARRATIVE " + "="*30)
     print(narrative)
