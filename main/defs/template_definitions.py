@@ -714,6 +714,7 @@ class Table:
         reporting_year: int,
         notional_multiplier: int,
         currency_symbol: str,
+        currency_code: str,
         prefer_abbreviated: bool,
         category: str,
     ):
@@ -724,6 +725,7 @@ class Table:
         self.yearly_data = yearly_data
         self.reporting_year = reporting_year
         self.currency_symbol = currency_symbol
+        self.currency_code = currency_code
         self.prefer_abbreviated = prefer_abbreviated
         self.category = category
 
@@ -825,7 +827,7 @@ class Table:
                     notional_str=val1_str,
                     year=year1,
                     instrument_type=name_to_use,
-                    reporting_year=self.reporting_year,
+                    reporting_year=self.reporting_year, # type: ignore
                     value_type=value_type,
                     currency=inst.currency,
                     sentence_type="individual", # From a table
@@ -920,7 +922,7 @@ class Table:
                         notional_str=notional_str,
                         year=self.reporting_year,
                         instrument_type=name_to_use,
-                        reporting_year=self.reporting_year,
+                        reporting_year=self.reporting_year, # type: ignore
                         value_type="notional",
                         currency=inst.currency,
                         sentence_type="individual", # From a table
@@ -1015,8 +1017,8 @@ class Table:
                     year=self.reporting_year,
                     instrument_type=f"Derivatives with maturity of {group.lower()}",
                     reporting_year=self.reporting_year,
-                    value_type="notional",
-                    currency=self.currency_symbol,
+                    value_type="notional", # type: ignore
+                    currency=self.currency_code,
                     sentence_type="summary", # type: ignore
                     aggregate=True,
                 ))
@@ -1082,8 +1084,8 @@ class Table:
             year=year,
             instrument_type=f"AOCI balance for {self.category} cash flow hedges",
             reporting_year=self.reporting_year,
-            value_type="fair_value", # AOCI balance is a fair value concept
-            currency=self.currency_symbol,
+            value_type="fair_value",  # AOCI balance is a fair value concept
+            currency=self.currency_code,
             sentence_type="summary",
             aggregate=True,
         ))
@@ -1192,7 +1194,7 @@ class Table:
                 notional_str=reclass_str, year=year,
                 instrument_type=f"AOCI reclassification for {inst.instrument_type}",
                 reporting_year=self.reporting_year, value_type="fair_value",
-                currency=self.currency_symbol, sentence_type="individual",
+                currency=self.currency_code, sentence_type="individual",
             ))
 
         if len(rows) <= 3:

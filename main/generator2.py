@@ -1666,7 +1666,8 @@ def _generate_category_narrative(
                 reporting_month=reporting_month,
                 currency_symbol=currency_symbol,
                 notional_multiplier=scenario.archetype.notional_multiplier,
-                prefer_abbreviated=scenario.number_format_preference
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_code=currency_code,
             )
             table_str, table_evidence = table_builder.build()
             if table_str:
@@ -2175,8 +2176,8 @@ def generate_narrative_from_scenario(
     # --- NEW: Part 2.9: Generate Optional Standalone "Additional" Tables ---
     # These tables (AOCI, Maturity, etc.) often appear as separate disclosures.
     if has_any_details and scenario.archetype.prefers_tables and random.random() < 0.6:
-        # Get currency and money unit details for table generation
-        currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+        # Get currency and money unit details for table generation.
+        currency_symbol, _, currency_code = _get_currency_and_unit_details(scenario)
 
         # We can generate one of these tables for each category that has instruments.
         # Let's pick one or two categories at random to generate a table for.
@@ -2206,6 +2207,7 @@ def generate_narrative_from_scenario(
                     currency_symbol=currency_symbol,
                     notional_multiplier=scenario.archetype.notional_multiplier,
                     prefer_abbreviated=scenario.number_format_preference,
+                    currency_code=currency_code,
                 )
                 # Call build with additional=True to get the other table formats
                 table_str, table_evidence = table_builder.build(additional=True)
