@@ -423,16 +423,6 @@ class DebtContextSentence: # Simplified to handle one item at a time
                     f"{effective_rate:.2f}"
                 ])
 
-        data_rows = []
-        for item in self.hedged_item:
-            principal_str = _format_single_notional(
-                item.principal_amount, self.currency_symbol, self.prefer_abbreviated, True
-            )
-            rate = (item.spread_bps / 100 if item.spread_bps else random.uniform(2.5, 8.5))
-            rate_str = f"{rate:.2f}"
-            maturity_str = str(item.maturity_year)
-            data_rows.append([item.debt_type, principal_str, rate_str, maturity_str])
-
         if not data_rows:
             return ""
 
