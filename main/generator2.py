@@ -1863,6 +1863,9 @@ def _generate_category_narrative(
         if mentioned_instrument_types is None:
             # This should be passed from the calling function, but as a fallback, initialize it.
             mentioned_instrument_types = set()
+        
+        # --- FIX: Track if active instruments were intentionally dropped ---
+        active_instruments_were_dropped = False
 
         # --- NEW: Table Generation Logic ---
         table_generated_for_category = False
@@ -1915,6 +1918,7 @@ def _generate_category_narrative(
                 instruments_to_mention = [
                     inst for inst in instruments_to_mention if random.random() < ACTIVE_INSTRUMENT_MENTION_PROB
                 ]
+                active_instruments_were_dropped = not instruments_to_mention
 
             # --- NEW: With a small chance, add a duplicate instrument to the list to test aliasing ---
             if instruments_to_mention and random.random() < REPEAT_MENTION_PROB: # 25% chance to add a repeat mention
@@ -2108,7 +2112,7 @@ def _generate_category_narrative(
 
         # Describe terminated instruments by looking at the previous year's data
         # Describe terminated instruments by checking for zero notional in current year
-        if current_year_data and prev_year_data:
+        if current_year_data and prev_year_data and not active_instruments_were_dropped:
             # Find instruments that have zero notional this year but had value last year
             terminated_instruments = [
                 inst
@@ -2224,6 +2228,7 @@ def _generate_category_narrative(
             not (current_year_data and current_year_data["instruments"]) and not table_generated_for_category
             and prev_year_data
             and prev_year_data["total_notional"] > 0
+            and not active_instruments_were_dropped
         ):
             instrument_type = (
                 prev_year_data["instrument_types"][0]
