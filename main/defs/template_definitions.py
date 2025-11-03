@@ -6,6 +6,7 @@ from defs.notional_definitions import NotionalEvidence
 from defs.instrument_definitions import NotionalInstrument
 from defs.common_data import DERIVATIVE_COMPONENTS
 from defs.fx_data import ForeignCurrencyHedgedItem, CurrencyExposure
+from defs.table_definitions import GenericTable
 from defs.function_definitions import _format_single_notional, _get_correct_rounding
 
 # Time prefixes for point-in-time statements (e.g., aggregate summaries, single year)
@@ -700,10 +701,8 @@ hedge_documentation_templates = general_hedge_documentation_templates + specific
 hedge_effectiveness_policy_templates = general_hedge_effectiveness_templates + specific_hedge_effectiveness_templates
 
 @dataclass
-class Table:
-    """
-    Generates formatted text-based tables for displaying derivative instrument data.
-    """
+class BaseTableBuilder:
+    """Base class for specific table builders."""
 
     def __init__(
         self,
@@ -716,7 +715,7 @@ class Table:
         currency_symbol: str,
         currency_code: str,
         prefer_abbreviated: bool,
-        preferred_negative_format: Literal[-1, 0, 1, 2],
+        preferred_negative_format: int,  # Literal[-1, 0, 1, 2]
         category: str,
     ):
         self.instruments = instruments
@@ -731,7 +730,7 @@ class Table:
         self.preferred_negative_format = preferred_negative_format
         self.category = category
 
-    def money_unit(self) -> str:
+    def _money_unit(self) -> str:
         amount_to_string = {
          1_000_000_000_000: "trillions",
          1_000_000_000: "billions",
@@ -740,68 +739,37 @@ class Table:
         }
         if self.notional_multiplier in amount_to_string:
             return amount_to_string[self.notional_multiplier]
-        return "in millions"
+        return "millions"
 
-    def _format_row_with_wrapping(
-        self, cells: List[str], widths: List[int], alignments: List[str]
-    ) -> List[str]:
-        """
-        Formats a single logical row into multiple physical lines with text wrapping.
-        """
-        import textwrap
-
-        wrapped_cells = []
-        max_lines = 0
-        for i, cell_content in enumerate(cells):
-            # Wrap the text for each cell
-            lines = textwrap.wrap(cell_content, width=widths[i], break_long_words=False)
-            if not lines:  # Handle empty cells
-                lines = [""]
-            wrapped_cells.append(lines)
-            if len(lines) > max_lines:
-                max_lines = len(lines)
-
-        # Pad shorter cells with blank lines to match the tallest cell
-        for lines in wrapped_cells:
-            while len(lines) < max_lines:
-                lines.append("")
-
-        # Construct the physical lines for the row
-        output_lines = []
-        for i in range(max_lines):
-            row_parts = []
-            for j, lines in enumerate(wrapped_cells):
-                align = alignments[j]
-                # Use ljust, rjust, or center for alignment
-                row_parts.append(lines[i].ljust(widths[j]) if align == 'l' else lines[i].rjust(widths[j]))
-            output_lines.append("  ".join(row_parts))
-        return output_lines
-
-    def build(self, additional: bool = False) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+    def choose_and_build(
+        self, additional: bool = False
+    ) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Selects a table format at random and builds the table string.
+        This method acts as a factory for different table types.
         """
         formats = [
-            self._build_year_over_year_table,
-            self._build_three_year_comparative_table,
-            self._build_notional_vs_fair_value_table,
+            YearOverYearTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+            ThreeYearComparativeTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+            NotionalVsFairValueTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
         ]
         additional_formats = [
-            self._build_maturity_grouping_table,  # This one is aggregate, doesn't produce individual evidence
-            self._build_asset_liability_fair_value_table,
-            self._build_aoci_reconciliation_table,
-            self._build_aoci_reclassification_impact_table,
+            MaturityGroupingTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+            AssetLiabilityFairValueTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+            AOCIReconciliationTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+            AOCIReclassificationImpactTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
         if self.category == "FX":
-            formats.append(self._build_fx_exposure_table)
+            formats.append(FXExposureTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build)
         if additional:
             chosen_format = random.choice(additional_formats)
         else:
             chosen_format = random.choice(formats)
-        return chosen_format()
-    def get_units(self) -> str:
-        return f"(in {self.currency_symbol} {self.money_unit()})" if self.prefer_abbreviated else f"(in {self.currency_code})"
+        return chosen_format() # type: ignore
+
+    def _get_units(self) -> str:
+        return f"(in {self.currency_symbol} {self._money_unit()})" if self.prefer_abbreviated else f"(in {self.currency_code})"
 
     def _get_value(
         self, instrument: NotionalInstrument, year: int, value_type: Literal["notional", "fair_value"]
@@ -813,11 +781,15 @@ class Table:
             return max(0, int(notional * random.uniform(0.01, 0.1)))
         return notional
 
-    def _build_year_over_year_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+
+class YearOverYearTableBuilder(BaseTableBuilder): # Already refactored, shown for context
+    """Builds a table comparing notional/fair values year-over-year."""
+
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table comparing notional/fair values year-over-year.
         Format:
-            Instrument  Year 1  Year 2
+            Instrument      Notional Amount 20XX    Notional Amount 20XX-1
         """
         evidence_list = []
         year1 = self.reporting_year
@@ -825,16 +797,11 @@ class Table:
         value_type_str = random.choice(["Notional Amount", "Fair Value"])
         value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
         
-        # Define column properties
-        columns = ["Instrument", f"{value_type_str} {year1}", f"{value_type_str} {year2}"]
+        headers = ["Instrument", f"{value_type_str} {year1}", f"{value_type_str} {year2}"]
         widths = [45, 20, 20]
         alignments = ['l', 'r', 'r'] # l for left, r for right
 
-        header = "  ".join([col.ljust(widths[i]) if alignments[i] == 'l' else col.rjust(widths[i]) for i, col in enumerate(columns)])
-        separator = "  ".join(['-' * w for w in widths])
-        # --- SEC Tag ---
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
-        rows = [header, separator, sec_tags_line]
+        data_rows = []
 
         # Use a set to avoid describing the same instrument type multiple times
         described_types = set()
@@ -866,10 +833,8 @@ class Table:
                 negative_format=self.preferred_negative_format,  # type: ignore
             )
 
-            # Use the new multi-line formatting helper
             row_cells = [name_to_use, val1_str, val2_str]
-            formatted_lines = self._format_row_with_wrapping(row_cells, widths, alignments)
-            rows.extend(formatted_lines)
+            data_rows.append(row_cells)
 
             # Create evidence for the current year if value is > 0
             if val1 > 0:
@@ -890,7 +855,7 @@ class Table:
                     sentence_type="individual", # From a table
                 ))
 
-        if len(rows) <= 3:  # Only header, separator, and tags
+        if not data_rows:
             return "", [], []
 
         # Add a title
@@ -901,11 +866,25 @@ class Table:
             "EQ": "Equity",
             "GEN": "Derivative",
         }
-        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s {self.get_units()}"
-        full_table = f"<TABLE>\n<CAPTION>\n{title}\n" + "\n".join(rows) + "\n</TABLE>"
-        return full_table, evidence_list, []
+        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s {self._get_units()}"
+        
+        # Use the generic table builder to format the output
+        generic_table = GenericTable(
+            headers=headers,
+            data_rows=data_rows,
+            widths=widths,
+            alignments=alignments,
+            title=title,
+        )
+        table_str = generic_table.build()
 
-    def _build_notional_vs_fair_value_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+        return table_str, evidence_list, []
+
+
+class NotionalVsFairValueTableBuilder(BaseTableBuilder):
+    """Builds a table comparing notional vs. fair value, grouped by year."""
+
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table comparing notional vs. fair value, grouped by year.
         Format:
@@ -924,7 +903,7 @@ class Table:
             "EQ": "Equity",
             "GEN": "Derivative",
         }
-        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s"
+        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s {self._get_units()}"
         all_rows.append(title)
 
         for year in [year1, year2]:
@@ -939,14 +918,13 @@ class Table:
                 continue
 
             all_rows.append(
-                f"\nAs of {self.month} {self.day}, {year} {self.get_units()}"
+                f"\nAs of {self.month} {self.day}, {year}"
             )
 
-            header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+            header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
             all_rows.extend(header_lines)
             separator = "  ".join(['-' * w for w in widths])
             all_rows.append(separator)
-            # --- SEC Tag ---
             sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
             all_rows.append(sec_tags_line)
 
@@ -976,7 +954,7 @@ class Table:
                 )
 
                 row_cells = [name_to_use, notional_str, fair_val_str]
-                formatted_lines = self._format_row_with_wrapping(row_cells, widths, alignments)
+                formatted_lines = GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments)
                 all_rows.extend(formatted_lines)
 
                 # Create evidence for the current year if value is > 0
@@ -1025,12 +1003,14 @@ class Table:
         if len(all_rows) <= 1:  # Only title
             return "", [], []
 
-        # --- SEC Tag ---
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(all_rows) + "\n</TABLE>"
 
         return full_table_str, evidence_list, []
 
-    def _build_maturity_grouping_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+class MaturityGroupingTableBuilder(BaseTableBuilder):
+    """Builds a table grouping instruments by maturity year ranges."""
+
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table grouping instruments by maturity year ranges.
         Format:
@@ -1073,17 +1053,16 @@ class Table:
                     self.reporting_year, 0
                 )
 
-        title = f"Notional Amount of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])} by Maturity as of {self.month} {self.day}, {self.reporting_year} {self.get_units()}"
+        title = f"Notional Amount of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])} by Maturity as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
         columns = ["Maturity", "Notional Amount"]
         widths = [25, 25]
         alignments = ['l', 'r']
         rows = [title]
 
-        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
         rows.append(separator)
-        # --- SEC Tag ---
         sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1])
         rows.append(sec_tags_line)
 
@@ -1119,16 +1098,18 @@ class Table:
                     aggregate=True,
                 ))
                 row_cells = [group, notional_str]
-                rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+                rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
 
         if len(rows) <= 4:  # Only title, header lines, separator, and tags
             return "", [], []
 
-        # --- SEC Tag ---
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
-    def _build_aoci_reconciliation_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+class AOCIReconciliationTableBuilder(BaseTableBuilder):
+    """Builds a table showing the roll-forward of the AOCI balance for cash flow hedges."""
+
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table showing the roll-forward of the AOCI balance for cash flow hedges.
         Format:
@@ -1186,7 +1167,7 @@ class Table:
         )
 
         # Build table
-        title = f"Accumulated Other Comprehensive Income (AOCI) Activity for Cash Flow Hedges\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} {self.get_units()}"
+        title = f"Accumulated Other Comprehensive Income (AOCI) Activity for Cash Flow Hedges\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
 
         rows = [
             f"Beginning Balance, {self.month} {self.day}, {year - 1:<28} {bal_str}",
@@ -1215,13 +1196,13 @@ class Table:
             aggregate=True,
         ))
 
-        # --- SEC Tag ---
         full_table_str = "<TABLE>\n<CAPTION>\n" + f"{title}\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
-    def _build_three_year_comparative_table(
-        self,
-    ) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+class ThreeYearComparativeTableBuilder(BaseTableBuilder):
+    """Builds a table comparing notional/fair values over three years."""
+
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table comparing notional/fair values over three years.
         Format:
@@ -1247,9 +1228,8 @@ class Table:
         widths = [40, 18, 18, 18]
         alignments = ['l', 'r', 'r', 'r']
 
-        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
         separator = "  ".join(['-' * w for w in widths])
-        # --- SEC Tag ---
         sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2] + 2) + "<C>".ljust(widths[3])
         rows = header_lines + [separator, sec_tags_line]
         
@@ -1286,7 +1266,7 @@ class Table:
             )
 
             row_cells = [name_to_use, val1_str, val2_str, val3_str]
-            rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+            rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
             
             if val1 > 0:
                 evidence_notional_str = _format_single_notional(
@@ -1303,12 +1283,13 @@ class Table:
         if len(rows) <= 3: # header, separator, tags
             return "", [], []
 
-        title = f"{value_type_str}s of Outstanding {self.category} Derivatives {self.get_units()}"
-        # --- SEC Tag ---
+        title = f"{value_type_str}s of Outstanding {self.category} Derivatives {self._get_units()}"
         full_table_str = "<TABLE>\n<CAPTION>\n" + title + "\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
-    def _build_aoci_reclassification_impact_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+class AOCIReclassificationImpactTableBuilder(BaseTableBuilder):
+    """Builds a table showing the impact of amounts reclassified from AOCI to the income statement."""
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table showing the impact of amounts reclassified from AOCI to the income statement.
         Format:
@@ -1320,17 +1301,16 @@ class Table:
 
         if not active_instruments:
             return "", [], []
-        title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} {self.get_units()}"
+        title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
         columns = [f"Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}", "Gain/(Loss) Reclassified from AOCI", "Affected Line Item in Income Statement"]
         widths = [35, 25, 40]
         alignments = ['l', 'r', 'l']
         rows = [title]
 
-        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
         rows.append(separator)
-        # --- SEC Tag ---
         sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
         rows.append(sec_tags_line)
 
@@ -1355,7 +1335,7 @@ class Table:
             location = random.choice(income_statement_locations)
 
             row_cells = [inst.instrument_type, reclass_str, location]
-            rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+            rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
             
             evidence_reclass_str = _format_single_notional(
                 reclass_amount,
@@ -1376,11 +1356,13 @@ class Table:
         if len(rows) <= 4: # Title, header, separator, tags
             return "", [], []
 
-        # --- SEC Tag ---
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
-    def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+class FXExposureTableBuilder(BaseTableBuilder):
+    """Builds a two-year comparative table listing the currency exposures for a specific FX instrument."""
+
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a two-year comparative table listing the currency exposures for a specific FX instrument.
         Format:
@@ -1422,11 +1404,10 @@ class Table:
         alignments = ['l', 'r', 'r']
         rows = [title]
 
-        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
         rows.append(separator)
-        # --- SEC Tag ---
         sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
         rows.append(sec_tags_line)
         
@@ -1461,7 +1442,7 @@ class Table:
             )
 
             row_cells = [exposure.full_name, amount_str1, amount_str2]
-            rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+            rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
             
             # --- Create evidence for BOTH years ---
 
@@ -1505,11 +1486,13 @@ class Table:
         # --- NEW: Return the list of instruments that were NOT detailed in this table ---
         remaining_instruments = [inst for inst in self.instruments if inst.instrument_id != instrument_to_detail.instrument_id]
 
-        # --- SEC Tag ---
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, remaining_instruments
 
-    def _build_asset_liability_fair_value_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+class AssetLiabilityFairValueTableBuilder(BaseTableBuilder):
+    """Builds a table showing derivative assets and liabilities."""
+
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table showing derivative assets and liabilities.
         Format:
@@ -1526,17 +1509,16 @@ class Table:
         if not active_instruments:
             return "", [], []
 
-        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s as of {self.month} {self.day}, {self.reporting_year} {self.get_units()}"
+        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
         columns = ["Instrument", "Asset Fair Value", "Liability Fair Value"]
         widths = [45, 20, 22]
         alignments = ['l', 'r', 'r']
         rows = [title]
 
-        header_lines = self._format_row_with_wrapping(columns, widths, alignments)
+        header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
         rows.append(separator)
-        # --- SEC Tag ---
         sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
         rows.append(sec_tags_line)
         
@@ -1566,7 +1548,7 @@ class Table:
                 )
 
             row_cells = [inst.instrument_type, asset_val_str, liab_val_str]
-            rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
+            rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
             
             # Create evidence for the fair value of this instrument
             evidence_fair_value_str = _format_single_notional(
@@ -1591,6 +1573,13 @@ class Table:
         if len(rows) <= 4: # Title, header, separator, tags
             return "", [], []
 
-        # --- SEC Tag ---
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
+
+
+class Table(BaseTableBuilder):
+    """
+    This class now acts as a factory for building various table types.
+    It inherits from BaseTableBuilder and uses its `build` method.
+    """
+    pass
