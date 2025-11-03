@@ -2449,7 +2449,7 @@ def generate_json_from_scenario(
         value_type = ev.value_type.replace("_", " ")
 
         instrument_evidence_map[unique_key] = {
-            "type": inst_type,
+            "type": inst_type.strip(),
             "category": category,
             "status": "current",
             "amount": ev.notional,  # This will be updated if more evidence is found
