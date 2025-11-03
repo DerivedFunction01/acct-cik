@@ -45,6 +45,7 @@ from defs.template_definitions import (
     other_standards,
     hedge_definition_templates,
 )
+from defs.instrument_definitions import AccountingStandardEvidence
 from defs.cp_data import get_cost_types_for_commodity
 from defs.fx_data import all_currencies
 from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
@@ -583,9 +584,10 @@ class AccountingStandardUpdateSentence:
     month: str
     day: int
 
-    def build(self) -> str:
+    def build(self) -> Tuple[str, List[AccountingStandardEvidence]]:
         """Builds a multi-sentence paragraph about the accounting standard update."""
         sentences = []
+        evidence_list = []
 
         # --- 1. ISSUANCE STATEMENT ---
         # Decide if it's a general standard or a hedging-specific one
@@ -632,6 +634,14 @@ class AccountingStandardUpdateSentence:
                     policy_description=description,
                     policy_feature=feature,
                 )
+        
+        evidence_list.append(AccountingStandardEvidence(
+            category="GEN",
+            status="policy_mention",
+            standard_name=self.update.standard_name,
+            adoption_status="issuance",
+            details=sentence,
+        ))
         sentences.append(_cleanup_sentence(sentence))
 
         # --- 2. EFFECTIVE DATE (Optional) ---
@@ -662,6 +672,13 @@ class AccountingStandardUpdateSentence:
                 adoption_method=self.update.adoption_method or random.choice(shared_adoption_methods),
             )
             sentences.append(_cleanup_sentence(sentence))
+            evidence_list.append(AccountingStandardEvidence(
+                category="GEN",
+                status="policy_mention",
+                standard_name=self.update.standard_name,
+                adoption_status="adopted",
+                details=sentence,
+            ))
 
             # Add impact sentence
             if self.update.impact_description:
@@ -679,10 +696,24 @@ class AccountingStandardUpdateSentence:
                     company=_get_company_reference(self.company_name),
                     year=self.update.effective_year or self.year + 1,
                 )
+                evidence_list.append(AccountingStandardEvidence(
+                    category="GEN",
+                    status="policy_mention",
+                    standard_name=self.update.standard_name,
+                    adoption_status="will_adopt",
+                    details=sentence,
+                ))
                 sentences.append(_cleanup_sentence(sentence))
             else: # "evaluating"
                 template = random.choice(shared_evaluation_templates)
                 sentence = template.format(company=_get_company_reference(self.company_name))
+                evidence_list.append(AccountingStandardEvidence(
+                    category="GEN",
+                    status="policy_mention",
+                    standard_name=self.update.standard_name,
+                    adoption_status="evaluating",
+                    details=sentence,
+                ))
                 sentences.append(_cleanup_sentence(sentence))
 
         # --- 4. OTHER DETAILS (Optional) ---
@@ -713,7 +744,7 @@ class AccountingStandardUpdateSentence:
             )
             sentences.append(_cleanup_sentence(sentence))
 
-        return ". ".join(sentences) + "."
+        return ". ".join(sentences) + ".", evidence_list
 
 
 @dataclass

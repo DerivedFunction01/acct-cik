@@ -152,3 +152,23 @@ class BaseNarrativeEvidence:
     def to_string(self) -> str:
         """Generates a human-readable 'chain of thought' sentence for this evidence."""
         return f"Uncategorized evidence found for {self.category}."
+
+@dataclass
+class AccountingStandardEvidence(BaseNarrativeEvidence):
+    """Evidence related to the adoption or evaluation of an accounting standard."""
+
+    standard_name: str = ""
+    adoption_status: Literal["adopted", "evaluating", "will_adopt", "monitoring", "issuance"] = "monitoring"
+    details: str = "" # The specific sentence providing the evidence
+
+    def to_string(self) -> str:
+        """Generates a reasoning statement for the accounting standard evidence."""
+        if self.adoption_status == "adopted":
+            return f"The text confirms the adoption of {self.standard_name}."
+        elif self.adoption_status == "evaluating":
+            return f"The company is currently evaluating the impact of {self.standard_name}."
+        elif self.adoption_status == "will_adopt":
+            return f"The company has stated its intent to adopt {self.standard_name} in a future period."
+        elif self.adoption_status == "issuance":
+             return f"The text notes the issuance of {self.standard_name} by a standards-setting body."
+        return f"The text mentions monitoring or discussion of {self.standard_name}."

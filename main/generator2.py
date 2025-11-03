@@ -2654,8 +2654,9 @@ def generate_narrative_from_scenario(
                 month=scenario.reporting_month,
                 day=scenario.reporting_day,
             )
-            update_paragraph = update_builder.build()
+            update_paragraph, update_evidence = update_builder.build()
             derivative_details_sections.append(update_paragraph)
+            all_evidence.extend(update_evidence)
         
         # --- NEW: Add a generic "other pronouncements" sentence ---
         if random.random() < 0.4:
