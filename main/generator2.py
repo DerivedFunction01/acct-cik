@@ -962,6 +962,11 @@ def _create_instrument_with_history(
         "start_year", current_year - random.randint(3, 8)
     )
 
+    # --- FIX: Ensure start_year is always before or same as maturity_year ---
+    # This prevents logical inconsistencies for past/terminated instruments.
+    if start_year > maturity_year:
+        start_year = maturity_year - random.randint(1, 5)
+
     notional_history = {}
 
     if not is_past:
@@ -2382,15 +2387,15 @@ def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarr
         else:
             debug_lines.append("  - Hedged Item (Exposure): None")
 
-    # --- NEW: Add evidence objects to debug output ---
-    debug_lines.append("\n" + "=" * 20)
-    debug_lines.append(f"\nEvidence Objects ({len(evidence)}):")
-    for i, ev in enumerate(evidence):
-        # Use asdict for a clean, serializable representation
-        evidence_dict = asdict(ev)
-        debug_lines.append(f"  - Evidence {i+1}:")
-        # Pretty-print the dictionary
-        debug_lines.append(f"    {json.dumps(evidence_dict, indent=6)}")
+    # # --- NEW: Add evidence objects to debug output ---
+    # debug_lines.append("\n" + "=" * 20)
+    # debug_lines.append(f"\nEvidence Objects ({len(evidence)}):")
+    # for i, ev in enumerate(evidence):
+    #     # Use asdict for a clean, serializable representation
+    #     evidence_dict = asdict(ev)
+    #     debug_lines.append(f"  - Evidence {i+1}:")
+    #     # Pretty-print the dictionary
+    #     debug_lines.append(f"    {json.dumps(evidence_dict, indent=6)}")
 
     return "\n".join(debug_lines)
 
