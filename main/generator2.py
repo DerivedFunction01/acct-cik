@@ -57,9 +57,15 @@ def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, s
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
     currency_code = scenario.archetype.default_currency
     currency_obj = next((c for c in all_currencies if c.code == currency_code), None)
-    currency_symbol = currency_obj.symbol if currency_obj else "$"  # Default to $
+    # --- NEW: Use ISO code instead of symbol if the archetype prefers it ---
+    if scenario.archetype.prefers_currency_code:
+        display_symbol = currency_code
+    else:
 
-    return currency_symbol, "million", currency_code
+        display_symbol = currency_obj.symbol if currency_obj else "$"  # Default to $
+    money_unit_word = currency_obj.full_name if currency_obj else "US Dollar"  # Default to "dollar"
+
+    return display_symbol, money_unit_word, currency_code
 
 
 # Define a list of company archetypes to choose from during generation.

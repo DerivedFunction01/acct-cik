@@ -43,6 +43,7 @@ class ScenarioArchetype:
     preferred_negative_format: Literal[-1, 0, 1, 2] = (
         0  # -1: (num), 0: -num, 1: (num) post-symbol, 2: symbol-num
     )
+    prefers_currency_code: bool = False  # NEW: Use ISO code (USD) instead of symbol ($)
 
     def get_exposure_counts(self) -> Dict[str, int]:
         """Generates a dictionary of exposure counts based on the archetype's ranges."""
