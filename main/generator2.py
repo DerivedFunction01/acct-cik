@@ -1405,6 +1405,7 @@ def _generate_category_narrative(
     scenario: GenerationScenario,
     part: Literal["summary", "details"],
     mentioned_instrument_types: Optional[Set[str]] = None,
+    allow_random_drops: bool = False,
     mentioned_instrument_ids: Optional[Set[int]] = None,
 ) -> Tuple[List[str], List[BaseNarrativeEvidence], Optional[str]]:
     """
@@ -1762,7 +1763,16 @@ def _generate_category_narrative(
             # the code will now continue to the loop below instead of returning.
 
         if current_year_data and current_year_data["instruments"]:
-            for instrument in current_year_data["instruments"]:
+            # --- NEW: Randomly decide which active instruments to mention ---
+            # This simulates incomplete disclosure by sometimes omitting an instrument,
+            # but only when `allow_random_drops` is True.
+            instruments_to_mention = current_year_data["instruments"]
+            if allow_random_drops:
+                instruments_to_mention = [
+                    inst for inst in instruments_to_mention if random.random() < 0.90 # 90% chance to mention
+                ]
+
+            for instrument in instruments_to_mention:
                 # --- FIX: Initialize report variables at the top of the loop ---
                 year_to_report = reporting_year
                 notional_to_report = 0
@@ -1956,7 +1966,14 @@ def _generate_category_narrative(
                 )
             ]
 
-            for instrument in terminated_instruments:
+            # --- NEW: Randomly decide which terminated instruments to mention ---
+            terminated_to_mention = terminated_instruments
+            if allow_random_drops:
+                terminated_to_mention = [
+                    inst for inst in terminated_instruments if random.random() < 0.80 # 80% chance to mention
+                ]
+
+            for instrument in terminated_to_mention:
 
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
@@ -2138,6 +2155,7 @@ def _generate_narrative_accounting(
 
 def generate_narrative_from_scenario(
     scenario: GenerationScenario,
+    allow_random_drops: bool = False,
 ) -> Tuple[str, List[BaseNarrativeEvidence]]:
     """
     Constructs a coherent, multi-paragraph narrative from a scenario object.
@@ -2211,6 +2229,7 @@ def generate_narrative_from_scenario(
                 scenario,
                 part="summary",
                 mentioned_instrument_types=mentioned_instrument_types,
+                allow_random_drops=allow_random_drops,
             )
             item_7a_sections.append(" ".join(s.strip() for s in summary_sentences if s))
             all_evidence.extend(summary_evidence)
@@ -2259,6 +2278,7 @@ def generate_narrative_from_scenario(
                 part="details",
                 mentioned_instrument_types=mentioned_instrument_types,
                 mentioned_instrument_ids=mentioned_instrument_ids,
+                allow_random_drops=allow_random_drops,
             )
             # NEW: Join the generated paragraphs with newlines.
             # This ensures timelines and individual instruments get their own paragraphs.
@@ -2645,12 +2665,15 @@ def generate_json_from_scenario(
 
 def generate_training_sample(archetype_index=None):
     """Generates a single, complete training sample (narrative + JSON)."""
+    # --- NEW: Determine if random drops should be allowed ---
+    # Drops are only allowed if no specific archetype index is given.
+    allow_random_drops = archetype_index is None
 
     # 1. Create a random scenario that defines the story.
     scenario = create_random_scenario(archetype_index)
 
     # 2. Generate the narrative text and the evidence list based on that scenario.
-    narrative_text, evidence = generate_narrative_from_scenario(scenario)
+    narrative_text, evidence = generate_narrative_from_scenario(scenario, allow_random_drops=allow_random_drops)
 
     # --- NEW: Append debug output to the narrative text ---
     debug_output = _generate_debug_output(scenario, evidence)
