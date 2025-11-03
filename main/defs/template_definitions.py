@@ -2011,9 +2011,26 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
         )
         table_str = table_builder.build()
 
-        # For this table, we don't need to generate specific evidence as it's a summary of impacts.
-        # We can return an empty evidence list.
-        return table_str, [], []
+        # Create summary evidence for the total impact in the current reporting year.
+        evidence_list = []
+        if total_val1 != 0:
+            evidence_list.append(
+                NotionalEvidence(
+                    instrument_id=None,  # Aggregate
+                    status="summary",
+                    category=self.category,
+                    aggregate=True,
+                    notional=_get_correct_rounding(total_val1, self.notional_multiplier) if self.notional_multiplier > 1 else total_val1,
+                    notional_str=total_val1_str,
+                    year=year1,
+                    instrument_type="Total effect of derivative instruments on AOCI",
+                    reporting_year=self.reporting_year,
+                    value_type="fair_value",  # This represents a gain/loss, which is a fair value concept
+                    currency=self.currency_code,
+                    sentence_type="summary",
+                )
+            )
+        return table_str, evidence_list, []
 
     def _format_value(self, value: int) -> str:
         """Formats a numerical value into a string for the table."""
