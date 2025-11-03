@@ -834,7 +834,9 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
 
     # --- Decide on a company archetype and get exposure counts ---
     if archetype_index is not None and 0 <= archetype_index < len(SCENARIO_ARCHETYPES):
-        archetype = SCENARIO_ARCHETYPES[archetype_index]
+        # Make a copy and randomize some properties for variety
+        base_archetype = copy.deepcopy(SCENARIO_ARCHETYPES[archetype_index])
+        archetype = _randomize_archetype_properties(base_archetype)
     else:
         archetype = _create_truly_random_archetype()
 
@@ -891,6 +893,29 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
     # Use the builder to construct the full scenario
     builder = ScenarioBuilder(scenario)
     return builder.build()
+
+def _randomize_archetype_properties(archetype: ScenarioArchetype) -> ScenarioArchetype:
+    """
+    Takes a copy of an archetype and randomizes some of its properties
+    to increase training data variety.
+    """
+    # Randomize the default currency
+    # Give major currencies a higher chance of being selected.
+    major_currencies = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD"]
+    if random.random() < 0.8: # 80% chance to pick a major currency
+        archetype.default_currency = random.choice(major_currencies)
+    else:
+        archetype.default_currency = random.choice([c.code for c in all_currencies])
+
+    # Randomize the number of comparative years slightly
+    archetype.comparative_years = max(1, archetype.comparative_years + random.choice([-1, 0, 0, 1]))
+
+    # Randomize the notional multiplier by one order of magnitude up or down
+    if random.random() < 0.2: # 20% chance to adjust multiplier
+        adjustment_factor = random.choice([0.1, 10])
+        archetype.notional_multiplier = int(archetype.notional_multiplier * adjustment_factor)
+
+    return archetype
 
 def _create_truly_random_archetype() -> ScenarioArchetype:
     """Creates a ScenarioArchetype with randomized properties."""
@@ -3010,7 +3035,7 @@ def generate_json_from_scenario(
     # --- Append a final reasoning statement for any GENERIC derivatives ---
     # This logic is now centralized here, instead of in the Evidence class.
     has_generic_evidence = any(ev.category == "GEN" and ev.status =="current" for ev in evidence)
-    if has_generic_evidence:
+    if has_generic_evidence and random.random() < 0.6:
         # Find other specific instrument types that were identified in the text.
         all_seen_types = sorted(
             list({
