@@ -105,11 +105,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
             and instrument_name_in_sentence in base_desc
             and len(instrument_name_in_sentence.split()) < len(base_desc.split())
         ):
-            reason = (
-                f"Wait, the term '{instrument_name_in_sentence}' appears to be an alias for the previously mentioned '{base_desc}'. "
-            )
+            reason = f"Alias found: '{instrument_name_in_sentence}' refers to '{base_desc}'. "
         else:
-            reason = f"Wait, another mention of the same '{base_desc}' has appeared."
+            reason = f"Another mention of '{base_desc}' was found. "
 
         return reason + " "
 
@@ -158,7 +156,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str or self.notional is not None
                 else " with no value specified"
             )
-            return f"An aggregate {value_desc}{value_part} was identified for {base_desc} activity{temporal_info}"
+            return f"Aggregate {value_desc} for {base_desc}: {value_part.replace(' of ', '')}{temporal_info}"
 
         def new_individual_handler() -> str:
             value_part = (
@@ -166,7 +164,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str
                 else ""
             )
-            return f"A new {base_desc} was identified{value_part}{classification_note}{temporal_info}"
+            return f"New {base_desc} found{value_part}{classification_note}{temporal_info}"
 
         def individual_handler() -> str:
             value_part = (
@@ -174,7 +172,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str
                 else ""
             )
-            return f"A {base_desc} was identified{value_part}{classification_note}{temporal_info}"
+            return f"{base_desc} found{value_part}{classification_note}{temporal_info}"
 
         def terminated_individual_handler() -> str:
             value_part = (
@@ -182,7 +180,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str
                 else ""
             )
-            return f"A terminated {base_desc} was identified{value_part}{temporal_info}"
+            return f"Terminated {base_desc} found{value_part}{temporal_info}"
 
         def no_instruments_handler() -> str:
             return f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, confirming no current use{temporal_info}"
@@ -223,8 +221,8 @@ class NotionalEvidence(BaseNarrativeEvidence):
             end_value_str = f" to {self.notional_str} in {self.year}" if self.notional_str and self.year else ""
 
             return (
-                f"A historical timeline for a {base_desc} was identified, "
-                f"showing its {value_desc} changed"
+                f"Historical timeline for {base_desc} found, "
+                f"showing {value_desc} change"
                 f"{start_value_str}"
                 f"{end_value_str}{temporal_info}"
             )
