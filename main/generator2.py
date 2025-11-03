@@ -1578,9 +1578,10 @@ def _generate_category_narrative(
                 reporting_year=scenario.reporting_year,
                 reporting_month=scenario.reporting_month,
                 reporting_day=scenario.reporting_day,
-            hedged_item=items_to_describe,
+                hedged_item=items_to_describe,
                 prefer_abbreviated=scenario.number_format_preference,
                 currency_symbol=currency_symbol,
+                notional_multiplier=scenario.archetype.notional_multiplier,
                 currency_code=currency_code,
             )
             fx_paragraph = fx_context_builder.build()

@@ -129,6 +129,7 @@ class FXContextSentence:
     hedged_item: Optional[Union[ForeignCurrencyHedgedItem, List[ForeignCurrencyHedgedItem]]]
     prefer_abbreviated: bool
     currency_symbol: str
+    notional_multiplier: int = 1_000_000  # Default to millions
     currency_code: str
 
     def build(self) -> str:
@@ -151,6 +152,19 @@ class FXContextSentence:
             item_to_describe = self.hedged_item
 
         return self._build_fx_sentence(item_to_describe)
+
+    def _money_unit(self) -> str:
+        """Returns the string for the money unit (e.g., 'millions', 'billions')."""
+        amount_to_string = {
+            1_000_000_000_000: "trillions",
+            1_000_000_000: "billions",
+            1_000_000: "millions",
+            1_000: "thousands",
+        }
+        return amount_to_string.get(self.notional_multiplier, "millions")
+
+    def _get_units(self) -> str:
+        return f"({self.currency_symbol} in {self._money_unit()})" if self.prefer_abbreviated else ""
 
     def _build_fx_exposure_table(self) -> str:
         """Builds a text-based table summarizing foreign currency exposures."""
@@ -190,7 +204,7 @@ class FXContextSentence:
 
             # --- 2. Translation Impact ---
             elif table_type == "translation_impact":
-                title = f"Impact of Foreign Currency Translation on Net Revenues For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                title = f"Impact of Foreign Currency Translation on Net Revenues For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year} {self._get_units()}"
                 headers = ["Currency", "Change in Exchange Rate (%)", "Impact on Net Revenues"]
                 widths = [25, 25, 25]
                 alignments = ['l', 'r', 'r']
@@ -205,7 +219,7 @@ class FXContextSentence:
             elif table_type == "transaction_gains":
                 year1 = self.reporting_year
                 year2 = self.reporting_year - 1
-                title = f"Foreign Currency Transaction Gains (Losses) For the Years Ended {self.reporting_month} {self.reporting_day}"
+                title = f"Foreign Currency Transaction Gains (Losses) For the Years Ended {self.reporting_month} {self.reporting_day} {self._get_units()}"
                 headers = ["Currency", f"Gains (Losses) {year1}", f"Gains (Losses) {year2}"]
                 widths = [25, 25, 25]
                 alignments = ['l', 'r', 'r']
