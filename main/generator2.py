@@ -1738,22 +1738,18 @@ def _generate_category_narrative(
         )
         mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
 
-        # --- NEW: Probabilistically drop the mitigation sentence ---
-        # This simulates filings that are less explicit about their strategy.
-        # If the whole 7A is suppressed, this is always implied.
+        # --- MODIFIED: Only generate mitigation evidence if sentence is NOT dropped ---
         if suppress_text_output or (allow_random_drops and random.random() < PROB_DROP_MITIGATION):
-            # We still generate the evidence so the JSON output is correct,
-            # but we mark it as implied since the sentence won't be in the text.
-            mitigation_evidence.is_implied = True
-            # but we don't add the sentence to the narrative text.
-            evidence.append(mitigation_evidence)
-        else:
+            # If dropping AND no instruments were mentioned, don't generate evidence at all
+            if not has_active_instruments or suppress_text_output:
+                pass  # No evidence generated
+            else:
+                # Has instruments but sentence was dropped - mark as implied
+                mitigation_evidence.is_implied = True
+                evidence.append(mitigation_evidence)
             DROPPED_SENTENCES.append(f"[MITIGATION_DROP][{category}] {mitigation_sentence}")
-            # If we are suppressing text output, we should not append the sentence.
-            # This check is redundant due to the `if` condition but adds clarity.
-            if suppress_text_output:
-                raise Exception("Logic error: Should not be generating sentence text when suppress_text_output is True.")
-            # The common case: generate both the sentence and the evidence.
+        else:
+            # Normal case: add both sentence and evidence
             sentences.append(mitigation_sentence)
             evidence.append(mitigation_evidence)
 
@@ -1763,7 +1759,7 @@ def _generate_category_narrative(
             current_year_data
             and mitigation_evidence.usage_status != "non_use" # Don't summarize if we just said we don't use them
             and current_year_data["instruments"]
-            and not is_non_use_mitigation and not suppress_text_output
+            and not is_non_use_mitigation and not suppress_text_output and not active_instruments_were_dropped
             and random.random() < 0.5
         ):
             # --- NEW: Logic to choose between summary, comparative, or comparative_no_prior ---
@@ -1866,6 +1862,9 @@ def _generate_category_narrative(
             mentioned_instrument_types = set()
         
         # --- FIX: Track if active instruments were intentionally dropped ---
+        # --- MODIFIED: Track if we actually generated any evidence ---
+        any_notional_evidence_generated = False
+
         active_instruments_were_dropped = False
 
         # --- NEW: Table Generation Logic ---
@@ -1903,6 +1902,7 @@ def _generate_category_narrative(
                 # The table string itself is the "paragraph". We also need to generate evidence for the instruments in it.
                 paragraphs.append(table_str)
                 evidence.extend(table_evidence)
+                any_notional_evidence_generated = True
                 # --- NEW: Update the list of instruments to process with the remainder ---
                 table_generated_for_category = True
                 # This allows us to process the rest of the instruments below.
@@ -1994,6 +1994,7 @@ def _generate_category_narrative(
                     if timeline_paragraph:
                         paragraphs.append(timeline_paragraph)
                         evidence.append(timeline_evidence)
+                        any_notional_evidence_generated = True
                         # Mark as mentioned for all future references
                         mentioned_instrument_ids.add(instrument.instrument_id)
                         mentioned_instrument_types.add(instrument.instrument_type)
@@ -2105,6 +2106,7 @@ def _generate_category_narrative(
                     )
                     paragraphs.append(individual_sentence_text)
                     evidence.append(evidence_obj)
+                    any_notional_evidence_generated = True
                     mentioned_instrument_ids.add(
                         instrument.instrument_id
                     )  # Mark instance as mentioned
@@ -2161,6 +2163,7 @@ def _generate_category_narrative(
                     if timeline_paragraph:
                         paragraphs.append(timeline_paragraph)
                         evidence.append(timeline_evidence)
+                        any_notional_evidence_generated = True
                         mentioned_instrument_ids.add(instrument.instrument_id)
                         mentioned_instrument_types.add(instrument.instrument_type)
                 else:
@@ -2223,6 +2226,7 @@ def _generate_category_narrative(
                     paragraphs.append(terminated_instrument_text)
                     mentioned_instrument_ids.add(instrument.instrument_id)
                     mentioned_instrument_types.add(instrument.instrument_type)
+                    any_notional_evidence_generated = True
                     evidence.append(evidence_obj)
 
         # If there are no current instruments, check for a comparative no-outstanding sentence
@@ -2253,9 +2257,20 @@ def _generate_category_narrative(
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             paragraphs.append(no_instrument_text)
+            any_notional_evidence_generated = True
             evidence.append(evidence_obj)
 
         # Return the list of paragraphs instead of a flat list of sentences
+        # --- NEW: If no notional evidence was generated but mitigation claimed "current",
+        # remove the mitigation evidence or mark it as uncertain ---
+        if allow_random_drops and not any_notional_evidence_generated:
+            # Find and remove or modify any "current" mitigation evidence for this category
+            evidence = [
+                ev for ev in evidence 
+                if not (isinstance(ev, MitigationEvidence) 
+                        and ev.category == category 
+                        and ev.usage_status == "current")
+            ]
         sentences = paragraphs
 
     return sentences, evidence, used_name # type: ignore
@@ -2665,33 +2680,38 @@ def generate_json_from_scenario(
     # --- NEW: Mitigation status is now "current", "historical", or "never" ---
     # It's driven by the usage_status in the MitigationEvidence objects.
     # --- FIX: Default to "unknown" if exposure exists but no evidence, "none" if no exposure. ---
+    # --- MODIFIED: Improved mitigation map logic ---
     mitigation_map = {
         # If there's exposure but no mention of hedging, the status is "unknown".
         cat: "unknown" if exposure_map.get(cat) else "none"
         for cat in DERIVATIVE_CATEGORIES
     }
     implied_evidence_map = {cat: False for cat in DERIVATIVE_CATEGORIES}
+    # Track which categories have actual notional evidence
+    categories_with_notional = {
+        ev.category for ev in evidence 
+        if isinstance(ev, NotionalEvidence) and ev.notional and ev.notional > 0
+    }
     for ev in evidence:
         if isinstance(ev, MitigationEvidence):
             status = ev.usage_status
             category = ev.category
             if category in mitigation_map:
-                # If the evidence is from a dropped sentence (is_implied), only trust it
-                # if it's based on concrete instrument presence ('current' or 'historical').
-                # A speculative or non-use statement that was never written should not change the status from 'unknown'.
-                if ev.is_implied:
+                # --- NEW: Only trust implied "current" evidence if we have notional evidence ---
+                if ev.is_implied and status == "current":
                     implied_evidence_map[category] = True
-                    if status in ("current", "historical"):
-                        mitigation_map[category] = status
-                # If the evidence is from a written sentence, trust its status.
-                elif status == "current":
-                    mitigation_map[category] = "current"
-                elif status == "historical":
+                    if category in categories_with_notional:
+                        mitigation_map[category] = "current"
+                    # else: leave as "unknown"
+                elif ev.is_implied and status == "historical":
+                    implied_evidence_map[category] = True
                     mitigation_map[category] = "historical"
-                elif status == "non_use":
-                    mitigation_map[category] = "never"
-                elif status == "speculative": # "may use", "from time to time", etc.
-                    mitigation_map[category] = "likely"
+                # Trust all non-implied evidence
+                elif not ev.is_implied:
+                    if status == "current": mitigation_map[category] = "current"
+                    elif status == "historical": mitigation_map[category] = "historical"
+                    elif status == "non_use": mitigation_map[category] = "never"
+                    elif status == "speculative": mitigation_map[category] = "likely"
 
     if return_mitigation_map_only:
         return mitigation_map
