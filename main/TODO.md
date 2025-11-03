@@ -28,12 +28,16 @@ This is the most critical phase. Before any model training, the data generation 
           "exposure": {
             "IR": true,
             "FX": true,
-            "CP": false
+            "CP": false,
+            "EQ": false,
+            "GEN": false
           },
           "mitigation": {
-            "IR": true,
-            "FX": "never",
-            "CP": "none"
+            "IR": "current",
+            "FX": "current",
+            "CP": "none",
+            "EQ": "none",
+            "GEN": "unknown"
           },
           "derivatives": [
             {
@@ -122,8 +126,8 @@ This is the most critical phase. Before any model training, the data generation 
                 "FX": true,
                 "CP": false,
                 "EQ": false,
-                "EMB": true,
-                "GEN": false
+                "GEN": false,
+                "EMB": true
               },
               "mitigation": {
                 "IR": true,
@@ -131,9 +135,7 @@ This is the most critical phase. Before any model training, the data generation 
                 "CP": false,
                 "EQ": false,
                 "EMB": true,
-                "GEN": false
-              },
-              "derivatives": [{"type":"Interest Rate Swap","category":"IR","status":"current","notional_amount":150000000,"currency":"USD"},{"type":"Interest Rate Swap","category":"IR","status":"current","notional_amount":100000000,"currency":"USD"},{"type":"Foreign Currency Forward","category":"FX","status":"terminated","notional_amount":25000000,"currency":"EUR"},{"type":"Foreign Currency Collar","category":"FX","status":"current","notional_amount":40000000,"currency":"GBP"},{"type":"Embedded Derivative","category":"EMB","status":"current","notional_amount":12500000,"currency":"USD"}]
+                "GEN": false              }
             }
             ```
     -   **Proposed Narrative Flow:**
