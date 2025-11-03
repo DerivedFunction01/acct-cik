@@ -144,6 +144,9 @@ def _cleanup_sentence(sentence: str) -> str:
 
     # Remove leading commas/spaces
     sentence = re.sub(r"^\s*,\s*", "", sentence)
+    
+    # Remove double a a 
+    sentence = re.sub(r"\ba\b \ba\b", "a", sentence, flags=re.IGNORECASE)
 
     # Fix common punctuation issues
     sentence = sentence.replace(" ,", ",")
