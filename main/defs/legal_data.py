@@ -29,7 +29,7 @@ class LegalContextSentence:
         sentences.append(_cleanup_sentence(template.format_map(placeholders)))
 
         # Add more specific sentences
-        for _ in range(num_sentences - 1):
+        for _ in range(num_sentences):
             # Randomly choose between a specific lawsuit detail, an assessment, or an outcome.
             choice = random.random()
             if choice < 0.4:
