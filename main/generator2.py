@@ -707,7 +707,7 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
     if archetype_index is not None and 0 <= archetype_index < len(SCENARIO_ARCHETYPES):
         archetype = SCENARIO_ARCHETYPES[archetype_index]
     else:
-        archetype = random.choice(SCENARIO_ARCHETYPES)
+        archetype = _create_truly_random_archetype()
 
     def generate_policy_for_archetype(
         archetype: ScenarioArchetype,
@@ -758,6 +758,53 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
     # Use the builder to construct the full scenario
     builder = ScenarioBuilder(scenario)
     return builder.build()
+
+def _create_truly_random_archetype() -> ScenarioArchetype:
+    """Creates a ScenarioArchetype with randomized properties."""
+    from defs.cp_data import COMMODITIES
+
+    def rand_range(max_val=8):
+        a = random.randint(0, max_val)
+        b = random.randint(a, max_val)
+        return (a, b)
+
+    def rand_propensity():
+        # (past_prop, current_prop)
+        # -1 means explicit "never"
+        past = random.choice([-1, 0.0] + [round(random.uniform(0.1, 1.0), 1) for _ in range(3)])
+        if past == -1:
+            current = -1
+        else:
+            current = random.choice([-1, 0.0] + [round(random.uniform(0.1, 1.0), 1) for _ in range(3)])
+        return (past, current)
+
+    commodity_keys = list(COMMODITIES.keys())
+    num_commodity_types = random.randint(0, 4)
+    
+    return ScenarioArchetype(
+        name="Truly Random",
+        debt_exposure_range=rand_range(),
+        fx_exposure_range=rand_range(),
+        commodity_exposure_range=rand_range(5),
+        commodity_types=random.sample(commodity_keys, num_commodity_types) if num_commodity_types > 0 else [],
+        equity_exposure_range=rand_range(6),
+        generic_instrument_range=rand_range(2),
+        hedging_propensities={
+            "IR": rand_propensity(),
+            "FX": rand_propensity(),
+            "CP": rand_propensity(),
+            "EQ": rand_propensity(),
+            "GEN": rand_propensity(),
+        },
+        policy_coverage=random.choice(["full", "partial", "light"]),
+        comparative_years=random.randint(1, 3),
+        default_currency=random.choice([c.code for c in all_currencies if c.code in ["USD", "EUR", "GBP", "JPY"]]),
+        notional_multiplier=random.choice([1_000, 1_000_000, 1_000_000_000]),
+        prefers_abbreviated_numbers=random.choice([True, False]),
+        prefers_tables=random.choice([True, False]),
+        preferred_negative_format=random.choice([-1, 0, 1, 2]),
+        zero_notional_format=random.choice(["$0", "$—", "$-"]),
+    )
 
 def _get_smart_instrument_description(instruments: List[NotionalInstrument], category: str, summary:bool = False) -> str:
     """

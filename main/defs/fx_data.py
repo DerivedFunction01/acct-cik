@@ -145,7 +145,7 @@ class FXContextSentence:
             currencies_to_mention_objects = random.sample(
                 [c for c in all_currencies if c.code != self.currency_code], num_currencies
             )
-        
+
         # --- NEW: Create both full name and ISO code lists ---
         currency_full_names = [c.full_name for c in currencies_to_mention_objects]
         currency_iso_codes = [c.code for c in currencies_to_mention_objects]
@@ -158,7 +158,7 @@ class FXContextSentence:
         else:
             currencies_full_str = currency_full_names[0]
             currencies_iso_str = currency_iso_codes[0]
-        
+
         # --- NEW: Randomly choose which currency format to use in the sentence ---
         currencies_to_display = random.choice([currencies_full_str, currencies_iso_str])
 
@@ -213,15 +213,18 @@ class FXContextSentence:
                 "end_day": self.reporting_day,
                 "risk_term": random.choice(risk_exposure_terms),
                 "currencies": currencies_to_display,
-                "currencies_list": currencies_to_display, # Alias for the same thing
-                "locations": locations_str,
+                "currencies_list": currencies_to_display,  # Alias for the same thing
                 "gain_loss": gain_loss1,
                 "gain_loss2": gain_loss2,
                 "financial_outcome_verb": random.choice(financial_outcome_verbs),
                 "location": random.choice(balance_sheet_locations),
                 "currency_code": self.currency_code,
-                "amount_str": _format_single_notional(amount1, self.currency_symbol, self.prefer_abbreviated),
-                "amount_str2": _format_single_notional(amount2, self.currency_symbol, self.prefer_abbreviated),
+                "amount_str": _format_single_notional(
+                    amount1, self.currency_symbol, self.prefer_abbreviated
+                ),
+                "amount_str2": _format_single_notional(
+                    amount2, self.currency_symbol, self.prefer_abbreviated
+                ),
                 "comparison_phrase": random.choice(comparison_phrases),
                 "pct": f"{random.uniform(1.5, 7.5):.1f}",
                 "pct2": f"{random.uniform(1.5, 7.5):.1f}",
@@ -231,20 +234,40 @@ class FXContextSentence:
                     ["revenues", "operating income", "net income", "earnings"]
                 ),
                 "balance_sheet_item": random.choice(
-                    ["intercompany balances", "monetary assets", "receivables and payables"]
+                    [
+                        "intercompany balances",
+                        "monetary assets",
+                        "receivables and payables",
+                    ]
                 ),
                 "strength_weakness": strength_weakness,
-                "quantifier_phrase": random.choice(["Substantially all", "A significant portion", "The majority"]),
+                "quantifier_phrase": random.choice(
+                    ["Substantially all", "A significant portion", "The majority"]
+                ),
                 "impact_adverb": impact_adverb,
                 "impact_verb_past": impact_verb_past,
                 "impact_adjective": impact_adj,
                 "exchange_rate_pair": exchange_rate_pair_str,
                 "currencies_with_amounts": currencies_with_amounts_str,
                 # New placeholders for functional currency
-                "primary_economic_env": random.choice(["the primary economic environment", "the economic environment", "the local economy"]),
-                "functional_currency_basis": random.choice(["is the local currency", "is typically the local currency", "is the currency of the primary economic environment in which the entity operates"]),
-                "inflation_level": random.choice(["highly inflationary", "hyperinflationary", "inflationary"]),
-
+                "primary_economic_env": random.choice(
+                    [
+                        "the primary economic environment",
+                        "the economic environment",
+                        "the local economy",
+                    ]
+                ),
+                "functional_currency_basis": random.choice(
+                    [
+                        "is the local currency",
+                        "is typically the local currency",
+                        "is the currency of the primary economic environment in which the entity operates",
+                    ]
+                ),
+                "inflation_level": random.choice(
+                    ["highly inflationary", "hyperinflationary", "inflationary"]
+                ),
+                "geography": locations_str,
             }
 
             # Use format_map to safely populate the template
