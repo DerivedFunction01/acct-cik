@@ -2563,6 +2563,14 @@ def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarr
     #     # Pretty-print the dictionary
     #     debug_lines.append(f"    {json.dumps(evidence_dict, indent=6)}")
 
+    # --- NEW: Add dropped sentences to debug output ---
+    if DROPPED_SENTENCES:
+        debug_lines.append("\n" + "=" * 20)
+        debug_lines.append(f"\nDropped Sentences/Sections ({len(DROPPED_SENTENCES)}):")
+        for i, dropped in enumerate(DROPPED_SENTENCES):
+            debug_lines.append(f"  {i+1}. {dropped}")
+        DROPPED_SENTENCES.clear() # Clear the list for the next run
+
     return "\n".join(debug_lines)
 
 
