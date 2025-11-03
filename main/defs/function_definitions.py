@@ -71,8 +71,12 @@ def _format_single_notional(
         formatted_number = f"{abs_amount:,.0f}"
 
     # Build base string
+    # --- NEW: Check if the symbol is an ISO code (e.g., USD) to add a space ---
+    is_iso_code = is_currency and len(symbol) == 3 and symbol.isupper()
+
     if is_currency and symbol_first:
-        base = f"{symbol}{formatted_number}{unit_word}"
+        space = " " if is_iso_code else ""
+        base = f"{symbol}{space}{formatted_number}{unit_word}"
     else:
         base = f"{formatted_number}{unit_word} {symbol}".strip()
 
@@ -84,12 +88,14 @@ def _format_single_notional(
             return f"-{base}"
         elif negative_format == 1:
             if is_currency and symbol_first:
-                return f"{symbol}({formatted_number}){unit_word}"
+                space = " " if is_iso_code else ""
+                return f"{symbol}{space}({formatted_number}){unit_word}"
             else:
                 return f"({formatted_number}){unit_word} {symbol}".strip()
         elif negative_format == 2:
             if is_currency and symbol_first:
-                return f"{symbol}-{formatted_number}{unit_word}"
+                space = " " if is_iso_code else ""
+                return f"{symbol}-{space}{formatted_number}{unit_word}"
             else:
                 return f"-{base}"  # Fallback to format 0 for non-currencies
         else:
