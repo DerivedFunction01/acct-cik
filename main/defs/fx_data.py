@@ -157,82 +157,87 @@ class FXContextSentence:
         if not isinstance(self.hedged_item, list) or not self.hedged_item:
             return ""
 
-        table_type = random.choice(["exposure_summary", "translation_impact", "transaction_gains", "exchange_rates"])
+        all_tables_str = []
+        available_table_types = ["exposure_summary", "translation_impact", "transaction_gains", "exchange_rates"]
+        num_tables = random.randint(1, min(len(available_table_types), 3)) # Generate 1, 2, or 3 tables
+        
+        # Ensure we don't pick the same table type twice
+        selected_table_types = random.sample(available_table_types, num_tables)
 
-        data_rows = []
+        for table_type in selected_table_types:
+            data_rows = []
+            # --- 1. Exposure Summary (existing logic) ---
+            if table_type == "exposure_summary":
+                title = f"Summary of Foreign Currency Exposure as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["Currency", "Exposure Amount"]
+                widths = [30, 25]
+                alignments = ['l', 'r']
+                # Aggregate all exposures from all items
+                all_exposures: Dict[str, CurrencyExposure] = {}
+                for item in self.hedged_item:
+                    for exp in item.exposures:
+                        if exp.code in all_exposures:
+                            all_exposures[exp.code].amount += exp.amount
+                        else:
+                            # Create a copy to avoid modifying the original object
+                            all_exposures[exp.code] = CurrencyExposure(**exp.__dict__)
 
-        # --- 1. Exposure Summary (existing logic) ---
-        if table_type == "exposure_summary":
-            title = f"Summary of Foreign Currency Exposure as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["Currency", "Exposure Amount"]
-            widths = [30, 25]
-            alignments = ['l', 'r']
-            # Aggregate all exposures from all items
-            all_exposures: Dict[str, CurrencyExposure] = {}
-            for item in self.hedged_item:
-                for exp in item.exposures:
-                    if exp.code in all_exposures:
-                        all_exposures[exp.code].amount += exp.amount
-                    else:
-                        # Create a copy to avoid modifying the original object
-                        all_exposures[exp.code] = CurrencyExposure(**exp.__dict__)
+                for code, exposure in all_exposures.items():
+                    amount_str = _format_single_notional(
+                        exposure.amount, exposure.symbol, self.prefer_abbreviated, True
+                    )
+                    data_rows.append([exposure.full_name, amount_str])
 
-            for code, exposure in all_exposures.items():
-                amount_str = _format_single_notional(
-                    exposure.amount, exposure.symbol, self.prefer_abbreviated, True
-                )
-                data_rows.append([exposure.full_name, amount_str])
+            # --- 2. Translation Impact ---
+            elif table_type == "translation_impact":
+                title = f"Impact of Foreign Currency Translation on Net Revenues For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["Currency", "Change in Exchange Rate (%)", "Impact on Net Revenues"]
+                widths = [25, 25, 25]
+                alignments = ['l', 'r', 'r']
+                unique_exposures = list({exp.code: exp for item in self.hedged_item for exp in item.exposures}.values())
+                for exp in unique_exposures:
+                    change_pct = f"{random.uniform(-15.0, 15.0):.1f}%"
+                    impact_amount = random.randint(-50, 50) * 1_000_000
+                    impact_str = _format_single_notional(impact_amount, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
+                    data_rows.append([exp.full_name, change_pct, impact_str])
 
-        # --- 2. Translation Impact ---
-        elif table_type == "translation_impact":
-            title = f"Impact of Foreign Currency Translation on Net Revenues For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["Currency", "Change in Exchange Rate (%)", "Impact on Net Revenues"]
-            widths = [25, 25, 25]
-            alignments = ['l', 'r', 'r']
-            unique_exposures = list({exp.code: exp for item in self.hedged_item for exp in item.exposures}.values())
-            for exp in unique_exposures:
-                change_pct = f"{random.uniform(-15.0, 15.0):.1f}%"
-                impact_amount = random.randint(-50, 50) * 1_000_000
-                impact_str = _format_single_notional(impact_amount, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
-                data_rows.append([exp.full_name, change_pct, impact_str])
+            # --- 3. Transaction Gains/Losses ---
+            elif table_type == "transaction_gains":
+                year1 = self.reporting_year
+                year2 = self.reporting_year - 1
+                title = f"Foreign Currency Transaction Gains (Losses) For the Years Ended {self.reporting_month} {self.reporting_day}"
+                headers = ["Currency", f"Gains (Losses) {year1}", f"Gains (Losses) {year2}"]
+                widths = [25, 25, 25]
+                alignments = ['l', 'r', 'r']
+                unique_exposures = list({exp.code: exp for item in self.hedged_item for exp in item.exposures}.values())
+                for exp in unique_exposures:
+                    gain_loss1 = random.randint(-20, 20) * 1_000_000
+                    gain_loss2 = random.randint(-20, 20) * 1_000_000
+                    gain_loss1_str = _format_single_notional(gain_loss1, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
+                    gain_loss2_str = _format_single_notional(gain_loss2, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
+                    data_rows.append([exp.full_name, gain_loss1_str, gain_loss2_str])
 
-        # --- 3. Transaction Gains/Losses ---
-        elif table_type == "transaction_gains":
-            year1 = self.reporting_year
-            year2 = self.reporting_year - 1
-            title = f"Foreign Currency Transaction Gains (Losses) For the Years Ended {self.reporting_month} {self.reporting_day}"
-            headers = ["Currency", f"Gains (Losses) {year1}", f"Gains (Losses) {year2}"]
-            widths = [25, 25, 25]
-            alignments = ['l', 'r', 'r']
-            unique_exposures = list({exp.code: exp for item in self.hedged_item for exp in item.exposures}.values())
-            for exp in unique_exposures:
-                gain_loss1 = random.randint(-20, 20) * 1_000_000
-                gain_loss2 = random.randint(-20, 20) * 1_000_000
-                gain_loss1_str = _format_single_notional(gain_loss1, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
-                gain_loss2_str = _format_single_notional(gain_loss2, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
-                data_rows.append([exp.full_name, gain_loss1_str, gain_loss2_str])
+            # --- 4. Exchange Rates ---
+            else: # exchange_rates
+                title = f"Key Exchange Rates (vs. {self.currency_code}) as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["Currency", f"Average Rate {self.reporting_year}", f"Period-End Rate {self.reporting_year}"]
+                widths = [25, 25, 25]
+                alignments = ['l', 'r', 'r']
+                unique_exposures = list({exp.code: exp for item in self.hedged_item for exp in item.exposures}.values())
+                for exp in unique_exposures:
+                    # Simulate some plausible exchange rates. This is highly simplified.
+                    base_rate = random.uniform(0.7, 1.5) if "Dollar" in exp.full_name or "Euro" in exp.full_name else random.uniform(10, 1500)
+                    avg_rate = base_rate * random.uniform(0.98, 1.02)
+                    end_rate = base_rate * random.uniform(0.95, 1.05)
+                    # Format based on magnitude
+                    rate_format = "{:.4f}" if base_rate < 5 else "{:.2f}"
+                    data_rows.append([exp.full_name, rate_format.format(avg_rate), rate_format.format(end_rate)])
 
-        # --- 4. Exchange Rates ---
-        else: # exchange_rates
-            title = f"Key Exchange Rates (vs. {self.currency_code}) as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["Currency", f"Average Rate {self.reporting_year}", f"Period-End Rate {self.reporting_year}"]
-            widths = [25, 25, 25]
-            alignments = ['l', 'r', 'r']
-            unique_exposures = list({exp.code: exp for item in self.hedged_item for exp in item.exposures}.values())
-            for exp in unique_exposures:
-                # Simulate some plausible exchange rates. This is highly simplified.
-                base_rate = random.uniform(0.7, 1.5) if "Dollar" in exp.full_name or "Euro" in exp.full_name else random.uniform(10, 1500)
-                avg_rate = base_rate * random.uniform(0.98, 1.02)
-                end_rate = base_rate * random.uniform(0.95, 1.05)
-                # Format based on magnitude
-                rate_format = "{:.4f}" if base_rate < 5 else "{:.2f}"
-                data_rows.append([exp.full_name, rate_format.format(avg_rate), rate_format.format(end_rate)])
+            if data_rows:
+                table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
+                all_tables_str.append(table_builder.build())
 
-        if not data_rows:
-            return ""
-
-        table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
-        return table_builder.build()
+        return "\n\n".join(all_tables_str)
 
     def _build_fx_sentence(self, item_to_describe: Optional[ForeignCurrencyHedgedItem]) -> str:
         """Generates the narrative sentence(s) for FX context."""

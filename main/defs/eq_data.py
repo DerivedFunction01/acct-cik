@@ -107,68 +107,73 @@ class EQContextSentence:
         if not isinstance(self.hedged_item, list) or not self.hedged_item:
             return ""
 
-        # --- NEW: Add more table types for variety --- (This was already here, but I'm confirming its good use)
-        table_type = random.choice(["investments", "stock_comp_activity", "stock_comp_expense", "share_repurchase"])
-        data_rows = []
+        all_tables_str = []
+        available_table_types = ["investments", "stock_comp_activity", "stock_comp_expense", "share_repurchase"]
+        num_tables = random.randint(1, min(len(available_table_types), 2)) # Generate 1 or 2 tables
+        
+        # Ensure we don't pick the same table type twice
+        selected_table_types = random.sample(available_table_types, num_tables)
 
-        # --- 1. Equity Investments Summary ---
-        if table_type == "investments":
-            title = f"Summary of Equity Investments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["Investment (Symbol)", "Shares", "Fair Value"]
-            widths = [30, 20, 20]
-            alignments = ['l', 'r', 'r']
-            for item in self.hedged_item:
-                if item.equity_type == "third_party_stock" and item.stock_symbol and item.number_of_shares and item.share_price:
-                    value = item.number_of_shares * item.share_price
-                    value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
-                    data_rows.append([f"Investment in {item.stock_symbol}", f"{item.number_of_shares:,}", value_str])
+        for table_type in selected_table_types:
+            data_rows = []
+            # --- 1. Equity Investments Summary ---
+            if table_type == "investments":
+                title = f"Summary of Equity Investments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["Investment (Symbol)", "Shares", "Fair Value"]
+                widths = [30, 20, 20]
+                alignments = ['l', 'r', 'r']
+                for item in self.hedged_item:
+                    if item.equity_type == "third_party_stock" and item.stock_symbol and item.number_of_shares and item.share_price:
+                        value = item.number_of_shares * item.share_price
+                        value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
+                        data_rows.append([f"Investment in {item.stock_symbol}", f"{item.number_of_shares:,}", value_str])
 
-        # --- 2. Stock Option Activity (Roll-forward) ---
-        elif table_type == "stock_comp_activity":
-            title = f"Stock Option Activity For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["", "Shares", "Weighted-Avg. Price"]
-            widths = [35, 20, 20]
-            alignments = ['l', 'r', 'r']
-            # Simulate stock comp activity
-            data_rows.append(["Beginning balance", f"{random.randint(1,5)*1_000_000:,}", f"{self.currency_symbol}{random.uniform(10, 20):.2f}"])
-            data_rows.append(["Granted", f"{random.randint(100_000, 500_000):,}", f"{self.currency_symbol}{random.uniform(20, 30):.2f}"])
-            data_rows.append(["Exercised", f"({random.randint(50_000, 200_000):,})", f"{self.currency_symbol}{random.uniform(12, 18):.2f}"])
-            data_rows.append(["Ending balance", f"{random.randint(1,5)*1_000_000:,}", f"{self.currency_symbol}{random.uniform(22, 28):.2f}"])
+            # --- 2. Stock Option Activity (Roll-forward) ---
+            elif table_type == "stock_comp_activity":
+                title = f"Stock Option Activity For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["", "Shares", "Weighted-Avg. Price"]
+                widths = [35, 20, 20]
+                alignments = ['l', 'r', 'r']
+                # Simulate stock comp activity
+                data_rows.append(["Beginning balance", f"{random.randint(1,5)*1_000_000:,}", f"{self.currency_symbol}{random.uniform(10, 20):.2f}"])
+                data_rows.append(["Granted", f"{random.randint(100_000, 500_000):,}", f"{self.currency_symbol}{random.uniform(20, 30):.2f}"])
+                data_rows.append(["Exercised", f"({random.randint(50_000, 200_000):,})", f"{self.currency_symbol}{random.uniform(12, 18):.2f}"])
+                data_rows.append(["Ending balance", f"{random.randint(1,5)*1_000_000:,}", f"{self.currency_symbol}{random.uniform(22, 28):.2f}"])
 
-        # --- 3. Stock-Based Compensation Expense ---
-        elif table_type == "stock_comp_expense":
-            title = f"Stock-Based Compensation Expense For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["Award Type", "Compensation Cost"]
-            widths = [35, 25]
-            alignments = ['l', 'r']
-            total_cost = 0
-            award_types = ["Stock options", "Restricted stock units (RSUs)", "Performance share units (PSUs)"]
-            for award in award_types:
-                cost = random.randint(5, 50) * 1_000_000
-                total_cost += cost
-                cost_str = _format_single_notional(cost, self.currency_symbol, self.prefer_abbreviated, True)
-                data_rows.append([award, cost_str])
-            total_cost_str = _format_single_notional(total_cost, self.currency_symbol, self.prefer_abbreviated, True)
-            data_rows.append(["-"*widths[0], "-"*widths[1]])
-            data_rows.append(["Total stock-based compensation", total_cost_str])
+            # --- 3. Stock-Based Compensation Expense ---
+            elif table_type == "stock_comp_expense":
+                title = f"Stock-Based Compensation Expense For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["Award Type", "Compensation Cost"]
+                widths = [35, 25]
+                alignments = ['l', 'r']
+                total_cost = 0
+                award_types = ["Stock options", "Restricted stock units (RSUs)", "Performance share units (PSUs)"]
+                for award in award_types:
+                    cost = random.randint(5, 50) * 1_000_000
+                    total_cost += cost
+                    cost_str = _format_single_notional(cost, self.currency_symbol, self.prefer_abbreviated, True)
+                    data_rows.append([award, cost_str])
+                total_cost_str = _format_single_notional(total_cost, self.currency_symbol, self.prefer_abbreviated, True)
+                data_rows.append(["-"*widths[0], "-"*widths[1]])
+                data_rows.append(["Total stock-based compensation", total_cost_str])
 
-        # --- 4. Share Repurchase Activity ---
-        else: # share_repurchase
-            title = f"Share Repurchase Activity For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["", "Shares", "Average Price Paid"]
-            widths = [40, 20, 25]
-            alignments = ['l', 'r', 'r']
-            shares_repurchased = random.randint(500_000, 5_000_000)
-            avg_price = random.uniform(25.0, 150.0)
-            total_cost = shares_repurchased * avg_price
-            data_rows.append([f"Shares repurchased under program", f"{shares_repurchased:,}", f"{self.currency_symbol}{avg_price:.2f}"])
-            data_rows.append([f"Total cost of shares repurchased", _format_single_notional(total_cost, self.currency_symbol, self.prefer_abbreviated, True), ""])
+            # --- 4. Share Repurchase Activity ---
+            else: # share_repurchase
+                title = f"Share Repurchase Activity For the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["", "Shares", "Average Price Paid"]
+                widths = [40, 20, 25]
+                alignments = ['l', 'r', 'r']
+                shares_repurchased = random.randint(500_000, 5_000_000)
+                avg_price = random.uniform(25.0, 150.0)
+                total_cost = shares_repurchased * avg_price
+                data_rows.append([f"Shares repurchased under program", f"{shares_repurchased:,}", f"{self.currency_symbol}{avg_price:.2f}"])
+                data_rows.append([f"Total cost of shares repurchased", _format_single_notional(total_cost, self.currency_symbol, self.prefer_abbreviated, True), ""])
 
-        if not data_rows:
-            return ""
+            if data_rows:
+                table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
+                all_tables_str.append(table_builder.build())
 
-        table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
-        return table_builder.build()
+        return "\n\n".join(all_tables_str)
 
     def _build_eq_sentence(self, item_to_describe: Optional[EquityHedgedItem]) -> str:
         num_sentences = random.choices([1, 2, 3], weights=[0.2, 0.6, 0.2], k=1)[0]

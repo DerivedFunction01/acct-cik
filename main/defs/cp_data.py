@@ -338,34 +338,40 @@ class CPContextSentence:
         if not isinstance(self.hedged_item, list) or not self.hedged_item:
             return ""
 
-        table_type = random.choice(["commitments", "inventory_summary"])
-        data_rows = []
+        all_tables_str = []
+        available_table_types = ["commitments", "inventory_summary"]
+        num_tables = random.randint(1, len(available_table_types)) # Generate 1 or 2 tables
+        
+        # Ensure we don't pick the same table type twice
+        selected_table_types = random.sample(available_table_types, num_tables)
 
-        if table_type == "commitments":
-            title = f"Summary of Commodity Purchase Commitments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["Commodity", "Quantity", "Unit", "Avg. Price"]
-            widths = [25, 20, 15, 15]
-            alignments = ['l', 'r', 'l', 'r']
-            for item in self.hedged_item:
-                quantity_str = f"{item.quantity:,}"
-                price_str = f"{self.currency_symbol}{item.price_per_unit:.2f}"
-                data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, price_str])
-        else: # inventory_summary
-            title = f"Summary of Commodity Inventory as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-            headers = ["Commodity", "Quantity", "Unit", "Carrying Value"]
-            widths = [25, 20, 15, 20]
-            alignments = ['l', 'r', 'l', 'r']
-            for item in self.hedged_item:
-                quantity_str = f"{item.quantity:,}"
-                value = item.quantity * item.price_per_unit
-                value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
-                data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, value_str])
+        for table_type in selected_table_types:
+            data_rows = []
+            if table_type == "commitments":
+                title = f"Summary of Commodity Purchase Commitments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["Commodity", "Quantity", "Unit", "Avg. Price"]
+                widths = [25, 20, 15, 15]
+                alignments = ['l', 'r', 'l', 'r']
+                for item in self.hedged_item:
+                    quantity_str = f"{item.quantity:,}"
+                    price_str = f"{self.currency_symbol}{item.price_per_unit:.2f}"
+                    data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, price_str])
+            else: # inventory_summary
+                title = f"Summary of Commodity Inventory as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["Commodity", "Quantity", "Unit", "Carrying Value"]
+                widths = [25, 20, 15, 20]
+                alignments = ['l', 'r', 'l', 'r']
+                for item in self.hedged_item:
+                    quantity_str = f"{item.quantity:,}"
+                    value = item.quantity * item.price_per_unit
+                    value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
+                    data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, value_str])
 
-        if not data_rows:
-            return ""
+            if data_rows:
+                table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
+                all_tables_str.append(table_builder.build())
 
-        table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
-        return table_builder.build()
+        return "\n\n".join(all_tables_str)
 
     def _build_cp_sentence(self, item_to_describe: Optional[CommodityHedgedItem]) -> str:
         num_sentences = random.choices([1, 2, 3], weights=[0.2, 0.6, 0.2], k=1)[0]
