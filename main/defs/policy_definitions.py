@@ -760,7 +760,7 @@ class HedgeDefinitionSentence:
         base_type = random.choice(DERIVATIVE_COMPONENTS["base_types"])
         # Make it plural for the definition title
         swap_type = f"{base_type}s" if not base_type.endswith("s") else base_type
-
+        swap_type.capitalize()
         # Build up a list of definitions
         num_definitions = random.randint(1, 3)
         definitions = []
@@ -773,7 +773,6 @@ class HedgeDefinitionSentence:
             suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
             definition_item = f"any {', '.join(s_types)} {base_type} {suffix}"
             definitions.append(f"{i+1}) {definition_item}")
-
         # Add some generic follow-on definitions
         for _ in range(random.randint(1, 2)):
             additional_def = random.choice(hedge_additional_definition_templates)
