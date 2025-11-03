@@ -982,27 +982,42 @@ class DerivativeTableBuilder:
         Selects a table format at random and builds the table string.
         This method acts as a factory for different table types.
         """
-        formats = [
-            YearOverYearTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
-            ThreeYearComparativeTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
-            NotionalVsFairValueTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+        # Store common arguments in a dictionary to avoid repetition.
+        builder_args = {
+            "instruments": self.instruments,
+            "yearly_data": self.yearly_data,
+            "reporting_month": self.month,
+            "reporting_day": self.day,
+            "reporting_year": self.reporting_year,
+            "notional_multiplier": self.notional_multiplier,
+            "currency_symbol": self.currency_symbol,
+            "currency_code": self.currency_code,
+            "prefer_abbreviated": self.prefer_abbreviated,
+            "preferred_negative_format": self.preferred_negative_format,
+            "category": self.category,
+        }
+
+        # List of builder classes
+        format_builders = [
+            YearOverYearTableBuilder,
+            ThreeYearComparativeTableBuilder,
+            NotionalVsFairValueTableBuilder,
         ]
-        additional_formats = [
-            MaturityGroupingTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
-            AssetLiabilityFairValueTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
-            AOCIReconciliationTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
-            AOCIReclassificationImpactTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
-            FairValueHierarchyTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
-            DerivativeImpactTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+        additional_format_builders = [
+            MaturityGroupingTableBuilder,
+            AssetLiabilityFairValueTableBuilder,
+            AOCIReconciliationTableBuilder,
+            AOCIReclassificationImpactTableBuilder,
+            FairValueHierarchyTableBuilder,
+            DerivativeImpactTableBuilder,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
         if self.category == "FX":
-            formats.append(FXExposureTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build)
-        if additional:
-            chosen_format = random.choice(additional_formats)
-        else:
-            chosen_format = random.choice(formats)
-        return chosen_format() # type: ignore
+            format_builders.append(FXExposureTableBuilder)
+
+        chosen_builder_class = random.choice(additional_format_builders if additional else format_builders)
+        builder_instance = chosen_builder_class(**builder_args)
+        return builder_instance.build()
 
     def _get_units(self) -> str:
         return f"(in {self.currency_symbol} {self._money_unit()})" if self.prefer_abbreviated else f"(in {self.currency_code})"
