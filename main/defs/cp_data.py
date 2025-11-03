@@ -354,7 +354,7 @@ class CPContextSentence:
             alignments = []
 
             if table_type == "commitments":
-                title = f"Summary of Commodity Purchase Commitments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                title = f"Summary of Commodity Purchase Commitments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year} {self._get_units()}"
                 headers = ["Commodity", "Quantity", "Unit", "Avg. Price"]
                 widths = [25, 20, 15, 15]
                 alignments = ['l', 'r', 'l', 'r']
@@ -363,18 +363,18 @@ class CPContextSentence:
                     price_str = f"{self.currency_symbol}{item.price_per_unit:.2f}"
                     data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, price_str])
             elif table_type == "inventory_summary":
-                title = f"Summary of Commodity Inventory as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                title = f"Summary of Commodity Inventory as of {self.reporting_month} {self.reporting_day}, {self.reporting_year} {self._get_units()}"
                 headers = ["Commodity", "Quantity", "Unit", "Carrying Value"]
                 widths = [25, 20, 15, 20]
                 alignments = ['l', 'r', 'l', 'r']
                 for item in self.hedged_item:
                     quantity_str = f"{item.quantity:,}"
                     value = item.quantity * item.price_per_unit
-                    value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
+                    value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, no_unit_word=True, notional_multiplier=self.notional_multiplier)
                     data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, value_str])
 
             elif table_type == "price_sensitivity":
-                title = f"Sensitivity Analysis of Commodity Prices on Pre-Tax Income\nFor the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                title = f"Sensitivity Analysis of Commodity Prices on Pre-Tax Income\nFor the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year} {self._get_units()}"
                 headers = ["Commodity", "Hypothetical Price Change (%)", "Estimated Impact on Pre-Tax Income"]
                 widths = [25, 30, 35]
                 alignments = ['l', 'r', 'r']
@@ -382,26 +382,26 @@ class CPContextSentence:
                 for item in unique_commodities:
                     change_val = random.randint(5, 20)
                     impact_amount = int((item.quantity * item.price_per_unit) * change_val * random.uniform(-1.5, 1.5))
-                    impact_str = _format_single_notional(impact_amount, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
+                    impact_str = _format_single_notional(impact_amount, self.currency_symbol, self.prefer_abbreviated, no_unit_word=True, negative_format=0, notional_multiplier=self.notional_multiplier)
                     data_rows.append([item.commodity_type, f"+/- {change_val}%", impact_str])
 
             else: # inventory_rollforward
-                title = f"Commodity Inventory Roll-Forward\nFor the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-                headers = ["", "Quantity (Units)", f"Value ({self.currency_symbol} in millions)"]
+                title = f"Commodity Inventory Roll-Forward\nFor the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year} {self._get_units()}"
+                headers = ["", "Quantity (Units)", f"Value"]
                 widths = [35, 20, 25]
                 alignments = ['l', 'r', 'r']
                 # Simulate roll-forward data based on the sum of all items
                 total_quantity = sum(item.quantity for item in self.hedged_item)
                 total_value = sum(item.quantity * item.price_per_unit for item in self.hedged_item)
 
-                begin_val = total_value * random.uniform(0.8, 1.2)
-                purchases_val = total_value * random.uniform(0.9, 1.1)
-                usage_val = (begin_val + purchases_val - total_value)
+                begin_val = int(total_value * random.uniform(0.8, 1.2))
+                purchases_val = int(total_value * random.uniform(0.9, 1.1))
+                usage_val = int((begin_val + purchases_val - total_value))
                 # Compute weighted average price per unit
                 avg_price_per_unit = total_value / total_quantity if total_quantity else 0
 
-                data_rows.append(["Beginning inventory", f"{int(total_quantity * random.uniform(0.8, 1.2)):,}", f"{begin_val / 1_000_000:.1f}"])
-                data_rows.append(["Purchases", f"{int(total_quantity * random.uniform(0.9, 1.1)):,}", f"{purchases_val / 1_000_000:.1f}"])
+                data_rows.append(["Beginning inventory", f"{int(total_quantity * random.uniform(0.8, 1.2)):,}", _format_single_notional(begin_val, self.currency_symbol, self.prefer_abbreviated, True, notional_multiplier=self.notional_multiplier)])
+                data_rows.append(["Purchases", f"{int(total_quantity * random.uniform(0.9, 1.1)):,}", _format_single_notional(purchases_val, self.currency_symbol, self.prefer_abbreviated, True, notional_multiplier=self.notional_multiplier)])
                 data_rows.append(
                     [
                         "Usage / Cost of sales",
@@ -409,8 +409,8 @@ class CPContextSentence:
                         f"({usage_val / 1_000_000:.1f})",
                     ]
                 )
-                data_rows.append(["-"*widths[0], "-"*widths[1], "-"*widths[2]])
-                data_rows.append(["Ending inventory", f"{total_quantity:,}", f"{total_value / 1_000_000:.1f}"])
+                data_rows.append(["-"*w for w in widths])
+                data_rows.append(["Ending inventory", f"{total_quantity:,}", _format_single_notional(total_value, self.currency_symbol, self.prefer_abbreviated, True, notional_multiplier=self.notional_multiplier)])
 
             if data_rows:
                 table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
