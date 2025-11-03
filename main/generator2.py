@@ -3241,23 +3241,33 @@ def generate_json_from_scenario(
 
     chain_of_thought = "\n".join(other_evidence_strings)
 
-    # --- NEW: Aggregate repeated instrument mentions at the end ---
-    # This is cleaner than saying "another mention found" multiple times.
-    instrument_type_counts = Counter(
-        ev.instrument_type
-        for ev in evidence
-        if isinstance(ev, NotionalEvidence) and ev.instrument_type
-    )
+    # --- FIX: Improve aggregation of repeated instrument mentions ---
+    # This logic now distinguishes between multiple mentions of the same instrument
+    # and mentions of different instruments of the same type.
+    instrument_mentions: Dict[str, List[int]] = {}
+    for ev in evidence:
+        if isinstance(ev, NotionalEvidence) and ev.instrument_type and ev.instrument_id is not None:
+            if ev.instrument_type not in instrument_mentions:
+                instrument_mentions[ev.instrument_type] = []
+            instrument_mentions[ev.instrument_type].append(ev.instrument_id)
 
     repeated_mentions = []
-    for inst_type, count in instrument_type_counts.items():
-        if count > 1:
-            repeated_mentions.append(f"'{inst_type}' ({count} times)")
+    for inst_type, id_list in instrument_mentions.items():
+        num_mentions = len(id_list)
+        num_distinct_instruments = len(set(id_list))
+
+        if num_distinct_instruments > 1:
+            # Case: Multiple different instruments of the same type were mentioned.
+            mention_summary = f"{num_distinct_instruments} distinct '{inst_type}' instruments"
+            if num_mentions > num_distinct_instruments:
+                mention_summary += f" (with a total of {num_mentions} mentions)"
+            repeated_mentions.append(mention_summary)
+        elif num_mentions > 1:
+            # Case: A single instrument was mentioned multiple times.
+            repeated_mentions.append(f"a single '{inst_type}' instrument was mentioned {num_mentions} times")
 
     if repeated_mentions:
-        repetition_summary = (
-            f"Multiple mentions were found for: {', '.join(repeated_mentions)}."
-        )
+        repetition_summary = f"The text discusses {', '.join(repeated_mentions)}."
         chain_of_thought += "\n" + repetition_summary
 
     # --- NEW: Process and append the consolidated accounting evidence ---
