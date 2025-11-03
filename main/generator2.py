@@ -965,7 +965,7 @@ def _randomize_archetype_properties(archetype: ScenarioArchetype) -> ScenarioArc
         archetype.default_currency = random.choice([c.code for c in all_currencies])
 
     # Randomize the number of comparative years slightly
-    archetype.comparative_years = max(1, archetype.comparative_years + random.choice([-1, 0, 0, 1]))
+    archetype.comparative_years = max(1, archetype.comparative_years + random.choice([-1, 0, 0, 1])) # type: ignore
 
     # Randomize the notional multiplier by one order of magnitude up or down
     if random.random() < 0.2: # 20% chance to adjust multiplier

@@ -565,6 +565,13 @@ class NotionalSentence:
             final_value_type = "notional"
 
         # 5. Hedge designation clause
+        # --- NEW: Handle repeated mentions of similar instrument types ---
+        swap_type_to_use = self.swap_type
+        if self.is_repeated_mention:
+            # Prepend a word like "another" or "an additional" to make the text flow better.
+            repetition_word = random.choice(["another", "an additional", "a separate", "a second"])
+            swap_type_to_use = f"{repetition_word} {self.swap_type}"
+
         # --- FIX: Make hedge designation clause optional ---
         # NEW: If notional is 0 for a single-year sentence, don't add designation or result clauses.
         is_single_year_zero_notional = (
@@ -769,7 +776,7 @@ class NotionalSentence:
             time_prefix=time_prefix,
             company=company_name,
             verb=verb,
-            swap_type=swap_type_to_use,
+            swap_type=swap_type_to_use, # This now includes "another", etc. if it's a repeat
             amount_connector=chosen_connector,
             amount_prefix=amount_prefix_to_use,
             amount_str=amount_str,
