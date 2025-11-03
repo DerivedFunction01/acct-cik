@@ -899,7 +899,8 @@ class Table:
             "GEN": "Derivative",
         }
         title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s (in {self.currency_symbol} {self.money_unit()})"
-        return f"{title}\n" + "\n".join(rows), evidence_list, []
+        full_table = f"<TABLE>\n<CAPTION>\n{title}\n" + "\n".join(rows) + "\n</TABLE>"
+        return full_table, evidence_list, []
 
     def _build_notional_vs_fair_value_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
@@ -920,7 +921,7 @@ class Table:
             "EQ": "Equity",
             "GEN": "Derivative",
         }
-        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s"
+        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s"
         all_rows.append(title)
 
         for year in [year1, year2]:
@@ -937,6 +938,10 @@ class Table:
             all_rows.append(
                 f"\nAs of {self.month} {self.day}, {year} (in {self.currency_symbol} {self.money_unit()})"
             )
+            # --- SEC Tag ---
+            sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+            all_rows.append(sec_tags_line)
+
             header_lines = self._format_row_with_wrapping(columns, widths, alignments)
             all_rows.extend(header_lines)
             separator = "  ".join(['-' * w for w in widths])
@@ -1017,7 +1022,10 @@ class Table:
         if len(all_rows) <= 1:  # Only title
             return "", [], []
 
-        return "\n".join(all_rows), evidence_list, []
+        # --- SEC Tag ---
+        full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(all_rows) + "\n</TABLE>"
+
+        return full_table_str, evidence_list, []
 
     def _build_maturity_grouping_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
@@ -1067,6 +1075,10 @@ class Table:
         widths = [25, 25]
         alignments = ['l', 'r']
         rows = [title]
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1])
+        rows.append(sec_tags_line)
+
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
@@ -1109,7 +1121,9 @@ class Table:
         if len(rows) <= 3:  # Only title, header lines, and separator
             return "", [], []
 
-        return "\n".join(rows), evidence_list, []
+        # --- SEC Tag ---
+        full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
+        return full_table_str, evidence_list, []
 
     def _build_aoci_reconciliation_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
@@ -1198,7 +1212,9 @@ class Table:
             aggregate=True,
         ))
 
-        return f"{title}\n" + "\n".join(rows), evidence_list, []
+        # --- SEC Tag ---
+        full_table_str = "<TABLE>\n<CAPTION>\n" + f"{title}\n" + "\n".join(rows) + "\n</TABLE>"
+        return full_table_str, evidence_list, []
 
     def _build_three_year_comparative_table(
         self,
@@ -1227,6 +1243,10 @@ class Table:
         columns = [random.choice(DERIVATIVE_COMPONENTS["suffixes"]).capitalize(), str(year1), str(year2), str(year3)]
         widths = [40, 18, 18, 18]
         alignments = ['l', 'r', 'r', 'r']
+
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2] + 2) + "<C>".ljust(widths[3])
+        rows = [sec_tags_line]
 
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         separator = "  ".join(['-' * w for w in widths])
@@ -1283,7 +1303,9 @@ class Table:
             return "", [], []
 
         title = f"{value_type_str}s of Outstanding {self.category} Derivatives (in {self.currency_symbol} {self.money_unit()})"
-        return f"{title}\n" + "\n".join(rows), evidence_list, []
+        # --- SEC Tag ---
+        full_table_str = "<TABLE>\n<CAPTION>\n" + title + "\n" + "\n".join(rows) + "\n</TABLE>"
+        return full_table_str, evidence_list, []
 
     def _build_aoci_reclassification_impact_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
@@ -1302,6 +1324,10 @@ class Table:
         widths = [35, 25, 40]
         alignments = ['l', 'r', 'l']
         rows = [title]
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+        rows.append(sec_tags_line)
+
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
@@ -1349,7 +1375,9 @@ class Table:
         if len(rows) <= 3: # Title, header, separator
             return "", [], []
 
-        return "\n".join(rows), evidence_list, []
+        # --- SEC Tag ---
+        full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
+        return full_table_str, evidence_list, []
 
     def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
@@ -1392,6 +1420,10 @@ class Table:
         widths = [25, 25, 25]
         alignments = ['l', 'r', 'r']
         rows = [title]
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+        rows.append(sec_tags_line)
+
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
@@ -1472,7 +1504,9 @@ class Table:
         # --- NEW: Return the list of instruments that were NOT detailed in this table ---
         remaining_instruments = [inst for inst in self.instruments if inst.instrument_id != instrument_to_detail.instrument_id]
 
-        return "\n".join(rows), evidence_list, remaining_instruments
+        # --- SEC Tag ---
+        full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
+        return full_table_str, evidence_list, remaining_instruments
 
     def _build_asset_liability_fair_value_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
@@ -1496,6 +1530,10 @@ class Table:
         widths = [45, 20, 22]
         alignments = ['l', 'r', 'r']
         rows = [title]
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+        rows.append(sec_tags_line)
+
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
@@ -1552,4 +1590,6 @@ class Table:
         if len(rows) <= 3: # Title, header, separator
             return "", [], []
 
-        return "\n".join(rows), evidence_list, []
+        # --- SEC Tag ---
+        full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
+        return full_table_str, evidence_list, []
