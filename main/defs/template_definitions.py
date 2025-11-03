@@ -1,7 +1,7 @@
 # New imports for generate_notional_sentence
 from dataclasses import dataclass
 import random
-from typing import Dict, List, Literal, Tuple
+from typing import Dict, List, Literal, Tuple, Union
 from defs.notional_definitions import NotionalEvidence
 from defs.instrument_definitions import NotionalInstrument
 from defs.common_data import DERIVATIVE_COMPONENTS
@@ -927,12 +927,36 @@ general_policy_templates = [
     "During {year}, the {issuer} issued guidance under {standard} to {standard_purpose}. {policy_description}. Additionally, it {policy_feature}",
 ]
 
+
 hedge_topics = [
     "derivatives and hedging",
     "hedging activities",
     "cash flow hedges",
     "fair value hedges",
 ]
+def _group_instruments_by_type(
+    instruments: List[NotionalInstrument],
+) -> Dict[Tuple[str, str], Dict[str, Union[str, int, float]]]:
+    """
+    Groups instruments by their placeholder and base type, preparing them for aggregation.
+
+    Returns:
+        A dictionary where keys are (placeholder, base_type) and values are dicts
+        containing aggregated values and common properties like currency and category.
+    """
+    grouped: Dict[Tuple[str, str], Dict] = {}
+    for inst in instruments:
+        key = (inst.placeholder, inst.base_type)
+        if key not in grouped:
+            grouped[key] = {
+                "instruments": [],
+                "currency": inst.currency,
+                "symbol": inst.symbol,
+                "category": inst.category,
+            }
+        grouped[key]["instruments"].append(inst)
+    return grouped
+
 
 @dataclass
 class DerivativeTableBuilder:
@@ -1133,15 +1157,110 @@ class NotionalVsFairValueTableBuilder(DerivativeTableBuilder):
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
         Builds a table comparing notional vs. fair value, grouped by year.
-        Format:
-            Year 20XX
-            Instrument  Notional  Fair Value
         """
         evidence_list = []
         year1 = self.reporting_year
         year2 = self.reporting_year - 1
-        all_rows = []
+        all_table_parts = []
 
+        # Process each year separately
+        for year in [year1, year2]:
+            instruments_in_year = [
+                inst
+                for inst in self.instruments
+                if inst.notional_history.get(year, 0) > 0
+            ]
+            if not instruments_in_year:
+                continue
+
+            # Group instruments for the current year
+            grouped_for_year = _group_instruments_by_type(instruments_in_year)
+            data_rows = []
+
+            for (placeholder, base_type), group_data in grouped_for_year.items():
+                # Aggregate notional and fair values for the group
+                total_notional = sum(
+                    self._get_value(inst, year, "notional")
+                    for inst in group_data["instruments"]
+                )
+                total_fair_value = sum(
+                    self._get_value(inst, year, "fair_value")
+                    for inst in group_data["instruments"]
+                )
+
+                if total_notional == 0 and total_fair_value == 0:
+                    continue
+
+                # Create descriptive name for the group
+                plural_suffix = "s" if not base_type.endswith("s") else ""
+                name_to_use = (
+                    f"{placeholder} {base_type}{plural_suffix}".strip().capitalize()
+                )
+
+                # Format values for the table row
+                notional_str = _format_single_notional(
+                    total_notional,
+                    group_data["symbol"],
+                    self.prefer_abbreviated,
+                    True,
+                    negative_format=self.preferred_negative_format,
+                )
+                fair_val_str = _format_single_notional(
+                    total_fair_value,
+                    group_data["symbol"],
+                    self.prefer_abbreviated,
+                    True,
+                    negative_format=self.preferred_negative_format,
+                )
+
+                data_rows.append([name_to_use, notional_str, fair_val_str])
+
+                # Create summary evidence for the current reporting year
+                if year == self.reporting_year:
+                    # Notional Evidence
+                    evidence_notional_str = _format_single_notional(
+                        total_notional, group_data["symbol"], self.prefer_abbreviated, False
+                    )
+                    evidence_list.append(
+                        NotionalEvidence(
+                            instrument_id=None, status="summary", category=group_data["category"], aggregate=True,
+                            notional=_get_correct_rounding(total_notional, self.notional_multiplier),
+                            notional_str=evidence_notional_str, year=year, instrument_type=name_to_use,
+                            reporting_year=self.reporting_year, value_type="notional", currency=group_data["currency"],
+                            sentence_type="summary",
+                        )
+                    )
+                    # Fair Value Evidence
+                    evidence_fair_val_str = _format_single_notional(
+                        total_fair_value, group_data["symbol"], self.prefer_abbreviated, False
+                    )
+                    evidence_list.append(
+                        NotionalEvidence(
+                            instrument_id=None, status="summary", category=group_data["category"], aggregate=True,
+                            notional=_get_correct_rounding(total_fair_value, self.notional_multiplier),
+                            notional_str=evidence_fair_val_str, year=year, instrument_type=name_to_use,
+                            reporting_year=self.reporting_year, value_type="fair_value", currency=group_data["currency"],
+                            sentence_type="summary",
+                        )
+                    )
+
+            if not data_rows:
+                continue
+
+            # Build the sub-table for the current year
+            sub_table_title = f"\nAs of {self.month} {self.day}, {year}"
+            headers = [
+                random.choice(DERIVATIVE_COMPONENTS["suffixes"]).capitalize(),
+                "Notional Amount",
+                "Fair Value",
+            ]
+            widths = [45, 20, 20]
+            alignments = ["l", "r", "r"]
+            sub_table = GenericTable(headers, data_rows, widths, alignments, sub_table_title)
+            all_table_parts.append(sub_table.build().replace("<TABLE>", "").replace("</TABLE>", "").replace("<CAPTION>", "").replace("</CAPTION>", ""))
+
+        if not all_table_parts:
+            return "", [], []
         category_map = {
             "IR": "Interest Rate",
             "FX": "Foreign Exchange",
@@ -1149,107 +1268,10 @@ class NotionalVsFairValueTableBuilder(DerivativeTableBuilder):
             "EQ": "Equity",
             "GEN": "Derivative",
         }
+
+        # Combine the sub-tables into a single table string with one caption
         title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s {self._get_units()}"
-        all_rows.append(title)
-
-        for year in [year1, year2]:
-            instruments_in_year = [inst for inst in self.instruments if inst.notional_history.get(year, 0) > 0]
-
-            # Define column properties for each year's sub-table
-            columns = [random.choice(DERIVATIVE_COMPONENTS["suffixes"]).capitalize(), "Notional Amount", "Fair Value"]
-            widths = [45, 20, 20]
-            alignments = ['l', 'r', 'r']
-
-            if not instruments_in_year:
-                continue
-
-            all_rows.append(
-                f"\nAs of {self.month} {self.day}, {year}"
-            )
-
-            header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
-            all_rows.extend(header_lines)
-            separator = "  ".join(['-' * w for w in widths])
-            all_rows.append(separator)
-            sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
-            all_rows.append(sec_tags_line)
-
-            described_types = set()
-            for inst in instruments_in_year:
-                name_to_use = inst.instrument_type
-                if inst.instrument_type in described_types:
-                    name_to_use = inst.instrument_alias
-                described_types.add(inst.instrument_type)
-
-                notional_val = self._get_value(inst, year, "notional")
-                fair_val = self._get_value(inst, year, "fair_value")
-
-                notional_str = _format_single_notional(
-                    notional_val,
-                    inst.symbol,
-                    self.prefer_abbreviated,
-                    True,
-                    negative_format=self.preferred_negative_format,  # type: ignore
-                )
-                fair_val_str = _format_single_notional(
-                    fair_val,
-                    inst.symbol,
-                    self.prefer_abbreviated,
-                    True,
-                    negative_format=self.preferred_negative_format,  # type: ignore
-                )
-
-                row_cells = [name_to_use, notional_str, fair_val_str]
-                formatted_lines = GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments)
-                all_rows.extend(formatted_lines)
-
-                # Create evidence for the current year if value is > 0
-                if year == self.reporting_year and notional_val > 0:
-                    evidence_notional_str = _format_single_notional(
-                        notional_val, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
-                    )
-                    evidence_fair_val_str = _format_single_notional(
-                        fair_val, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
-                    )
-                    evidence_list.append(NotionalEvidence(
-                        instrument_id=inst.instrument_id,
-                        status="individual",
-                        category=inst.category,
-                        notional=_get_correct_rounding(notional_val, self.notional_multiplier) if self.notional_multiplier > 1 else notional_val,
-                        notional_str=evidence_notional_str,
-                        year=self.reporting_year,
-                        instrument_type=name_to_use,
-                        reporting_year=self.reporting_year, # type: ignore
-                        value_type="notional",
-                        currency=inst.currency,
-                        sentence_type="individual", # From a table
-                    ))
-                    evidence_list.append(
-                        NotionalEvidence(
-                            instrument_id=inst.instrument_id,
-                            status="individual",
-                            category=inst.category,
-                            notional=(
-                                _get_correct_rounding(
-                                    fair_val, self.notional_multiplier
-                                )
-                                if self.notional_multiplier > 1
-                                else fair_val
-                            ),
-                            notional_str=evidence_fair_val_str,
-                            year=self.reporting_year,
-                            instrument_type=name_to_use,
-                            reporting_year=self.reporting_year, # type: ignore
-                            value_type="fair_value",
-                            currency=inst.currency,
-                            sentence_type="individual",  # From a table
-                        )
-                    )
-
-        if len(all_rows) <= 1:  # Only title
-            return "", [], []
-
-        full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(all_rows) + "\n</TABLE>"
+        full_table_str = f"<TABLE>\n<CAPTION>\n{title}\n" + "\n".join(all_table_parts) + "\n</TABLE>"
 
         return full_table_str, evidence_list, []
 
