@@ -2434,7 +2434,7 @@ def generate_json_from_scenario(
                 "category": instrument_obj.category if instrument_obj else ev.category,
                 "status": "current",
                 "amount": ev.notional, # This will be updated if more evidence is found
-                "currency": instrument_obj.currency if instrument_obj else ev.currency,
+                "currency": instrument_obj.currency if instrument_obj and ev.value_type != "notional_exposure" else ev.currency,
                 "value_type": ev.value_type.replace("_", " "),
                 "level": "individual",
             }
@@ -2463,7 +2463,7 @@ def generate_json_from_scenario(
                     "value_type": ev.value_type.replace("_", " ")
                 }
             )
-
+    
     return {
         "chain_of_thought": chain_of_thought,
         "analysis_summary": analysis_summary,
