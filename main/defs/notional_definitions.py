@@ -609,30 +609,25 @@ class NotionalSentence:
             )
             # Format currencies into a readable string from the details object
             details = self.specific_details or SpecificDetails()
-            currencies_str = ""
-            # --- NEW: Handle multiple commodities and sensible fallbacks ---
-            commodities_str = "various commodities"
-            unit_name = "units"
-            if details.commodity:
-                if len(details.commodity) > 1:
-                    commodities_str = (
-                        ", ".join(details.commodity[:-1])
-                        + f" and {details.commodity[-1]}"
-                    )
-                else:
-                    commodities_str = details.commodity[0]
-                unit_name = random.choice(
-                    get_units_for_commodity(random.choice(details.commodity))
-                )
 
-            if details.currencies:
-                currencies_str = (
-                    ", ".join(details.currencies[:-1])
-                    + " and "
-                    + details.currencies[-1]
-                    if len(details.currencies) > 1
-                    else details.currencies[0]
-                )
+            # --- FIX: Use the specific commodity from the instrument's hedged item ---
+            # This prevents mismatches like hedging 'diesel' to protect against 'asphalt' prices.
+            if self.instrument.hedged_item and isinstance(self.instrument.hedged_item, CommodityHedgedItem):
+                commodity_to_use = self.instrument.hedged_item.commodity_type
+                unit_to_use = self.instrument.hedged_item.unit_of_volume
+            else:
+                # Fallback to the less specific details if no direct hedged item is available
+                if details.commodity:
+                    commodity_to_use = random.choice(details.commodity)
+                    unit_to_use = random.choice(get_units_for_commodity(commodity_to_use))
+                else:
+                    # If no commodity context exists at all, generate a random one as a last resort.
+                    commodity_to_use, unit_to_use, _ = get_random_commodity_and_unit()
+
+            # Handle currencies and geography from specific_details
+            currencies_str = (
+                ", ".join(details.currencies) if details.currencies else "various currencies"
+            )
             locations_str = f"various {random.choice(geo_locations)}"
             if details.geography:
                 locations_str = (
@@ -665,9 +660,8 @@ class NotionalSentence:
                 formatted_amount=formatted_amount_result,  # type: ignore
                 pct=f"{(details.pct or random.uniform(1.5, 7.5)):.2f}",
                 geography=locations_str,  # type: ignore
-                commodity=commodities_str,
-                unit=details.unit
-                or unit_name,  # Use the unit from details if provided, otherwise the derived one
+                commodity=commodity_to_use,
+                unit=unit_to_use,
                 financial_outcome_verb=outcome_verb,
                 company=self.company_name,
                 swap_type=self.swap_type,
