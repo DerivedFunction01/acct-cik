@@ -535,9 +535,11 @@ class NotionalSentence:
         # 5. Hedge designation clause
         # --- NEW: Handle repeated mentions of similar instrument types ---
         swap_type_to_use = self.swap_type
+        # This flag now specifically means "this is a new instrument instance, but its type has been seen before."
         if self.is_repeated_mention:
-            # Prepend a word like "another" or "an additional" to make the text flow better.
-            repetition_word = random.choice(["another", "an additional", "a separate", "a second"])
+            # Prepend a word to clarify that this is a *different* instrument of the same type.
+            # e.g., "a separate interest rate swap", "an additional hedging agreement"
+            repetition_word = random.choice(["another", "an additional", "a separate", "a second", "a different"])
             swap_type_to_use = f"{repetition_word} {self.swap_type}"
 
         # --- FIX: Make hedge designation clause optional ---
