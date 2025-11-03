@@ -16,6 +16,7 @@ from defs.instrument_definitions import DERIVATIVE_CATEGORIES, BaseNarrativeEvid
 from defs.policy_definitions import (
     AccountingPolicySentence,
     CounterpartyRiskSentence,
+    ExposureEvidence,
     GeneralHedgingPolicy,
     MitigationEvidence,
     MitigationSentence,
@@ -1225,6 +1226,13 @@ def _generate_narrative_policy(
         policy_sentence, policy_evidence = policy_sentence_obj.build()
         sentences.append(policy_sentence)
 
+        # --- NEW: Generate ExposureEvidence from the generic policy sentence ---
+        # This ensures that even a high-level risk statement contributes to the exposure map.
+        exposure_evidence = ExposureEvidence(
+            category="GEN", status="exposure_mention", details=policy_sentence
+        )
+        evidence.append(exposure_evidence)
+
         # Determine if there are any active instruments in the reporting year.
         has_active_derivatives = any(
             inst.notional_history.get(scenario.reporting_year, 0) > 0
@@ -1258,7 +1266,7 @@ def _generate_narrative_policy(
 
 def _generate_debt_narrative(
     scenario: GenerationScenario,
-) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+) -> Tuple[List[str], List[ExposureEvidence]]:
     """
     Generates a dedicated, detailed narrative section about the company's debt.
     This is separate from the high-level summary in the IR risk section.
@@ -1298,6 +1306,10 @@ def _generate_debt_narrative(
             debt_paragraph = debt_context_builder.build()
             if debt_paragraph:
                 paragraphs.append(debt_paragraph)
+                # --- NEW: Create evidence for this exposure ---
+                evidence.append(
+                    ExposureEvidence(category="IR", status="exposure_mention", details=debt_paragraph)
+                )
     else:
         # Generate a single table for all debt items
         debt_context_builder = DebtContextSentence(
@@ -1312,13 +1324,17 @@ def _generate_debt_narrative(
         debt_paragraph = debt_context_builder.build()
         if debt_paragraph:
             paragraphs.append(debt_paragraph)
+            # --- NEW: Create evidence for this exposure ---
+            evidence.append(
+                ExposureEvidence(category="IR", status="exposure_mention", details=debt_paragraph)
+            )
 
     return paragraphs, evidence
 
 
 def _generate_fx_narrative(
     scenario: GenerationScenario,
-) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+) -> Tuple[List[str], List[ExposureEvidence]]:
     """
     Generates a dedicated, detailed narrative section about the company's foreign currency exposures.
     """
@@ -1355,6 +1371,10 @@ def _generate_fx_narrative(
             fx_paragraph = fx_context_builder.build()
             if fx_paragraph:
                 paragraphs.append(fx_paragraph)
+                # --- NEW: Create evidence for this exposure ---
+                evidence.append(
+                    ExposureEvidence(category="FX", status="exposure_mention", details=fx_paragraph)
+                )
     else:
         fx_context_builder = FXContextSentence(
             company_name=scenario.company_name,
@@ -1369,13 +1389,17 @@ def _generate_fx_narrative(
         fx_paragraph = fx_context_builder.build()
         if fx_paragraph:
             paragraphs.append(fx_paragraph)
+            # --- NEW: Create evidence for this exposure ---
+            evidence.append(
+                ExposureEvidence(category="FX", status="exposure_mention", details=fx_paragraph)
+            )
 
     return paragraphs, evidence
 
 
 def _generate_cp_narrative(
     scenario: GenerationScenario,
-) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+) -> Tuple[List[str], List[ExposureEvidence]]:
     """
     Generates a dedicated, detailed narrative section about the company's commodity price exposures.
     """
@@ -1412,6 +1436,10 @@ def _generate_cp_narrative(
             cp_paragraph = cp_context_builder.build()
             if cp_paragraph:
                 paragraphs.append(cp_paragraph)
+                # --- NEW: Create evidence for this exposure ---
+                evidence.append(
+                    ExposureEvidence(category="CP", status="exposure_mention", details=cp_paragraph)
+                )
     else:
         cp_context_builder = CPContextSentence(
             company_name=scenario.company_name,
@@ -1426,13 +1454,17 @@ def _generate_cp_narrative(
         cp_paragraph = cp_context_builder.build()
         if cp_paragraph:
             paragraphs.append(cp_paragraph)
+            # --- NEW: Create evidence for this exposure ---
+            evidence.append(
+                ExposureEvidence(category="CP", status="exposure_mention", details=cp_paragraph)
+            )
 
     return paragraphs, evidence
 
 
 def _generate_eq_narrative(
     scenario: GenerationScenario,
-) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+) -> Tuple[List[str], List[ExposureEvidence]]:
     """
     Generates a dedicated, detailed narrative section about the company's equity-related activities.
     """
@@ -1468,6 +1500,10 @@ def _generate_eq_narrative(
             eq_paragraph = eq_context_builder.build()
             if eq_paragraph:
                 paragraphs.append(eq_paragraph)
+                # --- NEW: Create evidence for this exposure ---
+                evidence.append(
+                    ExposureEvidence(category="EQ", status="exposure_mention", details=eq_paragraph)
+                )
     else:
         eq_context_builder = EQContextSentence(
             company_name=scenario.company_name,
@@ -1481,6 +1517,10 @@ def _generate_eq_narrative(
         eq_paragraph = eq_context_builder.build()
         if eq_paragraph:
             paragraphs.append(eq_paragraph)
+            # --- NEW: Create evidence for this exposure ---
+            evidence.append(
+                ExposureEvidence(category="EQ", status="exposure_mention", details=eq_paragraph)
+            )
 
     return paragraphs, evidence
 
@@ -2599,17 +2639,15 @@ def generate_json_from_scenario(
     """
     analysis_summary = _generate_analysis_summary(scenario, evidence)
 
-    # --- Generate exposure map based on the archetype's potential risks ---
-    archetype_exposures = scenario.archetype.get_exposure_counts()
+    # --- NEW: Generate exposure map based on the collected ExposureEvidence ---
+    # This ensures the map only reflects what was actually written in the narrative.
     exposure_map = {
-        "IR": archetype_exposures["debt"] > 0,
-        "FX": archetype_exposures["fx"] > 0,
-        "CP": archetype_exposures["commodity"] > 0,
-        "EQ": archetype_exposures["equity"] > 0,
-        # --- FIX: GEN exposure is determined by instruments, not archetype count ---
-        # A generic instrument might be created even if the archetype range is (0,0) in some edge cases.
-        "GEN": any(inst.category == "GEN" for inst in scenario.instruments),
+        cat: False for cat in DERIVATIVE_CATEGORIES
     }
+    for ev in evidence:
+        if isinstance(ev, ExposureEvidence):
+            if ev.category in exposure_map:
+                exposure_map[ev.category] = True
 
     # --- NEW: Mitigation status is now "current", "historical", or "never" ---
     # It's driven by the usage_status in the MitigationEvidence objects.

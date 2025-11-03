@@ -13,6 +13,27 @@ from defs.function_definitions import _cleanup_sentence
 
 
 @dataclass
+class ExposureEvidence(BaseNarrativeEvidence):
+    """Evidence that a company has exposure to a certain market risk, even if not hedged."""
+
+    details: str = ""  # The sentence describing the exposure.
+
+    def to_string(self) -> str:
+        """Generates a reasoning statement for the exposure evidence."""
+        category_map = {
+            "IR": "Interest Rate",
+            "FX": "Foreign Exchange",
+            "CP": "Commodity",
+            "EQ": "Equity",
+            "GEN": "Generic Market",
+        }
+        category_name = category_map.get(self.category, "Unknown")
+        # Return a concise statement for the chain of thought.
+        # The full sentence is in the 'details' if needed, but this is cleaner.
+        return f"The text confirms the company has exposure to {category_name} risk."
+
+
+@dataclass
 class PolicyEvidence(BaseNarrativeEvidence):
     """Evidence related to a company's hedging policies or risk exposure."""
 
