@@ -1912,12 +1912,13 @@ class DerivativeImpactTableBuilder(FinancialStatementTable):
     Builds a table summarizing the impact of derivative hedging activities on the
     income statement, similar to a common disclosure format.
     """
+    instruments: List[NotionalInstrument] = []
 
     def build(self) -> str:
         # 1. Define table structure and headers
         year1, year2 = self.year, self.year - 1
         title = (
-            f"The following table is a summary of the activity related to derivatives and hedges "
+            f"The following table summarizes the effect of derivative instruments on the Consolidated Statements of Operations "
             f"for the fiscal years ended {self.month} {self.day}, {year1} and {year2}, net of tax:"
         )
 
@@ -1948,57 +1949,72 @@ class DerivativeImpactTableBuilder(FinancialStatementTable):
 
         table_rows = [header_line_1, header_line_2, separator, sec_tags_line]
 
-        # 2. Define row data structure and generate values
-        row_definitions = [
-            ("The effects of fair value, net investment and cash flow hedging:", None),
-            ("Gain (Loss) on fair value hedging relationship:", None),
-            ("Interest rate swaps contracts:", None),
-            ("  Hedged items", 3, True),  # Data in column index 3, is positive
-            ("  Derivatives designated as hedging instruments", 3, False), # Data in col index 3, is negative
-            ("Gain (Loss) on net investment hedging relationship:", None),
-            ("Cross currency interest rate swaps contracts:", None),
-            ("  Amount of gain or (loss) recognized in income on derivative amount excluded from effectiveness testing", 3, True),
-            ("  Amount of gain or (loss) recognized in AOCI", 3, True),
-            ("Gain (Loss) on cash flow hedging relationship:", None),
-            ("Forward foreign exchange contracts:", None),
-            ("  Amount of gain or (loss) reclassified from AOCI into income", [0, 1, 2, 4], True),
-            ("  Amount of gain or (loss) recognized in AOCI", [0, 1, 2, 4], False),
-            ("Cross currency interest rate swaps contracts:", None),
-            ("  Amount of gain or (loss) reclassified from AOCI into income", 3, True),
-            ("  Amount of gain or (loss) recognized in AOCI", 3, False),
-        ]
+        # 2. Group instruments by type and generate data
+        instrument_groups = {}
+        for inst in self.instruments:
+            # Group by a simplified type name
+            type_name = "Interest rate contracts" if inst.category == "IR" else \
+                        "Foreign exchange contracts" if inst.category == "FX" else \
+                        "Commodity contracts" if inst.category == "CP" else \
+                        "Other derivative contracts"
+            if type_name not in instrument_groups:
+                instrument_groups[type_name] = []
+            instrument_groups[type_name].append(inst)
 
-        for row_def in row_definitions:
-            label, data_indices, is_positive = row_def if len(row_def) == 3 else (row_def[0], None, None)
-            
-            if data_indices is None:
-                # This is a header row
-                table_rows.append(label.ljust(sum(widths) + (len(widths) - 1) * 2))
-                continue
+        has_data = False
+        for group_name, instruments in instrument_groups.items():
+            # Add a header for the instrument group
+            table_rows.append(group_name.ljust(sum(widths) + (len(widths) - 1) * 2))
 
-            # This is a data row
-            row_data = ["—"] * (num_data_cols * 2)
-            indices = [data_indices] if isinstance(data_indices, int) else data_indices
+            # Simulate data for this group
+            for year in [year1, year2]:
+                # Check if there are any active instruments in this group for the year
+                active_in_year = any(inst.notional_history.get(year, 0) > 0 for inst in instruments)
+                if not active_in_year:
+                    continue
 
-            # Populate data for year 1
-            for idx in indices:
-                val = random.randint(10, 300) * self.notional_multiplier / 1_000_000
-                if not is_positive:
-                    val = -val
-                row_data[idx] = self._format_value(int(val))
+                # Simulate a gain/loss based on a small percentage of total notional
+                total_notional = sum(inst.notional_history.get(year, 0) for inst in instruments)
+                if total_notional == 0: continue
 
-            # Populate data for year 2 (offset by num_data_cols)
-            for idx in indices:
-                val = random.randint(10, 300) * self.notional_multiplier / 1_000_000
-                if not is_positive:
-                    val = -val
-                row_data[idx + num_data_cols] = self._format_value(int(val))
+                has_data = True
+                # Simulate reclassification from AOCI and gain/loss in AOCI
+                reclass_val = int(total_notional * random.uniform(-0.05, 0.05))
+                aoci_val = int(total_notional * random.uniform(-0.1, 0.1))
 
-            # Format the full row string
-            formatted_row = label.ljust(label_width) + "  " + \
-                            "  ".join(d.rjust(data_width) for d in row_data[:num_data_cols]) + "  " + \
-                            "  ".join(d.rjust(data_width) for d in row_data[num_data_cols:])
-            table_rows.append(formatted_row)
+                # Determine which income statement line items are affected
+                # This is a simplification; a real implementation would depend on the hedge purpose
+                affected_indices = random.sample(range(num_data_cols), k=random.randint(1, 2))
+
+                # --- Row for Reclassification from AOCI ---
+                reclass_row_data = ["—"] * (num_data_cols * 2)
+                for idx in affected_indices:
+                    # Distribute the reclass value across affected columns
+                    val_part = int(reclass_val / len(affected_indices))
+                    col_index = idx if year == year1 else idx + num_data_cols
+                    reclass_row_data[col_index] = self._format_value(val_part)
+
+                reclass_label = "  Amount of gain or (loss) reclassified from AOCI into income"
+                reclass_formatted_row = reclass_label.ljust(label_width) + "  " + \
+                                        "  ".join(d.rjust(data_width) for d in reclass_row_data[:num_data_cols]) + "  " + \
+                                        "  ".join(d.rjust(data_width) for d in reclass_row_data[num_data_cols:])
+                table_rows.append(reclass_formatted_row)
+
+                # --- Row for Gain/Loss in AOCI ---
+                aoci_row_data = ["—"] * (num_data_cols * 2)
+                for idx in affected_indices:
+                    val_part = int(aoci_val / len(affected_indices))
+                    col_index = idx if year == year1 else idx + num_data_cols
+                    aoci_row_data[col_index] = self._format_value(val_part)
+
+                aoci_label = "  Amount of gain or (loss) recognized in AOCI"
+                aoci_formatted_row = aoci_label.ljust(label_width) + "  " + \
+                                     "  ".join(d.rjust(data_width) for d in aoci_row_data[:num_data_cols]) + "  " + \
+                                     "  ".join(d.rjust(data_width) for d in aoci_row_data[num_data_cols:])
+                table_rows.append(aoci_formatted_row)
+
+        if not has_data:
+            return "" # Don't generate an empty table
 
         # 3. Assemble the final table string
         full_table_str = (
