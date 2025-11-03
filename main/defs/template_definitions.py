@@ -758,6 +758,7 @@ class DerivativeTableBuilder:
             AssetLiabilityFairValueTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
             AOCIReconciliationTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
             AOCIReclassificationImpactTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+            FairValueHierarchyTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
         if self.category == "FX":
@@ -1576,6 +1577,93 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
         full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
 
+class FairValueHierarchyTableBuilder(DerivativeTableBuilder):
+    """Builds a table showing derivative assets and liabilities by fair value hierarchy level."""
+
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
+        """
+        Builds a table showing derivative assets and liabilities by fair value hierarchy level.
+        Format:
+                                Level 1  Level 2  Level 3  Total
+            Assets:
+             Instrument Type      -       XX.X     -      XX.X
+            Liabilities:
+             Instrument Type      -       XX.X     -      XX.X
+        """
+        evidence_list = []
+        year = self.reporting_year
+        active_instruments = [
+            inst for inst in self.instruments if inst.notional_history.get(year, 0) > 0
+        ]
+
+        if not active_instruments:
+            return "", [], []
+
+        # Data structure to hold values: { 'Assets': {'Level 1': 0, ...}, 'Liabilities': ... }
+        hierarchy_data: Dict[str, Dict[str, float]] = {
+            "Assets": {"Level 1": 0, "Level 2": 0, "Level 3": 0, "Total": 0},
+            "Liabilities": {"Level 1": 0, "Level 2": 0, "Level 3": 0, "Total": 0},
+        }
+        instrument_rows: Dict[str, List[List[str]]] = {"Assets": [], "Liabilities": []}
+
+        for inst in active_instruments:
+            fair_value = self._get_value(inst, year, "fair_value")
+            if fair_value == 0:
+                continue
+
+            # Randomly decide if the fair value is an asset or liability
+            asset_or_liability = "Assets" if random.random() < 0.5 else "Liabilities"
+            # Most derivatives are Level 2. Some options/complex might be Level 3. Level 1 is rare.
+            level = random.choices(["Level 1", "Level 2", "Level 3"], weights=[0.05, 0.85, 0.10], k=1)[0]
+
+            # Update totals
+            hierarchy_data[asset_or_liability][level] += fair_value
+            hierarchy_data[asset_or_liability]["Total"] += fair_value
+
+            # Create the row for this specific instrument
+            row_values = ["-", "-", "-"]
+            level_index = int(level.split(" ")[1]) - 1
+            row_values[level_index] = _format_single_notional(
+                fair_value, inst.symbol, self.prefer_abbreviated, True, negative_format=self.preferred_negative_format # type: ignore
+            )
+            instrument_rows[asset_or_liability].append([f"  {inst.instrument_type}"] + row_values)
+
+            # Create evidence for this instrument's fair value
+            evidence_fair_value_str = _format_single_notional(
+                fair_value, self.currency_symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
+            )
+            evidence_list.append(NotionalEvidence(
+                instrument_id=inst.instrument_id, status="individual", category=inst.category,
+                notional=_get_correct_rounding(fair_value, self.notional_multiplier) if self.notional_multiplier > 1 else fair_value,
+                notional_str=evidence_fair_value_str, year=year,
+                instrument_type=f"{inst.instrument_type} ({asset_or_liability[:-1]} classified as {level})",
+                reporting_year=self.reporting_year, value_type="fair_value",
+                currency=inst.currency, sentence_type="individual",
+            ))
+
+        title = f"Fair Value Measurements of Derivative Instruments as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
+        headers = ["", "Level 1", "Level 2", "Level 3", "Total"]
+        widths = [35, 15, 15, 15, 15]
+        alignments = ['l', 'r', 'r', 'r', 'r']
+        data_rows = []
+
+        for group in ["Assets", "Liabilities"]:
+            if hierarchy_data[group]["Total"] > 0:
+                data_rows.append([group + ":", "", "", "", ""])
+                data_rows.extend(instrument_rows[group])
+                # Add total row for the group
+                total_row = [f"Total {group}"] + [
+                    _format_single_notional(hierarchy_data[group][f"Level {i}"], self.currency_symbol, self.prefer_abbreviated, True, negative_format=self.preferred_negative_format) # type: ignore
+                    if hierarchy_data[group][f"Level {i}"] > 0 else "-"
+                    for i in [1, 2, 3]
+                ] + [_format_single_notional(hierarchy_data[group]["Total"], self.currency_symbol, self.prefer_abbreviated, True, negative_format=self.preferred_negative_format)] # type: ignore
+                data_rows.append(total_row)
+
+        if not data_rows:
+            return "", [], []
+
+        table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
+        return table_builder.build(), evidence_list, []
 
 class DerivativeTable(DerivativeTableBuilder):
     """
