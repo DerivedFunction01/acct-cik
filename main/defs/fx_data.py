@@ -23,6 +23,7 @@ class Currency:
     symbol: str
     adjective: str
     location: str
+    symbol_first: bool = True # Default to symbol before the number (e.g., $100)
 
 
 major_currencies = [
@@ -37,16 +38,16 @@ major_currencies = [
 ]
 
 european_currencies = [
-    Currency("NOK", "Norwegian Krone", "kr", "Norwegian", "Norway"),
-    Currency("SEK", "Swedish Krona", "kr", "Swedish", "Sweden"),
-    Currency("DKK", "Danish Krone", "kr", "Danish", "Denmark"),
-    Currency("PLN", "Polish Zloty", "zł", "Polish", "Poland"),
-    Currency("HUF", "Hungarian Forint", "Ft", "Hungarian", "Hungary"),
-    Currency("CZK", "Czech Koruna", "Kč", "Czech", "Czech Republic"),
-    Currency("TRY", "Turkish Lira", "₺", "Turkish", "Turkey"),
-    Currency("RUB", "Russian Ruble", "₽", "Russian", "Russia"),
-    Currency("BGN", "Bulgarian Lev", "лв", "Bulgarian", "Bulgaria"),
-    Currency("RON", "Romanian Leu", "lei", "Romanian", "Romania"),
+    Currency("NOK", "Norwegian Krone", "kr", "Norwegian", "Norway", symbol_first=False),
+    Currency("SEK", "Swedish Krona", "kr", "Swedish", "Sweden", symbol_first=False),
+    Currency("DKK", "Danish Krone", "kr", "Danish", "Denmark", symbol_first=False),
+    Currency("PLN", "Polish Zloty", "zł", "Polish", "Poland", symbol_first=False),
+    Currency("HUF", "Hungarian Forint", "Ft", "Hungarian", "Hungary", symbol_first=False),
+    Currency("CZK", "Czech Koruna", "Kč", "Czech", "Czech Republic", symbol_first=False),
+    Currency("TRY", "Turkish Lira", "₺", "Turkish", "Turkey", symbol_first=False),
+    Currency("RUB", "Russian Ruble", "₽", "Russian", "Russia", symbol_first=False),
+    Currency("BGN", "Bulgarian Lev", "лв", "Bulgarian", "Bulgaria", symbol_first=False),
+    Currency("RON", "Romanian Leu", "lei", "Romanian", "Romania", symbol_first=False),
 ]
 
 asian_currencies = [
@@ -54,23 +55,23 @@ asian_currencies = [
     Currency("KRW", "South Korean Won", "₩", "South Korean", "South Korea"),
     Currency("SGD", "Singapore Dollar", "$", "Singaporean", "Singapore"),
     Currency("HKD", "Hong Kong Dollar", "$", "Hong Kong", "Hong Kong"),
-    Currency("THB", "Thai Baht", "฿", "Thai", "Thailand"),
+    Currency("THB", "Thai Baht", "฿", "Thai", "Thailand", symbol_first=False),
     Currency("MYR", "Malaysian Ringgit", "RM", "Malaysian", "Malaysia"),
 ]
 
 americas_currencies = [
     Currency("MXN", "Mexican Peso", "$", "Mexican", "Mexico"),
-    Currency("BRL", "Brazilian Real", "R$", "Brazilian", "Brazil"),
+    Currency("BRL", "Brazilian Real", "R$", "Brazilian", "Brazil", symbol_first=False),
     Currency("ARS", "Argentine Peso", "$", "Argentine", "Argentina"),
     Currency("CLP", "Chilean Peso", "$", "Chilean", "Chile"),
     Currency("COP", "Colombian Peso", "$", "Colombian", "Colombia"),
 ]
 
 other_currencies = [
-    Currency("NZD", "New Zealand Dollar", "$", "New Zealand", "Oceania"),
-    Currency("ZAR", "South African Rand", "R", "South African", "south Africa"),
-    Currency("AED", "UAE Dirham", "د.إ", "Emirati", "United Arab Emirates"),
-    Currency("SAR", "Saudi Riyal", "ر.س", "Saudi", "Saudi Arabia"),
+    Currency("NZD", "New Zealand Dollar", "$", "New Zealand", "Oceania", symbol_first=True),
+    Currency("ZAR", "South African Rand", "R", "South African", "south Africa", symbol_first=True),
+    Currency("AED", "UAE Dirham", "د.إ", "Emirati", "United Arab Emirates", symbol_first=False),
+    Currency("SAR", "Saudi Riyal", "ر.س", "Saudi", "Saudi Arabia", symbol_first=False),
 ]
 
 
@@ -89,9 +90,7 @@ class CurrencyExposure(Currency):
         (Inherited from Currency): code, full_name, symbol, adjective, location
         amount: int - The notional amount of the exposure in that currency.
     """
-
-    amount: int
-
+    amount: int = 0
     def to_dict(self) -> Dict:
         """Serializes the currency exposure to a dictionary, including inherited fields."""
         # Get the dictionary from the parent class

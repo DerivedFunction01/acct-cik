@@ -13,12 +13,10 @@ def _format_single_notional(
     notional_multiplier: Optional[int] = None, # NEW: Explicit multiplier
 ) -> str:
     """
-    Formats a single notional amount into a readable string like '$250.0 million'
-    or '250.0 thousand barrels'.
+    Formats a single notional amount into a readable string like '$250.0 million' or '250.0 thousand barrels'.
 
-    - If no_unit_word=True, abbreviates numerically but omits the unit word
-      (e.g., '$250.0' instead of '$250.0 million').
-    - If notional_multiplier is provided, it will be used for scaling the amount,
+    - If no_unit_word=True, abbreviates numerically but omits the unit word (e.g., '$250.0' instead of '$250.0 million').
+    - If notional_multiplier is provided, it will be used for scaling the amount, 
       otherwise the function determines the best unit (million, billion) automatically.
     - If prefer_abbreviated=False, shows full number with commas.
     - negative_format:
@@ -28,11 +26,10 @@ def _format_single_notional(
          2 → minus sign after currency symbol, e.g. '$-250.0 million' (currency only)
     """
     from defs.fx_data import all_currencies
-
-    # A set of common currency symbols to differentiate them from units
-    KNOWN_CURRENCY_SYMBOLS = {c.symbol for c in all_currencies} | {
-        c.code for c in all_currencies
-    }
+    # Find the currency object to determine its formatting rules
+    currency_obj = next((c for c in all_currencies if c.symbol == symbol or c.code == symbol), None)
+    is_currency = currency_obj is not None
+    symbol_first = currency_obj.symbol_first if currency_obj else True
     if amount == 0:
         if zero_format in ["nil", "zero"]:
             return zero_format
@@ -74,7 +71,7 @@ def _format_single_notional(
         formatted_number = f"{abs_amount:,.0f}"
 
     # Build base string
-    if symbol in KNOWN_CURRENCY_SYMBOLS:
+    if is_currency and symbol_first:
         base = f"{symbol}{formatted_number}{unit_word}"
     else:
         base = f"{formatted_number}{unit_word} {symbol}".strip()
@@ -86,12 +83,12 @@ def _format_single_notional(
         elif negative_format == 0:
             return f"-{base}"
         elif negative_format == 1:
-            if symbol in KNOWN_CURRENCY_SYMBOLS:
+            if is_currency and symbol_first:
                 return f"{symbol}({formatted_number}){unit_word}"
             else:
                 return f"({formatted_number}){unit_word} {symbol}".strip()
         elif negative_format == 2:
-            if symbol in KNOWN_CURRENCY_SYMBOLS:
+            if is_currency and symbol_first:
                 return f"{symbol}-{formatted_number}{unit_word}"
             else:
                 return f"-{base}"  # Fallback to format 0 for non-currencies
