@@ -829,13 +829,14 @@ class Table:
         alignments = ['l', 'r', 'r'] # l for left, r for right
 
         header = "  ".join([col.ljust(widths[i]) if alignments[i] == 'l' else col.rjust(widths[i]) for i, col in enumerate(columns)])
-        separator = " ".join(['-' * w for w in widths])
-        rows = [header, separator]
+        separator = "  ".join(['-' * w for w in widths])
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+        rows = [header, separator, sec_tags_line]
 
         # Use a set to avoid describing the same instrument type multiple times
         described_types = set()
         for inst in self.instruments:
-            # Use alias for subsequent mentions of the same type
             name_to_use = inst.instrument_type
             if inst.instrument_type in described_types:
                 name_to_use = inst.instrument_alias
@@ -887,7 +888,7 @@ class Table:
                     sentence_type="individual", # From a table
                 ))
 
-        if len(rows) <= 2:  # Only header and separator
+        if len(rows) <= 3:  # Only header, separator, and tags
             return "", [], []
 
         # Add a title
@@ -938,14 +939,14 @@ class Table:
             all_rows.append(
                 f"\nAs of {self.month} {self.day}, {year} (in {self.currency_symbol} {self.money_unit()})"
             )
-            # --- SEC Tag ---
-            sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
-            all_rows.append(sec_tags_line)
 
             header_lines = self._format_row_with_wrapping(columns, widths, alignments)
             all_rows.extend(header_lines)
             separator = "  ".join(['-' * w for w in widths])
             all_rows.append(separator)
+            # --- SEC Tag ---
+            sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+            all_rows.append(sec_tags_line)
 
             described_types = set()
             for inst in instruments_in_year:
@@ -1075,14 +1076,14 @@ class Table:
         widths = [25, 25]
         alignments = ['l', 'r']
         rows = [title]
-        # --- SEC Tag ---
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1])
-        rows.append(sec_tags_line)
 
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
         rows.append(separator)
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1])
+        rows.append(sec_tags_line)
 
         for group, total_notional in maturity_groups.items():
             if total_notional > 0:
@@ -1118,7 +1119,7 @@ class Table:
                 row_cells = [group, notional_str]
                 rows.extend(self._format_row_with_wrapping(row_cells, widths, alignments))
 
-        if len(rows) <= 3:  # Only title, header lines, and separator
+        if len(rows) <= 4:  # Only title, header lines, separator, and tags
             return "", [], []
 
         # --- SEC Tag ---
@@ -1244,13 +1245,11 @@ class Table:
         widths = [40, 18, 18, 18]
         alignments = ['l', 'r', 'r', 'r']
 
-        # --- SEC Tag ---
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2] + 2) + "<C>".ljust(widths[3])
-        rows = [sec_tags_line]
-
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         separator = "  ".join(['-' * w for w in widths])
-        rows = header_lines + [separator]
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2] + 2) + "<C>".ljust(widths[3])
+        rows = header_lines + [separator, sec_tags_line]
         
         described_types = set()
         for inst in self.instruments:
@@ -1299,7 +1298,7 @@ class Table:
                     sentence_type="individual",
                 ))
 
-        if len(rows) <= 2:
+        if len(rows) <= 3: # header, separator, tags
             return "", [], []
 
         title = f"{value_type_str}s of Outstanding {self.category} Derivatives (in {self.currency_symbol} {self.money_unit()})"
@@ -1324,14 +1323,14 @@ class Table:
         widths = [35, 25, 40]
         alignments = ['l', 'r', 'l']
         rows = [title]
-        # --- SEC Tag ---
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
-        rows.append(sec_tags_line)
 
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
         rows.append(separator)
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+        rows.append(sec_tags_line)
 
         income_statement_locations = [
             "Cost of sales", "Net sales", "Interest expense, net",
@@ -1372,7 +1371,7 @@ class Table:
                 currency=self.currency_code, sentence_type="individual",
             ))
 
-        if len(rows) <= 3: # Title, header, separator
+        if len(rows) <= 4: # Title, header, separator, tags
             return "", [], []
 
         # --- SEC Tag ---
@@ -1420,14 +1419,14 @@ class Table:
         widths = [25, 25, 25]
         alignments = ['l', 'r', 'r']
         rows = [title]
-        # --- SEC Tag ---
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
-        rows.append(sec_tags_line)
 
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
         rows.append(separator)
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+        rows.append(sec_tags_line)
         
         for exposure in hedged_item.exposures:
             # The exposure amount from the hedged item corresponds to the last active year.
@@ -1530,14 +1529,14 @@ class Table:
         widths = [45, 20, 22]
         alignments = ['l', 'r', 'r']
         rows = [title]
-        # --- SEC Tag ---
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
-        rows.append(sec_tags_line)
 
         header_lines = self._format_row_with_wrapping(columns, widths, alignments)
         rows.extend(header_lines)
         separator = "  ".join(['-' * w for w in widths])
         rows.append(separator)
+        # --- SEC Tag ---
+        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
+        rows.append(sec_tags_line)
         
         for inst in active_instruments:
             fair_value = self._get_value(inst, year, "fair_value")
@@ -1587,7 +1586,7 @@ class Table:
                 )
             )
 
-        if len(rows) <= 3: # Title, header, separator
+        if len(rows) <= 4: # Title, header, separator, tags
             return "", [], []
 
         # --- SEC Tag ---
