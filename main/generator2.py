@@ -32,7 +32,7 @@ from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument,
 from defs.legal_data import LegalContextSentence, ContextEvidence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.noise_definitions import BalanceSheetTableBuilder, CashFlowStatementTableBuilder, IncomeStatementTableBuilder
-from defs.template_definitions import hedge_no_trading_templates, DerivativeTable, DerivativeImpactTableBuilder
+from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
 DEBUG = True
@@ -2466,18 +2466,14 @@ def _generate_financial_statement_tables(scenario: GenerationScenario) -> List[s
         builder_class = random.choice([
             BalanceSheetTableBuilder,
             IncomeStatementTableBuilder,
-            CashFlowStatementTableBuilder,
-            DerivativeImpactTableBuilder,
+            CashFlowStatementTableBuilder
         ])
-        # DerivativeImpactTableBuilder needs the instruments
-        builder_kwargs = {"instruments": scenario.instruments} if builder_class == DerivativeImpactTableBuilder else {}
-        
+     
         builder = builder_class(
             year=scenario.reporting_year,
             month=scenario.reporting_month,
             day=scenario.reporting_day,
             currency_symbol=currency_symbol,
-            **builder_kwargs,
             notional_multiplier=scenario.archetype.notional_multiplier,
             prefer_abbreviated=scenario.archetype.prefers_abbreviated_numbers,
             preferred_negative_format=scenario.archetype.preferred_negative_format,
