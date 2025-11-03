@@ -68,11 +68,11 @@ This is the most critical phase. Before any model training, the data generation 
     -   **[x] Port IR/Debt Context:** Done. `DebtContextSentence` has been created and integrated into the IR narrative generation in `generator2.py`.
     -   **[ ] Port FX Context:**
         -   **[x] Action:** Create a new `FXContextSentence` class in `defs/fx_data.py` that uses templates to describe foreign operations, international sales, or currency translation effects without mentioning derivatives.
-    -   **[ ] Port CP Context:**
+    -   **[x] Port CP Context:**
         -   **[x] Action:** Create a new `CPContextSentence` class in `defs/cp_data.py` that uses templates to describe commodity-related business activities (e.g., "our primary raw material is crude oil...") without mentioning derivatives.
-    -   **[ ] Port EQ Context:**
+    -   **[x] Port EQ Context:**
         -   **[x] Action:** Create a new `EQContextSentence` class in `defs/eq_data.py` that uses templates to describe equity-related activities (e.g., stock compensation plans, investments in other companies) without mentioning derivatives.
-    -   **[ ] Integrate New Context Classes:**
+    -   **[x] Integrate New Context Classes:**
         -   **[x] Action:** Integrate the `build()` methods for `FXContextSentence` and `CPContextSentence` into `generator2.py`'s `_generate_category_narrative` function for their respective categories. This should be done probabilistically to inject relevant, non-derivative context.
         -   **[x] Action:** Integrate the `build()` method for `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for the EQ category.
 
