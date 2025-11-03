@@ -1658,6 +1658,7 @@ def _generate_category_narrative(
             mentioned_instrument_types = set()
 
         # --- NEW: Table Generation Logic ---
+        table_generated_for_category = False
         # If the archetype prefers tables and there are instruments, generate a table instead of individual paragraphs.
         if (
             scenario.archetype.prefers_tables
@@ -1691,6 +1692,7 @@ def _generate_category_narrative(
                 paragraphs.append(table_str)
                 evidence.extend(table_evidence)
                 # --- NEW: Update the list of instruments to process with the remainder ---
+                table_generated_for_category = True
                 # This allows us to process the rest of the instruments below.
                 current_year_data["instruments"] = remaining_instruments
             
@@ -1988,7 +1990,7 @@ def _generate_category_narrative(
 
         # If there are no current instruments, check for a comparative no-outstanding sentence
         if (
-            not (current_year_data and current_year_data["instruments"])
+            not (current_year_data and current_year_data["instruments"]) and not table_generated_for_category
             and prev_year_data
             and prev_year_data["total_notional"] > 0
         ):
