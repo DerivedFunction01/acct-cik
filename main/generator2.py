@@ -439,6 +439,28 @@ class ScenarioBuilder:
         }
         self.all_scenario_base_types: Set[str] = set()
 
+        # --- NEW: Pre-define a limited pool of terms for this specific scenario ---
+        # This makes the generated text more consistent and realistic.
+        self.scenario_components = {
+            "base_types": random.sample(
+                DERIVATIVE_COMPONENTS["base_types"],
+                k=random.randint(3, 5)
+            ),
+            "suffixes": random.sample(
+                DERIVATIVE_COMPONENTS["suffixes"],
+                k=random.randint(2, 4)
+            ),
+            "placeholders": {
+                cat: random.sample(
+                    placeholders,
+                    k=min(len(placeholders), random.randint(2, 4))
+                )
+                for cat, placeholders in DERIVATIVE_COMPONENTS["placeholders"].items()
+            },
+            "special_suffixes": DERIVATIVE_COMPONENTS["special_suffixes"], # Keep all special suffixes
+            "no_alias_types": DERIVATIVE_COMPONENTS["no_alias_types"],
+        }
+
     def _generate_debt_exposures(self, count: int):
         for _ in range(count):
             issuance_year = random.randint( # type: ignore
@@ -615,6 +637,7 @@ class ScenarioBuilder:
                         hedged_item=hedged_item,
                         available_base_types=available_base_types,
                         all_scenario_base_types=self.all_scenario_base_types,
+                        components=self.scenario_components,
                     )
                 )
             
@@ -783,6 +806,7 @@ class ScenarioBuilder:
                     "GEN",
                     available_base_types=gen_reserved_base_types,
                     all_scenario_base_types=self.all_scenario_base_types,
+                    components=self.scenario_components,
                 )
             )
             base_args = {
@@ -1200,6 +1224,7 @@ def _generate_instrument_name(
     hedged_item: Optional["HedgedItem"] = None,
     available_base_types: Optional[List[str]] = None,
     all_scenario_base_types: Optional[Set[str]] = None,
+    components: Optional[Dict] = None,
 ) -> Tuple[str, str, str, str, str, str]:
     """
     Dynamically generates a derivative instrument name based on category and context.
@@ -1208,7 +1233,7 @@ def _generate_instrument_name(
     Returns:
         A tuple of (prefix, placeholder, base_type, suffix, full_name, alias).
     """
-    components = DERIVATIVE_COMPONENTS
+    components = components or DERIVATIVE_COMPONENTS
     placeholders = components["placeholders"].get(category, [""])
     base_types = available_base_types or components["base_types"]
     suffixes = components["suffixes"]  # e.g., contract, agreement
