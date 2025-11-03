@@ -744,12 +744,14 @@ class Table:
         """
         formats = [
             self._build_year_over_year_table,
+            self._build_three_year_comparative_table,
             self._build_notional_vs_fair_value_table,
         ]
         additional_formats = [
             self._build_maturity_grouping_table,  # This one is aggregate, doesn't produce individual evidence
             self._build_asset_liability_fair_value_table,
             self._build_aoci_reconciliation_table,
+            self._build_aoci_reclassification_impact_table,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
         if self.category == "FX":
@@ -1085,6 +1087,116 @@ class Table:
         ))
 
         return f"{title}\n" + "\n".join(rows), evidence_list
+
+    def _build_three_year_comparative_table(self) -> Tuple[str, List[NotionalEvidence]]:
+        """
+        Builds a table comparing notional/fair values over three years.
+        Format:
+            Instrument | Year 1 | Year 2 | Year 3
+        """
+        evidence_list = []
+        year1 = self.reporting_year
+        year2 = self.reporting_year - 1
+        year3 = self.reporting_year - 2
+
+        available_years = list(self.yearly_data.keys())
+        if not available_years:
+            return "", []
+        # This table is only useful if there's data for 3 years.
+        if self.reporting_year - min(available_years) < 2:
+            return "", []
+
+        value_type_str = random.choice(["Notional Amount", "Fair Value"])
+        value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
+
+        header = f"| {'Instrument':<40} |  {year1:>15} | {year2:>15} |  {year3:>15} |"
+        separator = "-" * len(header)
+        rows = [header, separator]
+
+        described_types = set()
+        for inst in self.instruments:
+            name_to_use = inst.instrument_type
+            if inst.instrument_type in described_types:
+                name_to_use = inst.instrument_alias
+            described_types.add(inst.instrument_type)
+
+            val1 = self._get_value(inst, year1, value_type)
+            val2 = self._get_value(inst, year2, value_type)
+            val3 = self._get_value(inst, year3, value_type)
+
+            if val1 == 0 and val2 == 0 and val3 == 0:
+                continue
+
+            val1_str = _format_single_notional(val1, inst.symbol, self.prefer_abbreviated, True)
+            val2_str = _format_single_notional(val2, inst.symbol, self.prefer_abbreviated, True)
+            val3_str = _format_single_notional(val3, inst.symbol, self.prefer_abbreviated, True)
+
+            row_str = f"| {name_to_use:<40} | {val1_str:>15} | {val2_str:>15} | {val3_str:>15} |"
+            rows.append(row_str)
+
+            if val1 > 0:
+                evidence_list.append(NotionalEvidence(
+                    instrument_id=inst.instrument_id, status="individual", category=inst.category,
+                    notional=_get_correct_rounding(val1, self.notional_multiplier) if self.notional_multiplier > 1 else val1,
+                    notional_str=val1_str, year=year1, instrument_type=name_to_use,
+                    reporting_year=self.reporting_year, value_type=value_type, currency=inst.currency,
+                    sentence_type="individual",
+                ))
+
+        if len(rows) <= 2:
+            return "", []
+
+        title = f"{value_type_str}s of Outstanding {self.category} Derivatives (in {self.currency_symbol} {self.money_unit()})"
+        return f"{title}\n" + "\n".join(rows), evidence_list
+
+    def _build_aoci_reclassification_impact_table(self) -> Tuple[str, List[NotionalEvidence]]:
+        """
+        Builds a table showing the impact of amounts reclassified from AOCI to the income statement.
+        Format:
+            Derivative Instrument | Gain/(Loss) Reclassified from AOCI | Affected Line Item in Income Statement
+        """
+        evidence_list = []
+        year = self.reporting_year
+        active_instruments = [inst for inst in self.instruments if inst.notional_history.get(year, 0) > 0]
+
+        if not active_instruments:
+            return "", []
+
+        title = f"Gains and Losses on Cash Flow Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
+        header = f"| {'Derivative Instrument':<35} | {'Gain/(Loss) from AOCI':>25} | {'Affected Line Item in Income Statement':<40} |"
+        separator = "-" * len(header)
+        rows = [title, header, separator]
+
+        income_statement_locations = [
+            "Cost of sales", "Net sales", "Interest expense, net",
+            "Other income (expense), net", "Operating expenses"
+        ]
+
+        for inst in active_instruments:
+            # Simulate a reclassification amount
+            reclass_amount = random.randint(-20, 20) * self.notional_multiplier / 100
+            if reclass_amount == 0:
+                continue
+
+            reclass_str = f"({_format_single_notional(abs(reclass_amount), self.currency_symbol, self.prefer_abbreviated, True)})" if reclass_amount < 0 else _format_single_notional(reclass_amount, self.currency_symbol, self.prefer_abbreviated, True)
+            location = random.choice(income_statement_locations)
+
+            row_str = f"| {inst.instrument_type:<35} | {reclass_str:>25} | {location:<40} |"
+            rows.append(row_str)
+
+            evidence_list.append(NotionalEvidence(
+                instrument_id=inst.instrument_id, status="individual", category=inst.category,
+                notional=_get_correct_rounding(reclass_amount, self.notional_multiplier) if self.notional_multiplier > 1 else int(reclass_amount),
+                notional_str=reclass_str, year=year,
+                instrument_type=f"AOCI reclassification for {inst.instrument_type}",
+                reporting_year=self.reporting_year, value_type="fair_value",
+                currency=self.currency_symbol, sentence_type="individual",
+            ))
+
+        if len(rows) <= 3:
+            return "", []
+
+        return "\n".join(rows), evidence_list
 
     def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
