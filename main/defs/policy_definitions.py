@@ -438,7 +438,7 @@ class MitigationSentence:
             # Or: "{mitigation_phrase}, {company} {verb} {swap_type}."
             sentence_structures = [  # type: ignore
                 f"{{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}, {populated_phrase}.",
-                f"{populated_phrase.capitalize()}, {{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}.",
+                f"{_cleanup_sentence(populated_phrase)}, {{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}.",
             ]
         sentence_template = random.choice(sentence_structures)
         sentence = sentence_template.format(

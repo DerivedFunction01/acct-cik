@@ -368,7 +368,9 @@ class CPContextSentence:
                     amount2, self.currency_symbol, self.prefer_abbreviated
                 ),
                 "small_int": random.randint(30, 90),
-                "large_int": random.randint(100_000, 5_000_000),
+                "large_int": _format_single_notional(
+                    random.randint(100_000, 5_000_000), "", self.prefer_abbreviated
+                ),
                 "impact_verb_past": impact_verb_past,
                 "pct": f"{random.uniform(1.5, 7.5):.1f}",
                 "impact_adverb": impact_adverb,

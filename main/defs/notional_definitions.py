@@ -409,7 +409,7 @@ class NotionalSentence:
                     else details.geography[0]
                 )
             begin_mitigation = (
-                mitigation_phrase_template.format(
+                _cleanup_sentence(mitigation_phrase_template.format(
                     risk_action_verb=random.choice(
                         [v for v in risk_management_verbs if not v.endswith("ing")]
                     ),
@@ -422,7 +422,7 @@ class NotionalSentence:
                     commodity=commodities_str,
                     rate_term1=random.choice(specific_rate_terms),
                     rate_term2=random.choice(specific_rate_terms),
-                ).capitalize()
+                ))
                 + ", "
             )
 
