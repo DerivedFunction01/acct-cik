@@ -3,10 +3,13 @@ import random
 from typing import Callable, Dict, List, Literal, Optional, Tuple
 from defs.function_definitions import _get_company_reference, _format_single_notional, _cleanup_sentence, _get_correct_rounding
 from defs.common_data import *
-from defs.cp_data import get_random_commodity_and_unit, get_units_for_commodity
-from defs.fx_data import all_currencies
+from defs.cp_data import CPContextSentence, CommodityHedgedItem, get_random_commodity_and_unit, get_units_for_commodity
+from defs.eq_data import EQContextSentence, EquityHedgedItem
+from defs.fx_data import FXContextSentence, ForeignCurrencyHedgedItem, all_currencies
+from defs.ir_data import DebtContextSentence, DebtHedgedItem, IRInstrument
 from defs.instrument_definitions import NotionalInstrument
 from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
+
 
 @dataclass
 class NotionalEvidence(BaseNarrativeEvidence):
@@ -858,6 +861,12 @@ class NotionalSentence:
         if self.suppress_sentence:
             return "", evidence
 
+        # --- NEW: With a chance, append a contextual sentence ---
+        if random.random() < 0.25: # 25% chance to add context
+            context_sentence = self._build_context_sentence()
+            if context_sentence:
+                sentence += " " + context_sentence
+
         return sentence, evidence
 
     def _build_optional_details(self, evidence: NotionalEvidence) -> str:
@@ -912,6 +921,56 @@ class NotionalSentence:
             return _cleanup_sentence(sentence)
 
         return ""
+
+    def _build_context_sentence(self) -> str:
+        """
+        Generates a contextual sentence related to the instrument's hedged item.
+        This helps to ground the notional amount in a real-world exposure.
+        """
+        if not self.instrument or not self.instrument.hedged_item:
+            return ""
+
+        hedged_item = self.instrument.hedged_item
+        context_builder = None
+
+        if isinstance(hedged_item, DebtHedgedItem) and isinstance(self.instrument, IRInstrument):
+            context_builder = DebtContextSentence(
+                company_name=self.company_name or "The Company",
+                reporting_year=self.reporting_year,
+                reporting_month=self.month or "December",
+                reporting_day=self.end_day or 31,
+                hedged_item=hedged_item,
+                prefer_abbreviated=self.prefer_abbreviated,
+                currency_symbol=self.currency_symbol,
+                instrument=self.instrument,
+                more_detail=True, # Ask for a more detailed sentence
+            )
+        elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
+            context_builder = FXContextSentence(
+                company_name=self.company_name or "The Company",
+                reporting_year=self.reporting_year,
+                reporting_month=self.month or "December",
+                reporting_day=self.end_day or 31,
+                hedged_item=hedged_item,
+                prefer_abbreviated=self.prefer_abbreviated,
+                currency_symbol=self.currency_symbol,
+                currency_code=self.currency_code,
+                notional_multiplier=self.notional_multiplier,
+            )
+        elif isinstance(hedged_item, CommodityHedgedItem):
+            context_builder = CPContextSentence(
+                company_name=self.company_name or "The Company",
+                reporting_year=self.reporting_year,
+                reporting_month=self.month or "December",
+                reporting_day=self.end_day or 31,
+                hedged_item=hedged_item,
+                prefer_abbreviated=self.prefer_abbreviated,
+                currency_symbol=self.currency_symbol,
+                notional_multiplier=self.notional_multiplier,
+            )
+        # EQContextSentence could be added here in the future if needed.
+
+        return context_builder.build() if context_builder else ""
 
     def generate_fair_value(self, value: int):
         return max(0, int(value / random.randint(20, 100)))
