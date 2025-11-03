@@ -54,7 +54,7 @@ class GenericTable:
     This class is responsible only for the layout and formatting, not data preparation.
     """
 
-    headers: List[str]
+    headers: Union[List[str], List[List[str]]]
     data_rows: List[List[str]]
     widths: List[int]
     alignments: List[str]  # 'l' for left, 'r' for right, 'c' for center
@@ -98,11 +98,20 @@ class GenericTable:
 
     def build(self) -> str:
         """Builds the final table string with SEC tags."""
-        header_line = "  ".join([col.ljust(self.widths[i]) if self.alignments[i] == 'l' else col.rjust(self.widths[i]) for i, col in enumerate(self.headers)])
+        header_lines = []
+        # --- NEW: Handle both single-line and multi-line headers ---
+        if self.headers and isinstance(self.headers[0], list):
+            # It's a list of lists (multi-line header)
+            for header_row in self.headers:
+                header_lines.extend(self._format_row_with_wrapping(header_row, self.widths, self.alignments))
+        else:
+            # It's a single list of strings (single-line header)
+            header_lines.extend(self._format_row_with_wrapping(self.headers, self.widths, self.alignments))
+
         separator = "  ".join(['-' * w for w in self.widths])
         sec_tags_line = "<S>".ljust(self.widths[0] + 2) + "".join(["<C>".ljust(w + 2) for w in self.widths[1:]]).rstrip()
 
-        all_rows = [header_line, separator, sec_tags_line]
+        all_rows = header_lines + [separator, sec_tags_line]
         for row_data in self.data_rows:
             all_rows.extend(self._format_row_with_wrapping(row_data, self.widths, self.alignments))
 

@@ -1929,124 +1929,120 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
     """
 
     def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
-        # 1. Define table structure and headers
+        # 1. Define new table structure and headers
         year1, year2 = self.reporting_year, self.reporting_year - 1
-
-        # --- NEW: Use a list of dynamic title templates ---
-        title_templates = [
-            "Effect of Derivative Instruments on Accumulated Other Comprehensive Income (AOCI)\nFor the Fiscal Years Ended {month} {day}, {year1} and {year2} {units}",
-            "The following table summarizes the gains and (losses) on derivative instruments recognized in AOCI for the years ended {month} {day}, {year1} and {year2} {units}",
-            "Summary of Gains and (Losses) on Derivatives Recognized in AOCI\n(net of tax) {units}",
-            "Derivative Impact on Accumulated Other Comprehensive Income (AOCI) {units}",
-        ]
-        title_template = random.choice(title_templates)
-        title = title_template.format(
-            month=self.month, day=self.day, year1=year1, year2=year2, units=self._get_units()
-        )
-        suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
-        base = random.choice(DERIVATIVE_COMPONENTS['no_alias_types'])
+        title = f"Hedge Accounting Impact on Income Statement\n{self._get_units()}"
 
         # Define the multi-level header structure
-        headers = ["", f"Amount of Gain or (Loss) Recognized in AOCI on {base} {suffix}s ({year1})", f"Amount of Gain or (Loss) Recognized in AOCI on Derivatives ({year2})"]
-        widths = [45, 40, 40]
-        alignments = ['l', 'r', 'r']
+        sub_headers = ["Sales", "Cost of Products Sold", "R&D Expense", "Interest Expense", "Other Expense"]
+        num_data_cols = len(sub_headers)
+
+        header_line_1 = ["Hedging Type & Line Item"] + sub_headers + sub_headers
+        header_line_2 = [f"Period: Dec {self.day}, {year1}"] + [""] * num_data_cols + [f"Dec {self.day}, {year2}"] + [""] * (num_data_cols -1)
+        
+        headers = [header_line_1, header_line_2]
+        label_width = 45
+        data_width = 12
+        widths = [label_width] + [data_width] * num_data_cols * 2
+        alignments = ['l'] + ['r'] * num_data_cols * 2
         data_rows = []
+        evidence_list = []
 
-        # 2. Group instruments by type and generate data
-        instrument_groups = {}
-        for inst in self.instruments:
-            # Group by a simplified type name
-            type_name = (
-                f"Interest rate {suffix}s" if inst.category == "IR" else
-                f"Foreign exchange {suffix}s" if inst.category == "FX" else
-                f"Commodity {suffix}s" if inst.category == "CP" else
-                f"Other {base} {suffix}s"
-            )
-            if type_name not in instrument_groups:
-                instrument_groups[type_name] = []
-            instrument_groups[type_name].append(inst)
+        # 2. Group instruments by hedge type and category
+        hedge_groups = {
+            "Fair Value Hedge": [i for i in self.instruments if i.category == "IR"],
+            "Net Investment Hedge": [i for i in self.instruments if i.category == "FX"],
+            "Cash Flow Hedge": [i for i in self.instruments if i.category in ["FX", "CP", "IR"]],
+        }
 
-        has_data = False
-        for group_name, instruments in instrument_groups.items():
-            # Check for active instruments in either year
-            active_y1 = any(inst.notional_history.get(year1, 0) > 0 for inst in instruments)
-            active_y2 = any(inst.notional_history.get(year2, 0) > 0 for inst in instruments)
-
-            if not active_y1 and not active_y2:
+        # 3. Generate data for each group
+        for hedge_type, instruments in hedge_groups.items():
+            if not instruments:
                 continue
 
-            has_data = True
+            # Further group by instrument type for more detail
+            sub_groups = {}
+            for inst in instruments:
+                if inst.base_type not in sub_groups:
+                    sub_groups[inst.base_type] = []
+                sub_groups[inst.base_type].append(inst)
 
-            # Simulate data for year 1
-            val1 = 0
-            if active_y1:
-                total_notional_y1 = sum(inst.notional_history.get(year1, 0) for inst in instruments)
-                val1 = int(total_notional_y1 * random.uniform(-0.1, 0.1))
+            for base_type, sub_instruments in sub_groups.items():
+                group_name = f"{hedge_type} – {base_type.capitalize()}s"
+                data_rows.append([group_name] + [""] * (num_data_cols * 2))
 
-            # Simulate data for year 2
-            val2 = 0
-            if active_y2:
-                total_notional_y2 = sum(inst.notional_history.get(year2, 0) for inst in instruments)
-                val2 = int(total_notional_y2 * random.uniform(-0.1, 0.1))
+                # Simulate data for this group
+                for year_idx, year in enumerate([year1, year2]):
+                    active_in_year = any(inst.notional_history.get(year, 0) > 0 for inst in sub_instruments)
+                    if not active_in_year:
+                        continue
 
-            # Don't add a row if both values are zero
-            if val1 == 0 and val2 == 0:
-                continue
+                    total_notional = sum(inst.notional_history.get(year, 0) for inst in sub_instruments)
+                    if total_notional == 0: continue
 
-            val1_str = self._format_value(val1) if val1 != 0 else "—"
-            val2_str = self._format_value(val2) if val2 != 0 else "—"
+                    # Simulate values based on hedge type
+                    if hedge_type == "Fair Value Hedge":
+                        # Hedged items and derivatives affect Interest Expense
+                        hedged_item_val = int(total_notional * random.uniform(-0.08, 0.08))
+                        derivative_val = -hedged_item_val + int(total_notional * random.uniform(-0.01, 0.01)) # Simulate ineffectiveness
+                        
+                        hedged_row = ["  → Hedged items"] + [""] * (num_data_cols * 2)
+                        deriv_row = ["  → Derivatives"] + [""] * (num_data_cols * 2)
+                        
+                        col_offset = year_idx * num_data_cols
+                        hedged_row[4 + col_offset] = self._format_value(hedged_item_val)
+                        deriv_row[4 + col_offset] = self._format_value(derivative_val)
+                        
+                        data_rows.extend([hedged_row, deriv_row])
 
-            # Append both string and raw numerical values.
-            # The numerical values will be used for summation later.
-            data_rows.append([group_name, val1_str, val2_str, val1, val2])
+                    elif hedge_type == "Net Investment Hedge":
+                        # Affects Other Expense for income and AOCI
+                        income_val = int(total_notional * random.uniform(-0.05, 0.05))
+                        aoci_val = int(total_notional * random.uniform(-0.1, 0.1))
 
-        if not has_data:
+                        income_row = ["  → Gain/(loss) in income"] + [""] * (num_data_cols * 2)
+                        aoci_row = ["  → Gain/(loss) in AOCI"] + [""] * (num_data_cols * 2)
+
+                        col_offset = year_idx * num_data_cols
+                        income_row[5 + col_offset] = self._format_value(income_val)
+                        aoci_row[5 + col_offset] = self._format_value(aoci_val)
+
+                        data_rows.extend([income_row, aoci_row])
+
+                    elif hedge_type == "Cash Flow Hedge":
+                        # Affects multiple lines for reclassification and AOCI
+                        reclass_val = int(total_notional * random.uniform(-0.05, 0.05))
+                        aoci_val = int(total_notional * random.uniform(-0.1, 0.1))
+
+                        reclass_row = ["  → Reclassified to income"] + [""] * (num_data_cols * 2)
+                        aoci_row = ["  → In AOCI"] + [""] * (num_data_cols * 2)
+
+                        # Distribute values across a few random columns
+                        affected_indices = random.sample(range(num_data_cols), k=random.randint(1, 2))
+                        col_offset = year_idx * num_data_cols
+                        for idx in affected_indices:
+                            reclass_part = int(reclass_val / len(affected_indices))
+                            aoci_part = int(aoci_val / len(affected_indices))
+                            reclass_row[1 + idx + col_offset] = self._format_value(reclass_part)
+                            aoci_row[1 + idx + col_offset] = self._format_value(aoci_part)
+
+                        data_rows.extend([reclass_row, aoci_row])
+
+        if not data_rows:
             return "", [], []
-
-        # Add a total row
-        # --- REFACTORED: Sum the raw numerical values instead of parsing strings ---
-        total_val1 = 0
-        total_val2 = 0
-        for row in data_rows:
-            # The raw numerical values are stored at indices 3 and 4
-            total_val1 += row[3]
-            total_val2 += row[4]
-
-        total_val1_str = self._format_value(total_val1) if total_val1 != 0 else "—"
-        total_val2_str = self._format_value(total_val2) if total_val2 != 0 else "—"
-
-        data_rows.append(["-"*w for w in widths])
-        data_rows.append(["Total", total_val1_str, total_val2_str])
 
         # Use GenericTable to build the final string
         table_builder = GenericTable(
             headers=headers,
-            data_rows=[row[:3] for row in data_rows], # Pass only the string columns to the builder
+            data_rows=data_rows,
             widths=widths,
             alignments=alignments,
             title=title
         )
         table_str = table_builder.build()
 
-        # Create summary evidence for the total impact in the current reporting year.
-        evidence_list = []
-        if total_val1 != 0:
-            evidence_list.append(
-                NotionalEvidence(
-                    instrument_id=None,  # Aggregate
-                    status="summary",
-                    category=self.category,
-                    aggregate=True,
-                    notional=_get_correct_rounding(total_val1, self.notional_multiplier) if self.notional_multiplier > 1 else total_val1,
-                    notional_str=total_val1_str,
-                    year=year1,
-                    instrument_type="Total effect of derivative instruments on AOCI",
-                    reporting_year=self.reporting_year,
-                    value_type="fair_value",  # This represents a gain/loss, which is a fair value concept
-                    currency=self.currency_code,
-                    sentence_type="summary",
-                )
-            )
+        # For this complex table, we can return an empty evidence list as the primary goal is the visual representation.
+        # The individual instrument tables will provide the detailed, machine-readable evidence.
         return table_str, evidence_list, []
 
     def _format_value(self, value: int) -> str:
