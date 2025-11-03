@@ -745,8 +745,9 @@ class Table:
         formats = [
             self._build_year_over_year_table,
             self._build_notional_vs_fair_value_table,
-            # self._build_maturity_grouping_table, # This one is aggregate, doesn't produce individual evidence
+            self._build_maturity_grouping_table, # This one is aggregate, doesn't produce individual evidence
             self._build_asset_liability_fair_value_table,
+            self._build_aoci_reconciliation_table,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
         if self.category == "FX":
@@ -815,6 +816,7 @@ class Table:
                     status="individual",
                     category=inst.category,
                     notional=_get_correct_rounding(val1, self.notional_multiplier) if self.notional_multiplier > 1 else val1,
+                    notional_str=val1_str,
                     year=year1,
                     instrument_type=name_to_use,
                     reporting_year=self.reporting_year,
@@ -907,6 +909,7 @@ class Table:
                         status="individual",
                         category=inst.category,
                         notional=_get_correct_rounding(notional_val, self.notional_multiplier) if self.notional_multiplier > 1 else notional_val,
+                        notional_str=notional_str,
                         year=self.reporting_year,
                         instrument_type=name_to_use,
                         reporting_year=self.reporting_year,
@@ -926,6 +929,7 @@ class Table:
                                 if self.notional_multiplier > 1
                                 else fair_val
                             ),
+                            notional_str=fair_val_str,
                             year=self.reporting_year,
                             instrument_type=name_to_use,
                             reporting_year=self.reporting_year,
@@ -999,6 +1003,7 @@ class Table:
                     status="summary",
                     category=self.category,
                     notional=_get_correct_rounding(total_notional, self.notional_multiplier) if self.notional_multiplier > 1 else total_notional,
+                    notional_str=notional_str,
                     year=self.reporting_year,
                     instrument_type=f"Derivatives with maturity of {group.lower()}",
                     reporting_year=self.reporting_year,
@@ -1014,6 +1019,68 @@ class Table:
             return "", []
 
         return "\n".join(rows), evidence_list
+
+    def _build_aoci_reconciliation_table(self) -> Tuple[str, List[NotionalEvidence]]:
+        """
+        Builds a table showing the roll-forward of the AOCI balance for cash flow hedges.
+        Format:
+            AOCI - Cash Flow Hedges
+            Beginning Balance | Unrealized Gains | Reclassification | Ending Balance
+        """
+        evidence_list = []
+        year = self.reporting_year
+
+        # This table is most relevant for categories with active cash flow hedges.
+        # We'll simulate the values.
+        active_instruments = [
+            inst
+            for inst in self.instruments
+            if inst.notional_history.get(year, 0) > 0
+        ]
+
+        if not active_instruments:
+            return "", []
+
+        # Simulate AOCI roll-forward values
+        beginning_balance = random.randint(-50, 50) * self.notional_multiplier / 100
+        unrealized_gain_loss = random.randint(-75, 75) * self.notional_multiplier / 100
+        reclassification = random.randint(-40, 40) * self.notional_multiplier / 100
+        ending_balance = beginning_balance + unrealized_gain_loss + reclassification
+
+        # Format values for the table
+        bal_str = _format_single_notional(beginning_balance, self.currency_symbol, self.prefer_abbreviated, True)
+        gain_str = _format_single_notional(unrealized_gain_loss, self.currency_symbol, self.prefer_abbreviated, True)
+        reclass_str = f"({_format_single_notional(abs(reclassification), self.currency_symbol, self.prefer_abbreviated, True)})" if reclassification < 0 else _format_single_notional(reclassification, self.currency_symbol, self.prefer_abbreviated, True)
+        end_bal_str = _format_single_notional(ending_balance, self.currency_symbol, self.prefer_abbreviated, True)
+
+        # Build table
+        title = f"Accumulated Other Comprehensive Income (AOCI) Activity for Cash Flow Hedges\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
+
+        rows = [
+            f"Beginning Balance, {self.month} {self.day}, {year - 1:<28} {bal_str}",
+            f"  Unrealized gains (losses) on {self.category} derivatives {gain_str:>22}",
+            f"  Reclassification to earnings {reclass_str:>32}",
+            "-" * 70,
+            f"Ending Balance, {self.month} {self.day}, {year:<32} {end_bal_str}",
+        ]
+
+        # Create a single, aggregate evidence object for the table's main point
+        evidence_list.append(NotionalEvidence(
+            instrument_id=None,
+            status="summary",
+            category=self.category,
+            notional=_get_correct_rounding(ending_balance, self.notional_multiplier) if self.notional_multiplier > 1 else int(ending_balance),
+            notional_str=end_bal_str,
+            year=year,
+            instrument_type=f"AOCI balance for {self.category} cash flow hedges",
+            reporting_year=self.reporting_year,
+            value_type="fair_value", # AOCI balance is a fair value concept
+            currency=self.money_unit(),
+            sentence_type="summary",
+            aggregate=True,
+        ))
+
+        return f"{title}\n" + "\n".join(rows), evidence_list
 
     def _build_fx_exposure_table(self) -> Tuple[str, List[NotionalEvidence]]:
         """
@@ -1165,6 +1232,7 @@ class Table:
                 status="individual",
                 category=inst.category,
                 notional=_get_correct_rounding(fair_value, self.notional_multiplier) if self.notional_multiplier > 1 else fair_value,
+                notional_str=_format_single_notional(fair_value, self.currency_symbol, self.prefer_abbreviated, True),
                 year=year,
                 instrument_type=inst.instrument_type,
                 reporting_year=self.reporting_year,
