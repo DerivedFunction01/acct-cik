@@ -1577,7 +1577,7 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
         return full_table_str, evidence_list, []
 
 
-class Table(DerivativeTableBuilder):
+class DerivativeTable(DerivativeTableBuilder):
     """
     This class now acts as a factory for building various table types.
     It inherits from DerivativeTableBuilder and uses its `build` method.

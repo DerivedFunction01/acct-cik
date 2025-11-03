@@ -27,7 +27,7 @@ from defs.policy_definitions import (
 from defs.scenario_definitions import company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
-from defs.template_definitions import hedge_no_trading_templates, Table
+from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 
 DEBUG = False
@@ -1749,7 +1749,7 @@ def _generate_category_narrative(
                 "EQ": "Equity",
                 "GEN": "",
             }
-            table_builder = Table(
+            table_builder = DerivativeTable(
                 instruments=current_year_data["instruments"],
                 category=cat_to_map.get(category, ""), yearly_data=yearly_data,
                 reporting_year=reporting_year,
@@ -2331,7 +2331,7 @@ def generate_narrative_from_scenario(
                 all_instruments_for_cat = [
                     inst for inst in scenario.instruments if inst.category == category
                 ]
-                table_builder = Table(
+                table_builder = DerivativeTable(
                     instruments=all_instruments_for_cat,
                     category=cat_to_map.get(category, ""),
                     yearly_data=aggregated_data.get(category, {}),
