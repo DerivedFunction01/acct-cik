@@ -41,6 +41,9 @@ PROB_DROP_ACCOUNTING_POLICY = 1.0 # 20% chance to skip the entire accounting pol
 PROB_DROP_7A_SUMMARY = 1.0 # 10% chance to skip the entire Item 7A-style summary section
 PROB_DROP_GENERAL_POLICY = 1.0 # 15% chance to skip the top-level policy statements
 
+# NEW: Global list to track dropped sentences for debugging or analysis
+DROPPED_SENTENCES: List[str] = []
+
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
     currency_code = scenario.archetype.default_currency
@@ -1703,6 +1706,7 @@ def _generate_category_narrative(
             # but we don't add the sentence to the narrative text.
             evidence.append(mitigation_evidence)
         else:
+            DROPPED_SENTENCES.append(f"[MITIGATION_DROP][{category}] {mitigation_sentence}")
             # If we are suppressing text output, we should not append the sentence.
             # This check is redundant due to the `if` condition but adds clarity.
             if suppress_text_output:
@@ -2217,7 +2221,12 @@ def _generate_narrative_accounting(
 
     # --- NEW: Probabilistically drop the entire accounting policy section ---
     if random.random() < PROB_DROP_ACCOUNTING_POLICY:
+        # NEW: Log that the section was dropped.
+        # Since sentences are generated inside the loop, we can't log them here.
+        # We'll just log a general message.
+        DROPPED_SENTENCES.append("[ACCOUNTING_POLICY_DROP] Entire accounting policy section was dropped.")
         return [], []
+
 
     all_evidence: List[BaseNarrativeEvidence] = []  # type: ignore
     mentioned_policies = set()
@@ -2312,6 +2321,7 @@ def generate_narrative_from_scenario(
     # This simulates cases where the initial summary text is not extracted.
     if not (allow_random_drops and random.random() < PROB_DROP_GENERAL_POLICY):
         policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
+        DROPPED_SENTENCES.append(f"[GENERAL_POLICY_DROP] General policy section was dropped.")
         if policy_sentences: # This becomes its own section
             item_7a_sections.append(" ".join(s for s in policy_sentences if s))
             all_evidence.extend(policy_evidence)
@@ -2336,6 +2346,7 @@ def generate_narrative_from_scenario(
     # This simulates filings that jump straight to the detailed notes.
     if allow_random_drops and random.random() < PROB_DROP_7A_SUMMARY:
         # Even if we drop the text, we MUST generate the underlying evidence
+        DROPPED_SENTENCES.append("[7A_SUMMARY_DROP] Entire Item 7A summary section was dropped.")
         # (especially MitigationEvidence) so the JSON output is correct.
         # We mark the evidence as 'implied' since the text isn't there.
         for category in category_order:
