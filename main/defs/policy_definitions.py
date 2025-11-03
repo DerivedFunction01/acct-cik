@@ -40,6 +40,7 @@ from defs.template_definitions import (
     general_additional_features,
     hedging_descriptions,
     hedging_additional_features,
+    shared_standards_templates,
     other_topics,
     other_standards,
     hedge_definition_templates,
@@ -590,24 +591,9 @@ class AccountingStandardUpdateSentence:
         # Decide if it's a general standard or a hedging-specific one
         is_hedge_specific = self.update.is_hedge_related
 
-        if is_hedge_specific:
-            template = random.choice(hedge_change_policy_templates)
-            description = random.choice(hedging_descriptions)
-            feature = random.choice(hedging_additional_features)
-            sentence = template.format(
-                month=random.choice(months),
-                year=self.update.effective_year - random.randint(1, 3) if self.update.effective_year else self.year - 2,
-                issuer=self.update.issuer,
-                standard=self.update.standard_name,
-                topic=self.update.topic,
-                hedge_description=description,
-                hedge_feature=feature,
-                eff_day=random.randint(15, 31),
-            )
-        else: # General standard
-            template = random.choice(general_policy_templates)
-            description = random.choice(general_descriptions)
-            feature = random.choice(general_additional_features)
+        # --- NEW: Use shared_standards_templates with a 30% chance for more variety ---
+        if random.random() < 0.3:
+            template = random.choice(shared_standards_templates)
             sentence = template.format(
                 month=random.choice(months),
                 year=self.update.effective_year - random.randint(1, 3) if self.update.effective_year else self.year - 2,
@@ -615,9 +601,37 @@ class AccountingStandardUpdateSentence:
                 standard=self.update.standard_name,
                 topic=self.update.topic,
                 standard_purpose=random.choice(shared_purposes),
-                policy_description=description,
-                policy_feature=feature,
+                standard_description=self.update.impact_description,
             )
+        else:
+            if is_hedge_specific:
+                template = random.choice(hedge_change_policy_templates)
+                description = random.choice(hedging_descriptions)
+                feature = random.choice(hedging_additional_features)
+                sentence = template.format(
+                    month=random.choice(months),
+                    year=self.update.effective_year - random.randint(1, 3) if self.update.effective_year else self.year - 2,
+                    issuer=self.update.issuer,
+                    standard=self.update.standard_name,
+                    topic=self.update.topic,
+                    hedge_description=description,
+                    hedge_feature=feature,
+                    eff_day=random.randint(15, 31),
+                )
+            else: # General standard
+                template = random.choice(general_policy_templates)
+                description = random.choice(general_descriptions)
+                feature = random.choice(general_additional_features)
+                sentence = template.format(
+                    month=random.choice(months),
+                    year=self.update.effective_year - random.randint(1, 3) if self.update.effective_year else self.year - 2,
+                    issuer=self.update.issuer,
+                    standard=self.update.standard_name,
+                    topic=self.update.topic,
+                    standard_purpose=random.choice(shared_purposes),
+                    policy_description=description,
+                    policy_feature=feature,
+                )
         sentences.append(_cleanup_sentence(sentence))
 
         # --- 2. EFFECTIVE DATE (Optional) ---
@@ -700,3 +714,39 @@ class AccountingStandardUpdateSentence:
             sentences.append(_cleanup_sentence(sentence))
 
         return " ".join(sentences)
+
+
+@dataclass
+class HedgeDefinitionSentence:
+    """
+    Generates a legalistic definition of a derivative type, often found in
+    detailed policy disclosures.
+    """
+
+    def build(self) -> str:
+        """Builds a sentence defining a derivative type."""
+        # Choose a base type to define, like "swap" or "option"
+        base_type = random.choice(DERIVATIVE_COMPONENTS["base_types"])
+        # Make it plural for the definition title
+        swap_type = f"{base_type}s"
+
+        # Build up a list of definitions
+        num_definitions = random.randint(1, 3)
+        definitions = []
+        for i in range(num_definitions):
+            # Create a complex-sounding definition, e.g., "any interest rate, currency, or commodity swap"
+            s_types = random.sample(
+                ["rate", "basis", "commodity", "currency", "debt", "equity"],
+                random.randint(2, 4),
+            )
+            suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+            definition_item = f"any {', '.join(s_types)} {base_type} {suffix}"
+            definitions.append(f"{i+1}) {definition_item}")
+
+        # Add some generic follow-on definitions
+        for _ in range(random.randint(1, 2)):
+            additional_def = random.choice(hedge_additional_definition_templates)
+            definitions.append(additional_def.format(suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"])))
+
+        template = random.choice(hedge_definition_templates)
+        return template.format(swap_type=swap_type, swap_definitions="; ".join(definitions))

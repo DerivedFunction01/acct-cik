@@ -16,6 +16,7 @@ from defs.instrument_definitions import DERIVATIVE_CATEGORIES, BaseNarrativeEvid
 from defs.policy_definitions import (
     AccountingPolicySentence,
     AccountingStandardUpdateSentence,
+    HedgeDefinitionSentence,
     CounterpartyRiskSentence,
     ExposureEvidence,
     GeneralHedgingPolicy,
@@ -2632,6 +2633,13 @@ def generate_narrative_from_scenario(
         accounting_section_paragraph = "\n\n".join(s for s in accounting_sentences if s)
         derivative_details_sections.append(accounting_section_paragraph)
         all_evidence.extend(accounting_evidence)
+        
+        # --- NEW: With a chance, add a legalistic definition of a derivative ---
+        if random.random() < 0.15:
+            definition_builder = HedgeDefinitionSentence()
+            definition_sentence = definition_builder.build()
+            derivative_details_sections.append(definition_sentence)
+
 
     # --- NEW: Part 4: Generate Accounting Standard Update Section ---
     # This will generate paragraphs about both derivative and non-derivative standards.
@@ -2648,6 +2656,21 @@ def generate_narrative_from_scenario(
             )
             update_paragraph = update_builder.build()
             derivative_details_sections.append(update_paragraph)
+        
+        # --- NEW: Add a generic "other pronouncements" sentence ---
+        if random.random() < 0.4:
+            from defs.template_definitions import shared_recent_pronouncement_templates, other_standards, other_topics, shared_issuers
+            pronouncement_template = random.choice(shared_recent_pronouncement_templates)
+            pronouncement_sentence = pronouncement_template.format(
+                standard=random.choice(other_standards),
+                topic=random.choice(other_topics),
+                issuer=random.choice(shared_issuers),
+                company=scenario.company_name,
+                month=random.choice(months),
+                year=scenario.reporting_year,
+            )
+            derivative_details_sections.append(pronouncement_sentence)
+
 
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
