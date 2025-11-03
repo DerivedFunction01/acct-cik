@@ -1475,84 +1475,78 @@ class ThreeYearComparativeTableBuilder(DerivativeTableBuilder):
         Builds a table comparing notional/fair values over three years.
         Format:
             Instrument  Year 1  Year 2  Year 3
-        """
+        """ # noqa
         evidence_list = []
         year1 = self.reporting_year
         year2 = self.reporting_year - 1
         year3 = self.reporting_year - 2
 
         available_years = list(self.yearly_data.keys())
-        if not available_years:
-            return "", [], []
-        # This table is only useful if there's data for 3 years.
-        if self.reporting_year - min(available_years) < 2:
+        if not available_years or self.reporting_year - min(available_years) < 2:
             return "", [], []
 
         value_type_str = random.choice(["Notional Amount", "Fair Value"])
         value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
 
         # Define column properties
-        columns = [random.choice(DERIVATIVE_COMPONENTS["suffixes"]).capitalize(), str(year1), str(year2), str(year3)]
+        headers = [random.choice(DERIVATIVE_COMPONENTS["suffixes"]).capitalize(), str(year1), str(year2), str(year3)]
         widths = [40, 18, 18, 18]
         alignments = ['l', 'r', 'r', 'r']
-
-        header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
-        separator = "  ".join(['-' * w for w in widths])
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2] + 2) + "<C>".ljust(widths[3])
-        rows = header_lines + [separator, sec_tags_line]
+        data_rows = []
         
-        described_types = set()
-        for inst in self.instruments:
-            name_to_use = inst.instrument_type
-            if inst.instrument_type in described_types:
-                name_to_use = inst.instrument_alias
-            described_types.add(inst.instrument_type)
+        # --- NEW: Group instruments by placeholder and base_type ---
+        grouped_instruments = _group_instruments_by_type(self.instruments)
 
-            val1 = self._get_value(inst, year1, value_type)
-            val2 = self._get_value(inst, year2, value_type)
-            val3 = self._get_value(inst, year3, value_type)
+        for (placeholder, base_type), group_data in grouped_instruments.items():
+            # Aggregate values for the group across all three years
+            val1 = sum(self._get_value(inst, year1, value_type) for inst in group_data["instruments"])
+            val2 = sum(self._get_value(inst, year2, value_type) for inst in group_data["instruments"])
+            val3 = sum(self._get_value(inst, year3, value_type) for inst in group_data["instruments"])
 
             if val1 == 0 and val2 == 0 and val3 == 0:
                 continue
 
-            val1_str = _format_single_notional(
-                val1, inst.symbol, self.prefer_abbreviated, True, negative_format=self.preferred_negative_format   # type: ignore
-            )
-            val2_str = _format_single_notional(
-                val2,
-                inst.symbol,
-                self.prefer_abbreviated,
-                True,
-                negative_format=self.preferred_negative_format,  # type: ignore
-            )
-            val3_str = _format_single_notional(
-                val3,
-                inst.symbol,
-                self.prefer_abbreviated,
-                True,
-                negative_format=self.preferred_negative_format,  # type: ignore
-            )
+            # Create descriptive name for the group
+            plural_suffix = "s" if not base_type.endswith("s") else ""
+            name_to_use = f"{placeholder} {base_type}{plural_suffix}".strip().capitalize()
+
+            # Format values for the table row
+            val1_str = _format_single_notional(val1, group_data["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format) # type: ignore
+            val2_str = _format_single_notional(val2, group_data["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format) # type: ignore
+            val3_str = _format_single_notional(val3, group_data["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format) # type: ignore
 
             row_cells = [name_to_use, val1_str, val2_str, val3_str]
-            rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
+            data_rows.append(row_cells)
             
+            # --- NEW: Create a single summary evidence object for the group for the current year ---
             if val1 > 0:
                 evidence_notional_str = _format_single_notional(
-                    val1, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+                    val1, group_data["symbol"], self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
                 )
-                evidence_list.append(NotionalEvidence(
-                    instrument_id=inst.instrument_id, status="individual", category=inst.category,
-                    notional=_get_correct_rounding(val1, self.notional_multiplier) if self.notional_multiplier > 1 else val1,
-                    notional_str=evidence_notional_str, year=year1, instrument_type=name_to_use,
-                    reporting_year=self.reporting_year, value_type=value_type, currency=inst.currency,
-                    sentence_type="individual",
-                ))
+                evidence_list.append(
+                    NotionalEvidence(
+                        instrument_id=None, # This is an aggregate of a group
+                        status="summary",
+                        category=group_data["category"],
+                        aggregate=True,
+                        notional=_get_correct_rounding(val1, self.notional_multiplier),
+                        notional_str=evidence_notional_str,
+                        year=year1,
+                        instrument_type=name_to_use,
+                        reporting_year=self.reporting_year,
+                        value_type=value_type,
+                        currency=group_data["currency"],
+                        sentence_type="summary", # From a table
+                    )
+                )
 
-        if len(rows) <= 3: # header, separator, tags
+        if not data_rows:
             return "", [], []
 
         title = f"{value_type_str}s of Outstanding {self.category} Derivatives {self._get_units()}"
-        full_table_str = "<TABLE>\n<CAPTION>\n" + title + "\n" + "\n".join(rows) + "\n</TABLE>"
+        table = GenericTable(headers, data_rows, widths, alignments, title)
+        full_table_str = table.build()
+
         return full_table_str, evidence_list, []
 
 class AOCIReclassificationImpactTableBuilder(DerivativeTableBuilder):
