@@ -1071,22 +1071,34 @@ class Table:
                     notional=int(amount_year1 / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else amount_year1,
                     year=year1, notional_str=evidence_amount_str1,
                     instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
-                    reporting_year=self.reporting_year, value_type="notional",
+                    reporting_year=self.reporting_year, value_type="notional_exposure",
                     currency=exposure.code, symbol=exposure.symbol, sentence_type="individual",
                 ))
 
             # Evidence for the preceding year (year2)
             if amount_year2 > 0:
                 evidence_amount_str2 = _format_single_notional(amount_year2, exposure.symbol, self.prefer_abbreviated, False)
-                evidence_list.append(NotionalEvidence(
-                    instrument_id=instrument_to_detail.instrument_id,
-                    status="historical_individual", category="FX", # This will always be historical
-                    notional=int(amount_year2 / self.notional_multiplier) * self.notional_multiplier if self.notional_multiplier > 1 else amount_year2,
-                    year=year2, notional_str=evidence_amount_str2,
-                    instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
-                    reporting_year=self.reporting_year, value_type="notional",
-                    currency=exposure.code, symbol=exposure.symbol, sentence_type="historical_individual",
-                ))
+                evidence_list.append(
+                    NotionalEvidence(
+                        instrument_id=instrument_to_detail.instrument_id,
+                        status="historical_individual",
+                        category="FX",  # This will always be historical
+                        notional=(
+                            int(amount_year2 / self.notional_multiplier)
+                            * self.notional_multiplier
+                            if self.notional_multiplier > 1
+                            else amount_year2
+                        ),
+                        year=year2,
+                        notional_str=evidence_amount_str2,
+                        instrument_type=f"Exposure to {exposure.full_name} in {instrument_to_detail.instrument_type}",
+                        reporting_year=self.reporting_year,
+                        value_type="notional_exposure",
+                        currency=exposure.code,
+                        symbol=exposure.symbol,
+                        sentence_type="historical_individual",
+                    )
+                )
 
         return "\n".join(rows), evidence_list
 

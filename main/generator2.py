@@ -2422,7 +2422,7 @@ def generate_json_from_scenario(
             is_terminated_evidence = (
                 (ev.maturity_value is not None and ev.maturity_value > 0) or 
                 (ev.maturity_year and ev.maturity_year <= scenario.reporting_year)
-                or (ev.notional == 0 and ev.year == scenario.reporting_year)
+                or (ev.notional == 0 and ev.year == scenario.reporting_year and ev.value_type != "notional_exposure") # Exposures can be 0
                 or ev.sentence_type in ["terminated_individual", "comparative_no_outstanding", "historical_individual"]
             )
 
