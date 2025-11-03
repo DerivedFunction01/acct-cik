@@ -12,7 +12,7 @@ from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
 from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
 from defs.common_data import *
 from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument, get_random_commodity_and_unit
-from defs.instrument_definitions import DERIVATIVE_CATEGORIES, BaseNarrativeEvidence, NotionalInstrument, HedgedItem, GenericInstrument
+from defs.instrument_definitions import DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, NotionalInstrument, HedgedItem, GenericInstrument
 from defs.policy_definitions import (
     AccountingPolicySentence,
     AccountingStandardUpdateSentence,
@@ -2880,6 +2880,7 @@ def generate_json_from_scenario(
     # --- NEW: Consolidate ExposureEvidence into a single final sentence ---
     other_evidence_strings = []
     exposure_descriptions = []
+    accounting_evidence_list = []
 
     for ev in evidence:
         if isinstance(ev, PolicyEvidence):
@@ -2888,6 +2889,9 @@ def generate_json_from_scenario(
                 reasoning = f"The text discusses accounting policies for {ev.category} derivatives (e.g., '{ev.policy_type}') but does not mention any specific, active instruments for the reporting period."
                 if reasoning not in other_evidence_strings:
                     other_evidence_strings.append(reasoning)
+        # --- NEW: Collect accounting evidence instead of processing immediately ---
+        elif isinstance(ev, AccountingStandardEvidence):
+            accounting_evidence_list.append(ev)
         elif isinstance(ev, ExposureEvidence):
             # Collect descriptions from ExposureEvidence
             exposure_descriptions.append(ev.to_string())
@@ -2898,6 +2902,20 @@ def generate_json_from_scenario(
                 other_evidence_strings.append(reasoning)
 
     chain_of_thought = "\n".join(other_evidence_strings)
+
+    # --- NEW: Process and append the consolidated accounting evidence ---
+    if accounting_evidence_list:
+        hedge_standards = {ev.standard_name for ev in accounting_evidence_list if "hedging" in ev.details.lower() or "derivative" in ev.details.lower()}
+        other_standards = {ev.standard_name for ev in accounting_evidence_list if ev.standard_name not in hedge_standards}
+        
+        accounting_reasoning = "The text also discusses accounting standard updates"
+        if hedge_standards:
+            accounting_reasoning += f" related to derivatives and hedging (e.g., {', '.join(sorted(list(hedge_standards)))})"
+        if other_standards:
+            separator = " and " if hedge_standards else ""
+            accounting_reasoning += f"{separator}other topics (e.g., {', '.join(sorted(list(other_standards)))})"
+        accounting_reasoning += "."
+        chain_of_thought += "\n" + accounting_reasoning
 
     # If there were any exposure-only mentions, join them into a single sentence and append it.
     if exposure_descriptions:
