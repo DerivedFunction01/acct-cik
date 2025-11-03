@@ -64,9 +64,7 @@ class LegalContextSentence:
             "lawsuit_allegation": _generate_allegation(),
             "assess_verb": random.choice(assessment_verbs),
             "quarter": random.choice(quarters),
-            "currency_code": self.currency_code,
-            "amount": _format_single_notional(amount, self.currency_symbol, self.prefer_abbreviated, no_unit_word=True),
-            "money_unit": "million" if self.prefer_abbreviated else "",
+            "amount": _format_single_notional(amount, self.currency_symbol, self.prefer_abbreviated),
             "materiality": random.choice(immaterial + material),
             "change_noun": random.choice(change_phrases_noun),
         }
@@ -215,25 +213,25 @@ litigation_assessment_templates = [
 
 specific_lawsuit_templates = [
     "In {month} {year}, a lawsuit was filed against {company} in the {court_name} alleging {lawsuit_allegation}. {company} filed a motion to dismiss in {month} {year}",
-    "{company} is defending a class action lawsuit filed in {year} claiming {lawsuit_allegation}, with damages sought of approximately {currency_code}{amount} {money_unit}",
-    "During {year}, {company} reached a settlement in a lawsuit related to {lawsuit_allegation} for a {materiality} amount of {currency_code}{amount} {money_unit}, which was accrued in prior periods",
+    "{company} is defending a class action lawsuit filed in {year} claiming {lawsuit_allegation}, with damages sought of approximately {amount}",
+    "During {year}, {company} reached a settlement in a lawsuit related to {lawsuit_allegation} for a {materiality} amount of {amount}, which was accrued in prior periods",
     "A complaint was filed against {company} in the {court_name} during {quarter} quarter {year} alleging {lawsuit_allegation}",
-    "A provision of {currency_code}{amount} {money_unit} was recorded in the {quarter} quarter of {year} for a potential settlement related to claims of {lawsuit_allegation}, though the final outcome is uncertain.",
+    "A provision of {amount} was recorded in the {quarter} quarter of {year} for a potential settlement related to claims of {lawsuit_allegation}, though the final outcome is uncertain.",
 ]
 
 lawsuit_outcome_templates = [
     # Settlements
-    "{company} reached a settlement agreement in the matter of {lawsuit_allegation}, agreeing to pay {currency_code}{amount} {money_unit} without admitting any wrongdoing.",
-    "A settlement was reached in the {court_name} regarding claims of {lawsuit_allegation}, for which {company} has accrued {currency_code}{amount} {money_unit}.",
+    "{company} reached a settlement agreement in the matter of {lawsuit_allegation}, agreeing to pay {amount} without admitting any wrongdoing.",
+    "A settlement was reached in the {court_name} regarding claims of {lawsuit_allegation}, for which {company} has accrued {amount}.",
     "In {month} {year}, the parties agreed to a settlement to resolve the litigation concerning {lawsuit_allegation}, the financial terms of which are confidential but are not expected to be {materiality}.",
-    "The shareholder derivative action was settled for a {materiality} amount of {currency_code}{amount} {money_unit}, funded by insurance proceeds.",
+    "The shareholder derivative action was settled for a {materiality} amount of {amount}, funded by insurance proceeds.",
     # Dismissals
     "The {court_name} granted {company}'s motion to dismiss the lawsuit alleging {lawsuit_allegation} in its entirety.",
     "On {month} {end_day}, {year}, the court dismissed all claims against {company} related to the {lawsuit_allegation} matter.",
     "{company} successfully obtained a dismissal of the class action lawsuit concerning {lawsuit_allegation}.",
     # Judgments (Favorable and Adverse)
     "A judgment was entered in favor of {company} in the {court_name} on all counts related to the {lawsuit_allegation} case.",
-    "An adverse judgment of {currency_code}{amount} {money_unit} was entered against {company} in the lawsuit alleging {lawsuit_allegation}, which {company} intends to appeal.",
+    "An adverse judgment of {amount} was entered against {company} in the lawsuit alleging {lawsuit_allegation}, which {company} intends to appeal.",
     "Following a trial, the jury returned a verdict in favor of {company}, finding no liability on the claims of {lawsuit_allegation}.",
 ]
 
