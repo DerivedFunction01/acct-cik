@@ -1016,7 +1016,7 @@ class Table:
                     instrument_type=f"Derivatives with maturity of {group.lower()}",
                     reporting_year=self.reporting_year,
                     value_type="notional",
-                    currency=self.money_unit(),
+                    currency=self.currency_symbol,
                     sentence_type="summary", # type: ignore
                     aggregate=True,
                 ))
@@ -1083,7 +1083,7 @@ class Table:
             instrument_type=f"AOCI balance for {self.category} cash flow hedges",
             reporting_year=self.reporting_year,
             value_type="fair_value", # AOCI balance is a fair value concept
-            currency=self.money_unit(),
+            currency=self.currency_symbol,
             sentence_type="summary",
             aggregate=True,
         ))
@@ -1192,7 +1192,7 @@ class Table:
                 notional_str=reclass_str, year=year,
                 instrument_type=f"AOCI reclassification for {inst.instrument_type}",
                 reporting_year=self.reporting_year, value_type="fair_value",
-                currency=self.money_unit(), sentence_type="individual",
+                currency=self.currency_symbol, sentence_type="individual",
             ))
 
         if len(rows) <= 3:
