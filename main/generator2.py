@@ -2424,15 +2424,16 @@ def generate_json_from_scenario(
     """
     analysis_summary = _generate_analysis_summary(scenario, evidence)
 
-    # --- NEW: Generate exposure and mitigation maps ---
-    # Exposure is based on the archetype's potential risks.
+    # --- Generate exposure map based on the archetype's potential risks ---
     archetype_exposures = scenario.archetype.get_exposure_counts()
     exposure_map = {
         "IR": archetype_exposures["debt"] > 0,
         "FX": archetype_exposures["fx"] > 0,
         "CP": archetype_exposures["commodity"] > 0,
         "EQ": archetype_exposures["equity"] > 0,
-        "GEN": archetype_exposures["generic"] > 0,
+        # --- FIX: GEN exposure is determined by instruments, not archetype count ---
+        # A generic instrument might be created even if the archetype range is (0,0) in some edge cases.
+        "GEN": any(inst.category == "GEN" for inst in scenario.instruments),
     }
 
     # --- NEW: Mitigation status is now "current", "historical", or "never" ---
