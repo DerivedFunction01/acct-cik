@@ -62,7 +62,8 @@ GENERATION_PROBABILITIES = {
     "add_other_pronouncements": 0.4, # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
     "can_have_accounting_update": 0.4, # Chance a scenario will include an accounting standard update section.
     "accounting_update_is_hedge_related": 0.5, # If an update is generated, the chance it's about hedging.
-    "legal_context": 1, # If we generate a paragraph on derivative lawsuits
+    "legal_context": 0.25, # If we generate a paragraph on derivative lawsuits
+    "financial_statements": 0.25
 }
 
 # Probabilities for dropping narrative components to increase variety.
@@ -2458,7 +2459,7 @@ def _generate_financial_statement_tables(scenario: GenerationScenario) -> List[s
     """
     paragraphs = []
     # Add a probability to generate these tables. Let's say 25% chance.
-    if random.random() < 0.25:
+    if random.random() < GENERATION_PROBABILITIES["financial_statements"]:
         currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
 
         # Choose one of the statement types to generate
