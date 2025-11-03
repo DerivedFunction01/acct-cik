@@ -854,7 +854,7 @@ class Table:
             "FX": "Foreign Exchange",
             "CP": "Commodity",
             "EQ": "Equity",
-            "GEN": "Generic",
+            "GEN": "Derivative",
         }
         title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s"
         all_rows.append(title)
