@@ -3133,14 +3133,19 @@ def generate_json_from_scenario(
     The `evidence` from the narrative is used to generate the summary and chain_of_thought.
     """
     # --- FIX: Defer summary generation until after the mitigation map is finalized ---
-    
-    # --- NEW: Generate exposure map based on the collected ExposureEvidence ---
-    # This ensures the map only reflects what was actually written in the narrative.
-    exposure_map = {
-        cat: False for cat in DERIVATIVE_CATEGORIES
-    }
+
+    # --- FIX: Correctly generate exposure map based on instruments, context, and mitigation evidence ---
+    # This aligns with the user's definition: exposure is true if an instrument exists,
+    # if there is a "noise/context" sentence, OR if a mitigation strategy is mentioned.
+    exposure_map = {cat: False for cat in DERIVATIVE_CATEGORIES}
+    # 1. Set exposure to true if any instrument exists for the category.
+    for inst in scenario.instruments:
+        if inst.category in exposure_map:
+            exposure_map[inst.category] = True
+    # 2. Also set exposure to true if there is explicit ExposureEvidence (from a context sentence)
+    #    or MitigationEvidence.
     for ev in evidence:
-        if isinstance(ev, ExposureEvidence):
+        if isinstance(ev, (ExposureEvidence, MitigationEvidence)):
             if ev.category in exposure_map:
                 exposure_map[ev.category] = True
 
@@ -3192,6 +3197,17 @@ def generate_json_from_scenario(
     # --- NEW: Consolidate ExposureEvidence into a single final sentence ---
     other_evidence_strings = []
     exposure_descriptions = []
+    # --- FIX: Only collect exposure descriptions for categories WITHOUT other evidence ---
+    # This prevents redundant "The text also mentions..." sentences.
+    categories_with_instrument_evidence = {
+        e.category
+        for e in evidence
+        if isinstance(
+            e, (NotionalEvidence, MitigationEvidence, AccountingStandardEvidence)
+        )
+    }
+
+
     accounting_evidence_list = []
 
     for ev in evidence:
@@ -3203,7 +3219,7 @@ def generate_json_from_scenario(
                     other_evidence_strings.append(reasoning)
         # --- NEW: Collect accounting evidence instead of processing immediately ---
         elif isinstance(ev, AccountingStandardEvidence):
-            accounting_evidence_list.append(ev)
+            accounting_evidence_list.append(ev) # type: ignore
         # --- NEW: Handle ContextEvidence ---
         elif isinstance(ev, ContextEvidence):
             # For LAW, we can add a specific reasoning string.
@@ -3211,8 +3227,12 @@ def generate_json_from_scenario(
                 reasoning = f"The text discusses legal proceedings, including shareholder derivative lawsuits, which are contextually related to but distinct from derivative financial instruments."
                 other_evidence_strings.append(reasoning)
         elif isinstance(ev, ExposureEvidence):
-            # Collect descriptions from ExposureEvidence
-            exposure_descriptions.append(ev.to_string())
+            # --- FIX: Only add ExposureEvidence to the chain_of_thought if no other evidence exists for that category. ---
+            # This prevents redundant sentences like "The text also mentions interest rate risk..." when we've already
+            # detailed an interest rate swap.
+            if ev.category not in categories_with_instrument_evidence and ev.category not in {e.category for e in evidence if isinstance(e, ContextEvidence)}:
+                # Collect descriptions from ExposureEvidence
+                exposure_descriptions.append(ev.to_string())
         else:
             # Collect reasoning strings from all other evidence types
             reasoning = ev.to_string()
