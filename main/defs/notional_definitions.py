@@ -612,7 +612,7 @@ class NotionalSentence:
 
             # --- FIX: Use the specific commodity from the instrument's hedged item ---
             # This prevents mismatches like hedging 'diesel' to protect against 'asphalt' prices.
-            if self.instrument.hedged_item and isinstance(self.instrument.hedged_item, CommodityHedgedItem):
+            if self.instrument and self.instrument.hedged_item and isinstance(self.instrument.hedged_item, CommodityHedgedItem):
                 commodity_to_use = self.instrument.hedged_item.commodity_type
                 unit_to_use = self.instrument.hedged_item.unit_of_volume
             else:
