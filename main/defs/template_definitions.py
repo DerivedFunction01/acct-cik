@@ -993,6 +993,7 @@ class DerivativeTableBuilder:
             AOCIReconciliationTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
             AOCIReclassificationImpactTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
             FairValueHierarchyTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
+            DerivativeImpactTableBuilder(self.instruments, self.yearly_data, self.month, self.day, self.reporting_year, self.notional_multiplier, self.currency_symbol, self.currency_code, self.prefer_abbreviated, self.preferred_negative_format, self.category).build,
         ]
         # --- NEW: Add a specific table format for FX exposures ---
         if self.category == "FX":
@@ -1906,121 +1907,105 @@ class DerivativeTable(DerivativeTableBuilder):
     """
     pass
 
-
-class DerivativeImpactTableBuilder(FinancialStatementTable):
+class DerivativeImpactTableBuilder(DerivativeTableBuilder):
     """
     Builds a table summarizing the impact of derivative hedging activities on the
     income statement, similar to a common disclosure format.
     """
-    instruments: List[NotionalInstrument] = []
 
-    def build(self) -> str:
+    def build(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         # 1. Define table structure and headers
-        year1, year2 = self.year, self.year - 1
+        year1, year2 = self.reporting_year, self.reporting_year - 1
         title = (
             f"The following table summarizes the effect of derivative instruments on the Consolidated Statements of Operations "
-            f"for the fiscal years ended {self.month} {self.day}, {year1} and {year2}, net of tax:"
+            f"for the fiscal years ended {self.month} {self.day}, {year1} and {year2}, net of tax: {self._get_units()}"
         )
 
         # Define the multi-level header structure
-        main_headers = ["", f"December {self.day}, {year1}", f"December {self.day}, {year2}"]
-        sub_headers = [
-            "Sales", "Cost of Products Sold", "R&D Expense",
-            "Interest (Income) Expense", "Other (Income) Expense"
-        ]
-        
-        # Define column widths
-        label_width = 45
-        data_width = 12
-        num_data_cols = len(sub_headers)
-        widths = [label_width] + [data_width] * num_data_cols * 2
-
-        # Build header strings manually
-        header_line_1 = "".ljust(label_width) + "  " + \
-                        main_headers[1].center(data_width * num_data_cols + (num_data_cols - 1) * 2) + "  " + \
-                        main_headers[2].center(data_width * num_data_cols + (num_data_cols - 1) * 2)
-
-        header_line_2 = f"({self._money_unit()})".ljust(label_width) + "  " + \
-                        "  ".join(h.center(data_width) for h in sub_headers) + "  " + \
-                        "  ".join(h.center(data_width) for h in sub_headers)
-
-        separator = "  ".join(['-' * w for w in widths])
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "".join(["<C>".ljust(w + 2) for w in widths[1:]]).rstrip()
-
-        table_rows = [header_line_1, header_line_2, separator, sec_tags_line]
+        headers = ["", f"Amount of Gain or (Loss) Recognized in AOCI on Derivatives ({year1})", f"Amount of Gain or (Loss) Recognized in AOCI on Derivatives ({year2})"]
+        widths = [45, 40, 40]
+        alignments = ['l', 'r', 'r']
+        data_rows = []
 
         # 2. Group instruments by type and generate data
         instrument_groups = {}
         for inst in self.instruments:
             # Group by a simplified type name
-            type_name = "Interest rate contracts" if inst.category == "IR" else \
-                        "Foreign exchange contracts" if inst.category == "FX" else \
-                        "Commodity contracts" if inst.category == "CP" else \
-                        "Other derivative contracts"
+            type_name = (
+                "Interest rate contracts" if inst.category == "IR" else
+                "Foreign exchange contracts" if inst.category == "FX" else
+                "Commodity contracts" if inst.category == "CP" else
+                "Other derivative contracts"
+            )
             if type_name not in instrument_groups:
                 instrument_groups[type_name] = []
             instrument_groups[type_name].append(inst)
 
         has_data = False
         for group_name, instruments in instrument_groups.items():
-            # Add a header for the instrument group
-            table_rows.append(group_name.ljust(sum(widths) + (len(widths) - 1) * 2))
+            # Check for active instruments in either year
+            active_y1 = any(inst.notional_history.get(year1, 0) > 0 for inst in instruments)
+            active_y2 = any(inst.notional_history.get(year2, 0) > 0 for inst in instruments)
 
-            # Simulate data for this group
-            for year in [year1, year2]:
-                # Check if there are any active instruments in this group for the year
-                active_in_year = any(inst.notional_history.get(year, 0) > 0 for inst in instruments)
-                if not active_in_year:
-                    continue
+            if not active_y1 and not active_y2:
+                continue
 
-                # Simulate a gain/loss based on a small percentage of total notional
-                total_notional = sum(inst.notional_history.get(year, 0) for inst in instruments)
-                if total_notional == 0: continue
+            has_data = True
 
-                has_data = True
-                # Simulate reclassification from AOCI and gain/loss in AOCI
-                reclass_val = int(total_notional * random.uniform(-0.05, 0.05))
-                aoci_val = int(total_notional * random.uniform(-0.1, 0.1))
+            # Simulate data for year 1
+            val1 = 0
+            if active_y1:
+                total_notional_y1 = sum(inst.notional_history.get(year1, 0) for inst in instruments)
+                val1 = int(total_notional_y1 * random.uniform(-0.1, 0.1))
 
-                # Determine which income statement line items are affected
-                # This is a simplification; a real implementation would depend on the hedge purpose
-                affected_indices = random.sample(range(num_data_cols), k=random.randint(1, 2))
+            # Simulate data for year 2
+            val2 = 0
+            if active_y2:
+                total_notional_y2 = sum(inst.notional_history.get(year2, 0) for inst in instruments)
+                val2 = int(total_notional_y2 * random.uniform(-0.1, 0.1))
 
-                # --- Row for Reclassification from AOCI ---
-                reclass_row_data = ["—"] * (num_data_cols * 2)
-                for idx in affected_indices:
-                    # Distribute the reclass value across affected columns
-                    val_part = int(reclass_val / len(affected_indices))
-                    col_index = idx if year == year1 else idx + num_data_cols
-                    reclass_row_data[col_index] = self._format_value(val_part)
+            # Don't add a row if both values are zero
+            if val1 == 0 and val2 == 0:
+                continue
 
-                reclass_label = "  Amount of gain or (loss) reclassified from AOCI into income"
-                reclass_formatted_row = reclass_label.ljust(label_width) + "  " + \
-                                        "  ".join(d.rjust(data_width) for d in reclass_row_data[:num_data_cols]) + "  " + \
-                                        "  ".join(d.rjust(data_width) for d in reclass_row_data[num_data_cols:])
-                table_rows.append(reclass_formatted_row)
+            val1_str = self._format_value(val1) if val1 != 0 else "—"
+            val2_str = self._format_value(val2) if val2 != 0 else "—"
 
-                # --- Row for Gain/Loss in AOCI ---
-                aoci_row_data = ["—"] * (num_data_cols * 2)
-                for idx in affected_indices:
-                    val_part = int(aoci_val / len(affected_indices))
-                    col_index = idx if year == year1 else idx + num_data_cols
-                    aoci_row_data[col_index] = self._format_value(val_part)
-
-                aoci_label = "  Amount of gain or (loss) recognized in AOCI"
-                aoci_formatted_row = aoci_label.ljust(label_width) + "  " + \
-                                     "  ".join(d.rjust(data_width) for d in aoci_row_data[:num_data_cols]) + "  " + \
-                                     "  ".join(d.rjust(data_width) for d in aoci_row_data[num_data_cols:])
-                table_rows.append(aoci_formatted_row)
+            data_rows.append([group_name, val1_str, val2_str])
 
         if not has_data:
-            return "" # Don't generate an empty table
+            return "", [], []
 
-        # 3. Assemble the final table string
-        full_table_str = (
-            f"\n\n<TABLE>\n<CAPTION>\n{title}\n"
-            + "\n".join(table_rows)
-            + "\n</TABLE>\n\n"
+        # Add a total row
+        total_val1 = sum(int(row[1].replace('(', '-').replace(')', '').replace('$', '').replace(',', '')) for row in data_rows if row[1] != "—")
+        total_val2 = sum(int(row[2].replace('(', '-').replace(')', '').replace('$', '').replace(',', '')) for row in data_rows if row[2] != "—")
+
+        total_val1_str = self._format_value(total_val1) if total_val1 != 0 else "—"
+        total_val2_str = self._format_value(total_val2) if total_val2 != 0 else "—"
+
+        data_rows.append(["-"*w for w in widths])
+        data_rows.append(["Total", total_val1_str, total_val2_str])
+
+        # Use GenericTable to build the final string
+        table_builder = GenericTable(
+            headers=headers,
+            data_rows=data_rows,
+            widths=widths,
+            alignments=alignments,
+            title=title
         )
+        table_str = table_builder.build()
 
-        return full_table_str
+        # For this table, we don't need to generate specific evidence as it's a summary of impacts.
+        # We can return an empty evidence list.
+        return table_str, [], []
+
+    def _format_value(self, value: int) -> str:
+        """Formats a numerical value into a string for the table."""
+        return _format_single_notional(
+            value,
+            self.currency_symbol,
+            self.prefer_abbreviated,
+            True,
+            negative_format=self.preferred_negative_format, # type: ignore
+        )
