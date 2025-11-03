@@ -2392,9 +2392,10 @@ def generate_json_from_scenario(
     # This ensures the JSON perfectly matches the narrative. Each piece of evidence
     # that points to a specific instrument contributes to its entry in the final JSON.
     derivatives_list = []
-    # Use a dictionary to aggregate evidence for each instrument ID mentioned.
-    # This allows us to build a detailed picture of each derivative.
-    instrument_evidence_map: Dict[int, Dict] = {}
+    # --- NEW: Use a more specific key to handle multiple evidence types for one instrument ID ---
+    # (e.g., a parent FX Forward and its multiple currency exposures from a table)
+    # The key will be a tuple: (instrument_id, instrument_type)
+    instrument_evidence_map: Dict[Tuple[int, str], Dict] = {}
 
     for ev in evidence:
         # We only care about evidence that has an instrument ID and notional value.
@@ -2402,33 +2403,33 @@ def generate_json_from_scenario(
         # To prevent hallucinations on fictional instruments it hasn't seen via evidence.
         if (
             not isinstance(ev, NotionalEvidence)
-            or ev.instrument_id is None
+            or ev.instrument_id is None or ev.instrument_type is None
             or ev.notional is None
         ):
             continue
 
         instrument_id = ev.instrument_id
+        instrument_type_key = ev.instrument_type
+        unique_key = (instrument_id, instrument_type_key)
 
         # --- FIX: Look up the instrument directly to get the correct currency/unit ---
         # This is the single source of truth for the instrument's properties.
         instrument_obj = next(
             (inst for inst in scenario.instruments if inst.instrument_id == instrument_id), None
         )
-
-        # Initialize the instrument if it's the first time we see it
-        if instrument_id not in instrument_evidence_map:
-            # --- FIX: Correctly determine status for terminated instruments ---
-            # Any evidence type that implies termination should result in a "terminated" status.
-            is_terminated_evidence = (
-                (ev.maturity_value is not None and ev.maturity_value > 0) or 
-                (ev.maturity_year and ev.maturity_year <= scenario.reporting_year)
-                or (ev.notional == 0 and ev.year == scenario.reporting_year and ev.value_type != "notional_exposure") # Exposures can be 0
-                or ev.sentence_type in ["terminated_individual", "comparative_no_outstanding", "historical_individual"]
-            )
-
-            if is_terminated_evidence:
-                continue  # Skip, we only want current
-            instrument_evidence_map[instrument_id] = {
+        
+        # --- FIX: Correctly determine status for terminated instruments ---
+        is_terminated_evidence = (
+            (ev.maturity_value is not None and ev.maturity_value > 0) or
+            (ev.maturity_year and ev.maturity_year < scenario.reporting_year) or
+            (ev.notional == 0 and ev.year == scenario.reporting_year and ev.value_type != "notional_exposure") or
+            ev.sentence_type in ["terminated_individual", "comparative_no_outstanding", "historical_individual"]
+        )
+        if is_terminated_evidence:
+            continue # Don't care about terminated, only about active ones
+        
+        # --- FIX: Always process the evidence, don't skip if key exists ---
+        instrument_evidence_map[unique_key] = {
                 "type": instrument_obj.instrument_type if instrument_obj else (ev.instrument_type or "Unknown"),
                 "category": instrument_obj.category if instrument_obj else ev.category,
                 "status": "current",
