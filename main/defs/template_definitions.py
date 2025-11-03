@@ -1053,7 +1053,7 @@ class MaturityGroupingTableBuilder(DerivativeTableBuilder):
                     self.reporting_year, 0
                 )
 
-        title = f"Notional Amount of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])} by Maturity as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
+        title = f"Notional Amount of {random.choice(DERIVATIVE_COMPONENTS['no_alias_types']).capitalize()} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])} by Maturity as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
         columns = ["Maturity", "Notional Amount"]
         widths = [25, 25]
         alignments = ['l', 'r']
@@ -1302,7 +1302,7 @@ class AOCIReclassificationImpactTableBuilder(DerivativeTableBuilder):
         if not active_instruments:
             return "", [], []
         title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
-        columns = [f"Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}", "Gain/(Loss) Reclassified from AOCI", "Affected Line Item in Income Statement"]
+        columns = [f"{random.choice(DERIVATIVE_COMPONENTS['no_alias_types']).capitalize()} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}", "Gain/(Loss) Reclassified from AOCI", "Affected Line Item in Income Statement"]
         widths = [35, 25, 40]
         alignments = ['l', 'r', 'l']
         rows = [title]
@@ -1509,7 +1509,7 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
         if not active_instruments:
             return "", [], []
 
-        title = f"Fair Value of Derivative {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
+        title = f"Fair Value of {random.choice(DERIVATIVE_COMPONENTS['no_alias_types']).capitalize()} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
         columns = ["Instrument", "Asset Fair Value", "Liability Fair Value"]
         widths = [45, 20, 22]
         alignments = ['l', 'r', 'r']
@@ -1521,7 +1521,7 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
         rows.append(separator)
         sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
         rows.append(sec_tags_line)
-        
+
         for inst in active_instruments:
             fair_value = self._get_value(inst, year, "fair_value")
             # Randomly decide if the fair value is an asset or liability
@@ -1549,7 +1549,7 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
 
             row_cells = [inst.instrument_type, asset_val_str, liab_val_str]
             rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
-            
+
             # Create evidence for the fair value of this instrument
             evidence_fair_value_str = _format_single_notional(
                 fair_value, self.currency_symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore

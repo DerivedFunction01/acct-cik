@@ -341,7 +341,7 @@ class CPContextSentence:
         all_tables_str = []
         available_table_types = ["commitments", "inventory_summary", "price_sensitivity", "inventory_rollforward"]
         num_tables = random.randint(1, min(len(available_table_types), 2)) # Generate 1 or 2 tables
-        
+
         # Ensure we don't pick the same table type twice
         selected_table_types = random.sample(available_table_types, num_tables)
 
@@ -371,7 +371,7 @@ class CPContextSentence:
                     value = item.quantity * item.price_per_unit
                     value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
                     data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, value_str])
-            
+
             elif table_type == "price_sensitivity":
                 title = f"Sensitivity Analysis of Commodity Prices on Pre-Tax Income\nFor the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
                 headers = ["Commodity", "Hypothetical Price Change (%)", "Estimated Impact on Pre-Tax Income"]
@@ -391,14 +391,22 @@ class CPContextSentence:
                 # Simulate roll-forward data based on the sum of all items
                 total_quantity = sum(item.quantity for item in self.hedged_item)
                 total_value = sum(item.quantity * item.price_per_unit for item in self.hedged_item)
-                
+
                 begin_val = total_value * random.uniform(0.8, 1.2)
                 purchases_val = total_value * random.uniform(0.9, 1.1)
                 usage_val = (begin_val + purchases_val - total_value)
+                # Compute weighted average price per unit
+                avg_price_per_unit = total_value / total_quantity if total_quantity else 0
 
                 data_rows.append(["Beginning inventory", f"{int(total_quantity * random.uniform(0.8, 1.2)):,}", f"{begin_val / 1_000_000:.1f}"])
                 data_rows.append(["Purchases", f"{int(total_quantity * random.uniform(0.9, 1.1)):,}", f"{purchases_val / 1_000_000:.1f}"])
-                data_rows.append(["Usage / Cost of sales", f"({int(usage_val / item.price_per_unit):,})", f"({usage_val / 1_000_000:.1f})"])
+                data_rows.append(
+                    [
+                        "Usage / Cost of sales",
+                        f"({int(usage_val / avg_price_per_unit):,})",
+                        f"({usage_val / 1_000_000:.1f})",
+                    ]
+                )
                 data_rows.append(["-"*widths[0], "-"*widths[1], "-"*widths[2]])
                 data_rows.append(["Ending inventory", f"{total_quantity:,}", f"{total_value / 1_000_000:.1f}"])
 
