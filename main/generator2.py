@@ -35,6 +35,10 @@ ACTIVE_INSTRUMENT_MENTION_PROB = 1.0
 TERMINATED_INSTRUMENT_MENTION_PROB = 1.0
 REPEAT_MENTION_PROB = 1.0
 
+# Probabilities for dropping narrative components to increase variety
+PROB_DROP_MITIGATION = 0.15  # 15% chance to skip the MitigationSentence
+PROB_DROP_ACCOUNTING_POLICY = 0.20  # 20% chance to skip the entire accounting policy section
+
 def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
     """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
     currency_code = scenario.archetype.default_currency
@@ -1682,13 +1686,25 @@ def _generate_category_narrative(
             specific_details=specific_details,
         )
         mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
-        sentences.append(mitigation_sentence)
-        evidence.append(mitigation_evidence)
+
+        # --- NEW: Probabilistically drop the mitigation sentence ---
+        # This simulates filings that are less explicit about their strategy.
+        if allow_random_drops and random.random() < PROB_DROP_MITIGATION:
+            # We still generate the evidence so the JSON output is correct,
+            # but we mark it as implied since the sentence won't be in the text.
+            mitigation_evidence.is_implied = True
+            # but we don't add the sentence to the narrative text.
+            evidence.append(mitigation_evidence)
+        else:
+            # The common case: generate both the sentence and the evidence.
+            sentences.append(mitigation_sentence)
+            evidence.append(mitigation_evidence)
 
         # 1c. Optional Aggregate Summary
         is_non_use_mitigation = mitigation_evidence.usage_status == "non_use"
         if (
             current_year_data
+            and mitigation_evidence.usage_status != "non_use" # Don't summarize if we just said we don't use them
             and current_year_data["instruments"]
             and not is_non_use_mitigation
             and random.random() < 0.5
@@ -2187,6 +2203,11 @@ def _generate_narrative_accounting(
     """Generates sentences about accounting treatment and hedge effectiveness."""
     # --- MODIFIED: This function will now return paragraphs instead of sentences ---
     all_paragraphs: List[str] = []  # Each string in this list will be a full paragraph
+
+    # --- NEW: Probabilistically drop the entire accounting policy section ---
+    if random.random() < PROB_DROP_ACCOUNTING_POLICY:
+        return [], []
+
     all_evidence: List[BaseNarrativeEvidence] = []  # type: ignore
     mentioned_policies = set()
     

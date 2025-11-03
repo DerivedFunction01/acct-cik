@@ -278,6 +278,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
         None  # The adverb used (e.g., "currently", "from time to time")
     )
     instrument_type: Optional[str] = None  # the derivative
+    is_implied: bool = False  # NEW: Flag to indicate if the evidence is from a dropped sentence
 
     def _category_label(self) -> str:
         """Map short category codes to descriptive names."""
@@ -291,6 +292,15 @@ class MitigationEvidence(BaseNarrativeEvidence):
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the mitigation evidence."""
+        # --- NEW: Handle implied evidence from dropped sentences ---
+        if self.is_implied:
+            if self.usage_status == "current":
+                return f"The presence of active {self._category_label()} derivatives implies a 'current' usage status."
+            elif self.usage_status == "historical":
+                return f"The presence of only terminated {self._category_label()} derivatives implies a 'historical' usage status."
+            # For 'non_use' or 'speculative', if the sentence is dropped, there's no evidence to generate.
+            return ""
+
         # --- NEW: More analytical reasoning statement ---
         category_name = self._category_label()
         instrument_desc = (
