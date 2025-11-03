@@ -50,79 +50,148 @@ class BalanceSheetTableBuilder(FinancialStatementTable):
 
     def build(self) -> str:
         title = f"Consolidated Balance Sheets {self._get_units()}"
-        headers = ["", str(self.year), str(self.year - 1)]
+        year1, year2 = self.year, self.year - 1
+        headers = ["", str(year1), str(year2)]
         widths = [45, 20, 20]
         alignments = ["l", "r", "r"]
         data_rows = []
+        ### **Current Assets**
+        
+        current_asset_items = [
+            "Cash and cash equivalents",
+            "Restricted cash",
+            "Marketable securities",
+            "Accounts receivable, gross",
+            "Allowance for doubtful accounts",
+            "Accounts receivable, net",
+            "Inventories",
+            "Prepaid expenses",
+            "Other current assets",
+            "Derivative assets, current",
+            "Income taxes receivable",
+            "Deferred tax assets, current"
+        ]
+        
 
-        # Simulate some data
-        assets = random.randint(5000, 20000) * self.notional_multiplier
-        liabilities = int(assets * random.uniform(0.4, 0.7))
-        equity = assets - liabilities
+        ### **Non-Current Assets**
+        
+        non_current_asset_items = [
+            "Property, plant, and equipment, gross",
+            "Accumulated depreciation",
+            "Property, plant, and equipment, net",
+            "Operating lease right-of-use assets",
+            "Goodwill",
+            "Intangible assets, gross",
+            "Accumulated amortization",
+            "Intangible assets, net",
+            "Long-term investments",
+            "Equity method investments",
+            "Deferred tax assets, non-current",
+            "Other non-current assets"
+        ]
+        
 
-        prev_assets = int(assets * random.uniform(0.8, 1.1))
-        prev_liabilities = int(liabilities * random.uniform(0.8, 1.1))
-        prev_equity = prev_assets - prev_liabilities
+        
 
+        ### **Current Liabilities**
+        
+        current_liability_items = [
+            "Accounts payable",
+            "Accrued expenses",
+            "Accrued compensation and benefits",
+            "Short-term debt",
+            "Current portion of long-term debt",
+            "Operating lease liabilities, current",
+            "Finance lease liabilities, current",
+            "Deferred revenue, current",
+            "Income taxes payable",
+            "Derivative liabilities, current",
+            "Other current liabilities"
+        ]
+        
+
+        
+
+        ### **Non-Current Liabilities**
+        
+        non_current_liability_items = [
+            "Long-term debt",
+            "Operating lease liabilities, non-current",
+            "Finance lease liabilities, non-current",
+            "Pension and other postretirement benefit obligations",
+            "Deferred tax liabilities, non-current",
+            "Asset retirement obligations",
+            "Contingent liabilities",
+            "Other non-current liabilities"
+        ]
+        
+
+        
+
+        ### **Equity**
+        
+        equity_items = [
+            "Common stock",
+            "Preferred stock",
+            "Additional paid-in capital",
+            "Retained earnings (accumulated deficit)",
+            "Accumulated other comprehensive income (loss)",
+            "Treasury stock",
+            "Noncontrolling interests",
+            "Total stockholders' equity"
+        ]
+
+        # Randomly select a subset of items for each category
+        selected_current_assets = random.sample(current_asset_items, k=random.randint(2, len(current_asset_items)))
+        selected_non_current_assets = random.sample(non_current_asset_items, k=random.randint(2, len(non_current_asset_items)))
+        selected_current_liabilities = random.sample(current_liability_items, k=random.randint(2, len(current_liability_items)))
+        selected_non_current_liabilities = random.sample(non_current_liability_items, k=random.randint(1, len(non_current_liability_items)))
+        selected_equity_items = random.sample(equity_items, k=random.randint(2, len(equity_items)))
+
+        #  Data Simulation 
+        total_assets = random.randint(5000, 20000) * self.notional_multiplier
+        total_liabilities = int(total_assets * random.uniform(0.4, 0.7))
+        total_equity = total_assets - total_liabilities
+
+        prev_total_assets = int(total_assets * random.uniform(0.8, 1.1))
+        prev_total_liabilities = int(total_liabilities * random.uniform(0.8, 1.1))
+        prev_total_equity = prev_total_assets - prev_total_liabilities
+
+        #  Build Table Rows 
         data_rows.append(["Assets", "", ""])
-        data_rows.append(
-            [
-                "  Current Assets",
-                self._format_value(int(assets * 0.4)),
-                self._format_value(int(prev_assets * 0.4)),
-            ]
-        )
-        data_rows.append(
-            [
-                "  Non-current Assets",
-                self._format_value(int(assets * 0.6)),
-                self._format_value(int(prev_assets * 0.6)),
-            ]
-        )
-        data_rows.append(
-            [
-                "Total Assets",
-                self._format_value(assets),
-                self._format_value(prev_assets),
-            ]
-        )
-        data_rows.append(["", "", ""])  # Spacer
+        data_rows.append(["Current assets:", "", ""])
+        current_assets_total = self._generate_and_append_items(data_rows, selected_current_assets, total_assets * 0.4, prev_total_assets * 0.4)
+        data_rows.append(["Total current assets", self._format_value(current_assets_total), self._format_value(int(current_assets_total * random.uniform(0.9, 1.1)))])
+        data_rows.append(["", "", ""])
+
+        data_rows.append(["Non-current assets:", "", ""])
+        non_current_assets_total = self._generate_and_append_items(data_rows, selected_non_current_assets, total_assets * 0.6, prev_total_assets * 0.6)
+        data_rows.append(["Total non-current assets", self._format_value(non_current_assets_total), self._format_value(int(non_current_assets_total * random.uniform(0.9, 1.1)))])
+        data_rows.append(["", "", ""])
+
+        data_rows.append(["Total Assets", self._format_value(total_assets), self._format_value(prev_total_assets)])
+        data_rows.append(["", "", ""])
+
         data_rows.append(["Liabilities and Equity", "", ""])
-        data_rows.append(
-            [
-                "  Current Liabilities",
-                self._format_value(int(liabilities * 0.5)),
-                self._format_value(int(prev_liabilities * 0.5)),
-            ]
-        )
-        data_rows.append(
-            [
-                "  Non-current Liabilities",
-                self._format_value(int(liabilities * 0.5)),
-                self._format_value(int(prev_liabilities * 0.5)),
-            ]
-        )
-        data_rows.append(
-            [
-                "Total Liabilities",
-                self._format_value(liabilities),
-                self._format_value(prev_liabilities),
-            ]
-        )
-        data_rows.append(
-            [
-                "Total Stockholders' Equity",
-                self._format_value(equity),
-                self._format_value(prev_equity),
-            ]
-        )
-        data_rows.append(
-            [
-                "Total Liabilities and Equity",
-                self._format_value(assets),
-                self._format_value(prev_assets),
-            ]
-        )
+        data_rows.append(["Current liabilities:", "", ""])
+        current_liabilities_total = self._generate_and_append_items(data_rows, selected_current_liabilities, total_liabilities * 0.5, prev_total_liabilities * 0.5)
+        data_rows.append(["Total current liabilities", self._format_value(current_liabilities_total), self._format_value(int(current_liabilities_total * random.uniform(0.9, 1.1)))])
+        data_rows.append(["", "", ""])
+
+        data_rows.append(["Non-current liabilities:", "", ""])
+        non_current_liabilities_total = self._generate_and_append_items(data_rows, selected_non_current_liabilities, total_liabilities * 0.5, prev_total_liabilities * 0.5)
+        data_rows.append(["Total non-current liabilities", self._format_value(non_current_liabilities_total), self._format_value(int(non_current_liabilities_total * random.uniform(0.9, 1.1)))])
+        data_rows.append(["", "", ""])
+
+        data_rows.append(["Total Liabilities", self._format_value(total_liabilities), self._format_value(prev_total_liabilities)])
+        data_rows.append(["", "", ""])
+
+        data_rows.append(["Stockholders' equity:", "", ""])
+        self._generate_and_append_items(data_rows, selected_equity_items, total_equity, prev_total_equity)
+        data_rows.append(["Total stockholders' equity", self._format_value(total_equity), self._format_value(prev_total_equity)])
+        data_rows.append(["", "", ""])
+
+        data_rows.append(["Total Liabilities and Equity", self._format_value(total_assets), self._format_value(prev_total_assets)])
 
         table = GenericTable(
             headers=headers,
@@ -132,6 +201,23 @@ class BalanceSheetTableBuilder(FinancialStatementTable):
             title=title,
         )
         return table.build()
+
+    def _generate_and_append_items(self, data_rows, items, total_value, prev_total_value):
+        """Generates random values for a list of items and appends them to data_rows."""
+        num_items = len(items)
+        # Generate random weights that sum to 1
+        weights = [random.random() for _ in range(num_items)]
+        total_weight = sum(weights)
+        weights = [w / total_weight for w in weights]
+
+        sub_total = 0
+        for i, item in enumerate(items):
+            value = int(total_value * weights[i])
+            prev_value = int(prev_total_value * weights[i] * random.uniform(0.8, 1.2))
+            data_rows.append([f"  {item}", self._format_value(value), self._format_value(prev_value)])
+            sub_total += value
+        
+        return sub_total
 
 
 class IncomeStatementTableBuilder(FinancialStatementTable):
