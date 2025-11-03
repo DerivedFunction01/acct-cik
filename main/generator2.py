@@ -1561,6 +1561,9 @@ def _generate_category_narrative(
         scenario
     )
 
+    # --- FIX: Initialize at the top of the function to resolve UnboundLocalError ---
+    active_instruments_were_dropped = False
+
     # --- Part 1: Generate Policy, Mitigation, and optional Aggregate Summary ---
     if part == "summary":
         # 1a. Context Sentence (e.g., "To manage our interest rate risk...")
@@ -1864,8 +1867,6 @@ def _generate_category_narrative(
         # --- FIX: Track if active instruments were intentionally dropped ---
         # --- MODIFIED: Track if we actually generated any evidence ---
         any_notional_evidence_generated = False
-
-        active_instruments_were_dropped = False
 
         # --- NEW: Table Generation Logic ---
         table_generated_for_category = False
