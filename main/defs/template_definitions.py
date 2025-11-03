@@ -829,13 +829,8 @@ class Table:
         alignments = ['l', 'r', 'r'] # l for left, r for right
 
         header = "  ".join([col.ljust(widths[i]) if alignments[i] == 'l' else col.rjust(widths[i]) for i, col in enumerate(columns)])
-        separator = "  ".join(['-' * w for w in widths])
-        
-        # Create the <S> and <C> row for SEC-style tables
-        s_c_cells = ["<S>"] + ["<C>"] * (len(columns) - 1)
-        s_c_row = "  ".join([cell.ljust(widths[i]) if alignments[i] == 'l' else cell.rjust(widths[i]) for i, cell in enumerate(s_c_cells)])
-
-        rows = [header, separator, s_c_row]
+        separator = " ".join(['-' * w for w in widths])
+        rows = [header, separator]
 
         # Use a set to avoid describing the same instrument type multiple times
         described_types = set()
@@ -903,8 +898,8 @@ class Table:
             "EQ": "Equity",
             "GEN": "Derivative",
         }
-        caption = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s (in {self.currency_symbol} {self.money_unit()})"
-        return f"<TABLE>\n<CAPTION>\n{caption}\n</CAPTION>\n" + "\n".join(rows) + "\n</TABLE>", evidence_list, []
+        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s (in {self.currency_symbol} {self.money_unit()})"
+        return f"{title}\n" + "\n".join(rows), evidence_list, []
 
     def _build_notional_vs_fair_value_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
@@ -912,20 +907,12 @@ class Table:
         Format:
             Year 20XX
             Instrument  Notional  Fair Value
-            Instrument  Notional Amount  Fair Value
         """
         evidence_list = []
         year1 = self.reporting_year
         year2 = self.reporting_year - 1
         all_rows = []
 
-        # Define column properties
-        columns = ["Instrument", "Notional Amount", "Fair Value"]
-        widths = [45, 20, 20]
-        alignments = ['l', 'r', 'r']  # l for left, r for right
-
-        # Build the table for each year separately
-        table_parts = []
         category_map = {
             "IR": "Interest Rate",
             "FX": "Foreign Exchange",
@@ -935,7 +922,6 @@ class Table:
         }
         title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS["suffixes"])}s"
         all_rows.append(title)
-        }        
 
         for year in [year1, year2]:
             instruments_in_year = [
@@ -957,14 +943,6 @@ class Table:
             )
             separator = "-" * len(header)
             all_rows.extend([header, separator])
-            # Build header and separator for this year's table
-            header_cols = [f"Instrument ({random.choice(DERIVATIVE_COMPONENTS['suffixes'])})", "Notional Amount", "Fair Value"]
-            header = "  ".join([col.ljust(widths[i]) if alignments[i] == 'l' else col.rjust(widths[i]) for i, col in enumerate(header_cols)])
-            separator = "  ".join(['-' * w for w in widths])
-            s_c_cells = ["<S>"] + ["<C>"] * (len(columns) - 1)
-            s_c_row = "  ".join([cell.ljust(widths[i]) if alignments[i] == 'l' else cell.rjust(widths[i]) for i, cell in enumerate(s_c_cells)])
-            
-            rows = [header, separator, s_c_row]
 
             described_types = set()
             for inst in instruments_in_year:
@@ -973,17 +951,14 @@ class Table:
                     name_to_use = inst.instrument_alias
                 described_types.add(inst.instrument_type)
 
-    
                 notional_val = self._get_value(inst, year, "notional")
                 fair_val = self._get_value(inst, year, "fair_value")
 
-    
                 notional_str = _format_single_notional(
                     notional_val,
                     inst.symbol,
                     self.prefer_abbreviated,
                     True,
-                    notional_val, inst.symbol, self.prefer_abbreviated, True,
                     negative_format=self.preferred_negative_format,  # type: ignore
                 )
                 fair_val_str = _format_single_notional(
@@ -991,7 +966,6 @@ class Table:
                     inst.symbol,
                     self.prefer_abbreviated,
                     True,
-                    fair_val, inst.symbol, self.prefer_abbreviated, True,
                     negative_format=self.preferred_negative_format,  # type: ignore
                 )
 
@@ -1000,14 +974,8 @@ class Table:
                 )
                 all_rows.append(row_str)
 
-    
-                row_cells = [name_to_use, notional_str, fair_val_str]
-                formatted_lines = self._format_row_with_wrapping(row_cells, widths, alignments)
-                rows.extend(formatted_lines)
-    
                 # Create evidence for the current year if value is > 0
                 if year == self.reporting_year and notional_val > 0:
-                if year == self.reporting_year and notional_val > 0: # Only create evidence for the primary reporting year
                     evidence_notional_str = _format_single_notional(
                         notional_val, inst.symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
                     )
@@ -1256,17 +1224,6 @@ class Table:
         header = f" {'{suffix}':<40}   {year1:>15}  {year2:>15}   {year3:>15} ".format(suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"]))
         separator = "-" * len(header)
         rows = [header, separator]
-        # Define column properties
-        columns = [f"Instrument ({random.choice(DERIVATIVE_COMPONENTS['suffixes'])})", str(year1), str(year2), str(year3)]
-        widths = [40, 15, 15, 15]
-        alignments = ['l', 'r', 'r', 'r']
-
-        header = "  ".join([col.ljust(widths[i]) if alignments[i] == 'l' else col.rjust(widths[i]) for i, col in enumerate(columns)])
-        separator = "  ".join(['-' * w for w in widths])
-        s_c_cells = ["<S>"] + ["<C>"] * (len(columns) - 1)
-        s_c_row = "  ".join([cell.ljust(widths[i]) if alignments[i] == 'l' else cell.rjust(widths[i]) for i, cell in enumerate(s_c_cells)])
-
-        rows = [header, separator, s_c_row]
 
         described_types = set()
         for inst in self.instruments:
@@ -1302,9 +1259,6 @@ class Table:
 
             row_str = f" {name_to_use:<40}  {val1_str:>15}  {val2_str:>15}  {val3_str:>15} "
             rows.append(row_str)
-            row_cells = [name_to_use, val1_str, val2_str, val3_str]
-            formatted_lines = self._format_row_with_wrapping(row_cells, widths, alignments)
-            rows.extend(formatted_lines)
 
             if val1 > 0:
                 evidence_notional_str = _format_single_notional(
@@ -1319,13 +1273,10 @@ class Table:
                 ))
 
         if len(rows) <= 2:
-        if len(rows) <= 3: # Header, separator, S/C row
             return "", [], []
 
         title = f"{value_type_str}s of Outstanding {self.category} Derivatives (in {self.currency_symbol} {self.money_unit()})"
         return f"{title}\n" + "\n".join(rows), evidence_list, []
-        caption = f"{value_type_str}s of Outstanding {self.category} Derivatives (in {self.currency_symbol} {self.money_unit()})"
-        return f"<TABLE>\n<CAPTION>\n{caption}\n</CAPTION>\n" + "\n".join(rows) + "\n</TABLE>", evidence_list, []
 
     def _build_aoci_reclassification_impact_table(self) -> Tuple[str, List[NotionalEvidence], List[NotionalInstrument]]:
         """
