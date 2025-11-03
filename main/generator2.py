@@ -35,12 +35,31 @@ from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _gen
 
 DEBUG = True
 
-# Probabilities for generating specific narrative elements to increase variety.
 GENERATION_PROBABILITIES = {
+    # Instrument & Exposure Generation
+    "debt_in_foreign_currency": 0.20, # Chance a debt item is in a foreign currency.
+    "commodity_has_supplier": 0.20, # Chance a commodity exposure lists a supplier.
+    "instrument_is_brand_new": 0.30, # Chance an active hedge was initiated in the current year.
+    "cross_currency_swap": 0.50, # Chance a foreign currency debt is hedged with a cross-currency swap.
+    "cp_instrument_in_units": 0.35, # Chance a CP instrument's notional is in units (e.g., barrels) instead of currency.
+    "fx_instrument_in_exposure_currency": 0.35, # Chance an FX instrument's notional is in one of the exposure currencies.
+    "instrument_history_has_gap": 0.15, # Chance an instrument's history has a year with zero notional.
+    "instrument_has_prefix": 0.05, # Chance an instrument name gets a prefix (e.g., "pay-fixed").
+
+    # Narrative Generation
     "active_instrument_mention": 0.9,  # Chance to mention an active instrument.
     "terminated_instrument_mention": 0.7, # Chance to mention a terminated instrument.
     "repeat_instrument_mention": 0.25, # Chance to mention the same instrument again (for aliasing).
     "additional_table": 0.3, # Chance to generate an extra table (AOCI, Maturity, etc.).
+    "use_table_for_exposure": 0.4, # Chance to use a table for exposure context instead of paragraphs.
+    "add_secondary_debt_sentence": 0.4, # Chance to add a second sentence about a debt event (issuance, repayment).
+    "use_fair_value_for_summary": 0.2, # Chance an aggregate summary sentence uses "fair value" instead of "notional".
+    "generate_aggregate_summary": 0.5, # Chance to generate an aggregate summary sentence for a category.
+    "use_timeline_for_long_history": 0.15, # Chance to use a multi-sentence timeline for a historical instrument.
+    "add_legalistic_definition": 0.15, # Chance to add a generic, legalistic derivative definition paragraph.
+    "add_other_pronouncements": 0.4, # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
+    "can_have_accounting_update": 0.4, # Chance a scenario will include an accounting standard update section.
+    "accounting_update_is_hedge_related": 0.5, # If an update is generated, the chance it's about hedging.
 }
 
 # Probabilities for dropping narrative components to increase variety.
@@ -418,7 +437,7 @@ class ScenarioBuilder:
 
     def _generate_debt_exposures(self, count: int):
         for _ in range(count):
-            issuance_year = random.randint(
+            issuance_year = random.randint( # type: ignore
                 self.reporting_year - 15, self.reporting_year - 1
             )
             maturity_year = random.randint(
@@ -431,7 +450,7 @@ class ScenarioBuilder:
                 else None
             )
             debt_currency = self.archetype.default_currency
-            if random.random() < 0.20:
+            if random.random() < GENERATION_PROBABILITIES["debt_in_foreign_currency"]:
                 foreign_curr = random.choice(
                     [
                         c
@@ -492,7 +511,7 @@ class ScenarioBuilder:
                     quantity=random.randint(100, 400) * self.multiplier,
                     unit_of_volume=unit,
                     price_per_unit=random.uniform(10, 200),
-                    cost_type=cost_type,
+                    cost_type=cost_type, # type: ignore
                     supplier=(
                         random.choice(company_names) if random.random() < 0.2 else None
                     ),
@@ -575,7 +594,7 @@ class ScenarioBuilder:
             # Special case for cross-currency swaps
             if (
                 isinstance(hedged_item, DebtHedgedItem)
-                and hedged_item.currency != self.archetype.default_currency
+                and hedged_item.currency != self.archetype.default_currency # type: ignore
                 and random.random() < 0.5
             ):
                 placeholder = "cross-currency interest rate"
@@ -598,7 +617,7 @@ class ScenarioBuilder:
             # --- NEW: For CP, sometimes report in units instead of currency ---
             instrument_currency = self.archetype.default_currency
             instrument_symbol = _get_currency_and_unit_details(self.scenario)[0]
-            if category == "CP" and random.random() < 0.35: # 40% chance to use units
+            if category == "CP" and random.random() < GENERATION_PROBABILITIES["cp_instrument_in_units"]: # 40% chance to use units
                 if isinstance(hedged_item, CommodityHedgedItem):
                     # Use the commodity's unit as the "currency"
                     instrument_currency = hedged_item.unit_of_volume.upper()
@@ -606,7 +625,7 @@ class ScenarioBuilder:
                     notional = hedged_item.quantity # Notional is now the quantity
             
             # --- NEW: For FX, sometimes report in one of the exposure currencies ---
-            if category == "FX" and random.random() < 0.35: # 35% chance
+            if category == "FX" and random.random() < GENERATION_PROBABILITIES["fx_instrument_in_exposure_currency"]: # 35% chance
                 if isinstance(hedged_item, ForeignCurrencyHedgedItem) and hedged_item.exposures:
                     # Pick one of the specific currency exposures to be the instrument's currency
                     random_exposure = random.choice(hedged_item.exposures)
@@ -639,7 +658,7 @@ class ScenarioBuilder:
             new_instrument = _create_instrument_with_history(
                 scenario=self.scenario,
                 instrument_class=instrument_class,
-                is_new=(item in items_to_hedge and random.random() < 0.3), # 30% chance a new hedge is brand new this year
+                is_new=(item in items_to_hedge and random.random() < GENERATION_PROBABILITIES["instrument_is_brand_new"]), # 30% chance a new hedge is brand new this year
                 is_past=(hedged_item not in items_to_hedge),
                 instrument_id=self.instrument_id_counter,
                 base_instrument_args=base_args,
@@ -650,11 +669,11 @@ class ScenarioBuilder:
 
     def _generate_accounting_updates(self):
         """With a chance, generates an AccountingStandardUpdate object for the scenario."""
-        if not self.archetype.can_have_accounting_update or random.random() > 0.4:
+        if not self.archetype.can_have_accounting_update or random.random() > GENERATION_PROBABILITIES["can_have_accounting_update"]:
             return
 
         # Decide if it's a hedge-related update or a general (noise) one.
-        is_hedge_update = random.random() < 0.5
+        is_hedge_update = random.random() < GENERATION_PROBABILITIES["accounting_update_is_hedge_related"]
 
         if is_hedge_update:
             # Use hedge-specific data
@@ -787,7 +806,7 @@ class ScenarioBuilder:
                 base_instrument_args=base_args,
                 symbol=_get_currency_and_unit_details(self.scenario)[0], # Default currency symbol
             )
-            self.scenario.instruments.append(new_instrument)
+            self.scenario.instruments.append(new_instrument) # type: ignore
             self.instrument_id_counter += 1
 
         # --- NEW: Generate accounting standard updates ---
@@ -1126,7 +1145,7 @@ def _create_instrument_with_history(
     # --- NEW: With a small chance, set a mid-history year to zero ---
     # This simulates a temporary pause in the instrument's use.
     # It should not be the start year or the most recent year of its history.
-    if len(notional_history) > 2 and random.random() < 0.15:  # 15% chance
+    if len(notional_history) > 2 and random.random() < GENERATION_PROBABILITIES["instrument_history_has_gap"]:  # 15% chance
         # Get all years except the first and last
         eligible_years = sorted(list(notional_history.keys()))[1:-1]
         if eligible_years:
@@ -1209,13 +1228,13 @@ def _generate_instrument_name(
     # --- Optional Prefix (for swaps, swaptions, rate locks) ---
     prefix = ""
     if (
-        any(x in base_type for x in ["swap", "swaption", "lock"])
-        and random.random() < PAY_PREFIX_RATIO
+        any(x in base_type for x in ["swap", "swaption", "lock"]) # type: ignore
+        and random.random() < GENERATION_PROBABILITIES["instrument_has_prefix"]
     ):
         prefix = random.choice(components["swap_prefixes"])
 
     # --- Optional Prefix (global)
-    if not prefix and random.random() < PAY_PREFIX_RATIO:
+    if not prefix and random.random() < GENERATION_PROBABILITIES["instrument_has_prefix"]:
         prefix = random.choice(components["global_prefixes"])
 
     return prefix, placeholder, base_type, suffix, full_name, alias
@@ -1378,12 +1397,12 @@ def _generate_debt_narrative(
     paragraphs.append("Debt")
 
     # --- NEW: Decide whether to generate a table or individual paragraphs ---
-    if random.random() < 0.6 or len(all_debt_items) <= 2: # More likely to generate paragraphs for fewer items
+    if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_debt_items) <= 2: # More likely to generate paragraphs for fewer items
         # For each debt item, generate a detailed contextual paragraph.
         for debt_item in all_debt_items:
             debt_context_builder = DebtContextSentence(
                 company_name=scenario.company_name,
-                reporting_year=scenario.reporting_year,
+                reporting_year=scenario.reporting_year, # type: ignore
                 reporting_month=scenario.reporting_month,
                 reporting_day=scenario.reporting_day,
                 hedged_item=debt_item,
@@ -1401,7 +1420,7 @@ def _generate_debt_narrative(
         # Generate a single table for all debt items
         debt_context_builder = DebtContextSentence(
             company_name=scenario.company_name,
-            reporting_year=scenario.reporting_year,
+            reporting_year=scenario.reporting_year, # type: ignore
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
             hedged_item=all_debt_items, # Pass the whole list
@@ -1443,11 +1462,11 @@ def _generate_fx_narrative(
     paragraphs.append("Foreign Currency Risk")
 
     # --- NEW: Decide whether to generate a table or individual paragraphs ---
-    if random.random() < 0.6 or len(all_fx_items) <= 2:
+    if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_fx_items) <= 2:
         for fx_item in all_fx_items:
             fx_context_builder = FXContextSentence(
                 company_name=scenario.company_name,
-                reporting_year=scenario.reporting_year,
+                reporting_year=scenario.reporting_year, # type: ignore
                 reporting_month=scenario.reporting_month,
                 reporting_day=scenario.reporting_day,
                 hedged_item=fx_item,
@@ -1465,7 +1484,7 @@ def _generate_fx_narrative(
     else:
         fx_context_builder = FXContextSentence(
             company_name=scenario.company_name,
-            reporting_year=scenario.reporting_year,
+            reporting_year=scenario.reporting_year, # type: ignore
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
             hedged_item=all_fx_items,
@@ -1508,11 +1527,11 @@ def _generate_cp_narrative(
     paragraphs.append("Commodity Price Risk")
 
     # --- NEW: Decide whether to generate a table or individual paragraphs ---
-    if random.random() < 0.6 or len(all_cp_items) <= 2:
+    if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_cp_items) <= 2:
         for cp_item in all_cp_items:
             cp_context_builder = CPContextSentence(
                 company_name=scenario.company_name,
-                reporting_year=scenario.reporting_year,
+                reporting_year=scenario.reporting_year, # type: ignore
                 reporting_month=scenario.reporting_month,
                 reporting_day=scenario.reporting_day,
                 hedged_item=cp_item,
@@ -1530,7 +1549,7 @@ def _generate_cp_narrative(
     else:
         cp_context_builder = CPContextSentence(
             company_name=scenario.company_name,
-            reporting_year=scenario.reporting_year,
+            reporting_year=scenario.reporting_year, # type: ignore
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
             hedged_item=all_cp_items,
@@ -1573,11 +1592,11 @@ def _generate_eq_narrative(
     paragraphs.append("Equity Risk")
 
     # --- NEW: Decide whether to generate a table or individual paragraphs ---
-    if random.random() < 0.6 or len(all_eq_items) <= 2:
+    if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_eq_items) <= 2:
         for eq_item in all_eq_items:
             eq_context_builder = EQContextSentence(
                 company_name=scenario.company_name,
-                reporting_year=scenario.reporting_year,
+                reporting_year=scenario.reporting_year, # type: ignore
                 reporting_month=scenario.reporting_month,
                 reporting_day=scenario.reporting_day,
                 hedged_item=eq_item,
@@ -1594,7 +1613,7 @@ def _generate_eq_narrative(
     else:
         eq_context_builder = EQContextSentence(
             company_name=scenario.company_name,
-            reporting_year=scenario.reporting_year,
+            reporting_year=scenario.reporting_year, # type: ignore
             reporting_month=scenario.reporting_month,
             reporting_day=scenario.reporting_day,
             hedged_item=all_eq_items,
@@ -1849,7 +1868,7 @@ def _generate_category_narrative(
             and mitigation_evidence.usage_status != "non_use" # Don't summarize if we just said we don't use them
             and current_year_data["instruments"]
             and not is_non_use_mitigation and not suppress_text_output and not active_instruments_were_dropped
-            and random.random() < 0.5
+            and random.random() < GENERATION_PROBABILITIES["generate_aggregate_summary"]
         ):
             # --- NEW: Logic to choose between summary, comparative, or comparative_no_prior ---
             current_notional = (
@@ -1909,7 +1928,7 @@ def _generate_category_narrative(
                 notional_to_report = current_notional
 
             if notional_to_report > 0:
-                use_fair_value = random.random() < 0.2
+                use_fair_value = random.random() < GENERATION_PROBABILITIES["use_fair_value_for_summary"]
                 value_type_to_use = "fair_value" if use_fair_value else "notional"
 
                 summary_sentence_obj = NotionalSentence(
@@ -2061,7 +2080,7 @@ def _generate_category_narrative(
                 # --- NEW: Timeline generation for instruments with a long history ---
                 history_length = len(instrument.notional_history)
                 is_long_history_timeline = (
-                    is_historical and history_length > 1 and random.random() < 0.15
+                    is_historical and history_length > 1 and random.random() < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
                 )
 
                 # --- NEW: Use TimelineSentence class for long histories ---
@@ -2223,7 +2242,7 @@ def _generate_category_narrative(
                 # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
                 history_length = len(instrument.notional_history)
                 use_timeline_for_terminated = (
-                    history_length > 1 and random.random() < 0.15
+                    history_length > 1 and random.random() < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
                 )
 
                 is_repeated_type_terminated = (
@@ -2635,7 +2654,7 @@ def generate_narrative_from_scenario(
         all_evidence.extend(accounting_evidence)
         
         # --- NEW: With a chance, add a legalistic definition of a derivative ---
-        if random.random() < 0.15:
+        if random.random() < GENERATION_PROBABILITIES["add_legalistic_definition"]:
             definition_builder = HedgeDefinitionSentence()
             definition_sentence = definition_builder.build()
             derivative_details_sections.append(definition_sentence)
@@ -2659,7 +2678,7 @@ def generate_narrative_from_scenario(
             all_evidence.extend(update_evidence)
         
         # --- NEW: Add a generic "other pronouncements" sentence ---
-        if random.random() < 0.4:
+        if random.random() < GENERATION_PROBABILITIES["add_other_pronouncements"]:
             from defs.template_definitions import shared_recent_pronouncement_templates, other_standards, other_topics, shared_issuers
             pronouncement_template = random.choice(shared_recent_pronouncement_templates)
             pronouncement_sentence = pronouncement_template.format(
