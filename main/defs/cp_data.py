@@ -339,14 +339,19 @@ class CPContextSentence:
             return ""
 
         all_tables_str = []
-        available_table_types = ["commitments", "inventory_summary"]
-        num_tables = random.randint(1, len(available_table_types)) # Generate 1 or 2 tables
+        available_table_types = ["commitments", "inventory_summary", "price_sensitivity", "inventory_rollforward"]
+        num_tables = random.randint(1, min(len(available_table_types), 2)) # Generate 1 or 2 tables
         
         # Ensure we don't pick the same table type twice
         selected_table_types = random.sample(available_table_types, num_tables)
 
         for table_type in selected_table_types:
             data_rows = []
+            title = ""
+            headers = []
+            widths = []
+            alignments = []
+
             if table_type == "commitments":
                 title = f"Summary of Commodity Purchase Commitments as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
                 headers = ["Commodity", "Quantity", "Unit", "Avg. Price"]
@@ -356,7 +361,7 @@ class CPContextSentence:
                     quantity_str = f"{item.quantity:,}"
                     price_str = f"{self.currency_symbol}{item.price_per_unit:.2f}"
                     data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, price_str])
-            else: # inventory_summary
+            elif table_type == "inventory_summary":
                 title = f"Summary of Commodity Inventory as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
                 headers = ["Commodity", "Quantity", "Unit", "Carrying Value"]
                 widths = [25, 20, 15, 20]
@@ -366,6 +371,36 @@ class CPContextSentence:
                     value = item.quantity * item.price_per_unit
                     value_str = _format_single_notional(value, self.currency_symbol, self.prefer_abbreviated, True)
                     data_rows.append([item.commodity_type, quantity_str, item.unit_of_volume, value_str])
+            
+            elif table_type == "price_sensitivity":
+                title = f"Sensitivity Analysis of Commodity Prices on Pre-Tax Income\nFor the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["Commodity", "Hypothetical Price Change (%)", "Estimated Impact on Pre-Tax Income"]
+                widths = [25, 30, 35]
+                alignments = ['l', 'r', 'r']
+                unique_commodities = list({item.commodity_type: item for item in self.hedged_item}.values())
+                for item in unique_commodities:
+                    impact_amount = int((item.quantity * item.price_per_unit) * 0.10 * random.uniform(-1.5, 1.5))
+                    impact_str = _format_single_notional(impact_amount, self.currency_symbol, self.prefer_abbreviated, True, negative_format=0)
+                    data_rows.append([item.commodity_type, "+/- 10%", impact_str])
+
+            else: # inventory_rollforward
+                title = f"Commodity Inventory Roll-Forward\nFor the Year Ended {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+                headers = ["", "Quantity (Units)", f"Value ({self.currency_symbol} in millions)"]
+                widths = [35, 20, 25]
+                alignments = ['l', 'r', 'r']
+                # Simulate roll-forward data based on the sum of all items
+                total_quantity = sum(item.quantity for item in self.hedged_item)
+                total_value = sum(item.quantity * item.price_per_unit for item in self.hedged_item)
+                
+                begin_val = total_value * random.uniform(0.8, 1.2)
+                purchases_val = total_value * random.uniform(0.9, 1.1)
+                usage_val = (begin_val + purchases_val - total_value)
+
+                data_rows.append(["Beginning inventory", f"{int(total_quantity * random.uniform(0.8, 1.2)):,}", f"{begin_val / 1_000_000:.1f}"])
+                data_rows.append(["Purchases", f"{int(total_quantity * random.uniform(0.9, 1.1)):,}", f"{purchases_val / 1_000_000:.1f}"])
+                data_rows.append(["Usage / Cost of sales", f"({int(usage_val / item.price_per_unit):,})", f"({usage_val / 1_000_000:.1f})"])
+                data_rows.append(["-"*widths[0], "-"*widths[1], "-"*widths[2]])
+                data_rows.append(["Ending inventory", f"{total_quantity:,}", f"{total_value / 1_000_000:.1f}"])
 
             if data_rows:
                 table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
