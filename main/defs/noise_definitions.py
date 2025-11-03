@@ -10,6 +10,8 @@ class FinancialStatementTable:
     """Base class for financial statement table builders."""
 
     year: int
+    month: str
+    day: int
     currency_symbol: str
     notional_multiplier: int
     prefer_abbreviated: bool
@@ -50,7 +52,7 @@ class BalanceSheetTableBuilder(FinancialStatementTable):
     """Builds a simplified two-year comparative balance sheet."""
 
     def build(self) -> str:
-        title = f"Consolidated Balance Sheets {self._get_units()}"
+        title = f"Consolidated Balance Sheets\nAs of {self.month} {self.day}, {self.year} and {self.year - 1} {self._get_units()}"
         year1, year2 = self.year, self.year - 1
         headers = ["", str(year1), str(year2)]
         widths = [45, 20, 20]
@@ -217,7 +219,7 @@ class IncomeStatementTableBuilder(FinancialStatementTable):
         # ------------------------------------------------------------------ #
         # 1. Header & layout
         # ------------------------------------------------------------------ #
-        title = f"Consolidated Statements of Income {self._get_units()}"
+        title = f"Consolidated Statements of Income\nFor the Years Ended {self.month} {self.day}, {self.year} and {self.year - 1} {self._get_units()}"
         year1, year2 = self.year, self.year - 1
         headers = ["", str(year1), str(year2)]
         widths = [45, 20, 20]
@@ -532,7 +534,7 @@ class CashFlowStatementTableBuilder(FinancialStatementTable):
     """Builds a simplified two-year comparative statement of cash flows."""
 
     def build(self) -> str:
-        title = f"Consolidated Statements of Cash Flows {self._get_units()}"
+        title = f"Consolidated Statements of Cash Flows\nFor the Years Ended {self.month} {self.day}, {self.year} and {self.year - 1} {self._get_units()}"
         year1, year2 = self.year, self.year - 1
         headers = ["", str(year1), str(year2)]
         widths = [45, 20, 20]

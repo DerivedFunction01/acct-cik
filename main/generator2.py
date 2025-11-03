@@ -2471,6 +2471,8 @@ def _generate_financial_statement_tables(scenario: GenerationScenario) -> List[s
 
         builder = builder_class(
             year=scenario.reporting_year,
+            month=scenario.reporting_month,
+            day=scenario.reporting_day,
             currency_symbol=currency_symbol,
             notional_multiplier=scenario.archetype.notional_multiplier,
             prefer_abbreviated=scenario.archetype.prefers_abbreviated_numbers,
