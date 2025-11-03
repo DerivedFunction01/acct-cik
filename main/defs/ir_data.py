@@ -6,7 +6,7 @@ from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
 # --- NEW: Import common verb lists for reuse --- (This was already here, but I'm confirming its good use)
 from defs.common_data import individual_use_verbs, aggregate_use_verbs, termination_verbs_past
-from defs.function_definitions import _get_company_reference
+from defs.function_definitions import _format_single_notional, _get_company_reference
 from defs.table_definitions import GenericTable
 
 
@@ -360,17 +360,70 @@ class DebtContextSentence: # Simplified to handle one item at a time
 
     def _build_debt_table(self) -> str:
         """Builds a text-based table summarizing the debt portfolio."""
-        from .function_definitions import _format_single_notional
-
         if not isinstance(self.hedged_item, list) or not self.hedged_item:
             return ""
 
-        title = f"Summary of Outstanding Debt as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
-        headers = ["Debt Instrument", "Principal Amount", "Interest Rate (%)", "Maturity"]
-        widths = [35, 20, 18, 12]
-        alignments = ['l', 'r', 'r', 'c']
-        data_rows = []
+        # --- NEW: Randomly choose one of several table formats ---
+        table_type = random.choice(["summary", "maturity_schedule", "rate_profile"])
 
+        # --- 1. Debt Portfolio Summary (existing logic) ---
+        if table_type == "summary":
+            title = f"Summary of Outstanding Debt as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+            headers = ["Debt Instrument", "Principal Amount", "Interest Rate (%)", "Maturity"]
+            widths = [35, 20, 18, 12]
+            alignments = ['l', 'r', 'r', 'c']
+            data_rows = []
+            for item in self.hedged_item:
+                principal_str = _format_single_notional(item.principal_amount, self.currency_symbol, self.prefer_abbreviated, True)
+                rate = (item.spread_bps / 100 if item.spread_bps else random.uniform(2.5, 8.5))
+                rate_str = f"{rate:.2f}"
+                maturity_str = str(item.maturity_year)
+                data_rows.append([item.debt_type, principal_str, rate_str, maturity_str])
+
+        # --- 2. Debt Maturity Schedule ---
+        elif table_type == "maturity_schedule":
+            title = f"Debt Maturities as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+            headers = ["Maturity Period", "Principal Amount Due"]
+            widths = [30, 25]
+            alignments = ['l', 'r']
+            maturity_groups = {"Less than 1 year": 0, "1-3 years": 0, "3-5 years": 0, "More than 5 years": 0}
+            for item in self.hedged_item:
+                years_to_maturity = item.maturity_year - self.reporting_year
+                if years_to_maturity <= 1:
+                    maturity_groups["Less than 1 year"] += item.principal_amount
+                elif 1 < years_to_maturity <= 3:
+                    maturity_groups["1-3 years"] += item.principal_amount
+                elif 3 < years_to_maturity <= 5:
+                    maturity_groups["3-5 years"] += item.principal_amount
+                else:
+                    maturity_groups["More than 5 years"] += item.principal_amount
+            data_rows = []
+            for group, total in maturity_groups.items():
+                if total > 0:
+                    amount_str = _format_single_notional(total, self.currency_symbol, self.prefer_abbreviated, True)
+                    data_rows.append([group, amount_str])
+
+        # --- 3. Interest Rate Profile ---
+        else: # rate_profile
+            title = f"Interest Rate Profile of Debt Portfolio as of {self.reporting_month} {self.reporting_day}, {self.reporting_year}"
+            headers = ["Debt Instrument", "Principal Amount", "Benchmark", "Spread (bps)", "Effective Rate (%)"]
+            widths = [30, 20, 15, 15, 20]
+            alignments = ['l', 'r', 'l', 'r', 'r']
+            data_rows = []
+            for item in self.hedged_item:
+                if not item.benchmark_rate or not item.spread_bps: continue # Skip items without detailed rate info
+                principal_str = _format_single_notional(item.principal_amount, self.currency_symbol, self.prefer_abbreviated, True)
+                benchmark_rate_val = random.uniform(1.5, 4.5) # Simulate a base rate
+                effective_rate = benchmark_rate_val + (item.spread_bps / 100)
+                data_rows.append([
+                    item.debt_type,
+                    principal_str,
+                    item.benchmark_rate,
+                    str(item.spread_bps),
+                    f"{effective_rate:.2f}"
+                ])
+
+        data_rows = []
         for item in self.hedged_item:
             principal_str = _format_single_notional(
                 item.principal_amount, self.currency_symbol, self.prefer_abbreviated, True
@@ -378,15 +431,12 @@ class DebtContextSentence: # Simplified to handle one item at a time
             rate = (item.spread_bps / 100 if item.spread_bps else random.uniform(2.5, 8.5))
             rate_str = f"{rate:.2f}"
             maturity_str = str(item.maturity_year)
-
             data_rows.append([item.debt_type, principal_str, rate_str, maturity_str])
 
         if not data_rows:
             return ""
 
-        table_builder = GenericTable(
-            headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title
-        )
+        table_builder = GenericTable(headers=headers, data_rows=data_rows, widths=widths, alignments=alignments, title=title)
         return table_builder.build()
 
     def _build_debt_sentence(self, item_to_describe: "DebtHedgedItem") -> str:
