@@ -881,7 +881,9 @@ class Table:
                 f"\nAs of {self.month} {self.day}, {year} (in {self.currency_symbol} {self.money_unit()})"
             )
             header = (
-                f"| {'Instrument':<45} | {'Notional Amount':>20} | {'Fair Value':>20} |"
+                f"| {'{suffix}':<45} | {'Notional Amount':>20} | {'Fair Value':>20} |".format(
+                    suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+                )
             )
             separator = "-" * len(header)
             all_rows.extend([header, separator])
@@ -900,7 +902,7 @@ class Table:
                     notional_val, inst.symbol, self.prefer_abbreviated, True
                 )
                 fair_val_str = _format_single_notional(
-                    fair_val, self.currency_symbol, self.prefer_abbreviated, True
+                    fair_val, inst.symbol, self.prefer_abbreviated, True
                 )
 
                 row_str = (
@@ -938,7 +940,7 @@ class Table:
                             notional_str=fair_val_str,
                             year=self.reporting_year,
                             instrument_type=name_to_use,
-                            reporting_year=self.reporting_year,
+                            reporting_year=self.reporting_year, # type: ignore
                             value_type="fair_value",
                             currency=inst.currency,
                             sentence_type="individual",  # From a table
@@ -1109,7 +1111,7 @@ class Table:
         value_type_str = random.choice(["Notional Amount", "Fair Value"])
         value_type: Literal["notional", "fair_value"] = "fair_value" if "Fair" in value_type_str else "notional"
 
-        header = f"| {'Instrument':<40} |  {year1:>15} | {year2:>15} |  {year3:>15} |"
+        header = f"| {'{suffix}':<40} |  {year1:>15} | {year2:>15} |  {year3:>15} |".format(suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"]))
         separator = "-" * len(header)
         rows = [header, separator]
 
@@ -1162,8 +1164,8 @@ class Table:
         if not active_instruments:
             return "", []
 
-        title = f"Gains and Losses on Cash Flow Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
-        header = f"| {'Derivative Instrument':<35} | {'Gain/(Loss) from AOCI':>25} | {'Affected Line Item in Income Statement':<40} |"
+        title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} (in {self.currency_symbol} {self.money_unit()})"
+        header = f"| {'Derivative {suffix}':<35} | {'Gain/(Loss) from AOCI':>25} | {'Affected Line Item in Income Statement':<40} |".format(suffix=random.choice(DERIVATIVE_COMPONENTS["suffixes"]))
         separator = "-" * len(header)
         rows = [title, header, separator]
 
@@ -1332,11 +1334,11 @@ class Table:
 
             if is_asset:
                 asset_val_str = _format_single_notional(
-                    fair_value, self.currency_symbol, self.prefer_abbreviated, True
+                    fair_value, inst.symbol, self.prefer_abbreviated, True
                 )
             else:
                 liab_val_str = _format_single_notional(
-                    fair_value, self.currency_symbol, self.prefer_abbreviated, True
+                    fair_value, inst.symbol, self.prefer_abbreviated, True
                 )
 
             row_str = f"| {inst.instrument_type:<45} | {asset_val_str:>20} | {liab_val_str:>22} |"
