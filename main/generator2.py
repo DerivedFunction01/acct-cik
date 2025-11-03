@@ -29,7 +29,7 @@ from defs.policy_definitions import (
 )
 from defs.scenario_definitions import AccountingStandardUpdate, company_names
 from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
-from defs.legal_data import LegalContextSentence
+from defs.legal_data import LegalContextSentence, ContextEvidence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
@@ -61,6 +61,7 @@ GENERATION_PROBABILITIES = {
     "add_other_pronouncements": 0.4, # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
     "can_have_accounting_update": 0.4, # Chance a scenario will include an accounting standard update section.
     "accounting_update_is_hedge_related": 0.5, # If an update is generated, the chance it's about hedging.
+    "legal_context": 0.25, # If we generate a paragraph on derivative lawsuits
 }
 
 # Probabilities for dropping narrative components to increase variety.
@@ -1368,6 +1369,21 @@ def _generate_narrative_policy(
             )
             sentence = counterparty_sentence_obj.build()
             sentences.append(sentence) # No evidence is generated for this policy statement
+            # --- NEW: With a chance, add a paragraph about legal proceedings ---
+        if random.random() < GENERATION_PROBABILITIES["legal_context"]:  # 20% chance to add legal context
+            legal_context_builder = LegalContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                currency_symbol=_get_currency_and_unit_details(scenario)[0],
+                currency_code=_get_currency_and_unit_details(scenario)[2],
+                prefer_abbreviated=scenario.number_format_preference,
+            )
+            legal_paragraph, legal_evidence = legal_context_builder.build()
+            if legal_paragraph:
+                sentences.append(legal_paragraph)
+                evidence.append(legal_evidence)
     return sentences, evidence
 
 
