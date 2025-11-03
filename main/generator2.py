@@ -2406,11 +2406,6 @@ def generate_json_from_scenario(
             or ev.notional is None
         ):
             continue
-        
-        # --- FIX: Explicitly skip timeline evidence from being added as an individual derivative ---
-        # Timelines are for context in the COT, but their data is often historical.
-        if ev.status == "timeline":
-            continue
 
         instrument_id = ev.instrument_id
 
