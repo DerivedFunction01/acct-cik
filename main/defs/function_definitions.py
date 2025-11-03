@@ -2,30 +2,6 @@ import random
 import re
 from typing import Literal, Optional
 
-# A set of common currency symbols to differentiate them from units
-KNOWN_CURRENCY_SYMBOLS = {
-    "$",
-    "€",
-    "£",
-    "¥",
-    "CHF",
-    "kr",
-    "zł",
-    "Ft",
-    "Kč",
-    "₺",
-    "₽",
-    "лв",
-    "lei",
-    "₩",
-    "฿",
-    "RM",
-    "R$",
-    "د.إ",
-    "ر.س",
-    "₹",
-}
-
 
 def _format_single_notional(
     amount: int | float,
@@ -51,6 +27,12 @@ def _format_single_notional(
          1 → parentheses only around the number, e.g. '$(2.5) million' or '(2.5) million barrels'
          2 → minus sign after currency symbol, e.g. '$-250.0 million' (currency only)
     """
+    from defs.fx_data import all_currencies
+
+    # A set of common currency symbols to differentiate them from units
+    KNOWN_CURRENCY_SYMBOLS = {c.symbol for c in all_currencies} | {
+        c.code for c in all_currencies
+    }
     if amount == 0:
         if zero_format in ["nil", "zero"]:
             return zero_format
