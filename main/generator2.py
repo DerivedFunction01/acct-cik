@@ -2406,6 +2406,11 @@ def generate_json_from_scenario(
             or ev.notional is None
         ):
             continue
+        
+        # --- FIX: Explicitly skip timeline evidence from being added as an individual derivative ---
+        # Timelines are for context in the COT, but their data is often historical.
+        if ev.status == "timeline":
+            continue
 
         instrument_id = ev.instrument_id
 
@@ -2422,7 +2427,7 @@ def generate_json_from_scenario(
             is_terminated_evidence = (
                 (ev.maturity_value is not None and ev.maturity_value > 0) or 
                 (ev.maturity_year and ev.maturity_year <= scenario.reporting_year)
-                or ev.notional == 0
+                or (ev.notional == 0 and ev.year == scenario.reporting_year)
                 or ev.sentence_type in ["terminated_individual", "comparative_no_outstanding", "historical_individual"]
             )
 
@@ -2432,7 +2437,7 @@ def generate_json_from_scenario(
                 "type": instrument_obj.instrument_type if instrument_obj else (ev.instrument_type or "Unknown"),
                 "category": instrument_obj.category if instrument_obj else ev.category,
                 "status": "current",
-                "amount": ev.notional,
+                "amount": ev.notional, # This will be updated if more evidence is found
                 "currency": instrument_obj.currency if instrument_obj else ev.currency,
                 "value_type": ev.value_type.replace("_", " "),
                 "level": "individual",
@@ -2449,6 +2454,8 @@ def generate_json_from_scenario(
             and (ev.sentence_type == "summary" or ev.status == "summary")
             and ev.notional is not None
             and ev.notional > 0
+            and ev.year == scenario.reporting_year # Only include current year summaries
+            and ev.status != "timeline" # Exclude timelines
         ):
             derivatives_list.append(
                 {

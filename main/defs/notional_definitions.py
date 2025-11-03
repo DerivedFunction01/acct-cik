@@ -887,19 +887,28 @@ class TimelineSentence:
         evidence_list = []
 
         # --- Select years and sort them ---
-        # --- FIX: Filter out years from history that are after the instrument's maturity date ---
-        history_years = sorted([
-            year for year in self.instrument.notional_history.keys()
-            if self.instrument.maturity_year and year <= self.instrument.maturity_year
+        # --- FIX: Handle active instruments correctly by not filtering future years ---
+        # Get all years from history where the notional was greater than zero.
+        active_history_years = sorted([
+            year for year, notional in self.instrument.notional_history.items() if notional > 0
         ])
+
+        # If the instrument is terminated, ensure we don't include years after maturity.
+        if self.instrument.maturity_year and self.instrument.maturity_year < self.reporting_year:
+            history_years = [y for y in active_history_years if y <= self.instrument.maturity_year]
+        else:
+            # For active instruments, use all of its active history.
+            history_years = active_history_years
+
         years_to_report = []
         if len(history_years) > 2:
-            # Select start, a middle point, and the most recent year before the reporting year
+            # Select start, a middle point, and the most recent year from its history.
             years_to_report.append(history_years[0])  # Inception year
             if len(history_years) > 3:
                 mid_index = len(history_years) // 2
                 years_to_report.append(history_years[mid_index])
-            # Add the most recent year that is not the inception year
+            
+            # Add the most recent year from its history, which could be the current reporting year.
             if history_years[-1] != history_years[0]:
                 years_to_report.append(history_years[-1])
         else:
