@@ -2224,7 +2224,7 @@ def _generate_narrative_accounting(
             if category_sentences:
                 # After the first successful run, all subsequent runs should be specifics-only
                 is_first_policy_run = False
-                all_paragraphs.append(" ".join(s.strip() for s in category_sentences))
+                all_paragraphs.append(" ".join(s for s in category_sentences))
 
     return all_paragraphs, all_evidence
 
@@ -2274,7 +2274,7 @@ def generate_narrative_from_scenario(
     # 1. Generate the top-level general policy statement.
     policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
     if policy_sentences: # This becomes its own section
-        item_7a_sections.append(" ".join(s.strip() for s in policy_sentences if s))
+        item_7a_sections.append(" ".join(s for s in policy_sentences if s))
         all_evidence.extend(policy_evidence)
 
     # 2. Category-Specific Sections (IR, FX, CP, etc.)
@@ -2307,7 +2307,7 @@ def generate_narrative_from_scenario(
                 mentioned_instrument_types=mentioned_instrument_types,
                 allow_random_drops=allow_random_drops,
             )
-            item_7a_sections.append(" ".join(s.strip() for s in summary_sentences if s))
+            item_7a_sections.append(" ".join(s for s in summary_sentences if s))
             all_evidence.extend(summary_evidence)
 
     # --- NEW: Part 2.5: Build the dedicated "Debt" Section ---
@@ -2358,7 +2358,7 @@ def generate_narrative_from_scenario(
             )
             # NEW: Join the generated paragraphs with newlines.
             # This ensures timelines and individual instruments get their own paragraphs.
-            category_details_paragraph = "\n\n".join(s.strip() for s in detail_sentences if s)
+            category_details_paragraph = "\n\n".join(s for s in detail_sentences if s)
             derivative_details_sections.append(category_details_paragraph)
             all_evidence.extend(detail_evidence)
 
@@ -2411,7 +2411,7 @@ def generate_narrative_from_scenario(
     # Let's add it to the end of the details for now.
     if accounting_sentences and derivative_details_sections:
         # --- MODIFIED: Join with newlines to create separate paragraphs ---
-        accounting_section_paragraph = "\n\n".join(s.strip() for s in accounting_sentences if s)
+        accounting_section_paragraph = "\n\n".join(s for s in accounting_sentences if s)
         derivative_details_sections.append(accounting_section_paragraph)
         all_evidence.extend(accounting_evidence)
 
