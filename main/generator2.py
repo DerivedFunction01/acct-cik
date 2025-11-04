@@ -3549,8 +3549,7 @@ def generate_json_from_scenario(
         instrument_evidence_map[unique_key] = {
             "type": inst_type.strip(),
             "category": category,
-            "status": "current",
-            "amount": ev.notional,  # This will be updated if more evidence is found
+            "amount": ev.notional or "unknown",  # This will be updated if more evidence is found
             "currency": currency,
             "value_type": value_type,
             "level": "individual",
@@ -3575,8 +3574,7 @@ def generate_json_from_scenario(
                     "type": ev.instrument_type,
                     "category": ev.category,
                     "level": "aggregate",
-                    "status": "current",
-                    "amount": ev.notional,
+                    "amount": ev.notional or "unknown",
                     "currency": ev.currency,
                     "value_type": ev.value_type.replace("_", " ")
                 }
