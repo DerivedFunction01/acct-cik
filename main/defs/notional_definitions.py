@@ -727,6 +727,7 @@ class NotionalSentence:
                     )
                     + "s"
                 ),
+                risk_management_verb=random.choice(risk_management_verbs),
             )
             evidence = NotionalEvidence(
                 status="no_instruments",
@@ -810,11 +811,11 @@ class NotionalSentence:
             status=self.sentence_type,  # type: ignore
             category=self.category,  # type: ignore
             aggregate=self.is_summary,
-            notional=_get_correct_rounding(final_notional or 0, self.notional_multiplier),  # Use the conditional notional value
-            prev_notional=_get_correct_rounding(self.prev_notional or 0, self.notional_multiplier) if self.sentence_type.startswith("comparative") else None,
-            prev2_notional=_get_correct_rounding(self.prev2_notional or 0, self.notional_multiplier) if self.sentence_type.startswith("comparative") else None,
+            notional=_get_correct_rounding(final_notional, self.notional_multiplier),  # Use the conditional notional value
+            prev_notional=_get_correct_rounding(self.prev_notional, self.notional_multiplier) if self.sentence_type.startswith("comparative") else None,
+            prev2_notional=_get_correct_rounding(self.prev2_notional, self.notional_multiplier) if self.sentence_type.startswith("comparative") else None,
             year=self.year,
-            notional_str=final_notional_str,
+            notional_str=final_notional_str or None,
             prev_notional_str=prev_amount_str or None,
             instrument_type=self.swap_type, # type: ignore
             maturity_year=self.maturity_year if self.sentence_type == "terminated_individual" else None,

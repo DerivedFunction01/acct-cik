@@ -127,48 +127,65 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     # For aggregate summaries of multiple instruments in a single period.
     "summary": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, {company} {verb} {swap_type} {hedge_designation_clause} {result_clause}.",  # no amount
         "{time_prefix}, {swap_type} {amount_connector} {amount_str} was {verb} by {company} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, {swap_type} was {verb} by {company} {hedge_designation_clause} {result_clause}.",  # no amount
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
+        "{company} {verb} {swap_type} {time_suffix} {hedge_designation_clause} {result_clause}.",  # no amount
         "{time_prefix}, the {amount_prefix} of the {swap_type} was {amount_str} {result_clause}.",
         "The {amount_prefix} of the {swap_type} was {amount_str} {time_suffix} {result_clause}.",
         # Using portfolio terms (ex. portfolio consists of swap)
         "{time_prefix}, {company}'s {portfolio_term} {portfolio_verb} {swap_type} has {amount_str} {hedge_designation_clause} {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause}.",
+        "{begin_mitigation} {company} {verb} {swap_type} {time_suffix} {hedge_designation_clause}.",  # no amount
     ],
     # For describing an instrument that was newly created in the reporting period.
     "new_individual": [
         "{time_prefix}, {company} {verb} __article__ {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, {company} {verb} __article__ {swap_type} {hedge_designation_clause} {result_clause}.",  # no amount
         "{company} {verb} __article__ {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
+        "{company} {verb} __article__ {swap_type} {time_suffix} {hedge_designation_clause} {result_clause}.",  # no amount
         "{time_prefix}, __article__ {swap_type} {amount_connector} {amount_str} was {verb} by {company} {hedge_designation_clause} {result_clause}.",
-        "{time_prefix}, __article__ {swap_type} was entered into with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, __article__ {swap_type} was {verb} by {company} {hedge_designation_clause} {result_clause}.",  # no amount
+        "{time_prefix}, __article__ {swap_type} was {verb} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, __article__ {swap_type} was {verb} {hedge_designation_clause} {result_clause}.",  # no amount
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} __article__ {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause}.",
+        "{begin_mitigation} {company} {verb} __article__ {swap_type} {time_suffix} {hedge_designation_clause}.",  # no amount
     ],
     # For instruments that ended, matured, or were settled during a period.
     "terminated_individual": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}.",
+        "{time_prefix}, {company} {verb} {swap_type}.",  # no amount
         "{time_prefix}, __article__ {swap_type} with a {amount_prefix} of {amount_str} was {verb} by {company}.",
+        "{time_prefix}, __article__ {swap_type} was {verb} by {company}.",  # no amount
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix}.",
+        "{company} {verb} {swap_type} {time_suffix}.",  # no amount
         "{time_prefix}, {swap_type} with a {amount_prefix} of {amount_str} were {verb}.",
+        "{time_prefix}, {swap_type} were {verb}.",  # no amount
         "The {swap_type}, which had a {amount_prefix} of {amount_str}, reached {termination_noun} in {year}.",
+        "The {swap_type} reached {termination_noun} in {year}.",  # no amount
         "In {year}, the {swap_type} {verb}, concluding with a {amount_prefix} of {amount_str}.",
         "The {swap_type} {verb} in {year}, having a {amount_prefix} of {amount_str} at {termination_noun}.",
     ],
     # For comparing values across multiple years (e.g., "...totaling $100M and $120M, respectively...").
     "comparative": [
-        "{company} {verb} {swap_type} {amount_connector} {amount_str}, respectively, {time_suffix} {hedge_designation_clause} {result_clause}.",
-        "{time_prefix}, {company} were party to {swap_type} totaling {amount_str}, respectively {result_clause}.",
-        "The aggregate {amount_prefix} of the {swap_type} were {amount_str} {time_suffix}, respectively {result_clause}.",
+        "{company} {verb} {swap_type} {amount_connector} {amount_str}, {time_suffix} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, {company} {verb} {swap_type} totaling {amount_str}, respectively {result_clause}.",
+        "The aggregate {amount_prefix} of the {swap_type} were {amount_str} {time_suffix}, {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
-        "{begin_mitigation} {company} held {swap_type} with aggregate {amount_prefix}s of {amount_str}, respectively, {time_suffix}.",
+        "{begin_mitigation} {company} held {swap_type} with aggregate {amount_prefix}s of {amount_str}, {time_suffix}.",
     ],
     # For describing a single, active instrument in the current period.
     "individual": [
         "{time_prefix}, {company} {verb} __article__ {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "{time_prefix}, {company} {verb} __article__ {swap_type} {hedge_designation_clause} {maturity_clause} {result_clause}.",  # no amount
         "__article__ {swap_type} was {state_descriptor} {time_suffix}, with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "__article__ {swap_type} was {state_descriptor} {time_suffix}, {hedge_designation_clause} {maturity_clause} {result_clause}.",  # no amount
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} __article__ {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
+        "{begin_mitigation} {company} {verb} __article__ {swap_type} {time_suffix} {hedge_designation_clause} {maturity_clause}.",  # no amount
     ],
     # For describing an instrument that existed in a prior year but is still active.
     "historical_individual": [
@@ -201,27 +218,29 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     ],
     # For cases where there were instruments in a prior year, but none in the current year.
     "comparative_no_outstanding": [
-        "{time_prefix}, {company} had no {state_descriptor} {swap_type}, compared to {amount_str} in the prior year.",
-        "There were no {state_descriptor} {swap_type} {time_suffix}, down from {amount_str} at year-end {prev_year}.",
-        "All {swap_type} {historical_phrase}, which had a {amount_prefix} of {amount_str}, were terminated or expired by year-end {year}.",
-        "{company} did not hold any {swap_type} as of {month} {end_day}, {year}, {comparison_phrase} the prior year-end balance was {amount_str}.",
+        "{time_prefix}, {company} {verb} no {state_descriptor} {swap_type}, {comparison_phrase} {amount_str} in the prior year.",
+        "There were no {state_descriptor} {swap_type} {time_suffix}, {comparison_phrase} {amount_str} at year-end {prev_year}.",
+        "All {swap_type} {historical_phrase}, which had a {amount_prefix} of {amount_str}, reached {termination_noun} by year-end {year}.",
+        "{company} did not {verb} any {swap_type} as of {month} {end_day}, {year}, {comparison_phrase} the prior year-end balance was {amount_str}.",
     ],
     # For cases where there are instruments now, but there were none in the prior year.
     "comparative_no_prior_outstanding": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}, {comparison_phrase} no such instruments were {state_descriptor} in the prior year.",
+        "{time_prefix}, {company} {verb} {swap_type} {hedge_designation_clause} {result_clause}, {comparison_phrase} no such {swap_type} were {state_descriptor} at {prev_year}.",  # no amount
         "{time_prefix}, {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}; no comparable instruments were {state_descriptor} during {prev_year}.",
-        "The {amount_prefix} of {swap_type} was {amount_str} {time_suffix} {result_clause}; there were no such instruments reported in {prev_year}.",
-        "{company} initiated the use of {swap_type} {time_suffix}, with an outstanding {amount_prefix} of {amount_str}, {comparison_phrase} none existing in the prior year.",
-        "Activity in {swap_type} commenced {time_suffix}, resulting in a {amount_prefix} of {amount_str}, up from zero in the previous year.",
+        "The {amount_prefix} of {swap_type} was {amount_str} {time_suffix} {result_clause}; there were no such instruments {verb} in {prev_year}.",
+        "{company} initiated the use of {swap_type} {time_suffix}, with an outstanding {amount_prefix} of {amount_str}, {comparison_phrase} none existing at {prev_year}.",
+        "Activity in {swap_type} commenced {time_suffix}, resulting in a {amount_prefix} of {amount_str}, {comparison_phrase} zero in the previous year.",
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} {verb} {swap_type} with a {amount_prefix} of {amount_str} {time_suffix}, {comparison_phrase} no such instruments were held in the prior year.",
+        "{begin_mitigation} {company} {verb} {swap_type} {time_suffix}, {comparison_phrase} no such {swap_type} were {verb} in {prev_year}.",
     ],
 }
 
 # Templates for when no derivatives are outstanding for a given category for all years
 # These templates are designed to be flexible and use other predefined template variables.
 NO_INSTRUMENTS_TEMPLATES = [
-    "{time_prefix}, {company} {verb} no {state_descriptor} {swap_type} to hedge against {category_risk_phrase} risk.",
+    "{time_prefix}, {company} {verb} no {state_descriptor} {swap_type} to {risk_management_verb} against {category_risk_phrase} risk.",
     "{time_prefix}, there were no {state_descriptor} {swap_type}.",
     "{company} did not {verb} any {swap_type} {time_suffix}.",
     "As of {month} {end_day}, {year}, the amounts of {state_descriptor} {swap_type} were {immaterial_term}.",
@@ -230,18 +249,18 @@ NO_INSTRUMENTS_TEMPLATES = [
     "{time_prefix}, {company} did not {verb} any {portfolio_term} for {category_risk_phrase} hedging purposes.",
     "During the period, {company} was not a party to any {swap_type}.",
     "{company} {verb} no {state_descriptor} derivative positions as of year-end {year}.",
-    "No {portfolio_term} were {verb} by {company} {time_suffix} for hedging {category_risk_phrase} risk."
+    "No {portfolio_term} were {verb} by {company} {time_suffix} for hedging {category_risk_phrase} risk.",
 ]
 
 # Templates for "no trading" policy statements
 hedge_no_trading_templates = [
-    "{company} does not enter into derivative transactions for trading purposes.",
-    "{company}'s policy prohibits the use of derivatives for speculative or trading purposes.",
+    "{company} does not {verb} derivative transactions for trading purposes.",
+    "{company}'s policy prohibits the {verb} of derivatives for speculative or trading purposes.",
     "Derivatives are {verb} solely for hedging and risk management, not for speculative trading.",
-    "{company} does not engage in derivative transactions for speculative purposes.",
+    "{company} does not {verb} derivative transactions for speculative purposes.",
     "All derivative transactions are {verb} for hedging purposes and not for trading or speculation.",
     "The use of derivatives is strictly limited to hedging activities, not for speculative trading.",
-    "{company} does not utilize derivative instruments for speculative purposes.",
+    "{company} does not {verb} derivative instruments for speculative purposes.",
     "Derivatives are {verb} exclusively for hedging identified risks, not for trading gains.",
     "{company} maintains a strict policy against using derivatives for speculative trading.",
     "No derivative transactions are {verb} for trading or speculative activities.",
@@ -249,7 +268,7 @@ hedge_no_trading_templates = [
     "{company} prohibits speculative derivative activities.",
     "The company's derivative strategy is focused on risk mitigation, not trading.",
     "Derivatives are {verb} for hedging purposes only, not for speculation.",
-    "{company} does not engage in speculative derivative transactions.",
+    "{company} does not {verb} speculative derivative transactions.",
     "All derivative activities are non-trading in nature.",
     "Derivatives are {verb} to hedge specific risks, not for market speculation.",
     "{company} has a policy against using derivatives for trading profits.",
@@ -259,7 +278,7 @@ hedge_no_trading_templates = [
     "Derivatives are {verb} exclusively for risk management, not for trading income.",
     "The company's derivative policy forbids speculative trading.",
     "All derivative transactions are {verb} for hedging purposes, not for trading purposes.",
-    "{company} does not use derivatives for speculative investments.",
+    "{company} does not {verb} derivatives for speculative investments.",
 ]
 
 # Templates for counterparty risk policy statements
@@ -283,18 +302,14 @@ hedge_counterparty_templates = [
 
 # Hedge designation phrases (optional endings)
 hedge_designations = [
-    "",
-    "designated as hedges",
-    "designated as hedging instruments",
-    "not designated as hedges",
-    "not designated as hedging instruments",
-    "designated as {hedge_type} hedges",
-    "used for hedging purposes",
-    "remaining designated as hedges",
-    "as part of its hedging strategy",
-    "as part of its risk management strategy",
-    "within its hedging program",
-    "and is a highly effective {hedge_type} hedge on hedged item",
+    "{hedged} designated as {hedge_type} hedges",
+    "{hedged} designated as {hedge_type} hedging instruments",
+    "{hedged} designated as {hedge_type} hedges",
+    "{hedged} used for {hedge_type} hedging purposes",
+    "remaining {hedged} designated as {hedge_type} hedges",
+    "as {hedged} part of its {hedge_type} hedging strategy",
+    "as {hedged} part of its risk management strategy",
+    "{hedged} within its {hedge_type} hedging program",
 ]
 hedge_types = [
     "net investment",

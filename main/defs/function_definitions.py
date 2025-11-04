@@ -111,12 +111,14 @@ def _format_single_notional(
 
     return base
 
-def _get_correct_rounding(amount: int | float, multiplier: int):
+def _get_correct_rounding(amount: Optional[int | float], multiplier: int) -> Optional[int]:
     """
     Rounds an amount to the nearest significant figure based on the multiplier,
     matching the .1f formatting used for abbreviated numbers.
     For example, with a multiplier of 1,000,000, 1,234,567 becomes 1,200,000.
     """
+    if not amount:
+        return None
     if multiplier <= 1:
         return round(amount)
 
