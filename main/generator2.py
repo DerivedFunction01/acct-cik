@@ -3280,16 +3280,24 @@ def generate_json_from_scenario(
 
     # --- NEW: Process and append the consolidated accounting evidence ---
     if accounting_evidence_list:
-        hedge_standards = {ev.standard_name for ev in accounting_evidence_list if "hedging" in ev.details.lower() or "derivative" in ev.details.lower()}
-        other_standards = {ev.standard_name for ev in accounting_evidence_list if ev.standard_name not in hedge_standards}
-        
-        accounting_reasoning = "The text also discusses accounting standard updates"
-        if hedge_standards:
-            accounting_reasoning += f" related to derivatives and hedging (e.g., {', '.join(sorted(list(hedge_standards)))})"
-        if other_standards:
-            separator = " and " if hedge_standards else ""
-            accounting_reasoning += f"{separator}other topics (e.g., {', '.join(sorted(list(other_standards)))})"
-        accounting_reasoning += "."
+        # Group evidence by standard name to summarize its status
+        standard_status_map = {}
+        for ev in accounting_evidence_list:
+            if ev.standard_name not in standard_status_map:
+                standard_status_map[ev.standard_name] = set()
+            standard_status_map[ev.standard_name].add(ev.adoption_status)
+
+        summary_parts = []
+        for std_name, statuses in standard_status_map.items():
+            # Create a summary like "evaluating the impact of ASC 842" or "has adopted ASU 2016-13"
+            status_str = " and ".join(sorted(list(statuses)))
+            summary_parts.append(f"{status_str.replace('_', ' ')} {std_name}")
+
+        accounting_reasoning = (
+            "The text discusses accounting policies, including "
+            + ", ".join(summary_parts)
+            + ", which provides context but does not confirm derivative usage."
+        )
         chain_of_thought += "\n" + accounting_reasoning
 
     # If there were any exposure-only mentions, join them into a single sentence and append it.
