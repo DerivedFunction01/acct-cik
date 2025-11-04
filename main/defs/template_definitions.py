@@ -164,16 +164,16 @@ NOTIONAL_SENTENCE_TEMPLATES = {
         "{company} {verb} {swap_type} {time_suffix}.",  # no amount
         "{time_prefix}, {swap_type} with a {amount_prefix} of {amount_str} were {verb}.",
         "{time_prefix}, {swap_type} were {verb}.",  # no amount
-        "The {swap_type}, which had a {amount_prefix} of {amount_str}, reached {termination_noun} in {year}.",
-        "The {swap_type} reached {termination_noun} in {year}.",  # no amount
-        "In {year}, the {swap_type} {verb}, concluding with a {amount_prefix} of {amount_str}.",
-        "The {swap_type} {verb} in {year}, having a {amount_prefix} of {amount_str} at {termination_noun}.",
+        "__article__ {swap_type}, which had a {amount_prefix} of {amount_str}, reached {termination_noun} in {year}.",
+        "__article__ {swap_type} reached {termination_noun} in {year}.",  # no amount
+        "In {year}, __article__ {swap_type} {verb}, concluding with a {amount_prefix} of {amount_str}.",
+        "__article__ {swap_type} {verb} in {year}, having a {amount_prefix} of {amount_str} at {termination_noun}.",
     ],
     # For comparing values across multiple years (e.g., "...totaling $100M and $120M, respectively...").
     "comparative": [
         "{company} {verb} {swap_type} {amount_connector} {amount_str}, {time_suffix} {hedge_designation_clause} {result_clause}.",
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}, respectively {result_clause}.",
-        "The {amount_prefix} of the {swap_type} were {amount_str} {time_suffix}, {result_clause}.",
+        "The {amount_prefix} of __article__ {swap_type} were {amount_str} {time_suffix}, {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
         "{begin_mitigation} {company} held {swap_type} with {amount_connector} of {amount_str}, {time_suffix}.",
     ],
@@ -220,7 +220,7 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     "comparative_no_outstanding": [
         "{time_prefix}, {company} {verb} no {state_descriptor} {swap_type}, {comparison_phrase} {amount_str} in the prior year.",
         "There were no {state_descriptor} {swap_type} {time_suffix}, {comparison_phrase} {amount_str} at year-end {prev_year}.",
-        "All {swap_type} {historical_phrase}, which had a {amount_prefix} of {amount_str}, reached {termination_noun} by year-end {year}.",
+        "__article__ {swap_type} {historical_phrase}, which had a {amount_prefix} of {amount_str}, reached {termination_noun} by year-end {year}.",
         "{company} did not {verb} any {swap_type} as of {month} {end_day}, {year}, {comparison_phrase} the prior year-end balance was {amount_str}.",
     ],
     # For cases where there are instruments now, but there were none in the prior year.
