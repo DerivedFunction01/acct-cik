@@ -6,7 +6,7 @@ from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
 # --- NEW: Import common verb lists for reuse --- (This was already here, but I'm confirming its good use)
 from defs.common_data import individual_use_verbs, aggregate_use_verbs, termination_verbs_past
-from defs.function_definitions import _format_single_notional, _get_company_reference
+from defs.function_definitions import _cleanup_sentence, _format_single_notional, _get_company_reference
 from defs.table_definitions import GenericTable
 
 
@@ -353,14 +353,19 @@ debt_action_verbs = {
     "balance": list(set(["had", "held", "maintained"] + aggregate_use_verbs)),
 }
 
+debt_strategy_templates = [
+    "{company} utilizes a combination of fixed and variable rate debt to {risk_action_verb} its {ir_term} exposure.",
+    "{company} maintains a portfolio of both fixed and variable rate debt to {risk_action_verb} the impact of {ir_term} {risk_term}.",
+    "To {risk_action_verb} its exposure to {ir_term} {risk_term}, {company} employs a mix of fixed-rate and variable-rate debt instruments.",
+    "The company's debt portfolio includes both fixed and variable rate instruments to provide a natural hedge against {ir_term} movements.",
+]
 
 @dataclass
-class DebtContextSentence: # Simplified to handle one item at a time
+class DebtContextSentence:  # Simplified to handle one item at a time
     """
     Builds a multi-sentence paragraph providing context about a single debt instrument.
     This class is defined here to live alongside its debt-specific templates.
     """
-    # --- NEW: Allow a list of items for table generation ---
     company_name: str
     reporting_year: int
     reporting_month: str
@@ -369,7 +374,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
     hedged_item: Union["DebtHedgedItem", List["DebtHedgedItem"]]
     prefer_abbreviated: bool
     currency_symbol: str = "$"
-    instrument: Optional["IRInstrument"] = None # Pass instrument to know if it's hedged
+    instrument: Optional["IRInstrument"] = None  # Pass instrument to know if it's hedged
     more_detail: bool = False
 
     def build(self) -> str:
@@ -475,9 +480,11 @@ class DebtContextSentence: # Simplified to handle one item at a time
             termination_noun,
             termination_verbs_past,
             interest_rate_terms,
+            risk_management_verbs,
             frequencies,
             state_descriptors,
-            quarters
+            quarters,
+            risk_exposure_terms
         )
 
         sentences = []
@@ -544,14 +551,16 @@ class DebtContextSentence: # Simplified to handle one item at a time
         sentences.append(_cleanup_sentence(main_sentence))
 
         # --- 2. Optionally, add a second sentence about a specific event ---
-        if random.random() < 0.4: # 40% chance to add a second sentence
+        if random.random() < 0.4:  # 40% chance to add a second sentence
             event_type = random.choice(["issuance", "repayment", "refinancing"])
             template = random.choice(debt_templates[event_type])
 
             # --- NEW: Use dynamic time prefixes for events ---
             event_time_prefix_template = random.choice(period_of_time_prefixes)
             event_time_prefix = event_time_prefix_template.format(
-                month=item_to_describe.issuance_month or random.choice(months), year=self.reporting_year, quarter=random.choice(quarters)
+                month=item_to_describe.issuance_month or random.choice(months),
+                year=self.reporting_year,
+                quarter=random.choice(quarters),
             )
 
             capex_purpose = random.choice(CAPEX_PURPOSES["generic"])
@@ -559,9 +568,13 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 company=self.company_name,
                 action_verb=random.choice(debt_action_verbs.get(event_type, [""])),
                 debt_type=item_to_describe.debt_type,
-                debt_types=item_to_describe.debt_type, # debt_types is often plural, but using singular is fine here
+                debt_types=item_to_describe.debt_type,  # debt_types is often plural, but using singular is fine here
                 amount_str=debt_amount_str,
-                amount_str2=_format_single_notional(item_to_describe.principal_amount * random.uniform(0.8, 1.2), self.currency_symbol,  self.prefer_abbreviated),
+                amount_str2=_format_single_notional(
+                    item_to_describe.principal_amount * random.uniform(0.8, 1.2),
+                    self.currency_symbol,
+                    self.prefer_abbreviated,
+                ),
                 interest_rate_clause=ir_clause,
                 maturity_clause=maturity_clause,
                 purpose_clause=f"general corporate purposes, including {capex_purpose}",
@@ -572,10 +585,48 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 month=item_to_describe.issuance_month or random.choice(months),
                 termination_noun=random.choice(termination_noun),
                 state_descriptor=random.choice(state_descriptors),
-                **{key: "" for key in ["pct", "pct2", "small_int", "frequency", "swap_type", "end_day"]} # Add other placeholders as needed
+                **{
+                    key: ""
+                    for key in [
+                        "pct",
+                        "pct2",
+                        "small_int",
+                        "frequency",
+                        "swap_type",
+                        "end_day",
+                    ]
+                },  # Add other placeholders as needed
             )
             sentences.append(_cleanup_sentence(event_sentence))
         if self.more_detail:
+            # --- NEW: Optionally, add a sentence about the mix of fixed/variable debt ---
+            if random.random() < 0.4:  # 40% chance to add this strategy sentence
+                # Dynamically build the strategy sentence using MITIGATION_TEMPLATES
+                from defs.template_definitions import MITIGATION_TEMPLATES
+                from defs.common_data import risk_exposure_terms, interest_rate_terms
+
+                # This will be the core purpose, e.g., "to manage interest rate exposure"
+                mitigation_phrase = random.choice(MITIGATION_TEMPLATES["IR"]).format(
+                    risk_action_verb=random.choice(risk_management_verbs),
+                    ir_term=random.choice(interest_rate_terms),
+                    debt_type=item_to_describe.debt_type,
+                    risk_term=random.choice(risk_exposure_terms),
+                    risk_term2=random.choice(risk_exposure_terms),
+                    rate_term1=random.choice(interest_rate_terms),
+                    rate_term2=random.choice(interest_rate_terms),
+                    currencies="",  # Not applicable for IR
+                    geography="",  # Not applicable for IR
+                    commodity="",  # Not applicable for IR
+                )
+
+                # Combine it with a leading phrase
+                strategy_sentence = (
+                    f"{mitigation_phrase}, {{company}} {{verb}} a combination of fixed and variable rate debt."
+                ).format(
+                    company=_get_company_reference(self.company_name),
+                    verb=random.choice(aggregate_use_verbs),
+                )
+                sentences.append(_cleanup_sentence(strategy_sentence))
             # --- NEW: Add 2-3 more sentences for extra detail ---
             
             # Define a dictionary of all possible placeholders to format any template
@@ -584,8 +635,7 @@ class DebtContextSentence: # Simplified to handle one item at a time
                 "debt_type": item_to_describe.debt_type,
                 "amount_str": debt_amount_str,
                 "amount_str2": _format_single_notional(
-                    item_to_describe.principal_amount * random.uniform(0.8, 1.2),
-                    self.currency_symbol,  self.prefer_abbreviated
+                    item_to_describe.principal_amount * random.uniform(0.8, 1.2), self.currency_symbol, self.prefer_abbreviated
                 ),
                 "month": self.reporting_month,
                 "end_day": self.reporting_day,
