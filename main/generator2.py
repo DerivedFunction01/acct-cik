@@ -35,6 +35,7 @@ from defs.noise_definitions import BalanceSheetTableBuilder, CashFlowStatementTa
 from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 from defs.ownership_data import HedgeFundContextEvidence, OwnershipContextSentence
+from defs.function_definitions import _cleanup_counter
 
 DEBUG = True
 
@@ -3060,6 +3061,8 @@ def generate_narrative_from_scenario(
     narrative_sections.extend(derivative_details_sections)
     narrative = "\n\n".join(section for section in narrative_sections if section)
     # strip out more than 2 newlines
+    # --- NEW: Final cleanup for ordinal counters ---
+    narrative = _cleanup_counter(narrative)
     narrative = re.sub(r"\n{3,}", "\n\n", narrative)
     # Prepend the reporting year tag.
     full_narrative = (

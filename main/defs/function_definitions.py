@@ -1,10 +1,11 @@
 import random
 import re
-from typing import Literal, Optional
+from typing import Dict, Literal, Optional
 
 # --- NEW: Global cache for currencies to avoid circular import overhead ---
 _ALL_CURRENCIES = None
 
+from num2words import num2words
 
 def _format_single_notional(
     amount: int | float,
@@ -211,6 +212,28 @@ def _cleanup_sentence(sentence: str) -> str:
     sentence = ARTICLE_PATTERN.sub(replace_article, sentence)
 
     return sentence
+
+
+def _cleanup_counter(narrative: str) -> str:
+    """
+    Finds all instances of `__counter__<type>` and replaces them with ordinal
+    numbers like "a second", "a third", etc., based on their appearance order.
+    """
+    # Regex to find the placeholder and capture the instrument type
+    counter_pattern = re.compile(r"__counter__(\S+)")
+
+    # Dictionary to keep track of the counts for each instrument type
+    type_counts: Dict[str, int] = {}
+
+    def replace_with_ordinal(match):
+        instrument_type = match.group(1)
+        # Increment the count for this type. The first time we see a type, it will be 1.
+        # Since the counter is for the *second* mention onwards, we start counting at 2.
+        type_counts[instrument_type] = type_counts.get(instrument_type, 1) + 1
+        ordinal = num2words(type_counts[instrument_type], to="ordinal")
+        return f"a {ordinal}"
+
+    return counter_pattern.sub(replace_with_ordinal, narrative)
 
 def _get_company_reference(company_name: str, chance: float = 0.25) -> str:
     """Randomly returns either the full company name or a generic placeholder."""

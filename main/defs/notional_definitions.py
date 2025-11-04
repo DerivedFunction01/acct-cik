@@ -541,7 +541,15 @@ class NotionalSentence:
         if self.is_repeated_mention:
             # Prepend a word to clarify that this is a *different* instrument of the same type.
             # e.g., "a separate interest rate swap", "an additional hedging agreement"
-            repetition_word = random.choice(["another", "additional", "separate", "different"])
+            repetition_word = random.choice(
+                [
+                    "another",
+                    "additional",
+                    "separate",
+                    "different",
+                ]
+                + [f"__counter__{self.instrument.instrument_type}"] if self.instrument else [],  # To use regex at the final join of the narrative
+            )
             swap_type_to_use = f"{repetition_word} {self.swap_type}"
 
         # --- FIX: Make hedge designation clause optional ---
