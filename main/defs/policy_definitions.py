@@ -405,6 +405,7 @@ class MitigationSentence:
     swap_type: str
     has_active_instruments: bool
     usage_status: Literal["current", "speculative", "historical", "non_use"]
+    is_active_user: bool = False # NEW: Flag to allow more flexible adverb use
     specific_details: Optional["SpecificDetails"] = None
     # Add time components for context
     year: Optional[int] = None
@@ -429,10 +430,22 @@ class MitigationSentence:
         )
         adverb = ""
         verb = ""
-        adverb_list = time_adverbs.get(effective_status, [])
-        if adverb_list:
-            adverb = random.choice(adverb_list)
 
+        # --- NEW: Allow active users to sometimes use speculative adverbs like "periodically" ---
+        # This makes the language more realistic, as firms describe ongoing programs.
+        if final_usage_status == "current" and random.random() < 0.3: # 30% chance
+            # If an active user, sometimes use adverbs from the 'speculative' list
+            adverb_list = time_adverbs.get("speculative", [])
+            if adverb_list:
+                adverb_list.remove("in the future")
+                adverb = random.choice(adverb_list)
+        else:
+            # Original logic for all other cases
+            adverb_list = time_adverbs.get(effective_status, [])
+            if adverb_list:
+                adverb = random.choice(adverb_list)
+
+        # --- Original verb selection logic ---
         if final_usage_status == "current":
             verb = random.choice(policy_verbs)  # e.g., "uses", "employs"
         elif effective_status == "speculative":

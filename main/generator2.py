@@ -1998,6 +1998,7 @@ def _generate_category_narrative(
             month=reporting_month,
             end_day=reporting_day,
             specific_details=specific_details,
+            is_active_user=has_active_instruments, # Pass whether the user is active
         )
         mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
 
