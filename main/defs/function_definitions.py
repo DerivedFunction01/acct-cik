@@ -145,20 +145,8 @@ def _cleanup_sentence(sentence: str) -> str:
     # Remove leading commas/spaces
     sentence = re.sub(r"^\s*,\s*", "", sentence)
     
-    # --- FIX: Handle more grammatical issues from template substitution ---
-    # Correct "a" vs "an" usage
-    sentence = re.sub(r"\b(a|A)\b (?=[aeiouAEIOU])", r"\1n", sentence)
-    sentence = re.sub(r"\b(an|An)\b (?=[^aeiouAEIOU])", r"a", sentence)
-    
-    # Remove duplicated words (e.g., "aggregate aggregate")
-    sentence = re.sub(r"\b(\w+)\s+\1\b", r"\1", sentence, flags=re.IGNORECASE)
-
-    # Remove double "a a" or "a an"
-    sentence = re.sub(r"\ba\b \b(a|an)\b", "a", sentence, flags=re.IGNORECASE)
-
     # Fix common punctuation issues
     sentence = sentence.replace(" ,", ",")
-    sentence = sentence.replace(" .", ".")
     sentence = sentence.replace(",,", ",")
     sentence = sentence.replace(" .", ".")
     sentence = sentence.replace(", .", ".")
