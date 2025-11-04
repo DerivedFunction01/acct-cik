@@ -936,17 +936,17 @@ hedge_topics = [
 ]
 def _group_instruments_by_type(
     instruments: List[NotionalInstrument],
-) -> Dict[Tuple[str, str], Dict[str, Union[str, int, float]]]:
+) -> Dict[Tuple[str, str, str], Dict[str, Union[str, int, float]]]:
     """
-    Groups instruments by their placeholder and base type, preparing them for aggregation.
+    Groups instruments by their placeholder, base type, and currency, preparing them for aggregation.
 
     Returns:
-        A dictionary where keys are (placeholder, base_type) and values are dicts
+        A dictionary where keys are (placeholder, base_type, currency) and values are dicts
         containing aggregated values and common properties like currency and category.
     """
-    grouped: Dict[Tuple[str, str], Dict] = {}
+    grouped: Dict[Tuple[str, str, str], Dict] = {}
     for inst in instruments:
-        key = (inst.placeholder, inst.base_type)
+        key = (inst.placeholder, inst.base_type, inst.currency)
         if key not in grouped:
             grouped[key] = {
                 "instruments": [],
@@ -1497,7 +1497,7 @@ class ThreeYearComparativeTableBuilder(DerivativeTableBuilder):
         # --- NEW: Group instruments by placeholder and base_type ---
         grouped_instruments = _group_instruments_by_type(self.instruments)
 
-        for (placeholder, base_type), group_data in grouped_instruments.items():
+        for (placeholder, base_type, currency), group_data in grouped_instruments.items():
             # Aggregate values for the group across all three years
             val1 = sum(self._get_value(inst, year1, value_type) for inst in group_data["instruments"])
             val2 = sum(self._get_value(inst, year2, value_type) for inst in group_data["instruments"])
@@ -1508,7 +1508,9 @@ class ThreeYearComparativeTableBuilder(DerivativeTableBuilder):
 
             # Create descriptive name for the group
             plural_suffix = "s" if not base_type.endswith("s") else ""
-            name_to_use = f"{placeholder} {base_type}{plural_suffix}".strip().capitalize()
+            # --- FIX: Include currency/unit in name if it's not the default ---
+            currency_note = f" ({currency})" if currency != self.currency_code else ""
+            name_to_use = f"{placeholder} {base_type}{plural_suffix}{currency_note}".strip().capitalize()
 
             # Format values for the table row
             val1_str = _format_single_notional(val1, group_data["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format) # type: ignore
@@ -1759,7 +1761,7 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
         Builds a table showing derivative assets and liabilities.
         Format:
             Instrument  Asset Fair Value  Liability Fair Value
-        """
+        """ # noqa
         evidence_list = []
         year = self.reporting_year
         active_instruments = [
@@ -1772,70 +1774,68 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
             return "", [], []
 
         title = f"Fair Value of {random.choice(DERIVATIVE_COMPONENTS['no_alias_types']).capitalize()} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
-        columns = ["Instrument", "Asset Fair Value", "Liability Fair Value"]
+        headers = ["Instrument", "Asset Fair Value", "Liability Fair Value"]
         widths = [45, 20, 22]
         alignments = ['l', 'r', 'r']
-        rows = [title]
+        data_rows = []
 
-        header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
-        rows.extend(header_lines)
-        separator = "  ".join(['-' * w for w in widths])
-        rows.append(separator)
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
-        rows.append(sec_tags_line)
+        # --- NEW: Group instruments by placeholder and base_type ---
+        grouped_instruments = _group_instruments_by_type(active_instruments)
 
-        for inst in active_instruments:
-            fair_value = self._get_value(inst, year, "fair_value")
+        for (placeholder, base_type, currency), group_data in grouped_instruments.items():
+            fair_value = sum(self._get_value(inst, year, "fair_value") for inst in group_data["instruments"])
+            if fair_value == 0: continue
+
             # Randomly decide if the fair value is an asset or liability
             is_asset = random.random() < 0.5
 
             asset_val_str = "-"
             liab_val_str = "-"
 
+            # Create descriptive name for the group
+            plural_suffix = "s" if not base_type.endswith("s") else ""
+            # --- FIX: Include currency/unit in name if it's not the default ---
+            currency_note = f" ({currency})" if currency != self.currency_code else ""
+            name_to_use = f"{placeholder} {base_type}{plural_suffix}{currency_note}".strip().capitalize()
+
             if is_asset:
                 asset_val_str = _format_single_notional(
-                    fair_value,
-                    inst.symbol,
-                    self.prefer_abbreviated,
-                    True,
-                    negative_format=self.preferred_negative_format,  # type: ignore
+                    fair_value, group_data["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format # type: ignore
                 )
             else:
                 liab_val_str = _format_single_notional(
-                    fair_value,
-                    inst.symbol,
-                    self.prefer_abbreviated,
-                    True,
-                    negative_format=self.preferred_negative_format,  # type: ignore
+                    fair_value, group_data["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format # type: ignore
                 )
 
-            row_cells = [inst.instrument_type, asset_val_str, liab_val_str]
-            rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
+            row_cells = [name_to_use, asset_val_str, liab_val_str]
+            data_rows.append(row_cells)
 
             # Create evidence for the fair value of this instrument
             evidence_fair_value_str = _format_single_notional(
-                fair_value, self.currency_symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format  # type: ignore
+                fair_value, self.currency_symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
             )
             evidence_list.append(
                 NotionalEvidence(
-                    instrument_id=inst.instrument_id,
-                    status="individual",
-                    category=inst.category,
+                    instrument_id=None,
+                    status="summary",
+                    category=group_data["category"],
+                    aggregate=True,
                     notional=_get_correct_rounding(fair_value, self.notional_multiplier) if self.notional_multiplier > 1 else fair_value,
                     notional_str=evidence_fair_value_str,
                     year=year,
-                    instrument_type=inst.instrument_type,
+                    instrument_type=name_to_use,
                     reporting_year=self.reporting_year,
                     value_type="fair_value",
-                    currency=inst.currency,
-                    sentence_type="individual",
+                    currency=group_data["currency"],
+                    sentence_type="summary",
                 )
             )
 
-        if len(rows) <= 4: # Title, header, separator, tags
+        if not data_rows:
             return "", [], []
 
-        full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
+        table = GenericTable(headers, data_rows, widths, alignments, title)
+        full_table_str = table.build()
         return full_table_str, evidence_list, []
 
 class FairValueHierarchyTableBuilder(DerivativeTableBuilder):
@@ -1850,7 +1850,7 @@ class FairValueHierarchyTableBuilder(DerivativeTableBuilder):
              Instrument Type      -       XX.X     -      XX.X
             Liabilities:
              Instrument Type      -       XX.X     -      XX.X
-        """
+        """ # noqa
         evidence_list = []
         year = self.reporting_year
         active_instruments = [
@@ -1867,8 +1867,11 @@ class FairValueHierarchyTableBuilder(DerivativeTableBuilder):
         }
         instrument_rows: Dict[str, List[List[str]]] = {"Assets": [], "Liabilities": []}
 
-        for inst in active_instruments:
-            fair_value = self._get_value(inst, year, "fair_value")
+        # --- NEW: Group instruments by placeholder and base_type ---
+        grouped_instruments = _group_instruments_by_type(active_instruments)
+
+        for (placeholder, base_type, currency), group_data in grouped_instruments.items():
+            fair_value = sum(self._get_value(inst, year, "fair_value") for inst in group_data["instruments"])
             if fair_value == 0:
                 continue
 
@@ -1876,6 +1879,12 @@ class FairValueHierarchyTableBuilder(DerivativeTableBuilder):
             asset_or_liability = "Assets" if random.random() < 0.5 else "Liabilities"
             # Most derivatives are Level 2. Some options/complex might be Level 3. Level 1 is rare.
             level = random.choices(["Level 1", "Level 2", "Level 3"], weights=[0.05, 0.85, 0.10], k=1)[0]
+
+            # Create descriptive name for the group
+            plural_suffix = "s" if not base_type.endswith("s") else ""
+            # --- FIX: Include currency/unit in name if it's not the default ---
+            currency_note = f" ({currency})" if currency != self.currency_code else ""
+            name_to_use = f"{placeholder} {base_type}{plural_suffix}{currency_note}".strip().capitalize()
 
             # Update totals
             hierarchy_data[asset_or_liability][level] += fair_value
@@ -1885,21 +1894,24 @@ class FairValueHierarchyTableBuilder(DerivativeTableBuilder):
             row_values = ["-", "-", "-"]
             level_index = int(level.split(" ")[1]) - 1
             row_values[level_index] = _format_single_notional(
-                fair_value, inst.symbol, self.prefer_abbreviated, True, negative_format=self.preferred_negative_format # type: ignore
+                fair_value, group_data["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format # type: ignore
             )
-            instrument_rows[asset_or_liability].append([f"  {inst.instrument_type}"] + row_values)
+            instrument_rows[asset_or_liability].append([f"  {name_to_use}"] + row_values)
 
             # Create evidence for this instrument's fair value
             evidence_fair_value_str = _format_single_notional(
                 fair_value, self.currency_symbol, self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
             )
             evidence_list.append(NotionalEvidence(
-                instrument_id=inst.instrument_id, status="individual", category=inst.category,
+                instrument_id=None,
+                status="summary",
+                category=group_data["category"],
+                aggregate=True,
                 notional=_get_correct_rounding(fair_value, self.notional_multiplier) if self.notional_multiplier > 1 else fair_value,
                 notional_str=evidence_fair_value_str, year=year,
-                instrument_type=f"{inst.instrument_type} ({asset_or_liability[:-1]} classified as {level})",
+                instrument_type=f"{name_to_use} ({asset_or_liability[:-1]} classified as {level})",
                 reporting_year=self.reporting_year, value_type="fair_value",
-                currency=inst.currency, sentence_type="individual",
+                currency=group_data["currency"], sentence_type="summary",
             ))
 
         title = f"Fair Value Measurements of Derivative Instruments as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
