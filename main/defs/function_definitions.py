@@ -178,6 +178,9 @@ def _cleanup_sentence(sentence: str) -> str:
     sentence = sentence.replace(" ,", ",").replace(",,", ",")
     sentence = sentence.replace(" .", ".").replace(", .", ".")
 
+    # Fix bad placeholder sub
+    sentence = sentence.replace("remains remaining", "was remaining")
+
     # Correct pluralization (company -> companies, but not always/employs)
     sentence = PLURALIZE_PATTERN.sub(r"\1ies", sentence)
 
