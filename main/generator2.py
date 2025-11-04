@@ -1,9 +1,9 @@
 # %%
 from dataclasses import asdict
 import random, copy
+import pandas as pd
 import sys
 import string
-import pandas as pd
 from collections import Counter
 import json, re
 from tqdm import tqdm
@@ -3759,7 +3759,7 @@ def generate_training_sample(archetype_index=None, allow_random_drops: bool = Tr
 
 def generate_dataset(
     num_samples: int,
-    output_file: str = "./output.jsonl",
+    output_file: str = "./output.parquet",
     allow_random_drops: bool = True,
     debug: bool = False,
 ):
@@ -3776,23 +3776,26 @@ def generate_dataset(
     global DEBUG
     DEBUG = False # Do not attach headers
 
-    with open(output_file, "w") as f:
-        for _ in tqdm(range(num_samples), desc="Generating Samples"):
-            # 1. Generate the narrative and the target JSON object
-            narrative, target_json = generate_training_sample(
-                allow_random_drops=allow_random_drops
-            )
+    all_training_records = []
+    for _ in tqdm(range(num_samples), desc="Generating Samples"):
+        # 1. Generate the narrative and the target JSON object
+        narrative, target_json = generate_training_sample(
+            allow_random_drops=allow_random_drops
+        )
 
-            # 2. Format for instruction fine-tuning
-            prompt = (
-                "Analyze the following text from a financial report to identify derivative usage. "
-                "Extract details on all derivative instruments, the company's risk exposures, and its mitigation strategies. "
-                "Your response must be a single, valid JSON object conforming to the required schema.\n\n"
-                f"Text: {narrative}"
-            )
+        # 2. Format for instruction fine-tuning
+        prompt = (
+            "Analyze the following text from a financial report to identify derivative usage. "
+            "Extract details on all derivative instruments, the company's risk exposures, and its mitigation strategies. "
+            "Your response must be a single, valid JSON object conforming to the required schema.\n\n"
+            f"Text: {narrative}"
+        )
 
-            training_record = {"prompt": prompt, "response": json.dumps(target_json)}
-            f.write(json.dumps(training_record) + "\n")
+        training_record = {"prompt": prompt, "response": json.dumps(target_json, indent=2)}
+        all_training_records.append(training_record)
+
+    df = pd.DataFrame(all_training_records)
+    df.to_parquet(output_file, index=False)
 
     print(f"\nSuccessfully generated {num_samples} samples to {output_file}")
 
