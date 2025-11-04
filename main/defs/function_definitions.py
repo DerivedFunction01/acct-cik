@@ -123,60 +123,90 @@ def _get_correct_rounding(amount: int | float, multiplier: int):
     # Round to one decimal place relative to the multiplier's scale.
     return int(round(amount / multiplier, 1) * multiplier)
 
-import re
+
+# --- Precompiled regex patterns ---
+CLAUSE_SPACE_PATTERN = re.compile(r"([a-zA-Z0-9,])(\{[^}]+\})")
+PLACEHOLDER_PATTERN = re.compile(r"\{[^}]*\}")
+MULTISPACE_PATTERN = re.compile(r"\s{2,}")
+LEADING_COMMA_PATTERN = re.compile(r"^\s*,\s*")
+PLURALIZE_PATTERN = re.compile(r"([^aeiou])ys\b", flags=re.IGNORECASE)
+CAPITALIZE_PATTERN = re.compile(r"(\w*)([.!?]\s+)([a-z])")
+ARTICLE_PATTERN = re.compile(r"(__article__|a|an)\s+(\w+)", re.IGNORECASE)
+
+# Abbreviations for capitalization logic
+ABBREVIATIONS = [
+    "Inc",
+    "Corp",
+    "Ltd",
+    "Co",
+    "LLC",
+    "et al",
+    "e.g",
+    "i.e",
+    "etc",
+    "vs",
+    "Mr",
+    "Mrs",
+    "Ms",
+    "Dr",
+    "Sr",
+    "Jr",
+    "No",
+]
+ABBREVIATIONS_PATTERN = r"\b(" + "|".join(re.escape(ab) for ab in ABBREVIATIONS) + r")"
 
 
 def _cleanup_sentence(sentence: str) -> str:
     """Clean up sentence by removing placeholders, fixing spacing, and capitalizing properly."""
 
     # Add a space before a clause if the preceding character is not a space, comma, or newline
-    sentence = re.sub(
-        r"([a-zA-Z0-9,])(\{[^}]+\})",
-        r"\1 \2",
-        sentence,
-    )
+    sentence = CLAUSE_SPACE_PATTERN.sub(r"\1 \2", sentence)
 
     # Remove ALL placeholders of the form {something}
-    sentence = re.sub(r"\{[^}]*\}", "", sentence)
+    sentence = PLACEHOLDER_PATTERN.sub("", sentence)
 
     # Clean up multiple spaces
-    sentence = re.sub(r"\s{2,}", " ", sentence)
+    sentence = MULTISPACE_PATTERN.sub(" ", sentence)
 
     # Remove leading commas/spaces
-    sentence = re.sub(r"^\s*,\s*", "", sentence)
-    
+    sentence = LEADING_COMMA_PATTERN.sub("", sentence)
+
     # Fix common punctuation issues
-    sentence = sentence.replace(" ,", ",")
-    sentence = sentence.replace(",,", ",")
-    sentence = sentence.replace(" .", ".")
-    sentence = sentence.replace(", .", ".")
+    sentence = sentence.replace(" ,", ",").replace(",,", ",")
+    sentence = sentence.replace(" .", ".").replace(", .", ".")
 
     # Correct pluralization (company -> companies, but not always/employs)
-    sentence = re.sub(r"([^aeiou])ys\b", r"\1ies", sentence, flags=re.IGNORECASE)
+    sentence = PLURALIZE_PATTERN.sub(r"\1ies", sentence)
 
     if sentence:
-        # Define abbreviations to prevent incorrect capitalization (e.g., "Inc. the")
-        abbreviations = [
-            "Inc", "Corp", "Ltd", "Co", "LLC", "et al", "e.g", "i.e", "etc",
-            "vs", "Mr", "Mrs", "Ms", "Dr", "Sr", "Jr", "No"
-        ]
-        abbreviations_pattern = r"\b(" + "|".join(re.escape(ab) for ab in abbreviations) + r")"
 
         def capitalize_after_period(match):
-            # The full match is something like "word. a"
-            # We need to check if 'word' is in our abbreviations list.
-            # match.group(1) is the word before the period.
-            # match.group(2) is the period and space.
-            # match.group(3) is the letter to be capitalized.
             word_before_period = match.group(1)
-            if word_before_period and re.fullmatch(abbreviations_pattern, word_before_period, re.IGNORECASE):
-                return match.group(0)  # It's an abbreviation, return the original match without capitalizing.
+            if word_before_period and re.fullmatch(
+                ABBREVIATIONS_PATTERN, word_before_period, re.IGNORECASE
+            ):
+                return match.group(0)  # abbreviation, leave as-is
             return match.group(1) + match.group(2) + match.group(3).upper()
 
-        # Capitalize the very first letter of the sentence.
+        # Capitalize the very first letter
         sentence = sentence[0].upper() + sentence[1:]
-        # Find a word, followed by a period/!/?, whitespace, and then a lowercase letter.
-        sentence = re.sub(r"(\w*)([.!?]\s+)([a-z])", capitalize_after_period, sentence)
+        # Capitalize after sentence-ending punctuation
+        sentence = CAPITALIZE_PATTERN.sub(capitalize_after_period, sentence)
+
+    # Replace __article__ with 'a' or 'an' based on the following word, but not if __article__ an/a
+    def replace_article(match):
+        article_placeholder, next_word = match.groups()
+        if article_placeholder == "__article__":
+            if next_word.lower() in ("a", "an"):
+                return next_word
+            if next_word.lower().startswith(("a", "e", "i", "o", "u")):
+                return "an " + next_word
+            else:
+                return "a " + next_word
+        else:
+            return article_placeholder + " " + next_word
+
+    sentence = ARTICLE_PATTERN.sub(replace_article, sentence)
 
     return sentence
 

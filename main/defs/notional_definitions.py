@@ -46,7 +46,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
             "FX": "Foreign Exchange",
             "CP": "Commodity",
             "EQ": "Equity",
-            "GEN": "Generic",
+            "GEN": "",
         }.get(self.category, "Unknown Category")
 
     def _temporal_reasoning(self) -> str:
