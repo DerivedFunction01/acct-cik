@@ -371,15 +371,6 @@ class MitigationEvidence(BaseNarrativeEvidence):
             f"'{self.instrument_type}'" if self.instrument_type else "derivatives"
         )
 
-        # --- FIX: Add a classification note for generic categories ---
-        classification_note = ""
-        if self.category in (None, "GEN"):
-            classification_note = (
-                "The disclosure does not specify a clear derivative category (e.g., interest rate, "
-                "foreign exchange), so this is being treated as a generic reference. "
-                "I will look for more context to classify it later. "
-            )
-
         # Build the linguistic cue description
         linguistic_cue = ""
         if self.adverb and self.verb:
@@ -389,7 +380,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
 
         if self.usage_status == "non_use":
             base_sentence = f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging."
-            return " ".join(filter(None, [base_sentence, classification_note]))
+            return base_sentence
 
         # --- FIX: Use more natural language for speculative/historical status ---
         status_description = {
@@ -402,7 +393,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
 
         base_sentence = f"{linguistic_cue} for {instrument_desc} suggests {status_description} for {category_name} risk."
 
-        return " ".join(filter(None, [base_sentence, classification_note])).strip()
+        return base_sentence.strip()
 
 
 @dataclass
