@@ -3430,6 +3430,60 @@ def generate_json_from_scenario(
     # This ensures the JSON perfectly matches the narrative. Each piece of evidence
     # that points to a specific instrument contributes to its entry in the final JSON.
     derivatives_list = []
+    
+    # --- NEW: Handle "noise-only" scenarios with a simulated Chain of Thought ---
+    is_noise_only_scenario = not any(isinstance(ev, (NotionalEvidence, MitigationEvidence)) for ev in evidence)
+    
+    if is_noise_only_scenario:
+        # This is a scenario with only contextual noise (debt, FX operations, etc.) but no derivatives.
+        # We will generate a more human-like COT to explain the reasoning process.
+        # --- NEW: Dynamically generate the list of keywords to scan for ---
+        # Get unique, clean base types from the common data definitions.
+        unique_base_types = sorted(list(set(BASE_TYPES)))
+        # Sample 3-5 keywords to make the COT more varied.
+        num_keywords = random.randint(3, 5)
+        scan_keywords = random.sample(unique_base_types, k=min(num_keywords, len(unique_base_types)))
+        # Format into a nice string like "'swap', 'hedge', or 'forward'"
+        keyword_str = ", ".join([f"'{k}'" for k in scan_keywords[:-1]]) + f", or '{scan_keywords[-1]}'" if len(scan_keywords) > 1 else f"'{scan_keywords[0]}'"
+
+        cot_steps = []
+        context_evidence_by_category = {cat: [] for cat in DERIVATIVE_CATEGORIES}
+        
+        # Group context evidence by category
+        for ev in evidence:
+            if isinstance(ev, (ContextEvidence, ExposureEvidence)):
+                context_evidence_by_category[ev.category].append(ev)
+
+        for category, cat_evidence_list in context_evidence_by_category.items():
+            if not cat_evidence_list:
+                continue
+
+            # Use the description from the first piece of evidence for this category
+            first_evidence = cat_evidence_list[0]
+            if isinstance(first_evidence, ContextEvidence):
+                # Extract the risk area from the evidence's to_string() method
+                # e.g., "interest rate risk from debt obligations"
+                match = re.search(r'exposure to (.*?)( but|$)', first_evidence.to_string())
+                risk_area = match.group(1).strip() if match else f"{category} risk"
+            else: # Fallback for ExposureEvidence or others
+                risk_area = f"{category} risk"
+
+            # Step 1: Acknowledge the context
+            cot_steps.append(f"The text discusses {risk_area}, which could involve derivatives. I will scan for keywords like {keyword_str}.")
+
+        # Step 2: State the initial finding
+        if cot_steps: # Only add these if there was some context to begin with
+            cot_steps.append("After reviewing the text, no explicit mention of derivative instruments was found.")
+            
+            # Step 3: Simulate a "double-check"
+            cot_steps.append("Let me review the text one more time to ensure no mentions were missed. The text confirms exposure to the identified risks but does not detail any hedging instruments.")
+
+        # If there were no context steps generated at all (e.g., only financial statements), provide a simple summary.
+        if not cot_steps:
+            cot_steps.append("The text was reviewed for mentions of derivative instruments, and none were found.")
+
+        chain_of_thought = "\n".join(cot_steps)
+
 
     # --- NEW: Use a more specific key to handle multiple evidence types for one instrument ID ---
     # (e.g., a parent FX Forward and its multiple currency exposures from a table)
@@ -3522,37 +3576,47 @@ def generate_json_from_scenario(
                 }
             )
 
-    # --- FIX: Post-processing step to resolve contradictions from dropped sentences ---
-    # If mitigation evidence was implied but no actual derivatives were found in the
-    # final list, downgrade the mitigation status to 'unknown'.
-    final_derivative_categories = {d["category"] for d in derivatives_list}
-    for category, was_implied in implied_evidence_map.items():
-        if was_implied and category not in final_derivative_categories:
-            # This category had implied evidence of use, but no notional evidence was
-            # ever generated. This is a contradiction.
-            if mitigation_map[category] in ["current", "historical"]:
-                mitigation_map[category] = "unknown"
+    if not is_noise_only_scenario:
+        # --- FIX: Post-processing step to resolve contradictions from dropped sentences ---
+        # If mitigation evidence was implied but no actual derivatives were found in the
+        # final list, downgrade the mitigation status to 'unknown'.
+        final_derivative_categories = {d["category"] for d in derivatives_list}
+        for category, was_implied in implied_evidence_map.items():
+            if was_implied and category not in final_derivative_categories:
+                # This category had implied evidence of use, but no notional evidence was
+                # ever generated. This is a contradiction.
+                if mitigation_map[category] in ["current", "historical"]:
+                    mitigation_map[category] = "unknown"
 
-    # --- FIX: Generate the summary last, using the finalized mitigation map ---
-    analysis_summary = _generate_analysis_summary(scenario, evidence)
+        # --- FIX: Generate the summary last, using the finalized mitigation map ---
+        analysis_summary = _generate_analysis_summary(scenario, evidence)
 
-    final_json = {
-        "chain_of_thought": chain_of_thought,
-        "analysis_summary": analysis_summary,
-        "exposure": exposure_map,
-        "mitigation": mitigation_map,
-        "derivatives": derivatives_list,
-    }
+        final_json = {
+            "chain_of_thought": chain_of_thought,
+            "analysis_summary": analysis_summary,
+            "exposure": exposure_map,
+            "mitigation": mitigation_map,
+            "derivatives": derivatives_list,
+        }
 
-    # --- FIX: Post-processing to ensure aggregate values from comparative sentences are correct ---
-    for d in final_json["derivatives"]:
-        if d.get("level") == "aggregate" and "respectively" in d.get("type", ""):
-            # This is likely from a comparative sentence. The 'amount' might be a sum.
-            # Let's find the first notional value mentioned in the text for the current year.
-            # This is a heuristic. A better solution would be to pass more context in the evidence.
-            pass # Placeholder for more advanced logic if needed.
+        # --- FIX: Post-processing to ensure aggregate values from comparative sentences are correct ---
+        for d in final_json["derivatives"]:
+            if d.get("level") == "aggregate" and "respectively" in d.get("type", ""):
+                # This is likely from a comparative sentence. The 'amount' might be a sum.
+                # Let's find the first notional value mentioned in the text for the current year.
+                # This is a heuristic. A better solution would be to pass more context in the evidence.
+                pass # Placeholder for more advanced logic if needed.
 
-    return final_json
+        return final_json
+    else:
+        # For noise-only scenarios, the JSON is much simpler.
+        return {
+            "chain_of_thought": chain_of_thought,
+            "analysis_summary": "The text discusses market risk exposures but does not mention any derivative instruments used for hedging.",
+            "exposure": exposure_map,
+            "mitigation": mitigation_map,
+            "derivatives": [],
+        }
 
 # =============================================================================
 # MAIN EXECUTION (for standalone testing)
