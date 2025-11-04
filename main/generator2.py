@@ -773,36 +773,33 @@ class ScenarioBuilder:
     def build(self) -> GenerationScenario:
         exposure_counts = self.archetype.get_exposure_counts()
 
-        # --- FIX: Reserve base types for GEN from the SCENARIO's pool, not the global pool ---
-        # This ensures all categories in a single scenario share the same limited vocabulary.
+        # --- NEW: Create a restricted pool of base types for each category ---
         all_base_types = self.scenario_components["base_types"]
-        # From the scenario's pool, reserve 1 or 2 for the 'GEN' category.
-        gen_reserved_base_types = random.sample(all_base_types, random.randint(1, 2))
-        other_available_base_types = [
-            bt for bt in all_base_types if bt not in gen_reserved_base_types
-        ]
-
-        # --- FIX: Prevent IndexError and maintain GEN/specific separation ---
-        # If all scenario base types were reserved for GEN, add a new, non-generic
-        # type from the global pool to avoid using a GEN-reserved type for a specific category.
-        if not other_available_base_types:
-            fallback_options = [bt for bt in DERIVATIVE_COMPONENTS["base_types"] if bt not in gen_reserved_base_types]
-            if fallback_options:
-                other_available_base_types.append(random.choice(fallback_options))
-            else: # In the very rare case all global types were reserved, use the GEN pool as a last resort.
-                other_available_base_types = gen_reserved_base_types
+        category_base_type_pools = {}
+        
+        # Ensure there are enough base types to distribute
+        if len(all_base_types) < len(DERIVATIVE_CATEGORIES):
+            # If the pool is too small, all categories share the same pool
+            for cat in DERIVATIVE_CATEGORIES:
+                category_base_type_pools[cat] = all_base_types
+        else:
+            # Distribute base types among categories, allowing for some overlap
+            # Each category gets a small, somewhat unique pool
+            for cat in DERIVATIVE_CATEGORIES:
+                pool_size = random.randint(2, min(4, len(all_base_types)))
+                category_base_type_pools[cat] = random.sample(all_base_types, k=pool_size)
 
         # Determine all base types that will appear in the scenario for context-aware aliasing
         if exposure_counts["debt"] > 0:
-            self.all_scenario_base_types.add(random.choice(other_available_base_types))
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["IR"]))
         if exposure_counts["fx"] > 0:
-            self.all_scenario_base_types.add(random.choice(other_available_base_types))
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["FX"]))
         if exposure_counts["commodity"] > 0:
-            self.all_scenario_base_types.add(random.choice(other_available_base_types))
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["CP"]))
         if exposure_counts["equity"] > 0:
-            self.all_scenario_base_types.add(random.choice(other_available_base_types))
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["EQ"]))
         if exposure_counts["generic"] > 0:
-            self.all_scenario_base_types.add(random.choice(gen_reserved_base_types))
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["GEN"]))
 
         # Generate all potential exposures
         self._generate_debt_exposures(exposure_counts["debt"])
@@ -811,29 +808,30 @@ class ScenarioBuilder:
         self._generate_equity_exposures(exposure_counts["equity"])
 
         # Build instruments based on exposures and propensities
+        # --- MODIFIED: Pass the category-specific pool to the builder ---
         self._build_instruments_for_category(
             "IR",
             IRInstrument,
             self.potential_hedged_items["debt"],
-            other_available_base_types,
+            category_base_type_pools["IR"],
         )
         self._build_instruments_for_category(
             "FX",
             FXInstrument,
             self.potential_hedged_items["fx"],
-            other_available_base_types,
+            category_base_type_pools["FX"],
         )
         self._build_instruments_for_category(
             "CP",
             CPInstrument,
             self.potential_hedged_items["commodity"],
-            other_available_base_types,
+            category_base_type_pools["CP"],
         )
         self._build_instruments_for_category(
             "EQ",
             EQInstrument,
             self.potential_hedged_items["equity"],
-            other_available_base_types,
+            category_base_type_pools["EQ"],
         )
 
         # Create Generic Instruments (which don't have pre-defined exposures)
@@ -847,7 +845,7 @@ class ScenarioBuilder:
             prefix, placeholder, base_type, suffix, name, alias = (
                 _generate_instrument_name(
                     "GEN",
-                    available_base_types=gen_reserved_base_types,
+                    available_base_types=category_base_type_pools["GEN"],
                     all_scenario_base_types=self.all_scenario_base_types,
                     components=self.scenario_components,
                 )
