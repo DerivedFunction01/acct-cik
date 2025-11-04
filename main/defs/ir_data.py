@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass, field
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
 
 from defs.instrument_definitions import HedgedItem, NotionalInstrument
 
@@ -360,6 +360,36 @@ debt_strategy_templates = [
     "The company's debt portfolio includes both fixed and variable rate instruments to provide a natural hedge against {ir_term} movements.",
 ]
 
+# --- NEW: Phrases for describing the mix of fixed/variable debt ---
+debt_mix_types = [
+    "combination",
+    "mix",
+    "blend",
+    "diverse array",
+    "balanced approach",
+    "portfolio",
+]
+@dataclass
+class DebtMix:
+    """Represents different ways to phrase the combination of debt types."""
+    structure: str  # e.g., "a {mix_type} of {rate_type_combo}"
+
+
+debt_rate_type_combos = [
+    "fixed and variable rate debt",
+    "both fixed and variable rate debt",
+    "a mix of fixed-rate and variable-rate debt instruments",
+    "fixed and floating rate debt",
+    "a portfolio of both fixed and variable rate debt",
+    "fixed and variable rate borrowings",
+    "both fixed and variable rate instruments",
+]
+
+debt_mix_structures = [
+    "a {mix_type} of {rate_combo}",
+    "its portfolio of {rate_combo}",
+]
+
 @dataclass
 class DebtContextSentence:  # Simplified to handle one item at a time
     """
@@ -619,12 +649,35 @@ class DebtContextSentence:  # Simplified to handle one item at a time
                     commodity="",  # Not applicable for IR
                 )
 
-                # Combine it with a leading phrase
-                strategy_sentence = (
-                    f"{mitigation_phrase}, {{company}} {{verb}} a combination of fixed and variable rate debt."
-                ).format(
+                # --- NEW: Dynamically construct the debt mix phrase ---
+                mix_structure = random.choice(debt_mix_structures)
+                debt_mix_phrase = mix_structure.format(
+                    mix_type=random.choice(debt_mix_types),
+                    rate_combo=random.choice(debt_rate_type_combos),
+                )
+
+                # --- NEW: Use a template to vary the overall sentence structure ---
+                debt_strategy_structures = [
+                    "{mitigation_phrase}, {company} {verb} {debt_mix}.",
+                    "{company} {verb} {debt_mix} {mitigation_phrase}.",
+                    "As part of its strategy {mitigation_phrase}, {company} {verb} {debt_mix}.",
+                    "The company's debt portfolio includes {debt_mix}, which it {verb} {mitigation_phrase}.",
+                    "To {risk_action_verb} its {ir_term} exposure, {company} employs {debt_mix} {mitigation_phrase}.",
+                ]
+
+                structure_template = random.choice(debt_strategy_structures)
+
+                strategy_sentence = structure_template.format(
+                    mitigation_phrase=mitigation_phrase,
                     company=_get_company_reference(self.company_name),
                     verb=random.choice(aggregate_use_verbs),
+                    debt_mix=debt_mix_phrase,
+                    risk_action_verb=random.choice(risk_management_verbs), # type: ignore
+                    ir_term=random.choice(interest_rate_terms), # type: ignore
+                    debt_type=item_to_describe.debt_type,
+                    risk_term=random.choice(risk_exposure_terms), # type: ignore
+                    rate_term1=random.choice(interest_rate_terms), # type: ignore
+                    rate_term2=random.choice(interest_rate_terms), # type: ignore
                 )
                 sentences.append(_cleanup_sentence(strategy_sentence))
             # --- NEW: Add 2-3 more sentences for extra detail ---
