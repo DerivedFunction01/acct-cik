@@ -438,7 +438,7 @@ class MitigationSentence:
             # If an active user, sometimes use adverbs from the 'speculative' list
             adverb_list = time_adverbs.get("speculative", [])
             if adverb_list:
-                adverb_list.remove("in the future")
+                adverb_list.remove("in the future") if "in the future" in adverb_list else None
                 adverb = random.choice(adverb_list)
         else:
             # Original logic for all other cases

@@ -1090,14 +1090,29 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
             else:
                 combined_names.append(f"{inst.base_type} {inst.suffix}".strip())
 
-        unique_combined = sorted(list(set(combined_names)))
+        # --- FIX: Normalize and deduplicate similar suffixes ---
+        def _normalize_suffix(name: str) -> str:
+            # Collapse plurals and normalize spacing/casing for comparison
+            n = name.lower().strip()
+            if n.endswith("s"):
+                n = n[:-1]
+            return n
+
+        # Deduplicate by normalized form, preserving first occurrence
+        seen = set()
+        unique_combined = []
+        for n in sorted(list(set(combined_names))):
+            norm = _normalize_suffix(n)
+            if norm not in seen:
+                seen.add(norm)
+                unique_combined.append(n)
         if len(unique_combined) <= 3:
             # "interest-rate swaps, contracts, and agreements"
             return f"{placeholder} {', '.join(unique_combined[:-1])} and {unique_combined[-1]}"
 
     # Fallback for 4+ instruments or dissimilar instruments
     if count >= 4:
-        # Check for a dominant placeholder
+        # Check for a dominant placeholder.
         placeholder_counts = Counter(i.placeholder for i in instruments)
         most_common_placeholder, num_most_common = placeholder_counts.most_common(1)[0]
 
@@ -1106,11 +1121,8 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
             dominant_instrument_example = next(i.instrument_type for i in instruments if i.placeholder == most_common_placeholder)
             # --- FIX: Use a random suffix for more variety ---
             other_suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
-            plural_suffix = (
-                f"{other_suffix}s"
-                if other_suffix and not other_suffix.endswith("s")
-                else other_suffix
-            )
+            plural_suffix = other_suffix if other_suffix.endswith('s') else f"{other_suffix}s"
+            plural_suffix = plural_suffix.strip().lower()
             return f"{dominant_instrument_example} and other {plural_suffix}"
         else:
             # "a portfolio of derivative instruments"
@@ -1126,8 +1138,8 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
             # --- FIX: Use a random suffix for more variety ---
             # e.g., "a portfolio of interest rate contracts" instead of always "derivative instruments"
             suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
-            # Ensure the suffix is pluralized correctly
-            plural_suffix = f"{suffix}s" if suffix and not suffix.endswith('s') else suffix
+            plural_suffix = suffix if suffix.endswith('s') else f"{suffix}s"
+            plural_suffix = plural_suffix.strip().lower()
             return f"{quantifier} {descriptive_category} {plural_suffix}"
 
     # --- FIX: Dynamically generate the generic description, ensuring category is mentioned ---
@@ -1142,9 +1154,16 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
     # Always prefer the specific category name over a generic descriptor if available.
     descriptor = category_map.get(category, random.choice(GENERIC_DESCRIPTORS))
     suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
-    plural_suffix = f"{suffix}s" if not suffix.endswith('s') else suffix
+    plural_suffix = suffix if suffix.endswith('s') else f"{suffix}s"
+    plural_suffix = plural_suffix.strip().lower()
 
-    return " ".join(filter(None, [quantifier, descriptor, plural_suffix]))
+    # --- FIX: Remove duplicate words if accidentally repeated ---
+    parts = " ".join(filter(None, [quantifier, descriptor, plural_suffix])).split()
+    cleaned = []
+    for p in parts:
+        if not cleaned or cleaned[-1] != p:
+            cleaned.append(p)
+    return " ".join(cleaned)
 
 
 def _create_instrument_with_history(
