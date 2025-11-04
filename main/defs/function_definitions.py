@@ -146,7 +146,7 @@ def _cleanup_sentence(sentence: str) -> str:
     sentence = re.sub(r"^\s*,\s*", "", sentence)
     
     # Remove double a a 
-    sentence = re.sub(r"\ba\b \ba\b", "a", sentence, flags=re.IGNORECASE)
+    sentence = re.sub(r"\ba\b \b(a|an)\b", "a", sentence, flags=re.IGNORECASE)
 
     # Fix common punctuation issues
     sentence = sentence.replace(" ,", ",")
@@ -164,8 +164,20 @@ def _cleanup_sentence(sentence: str) -> str:
     if sentence:
         # Capitalize first character
         sentence = sentence[0].upper() + sentence[1:]
-        # Capitalize after ". " or "? " or "! "
-        sentence = re.sub(r"([.!?]\s+)([a-z])", capitalize_after_period, sentence)
+        # Capitalize after ". ", "? ", or "! ", but not after common abbreviations.
+        # Define a list of common abbreviations that end with a period.
+        abbreviations = [
+            "Inc", "Corp", "Ltd", "Co", "LLC", "et al", "e.g", "i.e", "etc",
+            "vs", "Mr", "Mrs", "Ms", "Dr", "Sr", "Jr", "No"
+        ]
+        # Create a negative lookbehind pattern to avoid capitalizing after these abbreviations.
+        # This ensures "Inc. the next sentence" does not become "Inc. The next sentence".
+        negative_lookbehind = r"(?<!\b(?:{}))".format("|".join(abbreviations))
+        
+        # Apply capitalization rule for periods, respecting the lookbehind
+        sentence = re.sub(f"{negative_lookbehind}([.]\s+)([a-z])", capitalize_after_period, sentence)
+        # Apply capitalization for question marks and exclamation points separately
+        sentence = re.sub(r"([!?]\s+)([a-z])", capitalize_after_period, sentence)
 
     return sentence
 
