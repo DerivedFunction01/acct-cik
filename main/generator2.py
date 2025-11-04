@@ -3022,7 +3022,6 @@ def generate_narrative_from_scenario(
             derivative_details_sections.append(ownership_paragraph)
             all_evidence.append(ownership_evidence)
 
-
     # --- NEW: With a chance, add a full financial statement table as noise ---
     financial_statement_paragraphs = _generate_financial_statement_tables(scenario)
     if financial_statement_paragraphs:
@@ -3415,7 +3414,12 @@ def generate_json_from_scenario(
         else:
             generic_reasoning += ", so it is treated as a generic reference."
         chain_of_thought += "\n" + generic_reasoning.strip()
-
+    # This explains why only certain amounts appear in the final JSON.
+    final_filter_cot = (
+        "Finally, I will filter the extracted amounts to include only those for the reporting year "
+        f"({scenario.reporting_year}) with a non-zero value to ensure the output reflects only active positions."
+    )
+    chain_of_thought += "\n" + final_filter_cot
     # --- NEW: Add warning checks to the chain of thought, similar to the narrative ---
     warnings = []
     if "None" in chain_of_thought:
