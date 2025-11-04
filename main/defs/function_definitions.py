@@ -213,6 +213,9 @@ def _cleanup_sentence(sentence: str) -> str:
             return article_placeholder + " " + next_word
 
     sentence = ARTICLE_PATTERN.sub(replace_article, sentence)
+    
+    # Capitalize the first char
+    sentence = sentence[0].upper() + sentence[1:]
 
     return sentence
 
