@@ -215,8 +215,8 @@ def _cleanup_sentence(sentence: str) -> str:
     sentence = ARTICLE_PATTERN.sub(replace_article, sentence)
     
     # Capitalize the first char
+    sentence = sentence.strip()
     sentence = sentence[0].upper() + sentence[1:]
-
     return sentence
 
 
