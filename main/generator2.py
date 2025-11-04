@@ -456,7 +456,7 @@ class ScenarioBuilder:
 
         self.scenario_commodities = random.sample(possible_commodities, k=min(len(possible_commodities), random.randint(2, 3)))
         self.scenario_debt = random.choice(DEBT_CATEGORIES)
-        self.scenario_fx = random.sample(all_currencies, k=random.randint(2, 7))
+        self.scenario_fx = random.sample(all_currencies, k=random.randint(4, 7))
 
         # --- NEW: Pre-define a limited pool of terms for this specific scenario ---
         # This makes the generated text more consistent and realistic.
