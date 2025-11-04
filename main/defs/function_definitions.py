@@ -12,7 +12,7 @@ def _format_single_notional(
     prefer_abbreviated: bool,
     no_unit_word: bool = False,  # Suppresses "million/billion/etc."
     zero_format: Literal["nil", "zero", "amount"] = "amount",
-    negative_format: Literal[-1, 0, 1, 2] = 1,  # default = 1 → (num) unit
+    negative_format: int = 1,  # default = 1 → (num) unit [-1, 0, 1, 2]
     notional_multiplier: Optional[int] = None, # NEW: Explicit multiplier
 ) -> str:
     """

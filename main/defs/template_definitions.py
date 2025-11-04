@@ -1988,16 +1988,15 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
             # Add a main header for the hedge type
             data_rows.append([f"Gain (Loss) on {hedge_type} relationship:"] + [""] * (num_data_cols * 2))
 
-            # Further group by instrument type for more detail
-            sub_groups = {}
-            for inst in instruments:
-                if inst.base_type not in sub_groups:
-                    sub_groups[inst.base_type] = []
-                sub_groups[inst.base_type].append(inst)
+            # --- NEW: Use the standardized grouping function ---
+            grouped_instruments = _group_instruments_by_type(instruments)
 
-            for base_type, sub_instruments in sub_groups.items():
-                group_name = f"  {base_type.capitalize()} contracts:"
+            for (placeholder, base_type, currency), group_data in grouped_instruments.items():
+                plural_suffix = "s" if not base_type.endswith("s") else ""
+                currency_note = f" ({currency})" if currency != self.currency_code else ""
+                group_name = f"  {placeholder} {base_type}{plural_suffix}{currency_note}".strip().capitalize()
                 data_rows.append([group_name] + [""] * (num_data_cols * 2))
+                sub_instruments = group_data["instruments"]
 
                 # Simulate data for this group
                 for year_idx, year in enumerate([year1, year2]):
