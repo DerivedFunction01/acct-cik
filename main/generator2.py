@@ -6,6 +6,7 @@ import string
 import pandas as pd
 from collections import Counter
 import json, re
+from tqdm import tqdm
 from typing import List, Dict, Literal, Optional, Set, Tuple
 
 from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
@@ -3754,3 +3755,46 @@ def generate_training_sample(archetype_index=None, allow_random_drops: bool = Tr
     # 3. Generate the structured JSON output from the evidence
     target_json = generate_json_from_scenario(scenario, evidence)
     return narrative, target_json
+
+
+def generate_dataset(
+    num_samples: int,
+    output_file: str = "./output.jsonl",
+    allow_random_drops: bool = True,
+    debug: bool = False,
+):
+    """
+    Generates a dataset of training samples and saves it to a JSONL file.
+
+    Args:
+        num_samples: The number of samples to generate.
+        output_file: The path to the output JSONL file.
+        allow_random_drops: Whether to enable probabilistic dropping of narrative sections.
+        debug: If True, includes debug info in the output file.
+    """
+    print(f"Starting dataset generation for {num_samples} samples...")
+    global DEBUG
+    DEBUG = False # Do not attach headers
+
+    with open(output_file, "w") as f:
+        for _ in tqdm(range(num_samples), desc="Generating Samples"):
+            # 1. Generate the narrative and the target JSON object
+            narrative, target_json = generate_training_sample(
+                allow_random_drops=allow_random_drops
+            )
+
+            # 2. Format for instruction fine-tuning
+            prompt = (
+                "Analyze the following text from a financial report to identify derivative usage. "
+                "Extract details on all derivative instruments, the company's risk exposures, and its mitigation strategies. "
+                "Your response must be a single, valid JSON object conforming to the required schema.\n\n"
+                f"Text: {narrative}"
+            )
+
+            training_record = {"prompt": prompt, "response": json.dumps(target_json)}
+            f.write(json.dumps(training_record) + "\n")
+
+    print(f"\nSuccessfully generated {num_samples} samples to {output_file}")
+
+#%%
+generate_dataset(1000)
