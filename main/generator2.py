@@ -3363,7 +3363,7 @@ def generate_json_from_scenario(
     # --- Append a final reasoning statement for any GENERIC derivatives ---
     # This logic is now centralized here, instead of in the Evidence class.
     has_generic_evidence = any(ev.category == "GEN" and ev.status =="current" for ev in evidence)
-    if has_generic_evidence and random.random() < 0.6:
+    if has_generic_evidence:
         # Find other specific instrument types that were identified in the text.
         all_seen_types = sorted(
             list({
