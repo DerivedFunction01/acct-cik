@@ -3565,8 +3565,8 @@ def generate_json_from_scenario(
     for ev in evidence:
         if (
             isinstance(ev, NotionalEvidence) and ev.aggregate
-            and ev.notional is not None
-            and ev.notional > 0
+            and ((ev.notional is not None
+            and ev.notional > 0) or ev.active_override)
             and ev.year == scenario.reporting_year # Only include current year summaries
             and ev.status != "timeline" # Exclude timelines
         ):
