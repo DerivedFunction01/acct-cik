@@ -1287,9 +1287,7 @@ def _generate_instrument_name(
     special_ratio = 0.10  # configurable
 
     if (
-        category == "IR"
-        and isinstance(hedged_item, DebtHedgedItem)
-        and hedged_item.benchmark_rate
+        category == "IR" and isinstance(hedged_item, DebtHedgedItem) and hedged_item.benchmark_rate
     ):
         # 35% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
         placeholder = (
@@ -1308,16 +1306,25 @@ def _generate_instrument_name(
     else:
         placeholder = random.choice(placeholders)
 
-    base_type = random.choice(base_types)
 
     # --- Assemble the name ---
-    use_special = special_suffixes and random.random() < special_ratio and category != "GEN"
+    # --- FIX: Ensure special suffixes respect the available_base_types pool ---
+    # Find which special suffixes are allowed in the current scenario's pool.
+    allowed_special_suffixes = [s for s in special_suffixes if s in base_types]
+    use_special = (
+        allowed_special_suffixes
+        and random.random() < special_ratio
+        and category != "GEN"
+    )
+
     suffix = ""
     if use_special:
-        chosen = random.choice(special_suffixes)
+        # Now, we only choose from the allowed list.
+        base_type = random.choice(allowed_special_suffixes)
+        chosen = base_type
         full_name = " ".join(filter(None, [placeholder, chosen])).strip()
-        base_type = chosen  # treat as base for alias/prefix logic
     else:
+        base_type = random.choice(base_types)
         suffix = random.choice(suffixes)
         full_name = " ".join(filter(None, [placeholder, base_type, suffix])).strip()
 
