@@ -622,6 +622,7 @@ class NotionalSentence:
             details = self.specific_details or SpecificDetails()
             populated_phrase = result_phrase_template.format(
                 mitigation_verb=random.choice(risk_management_verbs_no_ing),  # Use base form
+                mitigation_verb_ing=random.choice(risk_management_verbs_ing),
                 gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 frequency=details.frequency or random.choice(frequencies),
