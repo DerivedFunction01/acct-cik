@@ -3616,7 +3616,7 @@ def generate_json_from_scenario(
         # For noise-only scenarios, the JSON is much simpler.
         return {
             "chain_of_thought": chain_of_thought,
-            "analysis_summary": "The text discusses market risk exposures but does not mention any derivative instruments used for hedging.",
+            "analysis_summary": "The text discusses various topics but does not mention any derivative instruments used for hedging.",
             "exposure": exposure_map,
             "mitigation": mitigation_map,
             "derivatives": [],
