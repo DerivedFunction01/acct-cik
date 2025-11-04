@@ -31,8 +31,8 @@ major_currencies = [
     Currency("EUR", "Euro", "€", "European", "Europe"),
     Currency("GBP", "British Pound", "£", "British", "U.K."),
     Currency("JPY", "Japanese Yen", "¥", "Japanese", "Japan"),
-    Currency("CAD", "Canadian Dollar", "$", "Canadian", "Canada"),
-    Currency("AUD", "Australian Dollar", "$", "Australian", "Australia"),
+    Currency("CAD", "Canadian Dollar", "C$", "Canadian", "Canada"),
+    Currency("AUD", "Australian Dollar", "A$", "Australian", "Australia"),
     Currency("CHF", "Swiss Franc", "CHF", "Swiss", "Switzerland"),
     Currency("CNY", "Chinese Yuan", "¥", "Chinese", "China"),
 ]
@@ -53,22 +53,22 @@ european_currencies = [
 asian_currencies = [
     Currency("INR", "Indian Rupee", "₹", "Indian", "India"),
     Currency("KRW", "South Korean Won", "₩", "South Korean", "South Korea"),
-    Currency("SGD", "Singapore Dollar", "$", "Singaporean", "Singapore"),
-    Currency("HKD", "Hong Kong Dollar", "$", "Hong Kong", "Hong Kong"),
+    Currency("SGD", "Singapore Dollar", "S$", "Singaporean", "Singapore"),
+    Currency("HKD", "Hong Kong Dollar", "HK$", "Hong Kong", "Hong Kong"),
     Currency("THB", "Thai Baht", "฿", "Thai", "Thailand", symbol_first=False),
     Currency("MYR", "Malaysian Ringgit", "RM", "Malaysian", "Malaysia"),
 ]
 
 americas_currencies = [
-    Currency("MXN", "Mexican Peso", "$", "Mexican", "Mexico"),
+    Currency("MXN", "Mexican Peso", "Mex$", "Mexican", "Mexico"),
     Currency("BRL", "Brazilian Real", "R$", "Brazilian", "Brazil", symbol_first=False),
-    Currency("ARS", "Argentine Peso", "$", "Argentine", "Argentina"),
-    Currency("CLP", "Chilean Peso", "$", "Chilean", "Chile"),
-    Currency("COP", "Colombian Peso", "$", "Colombian", "Colombia"),
+    Currency("ARS", "Argentine Peso", "ARS$", "Argentine", "Argentina"),
+    Currency("CLP", "Chilean Peso", "CLP$", "Chilean", "Chile"),
+    Currency("COP", "Colombian Peso", "COL$", "Colombian", "Colombia"),
 ]
 
 other_currencies = [
-    Currency("NZD", "New Zealand Dollar", "$", "New Zealand", "Oceania", symbol_first=True),
+    Currency("NZD", "New Zealand Dollar", "NZ$", "New Zealand", "Oceania", symbol_first=True),
     Currency("ZAR", "South African Rand", "R", "South African", "south Africa", symbol_first=True),
     Currency("AED", "UAE Dirham", "د.إ", "Emirati", "United Arab Emirates", symbol_first=False),
     Currency("SAR", "Saudi Riyal", "ر.س", "Saudi", "Saudi Arabia", symbol_first=False),

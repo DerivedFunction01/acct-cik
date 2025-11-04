@@ -3128,15 +3128,15 @@ def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarr
         else:
             debug_lines.append("  - Hedged Item (Exposure): None")
 
-    # # --- NEW: Add evidence objects to debug output ---
-    # debug_lines.append("\n" + "=" * 20)
-    # debug_lines.append(f"\nEvidence Objects ({len(evidence)}):")
-    # for i, ev in enumerate(evidence):
-    #     # Use asdict for a clean, serializable representation
-    #     evidence_dict = asdict(ev)
-    #     debug_lines.append(f"  - Evidence {i+1}:")
-    #     # Pretty-print the dictionary
-    #     debug_lines.append(f"    {json.dumps(evidence_dict, indent=6)}")
+    # --- NEW: Add evidence objects to debug output ---
+    debug_lines.append("\n" + "=" * 20)
+    debug_lines.append(f"\nEvidence Objects ({len(evidence)}):")
+    for i, ev in enumerate(evidence):
+        # Use asdict for a clean, serializable representation
+        evidence_dict = asdict(ev)
+        debug_lines.append(f"  - Evidence {i+1}:")
+        # Pretty-print the dictionary
+        debug_lines.append(f"    {json.dumps(evidence_dict, indent=6)}")
 
     # --- NEW: Add dropped sentences to debug output ---
     if DROPPED_SENTENCES:
