@@ -15,10 +15,20 @@ company_description_templates = {
         "{company} is a leading provider of {industry} serving over {small_int} markets",
     ],
     "mission": [
-        "{company}'s mission is to {mission_statement}",
-        "{company} is a {industry} company that {mission_statement}",
+        "{company}'s mission is to {offer_verb} {mission_statement}",
+        "{company} is a {industry} company that {offer_verb} {mission_statement}",
     ]
 }
+offer_verbs = [
+    "provides",
+    "offers",
+    "develops",
+    "creates",
+    "manufactures",
+    "produces",
+    "builds",
+    "constructs",
+]
 
 industries = {
     "technology": {
@@ -345,7 +355,7 @@ class CompanyDescriptionSentence:
         industry_details = industries[industry_category]
 
         industry = random.sample(industry_details["industries"], k=random.randint(1, 3))
-        mission = random.choice(industry_details["missions"])
+        mission = random.sample(industry_details["missions"], k=random.randint(1, 3))
 
         # Choose a template
         template_type = random.choice(list(company_description_templates.keys()))
@@ -356,12 +366,13 @@ class CompanyDescriptionSentence:
         placeholders = {
             "company": _get_company_reference(self.company_name),
             "industry": industry[0] if len(industry) == 1 else ", ".join(industry[:2]) + " and " + industry[-1],
-            "mission_statement": mission,
+            "mission_statement": mission[0] if len(mission) == 1 else ", ".join(mission[:2]) + " and " + mission[-1],
             "small_int": random.randint(5, 50),
             "year": self.reporting_year - random.randint(10, 50),
             "city": city_name,
             "state": state_name,
             "integer": f"{random.randint(100, 50000):,}",
+            "offer_verb": random.choice(offer_verbs)
         }
 
         sentence = template.format_map(placeholders)
@@ -390,9 +401,8 @@ class ForwardLookingSentence:
         sentences: list[str] = []
 
         # Start with a safe harbor statement
-        if random.random() < 0.5:
-            safe_harbor_template = random.choice(safe_harbor_templates)
-            sentences.append(_cleanup_sentence(safe_harbor_template))
+        safe_harbor_template = random.choice(safe_harbor_templates)
+        sentences.append(_cleanup_sentence(safe_harbor_template))
 
         # Add other forward-looking statements
         for _ in range(num_sentences):

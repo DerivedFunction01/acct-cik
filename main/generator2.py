@@ -2751,7 +2751,7 @@ def _generate_financial_statement_tables(scenario: GenerationScenario) -> List[s
             IncomeStatementTableBuilder,
             CashFlowStatementTableBuilder
         ])
-     
+
         builder = builder_class(
             year=scenario.reporting_year,
             month=scenario.reporting_month,
@@ -2767,6 +2767,8 @@ def _generate_financial_statement_tables(scenario: GenerationScenario) -> List[s
             paragraphs.append(table_str)
 
     return paragraphs
+
+
 def generate_narrative_from_scenario(
     scenario: GenerationScenario,
     allow_random_drops: bool = False,
@@ -2775,16 +2777,23 @@ def generate_narrative_from_scenario(
     Constructs a coherent, multi-paragraph narrative from a scenario object.
     This function will replace the old `generate_hedge_paragraph`.
     """
-    item_7a_sections, derivative_details_sections = [], []
+    # --- NEW: Create lists for logical report sections ---
+    forward_looking_section = []
+    business_section = []
+    item_7a_sections = []
+    financial_statement_notes_section = []
+    financial_statements_section = []
+
     all_evidence = []
 
     # =========================================================================
+    # (Unchanged)
     # AGGREGATION: Summarize instruments by category and year.
     # =========================================================================
     aggregated_data: Dict[str, Dict[int, Dict]] = {}
-    for instrument in scenario.instruments: # type: ignore
-        cat = instrument.category # type: ignore
-        for year, notional in instrument.notional_history.items(): # type: ignore
+    for instrument in scenario.instruments:  # type: ignore
+        cat = instrument.category  # type: ignore
+        for year, notional in instrument.notional_history.items():  # type: ignore
             if cat not in aggregated_data:
                 aggregated_data[cat] = {}
 
@@ -2798,29 +2807,45 @@ def generate_narrative_from_scenario(
 
             aggregated_data[cat][year]["total_notional"] += notional
             aggregated_data[cat][year]["count"] += 1
-            aggregated_data[cat][year]["instrument_types"].append(instrument.instrument_type) # type: ignore
+            aggregated_data[cat][year]["instrument_types"].append(instrument.instrument_type)  # type: ignore
             aggregated_data[cat][year]["instruments"].append(instrument)
 
     # =========================================================================
     # NARRATIVE CONSTRUCTION: Build the story section by section.
     # =========================================================================
+    mentioned_instrument_types: Set[str] = set()  # Tracks full type names
+    mentioned_instrument_ids: Set[int] = set()  # Tracks specific instrument IDs
 
-    # --- NEW: Track which instruments have been mentioned (by fingerprint) to allow for "aha" moments ---
-    mentioned_instrument_types: Set[str] = set() # Tracks full type names
-    mentioned_instrument_ids: Set[int] = set() # Tracks specific instrument IDs
+    # --- NEW: Section 1: Forward-Looking Statements & Company Description ---
+    if random.random() < GENERATION_PROBABILITIES["forward_looking_statement"]:
+        forward_looking_builder = ForwardLookingSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+        )
+        forward_looking_paragraph, forward_looking_evidence = (
+            forward_looking_builder.build()
+        )
+        if forward_looking_paragraph:
+            if DEBUG:
+                forward_looking_section.append("Forward-Looking Statements")
+            forward_looking_section.append(forward_looking_paragraph)
+            all_evidence.append(forward_looking_evidence)
 
-    # 1. Generate the top-level general policy statement.
-    # --- NEW: Probabilistically drop the entire general policy section ---
-    if allow_random_drops and random.random() < DROP_PROBABILITIES["general_policy"]:
-        DROPPED_SENTENCES.append("[GENERAL_POLICY_DROP] General policy section was dropped.")
-    else:
-        policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
-        if policy_sentences:  # This becomes its own section
-            item_7a_sections.append(" ".join(s for s in policy_sentences if s))
-            all_evidence.extend(policy_evidence)
+    if random.random() < GENERATION_PROBABILITIES["company_description"]:
+        description_builder = CompanyDescriptionSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+        )
+        description_paragraph, description_evidence = description_builder.build()
+        if description_paragraph:
+            if DEBUG:
+                business_section.append("Business")
+            business_section.append(description_paragraph)
+            all_evidence.append(description_evidence)
 
-    # 2. Category-Specific Sections (IR, FX, CP, etc.)
-    # --- NEW: Get all potential categories from the archetype's exposures to ensure we discuss risk even if not hedged. ---
+    # --- NEW: Section 2: Item 7A - Market Risk Disclosures (High-Level Summary) ---
     archetype_exposures = scenario.archetype.get_exposure_counts()
     all_relevant_categories = {
         "IR": archetype_exposures["debt"] > 0,
@@ -2829,31 +2854,46 @@ def generate_narrative_from_scenario(
         "EQ": archetype_exposures["equity"] > 0,
         "GEN": archetype_exposures["generic"] > 0,
     }
+    has_any_risk_to_discuss = any(
+        cat in aggregated_data or all_relevant_categories.get(cat, False)
+        for cat in ["IR", "FX", "CP", "EQ", "GEN"]
+    )
+    if has_any_risk_to_discuss:
+        if DEBUG:
+            item_7a_sections.append(
+                "Item 7A. Quantitative and Qualitative Disclosures About Market Risk"
+            )
 
-    # --- NEW: Randomize the order of category processing ---
+    if allow_random_drops and random.random() < DROP_PROBABILITIES["general_policy"]:
+        DROPPED_SENTENCES.append(
+            "[GENERAL_POLICY_DROP] General policy section was dropped."
+        )
+    else:
+        policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
+        if policy_sentences:
+            item_7a_sections.append(" ".join(s for s in policy_sentences if s))
+            all_evidence.extend(policy_evidence)
+
     category_order = ["IR", "FX", "CP", "EQ", "GEN"]
     random.shuffle(category_order)
 
-    # --- Part 1: Build the "Item 7A" Summary Section ---
-    # --- NEW: Probabilistically drop the entire 7A summary section ---
-    # This simulates filings that jump straight to the detailed notes.
     if allow_random_drops and random.random() < DROP_PROBABILITIES["summary_7a"]:
-        # Even if we drop the text, we MUST generate the underlying evidence
-        DROPPED_SENTENCES.append("[7A_SUMMARY_DROP] Entire Item 7A summary section was dropped.")
-        # (especially MitigationEvidence) so the JSON output is correct.
-        # We mark the evidence as 'implied' since the text isn't there.
+        DROPPED_SENTENCES.append(
+            "[7A_SUMMARY_DROP] Entire Item 7A summary section was dropped."
+        )
         for category in category_order:
-            if category in aggregated_data or all_relevant_categories.get(category, False):
+            if category in aggregated_data or all_relevant_categories.get(
+                category, False
+            ):
                 _, summary_evidence, _ = _generate_category_narrative(
                     category,
                     aggregated_data.get(category, {}),
                     scenario,
                     part="summary",
-                    suppress_text_output=True, # New flag to only generate evidence
+                    suppress_text_output=True,  # New flag to only generate evidence
                 )
                 all_evidence.extend(summary_evidence)
     else:
-        # The common case: generate the full summary text and evidence.
         for category in category_order:
             has_instruments = category in aggregated_data
             has_exposure = all_relevant_categories.get(category, False)
@@ -2861,47 +2901,52 @@ def generate_narrative_from_scenario(
             if has_instruments or (has_exposure and category != "GEN"):
                 yearly_data_for_cat = aggregated_data.get(category, {})
                 summary_sentences, summary_evidence, _ = _generate_category_narrative(
-                    category, yearly_data_for_cat, scenario, part="summary",
+                    category,
+                    yearly_data_for_cat,
+                    scenario,
+                    part="summary",
                     allow_random_drops=allow_random_drops,
                 )
                 item_7a_sections.append(" ".join(s for s in summary_sentences if s))
                 all_evidence.extend(summary_evidence)
 
-    # --- NEW: Part 2.5: Build the dedicated "Debt" Section ---
-    # This section provides detailed context on all debt instruments.
-    debt_paragraphs, debt_evidence = _generate_debt_narrative(scenario)
-    if debt_paragraphs:
-        derivative_details_sections.extend(debt_paragraphs)
-        all_evidence.extend(debt_evidence)
-
-    # --- NEW: Part 2.6: Build the dedicated "Foreign Currency Risk" Section ---
-    fx_paragraphs, fx_evidence = _generate_fx_narrative(scenario)
-    if fx_paragraphs:
-        derivative_details_sections.extend(fx_paragraphs)
-        all_evidence.extend(fx_evidence)
-
-    # --- NEW: Part 2.7: Build the dedicated "Commodity Price Risk" Section ---
-    cp_paragraphs, cp_evidence = _generate_cp_narrative(scenario)
-    if cp_paragraphs:
-        derivative_details_sections.extend(cp_paragraphs)
-        all_evidence.extend(cp_evidence)
-
-    # --- NEW: Part 2.8: Build the dedicated "Equity Risk" Section ---
-    eq_paragraphs, eq_evidence = _generate_eq_narrative(scenario)
-    if eq_paragraphs:
-        derivative_details_sections.extend(eq_paragraphs)
-        all_evidence.extend(eq_evidence)
-
-    # --- Part 2: Build the "Derivative Financial Instruments" Details Section ---
-    # Add a title for this section if there are any details to report.
+    # --- NEW: Section 3: Notes to Financial Statements (Detailed Disclosures) ---
     has_any_details = any(
         cat in aggregated_data for cat in ["IR", "FX", "CP", "EQ", "GEN"]
     )
-    if has_any_details:
-        # This is a simple way to add a section header.
+    if has_any_details or scenario.accounting_updates:
         if DEBUG:
-            derivative_details_sections.append("Derivative Financial Instruments")
+            financial_statement_notes_section.append(
+                "Notes to Consolidated Financial Statements"
+            )
 
+    debt_paragraphs, debt_evidence = _generate_debt_narrative(scenario)
+    if debt_paragraphs:
+        financial_statement_notes_section.extend(debt_paragraphs)
+        all_evidence.extend(debt_evidence)
+
+    fx_paragraphs, fx_evidence = _generate_fx_narrative(scenario)
+    if fx_paragraphs:
+        financial_statement_notes_section.extend(fx_paragraphs)
+        all_evidence.extend(fx_evidence)
+
+    cp_paragraphs, cp_evidence = _generate_cp_narrative(scenario)
+    if cp_paragraphs:
+        financial_statement_notes_section.extend(cp_paragraphs)
+        all_evidence.extend(cp_evidence)
+
+    eq_paragraphs, eq_evidence = _generate_eq_narrative(scenario)
+    if eq_paragraphs:
+        financial_statement_notes_section.extend(eq_paragraphs)
+        all_evidence.extend(eq_evidence)
+
+    if has_any_details:
+        if DEBUG:
+            financial_statement_notes_section.append(
+                "Note X: Derivative Financial Instruments"
+            )
+
+    # Detailed instrument paragraphs
     for category in category_order:
         if category in aggregated_data:
             yearly_data_for_cat = aggregated_data.get(category, {})
@@ -2914,20 +2959,18 @@ def generate_narrative_from_scenario(
                 mentioned_instrument_ids=mentioned_instrument_ids,
                 allow_random_drops=allow_random_drops,
             )
-            # NEW: Join the generated paragraphs with newlines.
-            # This ensures timelines and individual instruments get their own paragraphs.
             category_details_paragraph = "\n\n".join(s for s in detail_sentences if s)
-            derivative_details_sections.append(category_details_paragraph)
+            financial_statement_notes_section.append(category_details_paragraph)
             all_evidence.extend(detail_evidence)
 
-    # --- NEW: Part 2.9: Generate Optional Standalone "Additional" Tables ---
-    # These tables (AOCI, Maturity, etc.) often appear as separate disclosures.
-    if has_any_details and scenario.archetype.prefers_tables and not allow_random_drops and random.random() < GENERATION_PROBABILITIES["additional_table"]:
-        # Get currency and money unit details for table generation.
+    # Additional tables (AOCI, Maturity, etc.)
+    if (
+        has_any_details
+        and scenario.archetype.prefers_tables
+        and not allow_random_drops
+        and random.random() < GENERATION_PROBABILITIES["additional_table"]
+    ):
         currency_symbol, _, currency_code = _get_currency_and_unit_details(scenario)
-
-        # We can generate one of these tables for each category that has instruments.
-        # Let's pick one or two categories at random to generate a table for.
         cats_with_instruments = list(aggregated_data.keys())
         if cats_with_instruments:
             num_tables_to_gen = random.randint(1, len(cats_with_instruments))
@@ -2940,7 +2983,6 @@ def generate_narrative_from_scenario(
                 "GEN": "",
             }
             for category in cats_for_tables:
-                # We need all instruments for the table, not just the ones for a specific year.
                 all_instruments_for_cat = [
                     inst for inst in scenario.instruments if inst.category == category
                 ]
@@ -2957,34 +2999,31 @@ def generate_narrative_from_scenario(
                     currency_code=currency_code,
                     preferred_negative_format=scenario.archetype.preferred_negative_format,
                 )
-                # Call build with additional=True to get the other table formats
-                table_str, table_evidence, _ = table_builder.choose_and_build(additional=True)
+                table_str, table_evidence, _ = table_builder.choose_and_build(
+                    additional=True
+                )
                 if table_str:
-                    derivative_details_sections.append(table_str)
+                    financial_statement_notes_section.append(table_str)
                     all_evidence.extend(table_evidence)
 
-    # 3. Effectiveness and Accounting Section
+    # Accounting policies for derivatives
     accounting_sentences, accounting_evidence = _generate_narrative_accounting(scenario)
-    # This can be appended to the details section or be its own section.
-    # Let's add it to the end of the details for now.
-    if accounting_sentences and derivative_details_sections:
-        # --- MODIFIED: Join with newlines to create separate paragraphs ---
+    if accounting_sentences:
         accounting_section_paragraph = "\n\n".join(s for s in accounting_sentences if s)
-        derivative_details_sections.append(accounting_section_paragraph)
+        financial_statement_notes_section.append(accounting_section_paragraph)
         all_evidence.extend(accounting_evidence)
 
-        # --- NEW: With a chance, add a legalistic definition of a derivative ---
         if random.random() < GENERATION_PROBABILITIES["add_legalistic_definition"]:
             definition_builder = HedgeDefinitionSentence()
             definition_sentence = definition_builder.build()
-            derivative_details_sections.append(definition_sentence)
+            financial_statement_notes_section.append(definition_sentence)
 
-    # --- NEW: Part 4: Generate Accounting Standard Update Section ---
-    # This will generate paragraphs about both derivative and non-derivative standards.
+    # Accounting standard updates
     if scenario.accounting_updates:
-        # Add a title for this section.
         if DEBUG:
-            derivative_details_sections.append("Recently Issued Accounting Pronouncements")
+            financial_statement_notes_section.append(
+                "Note Y: Recently Issued Accounting Pronouncements"
+            )
         for update in scenario.accounting_updates:
             update_builder = AccountingStandardUpdateSentence(
                 company_name=scenario.company_name,
@@ -2994,13 +3033,20 @@ def generate_narrative_from_scenario(
                 day=scenario.reporting_day,
             )
             update_paragraph, update_evidence = update_builder.build()
-            derivative_details_sections.append(update_paragraph)
+            financial_statement_notes_section.append(update_paragraph)
             all_evidence.extend(update_evidence)
 
-        # --- NEW: Add a generic "other pronouncements" sentence ---
         if random.random() < GENERATION_PROBABILITIES["add_other_pronouncements"]:
-            from defs.template_definitions import shared_recent_pronouncement_templates, other_standards, other_topics, shared_issuers
-            pronouncement_template = random.choice(shared_recent_pronouncement_templates)
+            from defs.template_definitions import (
+                shared_recent_pronouncement_templates,
+                other_standards,
+                other_topics,
+                shared_issuers,
+            )
+
+            pronouncement_template = random.choice(
+                shared_recent_pronouncement_templates
+            )
             pronouncement_sentence = pronouncement_template.format(
                 standard=random.choice(other_standards),
                 topic=random.choice(other_topics),
@@ -3009,12 +3055,10 @@ def generate_narrative_from_scenario(
                 month=random.choice(months),
                 year=scenario.reporting_year,
             )
-            derivative_details_sections.append(pronouncement_sentence)
+            financial_statement_notes_section.append(pronouncement_sentence)
 
-    # --- NEW: With a chance, add a paragraph about legal proceedings ---
-    if (
-        random.random() < GENERATION_PROBABILITIES["legal_context"]
-    ):  # 20% chance to add legal context
+    # Legal context
+    if random.random() < GENERATION_PROBABILITIES["legal_context"]:
         legal_context_builder = LegalContextSentence(
             company_name=scenario.company_name,
             reporting_year=scenario.reporting_year,
@@ -3026,10 +3070,14 @@ def generate_narrative_from_scenario(
         )
         legal_paragraph, legal_evidence = legal_context_builder.build()
         if legal_paragraph:
-            derivative_details_sections.append(legal_paragraph)
+            if DEBUG:
+                financial_statement_notes_section.append(
+                    "Note Z: Commitments and Contingencies"
+                )
+            financial_statement_notes_section.append(legal_paragraph)
             all_evidence.append(legal_evidence)
 
-    # --- NEW: With a chance, add a paragraph about institutional ownership ---
+    # Ownership context
     if random.random() < GENERATION_PROBABILITIES["ownership_context"]:
         ownership_context_builder = OwnershipContextSentence(
             company_name=scenario.company_name,
@@ -3039,94 +3087,62 @@ def generate_narrative_from_scenario(
         )
         ownership_paragraph, ownership_evidence = ownership_context_builder.build()
         if ownership_paragraph:
-            # This can be a standalone section or part of another.
-            # Let's add it to the end of the detailed disclosures.
             if DEBUG:
-                derivative_details_sections.append("Security Ownership")
-            derivative_details_sections.append(ownership_paragraph)
+                financial_statement_notes_section.append("Note W: Security Ownership")
+            financial_statement_notes_section.append(ownership_paragraph)
             all_evidence.append(ownership_evidence)
 
-    # --- NEW: With a chance, add a full financial statement table as noise ---
+    # --- NEW: Section 4: Financial Statement Tables ---
     financial_statement_paragraphs = _generate_financial_statement_tables(scenario)
     if financial_statement_paragraphs:
-        # Prepend a title to give context to the random financial statement
         if DEBUG:
-            derivative_details_sections.append("Consolidated Financial Statements")
-        derivative_details_sections.extend(financial_statement_paragraphs)
+            financial_statements_section.append("Consolidated Financial Statements")
+        financial_statements_section.extend(financial_statement_paragraphs)
 
-    # --- NEW: With a chance, add a paragraph describing the company ---
-    if random.random() < GENERATION_PROBABILITIES["company_description"]:
-        description_builder = CompanyDescriptionSentence(
-            company_name=scenario.company_name,
-            reporting_year=scenario.reporting_year,
-        )
-        description_paragraph, description_evidence = description_builder.build()
-        if description_paragraph:
-            if DEBUG:
-                derivative_details_sections.append("Company Description")
-            derivative_details_sections.append(description_paragraph)
-            all_evidence.append(description_evidence)
-
-    # --- NEW: With a chance, add a forward-looking statement paragraph ---
-    if random.random() < GENERATION_PROBABILITIES["forward_looking_statement"]:
-        forward_looking_builder = ForwardLookingSentence(
-            company_name=scenario.company_name,
-            reporting_year=scenario.reporting_year,
-            reporting_month=scenario.reporting_month,
-            reporting_day=scenario.reporting_day,
-        )
-        forward_looking_paragraph, forward_looking_evidence = forward_looking_builder.build()
-        if forward_looking_paragraph:
-            if DEBUG:
-                derivative_details_sections.append("Forward-Looking Statements")
-            derivative_details_sections.append(forward_looking_paragraph)
-        derivative_details_sections.extend(financial_statement_paragraphs)
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
     # =========================================================================
-
-    # Assemble the final narrative from the generated parts
     narrative_sections = []
-    narrative_sections.extend(item_7a_sections)
-    narrative_sections.extend(derivative_details_sections)
-    narrative = "\n\n".join(section for section in narrative_sections if section)
-    # strip out more than 2 newlines
-    # --- NEW: Final cleanup for ordinal counters ---
+    narrative_sections.extend(s for s in forward_looking_section if s)
+    narrative_sections.extend(s for s in business_section if s)
+    narrative_sections.extend(s for s in financial_statements_section if s)
+    narrative_sections.extend(s for s in item_7a_sections if s)
+    narrative_sections.extend(s for s in financial_statement_notes_section if s)
+
+    narrative = "\n\n".join(narrative_sections)
     narrative = _cleanup_counter(narrative)
     narrative = re.sub(r"\n{3,}", "\n\n", narrative)
-    # Prepend the reporting year tag.
+
     full_narrative = (
         f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
     )
 
-    # --- NEW: Post-process evidence to remove redundant ExposureEvidence ---
-    # This makes the chain_of_thought cleaner. We only want to mention exposure
-    # if there's no other evidence of derivative use for that category.
+    # --- (Unchanged) Post-process evidence to remove redundant ExposureEvidence ---
     final_evidence = []
-    # Get categories that have more specific evidence (Notional or Mitigation)
     categories_with_instruments = {
         ev.category
         for ev in all_evidence
         if isinstance(ev, (NotionalEvidence, MitigationEvidence))
     }
-    # Keep track of exposure categories we've already added to avoid duplicates
     added_exposure_categories = set()
 
     for ev in all_evidence:
         if isinstance(ev, ExposureEvidence):
-            # Only add ExposureEvidence if there's no other instrument evidence for that category
-            # and we haven't already added an exposure mention for it.
-            if ev.category not in categories_with_instruments and ev.category not in added_exposure_categories:
+            if (
+                ev.category not in categories_with_instruments
+                and ev.category not in added_exposure_categories
+            ):
                 final_evidence.append(ev)
                 added_exposure_categories.add(ev.category)
         else:
-            # Keep all other types of evidence
             final_evidence.append(ev)
 
-    # --- NEW: Post-generation warnings for leftover placeholders ---
+    # --- (Unchanged) Post-generation warnings ---
     warnings = []
-    if "None" in full_narrative: warnings.append("The word 'none' was found.")
-    if re.search(r'[\{\}\[\]]', full_narrative): warnings.append("Leftover template characters like '{}' or '[]' were found.")
+    if "None" in full_narrative:
+        warnings.append("The word 'none' was found.")
+    if re.search(r"[\{\}\[\]]", full_narrative):
+        warnings.append("Leftover template characters like '{}' or '[]' were found.")
     if warnings:
         full_narrative += f"\n\n[WARNING: Please review for potential ambiguity or unintended implications. Issues found: {'; '.join(warnings)}]"
     return full_narrative, final_evidence
