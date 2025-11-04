@@ -315,7 +315,8 @@ hedge_types = [
     "net investment",
     "fair value",
     "cash flow",
-    "economic"
+    "economic",
+    ""
 ]
 
 result_phrases = {

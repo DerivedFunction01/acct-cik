@@ -556,7 +556,8 @@ class NotionalSentence:
             # Choose from templates that are not empty
             designation_template = random.choice([d for d in hedge_designations if d])
             hedge_designation_clause = designation_template.format(
-                hedge_type=random.choice(hedge_types)
+                hedge_type=random.choice(hedge_types),
+                hedged="" if self.instrument and self.instrument.hedged_item else "not",
             )
 
         # 6. Result phrase clause.
