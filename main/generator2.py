@@ -3419,13 +3419,13 @@ def generate_json_from_scenario(
 
         if num_distinct_instruments > 1:
             # Case: Multiple different instruments of the same type were mentioned.
-            mention_summary = f"{num_distinct_instruments} distinct '{inst_type}' instruments"
+            mention_summary = f"{num_distinct_instruments} distinct '{inst_type}'"
             if num_mentions > num_distinct_instruments:
                 mention_summary += f" (with a total of {num_mentions} mentions)"
             repeated_mentions.append(mention_summary)
         elif num_mentions > 1:
             # Case: A single instrument was mentioned multiple times.
-            repeated_mentions.append(f"a single '{inst_type}' instrument was mentioned {num_mentions} times")
+            repeated_mentions.append(f"a single '{inst_type}' was mentioned {num_mentions} times")
 
     if repeated_mentions:
         repetition_summary = f"The text discusses {', '.join(repeated_mentions)}."
