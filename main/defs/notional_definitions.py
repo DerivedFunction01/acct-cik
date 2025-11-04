@@ -697,6 +697,7 @@ class NotionalSentence:
             or "{amount_connector}" in template
             or "{amount_prefix}" in template
         )
+        amount_prefix_to_use = "" if not mentions_amount else amount_prefix_to_use
         final_notional = self.notional if mentions_amount else None
 
         final_notional_str = amount_str if mentions_amount else None
