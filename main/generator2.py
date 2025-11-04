@@ -2079,7 +2079,7 @@ def _generate_category_narrative(
                 # This ensures the description covers instruments from both years.
                 combined_instruments = current_year_data.get(
                     "instruments", []
-                ) + prev_year_data.get(
+                ) + prev_year_data.get(  # type: ignore
                     "instruments", []
                 )  # type: ignore
                 # Remove duplicates by instrument ID
@@ -3294,6 +3294,17 @@ def generate_json_from_scenario(
 
     # If there were any exposure-only mentions, join them into a single sentence and append it.
     if exposure_descriptions:
+        # Check if any specific derivative instruments were mentioned in the evidence at all.
+        any_specific_instrument_mentioned = any(
+            (isinstance(ev, NotionalEvidence) or isinstance(ev, MitigationEvidence))
+            and ev.category != "GEN"
+            for ev in evidence
+        )
+
+        # If any instrument is mentioned, we suppress the generic one, in case we drop mitigation but kept the generic exposure
+        if len(exposure_descriptions) > 1 and "general market risks" in exposure_descriptions and any_specific_instrument_mentioned:
+            exposure_descriptions.remove("general market risks")
+
         # Join with ", " and use " and " for the last item.
         joined_descriptions = (", ".join(exposure_descriptions[:-1]) + " and " + exposure_descriptions[-1]) if len(exposure_descriptions) > 1 else exposure_descriptions[0]
         exposure_sentence = f"The text also mentions {joined_descriptions}, but does not mention specific derivatives used for hedging."
