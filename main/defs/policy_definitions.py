@@ -288,7 +288,7 @@ class AccountingPolicySentence:
                 policy_type=evidence_type, # type: ignore
                 details=sentence,
             )  # type: ignore
-            sentences_and_evidence.append((sentence, evidence))
+            sentences_and_evidence.append((_cleanup_sentence(sentence), evidence))
 
         return sentences_and_evidence
 
