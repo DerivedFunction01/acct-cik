@@ -157,27 +157,29 @@ def _cleanup_sentence(sentence: str) -> str:
     # Correct pluralization (company -> companies, but not always/employs)
     sentence = re.sub(r"([^aeiou])ys\b", r"\1ies", sentence, flags=re.IGNORECASE)
 
-    # Capitalize first letter of the sentence and after periods
-    def capitalize_after_period(match):
-        return match.group(1) + match.group(2).upper()
-
     if sentence:
-        # Capitalize first character
-        sentence = sentence[0].upper() + sentence[1:]
-        # Capitalize after ". ", "? ", or "! ", but not after common abbreviations.
-        # Define a list of common abbreviations that end with a period.
+        # Define abbreviations to prevent incorrect capitalization (e.g., "Inc. the")
         abbreviations = [
             "Inc", "Corp", "Ltd", "Co", "LLC", "et al", "e.g", "i.e", "etc",
             "vs", "Mr", "Mrs", "Ms", "Dr", "Sr", "Jr", "No"
         ]
-        # Create a negative lookbehind pattern to avoid capitalizing after these abbreviations.
-        # This ensures "Inc. the next sentence" does not become "Inc. The next sentence".
-        negative_lookbehind = r"(?<!\b(?:{}))".format("|".join(abbreviations))
-        
-        # Apply capitalization rule for periods, respecting the lookbehind
-        sentence = re.sub(f"{negative_lookbehind}([.]\s+)([a-z])", capitalize_after_period, sentence)
-        # Apply capitalization for question marks and exclamation points separately
-        sentence = re.sub(r"([!?]\s+)([a-z])", capitalize_after_period, sentence)
+        abbreviations_pattern = r"\b(" + "|".join(re.escape(ab) for ab in abbreviations) + r")"
+
+        def capitalize_after_period(match):
+            # The full match is something like "word. a"
+            # We need to check if 'word' is in our abbreviations list.
+            # match.group(1) is the word before the period.
+            # match.group(2) is the period and space.
+            # match.group(3) is the letter to be capitalized.
+            word_before_period = match.group(1)
+            if word_before_period and re.fullmatch(abbreviations_pattern, word_before_period, re.IGNORECASE):
+                return match.group(0)  # It's an abbreviation, return the original match without capitalizing.
+            return match.group(1) + match.group(2) + match.group(3).upper()
+
+        # Capitalize the very first letter of the sentence.
+        sentence = sentence[0].upper() + sentence[1:]
+        # Find a word, followed by a period/!/?, whitespace, and then a lowercase letter.
+        sentence = re.sub(r"(\w*)([.!?]\s+)([a-z])", capitalize_after_period, sentence)
 
     return sentence
 
