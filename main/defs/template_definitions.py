@@ -173,9 +173,9 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     "comparative": [
         "{company} {verb} {swap_type} {amount_connector} {amount_str}, {time_suffix} {hedge_designation_clause} {result_clause}.",
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}, respectively {result_clause}.",
-        "The {amount_connector} {amount_prefix} of the {swap_type} were {amount_str} {time_suffix}, {result_clause}.",
+        "The {amount_prefix} of the {swap_type} were {amount_str} {time_suffix}, {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
-        "{begin_mitigation} {company} held {swap_type} with {amount_connector} {amount_prefix}s of {amount_str}, {time_suffix}.",
+        "{begin_mitigation} {company} held {swap_type} with {amount_connector} of {amount_str}, {time_suffix}.",
     ],
     # For describing a single, active instrument in the current period.
     "individual": [
