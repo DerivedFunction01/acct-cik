@@ -237,10 +237,10 @@ debt_templates = {
     "debt_covenant": [
         "The credit agreement contains customary affirmative and negative covenants, including financial covenants related to leverage ratios and interest coverage",
         "As of {month} {end_day}, {year}, {company} was in compliance with all debt covenants",
-        "The revolving credit facility requires maintenance of a maximum leverage ratio of {small_int}:1 and minimum interest coverage ratio of {small_int2}:1",
+        "The {debt_type} requires maintenance of a maximum leverage ratio of {small_int}:1 and minimum interest coverage ratio of {small_int2}:1",
         "Debt agreements contain restrictions on dividends, additional indebtedness, and asset sales, subject to certain exceptions",
         # Covenant and credit facility context
-        "The revolving credit facility contains customary financial covenants, including maintaining a maximum leverage ratio and minimum interest coverage ratio",
+        "The {debt_type} contains customary financial covenants, including maintaining a maximum leverage ratio and minimum interest coverage ratio",
         "{company} was in compliance with all debt covenants as of {month} {end_day}, {year}",
         "{company}'s credit agreements require maintenance of specified leverage and coverage ratios, which {company} met as of {month} {end_day}, {year}",
     ],
