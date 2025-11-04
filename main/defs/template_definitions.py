@@ -1178,14 +1178,21 @@ class NotionalVsFairValueTableBuilder(DerivativeTableBuilder):
             data_rows = []
 
             for (placeholder, base_type, _), group_data in grouped_for_year.items():
+                assert (
+                    isinstance(group_data["category"], str)
+                    and isinstance(group_data["currency"], str)
+                    and isinstance(group_data["symbol"], str)
+                    and isinstance(group_data["instruments"], list)
+                )
                 # Aggregate notional and fair values for the group
                 total_notional = sum(
                     self._get_value(inst, year, "notional")
-                    for inst in group_data["instruments"]
+                    for inst in group_data["instruments"] if isinstance(inst, NotionalInstrument)
                 )
                 total_fair_value = sum(
                     self._get_value(inst, year, "fair_value")
                     for inst in group_data["instruments"]
+                    if isinstance(inst, NotionalInstrument)
                 )
 
                 if total_notional == 0 and total_fair_value == 0:
@@ -1493,15 +1500,25 @@ class ThreeYearComparativeTableBuilder(DerivativeTableBuilder):
         widths = [40, 18, 18, 18]
         alignments = ['l', 'r', 'r', 'r']
         data_rows = []
-        
+
         # --- NEW: Group instruments by placeholder and base_type ---
         grouped_instruments = _group_instruments_by_type(self.instruments)
 
         for (placeholder, base_type, currency), group_data in grouped_instruments.items():
             # Aggregate values for the group across all three years
-            val1 = sum(self._get_value(inst, year1, value_type) for inst in group_data["instruments"])
-            val2 = sum(self._get_value(inst, year2, value_type) for inst in group_data["instruments"])
-            val3 = sum(self._get_value(inst, year3, value_type) for inst in group_data["instruments"])
+            assert (
+                isinstance(group_data["category"], str)
+                and isinstance(group_data["currency"], str)
+                and isinstance(group_data["symbol"], str)
+                and isinstance(group_data["instruments"], list)
+            )
+            val1 = sum(self._get_value(inst, year1, value_type) for inst in group_data["instruments"] if isinstance(inst, NotionalInstrument))
+            val2 = sum(self._get_value(inst, year2, value_type) for inst in group_data["instruments"] if isinstance(inst, NotionalInstrument))
+            val3 = sum(
+                self._get_value(inst, year3, value_type)
+                for inst in group_data["instruments"]
+                if isinstance(inst, NotionalInstrument)
+            )
 
             if val1 == 0 and val2 == 0 and val3 == 0:
                 continue
@@ -1519,7 +1536,7 @@ class ThreeYearComparativeTableBuilder(DerivativeTableBuilder):
 
             row_cells = [name_to_use, val1_str, val2_str, val3_str]
             data_rows.append(row_cells)
-            
+
             # --- NEW: Create a single summary evidence object for the group for the current year ---
             if val1 > 0:
                 evidence_notional_str = _format_single_notional(
@@ -1583,9 +1600,15 @@ class AOCIReclassificationImpactTableBuilder(DerivativeTableBuilder):
         for (placeholder, base_type, currency), group_data in grouped_instruments.items():
             # Simulate a reclassification amount
             # This is now an aggregate amount for the group
+            assert (
+                isinstance(group_data["category"], str)
+                and isinstance(group_data["currency"], str)
+                and isinstance(group_data["symbol"], str)
+                and isinstance(group_data["instruments"], list)
+            )
             reclass_amount = sum(
                 int(inst.notional_history.get(year, 0) * random.uniform(-0.05, 0.05))
-                for inst in group_data["instruments"]
+                for inst in group_data["instruments"] if isinstance(inst, NotionalInstrument)
             )
             if reclass_amount == 0:
                 continue
@@ -1602,7 +1625,7 @@ class AOCIReclassificationImpactTableBuilder(DerivativeTableBuilder):
 
             row_cells = [name_to_use, reclass_str, location]
             data_rows.append(row_cells)
-            
+
             evidence_reclass_str = _format_single_notional(
                 reclass_amount, group_data["symbol"], self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
             )
@@ -1785,7 +1808,13 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
         grouped_instruments = _group_instruments_by_type(active_instruments)
 
         for (placeholder, base_type, currency), group_data in grouped_instruments.items():
-            fair_value = sum(self._get_value(inst, year, "fair_value") for inst in group_data["instruments"])
+            assert (
+                isinstance(group_data["category"], str)
+                and isinstance(group_data["currency"], str)
+                and isinstance(group_data["symbol"], str)
+                and isinstance(group_data["instruments"], list)
+            )
+            fair_value = sum(self._get_value(inst, year, "fair_value") for inst in group_data["instruments"] if isinstance(inst, NotionalInstrument))
             if fair_value == 0: continue
 
             # Randomly decide if the fair value is an asset or liability
@@ -1873,7 +1902,13 @@ class FairValueHierarchyTableBuilder(DerivativeTableBuilder):
         grouped_instruments = _group_instruments_by_type(active_instruments)
 
         for (placeholder, base_type, currency), group_data in grouped_instruments.items():
-            fair_value = sum(self._get_value(inst, year, "fair_value") for inst in group_data["instruments"])
+            assert (
+                isinstance(group_data["category"], str)
+                and isinstance(group_data["currency"], str)
+                and isinstance(group_data["symbol"], str)
+                and isinstance(group_data["instruments"], list)
+            )
+            fair_value = sum(self._get_value(inst, year, "fair_value") for inst in group_data["instruments"] if isinstance(inst, NotionalInstrument))
             if fair_value == 0:
                 continue
 
@@ -1964,7 +1999,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
 
         header_line_1 = [""] + sub_headers + sub_headers
         header_line_2 = [f"For the Year Ended {self.month} {self.day}, {year1}"] + [""] * (num_data_cols) + [str(year2)] + [""] * (num_data_cols - 1)
-        
+
         headers = [header_line_1, header_line_2]
         label_width = 45
         data_width = 12
@@ -1972,7 +2007,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
         alignments = ['l'] + ['r'] * num_data_cols * 2
         data_rows = []
         evidence_list = []
-        
+
         # 2. Group instruments by hedge type
         hedge_groups = {
             "Fair Value Hedge": [i for i in self.instruments if i.category == "IR"], # Simplified for example
@@ -1997,14 +2032,18 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                 group_name = f"  {placeholder} {base_type}{plural_suffix}{currency_note}".strip().capitalize()
                 data_rows.append([group_name] + [""] * (num_data_cols * 2))
                 sub_instruments = group_data["instruments"]
-
+                assert isinstance(sub_instruments, list)
                 # Simulate data for this group
                 for year_idx, year in enumerate([year1, year2]):
-                    active_in_year = any(inst.notional_history.get(year, 0) > 0 for inst in sub_instruments)
+                    active_in_year = any(inst.notional_history.get(year, 0) > 0 for inst in sub_instruments if isinstance(inst, NotionalInstrument))
                     if not active_in_year:
                         continue
 
-                    total_notional = sum(inst.notional_history.get(year, 0) for inst in sub_instruments)
+                    total_notional = sum(
+                        inst.notional_history.get(year, 0)
+                        for inst in sub_instruments
+                        if isinstance(inst, NotionalInstrument)
+                    )
                     if total_notional == 0: continue
 
                     # Simulate values based on hedge type
@@ -2012,16 +2051,16 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         # Hedged items and derivatives affect Interest Expense
                         hedged_item_val = int(total_notional * random.uniform(0.01, 0.08))
                         derivative_val = -hedged_item_val + int(total_notional * random.uniform(-0.005, 0.005)) # Simulate ineffectiveness
-                        
+
                         hedged_row = [f"    Amount of gain or (loss) on hedged items ({base_type})"] + ["-"] * (num_data_cols * 2)
                         deriv_row = ["    Derivatives designated as hedging instruments"] + ["-"] * (num_data_cols * 2)
-                        
+
                         col_offset = year_idx * num_data_cols
                         hedged_row[1 + 3 + col_offset] = self._format_value(hedged_item_val)
                         deriv_row[1 + 3 + col_offset] = self._format_value(derivative_val)
-                        
+
                         data_rows.extend([hedged_row, deriv_row])
-                        
+
                         # --- NEW: Create evidence for these values ---
                         evidence_list.append(NotionalEvidence(
                             status="individual", category=self.category, notional=hedged_item_val,
@@ -2040,7 +2079,6 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                             additional_details={"hedge_type": hedge_type, "line_item": "Interest Expense"}
                         ))
 
-
                     elif hedge_type == "Net Investment Hedge":
                         # Affects Other Expense for income and AOCI
                         income_val = int(total_notional * random.uniform(0.01, 0.05))
@@ -2055,7 +2093,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                         aoci_row[1 + 4 + col_offset] = self._format_value(aoci_val) 
 
                         data_rows.extend([income_row, aoci_row])
-                        
+
                         # --- NEW: Create evidence for these values ---
                         evidence_list.append(NotionalEvidence(
                             status="individual", category=self.category, notional=income_val,
@@ -2093,7 +2131,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                             aoci_row[1 + idx + col_offset] = self._format_value(aoci_part)
 
                         data_rows.extend([reclass_row, aoci_row])
-                        
+
                         # --- NEW: Create evidence for these values ---
                         evidence_list.append(NotionalEvidence(
                             status="individual", category=self.category, notional=reclass_val,
@@ -2112,8 +2150,6 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                             additional_details={"hedge_type": hedge_type, "line_item": "AOCI"}
                         ))
 
-
-            
             data_rows.append([""] * (num_data_cols * 2 + 1)) # Add a spacer row between hedge types
 
         if not data_rows:
