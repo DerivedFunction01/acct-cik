@@ -3301,24 +3301,6 @@ def generate_json_from_scenario(
                 instrument_mentions[ev.instrument_type] = []
             instrument_mentions[ev.instrument_type].append(ev.instrument_id)
 
-    repeated_mentions = []
-    for inst_type, id_list in instrument_mentions.items():
-        num_mentions = len(id_list)
-        num_distinct_instruments = len(set(id_list))
-
-        if num_distinct_instruments > 1:
-            # Case: Multiple different instruments of the same type were mentioned.
-            mention_summary = f"{num_distinct_instruments} distinct '{inst_type}' instruments"
-            if num_mentions > num_distinct_instruments:
-                mention_summary += f" (with a total of {num_mentions} mentions)"
-            repeated_mentions.append(mention_summary)
-        elif num_mentions > 1:
-            # Case: A single instrument was mentioned multiple times.
-            repeated_mentions.append(f"a single '{inst_type}' instrument was mentioned {num_mentions} times")
-
-    if repeated_mentions:
-        repetition_summary = f"The text discusses {', '.join(repeated_mentions)}."
-        chain_of_thought += "\n" + repetition_summary
 
     # --- NEW: Process and append the consolidated accounting evidence ---
     if accounting_evidence_list:
@@ -3360,6 +3342,24 @@ def generate_json_from_scenario(
         exposure_sentence = f"The text also mentions {joined_descriptions}, but does not mention specific derivatives used for hedging."
         chain_of_thought += "\n" + exposure_sentence
 
+    repeated_mentions = []
+    for inst_type, id_list in instrument_mentions.items():
+        num_mentions = len(id_list)
+        num_distinct_instruments = len(set(id_list))
+
+        if num_distinct_instruments > 1:
+            # Case: Multiple different instruments of the same type were mentioned.
+            mention_summary = f"{num_distinct_instruments} distinct '{inst_type}' instruments"
+            if num_mentions > num_distinct_instruments:
+                mention_summary += f" (with a total of {num_mentions} mentions)"
+            repeated_mentions.append(mention_summary)
+        elif num_mentions > 1:
+            # Case: A single instrument was mentioned multiple times.
+            repeated_mentions.append(f"a single '{inst_type}' instrument was mentioned {num_mentions} times")
+
+    if repeated_mentions:
+        repetition_summary = f"The text discusses {', '.join(repeated_mentions)}."
+        chain_of_thought += "\n" + repetition_summary
     # --- Append a final reasoning statement for any GENERIC derivatives ---
     # This logic is now centralized here, instead of in the Evidence class.
     has_generic_evidence = any(ev.category == "GEN" and ev.status =="current" for ev in evidence)
