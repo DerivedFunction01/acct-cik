@@ -70,7 +70,10 @@ DEBT_CATEGORIES = [
         name="Corporate & Bank Debt",
         debt_types=[
             DebtType(name="term loan", benchmarks=["SOFR", "LIBOR", "prime rate"]),
-            DebtType(name="revolving credit facility", benchmarks=["SOFR", "LIBOR", "prime rate"]),
+            DebtType(
+                name="revolving credit facility",
+                benchmarks=["SOFR", "LIBOR", "prime rate"],
+            ),
             DebtType(name="bridge loan", benchmarks=["prime rate"]),
             DebtType(name="syndicated loan", benchmarks=["SOFR", "LIBOR"]),
             DebtType(name="bilateral loan", benchmarks=["SOFR", "prime rate"]),
@@ -86,7 +89,7 @@ DEBT_CATEGORIES = [
             DebtType(name="senior unsecured debt", benchmarks=["fixed rate"]),
             DebtType(name="convertible debt", benchmarks=["fixed rate"]),
             DebtType(name="private placement note", benchmarks=["fixed rate"]),
-        ]
+        ],
     ),
     DebtCategory(
         name="Marketable Securities (Bonds & Notes)",
@@ -100,19 +103,31 @@ DEBT_CATEGORIES = [
             DebtType(name="callable bond", benchmarks=["fixed rate"]),
             DebtType(name="puttable bond", benchmarks=["fixed rate"]),
             DebtType(name="fixed-rate bond", benchmarks=["fixed rate"]),
-            DebtType(name="floating-rate note", benchmarks=["SOFR", "LIBOR", "treasury rate"]),
+            DebtType(
+                name="floating-rate note", benchmarks=["SOFR", "LIBOR", "treasury rate"]
+            ),
             DebtType(name="inflation-indexed bond", benchmarks=[]),
             DebtType(name="convertible bond", benchmarks=["fixed rate"]),
             DebtType(name="secured bond", benchmarks=["fixed rate"]),
             DebtType(name="unsecured bond", benchmarks=["fixed rate"]),
             DebtType(name="debenture", benchmarks=["fixed rate"]),
-        ]
+        ],
     ),
     DebtCategory(
         name="International Bonds",
         debt_types=[
-            DebtType(name="eurobond", benchmarks=["EURIBOR", "LIBOR"]),
-        ]
+            DebtType(name="eurobond", benchmarks=["EURIBOR", "LIBOR"]),            
+            DebtType(name="samurai bond", benchmarks=["TIBOR"]),
+            DebtType(name="panda bond", benchmarks=["SHIBOR"]),
+            DebtType(name="dim sum bond", benchmarks=["CNH HIBOR"]),
+            DebtType(name="yankee bond", benchmarks=["fixed rate"]),
+            DebtType(name="bulldog bond", benchmarks=["fixed rate"]),
+            DebtType(name="kangaroo bond", benchmarks=["BBSW"]),
+            DebtType(name="maple bond", benchmarks=["CDOR"]),
+            DebtType(name="matador bond", benchmarks=["EURIBOR"]),
+            DebtType(name="shogun bond", benchmarks=["TIBOR"]),
+            DebtType(name="formosa bond", benchmarks=["TAIBOR"]),
+        ],
     ),
     DebtCategory(
         name="Short-Term & Money Market",
@@ -124,27 +139,32 @@ DEBT_CATEGORIES = [
             DebtType(name="federal funds", benchmarks=[]),
             DebtType(name="money market instrument", benchmarks=[]),
             DebtType(name="eurodollar borrowing", benchmarks=["LIBOR"]),
-        ]
+        ],
     ),
     DebtCategory(
         name="Asset-Backed & Structured Finance",
         debt_types=[
             DebtType(name="asset-backed security (ABS)", benchmarks=["SOFR"]),
             DebtType(name="mortgage-backed security (MBS)", benchmarks=["SOFR"]),
-            DebtType(name="collateralized loan obligation (CLO)", benchmarks=["SOFR", "LIBOR"]),
+            DebtType(
+                name="collateralized loan obligation (CLO)",
+                benchmarks=["SOFR", "LIBOR"],
+            ),
             DebtType(name="factoring", benchmarks=[]),
             DebtType(name="supply chain finance", benchmarks=[]),
-        ]
+        ],
     ),
     DebtCategory(
         name="Financing & Consumer Loans",
         debt_types=[
             DebtType(name="residential mortgage", benchmarks=["SOFR"]),
             DebtType(name="commercial mortgage", benchmarks=["SOFR", "treasury rate"]),
-            DebtType(name="home equity line of credit (HELOC)", benchmarks=["prime rate"]),
+            DebtType(
+                name="home equity line of credit (HELOC)", benchmarks=["prime rate"]
+            ),
             DebtType(name="real estate loan", benchmarks=["SOFR"]),
             DebtType(name="construction loan", benchmarks=["prime rate"]),
-        ]
+        ],
     ),
     DebtCategory(
         name="Other / Hybrid",
@@ -152,8 +172,20 @@ DEBT_CATEGORIES = [
             DebtType(name="lease obligation", benchmarks=[]),
             DebtType(name="capital lease liability", benchmarks=[]),
             DebtType(name="convertible preferred share", benchmarks=[]),
-            DebtType(name="credit agreement", benchmarks=["SOFR", "LIBOR", "prime rate"]),
-        ]
+            DebtType(
+                name="credit agreement", benchmarks=["SOFR", "LIBOR", "prime rate"]
+            ),
+        ],
+    ),
+    DebtCategory(
+        name="Government / Treasury",
+        debt_types=[
+            DebtType(name="treasury bond", benchmarks=["treasury rate"]),
+            DebtType(name="treasury bill", benchmarks=["treasury rate"]),
+            DebtType(name="treasury note", benchmarks=["treasury rate"]),
+            DebtType(name="government bond", benchmarks=["treasury rate"]),
+            DebtType(name="government note", benchmarks=["treasury rate"]),
+        ],
     ),
 ]
 
