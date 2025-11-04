@@ -416,6 +416,75 @@ SCENARIO_ARCHETYPES = [
         prefers_abbreviated_numbers=True,
         preferred_negative_format=2,  # Minus after symbol: $-100
     ),
+    ScenarioArchetype(
+        name="Noise Only - Debt Focus",
+        debt_exposure_range=(3, 5),      # Strong debt exposure
+        fx_exposure_range=(0, 1),
+        commodity_exposure_range=(0, 1),
+        commodity_types=[],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0), # No hedging
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False,
+        preferred_negative_format=0,
+    ),
+    ScenarioArchetype(
+        name="Noise Only - FX Focus",
+        debt_exposure_range=(1, 2),
+        fx_exposure_range=(4, 6),      # Strong FX exposure
+        commodity_exposure_range=(0, 0),
+        commodity_types=[],
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0), # No hedging
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=False,
+        prefers_tables=False,
+        preferred_negative_format=0,
+    ),
+    ScenarioArchetype(
+        name="Noise Only - Commodity Focus",
+        debt_exposure_range=(1, 2),
+        fx_exposure_range=(1, 2),
+        commodity_exposure_range=(4, 6), # Strong commodity exposure
+        commodity_types=["energy", "agriculture"],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0), # No hedging
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False,
+        preferred_negative_format=-1,
+    ),
 ]
 
 

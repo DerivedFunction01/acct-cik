@@ -29,7 +29,7 @@ class ScenarioArchetype:
     hedging_propensities: Dict[
         DerivativeCategory, Tuple[float, float]
     ]  # Per-category likelihood of hedging (past, current).
-    policy_coverage: Literal["full", "partial", "light"]
+    policy_coverage: Literal["full", "partial", "light", "none"]
     default_currency: str
     comparative_years: Literal[1, 2, 3] = 2  # How many years to show in comparative sentences
     zero_notional_format: Literal["nil", "zero", "amount"] = "amount"
