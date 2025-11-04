@@ -226,7 +226,7 @@ time_adverbs = {
         "periodically",
         "occasionally",
         "in the future",
-        "may", # For other adverbs in this category, we can still append "may", such as "from time to time, may use ..."
+        "may",
     ],
     "non_use": [  # For explicitly stating non-use
         "does not",

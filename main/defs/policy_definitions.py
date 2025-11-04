@@ -512,22 +512,38 @@ class MitigationSentence:
         # --- FIX: For non_use, always use the company-first structure for better flow. ---
         if final_usage_status == "non_use":
             sentence_structures = [
-                f"{{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}, {populated_phrase}."
+                f"{{company}} {{combined_verb}} {{swap_type}} {time_suffix}, {populated_phrase}."
             ]
         else:
             # Or: "{mitigation_phrase}, {company} {verb} {swap_type}."
             sentence_structures = [  # type: ignore
-                f"{{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}, {populated_phrase}.",
-                f"{_cleanup_sentence(populated_phrase)}, {{company}} {{adverb}} {{verb}} {{swap_type}} {time_suffix}.",
+                f"{{company}} {{combined_verb}} {{swap_type}} {time_suffix}, {populated_phrase}.",
+                f"{{adverb_front}} {{company}} {verb} {{swap_type}} {time_suffix}, {populated_phrase}.",
+                f"{_cleanup_sentence(populated_phrase)}, {{company}} {{combined_verb}} {{swap_type}} {time_suffix}.",
             ]
+        combined_verb = ""
+        if final_usage_status == "non_use":
+            combined_verb = f"{adverb} {verb}" # will not use
+        elif final_usage_status == "speculative":
+            # Figure out if "may" is in the adverb
+            if adverb == "may":
+                combined_verb = f"{adverb} {verb}" # may use
+            else:
+                if random.random() < 0.35:
+                    combined_verb = f"{adverb} may {verb}" #periodically may use
+                else:
+                    combined_verb = f"{adverb} {verb}"  # periodically use
+        else:
+            combined_verb = f"{adverb} {verb}" # will use, actively use
+
         sentence_template = random.choice(sentence_structures)
         sentence = sentence_template.format(
             company=_get_company_reference(self.company_name),
-            adverb=adverb,
-            verb=verb,
             swap_type=self.swap_type,
+            combined_verb=combined_verb,
+            adverb_front=adverb + ", " if adverb else "",
         )
-        
+
         if special_current:
             final_usage_status = "speculative"
 
