@@ -8,7 +8,7 @@ from defs.common_data import (
     comparison_phrases,
     DEFAULT_SUFFIXES,
     cost_metrics,
-    risk_management_verbs,
+    risk_management_verbs_no_ing,
     inventory_methods,
     market_drivers,
     change_phrases_past,
@@ -483,7 +483,7 @@ class CPContextSentence:
                 "comparison_phrase": random.choice(comparison_phrases),
                 "change_noun": random.choice(change_phrases_noun),
                 "risk_action_verb": random.choice(
-                    [v for v in risk_management_verbs if not v.endswith("ing")]
+                    [v for v in risk_management_verbs_no_ing if not v.endswith("ing")]
                 ),
                 "unit": unit,
                 "maturity_year": self.reporting_year + random.randint(1, 5),

@@ -158,7 +158,7 @@ class PolicySentence:
             risk_term=risk_terms[0],
             risk_term2=risk_terms[1],
             policy_verb=random.choice(policy_verbs),
-            risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
+            risk_action_verb=random.choice(risk_management_verbs_no_ing),  # type: ignore
             currencies=currencies_str,
             geography=locations_str,
             commodity=commodities_str,
@@ -496,7 +496,7 @@ class MitigationSentence:
             commodity=commodities_str,
             rate_term1=interest_rates[0],
             rate_term2=interest_rates[1],
-            risk_action_verb=random.choice(risk_management_verbs),  # type: ignore
+            risk_action_verb=random.choice(risk_management_verbs_no_ing),  # type: ignore
             ir_term=random.choice(interest_rate_terms),
             risk_term=risk_terms[0],
             risk_term2=risk_terms[1],
@@ -574,7 +574,7 @@ class CounterpartyRiskSentence:
             company=_get_company_reference(self.company_name),
             counterparty_details=self.counterparty_details,
             swap_type=instrument_term,
-            risk_verb=random.choice(risk_management_verbs),
+            risk_verb=random.choice(risk_management_verbs_no_ing),
             policy_verb=random.choice(policy_verbs),
             materiality=random.choice(immaterial),
         )

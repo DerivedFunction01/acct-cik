@@ -239,7 +239,7 @@ time_adverbs = {
 }
 
 # Verbs for describing risk management actions (e.g., "...to {verb} exposure")
-risk_management_verbs = [
+risk_management_verbs_no_ing = [
     "manage",
     "mitigate",
     "reduce",
@@ -249,6 +249,8 @@ risk_management_verbs = [
     "limit",
     "protect against",
     "control",
+]
+risk_management_verbs_ing = [
     "mitigating",
     "hedging",
     "offsetting",
@@ -256,7 +258,8 @@ risk_management_verbs = [
     "reducing",
     "managing",
     "stabilizing",
-]
+] 
+risk_management_verbs = risk_management_verbs_no_ing + risk_management_verbs_ing
 
 # --- New Placeholder Lists for Result Phrases ---
 

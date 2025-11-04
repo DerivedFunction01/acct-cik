@@ -434,7 +434,7 @@ class DebtContextSentence:  # Simplified to handle one item at a time
         all_tables_str = []
         available_table_types = ["debt_summary", "maturity_schedule", "rate_profile"]
         num_tables = random.randint(1, min(len(available_table_types), 2)) # Generate 1 or 2 tables
-        
+
         # Ensure we don't pick the same table type twice
         selected_table_types = random.sample(available_table_types, num_tables)
 
@@ -510,11 +510,11 @@ class DebtContextSentence:  # Simplified to handle one item at a time
             termination_noun,
             termination_verbs_past,
             interest_rate_terms,
-            risk_management_verbs,
+            risk_management_verbs_no_ing,
             frequencies,
             state_descriptors,
             quarters,
-            risk_exposure_terms
+            risk_exposure_terms,
         )
 
         sentences = []
@@ -637,7 +637,7 @@ class DebtContextSentence:  # Simplified to handle one item at a time
 
                 # This will be the core purpose, e.g., "to manage interest rate exposure"
                 mitigation_phrase = random.choice(MITIGATION_TEMPLATES["IR"]).format(
-                    risk_action_verb=random.choice(risk_management_verbs),
+                    risk_action_verb=random.choice(risk_management_verbs_no_ing),
                     ir_term=random.choice(interest_rate_terms),
                     debt_type=item_to_describe.debt_type,
                     risk_term=random.choice(risk_exposure_terms),
@@ -672,7 +672,7 @@ class DebtContextSentence:  # Simplified to handle one item at a time
                     company=_get_company_reference(self.company_name),
                     verb=random.choice(aggregate_use_verbs),
                     debt_mix=debt_mix_phrase,
-                    risk_action_verb=random.choice(risk_management_verbs), # type: ignore
+                    risk_action_verb=random.choice(risk_management_verbs_no_ing), # type: ignore
                     ir_term=random.choice(interest_rate_terms), # type: ignore
                     debt_type=item_to_describe.debt_type,
                     risk_term=random.choice(risk_exposure_terms), # type: ignore
@@ -681,7 +681,7 @@ class DebtContextSentence:  # Simplified to handle one item at a time
                 )
                 sentences.append(_cleanup_sentence(strategy_sentence))
             # --- NEW: Add 2-3 more sentences for extra detail ---
-            
+
             # Define a dictionary of all possible placeholders to format any template
             all_placeholders = {
                 "company": _get_company_reference(self.company_name),

@@ -621,9 +621,7 @@ class NotionalSentence:
                 commodities_str, unit_name, _ = get_random_commodity_and_unit()
             details = self.specific_details or SpecificDetails()
             populated_phrase = result_phrase_template.format(
-                mitigation_verb=random.choice(
-                    [v for v in risk_management_verbs if not v.endswith("ing")]
-                ),  # Use base form
+                mitigation_verb=random.choice(risk_management_verbs_no_ing),  # Use base form
                 gain_loss=random.choice(gain_loss_phrases),
                 outcome_location=f"{outcome_verb} {outcome_loc}",
                 frequency=details.frequency or random.choice(frequencies),
@@ -730,7 +728,7 @@ class NotionalSentence:
                     )
                     + "s"
                 ),
-                risk_management_verb=random.choice(risk_management_verbs),
+                risk_management_verb=random.choice(risk_management_verbs_no_ing),
             )
             evidence = NotionalEvidence(
                 status="no_instruments",
