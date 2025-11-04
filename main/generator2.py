@@ -28,7 +28,7 @@ from defs.policy_definitions import (
     CategorySpecificPolicy,
 )
 from defs.scenario_definitions import AccountingStandardUpdate, company_names
-from defs.ir_data import DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
+from defs.ir_data import DEBT_CATEGORIES, DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.legal_data import LegalContextSentence, ContextEvidence
 from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
 from defs.noise_definitions import BalanceSheetTableBuilder, CashFlowStatementTableBuilder, IncomeStatementTableBuilder
@@ -446,13 +446,15 @@ class ScenarioBuilder:
             for cat in self.archetype.commodity_types:
                 from defs.cp_data import COMMODITIES
                 possible_commodities.extend(COMMODITIES.get(cat, []))
-        
+
         # If no specific commodities are available for the archetype, fall back to a generic list.
         if not possible_commodities:
             from defs.cp_data import commodities as all_commodities_flat
             possible_commodities = all_commodities_flat
 
         self.scenario_commodities = random.sample(possible_commodities, k=min(len(possible_commodities), random.randint(2, 3)))
+        self.scenario_debt = random.choice(DEBT_CATEGORIES)
+        self.scenario_fx = random.sample(all_currencies, k=random.randint(2, 7))
 
         # --- NEW: Pre-define a limited pool of terms for this specific scenario ---
         # This makes the generated text more consistent and realistic.
@@ -480,6 +482,11 @@ class ScenarioBuilder:
         }
 
     def _generate_debt_exposures(self, count: int):
+        if not self.scenario_debt:
+            return
+        # Pick up to 3 from the debt pool
+        selected_debts = random.sample(self.scenario_debt.debt_types, k=min(3, len(self.scenario_debt.debt_types)))
+
         for _ in range(count):
             issuance_year = random.randint( # type: ignore
                 self.reporting_year - 15, self.reporting_year - 1
@@ -487,7 +494,7 @@ class ScenarioBuilder:
             maturity_year = random.randint(
                 self.reporting_year + 2, self.reporting_year + 20
             )
-            selected_debt_type: DebtType = random.choice(all_debt_types)
+            selected_debt_type: DebtType = random.choice(selected_debts)
             benchmark_rate = (
                 random.choice(selected_debt_type.benchmarks + specific_rate_terms)
                 if selected_debt_type.benchmarks
@@ -520,6 +527,8 @@ class ScenarioBuilder:
             self.hedged_item_id_counter += 1
 
     def _generate_fx_exposures(self, count: int):
+        if not self.scenario_fx:
+            return
         for _ in range(count):
             exposures = [
                 CurrencyExposure(
@@ -530,7 +539,7 @@ class ScenarioBuilder:
                     location=cur.location,
                     amount=random.randint(1, 100) * self.multiplier,
                 )
-                for cur in random.sample(all_currencies, random.randint(1, 3))
+                for cur in random.sample(self.scenario_fx, random.randint(1, 3))
             ]
             self.potential_hedged_items["fx"].append(
                 ForeignCurrencyHedgedItem(
@@ -544,7 +553,7 @@ class ScenarioBuilder:
             # --- FIX: Use the pre-selected small pool of commodities for this scenario ---
             if not self.scenario_commodities:
                 continue # Should not happen, but as a safeguard.
-            
+
             commodity_name = random.choice(self.scenario_commodities)
             from defs.cp_data import get_units_for_commodity, get_cost_types_for_commodity
             unit = random.choice(get_units_for_commodity(commodity_name))
@@ -650,7 +659,7 @@ class ScenarioBuilder:
                 suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
                 name = f"{placeholder} {base_type} {suffix}"
                 alias = base_type + suffix
-                
+
             else:
                 prefix, placeholder, base_type, suffix, name, alias = (
                     _generate_instrument_name(
@@ -661,7 +670,7 @@ class ScenarioBuilder:
                         components=self.scenario_components,
                     )
                 )
-            
+
             # --- NEW: For CP, sometimes report in units instead of currency ---
             instrument_currency = self.archetype.default_currency
             instrument_symbol = _get_currency_and_unit_details(self.scenario)[0]
@@ -671,7 +680,7 @@ class ScenarioBuilder:
                     instrument_currency = hedged_item.unit_of_volume.upper()
                     instrument_symbol = hedged_item.unit_of_volume
                     notional = hedged_item.quantity # Notional is now the quantity
-            
+
             # --- NEW: For FX, sometimes report in one of the exposure currencies ---
             if category == "FX" and random.random() < GENERATION_PROBABILITIES["fx_instrument_in_exposure_currency"]: # 35% chance
                 if isinstance(hedged_item, ForeignCurrencyHedgedItem) and hedged_item.exposures:
@@ -684,7 +693,6 @@ class ScenarioBuilder:
                     # For cross-currency swaps, the hedged item might be debt in another currency
                     if isinstance(hedged_item, DebtHedgedItem):
                         notional = hedged_item.principal_amount
-
 
             base_args = {
                 "instrument_type": name,
@@ -2051,9 +2059,9 @@ def _generate_category_narrative(
                 prev2_year_to_report = reporting_year - 2
                 # Generate a combined description for all three years
                 combined_instruments = (
-                    current_year_data.get("instruments", [])
+                    current_year_data.get("instruments", [])  # type: ignore
                     + prev_year_data.get("instruments", [])  # type: ignore
-                    + prev2_year_data.get("instruments", [])
+                    + prev2_year_data.get("instruments", [])  # type: ignore
                 )  # type: ignore
                 # Remove duplicates by instrument ID
                 unique_instruments = list(
