@@ -138,17 +138,17 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     ],
     # For describing an instrument that was newly created in the reporting period.
     "new_individual": [
-        "{time_prefix}, {company} {verb} a {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
-        "{company} {verb} a {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
-        "{time_prefix}, a {swap_type} {amount_connector} {amount_str} was {verb} by {company} {hedge_designation_clause} {result_clause}.",
-        "{time_prefix}, a {swap_type} was entered into with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, {company} {verb} __article__ {swap_type} {amount_connector} {amount_str} {hedge_designation_clause} {result_clause}.",
+        "{company} {verb} __article__ {swap_type} {amount_connector} {amount_str} {time_suffix} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, __article__ {swap_type} {amount_connector} {amount_str} was {verb} by {company} {hedge_designation_clause} {result_clause}.",
+        "{time_prefix}, __article__ {swap_type} was entered into with a {amount_prefix} of {amount_str} {hedge_designation_clause} {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
-        "{begin_mitigation} {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause}.",
+        "{begin_mitigation} {company} {verb} __article__ {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause}.",
     ],
     # For instruments that ended, matured, or were settled during a period.
     "terminated_individual": [
         "{time_prefix}, {company} {verb} {swap_type} {amount_connector} {amount_str}.",
-        "{time_prefix}, a {swap_type} with a {amount_prefix} of {amount_str} was {verb} by {company}.",
+        "{time_prefix}, __article__ {swap_type} with a {amount_prefix} of {amount_str} was {verb} by {company}.",
         "{company} {verb} {swap_type} {amount_connector} {amount_str} {time_suffix}.",
         "{time_prefix}, {swap_type} with a {amount_prefix} of {amount_str} were {verb}.",
         "The {swap_type}, which had a {amount_prefix} of {amount_str}, reached {termination_noun} in {year}.",
@@ -165,23 +165,23 @@ NOTIONAL_SENTENCE_TEMPLATES = {
     ],
     # For describing a single, active instrument in the current period.
     "individual": [
-        "{time_prefix}, {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
-        "A {swap_type} was {state_descriptor} {time_suffix}, with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "{time_prefix}, {company} {verb} __article__ {swap_type} with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "__article__ {swap_type} was {state_descriptor} {time_suffix}, with a {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
-        "{begin_mitigation} {company} {verb} a {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
+        "{begin_mitigation} {company} {verb} __article__ {swap_type} with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
     ],
     # For describing an instrument that existed in a prior year but is still active.
     "historical_individual": [
-        "A {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
-        "{company} {verb} a {swap_type} {historical_phrase}, which had a {state_descriptor} {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
-        "{time_prefix}, a {swap_type} initiated {historical_phrase} had a remaining {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "__article__ {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "{company} {verb} __article__ {swap_type} {historical_phrase}, which had a {state_descriptor} {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "{time_prefix}, __article__ {swap_type} initiated {historical_phrase} had a remaining {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
         # --- NEW: begin_mitigation at the beginning ---
-        "{begin_mitigation} a {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
+        "{begin_mitigation} __article__ {swap_type} {historical_phrase} remains {state_descriptor}, with a {amount_prefix} of {amount_str} {time_suffix} {hedge_designation_clause} {maturity_clause}.",
     ],
     # For the first mention of an instrument in a historical timeline, describing its creation.
     "inception": [
-        "In {year}, {company} {verb} a {swap_type} with an initial {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
-        "A {swap_type} was initiated by {company} in {year}, with a starting {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "In {year}, {company} {verb} __article__ {swap_type} with an initial {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
+        "__article__ {swap_type} was initiated by {company} in {year}, with a starting {amount_prefix} of {amount_str} {hedge_designation_clause} {maturity_clause} {result_clause}.",
     ],
     # For subsequent mentions of an instrument in a historical timeline.
     "continuing": [
@@ -593,8 +593,8 @@ deferred_gain_loss_subjects = [
 
 # --- Documentation Policy (Specific - mentions swap_type) ---
 specific_hedge_documentation_templates = [
-    "For a {swap_type} to qualify as a hedge at inception and throughout the hedged period, {company} formally document the nature and relationships between the hedging instruments and hedged item.",
-    "For a {swap_type} designated as a {hedge_type} hedge, the {gain_loss} is {financial_outcome_verb} in earnings in the period of change together with the offsetting loss or gain on the risk being hedged.",
+    "For __article__ {swap_type} to qualify as a hedge at inception and throughout the hedged period, {company} formally document the nature and relationships between the hedging instruments and hedged item.",
+    "For __article__ {swap_type} designated as a {hedge_type} hedge, the {gain_loss} is {financial_outcome_verb} in earnings in the period of change together with the offsetting loss or gain on the risk being hedged.",
     "{company} prepares formal documentation for all hedges, detailing the hedging {swap_type}, hedged item, and risk management strategy.",
     "At hedge inception, {company} documents the relationship between the {swap_type} and the hedged item, including the risk management objective.",
     "Hedge documentation includes the risk management objective, hedging {swap_type}, and hedged item, prepared at inception.",
@@ -666,7 +666,7 @@ hedge_discontinuation_templates = [
     "If the {swap_type} expires or is sold, terminated or exercised, or if management determines that designation of the {swap_type} as a hedge instrument is no longer appropriate, hedge accounting would be discontinued.",
     "When a hedge is discontinued because it is no longer effective, the derivative is no longer designated as a hedge, and subsequent changes in fair value are {financial_outcome_verb} in earnings.",
     "For discontinued {hedge_type} hedges, any gains or losses previously deferred in other comprehensive income are recognized in earnings when the hedged transaction affects earnings.",
-    "{company} may terminate or de-designate a {swap_type} at any time, at which point hedge accounting is discontinued prospectively.",
+    "{company} may terminate or de-designate __article__ {swap_type} at any time, at which point hedge accounting is discontinued prospectively.",
 ]
 
 # --- General Accounting Policy ---
@@ -681,7 +681,7 @@ hedge_accounting_policy_templates = [
     "{company} {financial_outcome_verb} fair value changes of {swap_type} in either current earnings or OCI, depending on the hedging relationship.",
     "{gain_loss} on {swap_type} are {financial_outcome_verb} currently in earnings.",
     "The accounting for the changes in the fair value of the {swap_type} depends on the intended use of the {swap_type} and the resulting designation.",
-    "For a {swap_type} that did not qualify as a {hedge_type} hedge, the change in {hedge_type} is {financial_outcome_verb} currently in net income.",
+    "For __article__ {swap_type} that did not qualify as a {hedge_type} hedge, the change in {hedge_type} is {financial_outcome_verb} currently in net income.",
     "If the derivative such as {swap_type} is a hedge, changes in the fair value of derivatives may be {financial_outcome_verb} in other comprehensive income until the hedged item is {financial_outcome_verb} in earnings.",
 ]
 
