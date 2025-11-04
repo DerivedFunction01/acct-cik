@@ -522,21 +522,30 @@ class MitigationSentence:
                 f"{_cleanup_sentence(populated_phrase)}, {{company}} {{combined_verb}} {{swap_type}} {time_suffix}.",
             ]
         combined_verb = ""
+        # --- FIX: Track modified adverb and verb for evidence consistency ---
+        final_adverb = adverb
+        final_verb = verb
+
         if final_usage_status == "non_use":
-            combined_verb = f"{adverb} {verb}" # will not use
-        elif final_usage_status == "speculative":
-            # Figure out if "may" is in the adverb
+            combined_verb = f"{adverb} {verb}"
+        elif final_usage_status == "speculative" or special_current:
             if adverb == "may":
-                combined_verb = f"{adverb} {verb}" # may use
+                combined_verb = f"{adverb} {verb}"
+                final_adverb, final_verb = adverb, verb
             else:
-                if random.random() < 0.35:
-                    combined_verb = f"{adverb} may {verb}" #periodically may use
-                elif random.random() < 0.5:
-                    combined_verb = f"may {adverb} {verb}"  # may periodically use
+                roll = random.random()
+                if roll < 0.35:
+                    combined_verb = f"{adverb} may {verb}"
+                    final_adverb, final_verb = f"{adverb} may", verb
+                elif roll < 0.85:
+                    combined_verb = f"may {adverb} {verb}"
+                    final_adverb, final_verb = f"may {adverb}", verb
                 else:
-                    combined_verb = f"{adverb} {verb}"  # may use
+                    combined_verb = f"{adverb} {verb}"
+                    final_adverb, final_verb = adverb, verb
         else:
-            combined_verb = f"{adverb} {verb}" # will use, actively use
+            combined_verb = f"{adverb} {verb}"
+            final_adverb, final_verb = adverb, verb
 
         sentence_template = random.choice(sentence_structures)
         sentence = sentence_template.format(
@@ -555,8 +564,8 @@ class MitigationSentence:
             status="mitigation_purpose",
             usage_status=final_usage_status,
             details=populated_phrase,
-            verb=verb,
-            adverb=adverb,
+            verb=final_verb,
+            adverb=final_adverb,
             instrument_type=self.swap_type,
         )
 
