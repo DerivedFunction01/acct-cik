@@ -3520,7 +3520,10 @@ def generate_json_from_scenario(
 
         cot_steps = []
         context_evidence_by_category = {cat: [] for cat in DERIVATIVE_CATEGORIES}
-
+        
+        for other_key in ["LAW", "OWN"]:
+            context_evidence_by_category[other_key] = []
+        
         # Group context evidence by category
         for ev in evidence:
             if isinstance(ev, (ContextEvidence, ExposureEvidence)):
@@ -3544,8 +3547,10 @@ def generate_json_from_scenario(
             if isinstance(first_evidence, ContextEvidence):
                 match = re.search(r'exposure to (.*?)( but|$)', first_evidence.to_string())
                 risk_area = match.group(1).strip() if match else f"{category} risk"
-            else:
+            elif isinstance(first_evidence, ExposureEvidence):
                 risk_area = f"{category} risk"
+            else:
+                risk_area = "other topics"
 
             cot_steps.append(f"The text discusses {risk_area}, which could potentially involve derivatives, but no such instruments were identified.")
 

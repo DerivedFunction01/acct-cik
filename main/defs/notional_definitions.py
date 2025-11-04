@@ -759,10 +759,10 @@ class NotionalSentence:
             time_prefix=time_prefix,
             company=company_name,
             verb=verb,
-            swap_type=swap_type_to_use, # This now includes "another", etc. if it's a repeat
+            swap_type=swap_type_to_use,  # This now includes "another", etc. if it's a repeat
             amount_connector=chosen_connector,
             amount_prefix=amount_prefix_to_use,
-            amount_str=amount_str,
+            amount_str=final_notional_str,
             hedge_designation_clause=hedge_designation_clause,
             state_descriptor=random.choice(state_descriptors),
             historical_phrase=(
