@@ -663,7 +663,7 @@ class ScenarioBuilder:
                 base_type = random.choice(DERIVATIVE_COMPONENTS["base_types"])
                 suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
                 name = f"{placeholder} {base_type} {suffix}"
-                alias = base_type + suffix
+                alias = f"{base_type} {suffix}"
 
             else:
                 prefix, placeholder, base_type, suffix, name, alias = (
