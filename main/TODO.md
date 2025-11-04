@@ -85,7 +85,7 @@ This is the most critical phase. Before any model training, the data generation 
         -   **[ ] Probabilistic Component Generation:** In `generator2.py`, introduce probabilities for generating certain narrative sections to increase variety.
             -   **[x] Action: Drop Mitigation:** Add a random chance to skip generating the `MitigationSentence` for a category, even if instruments exist. This simulates filings that are less explicit about their strategy.
             -   **[x] Action: Drop Policy:** Add a random chance to skip generating the `AccountingPolicySentence` section.
-            -   **[ ] Action: Drop Details:** Add a random chance to skip generating detailed instrument disclosures (`TimelineSentence`, individual `NotionalSentence`), relying only on the aggregate summary.
+            -   **[x] Action: Drop Details:** Add a random chance to skip generating detailed instrument disclosures (`TimelineSentence`, individual `NotionalSentence`), relying only on the aggregate summary.
         -   **[x] Implement "Noise-Only" Scenarios:** Create scenarios containing only contextual "noise" without any derivative instruments to improve negative sampling.
             -   **[x] Action: Create "Noise-Only" logic:** In `generator2.py`, add a path that, for a given category (e.g., IR), generates only `DebtContextSentence` paragraphs without any `IRInstrument` or `NotionalSentence` for derivatives. This is crucial for training the model to distinguish between discussions *about* risk (e.g., having debt) and the use of derivatives to *hedge* that risk.
         -   **[x] Create Evidence for Contextual Noise:** Create a new evidence class for contextual noise sentences so the model can explain *why* a text is not a derivative disclosure.
@@ -94,6 +94,11 @@ This is the most critical phase. Before any model training, the data generation 
                 -   Its `to_string()` method should generate a `chain_of_thought` entry like: "The text discusses debt obligations but does not mention any derivative instruments used to hedge this interest rate exposure."
             -   **[x] Action: Integrate into Context Sentence classes:** Modify the `build()` methods of `DebtContextSentence`, `FXContextSentence`, etc., to return a `ContextEvidence` object along with the sentence string.
             -   **[x] Action: Update `generate_json_from_scenario`:** The logic will need to be updated. If the only evidence objects are `ContextEvidence`, the `analysis_summary` should reflect that, and the `derivatives` list should be empty.
+        -   **[ ] Simulate "No Derivative" Chain of Thought:** For scenarios with only contextual noise, the `chain_of_thought` should simulate a human-like review process.
+            -   **[ ] Action: Enhance `generate_json_from_scenario`:** When generating the JSON for a "noise-only" scenario, the `chain_of_thought` should include sentences that mimic a search process, such as:
+                -   "The text discusses [risk area, e.g., debt obligations], which could involve derivatives. I will scan for keywords like 'swap', 'hedge', or 'forward'."
+                -   "After reviewing the text, no explicit mention of derivative instruments was found."
+                -   "Let me review the text one more time to ensure no mentions were missed. The text confirms exposure to [risk area] but does not detail any hedging instruments."
         -   **[x] Refactor `Table` Class for Reusability:**
             -   **[x] Action: Create `defs/table_definitions.py`:** Move the `Table` class from `defs/template_definitions.py` to a new, more general file.
             -   **[x] Action: Generalize `Table` class:** Refactor the `Table` class to be a generic table builder.
@@ -107,53 +112,14 @@ This is the most critical phase. Before any model training, the data generation 
             -   **[x] Action: Verify JSON Output:** For these scenarios, the final JSON should have an empty `derivatives` list. The `analysis_summary` should reflect that no active derivatives were found, and the `chain_of_thought` should explain that while policies were discussed, no evidence of active instruments was found.
 
 -   **[ ] Improve Generation Quality (Continued):**
-    -   The user expressed a desire for "higher quality compared to using templates randomly selected."
-    -   **[x] Action: Implement a "Narrative Generation" strategy.** The `generator2.py` script now constructs a coherent, multi-paragraph narrative that mimics the structure of a real SEC filing's risk disclosure section (e.g., Item 7A). This creates more realistic and complex training data.
-    -   **[x] Complex Scenarios:** The narratives now include more complex situations to train a robust model, such as:
-        -   Multiple active instruments of the same type (e.g., two different interest rate swaps).
-        -   Conflicting timelines within the same paragraph (e.g., terminating an old FX forward while entering a new FX collar).
-        -   Mentions of accounting treatments (e.g., OCI, fair value).
-        -   Inclusion of embedded derivatives alongside standard hedges.
-    -   **Example of a Complex Narrative and Target JSON:**
-        -   **Narrative:** `"<reportingYear>2023</reportingYear> ... To manage interest rate risk, we held an interest rate swap with a notional amount of $150.0 million, which was entered into in 2021 and matures in 2026. In the third quarter of 2023, we entered into an additional pay-fixed interest rate swap with a notional value of $100.0 million... During the first quarter of 2023, our portfolio of foreign currency forward contracts with a notional value of €25.0 million matured and were settled. Subsequently, to hedge against volatility in the British Pound, we entered into a series of foreign currency collar contracts with a total notional value of £40.0 million, which were outstanding at year-end... Additionally, in 2022, the Company issued convertible senior notes... accounted for as an embedded derivative liability..."`
-        -   **Target JSON:**
-            ```json
-            {
-              "chain_of_thought": "The text details two separate interest rate swaps: one existing from 2021 ($150M) and a new one from Q3 2023 ($100M), confirming 'current' IR use. For FX, it explicitly states that €25.0M in forwards 'matured and were settled', indicating termination. However, it then describes new, 'outstanding' foreign currency collars in GBP, confirming 'current' FX use. Finally, it identifies a convertible note from 2022 with an 'embedded derivative liability', confirming a 'current' embedded derivative.",
-              "analysis_summary": "The company holds multiple active interest rate swaps, has recently entered into new foreign currency collars after settling previous forwards, and carries an embedded derivative liability from convertible notes.",
-              "exposure": {
-                "IR": true,
-                "FX": true,
-                "CP": false,
-                "EQ": false,
-                "GEN": false,
-                "EMB": true
-              },
-              "mitigation": {
-                "IR": true,
-                "FX": true,
-                "CP": false,
-                "EQ": false,
-                "EMB": true,
-                "GEN": false              }
-            }
-            ```
-    -   **Proposed Narrative Flow:**
-        1.  **General Policy Section:** A high-level paragraph covering general risk, non-trading policies, and counterparty risk.
-            -   *Classes used:* `PolicySentence`, `CounterpartyRiskSentence`.
-        2.  **Category-Specific Summaries (Item 7A style):** For each relevant risk category (IR, FX, etc.), generate a paragraph describing the risk exposure and the company's mitigation strategy (e.g., "To manage interest rate risk, the company uses interest rate swaps...").
-            -   *Classes used:* `PolicySentence`, `MitigationSentence`, and sometimes an aggregate `NotionalSentence`.
-        3.  **Detailed Instrument Disclosures (Notes section style):** For each category where instruments exist, generate detailed paragraphs describing individual instruments, including their notional amounts, history, and maturity. This is where timelines for older instruments are generated.
-            -   *Classes used:* `NotionalSentence`, `TimelineSentence`.
-        4.  **Accounting Policy Section:** A concluding section that details the company's policies on documentation, effectiveness testing, and accounting treatment (fair value, cash flow, etc.).
-            -   *Classes used:* `AccountingPolicySentence`.
+    -   This section has been completed and its items are now integrated into the main "Improve Generation Quality" section above.
 
 
 ---
 
 ## 3. Phase 2: Implement the Training Pipeline (`training.py`)
 
--   **[ ] Adopt Instruction Fine-Tuning Format:**
+-   **[x] Adopt Instruction Fine-Tuning Format:**
     -   The training dataset will now consist of prompt-response pairs.
     -   **Input (Prompt):** A consistent instruction, e.g., `Analyze the following text... Text: <paragraph>`.
     -   **Output (Response):** The generated JSON string from `generator.py`.
