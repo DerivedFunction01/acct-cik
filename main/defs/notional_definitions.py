@@ -1067,7 +1067,7 @@ class TimelineSentence:
                 swap_type=name_to_use,
                 year=year,
                 # --- FIX: Pass the correctly formatted string ---
-                notional=notional,
+                notional=_get_correct_rounding(notional, self.notional_multiplier),
                 sentence_type=sentence_type,  # type: ignore
                 # Pass additional details for the partial_settlement templates
                 # No specific_details needed here, as TimelineSentence doesn't have hedged item context.
