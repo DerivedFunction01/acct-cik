@@ -430,10 +430,11 @@ class MitigationSentence:
         )
         adverb = ""
         verb = ""
-
+        special_current = False
         # --- NEW: Allow active users to sometimes use speculative adverbs like "periodically" ---
         # This makes the language more realistic, as firms describe ongoing programs.
         if final_usage_status == "current" and random.random() < 0.3: # 30% chance
+            special_current = True
             # If an active user, sometimes use adverbs from the 'speculative' list
             adverb_list = time_adverbs.get("speculative", [])
             if adverb_list:
@@ -526,6 +527,9 @@ class MitigationSentence:
             verb=verb,
             swap_type=self.swap_type,
         )
+        
+        if special_current:
+            final_usage_status = "speculative"
 
         # Create evidence object
         evidence = MitigationEvidence(  # type: ignore
