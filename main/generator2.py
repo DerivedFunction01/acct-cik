@@ -893,8 +893,8 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
     Args:
         archetype_index: If provided, selects a specific archetype by its index.
     """
-    reporting_year = random.randint(2020, 2024)
-    reporting_day = random.randint(28, 31)
+    reporting_year = random.randint(1990, 2024)
+    reporting_day = random.randint(13, 31)
     reporting_month = random.choice(months)
 
     # --- Decide on a company archetype and get exposure counts ---
