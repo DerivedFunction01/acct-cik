@@ -11,7 +11,7 @@ from typing import List, Dict, Literal, Optional, Set, Tuple
 from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
 from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
 from defs.common_data import *
-from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument, get_random_commodity_and_unit
+from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument 
 from defs.instrument_definitions import DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, ContextEvidence, NotionalInstrument, HedgedItem, GenericInstrument
 from defs.policy_definitions import (
     AccountingPolicySentence,
@@ -26,7 +26,7 @@ from defs.policy_definitions import (
     PolicySentence,
     RiskManagementPolicy,
     CategorySpecificPolicy,
-)
+) 
 from defs.scenario_definitions import AccountingStandardUpdate, company_names
 from defs.ir_data import DEBT_CATEGORIES, DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.legal_data import LegalContextSentence, ContextEvidence
@@ -34,6 +34,7 @@ from defs.notional_definitions import NotionalEvidence, NotionalSentence, Timeli
 from defs.noise_definitions import BalanceSheetTableBuilder, CashFlowStatementTableBuilder, IncomeStatementTableBuilder
 from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
+from defs.ownership_data import HedgeFundContextEvidence, OwnershipContextSentence
 
 DEBUG = True
 
@@ -62,7 +63,8 @@ GENERATION_PROBABILITIES = {
     "add_other_pronouncements": 0.4, # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
     "can_have_accounting_update": 0.4, # Chance a scenario will include an accounting standard update section.
     "accounting_update_is_hedge_related": 0.5, # If an update is generated, the chance it's about hedging.
-    "legal_context": 0.25, # If we generate a paragraph on derivative lawsuits
+    "legal_context": 0.20, # If we generate a paragraph on derivative lawsuits
+    "ownership_context": 0.20, # Chance to add a paragraph about institutional/insider ownership.
     "financial_statements": 0.25
 }
 
@@ -2993,6 +2995,24 @@ def generate_narrative_from_scenario(
             derivative_details_sections.append(legal_paragraph)
             all_evidence.append(legal_evidence)
 
+    # --- NEW: With a chance, add a paragraph about institutional ownership ---
+    if random.random() < GENERATION_PROBABILITIES["ownership_context"]:
+        ownership_context_builder = OwnershipContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+        )
+        ownership_paragraph, ownership_evidence = ownership_context_builder.build()
+        if ownership_paragraph:
+            # This can be a standalone section or part of another.
+            # Let's add it to the end of the detailed disclosures.
+            if DEBUG:
+                derivative_details_sections.append("Security Ownership")
+            derivative_details_sections.append(ownership_paragraph)
+            all_evidence.append(ownership_evidence)
+
+
     # --- NEW: With a chance, add a full financial statement table as noise ---
     financial_statement_paragraphs = _generate_financial_statement_tables(scenario)
     if financial_statement_paragraphs:
@@ -3241,6 +3261,12 @@ def generate_json_from_scenario(
             if ev.category == "LAW":
                 reasoning = f"The text discusses legal proceedings, including shareholder derivative lawsuits, which are contextually related to but distinct from derivative financial instruments."
                 other_evidence_strings.append(reasoning)
+            elif ev.category == "OWN":
+                reasoning = "The text mentions security ownership by third parties, which is distinct from the company's use of hedging instruments."
+                other_evidence_strings.append(reasoning)
+        elif isinstance(ev, HedgeFundContextEvidence):
+            reasoning = ev.to_string()
+            other_evidence_strings.append(reasoning)
         elif isinstance(ev, ExposureEvidence):
             # --- FIX: Only add ExposureEvidence to the chain_of_thought if no other evidence exists for that category. ---
             # This prevents redundant sentences like "The text also mentions interest rate risk..." when we've already
