@@ -2029,7 +2029,7 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
             for (placeholder, base_type, currency), group_data in grouped_instruments.items():
                 plural_suffix = "s" if not base_type.endswith("s") else ""
                 currency_note = f" ({currency})" if currency != self.currency_code else ""
-                group_name = f"  {placeholder} {base_type}{plural_suffix}{currency_note}".strip().capitalize()
+                group_name = f"  {placeholder.capitalize()} {base_type}{plural_suffix}{currency_note}".strip()
                 data_rows.append([group_name] + [""] * (num_data_cols * 2))
                 sub_instruments = group_data["instruments"]
                 assert isinstance(sub_instruments, list)
