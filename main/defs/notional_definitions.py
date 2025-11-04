@@ -34,6 +34,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
     symbol: Optional[str] = None
     sentence_type: Optional[str] = None
     is_repeated_mention: bool = False
+    active_override: bool = False # If no notional is given (None), override to active
 
     # ---------------------------------------------------------------------
     # Helpers
@@ -825,6 +826,7 @@ class NotionalSentence:
             value_type=final_value_type,
             sentence_type=self.sentence_type,
             is_repeated_mention=self.is_repeated_mention,
+            active_override=final_notional is None and self.notional is not None and self.notional > 0, # active override for no mentions of currency
         )
         # --- NEW: Append optional detail sentences ---
         optional_sentence = self._build_optional_details(evidence)

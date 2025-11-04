@@ -3208,7 +3208,7 @@ def generate_json_from_scenario(
     # Track which categories have actual notional evidence
     categories_with_notional = {
         ev.category for ev in evidence 
-        if isinstance(ev, NotionalEvidence) and ev.notional and ev.notional > 0
+        if isinstance(ev, NotionalEvidence) and ((ev.notional and ev.notional > 0) or ev.active_override)
     }
     for ev in evidence:
         if isinstance(ev, MitigationEvidence):
