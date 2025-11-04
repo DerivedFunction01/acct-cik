@@ -531,8 +531,10 @@ class MitigationSentence:
             else:
                 if random.random() < 0.35:
                     combined_verb = f"{adverb} may {verb}" #periodically may use
+                elif random.random() < 0.5:
+                    combined_verb = f"may {adverb} {verb}"  # may periodically use
                 else:
-                    combined_verb = f"{adverb} {verb}"  # periodically use
+                    combined_verb = f"{adverb} {verb}"  # may use
         else:
             combined_verb = f"{adverb} {verb}" # will use, actively use
 
