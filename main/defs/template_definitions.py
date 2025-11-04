@@ -1177,7 +1177,7 @@ class NotionalVsFairValueTableBuilder(DerivativeTableBuilder):
             grouped_for_year = _group_instruments_by_type(instruments_in_year)
             data_rows = []
 
-            for (placeholder, base_type), group_data in grouped_for_year.items():
+            for (placeholder, base_type, _), group_data in grouped_for_year.items():
                 # Aggregate notional and fair values for the group
                 total_notional = sum(
                     self._get_value(inst, year, "notional")
@@ -1558,69 +1558,71 @@ class AOCIReclassificationImpactTableBuilder(DerivativeTableBuilder):
         Builds a table showing the impact of amounts reclassified from AOCI to the income statement.
         Format:
             Derivative Instrument  Gain/(Loss) Reclassified from AOCI  Affected Line Item in Income Statement
-        """
+        """ # noqa
         evidence_list = []
         year = self.reporting_year
         active_instruments = [inst for inst in self.instruments if inst.notional_history.get(year, 0) > 0]
 
         if not active_instruments:
             return "", [], []
+
         title = f"Gains and Losses on {random.choice(hedge_types)} Hedges Reclassified from AOCI to Income\nFor the Year Ended {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
-        columns = [f"{random.choice(DERIVATIVE_COMPONENTS['no_alias_types']).capitalize()} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}", "Gain/(Loss) Reclassified from AOCI", "Affected Line Item in Income Statement"]
+        headers = [f"{random.choice(DERIVATIVE_COMPONENTS['no_alias_types']).capitalize()} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}", "Gain/(Loss) Reclassified from AOCI", "Affected Line Item in Income Statement"]
         widths = [35, 25, 40]
         alignments = ['l', 'r', 'l']
-        rows = [title]
-
-        header_lines = GenericTable(headers=columns, data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(columns, widths, alignments)
-        rows.extend(header_lines)
-        separator = "  ".join(['-' * w for w in widths])
-        rows.append(separator)
-        sec_tags_line = "<S>".ljust(widths[0] + 2) + "<C>".ljust(widths[1] + 2) + "<C>".ljust(widths[2])
-        rows.append(sec_tags_line)
+        data_rows = []
 
         income_statement_locations = [
             "Cost of sales", "Net sales", "Interest expense, net",
             "Other income (expense), net", "Operating expenses"
         ]
 
-        for inst in active_instruments:
+        # --- NEW: Group instruments by type ---
+        grouped_instruments = _group_instruments_by_type(active_instruments)
+
+        for (placeholder, base_type, currency), group_data in grouped_instruments.items():
             # Simulate a reclassification amount
-            reclass_amount = random.randint(-20, 20) * self.notional_multiplier / 100
+            # This is now an aggregate amount for the group
+            reclass_amount = sum(
+                int(inst.notional_history.get(year, 0) * random.uniform(-0.05, 0.05))
+                for inst in group_data["instruments"]
+            )
             if reclass_amount == 0:
                 continue
 
+            # Create descriptive name for the group
+            plural_suffix = "s" if not base_type.endswith("s") else ""
+            currency_note = f" ({currency})" if currency != self.currency_code else ""
+            name_to_use = f"{placeholder} {base_type}{plural_suffix}{currency_note}".strip().capitalize()
+
             reclass_str = _format_single_notional(
-                reclass_amount,
-                self.currency_symbol,
-                self.prefer_abbreviated,
-                True,
-                negative_format=self.preferred_negative_format,  # type: ignore
+                reclass_amount, group_data["symbol"], self.prefer_abbreviated, True, negative_format=self.preferred_negative_format # type: ignore
             )
             location = random.choice(income_statement_locations)
 
-            row_cells = [inst.instrument_type, reclass_str, location]
-            rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
+            row_cells = [name_to_use, reclass_str, location]
+            data_rows.append(row_cells)
             
             evidence_reclass_str = _format_single_notional(
-                reclass_amount,
-                self.currency_symbol,
-                self.prefer_abbreviated,
-                False, # Generate with unit word for sentence
-                negative_format=self.preferred_negative_format, # type: ignore
+                reclass_amount, group_data["symbol"], self.prefer_abbreviated, False, negative_format=self.preferred_negative_format # type: ignore
             )
             evidence_list.append(NotionalEvidence(
-                instrument_id=inst.instrument_id, status="individual", category=inst.category,
+                instrument_id=None,
+                status="summary",
+                category=group_data["category"],
+                aggregate=True,
                 notional=_get_correct_rounding(reclass_amount, self.notional_multiplier) if self.notional_multiplier > 1 else int(reclass_amount),
                 notional_str=evidence_reclass_str, year=year,
-                instrument_type=f"AOCI reclassification for {inst.instrument_type}",
+                instrument_type=f"AOCI reclassification for {name_to_use}",
                 reporting_year=self.reporting_year, value_type="fair_value",
-                currency=self.currency_code, sentence_type="individual",
+                currency=group_data["currency"], sentence_type="summary",
             ))
 
-        if len(rows) <= 4: # Title, header, separator, tags
+        if not data_rows:
             return "", [], []
 
-        full_table_str = "<TABLE>\n<CAPTION>\n" + "\n".join(rows) + "\n</TABLE>"
+        table = GenericTable(headers, data_rows, widths, alignments, title)
+        full_table_str = table.build()
         return full_table_str, evidence_list, []
 
 class FXExposureTableBuilder(DerivativeTableBuilder):
