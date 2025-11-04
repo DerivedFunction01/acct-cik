@@ -53,7 +53,7 @@ GENERATION_PROBABILITIES = {
     # Narrative Generation
     "active_instrument_mention": 0.9,  # Chance to mention an active instrument.
     "terminated_instrument_mention": 0.7,  # Chance to mention a terminated instrument.
-    "repeat_instrument_mention": 1,  # Chance to mention the same instrument again (for aliasing).
+    "repeat_instrument_mention": 0.5,  # Chance to mention the same instrument again (for aliasing).
     "additional_table": 0.3,  # Chance to generate an extra table (AOCI, Maturity, etc.).
     "use_table_for_exposure": 0.4,  # Chance to use a table for exposure context instead of paragraphs.
     "add_secondary_debt_sentence": 0.4,  # Chance to add a second sentence about a debt event (issuance, repayment).
