@@ -111,6 +111,10 @@ This is the most critical phase. Before any model training, the data generation 
             -   **[x] Action: Update Narrative Generation:** Ensure `generate_narrative_from_scenario` correctly generates paragraphs from `_generate_narrative_accounting` and `_generate_narrative_policy` even when no instruments are present. The narrative should contain text about hedge effectiveness, documentation, and accounting, but no sentences with notional amounts.
             -   **[x] Action: Verify JSON Output:** For these scenarios, the final JSON should have an empty `derivatives` list. The `analysis_summary` should reflect that no active derivatives were found, and the `chain_of_thought` should explain that while policies were discussed, no evidence of active instruments was found.
 
+-   **[ ] Fix Data Precision Loss in JSON Generation:**
+    -   **[ ] Issue:** The `amount` in the `derivatives` array of the final JSON is losing precision. The generation process rounds the notional amount to create a human-readable sentence (e.g., "$44.2 billion") and then appears to parse this rounded string to create the final JSON `amount`, instead of using the original, precise value (e.g., `44233676583` becomes `44233700000`).
+    -   **[ ] Action: Modify `generate_json_from_scenario`:** Refactor the function to ensure the `derivatives` array in the JSON output is populated using the original, un-rounded notional values from the `GenerationScenario`'s instrument data. The evidence objects should pass the original values through to the JSON generation stage, which should use them directly, ignoring the rounded values present in the narrative text.
+
 -   **[ ] Improve Generation Quality (Continued):**
     -   This section has been completed and its items are now integrated into the main "Improve Generation Quality" section above.
 
