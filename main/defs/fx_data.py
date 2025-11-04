@@ -335,7 +335,6 @@ class FXContextSentence:
                 "end_day": self.reporting_day,
                 "risk_term": random.choice(risk_exposure_terms),
                 "currencies": currencies_to_display,
-                "currencies_list": currencies_to_display,  # Alias for the same thing
                 "gain_loss": gain_loss1,
                 "gain_loss2": gain_loss2,
                 "financial_outcome_verb": random.choice(financial_outcome_verbs),
