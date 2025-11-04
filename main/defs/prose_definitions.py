@@ -75,7 +75,9 @@ industries = {
             "generation", "transmission", "distribution"
         ],
         "missions": [
-            "energy resources", "clean energy technologies", "solutions", "utility services"
+            "energy resources", "clean energy technologies", "energy infrastructure", "utility services", "energy efficiency",
+            "renewable energy", "sustainable energy", "clean energy solutions",
+            
         ]
     },
     "media_entertainment": {
@@ -123,17 +125,6 @@ industries = {
             "environmental consulting", "remediation services", "legal services", "counsel"
         ]
     },
-    "general": {
-        "industries": [
-            "manufacturing", "industrial", "products", "services", "solutions", "domestic",
-            "international", "north america", "europe", "asia-pacific", "materials",
-            "waste management", "recycling", "upstream", "midstream", "downstream",
-            "risk management", "physical security", "brand reputation"
-        ],
-        "missions": [
-            "innovative products", "diversified portfolio of businesses"
-        ]
-    }
 }
 
 
@@ -354,8 +345,8 @@ class CompanyDescriptionSentence:
         industry_category = random.choice(list(industries.keys()))
         industry_details = industries[industry_category]
 
-        industry = random.sample(industry_details["industries"], k=random.randint(1, 3))
-        mission = random.sample(industry_details["missions"], k=random.randint(1, 3))
+        industry = random.sample(industry_details["industries"], k=random.randint(1, 4))
+        mission = random.sample(industry_details["missions"], k=random.randint(1, 4))
 
         # Choose a template
         template_type = random.choice(list(company_description_templates.keys()))
@@ -365,8 +356,8 @@ class CompanyDescriptionSentence:
 
         placeholders = {
             "company": _get_company_reference(self.company_name),
-            "industry": industry[0] if len(industry) == 1 else ", ".join(industry[:2]) + " and " + industry[-1],
-            "mission_statement": mission[0] if len(mission) == 1 else ", ".join(mission[:2]) + " and " + mission[-1],
+            "industry": industry[0] if len(industry) == 1 else ", ".join(industry[:len(industry) - 1]) + " and " + industry[-1],
+            "mission_statement": mission[0] if len(mission) == 1 else ", ".join(mission[:len(mission) - 1]) + " and " + mission[-1],
             "small_int": random.randint(5, 50),
             "year": self.reporting_year - random.randint(10, 50),
             "city": city_name,
