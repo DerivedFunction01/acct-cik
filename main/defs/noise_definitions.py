@@ -482,11 +482,6 @@ class IncomeStatementTableBuilder(FinancialStatementTable):
 
         return sub_total
 
-
-import random
-from typing import List
-
-
 class CashFlowStatementTableBuilder(FinancialStatementTable):
     """Builds a simplified two-year comparative statement of cash flows."""
 
