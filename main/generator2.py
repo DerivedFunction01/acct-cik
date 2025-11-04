@@ -27,6 +27,7 @@ from defs.policy_definitions import (
     RiskManagementPolicy,
     CategorySpecificPolicy,
 ) 
+from defs.prose_definitions import CompanyDescriptionSentence, ForwardLookingSentence
 from defs.scenario_definitions import AccountingStandardUpdate, company_names
 from defs.ir_data import DEBT_CATEGORIES, DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
 from defs.legal_data import LegalContextSentence, ContextEvidence
@@ -41,32 +42,33 @@ DEBUG = True
 
 GENERATION_PROBABILITIES = {
     # Instrument & Exposure Generation
-    "debt_in_foreign_currency": 0.20, # Chance a debt item is in a foreign currency.
-    "commodity_has_supplier": 0.20, # Chance a commodity exposure lists a supplier.
-    "instrument_is_brand_new": 0.30, # Chance an active hedge was initiated in the current year.
-    "cross_currency_swap": 0.50, # Chance a foreign currency debt is hedged with a cross-currency swap.
-    "cp_instrument_in_units": 0.35, # Chance a CP instrument's notional is in units (e.g., barrels) instead of currency.
-    "fx_instrument_in_exposure_currency": 0.35, # Chance an FX instrument's notional is in one of the exposure currencies.
-    "instrument_history_has_gap": 0.15, # Chance an instrument's history has a year with zero notional.
-    "instrument_has_prefix": 0.05, # Chance an instrument name gets a prefix (e.g., "pay-fixed").
-
+    "debt_in_foreign_currency": 0.20,  # Chance a debt item is in a foreign currency.
+    "commodity_has_supplier": 0.20,  # Chance a commodity exposure lists a supplier.
+    "instrument_is_brand_new": 0.30,  # Chance an active hedge was initiated in the current year.
+    "cross_currency_swap": 0.50,  # Chance a foreign currency debt is hedged with a cross-currency swap.
+    "cp_instrument_in_units": 0.35,  # Chance a CP instrument's notional is in units (e.g., barrels) instead of currency.
+    "fx_instrument_in_exposure_currency": 0.35,  # Chance an FX instrument's notional is in one of the exposure currencies.
+    "instrument_history_has_gap": 0.15,  # Chance an instrument's history has a year with zero notional.
+    "instrument_has_prefix": 0.05,  # Chance an instrument name gets a prefix (e.g., "pay-fixed").
     # Narrative Generation
     "active_instrument_mention": 0.9,  # Chance to mention an active instrument.
-    "terminated_instrument_mention": 0.7, # Chance to mention a terminated instrument.
-    "repeat_instrument_mention": 1, # Chance to mention the same instrument again (for aliasing).
-    "additional_table": 0.3, # Chance to generate an extra table (AOCI, Maturity, etc.).
-    "use_table_for_exposure": 0.4, # Chance to use a table for exposure context instead of paragraphs.
-    "add_secondary_debt_sentence": 0.4, # Chance to add a second sentence about a debt event (issuance, repayment).
-    "use_fair_value_for_summary": 0.2, # Chance an aggregate summary sentence uses "fair value" instead of "notional".
-    "generate_aggregate_summary": 0.5, # Chance to generate an aggregate summary sentence for a category.
-    "use_timeline_for_long_history": 0.15, # Chance to use a multi-sentence timeline for a historical instrument.
-    "add_legalistic_definition": 0.15, # Chance to add a generic, legalistic derivative definition paragraph.
-    "add_other_pronouncements": 0.4, # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
-    "can_have_accounting_update": 0.4, # Chance a scenario will include an accounting standard update section.
-    "accounting_update_is_hedge_related": 0.5, # If an update is generated, the chance it's about hedging.
-    "legal_context": 0.20, # If we generate a paragraph on derivative lawsuits
-    "ownership_context": 0.20, # Chance to add a paragraph about institutional/insider ownership.
-    "financial_statements": 0.25
+    "terminated_instrument_mention": 0.7,  # Chance to mention a terminated instrument.
+    "repeat_instrument_mention": 1,  # Chance to mention the same instrument again (for aliasing).
+    "additional_table": 0.3,  # Chance to generate an extra table (AOCI, Maturity, etc.).
+    "use_table_for_exposure": 0.4,  # Chance to use a table for exposure context instead of paragraphs.
+    "add_secondary_debt_sentence": 0.4,  # Chance to add a second sentence about a debt event (issuance, repayment).
+    "use_fair_value_for_summary": 0.2,  # Chance an aggregate summary sentence uses "fair value" instead of "notional".
+    "generate_aggregate_summary": 0.5,  # Chance to generate an aggregate summary sentence for a category.
+    "use_timeline_for_long_history": 0.15,  # Chance to use a multi-sentence timeline for a historical instrument.
+    "add_other_pronouncements": 0.4,  # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
+    "can_have_accounting_update": 0.4,  # Chance a scenario will include an accounting standard update section.
+    "accounting_update_is_hedge_related": 0.5,  # If an update is generated, the chance it's about hedging.
+    "financial_statements": 0.25,
+    "company_description": 0.20,  # Chance to add a paragraph describing the company
+    "forward_looking_statement": 0.20,  # Chance to add a forward-looking statement paragraph
+    "add_legalistic_definition": 0.15,  # Chance to add a generic, legalistic derivative definition paragraph.
+    "ownership_context": 0.20,  # Chance to add a paragraph about institutional/insider ownership.
+    "legal_context": 0.20,  # If we generate a paragraph on derivative lawsuits
 }
 
 # Probabilities for dropping narrative components to increase variety.
@@ -3050,6 +3052,34 @@ def generate_narrative_from_scenario(
         # Prepend a title to give context to the random financial statement
         if DEBUG:
             derivative_details_sections.append("Consolidated Financial Statements")
+        derivative_details_sections.extend(financial_statement_paragraphs)
+
+    # --- NEW: With a chance, add a paragraph describing the company ---
+    if random.random() < GENERATION_PROBABILITIES["company_description"]:
+        description_builder = CompanyDescriptionSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+        )
+        description_paragraph, description_evidence = description_builder.build()
+        if description_paragraph:
+            if DEBUG:
+                derivative_details_sections.append("Company Description")
+            derivative_details_sections.append(description_paragraph)
+            all_evidence.append(description_evidence)
+
+    # --- NEW: With a chance, add a forward-looking statement paragraph ---
+    if random.random() < GENERATION_PROBABILITIES["forward_looking_statement"]:
+        forward_looking_builder = ForwardLookingSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+        )
+        forward_looking_paragraph, forward_looking_evidence = forward_looking_builder.build()
+        if forward_looking_paragraph:
+            if DEBUG:
+                derivative_details_sections.append("Forward-Looking Statements")
+            derivative_details_sections.append(forward_looking_paragraph)
         derivative_details_sections.extend(financial_statement_paragraphs)
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
