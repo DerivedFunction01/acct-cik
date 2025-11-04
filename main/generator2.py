@@ -3495,10 +3495,10 @@ def generate_json_from_scenario(
     # (e.g., a parent FX Forward and its multiple currency exposures from a table)
     # The key will be a tuple: (instrument_id, instrument_type, value_type)
     instrument_evidence_map: Dict[Tuple[int, str, str], Dict] = {}
-
+    
     for ev in evidence:
         # We only care about evidence that has an instrument ID and notional value.
-        # Why evidence? Because during training, we would not append every reference to every instrument
+        # Why evidence? Because during training, we would not append every reference to every instrument # type: ignore
         # To prevent hallucinations on fictional instruments it hasn't seen via evidence.
         if (
             not isinstance(ev, NotionalEvidence) or ev.instrument_id is None
@@ -3544,16 +3544,23 @@ def generate_json_from_scenario(
             category = ev.category
             currency = ev.currency
 
-        value_type = ev.value_type.replace("_", " ")
-
-        instrument_evidence_map[unique_key] = {
-            "type": inst_type.strip(),
-            "category": category,
-            "amount": ev.notional or "unknown",  # This will be updated if more evidence is found
-            "currency": currency,
-            "value_type": value_type,
-            "level": "individual",
-        }
+        # If the key is new, or the existing amount is "unknown", create/update the entry.
+        if unique_key not in instrument_evidence_map or instrument_evidence_map[unique_key].get("amount") == "unknown":
+            instrument_evidence_map[unique_key] = {
+                "type": inst_type.strip(),
+                "category": category,
+                "amount": ev.notional if ev.notional is not None else "unknown",
+                "currency": currency,
+                "value_type": value_type_key.replace("_", " "),
+                "level": "individual",
+            }
+        # If an entry exists with a valid amount, but this new evidence has active_override,
+        # we don't need to do anything, because the valid amount is already captured.
+        # The presence of the key in the map is enough to confirm it's active.
+        elif ev.active_override and instrument_evidence_map[unique_key].get("amount") != "unknown":
+            # The instrument is already in our list with a valid amount.
+            # The active_override just confirms it's active, so we don't need to update.
+            pass
 
 
     # Convert the aggregated map into the final list.

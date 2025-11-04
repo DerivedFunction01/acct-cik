@@ -825,8 +825,8 @@ class NotionalSentence:
             reporting_year=self.reporting_year,
             value_type=final_value_type,
             sentence_type=self.sentence_type,
-            is_repeated_mention=self.is_repeated_mention,
-            active_override=final_notional is None and self.notional is not None and self.notional > 0, # active override for no mentions of currency
+            is_repeated_mention=self.is_repeated_mention, # active override for no mentions of currency
+            active_override=final_notional is None and self.notional is not None and self.notional > 0 and self.sentence_type not in ["comparative_no_outstanding", "no_instruments"],
         )
         # --- NEW: Append optional detail sentences ---
         optional_sentence = self._build_optional_details(evidence)
