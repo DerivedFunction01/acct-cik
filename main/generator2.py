@@ -3235,7 +3235,7 @@ def _generate_analysis_summary(
         return "The company does not appear to use derivative instruments."
 
     # Create phrases like "utilizes IR derivatives", "utilizes FX derivatives"
-    summary_phrases = {f"utilizes {cat} derivatives" for cat in sorted(list(active_cats))}
+    summary_phrases = {f"actively utilizes {cat} derivatives" for cat in sorted(list(active_cats))}
     return f"The company's risk management strategy {', '.join(sorted(list(summary_phrases)))} to hedge market exposures."
 
 
@@ -3511,52 +3511,50 @@ def generate_json_from_scenario(
     if is_noise_only_scenario:
         # This is a scenario with only contextual noise (debt, FX operations, etc.) but no derivatives.
         # We will generate a more human-like COT to explain the reasoning process.
+
         # --- NEW: Dynamically generate the list of keywords to scan for ---
-        # Get unique, clean base types from the common data definitions.
         unique_base_types = sorted(list(set(BASE_TYPES)))
-        # Sample 3-5 keywords to make the COT more varied.
         num_keywords = random.randint(3, 5)
         scan_keywords = random.sample(unique_base_types, k=min(num_keywords, len(unique_base_types)))
-        # Format into a nice string like "'swap', 'hedge', or 'forward'"
         keyword_str = ", ".join([f"'{k}'" for k in scan_keywords[:-1]]) + f", or '{scan_keywords[-1]}'" if len(scan_keywords) > 1 else f"'{scan_keywords[0]}'"
 
         cot_steps = []
         context_evidence_by_category = {cat: [] for cat in DERIVATIVE_CATEGORIES}
-        
+
         # Group context evidence by category
         for ev in evidence:
             if isinstance(ev, (ContextEvidence, ExposureEvidence)):
                 context_evidence_by_category[ev.category].append(ev)
 
+        # Step 1: Begin with the action
+        cot_steps.append(f"I reviewed the text for any explicit mentions of derivative instruments, scanning for keywords like {keyword_str} that refer to derivative usage only.")
+
+        # Step 2: State the findings
+        cot_steps.append("No direct references to derivative instruments were found in the text.")
+
+        # Step 3: Simulate a double-check
+        cot_steps.append("To be thorough, I reviewed the text again. While it confirms exposure to certain financial risks, it does not describe any hedging strategies or derivative usage.")
+
+        # Step 4: Reflect on the context, if any
         for category, cat_evidence_list in context_evidence_by_category.items():
             if not cat_evidence_list:
                 continue
 
-            # Use the description from the first piece of evidence for this category
             first_evidence = cat_evidence_list[0]
             if isinstance(first_evidence, ContextEvidence):
-                # Extract the risk area from the evidence's to_string() method
-                # e.g., "interest rate risk from debt obligations"
                 match = re.search(r'exposure to (.*?)( but|$)', first_evidence.to_string())
                 risk_area = match.group(1).strip() if match else f"{category} risk"
-            else: # Fallback for ExposureEvidence or others
+            else:
                 risk_area = f"{category} risk"
 
-            # Step 1: Acknowledge the context
-            cot_steps.append(f"The text discusses {risk_area}, which could involve derivatives. I will scan for keywords like {keyword_str}.")
+            cot_steps.append(f"The text discusses {risk_area}, which could potentially involve derivatives, but no such instruments were identified.")
 
-        # Step 2: State the initial finding
-        if cot_steps: # Only add these if there was some context to begin with
-            cot_steps.append("After reviewing the text, no explicit mention of derivative instruments was found.")
-            
-            # Step 3: Simulate a "double-check"
-            cot_steps.append("Let me review the text one more time to ensure no mentions were missed. The text confirms exposure to the identified risks but does not detail any hedging instruments.")
-
-        # If there were no context steps generated at all (e.g., only financial statements), provide a simple summary.
-        if not cot_steps:
-            cot_steps.append("The text was reviewed for mentions of derivative instruments, and none were found.")
+        # If no context evidence was found at all
+        if len(cot_steps) == 3:  # Only the generic steps were added
+            cot_steps.append("There was no contextual evidence suggesting derivative involvement either.")
 
         chain_of_thought = "\n".join(cot_steps)
+
 
 
     # --- NEW: Use a more specific key to handle multiple evidence types for one instrument ID ---
