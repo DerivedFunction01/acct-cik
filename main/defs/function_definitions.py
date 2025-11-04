@@ -199,7 +199,7 @@ def _cleanup_sentence(sentence: str) -> str:
     def replace_article(match):
         article_placeholder, next_word = match.groups()
         if article_placeholder == "__article__":
-            if next_word.lower() in ("a", "an"):
+            if next_word.lower() in ("a", "an", "another"):
                 return next_word
             if next_word.lower().startswith(("a", "e", "i", "o", "u")):
                 return "an " + next_word
