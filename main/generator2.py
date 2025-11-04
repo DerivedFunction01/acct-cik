@@ -1489,7 +1489,8 @@ def _generate_debt_narrative(
         return [], []
 
     # Add a title for this section.
-    paragraphs.append("Debt")
+    if DEBUG:
+        paragraphs.append("Debt")
 
     # --- NEW: Decide whether to generate a table or individual paragraphs ---
     if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_debt_items) <= 2: # More likely to generate paragraphs for fewer items
@@ -1554,7 +1555,8 @@ def _generate_fx_narrative(
     if not all_fx_items:
         return [], []
 
-    paragraphs.append("Foreign Currency Risk")
+    if DEBUG:
+        paragraphs.append("Foreign Currency Risk")
 
     # --- NEW: Decide whether to generate a table or individual paragraphs ---
     if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_fx_items) <= 2:
@@ -1619,7 +1621,8 @@ def _generate_cp_narrative(
     if not all_cp_items:
         return [], []
 
-    paragraphs.append("Commodity Price Risk")
+    if DEBUG:
+        paragraphs.append("Commodity Price Risk")
 
     # --- NEW: Decide whether to generate a table or individual paragraphs ---
     if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_cp_items) <= 2:
@@ -1684,7 +1687,8 @@ def _generate_eq_narrative(
     if not all_eq_items:
         return [], []
 
-    paragraphs.append("Equity Risk")
+    if DEBUG:
+        paragraphs.append("Equity Risk")
 
     # --- NEW: Decide whether to generate a table or individual paragraphs ---
     if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_eq_items) <= 2:
@@ -2859,7 +2863,8 @@ def generate_narrative_from_scenario(
     )
     if has_any_details:
         # This is a simple way to add a section header.
-        derivative_details_sections.append("Derivative Financial Instruments")
+        if DEBUG:
+            derivative_details_sections.append("Derivative Financial Instruments")
 
     for category in category_order:
         if category in aggregated_data:
@@ -2942,7 +2947,8 @@ def generate_narrative_from_scenario(
     # This will generate paragraphs about both derivative and non-derivative standards.
     if scenario.accounting_updates:
         # Add a title for this section.
-        derivative_details_sections.append("Recently Issued Accounting Pronouncements")
+        if DEBUG:
+            derivative_details_sections.append("Recently Issued Accounting Pronouncements")
         for update in scenario.accounting_updates:
             update_builder = AccountingStandardUpdateSentence(
                 company_name=scenario.company_name,
@@ -2991,7 +2997,8 @@ def generate_narrative_from_scenario(
     financial_statement_paragraphs = _generate_financial_statement_tables(scenario)
     if financial_statement_paragraphs:
         # Prepend a title to give context to the random financial statement
-        derivative_details_sections.append("Consolidated Financial Statements")
+        if DEBUG:
+            derivative_details_sections.append("Consolidated Financial Statements")
         derivative_details_sections.extend(financial_statement_paragraphs)
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
