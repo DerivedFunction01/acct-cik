@@ -2418,6 +2418,7 @@ def _generate_category_narrative(
                         is_repeated_mention=is_first_repetition,  # Pass the check for contextual phrasing
                         preferred_negative_format=scenario.archetype.preferred_negative_format,
                         instrument=instrument,  # Pass the full instrument object
+                        currency_symbol2=currency_symbol, # edge cases when commodity uses a unit
                     )
                     individual_sentence_text, evidence_obj = (
                         individual_sentence_obj.build()

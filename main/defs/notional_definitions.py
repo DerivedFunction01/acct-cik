@@ -287,6 +287,7 @@ class NotionalSentence:
     is_repeated_mention: bool = False
     optional_chance: float = 0.5
     suppress_sentence: bool = False
+    currency_symbol2: str = "$"
 
     def __post_init__(self):
         # If comparative_no_outstanding is chosen but there's no prior notional, it's just a 'no_instruments' case.
@@ -938,7 +939,7 @@ class NotionalSentence:
                 reporting_day=self.end_day or 31,
                 hedged_item=hedged_item,
                 prefer_abbreviated=self.prefer_abbreviated,
-                currency_symbol=self.currency_symbol,
+                currency_symbol=self.currency_symbol2,
                 notional_multiplier=self.notional_multiplier,
             )
         # EQContextSentence could be added here in the future if needed.
