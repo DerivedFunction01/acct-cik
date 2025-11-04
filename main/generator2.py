@@ -1276,7 +1276,12 @@ def _generate_instrument_name(
     """
     components = components or DERIVATIVE_COMPONENTS
     placeholders = components["placeholders"].get(category, [""])
-    base_types = available_base_types or components["base_types"]
+    # --- FIX: Use the provided available_base_types from the category pool ---
+    # Fallback to global components only if no specific pool is provided.
+    if not available_base_types:
+        base_types = components["base_types"]
+    else:
+        base_types = available_base_types
     suffixes = components["suffixes"]  # e.g., contract, agreement
     special_suffixes = components["special_suffixes"]  # e.g., put option
     special_ratio = 0.10  # configurable
