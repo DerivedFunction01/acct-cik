@@ -485,6 +485,52 @@ SCENARIO_ARCHETYPES = [
         prefers_tables=False,
         preferred_negative_format=-1,
     ),
+    ScenarioArchetype(
+        name="Noise Only - Equity Focus",
+        debt_exposure_range=(1, 2),
+        fx_exposure_range=(1, 2),
+        commodity_exposure_range=(1, 2), 
+        commodity_types=["energy"],
+        equity_exposure_range=(3, 4),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0), 
+            "EQ": (0.0, 0.0), # No hedging
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False,
+        preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
+        name="Noise Only",
+        debt_exposure_range=(1, 2),
+        fx_exposure_range=(1, 2),
+        commodity_exposure_range=(1, 2), 
+        commodity_types=["energy"],
+        equity_exposure_range=(1, 2),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0), 
+            "EQ": (0.0, 0.0), # No hedging
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False,
+        preferred_negative_format=-1,
+    ),
 ]
 
 
