@@ -124,7 +124,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         num_train_epochs=num_epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=8, # Increased from 4 to 8
         warmup_steps=5,
         learning_rate=2e-4,
         max_grad_norm=0.3, # Helps with training stability.
