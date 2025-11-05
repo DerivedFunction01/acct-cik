@@ -1,6 +1,7 @@
 # %%
 # %pip install pandas torch scikit-learn datasets transformers numpy accelerate bitsandbytes peft trl
 
+import math
 # %%
 # Initialization
 import pandas as pd
@@ -15,6 +16,7 @@ from transformers import (
 from peft import LoraConfig, PeftModel
 from trl.trainer.sft_trainer import SFTTrainer
 from huggingface_hub import login
+from transformers import EvalPrediction
 from pathlib import Path
 
 config = {
@@ -32,6 +34,16 @@ IS_AUTHENTICATED = False
 def format_prompt(sample):
     """Formats a sample for instruction fine-tuning."""
     return f"<|user|>\n{sample['prompt']}<|end|>\n<|assistant|>\n{sample['completion']}<|end|>"
+
+
+def compute_metrics(p: EvalPrediction):
+    """Computes evaluation metrics for Causal LM."""
+    # The predictions are the logits, and the labels are the input_ids
+    # The trainer automatically handles the loss calculation.
+    # We can add perplexity, which is derived from the loss.
+    loss = p.predictions.mean().item()
+    perplexity = math.exp(loss)
+    return {"loss": loss, "perplexity": perplexity}
 
 
 def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
@@ -127,6 +139,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         processing_class=tokenizer,  # This is the correct parameter name
+        compute_metrics=compute_metrics,
         peft_config=peft_config,
         formatting_func=format_prompt,
     )
