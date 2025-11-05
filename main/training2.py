@@ -1,6 +1,7 @@
 # %%
 # %pip install pandas torch scikit-learn datasets transformers numpy accelerate bitsandbytes peft trl
 
+import random
 import math
 # %%
 # Initialization
@@ -168,6 +169,98 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         )
 
 
+def run_manual_test():
+    """Allows for manual, interactive testing of the fine-tuned model."""
+    model_path = config["NEW_MODEL_PATH"]
+    if not Path(model_path).exists() or not (Path(model_path) / "adapter_config.json").exists():
+        print(f"❌ Model not found at '{model_path}'. Please train a model first (Option 1).")
+        return
+
+    print("\n--- Loading Model for Manual Testing ---")
+
+    # Load the base model with quantization
+    base_model = AutoModelForCausalLM.from_pretrained(
+        config["BASE_MODEL"],
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=False,
+        ),
+        trust_remote_code=True,
+        device_map="auto",
+    )
+
+    # Load the fine-tuned PEFT model
+    model = PeftModel.from_pretrained(base_model, model_path)
+    tokenizer = AutoTokenizer.from_pretrained(config["BASE_MODEL"], trust_remote_code=True)
+
+    # Load the dataset to pull random prompts from
+    try:
+        dataset = load_dataset("parquet", data_files=config["DATA_PATH"], split="train")
+        print("✅ Dataset loaded for random prompt selection.")
+    except Exception as e:
+        print(f"⚠️  Could not load dataset for random prompts: {e}")
+        print("   You can still enter prompts manually.")
+        dataset = None
+
+    tokenizer.pad_token = tokenizer.eos_token
+
+    print("✅ Model loaded. Enter your prompt below. Type 'exit' or 'quit' to return to the menu.")
+    while True:
+        user_prompt = input("\nPrompt: ")
+        if user_prompt.lower() in ["exit", "quit"]:
+            break
+
+        # If the user just presses Enter, pick a random prompt from the dataset
+        if not user_prompt and dataset:
+            random_index = random.randint(0, len(dataset) - 1)
+            sample = dataset[random_index]
+            user_prompt = sample['prompt']
+            print("\n--- 🎲 Using Random Prompt from Dataset ---")
+            print(user_prompt)
+            print("------------------------------------------")
+
+        if not user_prompt:
+            print("No prompt provided. Please enter a prompt or press Enter for a random one.")
+            continue
+
+        # Format the prompt for the model
+        formatted_prompt = f"<|user|>\n{user_prompt}<|end|>\n<|assistant|>\n"
+        inputs = tokenizer(formatted_prompt, return_tensors="pt", return_attention_mask=False).to("cuda")
+
+        # Generate the response
+        outputs = model.generate(**inputs, max_new_tokens=512, pad_token_id=tokenizer.eos_token_id)
+        
+        # Decode and print the output, skipping the prompt part
+        response_text = tokenizer.batch_decode(outputs)[0]
+        print("\n--- Generated Response ---")
+        print(response_text.split("<|assistant|>")[1].replace("<|end|>", "").strip())
+
+def view_dataset_sample():
+    """Loads and displays a random sample from the training dataset."""
+    data_path = config["DATA_PATH"]
+    if not Path(data_path).exists():
+        print(f"❌ Dataset file not found at '{data_path}'.")
+        print("   Please ensure the training data has been generated.")
+        return
+
+    print(f"\n--- Loading a random sample from {data_path} ---")
+    try:
+        # Load the full dataset
+        dataset = load_dataset("parquet", data_files=data_path, split="train")
+        
+        # Select a random sample
+        random_index = random.randint(0, len(dataset) - 1)
+        sample = dataset[random_index]
+
+        print("\n" + "="*25 + " RANDOM SAMPLE " + "="*25)
+        print(f"\n[PROMPT]\n{sample['prompt']}")
+        print(f"\n[COMPLETION]\n{sample['completion']}")
+        print("\n" + "="*65)
+    except Exception as e:
+        print(f"❌ Failed to load or read the dataset: {e}")
+
 def huggingface_auth():
     """Handles Hugging Face authentication."""
     global IS_AUTHENTICATED
@@ -207,8 +300,10 @@ if __name__ == "__main__":
         while True:
             print("\n--- Generative Model Training Menu ---")
             print("1. Start Training")
-            print("2. Hugging Face Login")
-            print("3. Exit")
+            print("2. View Sample from Dataset")
+            print("3. Manually Test Model")
+            print("4. Hugging Face Login")
+            print("5. Exit")
             choice = input("> ").strip()
 
             if choice == "1":
@@ -218,8 +313,12 @@ if __name__ == "__main__":
                 batch_size = int(input("Enter training batch size [default: 1]: ") or 1)
                 run_training(num_epochs=num_epochs, batch_size=batch_size)
             elif choice == "2":
-                huggingface_auth()
+                view_dataset_sample()
             elif choice == "3":
+                run_manual_test()
+            elif choice == "4":
+                huggingface_auth()
+            elif choice == "5":
                 print("Exiting.")
                 break
             else:
