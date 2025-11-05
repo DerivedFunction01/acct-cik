@@ -3495,7 +3495,11 @@ def collect_evidence_strings(
                 not in {e.category for e in evidence if isinstance(e, ContextEvidence)}
             ):
                 exposure_descriptions.append(ev.to_string())
-
+        elif not any(isinstance(e, MitigationEvidence) for e in evidence) and isinstance(ev, MitigationEvidence):
+            other_evidence_strings.append(
+                "The text mentions the company's mitigation efforts against various market risks."
+            )
+            other_evidence_strings.append(ev.to_string())
         else:
             reasoning = ev.to_string()
             if reasoning:
@@ -3585,6 +3589,7 @@ def _generate_done_sentence(none_found: bool = False) -> List[str]:
     
     # Acknowledge that it is done
     done.append(
+        f"---\n"
         f"I reviewed the text for any explicit mentions of derivative instruments, scanning for "
         f"keywords like {keyword_str} that refer to derivative usage only."
     )
