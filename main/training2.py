@@ -19,7 +19,7 @@ from unsloth import FastLanguageModel
 config = {
     "DATA_PATH": "training_data.parquet",
     "BASE_MODEL": "unsloth/Qwen2.5-7B-Instruct",  # Unsloth's optimized version
-    "NEW_MODEL_PATH": "qwen2.5-7B-derivatives-v1",
+    "NEW_MODEL_NAME": "qwen2.5-7B-derivatives-v1", # Renamed for clarity
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 2048,  # Qwen2.5 supports up to 32k, but 2048 is good for training
@@ -84,7 +84,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
     # --- Apply LoRA with Unsloth ---
     model = FastLanguageModel.get_peft_model(
         model,
-        r=64,  # LoRA rank
+        r=16,  # LoRA rank - 16 is a good default for 7B models
         target_modules=[
             "q_proj",
             "k_proj",
@@ -94,7 +94,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
             "up_proj",
             "down_proj",
         ],
-        lora_alpha=16,
+        lora_alpha=32, # lora_alpha is often set to 2 * r
         lora_dropout=0,  # Unsloth optimizes better with 0 dropout
         bias="none",
         use_gradient_checkpointing="unsloth",  # Unsloth's optimized gradient checkpointing
@@ -102,15 +102,10 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         use_rslora=False,
         loftq_config=None,
     )
-    
-    # --- NEW: Add logic to merge adapters and save/push the final model ---
-    # This makes deployment easier as you have a single model directory.
-    if hasattr(model, "merge_and_unload"):
-        model = model.merge_and_unload()
 
     # --- Training Arguments ---
     training_args = TrainingArguments(
-        output_dir=config["NEW_MODEL_PATH"],
+        output_dir=config["NEW_MODEL_NAME"],
         num_train_epochs=num_epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
@@ -130,6 +125,8 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         eval_strategy="steps",
         eval_steps=100,
         report_to="tensorboard",
+        push_to_hub=True, # Let the Trainer handle pushing
+        hub_model_id=f"{config['MODEL_USER']}/{config['NEW_MODEL_NAME']}",
     )
 
     # --- Initialize SFTTrainer ---
@@ -157,29 +154,35 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         f"Samples per second: {trainer_stats.metrics['train_samples_per_second']:.2f}"
     )
 
+    # --- Merge, Save, and Push ---
+    # First, save the trained LoRA adapters
+    print("\n--- Saving LoRA Adapters ---")
+    model.save_pretrained("lora_adapters")
+    tokenizer.save_pretrained("lora_adapters")
+
+    # Optional: Push only the adapters to the Hub
+    # model.push_to_hub(f"{config['MODEL_USER']}/{config['NEW_MODEL_NAME']}-lora", token=True)
+    # tokenizer.push_to_hub(f"{config['MODEL_USER']}/{config['NEW_MODEL_NAME']}-lora", token=True)
+
+    # Merge the adapters into the model for a final, standalone model
+    if hasattr(model, "merge_and_unload"):
+        print("\n--- Merging LoRA adapters into the base model ---")
+        model = model.merge_and_unload()
+
     print("\n--- Saving final merged model ---")
-    trainer.save_model(config["NEW_MODEL_PATH"])
+    trainer.model = model # Update trainer's model reference to the merged one
+    trainer.save_model(config["NEW_MODEL_NAME"])
 
-    # --- Push to Hub ---
-    if not IS_AUTHENTICATED:
-        huggingface_auth()
-
-    if IS_AUTHENTICATED:
-        safe_to_push = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ").lower().strip()
-        if safe_to_push == 'y':
-            try:
-                print("Pushing model and tokenizer to the Hub...")
-                trainer.push_to_hub()
-                print("✅ Model pushed successfully!")
-            except Exception as e:
-                print(f"❌ An error occurred while pushing to the Hub: {e}")
+    # The trainer will automatically push the final (merged) model if push_to_hub=True
+    if training_args.push_to_hub:
+        print(f"\nModel will be pushed to the Hub at '{training_args.hub_model_id}' by the Trainer.")
     else:
-        print(f"Skipping push to Hub. The final model is saved locally in the '{config['NEW_MODEL_PATH']}' directory.")
+        print(f"Skipping push to Hub. The final model is saved locally in the '{config['NEW_MODEL_NAME']}' directory.")
 
 
 def run_manual_test():
     """Allows for manual, interactive testing of the fine-tuned model."""
-    model_path = config["NEW_MODEL_PATH"]
+    model_path = config["NEW_MODEL_NAME"]
     if not Path(model_path).exists():
         print(
             f"❌ Model not found at '{model_path}'. Please train a model first (Option 1)."
@@ -245,6 +248,7 @@ def run_manual_test():
             use_cache=True,
             temperature=0.7,
             top_p=0.9,
+            pad_token_id=tokenizer.eos_token_id, # Suppress warnings and improve generation
         )
 
         # Decode and print the output
