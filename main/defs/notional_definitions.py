@@ -468,6 +468,15 @@ class NotionalSentence:
                 self.zero_notional_format,
                 self.preferred_negative_format,
             )
+        else:
+            amount_str = _format_single_notional(
+                0,
+                self.currency_symbol,
+                self.prefer_abbreviated,
+                False,
+                self.zero_notional_format,
+                self.preferred_negative_format,
+            )
 
         # 2. Select time prefix template
         time_prefix = ""
@@ -708,7 +717,7 @@ class NotionalSentence:
         )
         amount_prefix_to_use = "" if not mentions_amount else amount_prefix_to_use
         chosen_connector = "" if not mentions_amount else chosen_connector
-        final_notional = self.notional if mentions_amount else None
+        final_notional = self.notional or 0 if mentions_amount else None
 
         final_notional_str = amount_str if mentions_amount else None
         # --- NEW: These are now generated inside the build method for specific templates ---
