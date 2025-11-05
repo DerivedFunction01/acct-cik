@@ -617,7 +617,7 @@ class ScenarioBuilder:
             )
             selected_debt_type: DebtType = random.choice(selected_debts)
             benchmark_rate = (
-                random.choice(selected_debt_type.benchmarks + specific_rate_terms)
+                random.choice(selected_debt_type.benchmarks + specific_rate_terms if "treasury" not in selected_debt_type.name.lower() else [])
                 if selected_debt_type.benchmarks
                 else None
             )
