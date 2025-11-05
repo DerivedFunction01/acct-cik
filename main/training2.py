@@ -18,8 +18,8 @@ from unsloth import FastLanguageModel
 
 config = {
     "DATA_PATH": "training_data.parquet",
-    "BASE_MODEL": "unsloth/Qwen2.5-7B-Instruct",  # Unsloth's optimized version
-    "NEW_MODEL_NAME": "qwen2.5-7B-derivatives-v1", # Renamed for clarity
+    "BASE_MODEL": "unsloth/Qwen3-4B-Thinking-2507-unsloth-bnb-4bit",  # Unsloth's optimized version
+    "NEW_MODEL_NAME": "derivatives-classifier-4B",  # Renamed for clarity
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 2048,  # Qwen2.5 supports up to 32k, but 2048 is good for training
