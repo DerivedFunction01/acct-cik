@@ -55,9 +55,9 @@ else
 fi
 
 # --- Packages ---
-BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn matplotlib unzip"
-ML_PACKAGES="scikit-learn datasets transformers accelerate bitsandbytes IPython ipywidgets ipykernel"
-ML_PACKAGES2="git+https://github.com/huggingface/peft.git git+https://github.com/huggingface/trl.git"
+BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn matplotlib"
+# Pin versions for Phi-4 compatibility (based on Microsoft's official example)
+ML_PACKAGES="scikit-learn datasets transformers==4.48.1 accelerate==1.3.0 peft==0.14.0 trl IPython ipywidgets ipykernel"
 
 # --- Handle PyTorch (skip if locked unless --reinstall-torch) ---
 if [ -f "$TORCH_LOCK_FILE" ] && [ "$REINSTALL_TORCH" = false ]; then
@@ -95,14 +95,28 @@ else
   echo "$(python -c 'import torch; print(torch.__version__)')" > "$TORCH_LOCK_FILE"
 fi
 
+# --- Install bitsandbytes (after PyTorch) ---
+if [ "$BASE_ONLY" = false ]; then
+  echo "🔄 Installing bitsandbytes..."
+  pip install bitsandbytes
+fi
+
 # --- Install other packages ---
 if [ "$BASE_ONLY" = true ]; then
   echo "Installing base packages only..."
   pip install $BASE_PACKAGES
 else
   echo "Installing all packages (including ML)..."
-  pip install $BASE_PACKAGES $ML_PACKAGES
-  pip install $ML_PACKAGES2
+  pip install $BASE_PACKAGES
+  pip install $ML_PACKAGES
 fi
 
+echo ""
 echo "✅ Environment setup complete."
+echo ""
+echo "Installed versions:"
+python -c "import transformers; print(f'  transformers: {transformers.__version__}')"
+python -c "import torch; print(f'  torch: {torch.__version__}')"
+python -c "import peft; print(f'  peft: {peft.__version__}')"
+python -c "import trl; print(f'  trl: {trl.__version__}')"
+python -c "import accelerate; print(f'  accelerate: {accelerate.__version__}')"
