@@ -115,23 +115,21 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4):
         group_by_length=True,
         lr_scheduler_type="constant",
         report_to="tensorboard",
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         eval_steps=100,
     )
 
     # --- Initialize SFTTrainer ---
     trainer = SFTTrainer(
         model=model,
+        args=training_args,
+        data_collator=None,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        processing_class=tokenizer,  # This is the correct parameter name
         peft_config=peft_config,
-        dataset_text_field=None,  # We're using formatting_func instead
-        tokenizer=tokenizer,
-        args=training_args,
         formatting_func=format_prompt,
-        packing=False,
     )
-
     # --- Train and Save ---
     print(f"\nStarting training for {num_epochs} epochs...")
     trainer.train()
