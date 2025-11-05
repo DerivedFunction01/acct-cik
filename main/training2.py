@@ -12,7 +12,7 @@ import pandas as pd
 import torch
 from datasets import load_dataset
 from transformers import TrainingArguments
-from trl.trainer.sft_config import SFTTrainer
+from trl.trainer.sft_trainer import SFTTrainer
 from huggingface_hub import login
 from unsloth import FastLanguageModel
 
