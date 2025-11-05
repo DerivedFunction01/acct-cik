@@ -3672,6 +3672,7 @@ def _build_instrument_by_instrument_cot(
                     f"Wait, this appears to be an alias for the '{original_type}' instrument. I will treat it as a duplicate mention."
                 )
         else:
+            assert ev.instrument_type is not None
             processed_instruments[ev.instrument_id] = ev.instrument_type
 
         cot_lines.append(line_prefix + " ".join(line_parts))
