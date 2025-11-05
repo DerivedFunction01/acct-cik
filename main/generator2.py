@@ -1049,8 +1049,10 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
                 if len(possible_policy_categories) >= 2
                 else 1
             )
-        else: # "light"
+        elif archetype.policy_coverage == "light": # "light"
             num_policies = random.randint(0, min(1, len(possible_policy_categories))) if len(possible_policy_categories) >= 2 else 1
+        else:
+            num_policies = 0
 
         if possible_policy_categories and num_policies > 0:
             cats_with_policies = random.sample(possible_policy_categories, num_policies)
@@ -1142,7 +1144,7 @@ def _create_truly_random_archetype() -> ScenarioArchetype:
             "EQ": rand_propensity(),
             "GEN": rand_propensity(),
         },
-        policy_coverage=random.choice(["full", "partial", "light"]),
+        policy_coverage=random.choice(["full", "partial", "light", "none"]),
         comparative_years=random.randint(1, 3), # type: ignore
         default_currency=random.choice(
             [c.code for c in all_currencies]
