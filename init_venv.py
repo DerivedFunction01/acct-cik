@@ -18,6 +18,7 @@ PACKAGES = [
     # Core ML and data handling
     # unsloth installs torch, transformers, peft, accelerate, trl, numpy
     "unsloth[colab-new] git+https://github.com/unslothai/unsloth.git",
+    "torchvision",  # Installs torchvision, torchaudio
     "datasets",  # Installs pandas, requests, tqdm, numpy
     "scikit-learn",
     # Web scraping and server
