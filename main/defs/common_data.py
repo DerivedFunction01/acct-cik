@@ -38,12 +38,12 @@ shared_use_verbs = [
     "employed",
     "used",
     "implemented",
+    "executed",
 ]
 
 # For entering into a new int
 individual_use_verbs = [
     "entered into",
-    "executed",
     "initiated",
     "put in place",
     "secured",
@@ -57,9 +57,7 @@ individual_use_verbs = [
 aggregate_use_verbs = [
     "held",
     "maintained",
-    "had outstanding",
-    "had in place",
-    "were party to",
+    "held in place",
 ] + shared_use_verbs
 
 
