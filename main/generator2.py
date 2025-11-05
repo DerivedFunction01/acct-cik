@@ -3746,6 +3746,7 @@ def build_noise_only_chain_of_thought(evidence: List["BaseNarrativeEvidence"]) -
     )
 
     cot_steps: List[str] = []
+    cot_steps.extend(_generate_introduction())
     context_evidence_by_category: Dict[str, List["BaseNarrativeEvidence"]] = {
         cat: [] for cat in DERIVATIVE_CATEGORIES
     }
