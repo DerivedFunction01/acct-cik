@@ -3357,80 +3357,96 @@ def _generate_analysis_summary(
     return f"The company's risk management strategy {', '.join(sorted(list(summary_phrases)))} to hedge market exposures."
 
 
-def generate_json_from_scenario(
-    scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence], return_mitigation_map_only: bool = False
-) -> Dict:
-    """
-    Generates the target JSON output from the scenario object.
-    The `evidence` from the narrative is used to generate the summary and chain_of_thought.
-    """
-    # --- FIX: Defer summary generation until after the mitigation map is finalized ---
+import random
+import re
+from typing import Dict, List, Tuple, Set, Any, Optional
 
-    # --- FIX: Correctly generate exposure map based on instruments, context, and mitigation evidence ---
-    # This aligns with the user's definition: exposure is true if an instrument exists,
-    # if there is a "noise/context" sentence, OR if a mitigation strategy is mentioned.
+
+def generate_exposure_map(
+    scenario: "GenerationScenario", evidence: List["BaseNarrativeEvidence"]
+) -> Dict[str, bool]:
+    """Generate exposure map based on instruments, context, and mitigation evidence."""
     exposure_map = {cat: False for cat in DERIVATIVE_CATEGORIES}
-    # 1. Set exposure to true if any instrument exists for the category.
+
+    # Set exposure to true if any instrument exists for the category
     for inst in scenario.instruments:
         if inst.category in exposure_map:
             exposure_map[inst.category] = True
-    # 2. Also set exposure to true if there is explicit ExposureEvidence (from a context sentence)
-    #    or MitigationEvidence.
+
+    # Set exposure to true if there is explicit ExposureEvidence or MitigationEvidence
     for ev in evidence:
         if isinstance(ev, (ExposureEvidence, MitigationEvidence)):
             if ev.category in exposure_map:
                 exposure_map[ev.category] = True
 
-    # --- NEW: Mitigation status is now "current", "historical", or "never" ---
-    # It's driven by the usage_status in the MitigationEvidence objects.
-    # --- FIX: Default to "unknown" if exposure exists but no evidence, "none" if no exposure. ---
-    # --- MODIFIED: Improved mitigation map logic ---
+    return exposure_map
+
+
+def generate_mitigation_map(
+    evidence: List["BaseNarrativeEvidence"],
+    exposure_map: Dict[str, bool],
+    scenario: "GenerationScenario",
+) -> Tuple[Dict[str, str], Dict[str, bool]]:
+    """Generate mitigation map with status: current, historical, never, unknown, none, likely, or policy_only."""
     mitigation_map = {
-        # If there's exposure but no mention of hedging, the status is "unknown".
         cat: "unknown" if exposure_map.get(cat) else "none"
         for cat in DERIVATIVE_CATEGORIES
     }
+
     implied_evidence_map = {cat: False for cat in DERIVATIVE_CATEGORIES}
+
     # Track which categories have actual notional evidence
     categories_with_notional = {
-        ev.category for ev in evidence 
-        if isinstance(ev, NotionalEvidence) and ((ev.notional and ev.notional > 0) or ev.active_override)
+        ev.category
+        for ev in evidence
+        if isinstance(ev, NotionalEvidence)
+        and ((ev.notional and ev.notional > 0) or ev.active_override)
     }
+
+    # Process mitigation evidence
     for ev in evidence:
         if isinstance(ev, MitigationEvidence):
             status = ev.usage_status
             category = ev.category
+
             if category in mitigation_map:
-                # --- NEW: Only trust implied "current" evidence if we have notional evidence ---
                 if ev.is_implied and status == "current":
                     implied_evidence_map[category] = True
                     if category in categories_with_notional:
                         mitigation_map[category] = "current"
-                    # else: leave as "unknown"
                 elif ev.is_implied and status == "historical":
                     implied_evidence_map[category] = True
                     mitigation_map[category] = "historical"
-                # Trust all non-implied evidence
                 elif not ev.is_implied:
-                    if status == "current": mitigation_map[category] = "current"
-                    elif status == "historical": mitigation_map[category] = "historical"
-                    elif status == "non_use": mitigation_map[category] = "never"
-                    elif status == "speculative": mitigation_map[category] = "likely"
-    
-    # --- NEW: For policy-only scenarios, if no instruments are found but policies exist, mark as 'policy_only' ---
-    if not scenario.instruments and scenario.policy and scenario.policy.category_policies:
+                    if status == "current":
+                        mitigation_map[category] = "current"
+                    elif status == "historical":
+                        mitigation_map[category] = "historical"
+                    elif status == "non_use":
+                        mitigation_map[category] = "never"
+                    elif status == "speculative":
+                        mitigation_map[category] = "likely"
+
+    # Handle policy-only scenarios
+    if (
+        not scenario.instruments
+        and scenario.policy
+        and scenario.policy.category_policies
+    ):
         for policy in scenario.policy.category_policies:
             if mitigation_map[policy.category] == "unknown":
                 mitigation_map[policy.category] = "policy_only"
 
-    if return_mitigation_map_only:
-        return mitigation_map
+    return mitigation_map, implied_evidence_map
 
-    # --- NEW: Consolidate ExposureEvidence into a single final sentence ---
+
+def collect_evidence_strings(
+    evidence: List["BaseNarrativeEvidence"], mitigation_map: Dict[str, str]
+) -> Tuple[List[str], List[str]]:
+    """Collect and organize evidence strings for chain of thought."""
     other_evidence_strings = []
     exposure_descriptions = []
-    # --- FIX: Only collect exposure descriptions for categories WITHOUT other evidence ---
-    # This prevents redundant "The text also mentions..." sentences.
+
     categories_with_instrument_evidence = {
         e.category
         for e in evidence
@@ -3439,61 +3455,55 @@ def generate_json_from_scenario(
         )
     }
 
-
-    accounting_evidence_list = []
+    accounting_evidence_list: List["AccountingStandardEvidence"] = []
 
     for ev in evidence:
         if isinstance(ev, PolicyEvidence):
-            # For policy-only, we want to explain why it's not a current user
             if mitigation_map.get(ev.category) == "policy_only":
-                reasoning = f"The text discusses accounting policies for {ev.category} derivatives (e.g., '{ev.policy_type}') but does not mention any specific, active instruments for the reporting period."
+                reasoning = (
+                    f"The text discusses accounting policies for {ev.category} derivatives "
+                    f"(e.g., '{ev.policy_type}') but does not mention any specific, active "
+                    f"instruments for the reporting period."
+                )
                 if reasoning not in other_evidence_strings:
                     other_evidence_strings.append(reasoning)
-        # --- NEW: Collect accounting evidence instead of processing immediately ---
+
         elif isinstance(ev, AccountingStandardEvidence):
-            accounting_evidence_list.append(ev) # type: ignore
-        # --- NEW: Handle ContextEvidence ---
+            accounting_evidence_list.append(ev)
+
         elif isinstance(ev, ContextEvidence):
-            # For LAW, we can add a specific reasoning string.
             if ev.category == "LAW":
-                reasoning = f"The text discusses legal proceedings, including shareholder derivative lawsuits, which are contextually related to but distinct from derivative financial instruments."
+                reasoning = (
+                    "The text discusses legal proceedings, including shareholder derivative lawsuits, "
+                    "which are contextually related to but distinct from derivative financial instruments."
+                )
                 other_evidence_strings.append(reasoning)
             elif ev.category == "OWN":
-                reasoning = "The text mentions security ownership by third parties, which is distinct from the company's use of hedging instruments."
+                reasoning = (
+                    "The text mentions security ownership by third parties, which is distinct from "
+                    "the company's use of hedging instruments."
+                )
                 other_evidence_strings.append(reasoning)
+
         elif isinstance(ev, HedgeFundContextEvidence):
-            reasoning = ev.to_string()
-            other_evidence_strings.append(reasoning)
+            other_evidence_strings.append(ev.to_string())
+
         elif isinstance(ev, ExposureEvidence):
-            # --- FIX: Only add ExposureEvidence to the chain_of_thought if no other evidence exists for that category. ---
-            # This prevents redundant sentences like "The text also mentions interest rate risk..." when we've already
-            # detailed an interest rate swap.
-            if ev.category not in categories_with_instrument_evidence and ev.category not in {e.category for e in evidence if isinstance(e, ContextEvidence)}:
-                # Collect descriptions from ExposureEvidence
+            if (
+                ev.category not in categories_with_instrument_evidence
+                and ev.category
+                not in {e.category for e in evidence if isinstance(e, ContextEvidence)}
+            ):
                 exposure_descriptions.append(ev.to_string())
+
         else:
-            # Collect reasoning strings from all other evidence types
             reasoning = ev.to_string()
-            if reasoning:  # Only add if the string is not empty
+            if reasoning:
                 other_evidence_strings.append(reasoning)
 
-    chain_of_thought = "\n".join(other_evidence_strings)
-
-    # --- FIX: Improve aggregation of repeated instrument mentions ---
-    # This logic now distinguishes between multiple mentions of the same instrument
-    # and mentions of different instruments of the same type.
-    instrument_mentions: Dict[str, List[int]] = {}
-    for ev in evidence:
-        if isinstance(ev, NotionalEvidence) and ev.instrument_type and ev.instrument_id is not None:
-            if ev.instrument_type not in instrument_mentions:
-                instrument_mentions[ev.instrument_type] = []
-            instrument_mentions[ev.instrument_type].append(ev.instrument_id)
-
-
-    # --- NEW: Process and append the consolidated accounting evidence ---
+    # Process accounting evidence
     if accounting_evidence_list:
-        # Group evidence by standard name to summarize its status
-        standard_status_map = {}
+        standard_status_map: Dict[str, Set[str]] = {}
         for ev in accounting_evidence_list:
             if ev.standard_name not in standard_status_map:
                 standard_status_map[ev.standard_name] = set()
@@ -3501,7 +3511,6 @@ def generate_json_from_scenario(
 
         summary_parts = []
         for std_name, statuses in standard_status_map.items():
-            # Create a summary like "evaluating the impact of ASC 842" or "has adopted ASU 2016-13"
             status_str = " and ".join(sorted(list(statuses)))
             summary_parts.append(f"{status_str.replace('_', ' ')} {std_name}")
 
@@ -3510,90 +3519,150 @@ def generate_json_from_scenario(
             + ", ".join(summary_parts)
             + ", which provides context but does not confirm derivative usage."
         )
-        chain_of_thought += "\n" + accounting_reasoning
+        other_evidence_strings.append(accounting_reasoning)
 
-    # If there were any exposure-only mentions, join them into a single sentence and append it.
+    return other_evidence_strings, exposure_descriptions
+
+
+def build_chain_of_thought(
+    scenario: "GenerationScenario",
+    evidence: List["BaseNarrativeEvidence"],
+    derivatives_list: List[Dict[str, Any]],
+    mitigation_map: Dict[str, str],
+    other_evidence_strings: List[str],
+    exposure_descriptions: List[str],
+) -> str:
+    """Build the chain of thought reasoning."""
+    cot_summary_lines = []
+
+    if derivatives_list:
+        cot_summary_lines.append(
+            "Based on the text, I have identified the following derivative instruments for the reporting year:"
+        )
+        for deriv in derivatives_list:
+            status = mitigation_map.get(deriv["category"], "unknown")
+            cot_summary_lines.append(
+                f"- A {deriv['level']} {deriv['type']} ({deriv['category']}) used for {status} hedging."
+            )
+    else:
+        cot_summary_lines.append(
+            "Based on the text, no active derivative instruments were identified for the reporting year."
+        )
+
+    chain_of_thought_parts = (
+        cot_summary_lines + ["\nDetailed evidence:", "---"] + other_evidence_strings
+    )
+
+    # Add exposure descriptions
     if exposure_descriptions:
-        # Check if any specific derivative instruments were mentioned in the evidence at all.
         any_specific_instrument_mentioned = any(
             (isinstance(ev, NotionalEvidence) or isinstance(ev, MitigationEvidence))
             and ev.category != "GEN"
             for ev in evidence
         )
 
-        # If any instrument is mentioned, we suppress the generic one, in case we drop mitigation but kept the generic exposure
-        if len(exposure_descriptions) > 1 and "general market risks" in exposure_descriptions and any_specific_instrument_mentioned:
+        if (
+            len(exposure_descriptions) > 1
+            and "general market risks" in exposure_descriptions
+            and any_specific_instrument_mentioned
+        ):
             exposure_descriptions.remove("general market risks")
 
-        # Join with ", " and use " and " for the last item.
-        joined_descriptions = (", ".join(exposure_descriptions[:-1]) + " and " + exposure_descriptions[-1]) if len(exposure_descriptions) > 1 else exposure_descriptions[0]
-        exposure_sentence = f"The text also mentions {joined_descriptions}, but does not mention specific derivatives used for hedging."
-        chain_of_thought += "\n" + exposure_sentence
+        joined_descriptions = (
+            ", ".join(exposure_descriptions[:-1]) + " and " + exposure_descriptions[-1]
+            if len(exposure_descriptions) > 1
+            else exposure_descriptions[0]
+        )
+        exposure_sentence = (
+            f"The text also mentions {joined_descriptions}, but does not mention "
+            "specific derivatives used for hedging."
+        )
+        chain_of_thought_parts.append(exposure_sentence)
 
-    repeated_mentions = []
+    # Add instrument mention analysis
+    instrument_mentions: Dict[str, List[int]] = {}
+    for ev in evidence:
+        if (
+            isinstance(ev, NotionalEvidence)
+            and ev.instrument_type
+            and ev.instrument_id is not None
+        ):
+            if ev.instrument_type not in instrument_mentions:
+                instrument_mentions[ev.instrument_type] = []
+            instrument_mentions[ev.instrument_type].append(ev.instrument_id)
+
+    repeated_mentions: List[str] = []
     for inst_type, id_list in instrument_mentions.items():
         num_mentions = len(id_list)
         num_distinct_instruments = len(set(id_list))
 
         if num_distinct_instruments > 1:
-            # Case: Multiple different instruments of the same type were mentioned.
             mention_summary = f"{num_distinct_instruments} distinct '{inst_type}'"
             if num_mentions > num_distinct_instruments:
                 mention_summary += f" (with a total of {num_mentions} mentions)"
             repeated_mentions.append(mention_summary)
         elif num_mentions > 1:
-            # Case: A single instrument was mentioned multiple times.
-            repeated_mentions.append(f"a single '{inst_type}' was mentioned {num_mentions} times")
+            repeated_mentions.append(
+                f"a single '{inst_type}' was mentioned {num_mentions} times"
+            )
 
     if repeated_mentions:
-        repetition_summary = f"The text discusses {', '.join(repeated_mentions)}."
-        chain_of_thought += "\n" + repetition_summary
-    # --- Append a final reasoning statement for any GENERIC derivatives ---
-    # This logic is now centralized here, instead of in the Evidence class.
-    has_generic_evidence = any(ev.category == "GEN" and ev.status =="current" for ev in evidence)
-    if has_generic_evidence:
-        # Find other specific instrument types that were identified in the text.
-        all_seen_types = sorted(
-            list({
-                ev.instrument_type
-                for ev in evidence
-                if (
-                    (isinstance(ev, NotionalEvidence) or isinstance(ev, MitigationEvidence))
-                    and ev.category != "GEN"
-                    and ev.instrument_type
-                    and "derivative" not in ev.instrument_type
-                    and "instrument" not in ev.instrument_type
-                )
-            })
+        chain_of_thought_parts.append(
+            f"The text discusses {', '.join(repeated_mentions)}."
         )
 
-        # --- NEW: Select a few similar-sounding instruments to mention ---
-        # If there are only a few, list them all. Otherwise, be selective.
-        if len(all_seen_types) > 4:
-            # Pick a random instrument as a "seed"
-            seed_instrument = random.choice(all_seen_types)
-            seed_words = set(seed_instrument.split())
+    # Add generic derivative reasoning
+    has_generic_evidence = any(
+        ev.category == "GEN" and ev.status == "current" for ev in evidence
+    )
 
-            # Find other instruments that share at least one word with the seed
-            similar_instruments = {seed_instrument}
+    if has_generic_evidence:
+        all_seen_types: List[str] = sorted(
+            list(
+                {
+                    ev.instrument_type
+                    for ev in evidence
+                    if (
+                        (
+                            isinstance(ev, NotionalEvidence)
+                            or isinstance(ev, MitigationEvidence)
+                        )
+                        and ev.category != "GEN"
+                        and ev.instrument_type
+                        and "derivative" not in ev.instrument_type
+                        and "instrument" not in ev.instrument_type
+                    )
+                }
+            )
+        )
+
+        display_types: List[str] = []
+        if len(all_seen_types) > 4:
+            seed_instrument: str = random.choice(all_seen_types)
+            seed_words: Set[str] = set(seed_instrument.split())
+            similar_instruments: Set[str] = {seed_instrument}
+
             for inst_type in all_seen_types:
-                if inst_type != seed_instrument and seed_words.intersection(inst_type.split()):
+                if inst_type != seed_instrument and seed_words.intersection(
+                    inst_type.split()
+                ):
                     similar_instruments.add(inst_type)
 
-            # Limit to a small, random number (2 to 4) of examples
-            # FIX: The lower bound must not be greater than the upper bound.
-            # If there's only 1 similar instrument, randint(2, 1) would fail.
-            # We now choose a number between 1 and the number of instruments (up to 4).
+            # Fix: Ensure lower bound is not greater than upper bound
             upper_bound = min(4, len(similar_instruments))
-            num_to_show = random.randint(1, upper_bound) if upper_bound > 0 else 0
-            display_types = sorted(list(random.sample(list(similar_instruments), num_to_show)))
+            if upper_bound > 0:
+                num_to_show = random.randint(1, upper_bound)
+                display_types = sorted(
+                    list(random.sample(list(similar_instruments), num_to_show))
+                )
         else:
             display_types = all_seen_types
 
         generic_reasoning = (
-            "After reviewing the full text, I found a reference to a derivative that lacks sufficient context "
-            "to determine its specific category"
+            "After reviewing the full text, I found a reference to a derivative that lacks "
+            "sufficient context to determine its specific category"
         )
+
         if display_types:
             generic_reasoning += (
                 f" (unlike other instruments identified, such as {', '.join(display_types)}), "
@@ -3601,125 +3670,157 @@ def generate_json_from_scenario(
             )
         else:
             generic_reasoning += ", so it is treated as a generic reference."
-        chain_of_thought += "\n" + generic_reasoning.strip()
-    # This explains why only certain amounts appear in the final JSON.
-    final_filter_cot = (
-        "Finally, I will filter the extracted amounts to include only those for the reporting year "
-        f"({scenario.reporting_year}) with a non-zero value to ensure the output reflects only active positions."
+
+        chain_of_thought_parts.append(generic_reasoning.strip())
+
+    # Add final filtering step
+    chain_of_thought_parts.append("---")
+    chain_of_thought_parts.append(
+        f"Finally, I will filter the extracted amounts to include only those for the reporting "
+        f"year ({scenario.reporting_year}) with a non-zero value to ensure the output reflects "
+        "only active positions."
     )
-    chain_of_thought += "\n" + final_filter_cot
-    # --- NEW: Add warning checks to the chain of thought, similar to the narrative ---
-    warnings = []
+
+    chain_of_thought = "\n".join(chain_of_thought_parts)
+
+    # Add warnings
+    warnings: List[str] = []
     if "None" in chain_of_thought:
         warnings.append("The word 'none' was found.")
-    if re.search(r'[\{\}\[\]]', chain_of_thought):
+    if re.search(r"[\{\}\[\]]", chain_of_thought):
         warnings.append("Leftover template characters like '{}' or '[]' were found.")
     if warnings:
         chain_of_thought += f"\n\n[WARNING: Chain of thought may be flawed. Issues found: {'; '.join(warnings)}]"
 
-    # --- Build the derivatives list ONLY from what was mentioned in the evidence. ---
-
-    # This ensures the JSON perfectly matches the narrative. Each piece of evidence
-    # that points to a specific instrument contributes to its entry in the final JSON.
-    derivatives_list = []
-    
-    # --- NEW: Handle "noise-only" scenarios with a simulated Chain of Thought ---
-    is_noise_only_scenario = not any(isinstance(ev, (NotionalEvidence, MitigationEvidence)) for ev in evidence)
-    
-    if is_noise_only_scenario:
-        # This is a scenario with only contextual noise (debt, FX operations, etc.) but no derivatives.
-        # We will generate a more human-like COT to explain the reasoning process.
-
-        # --- NEW: Dynamically generate the list of keywords to scan for ---
-        unique_base_types = sorted(list(set(BASE_TYPES)))
-        num_keywords = random.randint(3, 5)
-        scan_keywords = random.sample(unique_base_types, k=min(num_keywords, len(unique_base_types)))
-        keyword_str = ", ".join([f"'{k}'" for k in scan_keywords[:-1]]) + f", or '{scan_keywords[-1]}'" if len(scan_keywords) > 1 else f"'{scan_keywords[0]}'"
-
-        cot_steps = []
-        context_evidence_by_category = {cat: [] for cat in DERIVATIVE_CATEGORIES}
-        
-        for other_key in ["LAW", "OWN"]:
-            context_evidence_by_category[other_key] = []
-        
-        # Group context evidence by category
-        for ev in evidence:
-            if isinstance(ev, (ContextEvidence, ExposureEvidence)):
-                context_evidence_by_category[ev.category].append(ev)
-
-        # Step 1: Begin with the action
-        cot_steps.append(f"I reviewed the text for any explicit mentions of derivative instruments, scanning for keywords like {keyword_str} that refer to derivative usage only.")
-
-        # Step 2: State the findings
-        cot_steps.append("No direct references to derivative instruments were found in the text.")
-
-        # Step 3: Simulate a double-check
-        cot_steps.append("To be thorough, I reviewed the text again. While it confirms exposure to certain financial risks, it does not describe any hedging strategies or derivative usage.")
-
-        # Step 4: Reflect on the context, if any
-        for category, cat_evidence_list in context_evidence_by_category.items():
-            if not cat_evidence_list:
-                continue
-
-            first_evidence = cat_evidence_list[0]
-            if isinstance(first_evidence, ContextEvidence):
-                match = re.search(r'exposure to (.*?)( but|$)', first_evidence.to_string())
-                risk_area = match.group(1).strip() if match else f"{category} risk"
-            elif isinstance(first_evidence, ExposureEvidence):
-                risk_area = f"{category} risk"
-            else:
-                risk_area = "other topics"
-
-            cot_steps.append(f"The text discusses {risk_area}, which could potentially involve derivatives, but no such instruments were identified.")
-
-        # If no context evidence was found at all
-        if len(cot_steps) == 3:  # Only the generic steps were added
-            cot_steps.append("There was no contextual evidence suggesting derivative involvement either.")
-
-        chain_of_thought = "\n".join(cot_steps)
+    return chain_of_thought
 
 
+def build_noise_only_chain_of_thought(evidence: List["BaseNarrativeEvidence"]) -> str:
+    """Generate chain of thought for scenarios with no derivative evidence."""
+    unique_base_types: List[str] = sorted(list(set(BASE_TYPES)))
+    num_keywords: int = random.randint(3, min(5, len(unique_base_types)))
+    scan_keywords: List[str] = random.sample(unique_base_types, k=num_keywords)
 
-    # --- NEW: Use a more specific key to handle multiple evidence types for one instrument ID ---
-    # (e.g., a parent FX Forward and its multiple currency exposures from a table)
-    # The key will be a tuple: (instrument_id, instrument_type, value_type)
-    instrument_evidence_map: Dict[Tuple[int, str, str], Dict] = {}
-    
+    keyword_str = (
+        ", ".join([f"'{k}'" for k in scan_keywords[:-1]])
+        + f", or '{scan_keywords[-1]}'"
+        if len(scan_keywords) > 1
+        else f"'{scan_keywords[0]}'"
+    )
+
+    cot_steps: List[str] = []
+    context_evidence_by_category: Dict[str, List["BaseNarrativeEvidence"]] = {
+        cat: [] for cat in DERIVATIVE_CATEGORIES
+    }
+    context_evidence_by_category["LAW"] = []
+    context_evidence_by_category["OWN"] = []
+
+    # Group context evidence by category
     for ev in evidence:
-        # We only care about evidence that has an instrument ID and notional value.
-        # Why evidence? Because during training, we would not append every reference to every instrument # type: ignore
-        # To prevent hallucinations on fictional instruments it hasn't seen via evidence.
+        if isinstance(ev, (ContextEvidence, ExposureEvidence)):
+            context_evidence_by_category[ev.category].append(ev)
+
+    cot_steps.append(
+        f"I reviewed the text for any explicit mentions of derivative instruments, scanning for "
+        f"keywords like {keyword_str} that refer to derivative usage only."
+    )
+    cot_steps.append(
+        "No direct references to derivative instruments were found in the text."
+    )
+    cot_steps.append(
+        "To be thorough, I reviewed the text again. While it confirms exposure to certain "
+        "financial risks, it does not describe any hedging strategies or derivative usage."
+    )
+
+    # Reflect on context
+    for category, cat_evidence_list in context_evidence_by_category.items():
+        if not cat_evidence_list:
+            continue
+
+        first_evidence: "BaseNarrativeEvidence" = cat_evidence_list[0]
+        risk_area: str
+        if isinstance(first_evidence, ContextEvidence):
+            match: Optional[re.Match[str]] = re.search(
+                r"exposure to (.*?)( but|$)", first_evidence.to_string()
+            )
+            risk_area = match.group(1).strip() if match else f"{category} risk"
+        elif isinstance(first_evidence, ExposureEvidence):
+            risk_area = f"{category} risk"
+        else:
+            risk_area = "other topics"
+
+        cot_steps.append(
+            f"The text discusses {risk_area}, which could potentially involve derivatives, "
+            "but no such instruments were identified."
+        )
+
+    if len(cot_steps) == 3:
+        cot_steps.append(
+            "There was no contextual evidence suggesting derivative involvement either."
+        )
+
+    return "\n".join(cot_steps)
+
+
+def build_derivatives_list(
+    evidence: List["BaseNarrativeEvidence"], scenario: "GenerationScenario"
+) -> List[Dict[str, Any]]:
+    """Build the derivatives list from evidence."""
+    instrument_evidence_map: Dict[Tuple[int, str, str], Dict[str, Any]] = {}
+
+    for ev in evidence:
         if (
-            not isinstance(ev, NotionalEvidence) or ev.instrument_id is None
-            or ev.instrument_type is None or ev.value_type is None
+            not isinstance(ev, NotionalEvidence)
+            or ev.instrument_id is None
+            or ev.instrument_type is None
+            or ev.value_type is None
             or ev.notional is None
         ):
             continue
 
-        instrument_id = ev.instrument_id
-        value_type_key = ev.value_type
-        instrument_type_key = ev.instrument_type
-        unique_key = (instrument_id, instrument_type_key, value_type_key)
-
-        # --- FIX: Look up the instrument directly to get the correct currency/unit ---
-        # This is the single source of truth for the instrument's properties.
-        instrument_obj = next(
-            (inst for inst in scenario.instruments if inst.instrument_id == instrument_id), None
-        )
-        
-        # --- FIX: Correctly determine status for terminated instruments ---
+        # Check if this is terminated evidence
         is_terminated_evidence = (
-            (ev.maturity_value is not None and ev.maturity_value > 0) or
-            (ev.maturity_year and ev.maturity_year < scenario.reporting_year) or
-            (ev.notional == 0 and ev.year == scenario.reporting_year and ev.value_type != "notional_exposure") or
-            ev.sentence_type in ["terminated_individual", "comparative_no_outstanding", "historical_individual"]
+            (ev.maturity_value is not None and ev.maturity_value > 0)
+            or (ev.maturity_year and ev.maturity_year < scenario.reporting_year)
+            or (
+                ev.notional == 0
+                and ev.year == scenario.reporting_year
+                and ev.value_type != "notional_exposure"
+            )
+            or ev.sentence_type
+            in [
+                "terminated_individual",
+                "comparative_no_outstanding",
+                "historical_individual",
+            ]
         )
+
         if is_terminated_evidence:
-            continue # Don't care about terminated, only about active ones
+            continue
 
-        # --- FIX: Always process the evidence, don't skip if key exists ---
+        instrument_id: int = ev.instrument_id
+        value_type_key: str = ev.value_type
+        instrument_type_key: str = ev.instrument_type
+        unique_key: Tuple[int, str, str] = (
+            instrument_id,
+            instrument_type_key,
+            value_type_key,
+        )
 
-        # Precompute values to avoid nested conditionals in the dict
+        # Look up the instrument for correct properties
+        instrument_obj: Optional["NotionalInstrument"] = next(
+            (
+                inst
+                for inst in scenario.instruments
+                if inst.instrument_id == instrument_id
+            ),
+            None,
+        )
+
+        # Determine properties
+        inst_type: str
+        category: str
+        currency: Optional[str]
         if instrument_obj:
             inst_type = instrument_obj.instrument_type
             category = instrument_obj.category
@@ -3733,8 +3834,11 @@ def generate_json_from_scenario(
             category = ev.category
             currency = ev.currency
 
-        # If the key is new, or the existing amount is "unknown", create/update the entry.
-        if unique_key not in instrument_evidence_map or instrument_evidence_map[unique_key].get("amount") == "unknown":
+        # Create or update entry
+        if (
+            unique_key not in instrument_evidence_map
+            or instrument_evidence_map[unique_key].get("amount") == "unknown"
+        ):
             instrument_evidence_map[unique_key] = {
                 "type": inst_type.strip(),
                 "category": category,
@@ -3743,27 +3847,17 @@ def generate_json_from_scenario(
                 "value_type": value_type_key.replace("_", " "),
                 "level": "individual",
             }
-        # If an entry exists with a valid amount, but this new evidence has active_override,
-        # we don't need to do anything, because the valid amount is already captured.
-        # The presence of the key in the map is enough to confirm it's active.
-        elif ev.active_override and instrument_evidence_map[unique_key].get("amount") != "unknown":
-            # The instrument is already in our list with a valid amount.
-            # The active_override just confirms it's active, so we don't need to update.
-            pass
 
+    derivatives_list: List[Dict[str, Any]] = list(instrument_evidence_map.values())
 
-    # Convert the aggregated map into the final list.
-    # This creates one entry per unique instrument ID found in the evidence.
-    derivatives_list = list(instrument_evidence_map.values())
-
-    # Additionally, add entries for aggregate summaries that don't have an instrument ID
+    # Add aggregate summaries
     for ev in evidence:
         if (
-            isinstance(ev, NotionalEvidence) and ev.aggregate
-            and ((ev.notional is not None
-            and ev.notional > 0) or ev.active_override)
-            and ev.year == scenario.reporting_year # Only include current year summaries
-            and ev.status != "timeline" # Exclude timelines
+            isinstance(ev, NotionalEvidence)
+            and ev.aggregate
+            and ((ev.notional is not None and ev.notional > 0) or ev.active_override)
+            and ev.year == scenario.reporting_year
+            and ev.status != "timeline"
         ):
             derivatives_list.append(
                 {
@@ -3772,51 +3866,103 @@ def generate_json_from_scenario(
                     "level": "aggregate",
                     "amount": ev.notional or "unknown",
                     "currency": ev.currency,
-                    "value_type": ev.value_type.replace("_", " ")
+                    "value_type": ev.value_type.replace("_", " "),
                 }
             )
 
-    if not is_noise_only_scenario:
-        # --- FIX: Post-processing step to resolve contradictions from dropped sentences ---
-        # If mitigation evidence was implied but no actual derivatives were found in the
-        # final list, downgrade the mitigation status to 'unknown'.
-        final_derivative_categories = {d["category"] for d in derivatives_list}
-        for category, was_implied in implied_evidence_map.items():
-            if was_implied and category not in final_derivative_categories:
-                # This category had implied evidence of use, but no notional evidence was
-                # ever generated. This is a contradiction.
-                if mitigation_map[category] in ["current", "historical"]:
-                    mitigation_map[category] = "unknown"
+    return derivatives_list
 
-        # --- FIX: Generate the summary last, using the finalized mitigation map ---
-        analysis_summary = _generate_analysis_summary(scenario, evidence)
 
-        final_json = {
-            "chain_of_thought": chain_of_thought,
-            "analysis_summary": analysis_summary,
-            "exposure": exposure_map,
-            "mitigation": mitigation_map,
-            "derivatives": derivatives_list,
-        }
+def post_process_mitigation_map(
+    mitigation_map: Dict[str, str],
+    implied_evidence_map: Dict[str, bool],
+    derivatives_list: List[Dict[str, Any]],
+) -> Dict[str, str]:
+    """Post-process mitigation map to resolve contradictions."""
+    final_derivative_categories: Set[str] = {d["category"] for d in derivatives_list}
 
-        # --- FIX: Post-processing to ensure aggregate values from comparative sentences are correct ---
-        for d in final_json["derivatives"]:
-            if d.get("level") == "aggregate" and "respectively" in d.get("type", ""):
-                # This is likely from a comparative sentence. The 'amount' might be a sum.
-                # Let's find the first notional value mentioned in the text for the current year.
-                # This is a heuristic. A better solution would be to pass more context in the evidence.
-                pass # Placeholder for more advanced logic if needed.
+    for category, was_implied in implied_evidence_map.items():
+        if was_implied and category not in final_derivative_categories:
+            if mitigation_map[category] in ["current", "historical"]:
+                mitigation_map[category] = "unknown"
 
-        return final_json
-    else:
-        # For noise-only scenarios, the JSON is much simpler.
+    return mitigation_map
+
+
+def generate_json_from_scenario(
+    scenario: "GenerationScenario",
+    evidence: List["BaseNarrativeEvidence"],
+    return_mitigation_map_only: bool = False,
+) -> Dict[str, Any]:
+    """
+    Generates the target JSON output from the scenario object.
+    The `evidence` from the narrative is used to generate the summary and chain_of_thought.
+    """
+    # Generate exposure map
+    exposure_map = generate_exposure_map(scenario, evidence)
+
+    # Generate mitigation map
+    mitigation_map, implied_evidence_map = generate_mitigation_map(
+        evidence, exposure_map, scenario
+    )
+
+    if return_mitigation_map_only:
+        return mitigation_map
+
+    # Check if this is a noise-only scenario
+    is_noise_only_scenario = not any(
+        isinstance(ev, (NotionalEvidence, MitigationEvidence)) for ev in evidence
+    )
+
+    if is_noise_only_scenario:
+        chain_of_thought = build_noise_only_chain_of_thought(evidence)
         return {
             "chain_of_thought": chain_of_thought,
-            "analysis_summary": "The text discusses various topics but does not mention any derivative instruments used for hedging.",
+            "analysis_summary": (
+                "The text discusses various topics but does not mention any derivative "
+                "instruments used for hedging."
+            ),
             "exposure": exposure_map,
             "mitigation": mitigation_map,
             "derivatives": [],
         }
+
+    # Build derivatives list
+    derivatives_list: List[Dict[str, Any]] = build_derivatives_list(evidence, scenario)
+
+    # Post-process mitigation map
+    mitigation_map = post_process_mitigation_map(
+        mitigation_map, implied_evidence_map, derivatives_list
+    )
+
+    # Collect evidence strings
+    other_evidence_strings: List[str]
+    exposure_descriptions: List[str]
+    other_evidence_strings, exposure_descriptions = collect_evidence_strings(
+        evidence, mitigation_map
+    )
+
+    # Build chain of thought
+    chain_of_thought: str = build_chain_of_thought(
+        scenario,
+        evidence,
+        derivatives_list,
+        mitigation_map,
+        other_evidence_strings,
+        exposure_descriptions,
+    )
+
+    # Generate analysis summary
+    analysis_summary: str = _generate_analysis_summary(scenario, evidence)
+
+    return {
+        "chain_of_thought": chain_of_thought,
+        "analysis_summary": analysis_summary,
+        "exposure": exposure_map,
+        "mitigation": mitigation_map,
+        "derivatives": derivatives_list,
+    }
+
 
 # =============================================================================
 # MAIN EXECUTION (for standalone testing)
@@ -3926,5 +4072,5 @@ def generate_dataset(
 
     print(f"\nSuccessfully generated {num_samples} samples to {output_file}")
 
-#%%
+# %%
 generate_dataset(1000)
