@@ -3528,27 +3528,27 @@ def _generate_introduction() -> List[str]:
     # Start with the description of the task
     introduction_lines.extend(
         [
-            "The goal is to extract structured evidence of derivative usage and risk management disclosures from financial text and produce a valid JSON summary."
-            "I will complete this by analyzing the user's input text identify derivative usage by: \n"
-            "1) Identify the company's risk exposures.\n",
-            "2) Identify the company's mitigation strategies.\n"
-            "3) Identify any specific derivative usage by analyzing the text.\n",
-            "4) Provide a response that is a single, valid JSON object.\n",
+            "The goal is to extract structured evidence of derivative usage and risk management disclosures from financial text and produce a valid JSON summary. "
+            "I will complete this by analyzing the user's input text identify derivative usage by:",
+            "1) Identify the company's risk exposures.",
+            "2) Identify the company's mitigation strategies.",
+            "3) Identify any specific derivative usage by analyzing the text.",
+            "4) Provide a response that is a single, valid JSON object.",
         ]
     )
 
     # Then, state how the model will do so. It must first see if the provided text relates to financial statements
     introduction_lines.extend(
         [
-            "To achieve this, I must first determine of the text related to a company's financial statements. ",
-            "If it does, I then proceed to analyze the text for derivative usage, if it exists. ",
-            "If it doesn't, then I will provide a response that the text appears to be unrelated. ",
+            "To achieve this, I must first determine of the text related to a company's financial statements. "
+            "If it does, I then proceed to analyze the text for derivative usage, if it exists. "
+            "If it doesn't, then I will provide a response that the text appears to be unrelated. "
         ]
     )
     introduction_lines.extend(
         [
-            "After identifying exposures, I infer mitigation intent based on linguistic cues such as 'currently uses', 'may use', 'does not intend to use', 'expired', etc. ",
-            "I then associate derivative instruments with the most relevant risk type inferred from surrounding context. ",
+            "After identifying exposures, I infer mitigation intent based on linguistic cues such as 'currently uses', 'may use', 'does not intend to use', 'expired', etc. "
+            "I then associate derivative instruments with the most relevant risk type inferred from surrounding context. "
             "I must remember that liguistic cues can be speculative, so I must consider whether or not these statements result in actual derivative usage. ",
         ]
     )
@@ -3556,24 +3556,17 @@ def _generate_introduction() -> List[str]:
     # Next, recall what a derivative is
     introduction_lines.extend(
         [
-            "If I recall, a derivative is a financial contract whose value depends on an underlying asset or benchmark, such as interest rates, foreign currencies, equities, or commodities. ",
+            "If I recall, a derivative is a financial contract whose value depends on an underlying asset or benchmark, such as interest rates, foreign currencies, equities, or commodities. "
             "Common derivative types include forwards, futures, options, swaps, and collars, which may or may not be used for hedging or mitigating those specific types of risk. ",
         ]
-    )
-    # Missing step
-    introduction_lines.extend(
-        ["Next, I will review the text to determine if the company currently uses any derivative financial instruments. "]
     )
 
     # Then, explain what it will do to scan for instruments
     introduction_lines.extend(
         [
-            "Then, I should filter the text to include only relevant reporting years and exclude instruments with zero notional or expired references. ",
-            "If multiple years are present, I prioritize the reportingYear given in the text. ",
-        ]
-    )
-    introduction_lines.extend(
-        [
+            "Next, I will review the text to determine if the company currently uses any derivative financial instruments. "
+            "Then, I should filter the text to include only relevant reporting years and exclude instruments with zero notional or expired references. "
+            "If multiple years are present, I prioritize the reportingYear given in the text. "
             "Finally, I will generate a JSON output conforms to the schema with these keys: 'analysis_summary', 'exposure', 'mitigation', and 'derivatives'. "
         ]
     )
@@ -4017,6 +4010,10 @@ def main():
     Generates and prints a single random training sample for debugging purposes.
     This function is only executed when the script is run directly.
     """
+    def format_prompt(narrative: str, target_json: Dict[str, Any]) -> str:
+        chain_of_thought = target_json.pop("chain_of_thought", "")
+        rest_of_json_str = json.dumps(target_json, indent=2)
+        return f"{narrative}\n\n<|im_start|>assistant\n<|think|>\n{chain_of_thought}\n<|endthink|>\n{rest_of_json_str}<|im_end|>"
     print("--- Generating a single random sample for debugging ---")
 
     # 1. Create the "story" or scenario
@@ -4032,11 +4029,7 @@ def main():
     if DEBUG:
         print(_generate_debug_output(scenario, evidence))
 
-    print("\n" + "="*30 + " NARRATIVE " + "="*30)
-    print(narrative)
-    print("\n" + "="*30 + " TARGET JSON " + "="*29)
-    print(json.dumps(target_json, indent=2))
-    print("\n" + "="*73)
+    print(format_prompt(narrative, target_json)) 
 
 
 if __name__ == "__main__":
