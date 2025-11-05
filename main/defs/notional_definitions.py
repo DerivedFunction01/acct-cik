@@ -135,7 +135,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 parts.append(f"aggregate {value_desc} with no amount disclosed")
             if self.reporting_year:
                 parts.append(f"reported for {base_desc} in {self.reporting_year}")
-            return " ".join(parts) + temporal_info + maturity_hint + currency_hint
+            return " ".join(parts) + maturity_hint + currency_hint + temporal_info
 
         def new_individual_handler() -> str:
             desc = f"New {base_desc} recorded"
@@ -143,7 +143,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 desc += f" with a {value_desc} of {self.notional_str}"
             if self.reporting_year:
                 desc += f" in {self.reporting_year}"
-            return desc + temporal_info + maturity_hint + currency_hint
+            return desc + maturity_hint + currency_hint + temporal_info
 
         def individual_handler() -> str:
             desc = f"{base_desc.capitalize()} reported"
@@ -151,7 +151,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 desc += f" with a {value_desc} of {self.notional_str}"
             if self.reporting_year:
                 desc += f" for {self.reporting_year}"
-            return desc + temporal_info + maturity_hint + currency_hint
+            return desc + maturity_hint + currency_hint + temporal_info
 
         def terminated_individual_handler() -> str:
             desc = f"Terminated {base_desc}"
@@ -159,7 +159,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 desc += f" previously held a {value_desc} of {self.notional_str}"
             if self.reporting_year:
                 desc += f" before {self.reporting_year}"
-            return desc + temporal_info + maturity_hint + currency_hint
+            return desc + maturity_hint + currency_hint + temporal_info
 
         def no_instruments_handler() -> str:
             desc = f"The report confirms no outstanding {base_desc}"
