@@ -3918,7 +3918,7 @@ def generate_dataset(
             f"Text: {narrative}"
         )
 
-        training_record = {"prompt": prompt, "response": json.dumps(target_json, indent=2)}
+        training_record = {"prompt": prompt, "completion": json.dumps(target_json, indent=2)}
         all_training_records.append(training_record)
 
     df = pd.DataFrame(all_training_records)
