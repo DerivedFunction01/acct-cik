@@ -1,36 +1,29 @@
 # %%
-# %pip install pandas torch scikit-learn datasets transformers numpy accelerate bitsandbytes peft trl
+# %pip install unsloth
+# Also run: pip uninstall unsloth -y && pip install --upgrade --no-cache-dir "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 
 import random
 import math
+from pathlib import Path
 
 # %%
 # Initialization
 import pandas as pd
 import torch
-from datasets import Dataset, load_dataset
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    TrainingArguments,
-    BitsAndBytesConfig,
-)
-from peft import LoraConfig, PeftModel
-from trl.trainer.sft_trainer import SFTTrainer
+from datasets import load_dataset
+from transformers import TrainingArguments
+from trl.trainer.sft_config import SFTTrainer
 from huggingface_hub import login
-from transformers import EvalPrediction
-from pathlib import Path
+from unsloth import FastLanguageModel
 
 config = {
     "DATA_PATH": "training_data.parquet",
-    "BASE_MODEL": "Qwen/Qwen2.5-7B-Instruct",
+    "BASE_MODEL": "unsloth/Qwen2.5-7B-Instruct",  # Unsloth's optimized version
     "NEW_MODEL_PATH": "qwen2.5-7B-derivatives-v1",
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN_PATH": "hf_token",
+    "MAX_SEQ_LENGTH": 2048,  # Qwen2.5 supports up to 32k, but 2048 is good for training
 }
-
-# Required package versions for Qwen2.5
-# transformers>=4.37.0, accelerate>=0.26.0, peft>=0.8.0
 IS_AUTHENTICATED = False
 
 # %%
@@ -41,29 +34,36 @@ def format_prompt(sample):
     return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
 
 
-def compute_metrics(p: EvalPrediction):
-    """Computes evaluation metrics for Causal LM."""
-    # The predictions are the logits, and the labels are the input_ids
-    # The trainer automatically handles the loss calculation.
-    # We can add perplexity, which is derived from the loss.
-    loss = p.predictions.mean().item()
-    perplexity = math.exp(loss)
-    return {"loss": loss, "perplexity": perplexity}
-
-
 def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
-    """Main function to run the training process with given parameters."""
-    print(f"\n--- Starting Training ---")
+    """Main function to run the training process with Unsloth optimization."""
+    print(f"\n--- Starting Training with Unsloth ---")
     print(f"Base Model: {model_name}, Epochs: {num_epochs}, Batch Size: {batch_size}")
 
     # --- Load and preprocess data ---
     print("\n--- Loading and Preprocessing Data ---")
     try:
         dataset = load_dataset("parquet", data_files=config["DATA_PATH"], split="train")
+
+        # Format the dataset
+        def formatting_func(examples):
+            texts = []
+            for i in range(len(examples["prompt"])):
+                text = format_prompt(
+                    {
+                        "prompt": examples["prompt"][i],
+                        "completion": examples["completion"][i],
+                    }
+                )
+                texts.append(text)
+            return {"text": texts}
+
+        dataset = dataset.map(formatting_func, batched=True)
+
         # Create a 90/10 train/test split
         dataset = dataset.train_test_split(test_size=0.1)
         train_dataset = dataset["train"]
         eval_dataset = dataset["test"]
+
         print(
             f"Data loaded successfully. Training samples: {len(train_dataset)}, Evaluation samples: {len(eval_dataset)}"
         )
@@ -71,36 +71,20 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         print(f"❌ Failed to load data from {config['DATA_PATH']}: {e}")
         return
 
-    # --- Quantization and Model Loading ---
-    print("\n--- Initializing Model and Tokenizer ---")
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=False,
+    # --- Load Model with Unsloth ---
+    print("\n--- Initializing Model and Tokenizer with Unsloth ---")
+
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=model_name,
+        max_seq_length=config["MAX_SEQ_LENGTH"],
+        dtype=None,  # Auto-detect (will use Float16 for Tesla T4, V100, Bfloat16 for Ampere+)
+        load_in_4bit=True,  # Use 4bit quantization to reduce memory
     )
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        quantization_config=bnb_config,
-        trust_remote_code=True,
-        device_map="auto",
-    )
-    model.config.use_cache = False
-    model.config.pretraining_tp = 1
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "right"
-    tokenizer.model_max_length = 2048
-
-    # --- PEFT/LoRA Configuration ---
-    peft_config = LoraConfig(
-        lora_alpha=16,
-        lora_dropout=0.1,
-        r=64,
-        bias="none",
-        task_type="CAUSAL_LM",
+    # --- Apply LoRA with Unsloth ---
+    model = FastLanguageModel.get_peft_model(
+        model,
+        r=64,  # LoRA rank
         target_modules=[
             "q_proj",
             "k_proj",
@@ -110,6 +94,13 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
             "up_proj",
             "down_proj",
         ],
+        lora_alpha=16,
+        lora_dropout=0,  # Unsloth optimizes better with 0 dropout
+        bias="none",
+        use_gradient_checkpointing="unsloth",  # Unsloth's optimized gradient checkpointing
+        random_state=3407,
+        use_rslora=False,
+        loftq_config=None,
     )
 
     # --- Training Arguments ---
@@ -119,42 +110,49 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=4,
-        optim="paged_adamw_32bit",
-        save_steps=100,
-        logging_steps=25,
+        warmup_steps=5,
         learning_rate=2e-4,
-        weight_decay=0.001,
-        fp16=False,
-        bf16=False,
-        max_grad_norm=0.3,
-        max_steps=-1,
-        warmup_ratio=0.03,
-        group_by_length=True,
-        lr_scheduler_type="constant",
-        report_to="tensorboard",
+        fp16=not torch.cuda.is_bf16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        logging_steps=25,
+        optim="adamw_8bit",  # Unsloth optimized optimizer
+        weight_decay=0.01,
+        lr_scheduler_type="linear",
+        seed=3407,
+        save_steps=100,
         eval_strategy="steps",
         eval_steps=100,
+        report_to="tensorboard",
     )
 
     # --- Initialize SFTTrainer ---
     trainer = SFTTrainer(
         model=model,
-        args=training_args,
-        data_collator=None,
+        tokenizer=tokenizer,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        processing_class=tokenizer,
-        compute_metrics=compute_metrics,
-        peft_config=peft_config,
-        formatting_func=format_prompt,
+        dataset_text_field="text",  # The field containing our formatted text
+        max_seq_length=config["MAX_SEQ_LENGTH"],
+        dataset_num_proc=2,  # Parallel processing
+        packing=False,  # Can set to True for short sequences
+        args=training_args,
     )
 
     # --- Train and Save ---
     print(f"\nStarting training for {num_epochs} epochs...")
-    trainer.train()
+    print("🚀 Unsloth provides 2-5x faster training and 60% less memory usage!")
+
+    trainer_stats = trainer.train()
+
+    print("\n--- Training Statistics ---")
+    print(f"Training time: {trainer_stats.metrics['train_runtime']:.2f} seconds")
+    print(
+        f"Samples per second: {trainer_stats.metrics['train_samples_per_second']:.2f}"
+    )
 
     print("\n--- Saving final adapter model ---")
-    trainer.save_model(config["NEW_MODEL_PATH"])
+    model.save_pretrained(config["NEW_MODEL_PATH"])
+    tokenizer.save_pretrained(config["NEW_MODEL_PATH"])
 
     # --- Push to Hub ---
     if not IS_AUTHENTICATED:
@@ -166,7 +164,8 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         )
         if push_to_hub.lower().strip() == "y":
             print("Pushing model to the Hub...")
-            trainer.push_to_hub(commit_message="End of training")
+            model.push_to_hub(config["NEW_MODEL_PATH"], token=True)
+            tokenizer.push_to_hub(config["NEW_MODEL_PATH"], token=True)
             print("Model pushed successfully!")
     else:
         print(
@@ -177,10 +176,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
 def run_manual_test():
     """Allows for manual, interactive testing of the fine-tuned model."""
     model_path = config["NEW_MODEL_PATH"]
-    if (
-        not Path(model_path).exists()
-        or not (Path(model_path) / "adapter_config.json").exists()
-    ):
+    if not Path(model_path).exists():
         print(
             f"❌ Model not found at '{model_path}'. Please train a model first (Option 1)."
         )
@@ -188,28 +184,16 @@ def run_manual_test():
 
     print("\n--- Loading Model for Manual Testing ---")
 
-    # Load the base model with quantization
-    base_model = AutoModelForCausalLM.from_pretrained(
-        config["BASE_MODEL"],
-        quantization_config=BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=False,
-        ),
-        trust_remote_code=True,
-        device_map="auto",
+    # Load the fine-tuned model with Unsloth
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=model_path,
+        max_seq_length=config["MAX_SEQ_LENGTH"],
+        dtype=None,
+        load_in_4bit=True,
     )
 
-    # Load the fine-tuned PEFT model and merge adapters
-    model = PeftModel.from_pretrained(base_model, model_path)
-    model = model.merge_and_unload()
-    model.eval()
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        config["BASE_MODEL"], trust_remote_code=True
-    )
-    tokenizer.pad_token = tokenizer.eos_token
+    # Enable inference mode (faster)
+    FastLanguageModel.for_inference(model)
 
     # Load the dataset to pull random prompts from
     try:
@@ -250,18 +234,14 @@ def run_manual_test():
         )
         inputs = tokenizer(formatted_prompt, return_tensors="pt").to("cuda")
 
-        # Generate the response
-        with torch.no_grad():
-            outputs = model.generate(
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"],
-                max_new_tokens=512,
-                pad_token_id=tokenizer.eos_token_id,
-                eos_token_id=tokenizer.eos_token_id,
-                do_sample=False,
-                num_beams=1,
-                use_cache=True,
-            )
+        # Generate the response with Unsloth's optimized inference
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=512,
+            use_cache=True,
+            temperature=0.7,
+            top_p=0.9,
+        )
 
         # Decode and print the output
         response_text = tokenizer.batch_decode(outputs, skip_special_tokens=False)[0]
@@ -341,7 +321,7 @@ if __name__ == "__main__":
     huggingface_auth()
     try:
         while True:
-            print("\n--- Generative Model Training Menu ---")
+            print("\n--- Generative Model Training Menu (Unsloth Optimized) ---")
             print("1. Start Training")
             print("2. View Sample from Dataset")
             print("3. Manually Test Model")

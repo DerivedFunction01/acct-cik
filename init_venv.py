@@ -35,6 +35,7 @@ BASE_PACKAGES = [
 ML_PACKAGES = [
     "scikit-learn",
     "datasets",
+    "unsloth",
     "transformers>=4.37.0",  # Qwen2.5 requires transformers>=4.37
     "accelerate>=0.26.0",  # Updated for better performance
     "peft>=0.8.0",  # Updated for compatibility
