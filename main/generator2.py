@@ -622,7 +622,7 @@ class ScenarioBuilder:
                 else None
             )
             debt_currency = self.archetype.default_currency
-            if random.random() < GENERATION_PROBABILITIES["debt_in_foreign_currency"]:
+            if random.random() < GENERATION_PROBABILITIES["debt_in_foreign_currency"] and "treasury" not in selected_debt_type.name.lower():
                 foreign_curr = random.choice(
                     [
                         c
