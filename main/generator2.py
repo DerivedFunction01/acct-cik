@@ -7,7 +7,7 @@ import string
 from collections import Counter
 import json, re
 from tqdm import tqdm
-from typing import List, Dict, Literal, Optional, Set, Tuple
+from typing import Any, List, Dict, Literal, Optional, Set, Tuple
 
 from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
 from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
@@ -2449,6 +2449,7 @@ def _generate_category_narrative(
                         currency_code=instrument.currency,
                         prefer_abbreviated=scenario.number_format_preference,
                         value_type=value_type,
+                        notional_multiplier=scenario.archetype.notional_multiplier,
                     )
                     timeline_paragraph, timeline_evidence = timeline_builder.build()
 
@@ -2632,6 +2633,7 @@ def _generate_category_narrative(
                         preferred_negative_format=scenario.archetype.preferred_negative_format,
                         currency_code=currency_code,
                         prefer_abbreviated=scenario.number_format_preference,
+                        notional_multiplier=scenario.archetype.notional_multiplier,
                         value_type="notional",  # Keep it simple for terminated timelines
                     )
                     timeline_paragraph, timeline_evidence = timeline_builder.build()
@@ -3355,11 +3357,6 @@ def _generate_analysis_summary(
     # Create phrases like "utilizes IR derivatives", "utilizes FX derivatives"
     summary_phrases = {f"actively utilizes {cat} derivatives" for cat in sorted(list(active_cats))}
     return f"The company's risk management strategy {', '.join(sorted(list(summary_phrases)))} to hedge market exposures."
-
-
-import random
-import re
-from typing import Dict, List, Tuple, Set, Any, Optional
 
 
 def generate_exposure_map(

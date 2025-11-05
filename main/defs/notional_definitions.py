@@ -1116,14 +1116,6 @@ class TimelineSentence:
                 name_to_use = self.instrument.instrument_alias
             else:
                 # --- NEW: Check for partial settlement ---
-                # Re-format the notional string here since it might have been updated for maturity
-                formatted_notional = _format_single_notional(
-                    notional,
-                    self.currency_symbol,
-                    self.prefer_abbreviated,
-                    negative_format=self.preferred_negative_format,
-                    notional_multiplier=self.notional_multiplier,
-                )
                 # If notional decreased by more than 30%, it's a partial settlement.
                 if (
                     prev_notional
