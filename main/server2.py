@@ -3,6 +3,8 @@ import torch
 import os
 import json
 from unsloth import FastLanguageModel
+from transformers import TextIteratorStreamer
+from threading import Thread
 import multiprocessing as mp
 
 app = Flask(__name__)
@@ -68,6 +70,40 @@ def generate_response(prompt: str):
     except (json.JSONDecodeError, IndexError) as e:
         print(f"ERROR: Failed to parse model output as JSON: {e}")
         return {"error": "Failed to parse model output as JSON", "raw_output": response_text, "exception": str(e)}
+
+def generate_stream(prompt: str):
+    """
+    Generates a response from the model as a stream of tokens.
+    """
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+
+    # Format the prompt using Qwen's chat template
+    formatted_prompt = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
+    inputs = tokenizer([formatted_prompt], return_tensors="pt").to(device)
+
+    generation_kwargs = dict(
+        inputs,
+        streamer=streamer,
+        max_new_tokens=2048,
+        use_cache=True,
+        pad_token_id=tokenizer.eos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        do_sample=False,
+    )
+
+    # Run the generation in a separate thread to avoid blocking
+    thread = Thread(target=model.generate, kwargs=generation_kwargs)
+    thread.start()
+
+    # Yield the generated tokens as they become available
+    for new_text in streamer:
+        yield new_text
+
+@app.route("/generate-stream", methods=["POST"])
+def generate_stream_endpoint():
+    data = request.json
+    prompt = data.get("prompt", "")
+    return Response(generate_stream(prompt), mimetype='text/plain')
 
 
 @app.route("/generate", methods=["POST"])
