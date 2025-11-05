@@ -57,7 +57,7 @@ fi
 # --- Packages ---
 BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn matplotlib"
 # Pin versions for Phi-4 compatibility (based on Microsoft's official example)
-ML_PACKAGES="scikit-learn datasets transformers==4.48.1 accelerate==1.3.0 peft==0.14.0 trl IPython ipywidgets ipykernel"
+ML_PACKAGES="scikit-learn datasets transformers==4.48.1 accelerate==1.3.0 peft==0.14.0 trl IPython ipywidgets ipykernel bitsandbytes"
 
 # --- Handle PyTorch (skip if locked unless --reinstall-torch) ---
 if [ -f "$TORCH_LOCK_FILE" ] && [ "$REINSTALL_TORCH" = false ]; then
