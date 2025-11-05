@@ -15,7 +15,7 @@ from unsloth import FastLanguageModel
 import torch
 from datasets import load_dataset
 from transformers import TrainingArguments
-from trl.trainer.sft_trainer import SFTTrainer
+from trl import SFTTrainer
 from huggingface_hub import login
 
 
@@ -99,7 +99,16 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
     model = FastLanguageModel.get_peft_model(
         model,
         r=16,  # LoRA rank. You can experiment with 8, 32, 64.
-        target_modules="all-linear",  # Let Unsloth find all linear layers.
+        # Unsloth's "all-linear" can sometimes fail. Specifying modules explicitly is more robust.
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
         lora_alpha=32, # lora_alpha is often set to 2 * r
         lora_dropout=0,  # Unsloth optimizes better with 0 dropout
         bias="none",
