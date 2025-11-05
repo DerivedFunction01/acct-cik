@@ -233,7 +233,6 @@ class NotionalEvidence(BaseNarrativeEvidence):
         return " ".join(text.split())
 
 
-
 @dataclass
 class NotionalSentence:
     """
@@ -809,6 +808,7 @@ class NotionalSentence:
                 reporting_year=self.reporting_year, # type: ignore
                 value_type=final_value_type,
                 sentence_type=self.sentence_type,
+                additional_details={"result_clause": result_clause, "mitigation": begin_mitigation}
             )
             return sentence, evidence
 
@@ -817,25 +817,49 @@ class NotionalSentence:
             instrument_id=None,  # This is set later for individual instruments
             # --- FIX: Prioritize the instrument's specific currency/symbol if available ---
             # This ensures units like 'LTR' or 'Btu' are passed to the evidence.
-            currency=self.instrument.currency if self.instrument else self.currency_code,
+            currency=(
+                self.instrument.currency if self.instrument else self.currency_code
+            ),
             symbol=self.instrument.symbol if self.instrument else self.currency_symbol,
             # -------------------------------------------------------------------------
             status=self.sentence_type,  # type: ignore
             category=self.category,  # type: ignore
             aggregate=self.is_summary,
-            notional=_get_correct_rounding(final_notional, self.notional_multiplier),  # Use the conditional notional value
-            prev_notional=_get_correct_rounding(self.prev_notional, self.notional_multiplier) if self.sentence_type.startswith("comparative") else None,
-            prev2_notional=_get_correct_rounding(self.prev2_notional, self.notional_multiplier) if self.sentence_type.startswith("comparative") else None,
+            notional=_get_correct_rounding(
+                final_notional, self.notional_multiplier
+            ),  # Use the conditional notional value
+            prev_notional=(
+                _get_correct_rounding(self.prev_notional, self.notional_multiplier)
+                if self.sentence_type.startswith("comparative")
+                else None
+            ),
+            prev2_notional=(
+                _get_correct_rounding(self.prev2_notional, self.notional_multiplier)
+                if self.sentence_type.startswith("comparative")
+                else None
+            ),
             year=self.year,
             notional_str=final_notional_str or None,
             prev_notional_str=prev_amount_str or None,
-            instrument_type=self.swap_type, # type: ignore
-            maturity_year=self.maturity_year if self.sentence_type == "terminated_individual" else None,
+            instrument_type=self.swap_type,  # type: ignore
+            maturity_year=(
+                self.maturity_year
+                if self.sentence_type == "terminated_individual"
+                else None
+            ),
             reporting_year=self.reporting_year,
             value_type=final_value_type,
             sentence_type=self.sentence_type,
-            is_repeated_mention=self.is_repeated_mention, # active override for no mentions of currency
-            active_override=final_notional is None and self.notional is not None and self.notional > 0 and self.sentence_type not in ["comparative_no_outstanding", "no_instruments"],
+            is_repeated_mention=self.is_repeated_mention,  # active override for no mentions of currency
+            active_override=final_notional is None
+            and self.notional is not None
+            and self.notional > 0
+            and self.sentence_type
+            not in ["comparative_no_outstanding", "no_instruments"],
+            additional_details={
+                "result_clause": result_clause,
+                "mitigation": begin_mitigation,
+            },
         )
         # --- NEW: Append optional detail sentences ---
         optional_sentence = self._build_optional_details(evidence)
@@ -954,6 +978,16 @@ class NotionalSentence:
                 notional_multiplier=self.notional_multiplier,
             )
         # EQContextSentence could be added here in the future if needed.
+        elif isinstance(hedged_item, EquityHedgedItem):
+            context_builder = EQContextSentence(
+                company_name=self.company_name or "The Company",
+                reporting_year=self.reporting_year,
+                reporting_month=self.month or "December",
+                reporting_day=self.end_day or 31,
+                hedged_item=hedged_item,
+                prefer_abbreviated=self.prefer_abbreviated,
+                currency_symbol=self.currency_symbol2,
+            )
 
         return context_builder.build() if context_builder else ""
 
