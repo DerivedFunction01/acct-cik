@@ -205,7 +205,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 if self.notional_str and self.year else ""
             )
             return (
-                f"Timeline evidence for {base_desc} shows {value_desc} progression"
+                f"A timeline for {base_desc} shows {value_desc} progression"
                 f"{start_val}{end_val}{temporal_info}{maturity_hint}{currency_hint}"
             )
 
@@ -656,6 +656,7 @@ class NotionalSentence:
 
         # 6b. Maturity clause, only if the type of sentence is is_ter
         maturity_clause = ""
+        should_include_maturity = False
         if self.maturity_year and self.sentence_type:
             # Determine if we should include the maturity date based on sentence type and a random chance.
             # Always include for terminated instruments.
@@ -842,11 +843,7 @@ class NotionalSentence:
             notional_str=final_notional_str or None,
             prev_notional_str=prev_amount_str or None,
             instrument_type=self.swap_type,  # type: ignore
-            maturity_year=(
-                self.maturity_year
-                if self.sentence_type == "terminated_individual"
-                else None
-            ),
+            maturity_year=(self.maturity_year if should_include_maturity else None),
             reporting_year=self.reporting_year,
             value_type=final_value_type,
             sentence_type=self.sentence_type,
