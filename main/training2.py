@@ -102,6 +102,11 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         use_rslora=False,
         loftq_config=None,
     )
+    
+    # --- NEW: Add logic to merge adapters and save/push the final model ---
+    # This makes deployment easier as you have a single model directory.
+    if hasattr(model, "merge_and_unload"):
+        model = model.merge_and_unload()
 
     # --- Training Arguments ---
     training_args = TrainingArguments(
@@ -114,12 +119,14 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         learning_rate=2e-4,
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
-        logging_steps=25,
+        logging_steps=1, # Log every step
         optim="adamw_8bit",  # Unsloth optimized optimizer
         weight_decay=0.01,
-        lr_scheduler_type="linear",
+        lr_scheduler_type="cosine", # Cosine scheduler can sometimes yield better results
         seed=3407,
-        save_steps=100,
+        save_strategy="steps",
+        save_steps=50, # Save checkpoints more frequently
+        load_best_model_at_end=True, # Load the best model at the end of training
         eval_strategy="steps",
         eval_steps=100,
         report_to="tensorboard",
@@ -150,27 +157,24 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         f"Samples per second: {trainer_stats.metrics['train_samples_per_second']:.2f}"
     )
 
-    print("\n--- Saving final adapter model ---")
-    model.save_pretrained(config["NEW_MODEL_PATH"])
-    tokenizer.save_pretrained(config["NEW_MODEL_PATH"])
+    print("\n--- Saving final merged model ---")
+    trainer.save_model(config["NEW_MODEL_PATH"])
 
     # --- Push to Hub ---
     if not IS_AUTHENTICATED:
         huggingface_auth()
 
     if IS_AUTHENTICATED:
-        push_to_hub = input(
-            "\nDo you want to push the final model to the Hugging Face Hub? (y/n): "
-        )
-        if push_to_hub.lower().strip() == "y":
-            print("Pushing model to the Hub...")
-            model.push_to_hub(config["NEW_MODEL_PATH"], token=True)
-            tokenizer.push_to_hub(config["NEW_MODEL_PATH"], token=True)
-            print("Model pushed successfully!")
+        safe_to_push = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ").lower().strip()
+        if safe_to_push == 'y':
+            try:
+                print("Pushing model and tokenizer to the Hub...")
+                trainer.push_to_hub()
+                print("✅ Model pushed successfully!")
+            except Exception as e:
+                print(f"❌ An error occurred while pushing to the Hub: {e}")
     else:
-        print(
-            f"Skipping push to Hub. The model adapter is saved locally in the '{config['NEW_MODEL_PATH']}' directory."
-        )
+        print(f"Skipping push to Hub. The final model is saved locally in the '{config['NEW_MODEL_PATH']}' directory.")
 
 
 def run_manual_test():
