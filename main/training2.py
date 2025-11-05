@@ -183,21 +183,26 @@ def huggingface_auth():
 
 if __name__ == "__main__":
     huggingface_auth()
-    while True:
-        print("\n--- Generative Model Training Menu ---")
-        print("1. Start Training")
-        print("2. Hugging Face Login")
-        print("3. Exit")
-        choice = input("> ").strip()
+    try:
+        while True:
+            print("\n--- Generative Model Training Menu ---")
+            print("1. Start Training")
+            print("2. Hugging Face Login")
+            print("3. Exit")
+            choice = input("> ").strip()
 
-        if choice == '1':
-            num_epochs = int(input("Enter number of training epochs [default: 1]: ") or 1)
-            batch_size = int(input("Enter training batch size [default: 4]: ") or 4)
-            run_training(num_epochs=num_epochs, batch_size=batch_size)
-        elif choice == '2':
-            huggingface_auth()
-        elif choice == '3':
-            print("Exiting.")
-            break
-        else:
-            print("Invalid choice, please try again.")
+            if choice == '1':
+                num_epochs = int(input("Enter number of training epochs [default: 1]: ") or 1)
+                batch_size = int(input("Enter training batch size [default: 4]: ") or 4)
+                run_training(num_epochs=num_epochs, batch_size=batch_size)
+            elif choice == '2':
+                huggingface_auth()
+            elif choice == '3':
+                print("Exiting.")
+                break
+            else:
+                print("Invalid choice, please try again.")
+    except KeyboardInterrupt:
+        print("\nExiting.")
+
+# %%
