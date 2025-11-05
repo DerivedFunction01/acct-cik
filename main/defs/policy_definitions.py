@@ -374,9 +374,9 @@ class MitigationEvidence(BaseNarrativeEvidence):
         # Build the linguistic cue description
         linguistic_cue = ""
         if self.adverb and self.verb:
-            linguistic_cue = f"The use of the phrase '{self.adverb} {self.verb}'" # type: ignore
+            linguistic_cue = f"The phrase '{self.adverb} {self.verb}'" # type: ignore
         elif self.verb:
-            linguistic_cue = f"The use of the verb '{self.verb}'"
+            linguistic_cue = f"The verb '{self.verb}'"
 
         if self.usage_status == "non_use":
             base_sentence = f"{linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging for {category_name} risk."
