@@ -416,7 +416,7 @@ DEPENDENT_TYPES = [
     "lock",
     "forward",
     "option",
-    "futures",
+    "future",
     "hedge",
     "hedging",
     "option",
@@ -489,11 +489,9 @@ PLACEHOLDERS = {
     ],
     "CP": [
         "commodity price",
-        "commodity-related",
         "fixed commodity",
-        "commodity-based",
     ],
-    "EQ": ["equity", "equity-related"],
+    "EQ": ["equity"],
     "GEN": [""],
 }
 
