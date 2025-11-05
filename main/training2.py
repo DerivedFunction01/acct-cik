@@ -13,7 +13,7 @@ from transformers import (
     BitsAndBytesConfig,
 )
 from peft import LoraConfig, PeftModel
-from trl.trainer.sft_trainer import SFTTrainer
+from trl import SFTTrainer
 from huggingface_hub import login
 from pathlib import Path
 
@@ -34,7 +34,7 @@ def format_prompt(sample):
     return f"<|user|>\n{sample['prompt']}<|end|>\n<|assistant|>\n{sample['response']}<|end|>"
 
 
-def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4, max_seq_length=2048):
+def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4):
     """Main function to run the training process with given parameters."""
     print(f"\n--- Starting Training ---")
     print(f"Base Model: {model_name}, Epochs: {num_epochs}, Batch Size: {batch_size}")
@@ -47,7 +47,9 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4, ma
         dataset = dataset.train_test_split(test_size=0.1)
         train_dataset = dataset["train"]
         eval_dataset = dataset["test"]
-        print(f"Data loaded successfully. Training samples: {len(train_dataset)}, Evaluation samples: {len(eval_dataset)}")
+        print(
+            f"Data loaded successfully. Training samples: {len(train_dataset)}, Evaluation samples: {len(eval_dataset)}"
+        )
     except Exception as e:
         print(f"❌ Failed to load data from {config['DATA_PATH']}: {e}")
         return
@@ -73,6 +75,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4, ma
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
+    tokenizer.model_max_length = 2048
 
     # --- PEFT/LoRA Configuration ---
     peft_config = LoraConfig(
@@ -122,7 +125,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4, ma
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         peft_config=peft_config,
-        max_seq_length=max_seq_length,
+        dataset_text_field=None,  # We're using formatting_func instead
         tokenizer=tokenizer,
         args=training_args,
         formatting_func=format_prompt,
@@ -139,28 +142,34 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4, ma
     # --- Push to Hub ---
     if not IS_AUTHENTICATED:
         huggingface_auth()
-    
+
     if IS_AUTHENTICATED:
-        push_to_hub = input("\nDo you want to push the final model to the Hugging Face Hub? (y/n): ")
-        if push_to_hub.lower().strip() == 'y':
+        push_to_hub = input(
+            "\nDo you want to push the final model to the Hugging Face Hub? (y/n): "
+        )
+        if push_to_hub.lower().strip() == "y":
             print("Pushing model to the Hub...")
             trainer.push_to_hub(commit_message="End of training")
             print("Model pushed successfully!")
     else:
-        print(f"Skipping push to Hub. The model adapter is saved locally in the '{config['NEW_MODEL_PATH']}' directory.")
+        print(
+            f"Skipping push to Hub. The model adapter is saved locally in the '{config['NEW_MODEL_PATH']}' directory."
+        )
 
 
 def huggingface_auth():
     """Handles Hugging Face authentication."""
     global IS_AUTHENTICATED
     print("\nPlease paste your Hugging Face token below to log in.")
-    
+
     token_path = Path(config["HF_TOKEN_PATH"])
     token = ""
     if token_path.exists():
         token = token_path.read_text().strip()
-        use_saved = input(f"Found a saved token. Use it? (y/n) [default: y]: ").lower().strip()
-        if use_saved not in ('y', ''):
+        use_saved = (
+            input(f"Found a saved token. Use it? (y/n) [default: y]: ").lower().strip()
+        )
+        if use_saved not in ("y", ""):
             token = input("HF Token: ").strip()
     else:
         token = input("HF Token: ").strip()
@@ -191,13 +200,15 @@ if __name__ == "__main__":
             print("3. Exit")
             choice = input("> ").strip()
 
-            if choice == '1':
-                num_epochs = int(input("Enter number of training epochs [default: 1]: ") or 1)
+            if choice == "1":
+                num_epochs = int(
+                    input("Enter number of training epochs [default: 1]: ") or 1
+                )
                 batch_size = int(input("Enter training batch size [default: 4]: ") or 4)
                 run_training(num_epochs=num_epochs, batch_size=batch_size)
-            elif choice == '2':
+            elif choice == "2":
                 huggingface_auth()
-            elif choice == '3':
+            elif choice == "3":
                 print("Exiting.")
                 break
             else:
