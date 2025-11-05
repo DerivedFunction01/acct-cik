@@ -98,16 +98,8 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
     # --- Apply LoRA with Unsloth ---
     model = FastLanguageModel.get_peft_model(
         model,
-        r=16,  # LoRA rank - 16 is a good default for 7B models
-        target_modules=[
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-        ],
+        r=16,  # LoRA rank. You can experiment with 8, 32, 64.
+        target_modules="all-linear",  # Let Unsloth find all linear layers.
         lora_alpha=32, # lora_alpha is often set to 2 * r
         lora_dropout=0,  # Unsloth optimizes better with 0 dropout
         bias="none",
@@ -126,6 +118,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         gradient_accumulation_steps=4,
         warmup_steps=5,
         learning_rate=2e-4,
+        max_grad_norm=0.3, # Helps with training stability.
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
         logging_steps=1, # Log every step
@@ -151,8 +144,8 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         eval_dataset=eval_dataset,
         dataset_text_field="text",  # The field containing our formatted text
         max_seq_length=config["MAX_SEQ_LENGTH"],
-        dataset_num_proc=2,  # Parallel processing
-        packing=False,  # Can set to True for short sequences
+        dataset_num_proc=4,  # Increase for faster data processing
+        packing=True,  # Pack short sequences for faster training
         args=training_args,
     )
 
