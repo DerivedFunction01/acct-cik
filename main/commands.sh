@@ -3,7 +3,8 @@
 !git clone https://github.com/DerivedFunction/acct-cik
 !cp -rf acct-cik/main/* .
 
-!pip install bitsandbytes trl
+!pip install bitsandbytes
+!pip install git+https://github.com/huggingface/peft.git git+https://github.com/huggingface/trl.git
 !git clone https://github.com/DerivedFunction/acct-cik
 !cp -rf acct-cik/main/* .
 
