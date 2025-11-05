@@ -2,6 +2,7 @@
 # %pip install unsloth
 # Also run: pip uninstall unsloth -y && pip install --upgrade --no-cache-dir "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 
+import json
 import random
 import math
 from pathlib import Path
@@ -30,8 +31,19 @@ IS_AUTHENTICATED = False
 
 
 def format_prompt(sample):
-    """Formats a sample for instruction fine-tuning using Qwen's chat template."""
-    return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
+    """Formats a sample for instruction fine-tuning using Qwen's chat template with a thought block."""
+    try:
+        completion_data = json.loads(sample["completion"])
+        chain_of_thought = completion_data.pop("chain_of_thought", "")
+
+        # The rest of the JSON data
+        rest_of_json = json.dumps(completion_data, indent=2)
+
+        # Construct the new format
+        return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n<|think|>\n{chain_of_thought}\n<|endthink|>\n{rest_of_json}<|im_end|>"
+    except (json.JSONDecodeError, KeyError):
+        # Fallback for cases where completion is not a valid JSON or doesn't have the expected structure
+        return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
 
 
 def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):

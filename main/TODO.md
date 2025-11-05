@@ -16,10 +16,10 @@ The primary objective is to move beyond simple multi-label classification (`"ir"
 
 This is the most critical phase. Before any model training, the data generation process must be completely overhauled.
 
--   **[x] Define a Canonical JSON Schema for the Model's Output:**
+-   **[x] Define a Canonical Schema for the Model's Output:**
     -   **Done.** The model's sole task is to generate a valid JSON object that conforms to a strict, predefined schema. This schema becomes the new "ground truth" for every training sample.
     -   This approach completely replaces the old `labels` dictionary and `label_int`. The structured data **is** the label.
-    -   **Action:** Create a formal JSON Schema file (e.g., `output_schema.json`). This allows for automated validation of the model's output during both training and inference, ensuring consistency and reliability.
+    -   **Action:** Create a formal Schema file. This allows for automated validation of the model's output during both training and inference, ensuring consistency and reliability.
     -   **Proposed Canonical Schema:**
         ```json
         {
