@@ -3571,6 +3571,33 @@ def _generate_introduction() -> List[str]:
         ]
     )
     return introduction_lines
+def _generate_done_sentence(none_found: bool = False) -> List[str]:
+    done = []
+    unique_base_types: List[str] = sorted(list(set(BASE_TYPES)))
+    num_keywords: int = random.randint(3, min(5, len(unique_base_types)))
+    scan_keywords: List[str] = random.sample(unique_base_types, k=num_keywords)
+    keyword_str = (
+        ", ".join([f"'{k}'" for k in scan_keywords[:-1]])
+        + f", or '{scan_keywords[-1]}'"
+        if len(scan_keywords) > 1
+        else f"'{scan_keywords[0]}'"
+    )
+    
+    # Acknowledge that it is done
+    done.append(
+        f"I reviewed the text for any explicit mentions of derivative instruments, scanning for "
+        f"keywords like {keyword_str} that refer to derivative usage only."
+    )
+    if none_found:
+        done.append(
+            "No direct references to derivative instruments were found in the text."
+        )
+    else:
+        done.append(
+            "I have found explicit references of derivative instruments."
+        )
+
+    return done
 
 def build_chain_of_thought(
     scenario: "GenerationScenario",
@@ -3628,6 +3655,9 @@ def build_chain_of_thought(
                 instrument_mentions[ev.instrument_type] = []
             instrument_mentions[ev.instrument_type].append(ev.instrument_id)
 
+    # Acknowledge that it is done
+    chain_of_thought_parts.extend(_generate_done_sentence())
+    
     repeated_mentions: List[str] = []
     for inst_type, id_list in instrument_mentions.items():
         num_mentions = len(id_list)
@@ -3734,16 +3764,6 @@ def build_chain_of_thought(
 
 def build_noise_only_chain_of_thought(evidence: List["BaseNarrativeEvidence"]) -> str:
     """Generate chain of thought for scenarios with no derivative evidence."""
-    unique_base_types: List[str] = sorted(list(set(BASE_TYPES)))
-    num_keywords: int = random.randint(3, min(5, len(unique_base_types)))
-    scan_keywords: List[str] = random.sample(unique_base_types, k=num_keywords)
-
-    keyword_str = (
-        ", ".join([f"'{k}'" for k in scan_keywords[:-1]])
-        + f", or '{scan_keywords[-1]}'"
-        if len(scan_keywords) > 1
-        else f"'{scan_keywords[0]}'"
-    )
 
     cot_steps: List[str] = []
     cot_steps.extend(_generate_introduction())
@@ -3758,17 +3778,7 @@ def build_noise_only_chain_of_thought(evidence: List["BaseNarrativeEvidence"]) -
         if isinstance(ev, (ContextEvidence, ExposureEvidence)):
             context_evidence_by_category[ev.category].append(ev)
 
-    cot_steps.append(
-        f"I reviewed the text for any explicit mentions of derivative instruments, scanning for "
-        f"keywords like {keyword_str} that refer to derivative usage only."
-    )
-    cot_steps.append(
-        "No direct references to derivative instruments were found in the text."
-    )
-    cot_steps.append(
-        "To be thorough, I reviewed the text again. While it confirms exposure to certain "
-        "financial risks, it does not describe any hedging strategies or derivative usage."
-    )
+    cot_steps.extend(_generate_done_sentence(none_found=True))
 
     # Reflect on context
     for category, cat_evidence_list in context_evidence_by_category.items():
@@ -4001,7 +4011,7 @@ def generate_json_from_scenario(
         "derivatives": derivatives_list,
     }
 
-#%%
+# %%
 # =============================================================================
 # MAIN EXECUTION (for standalone testing)
 # =============================================================================
@@ -4032,7 +4042,7 @@ def main():
 
     print(format_prompt(narrative, target_json)) 
 
-#%%
+# %%
 if __name__ == "__main__":
     main()
 # =============================================================================

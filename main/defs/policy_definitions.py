@@ -589,11 +589,11 @@ class CounterpartyRiskSentence:
         if self.has_active_derivatives:
             instrument_term = "derivatives"
         else:
+            suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
             instrument_term = random.choice(
                 [
-                    "financial instruments",
-                    "transactions",
-                    "financial contracts",
+                    f"financial {suffix}",
+                    suffix,
                 ]
             )
 
