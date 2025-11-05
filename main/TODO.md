@@ -68,7 +68,7 @@ This is the most critical phase. Before any model training, the data generation 
         -   Inclusion of embedded derivatives alongside standard hedges.
 
 -   **[ ] Port Contextual "Noise" Generation:**
-    -   **[x] Port Contextual "Noise" Generation:** The old `generator.py` had functions that created realistic, non-derivative sentences to provide context around the main topic. This "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk. Done.
+    -   **[x] Port Contextual "Noise" Generation:** The old `generator.py` had functions that created realistic, non-derivative sentences to provide context around the main topic. This "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk.
     -   **[x] Port IR/Debt Context:** Done. `DebtContextSentence` has been created and integrated into the IR narrative generation in `generator2.py`. Done.
     -   **[x] Port FX Context:**
         -   **[x] Action:** Create a new `FXContextSentence` class in `defs/fx_data.py`. Done.
@@ -135,7 +135,7 @@ This is the most critical phase. Before any model training, the data generation 
     -   The goal is to find a balance between chunk size and the model's context length to maximize comprehension without truncation.
 
 -   **[ ] Update `classify.py` to use the new Generative Model:**
-    -   **Done.** This has been implemented in `test2.py`. It reads prompts, sends them to the `server2.py` endpoint, and collects the resulting JSON objects. The logic can be ported to a new `classify2.py` when ready.
+    -   **[x] Done.** This has been implemented in `test2.py`. It reads prompts, sends them to the `server2.py` endpoint, and collects the resulting JSON objects. The logic can be ported to a new `classify2.py` when ready.
 
 -   **[ ] Update `analysis.py` for Aggregation:**
     -   The `PredictionsProcessor` needs to be rewritten.
@@ -145,6 +145,18 @@ This is the most critical phase. Before any model training, the data generation 
         -   **De-duplicate and merge** the `derivatives` arrays to create a master list of all instruments mentioned in the filing.
         -   **Handle conflicting or evolving information.** The `chain_of_thought` must be detailed enough to capture status changes. For example, if one chunk indicates a `"status": "current"` swap and a later chunk mentions its termination, the aggregation logic must correctly resolve the final status to `"terminated"`. The old `term` label was a workaround for this; the new system handles it explicitly through status aggregation.
         -   **Derive Primary Labels (Post-Processing):** After aggregation, create a new function to derive simple, high-level flags (e.g., `is_ir_user: true`) from the final structured data for easy filtering or downstream use. This moves the "labeling" task from a model input to a flexible analysis output.
+
+-   **[ ] Improve Chain of Thought (COT) Generation:**
+    -   The current COT is good but can be more explicit about its reasoning process, especially when handling multiple mentions of the same instrument.
+    -   **Action: Implement "Instrument-by-Instrument" COT.**
+        -   Instead of summarizing mentions (e.g., "IR swap, 2 mentions"), the COT should process each `NotionalEvidence` object individually.
+        -   It should explicitly state the properties of each mention (type, amount, year, category).
+        -   It must then perform a "self-correction" or "realization" step when it encounters a duplicate or an alias for an instrument it has already processed.
+        -   **Example Desired Logic:**
+            1.  "Found mention of an 'interest-rate swap' with notional XX > 0 for year 2023 > 2025. This is an active IR instrument."
+            2.  "Found mention of a 'hedging contract' with notional XX > 0 for year 2023 > 2025. This appears to be a separate GEN instrument."
+            3.  "Found another mention of a 'swap contract' with notional YY > 0 for year 2023 > 2025. Wait, this seems to be an alias for the 'interest-rate swap' from step 1. I will treat it as a duplicate mention."
+            4.  "Found another mention of an 'interest-rate swap' with the same notional and year. This is a duplicate of the instrument from step 1."
 
 ---
 
