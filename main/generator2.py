@@ -2714,6 +2714,16 @@ def _generate_category_narrative(
                             if sentence_type_to_use == "comparative"
                             else None
                         ),
+                        prev2_notional=(
+                            instrument.notional_history.get(reporting_year - 3, 0)
+                            if sentence_type_to_use == "comparative"
+                            else None
+                        ),
+                        prev2_year=(
+                            reporting_year - 2
+                            if sentence_type_to_use == "comparative"
+                            else None
+                        ),
                         maturity_year=instrument.maturity_year,
                         prefer_abbreviated=scenario.number_format_preference,
                         zero_notional_format=scenario.archetype.zero_notional_format,
@@ -2762,6 +2772,7 @@ def _generate_category_narrative(
                 reporting_year=reporting_year,
                 preferred_negative_format=scenario.archetype.preferred_negative_format,
                 prefer_abbreviated=scenario.number_format_preference,
+                notional_multiplier=scenario.archetype.notional_multiplier,
             )
             no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
             paragraphs.append(no_instrument_text)

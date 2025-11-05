@@ -253,6 +253,7 @@ class NotionalSentence:
     swap_type: str
     year: int
     category: DerivativeCategory
+    notional_multiplier: int
     reporting_year: int
     value_type: Literal["notional", "fair_value"] = "notional"
     sentence_type: Literal[
@@ -288,7 +289,6 @@ class NotionalSentence:
     maturity_value: Optional[int] = 0
     maturity_year: Optional[int] = None
     specific_details: Optional[SpecificDetails] = None
-    notional_multiplier: int = 1_000_000
     prefer_abbreviated: bool = True
     zero_notional_format: Literal["nil", "zero", "amount"] = "amount"
     preferred_negative_format: Literal[-1, 0, 1, 2] = 0
