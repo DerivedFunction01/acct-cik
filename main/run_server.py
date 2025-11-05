@@ -21,7 +21,7 @@ CPU_SERVER_PORT = 5002
 # File paths
 PID_FILE = "server.pid"
 NGINX_CONF_FILE = "nginx.conf"
-SERVER_SCRIPT = "server:app"
+SERVER_SCRIPT = "server2:app"  # Changed to use the new generative model server
 CACHE_FILE = ".server_cache.json"
 
 # Gunicorn settings
@@ -84,16 +84,20 @@ def pre_download_model():
 
     print("🔍 Checking for model... (This may take a while on first run)")
     try:
-        from transformers import AutoTokenizer, AutoModelForSequenceClassification
-        from server import MODEL_PATH  # Import MODEL_PATH from your server script
+        # Use Unsloth to pre-download the new generative model
+        from unsloth import FastLanguageModel
+        from server2 import MODEL_PATH, MAX_SEQ_LENGTH
 
-        AutoTokenizer.from_pretrained(MODEL_PATH)
-        AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
+        FastLanguageModel.from_pretrained(
+            model_name=MODEL_PATH,
+            max_seq_length=MAX_SEQ_LENGTH,
+            load_in_4bit=True,
+        )
         print("✅ Model is available locally.")
         return True
     except ImportError:
-        print("⚠️  Could not import 'transformers'. Skipping model pre-download.")
-        print("   Please run 'pip install transformers torch' if you encounter issues.")
+        print("⚠️  Could not import 'unsloth'. Skipping model pre-download.")
+        print("   Please run 'pip install \"unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git\"' if you encounter issues.")
         return False
     except Exception as e:
         print(f"❌ An error occurred during model pre-download: {e}")
@@ -248,58 +252,48 @@ def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
     start_cpu_server = True
 
     # === GPU Configuration ===
+    # Revised for a 4B parameter model (4-bit quantized)
     if gpu_ram_gb > 0:
         # GPU threads based on VRAM
-        if gpu_ram_gb >= 40:  # A100 (40GB/80GB)
-            gpu_threads = 16
-            gpu_weight = 20
-        elif gpu_ram_gb >= 24:  # A100 24GB, RTX 4090/3090
-            gpu_threads = 12
-            gpu_weight = 16
-        elif gpu_ram_gb >= 16:  # V100, RTX 4080, A10
-            gpu_threads = 10
-            gpu_weight = 12
-        elif gpu_ram_gb >= 12:  # RTX 3080 Ti, T4 (16GB)
+        if gpu_ram_gb >= 40:  # A100 (40GB/80GB) - Can handle more parallel requests
             gpu_threads = 8
             gpu_weight = 10
-        elif gpu_ram_gb >= 8:  # RTX 3070, 4060 Ti
+        elif gpu_ram_gb >= 24:  # RTX 4090/3090
             gpu_threads = 6
             gpu_weight = 8
-        elif gpu_ram_gb >= 6:  # RTX 3060
+        elif gpu_ram_gb >= 16:  # V100, T4, A10
             gpu_threads = 4
             gpu_weight = 6
-        else:  # Low-end GPU
+        elif gpu_ram_gb >= 12:  # RTX 3080, etc.
             gpu_threads = 2
             gpu_weight = 4
+        else:  # Low-end GPU
+            gpu_threads = 1
+            gpu_weight = 2
 
-        # If a GPU is present, always set the CPU weight to a low value.
-        # This makes the CPU a backup/overflow server rather than a primary worker.
-        cpu_weight = 1
-        print("   Strategy: GPU detected. Setting CPU weight to 1 (backup mode).")
+        # For a large generative model, CPU inference is extremely slow and memory-intensive.
+        # It's better to run in GPU-only mode if a GPU is available.
+        start_cpu_server = False
+        cpu_weight = 0
+        print("   Strategy: GPU detected. Forcing GPU-only mode for large model performance.")
 
     # === CPU Configuration ===
-    # CPU threads based on core count
-    if cpu_cores >= 80:  # TPU or high-core server (treat as very powerful)
-        cpu_threads = 16
-        cpu_weight = 12
-    elif cpu_cores >= 32:  # High-end server/workstation
-        cpu_threads = 8
-        cpu_weight = 8
-    elif cpu_cores >= 16:  # Mid-high workstation
-        cpu_threads = 6
-        cpu_weight = 6
-    elif cpu_cores >= 12:  # Gaming PC / Colab standard
-        cpu_threads = 4
-        cpu_weight = 4
-    elif cpu_cores >= 8:  # Standard desktop
-        cpu_threads = 3
-        cpu_weight = 3
-    elif cpu_cores >= 4:  # Entry-level
-        cpu_threads = 2
-        cpu_weight = 2
-    else:  # Very low-end (2 cores)
-        cpu_threads = 1
-        cpu_weight = 1
+    # This only applies if no GPU is detected.
+    else:
+        print("   Strategy: No GPU detected. Running in CPU-only mode (will be slow).")
+        # CPU threads based on core count (be conservative due to high RAM usage)
+        if ram_gb < 16:
+            print("   -> Low RAM detected. Using minimal CPU threads.")
+            cpu_threads = 1
+        elif cpu_cores >= 16:
+            cpu_threads = 4
+        elif cpu_cores >= 8:
+            cpu_threads = 2
+        else:
+            cpu_threads = 1
+        cpu_weight = cpu_threads # Weight proportional to threads
+        gpu_weight = 0
+        start_cpu_server = True
 
     # === Adjust weights based on RAM ===
     # If RAM is limited, reduce CPU weight to avoid OOM
@@ -308,43 +302,6 @@ def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
         cpu_threads = max(1, cpu_threads // 2)
     elif ram_gb < 16:
         cpu_weight = max(1, int(cpu_weight * 0.75))
-
-    # === Decide whether to start CPU server ===
-    # Scenarios where CPU server should be disabled:
-    # 1. Very powerful GPU + weak CPU/RAM (let GPU handle everything)
-    # 2. Very limited resources overall
-
-    if gpu_ram_gb > 0:
-        # CPU has little cores (~2)
-        if cpu_cores <= 2:
-            start_cpu_server = False
-            print("   Strategy: Poor CPU/RAM → GPU-only mode")
-        # High-end GPU with low-end CPU
-        elif gpu_ram_gb >= 4 and (cpu_cores <= 4 or ram_gb < 12):
-            start_cpu_server = False
-            print("   Strategy: GPU-focused + limited CPU/RAM → GPU-only mode")
-
-        # Gaming PC scenario: strong GPU + strong CPU
-        elif gpu_ram_gb >= 8 and cpu_cores >= 16 and ram_gb >= 24:
-            # Balance the load more evenly for powerful systems
-            gpu_weight = min(gpu_weight, cpu_weight + 4)
-            print("   Strategy: Balanced high-end system → GPU leads, CPU assists")
-
-        # Colab-like scenario: Good GPU, decent CPU
-        elif gpu_ram_gb >= 12 and cpu_cores >= 8:
-            print("   Strategy: Cloud GPU instance → GPU primary, CPU backup")
-
-        # Low-end GPU with many cores (e.g., TPU environment)
-        elif cpu_cores >= 80:
-            # Treat TPU-like environments as CPU-focused
-            cpu_weight = max(cpu_weight, gpu_weight)
-            print("   Strategy: TPU/High-core environment → Balanced distribution")
-
-    else:
-        # No GPU - CPU only
-        print("   Strategy: CPU-only mode")
-        start_cpu_server = True
-        gpu_weight = 0
 
     return gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server
 
