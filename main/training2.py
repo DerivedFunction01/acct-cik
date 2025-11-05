@@ -198,7 +198,10 @@ def run_manual_test():
     )
 
     # Load the fine-tuned PEFT model
+    # Add this right after loading the model in run_manual_test():
     model = PeftModel.from_pretrained(base_model, model_path)
+    model = model.merge_and_unload()  # Merge LoRA weights into base model
+    model.eval()
     tokenizer = AutoTokenizer.from_pretrained(
         config["BASE_MODEL"], trust_remote_code=True
     )
@@ -258,9 +261,6 @@ def run_manual_test():
         print(f"Tokenizer eos_token_id: {tokenizer.eos_token_id}")
         print("------------------\n")
 
-        # Add this right after loading the model in run_manual_test():
-        model.eval()  # Set to evaluation mode
-
         # Then in the generation loop, wrap it with torch.no_grad():
         with torch.no_grad():
             outputs = model.generate(
@@ -268,7 +268,10 @@ def run_manual_test():
                 attention_mask=inputs["attention_mask"],
                 max_new_tokens=512,
                 pad_token_id=tokenizer.eos_token_id,
-                do_sample=False,  # Add this for deterministic generation
+                eos_token_id=tokenizer.eos_token_id,
+                do_sample=False,
+                num_beams=1,  # Greedy decoding
+                use_cache=True,
             )
 
             # Decode and print the output, skipping the prompt part
