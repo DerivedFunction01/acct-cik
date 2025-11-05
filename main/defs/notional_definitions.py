@@ -35,6 +35,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
     sentence_type: Optional[str] = None
     is_repeated_mention: bool = False
     active_override: bool = False # If no notional is given (None), override to active
+    # additional_details is inherited
 
     # ---------------------------------------------------------------------
     # Helpers
@@ -99,112 +100,115 @@ class NotionalEvidence(BaseNarrativeEvidence):
     # ---------------------------------------------------------------------
 
     def to_string(self) -> str:
-        """Generates a reasoning statement with built-in time validation and generic-category handling."""
-        # --- NEW: Relocated category handling and classification note logic ---
+        """Generates a detailed reasoning statement describing notional or fair value evidence, 
+        while remaining robust to missing fields and providing temporal context."""
+        
         category_name = self._category_label()
-        category_context = f"{category_name} derivative activity"
+        category_context = f"{category_name} derivative activity" if category_name else "derivative activity"
         classification_note = ""
+        value_desc = "fair value" if self.value_type == "fair_value" else "notional value"
 
-        value_desc = (
-            "fair value" if self.value_type == "fair_value" else "notional value"
-        )
-
-        if self.year is None or self.reporting_year is None:
-            temporal_info = ""
-        else:
-            temporal_info = self._temporal_reasoning()
-
+        temporal_info = self._temporal_reasoning() if self.year or self.reporting_year else ""
         warning = self._validate_temporal_consistency()
 
-        # --- NEW: Construct a more descriptive base_desc, including the suffix if available ---
-        # The instrument_type could be the full name or an alias.
+        # --- Currency and maturity hints ---
+        currency_hint = f" (denominated in {self.currency})" if self.currency and self.currency != "USD" else ""
+        maturity_hint = (
+            f" and maturing in {self.maturity_year}" 
+            if self.maturity_year and self.maturity_year > 0 and self.maturity_year != self.year 
+            else ""
+        )
+
+        # --- Contextual instrument description ---
         base_desc = (
             f"{self.instrument_type}" if self.instrument_type else f"{category_context}"
         )
 
         # -----------------------------------------------------------------
-        # Template-driven status handlers (now consistently include temporal_info)
+        # Sentence-type specific handlers
         # -----------------------------------------------------------------
         def summary_handler() -> str:
-            # Summary is always aggregate, so it won't have a specific "aha" moment for an individual instrument.
-            # Its logic remains focused on aggregate values. The phrase "An aggregate..." is sufficient.
-            value_part = (
-                f" of {self.notional_str}"
-                if self.notional_str or self.notional is not None
-                else " with no value specified"
-            )
-            return f"Aggregate {value_desc} for {base_desc}: {value_part.replace(' of ', '')}{temporal_info}"
+            parts = []
+            if self.notional_str:
+                parts.append(f"aggregate {value_desc} of {self.notional_str}")
+            else:
+                parts.append(f"aggregate {value_desc} with no amount disclosed")
+            if self.reporting_year:
+                parts.append(f"reported for {base_desc} in {self.reporting_year}")
+            return " ".join(parts) + temporal_info + maturity_hint + currency_hint
 
         def new_individual_handler() -> str:
-            value_part = (
-                f" with a {value_desc} of {self.notional_str}"
-                if self.notional_str
-                else ""
-            )
-            return f"New {base_desc} found{value_part}{classification_note}{temporal_info}"
+            desc = f"New {base_desc} recorded"
+            if self.notional_str:
+                desc += f" with a {value_desc} of {self.notional_str}"
+            if self.reporting_year:
+                desc += f" in {self.reporting_year}"
+            return desc + temporal_info + maturity_hint + currency_hint
 
         def individual_handler() -> str:
-            value_part = (
-                f" with a {value_desc} of {self.notional_str}"
-                if self.notional_str
-                else ""
-            )
-            return f"{base_desc} found{value_part}{classification_note}{temporal_info}"
+            desc = f"{base_desc.capitalize()} reported"
+            if self.notional_str:
+                desc += f" with a {value_desc} of {self.notional_str}"
+            if self.reporting_year:
+                desc += f" for {self.reporting_year}"
+            return desc + temporal_info + maturity_hint + currency_hint
 
         def terminated_individual_handler() -> str:
-            value_part = (
-                f" with a prior {value_desc} of {self.notional_str}"
-                if self.notional_str
-                else ""
-            )
-            return f"Terminated {base_desc} found{value_part}{temporal_info}"
+            desc = f"Terminated {base_desc}"
+            if self.notional_str:
+                desc += f" previously held a {value_desc} of {self.notional_str}"
+            if self.reporting_year:
+                desc += f" before {self.reporting_year}"
+            return desc + temporal_info + maturity_hint + currency_hint
 
         def no_instruments_handler() -> str:
-            return f"The report explicitly states there were no outstanding {category_name} instruments in {self.reporting_year}, confirming no current use{temporal_info}"
+            desc = f"The report confirms no outstanding {base_desc}"
+            if self.reporting_year:
+                desc += f" as of {self.reporting_year}"
+            return desc + temporal_info
 
         def comparative_handler() -> str:
-            # General comparative uses summary logic
-            return summary_handler()
+            prev_part = f" {self.prev_notional_str} in {self.prev_year}" if self.prev_notional_str and self.prev_year else ""
+            curr_part = f" {self.notional_str} in {self.reporting_year}" if self.notional_str and self.reporting_year else ""
+            return (
+                f"Comparative disclosure for {base_desc} shows {value_desc} change from{prev_part} to{curr_part}"
+                f"{temporal_info}{maturity_hint}{currency_hint}"
+            )
 
         def comparative_no_outstanding_handler() -> str:
-            # This handler is for when there's no current activity, but there was in the prior year.
-            # The evidence object will have notional=0, but prev_notional and prev_notional_str will be populated.
-            return (
-                f"The report confirms no outstanding {base_desc} in {self.reporting_year}, "
-                f"compared to a prior {value_desc} of {self.prev_notional_str} in {self.prev_year}, indicating the instrument was terminated or matured{temporal_info}"
+            desc = (
+                f"No current {base_desc} outstanding in {self.reporting_year}, "
+                f"compared with {self.prev_notional_str} in {self.prev_year}"
             )
+            return desc + f"{temporal_info}{maturity_hint}{currency_hint}"
 
         def comparative_no_prior_outstanding_handler() -> str:
-            return (
-                f"The report shows a current {value_desc} of {self.notional_str} for {category_context} in {self.reporting_year}, "
-                f"with no such instruments outstanding in the prior year, indicating new activity{temporal_info}"
+            desc = (
+                f"New {base_desc} activity in {self.reporting_year}"
+                f" with a {value_desc} of {self.notional_str}, where none existed previously"
             )
+            return desc + f"{temporal_info}{maturity_hint}{currency_hint}"
 
         def historical_individual_handler() -> str:
-            # Historical individual mention uses the individual wording but relies on temporal_info for history
-            return individual_handler()
-
-        def inception_handler() -> str:
-            # Inception is a specific type of individual mention.
-            # We can reuse the individual handler as it correctly describes the instrument.
-            # The temporal reasoning will provide the historical context.
-            return individual_handler()
+            desc = f"A {base_desc} mention"
+            if self.notional_str:
+                desc += f" reflecting a {value_desc} of {self.notional_str}"
+            return desc + temporal_info + maturity_hint + currency_hint
 
         def timeline_handler() -> str:
-            # Custom handler for the consolidated timeline evidence.
-            # This creates a single, coherent reasoning statement for an instrument's history.
-            # --- FIX: Make the wording more flexible to handle timelines that don't start at inception ---
-            start_value_str = f" from {self.prev_notional_str} in {self.prev_year}" if self.prev_notional_str and self.prev_year else ""
-            end_value_str = f" to {self.notional_str} in {self.year}" if self.notional_str and self.year else ""
-
+            start_val = (
+                f" from {self.prev_notional_str} in {self.prev_year}" 
+                if self.prev_notional_str and self.prev_year else ""
+            )
+            end_val = (
+                f" to {self.notional_str} in {self.year}" 
+                if self.notional_str and self.year else ""
+            )
             return (
-                f"Historical timeline for {base_desc} found, "
-                f"showing {value_desc} change"
-                f"{start_value_str}"
-                f"{end_value_str}{temporal_info}"
+                f"Timeline evidence for {base_desc} shows {value_desc} progression"
+                f"{start_val}{end_val}{temporal_info}{maturity_hint}{currency_hint}"
             )
 
-        # Map statuses to handlers
         handlers: Dict[str, Callable[[], str]] = {
             "summary": summary_handler,
             "new_individual": new_individual_handler,
@@ -215,23 +219,19 @@ class NotionalEvidence(BaseNarrativeEvidence):
             "comparative_no_outstanding": comparative_no_outstanding_handler,
             "comparative_no_prior_outstanding": comparative_no_prior_outstanding_handler,
             "historical_individual": historical_individual_handler,
-            # Add handlers for timeline sentence types
-            "inception": inception_handler,
-            "continuing": individual_handler,  # Treat 'continuing' like a standard 'individual' mention
-            "timeline": timeline_handler,  # Handler for the consolidated timeline object
+            "timeline": timeline_handler,
         }
 
-        # Dispatch
         text = handlers.get(
             self.status,
-            lambda: f"Uncategorized notional evidence found for {category_name}.",
+            lambda: f"Uncategorized notional evidence found for {base_desc}."
         )()
 
-        # Append warning if present
         if warning:
             text = f"{text} {warning}"
 
-        return " ".join(text.split())  # Clean up any extra spaces
+        return " ".join(text.split())
+
 
 
 @dataclass
@@ -288,7 +288,7 @@ class NotionalSentence:
     is_repeated_mention: bool = False
     optional_chance: float = 0.5
     suppress_sentence: bool = False
-    currency_symbol2: str = "$"
+    currency_symbol2: str = "$"    
 
     def __post_init__(self):
         # If comparative_no_outstanding is chosen but there's no prior notional, it's just a 'no_instruments' case.
