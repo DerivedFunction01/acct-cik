@@ -740,7 +740,7 @@ class ScenarioBuilder:
                 hedged_item = item
                 if isinstance(item, DebtHedgedItem):
                     maturity_year = item.maturity_year
-                    notional = item.principal_amount
+                    notional = item.principal_amount * random.uniform(0.8, 1.2)
                 elif isinstance(item, ForeignCurrencyHedgedItem):
                     maturity_year = random.randint(
                         self.reporting_year + 1, self.reporting_year + 3
@@ -4000,7 +4000,7 @@ def generate_json_from_scenario(
         "derivatives": derivatives_list,
     }
 
-
+#%%
 # =============================================================================
 # MAIN EXECUTION (for standalone testing)
 # =============================================================================
@@ -4031,7 +4031,7 @@ def main():
 
     print(format_prompt(narrative, target_json)) 
 
-
+#%%
 if __name__ == "__main__":
     main()
 # =============================================================================
