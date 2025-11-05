@@ -3497,7 +3497,7 @@ def collect_evidence_strings(
                 exposure_descriptions.append(ev.to_string())
         elif not any(isinstance(e, MitigationEvidence) for e in evidence) and isinstance(ev, MitigationEvidence):
             other_evidence_strings.append(
-                "The text mentions the company's mitigation efforts against various market risks. Let's see if that gives a hint on any usage of derivative instruments."
+                "The text mentions the company's policy and mitigation efforts against various market risks. Let's see if that gives a hint on any usage of derivative instruments."
             )
             other_evidence_strings.append(ev.to_string())
         else:
