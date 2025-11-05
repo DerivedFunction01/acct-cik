@@ -3595,7 +3595,7 @@ def _generate_done_sentence(none_found: bool = False) -> List[str]:
         if len(scan_keywords) > 1
         else f"'{scan_keywords[0]}'"
     )
-    
+
     # Acknowledge that it is done
     done.append(
         f"---\n"
@@ -3612,6 +3612,73 @@ def _generate_done_sentence(none_found: bool = False) -> List[str]:
         )
 
     return done
+
+
+def _build_instrument_by_instrument_cot(
+    evidence: List["BaseNarrativeEvidence"], reporting_year: int
+) -> List[str]:
+    """
+    Generates a detailed, step-by-step analysis of each instrument mention,
+    including self-correction for duplicates.
+    """
+    cot_lines = []
+    processed_instruments: Dict[int, str] = {}  # {instrument_id: instrument_type}
+    mention_counter = 1
+
+    # Filter for only NotionalEvidence that has an amount and instrument ID
+    notional_evidence_list = [
+        ev
+        for ev in evidence
+        if isinstance(ev, NotionalEvidence)
+        and ev.instrument_id is not None
+        and ev.notional is not None
+    ]
+
+    if not notional_evidence_list:
+        return []
+
+    cot_lines.append("Now, I will perform a detailed instrument-by-instrument review:")
+
+    for ev in notional_evidence_list:
+        # Ensure ev is the correct type for mypy
+        if not isinstance(ev, NotionalEvidence) or ev.instrument_id is None:
+            continue
+
+        line_prefix = f"{mention_counter}) "
+        line_parts = []
+
+        # Basic instrument description
+        line_parts.append(f"'{ev.instrument_type}'")
+        line_parts.append(f"amount > 0")
+        if ev.year:
+            line_parts.append(f"year {ev.year}")
+            if ev.year >= reporting_year:
+                line_parts.append(f"(>= {reporting_year})")
+            else:
+                line_parts.append(f"(< {reporting_year})")
+
+        line_parts.append(f"Category = {ev.category}.")
+
+        # Check for duplicates
+        if ev.instrument_id in processed_instruments:
+            original_type = processed_instruments[ev.instrument_id]
+            assert ev.instrument_type is not None
+            if original_type.lower() == ev.instrument_type.lower():
+                line_parts.append(
+                    f"Wait, this is a duplicate mention of the instrument from step(s) involving '{original_type}'."
+                )
+            else:
+                line_parts.append(
+                    f"Wait, this appears to be an alias for the '{original_type}' instrument. I will treat it as a duplicate mention."
+                )
+        else:
+            processed_instruments[ev.instrument_id] = ev.instrument_type
+
+        cot_lines.append(line_prefix + " ".join(line_parts))
+        mention_counter += 1
+
+    return cot_lines
+
 
 def build_chain_of_thought(
     scenario: "GenerationScenario",
@@ -3672,25 +3739,10 @@ def build_chain_of_thought(
     # Acknowledge that it is done
     chain_of_thought_parts.extend(_generate_done_sentence())
     
-    repeated_mentions: List[str] = []
-    for inst_type, id_list in instrument_mentions.items():
-        num_mentions = len(id_list)
-        num_distinct_instruments = len(set(id_list))
-
-        if num_distinct_instruments > 1:
-            mention_summary = f"{num_distinct_instruments} distinct '{inst_type}'"
-            if num_mentions > num_distinct_instruments:
-                mention_summary += f" (with a total of {num_mentions} mentions)"
-            repeated_mentions.append(mention_summary)
-        elif num_mentions > 1:
-            repeated_mentions.append(
-                f"a single '{inst_type}' was mentioned {num_mentions} times"
-            )
-
-    if repeated_mentions:
-        chain_of_thought_parts.append(
-            f"The text discusses {', '.join(repeated_mentions)}."
-        )
+    # --- NEW: Add the instrument-by-instrument analysis ---
+    instrument_cot_lines = _build_instrument_by_instrument_cot(evidence, scenario.reporting_year)
+    if instrument_cot_lines:
+        chain_of_thought_parts.extend(instrument_cot_lines)
 
     # Add generic derivative reasoning
     has_generic_evidence = any(
