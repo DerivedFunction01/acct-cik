@@ -3410,8 +3410,8 @@ def generate_mitigation_map(
                 if ev.is_implied and status == "current":
                     implied_evidence_map[category] = True
                     if category in categories_with_notional:
-                        mitigation_map[category] = "current"
-                elif ev.is_implied and status == "historical":
+                        mitigation_map[category] = "implied current"
+                elif ev.is_implied and status == " implied historical":
                     implied_evidence_map[category] = True
                     mitigation_map[category] = "historical"
                 elif not ev.is_implied:
