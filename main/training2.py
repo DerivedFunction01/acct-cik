@@ -13,7 +13,7 @@ from transformers import (
     BitsAndBytesConfig,
 )
 from peft import LoraConfig, PeftModel
-from trl import SFTTrainer
+from trl.trainer.sft_trainer import SFTTrainer
 from huggingface_hub import login
 from pathlib import Path
 
@@ -34,7 +34,7 @@ def format_prompt(sample):
     return f"<|user|>\n{sample['prompt']}<|end|>\n<|assistant|>\n{sample['completion']}<|end|>"
 
 
-def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4):
+def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
     """Main function to run the training process with given parameters."""
     print(f"\n--- Starting Training ---")
     print(f"Base Model: {model_name}, Epochs: {num_epochs}, Batch Size: {batch_size}")
@@ -100,8 +100,8 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4):
         output_dir=config["NEW_MODEL_PATH"],
         num_train_epochs=num_epochs,
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        gradient_accumulation_steps=1,
+        per_device_eval_batch_size=batch_size, # Use same batch size for eval
+        gradient_accumulation_steps=4, # Accumulate gradients to simulate a larger batch size
         optim="paged_adamw_32bit",
         save_steps=100,
         logging_steps=25,
@@ -202,7 +202,7 @@ if __name__ == "__main__":
                 num_epochs = int(
                     input("Enter number of training epochs [default: 1]: ") or 1
                 )
-                batch_size = int(input("Enter training batch size [default: 4]: ") or 4)
+                batch_size = int(input("Enter training batch size [default: 1]: ") or 1)
                 run_training(num_epochs=num_epochs, batch_size=batch_size)
             elif choice == "2":
                 huggingface_auth()
