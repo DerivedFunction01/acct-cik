@@ -2560,6 +2560,7 @@ def _generate_category_narrative(
                         preferred_negative_format=scenario.archetype.preferred_negative_format,
                         instrument=instrument,  # Pass the full instrument object
                         currency_symbol2=currency_symbol, # edge cases when commodity uses a unit
+                        notional_multiplier=scenario.archetype.notional_multiplier,
                     )
                     individual_sentence_text, evidence_obj = (
                         individual_sentence_obj.build()
