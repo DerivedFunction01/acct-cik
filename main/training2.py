@@ -134,7 +134,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         lr_scheduler_type="cosine", # Cosine scheduler can sometimes yield better results
         seed=3407,
         save_strategy="steps",
-        save_steps=50, # Save checkpoints more frequently
+        save_steps=200, # Save checkpoints more frequently
         load_best_model_at_end=True, # Load the best model at the end of training
         eval_strategy="steps",
         eval_steps=100,
@@ -298,9 +298,10 @@ def view_dataset_sample():
         random_index = random.randint(0, len(dataset) - 1)
         sample = dataset[random_index]
 
-        print("\n" + "=" * 25 + " RANDOM SAMPLE " + "=" * 25)
-        print(f"\n[PROMPT]\n{sample['prompt']}")
-        print(f"\n[COMPLETION]\n{sample['completion']}")
+        print("\n" + "=" * 25 + " RANDOM FORMATTED SAMPLE " + "=" * 25)
+        # Use the same formatting function as the trainer to see the final input
+        formatted_text = format_prompt(sample)
+        print(formatted_text)
         print("\n" + "=" * 65)
     except Exception as e:
         print(f"❌ Failed to load or read the dataset: {e}")
