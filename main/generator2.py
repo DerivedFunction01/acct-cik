@@ -3876,7 +3876,7 @@ def generate_training_sample(archetype_index=None, allow_random_drops: bool = Tr
 
 def generate_dataset(
     num_samples: int,
-    output_file: str = "./output.parquet",
+    output_file: str = "./training_data.parquet",
     allow_random_drops: bool = True,
     debug: bool = False,
 ):
@@ -3891,7 +3891,7 @@ def generate_dataset(
     """
     print(f"Starting dataset generation for {num_samples} samples...")
     global DEBUG
-    DEBUG = False # Do not attach headers
+    DEBUG = debug # Do not attach headers
 
     all_training_records = []
     for _ in tqdm(range(num_samples), desc="Generating Samples"):
