@@ -1,6 +1,7 @@
 # %%
 # %pip install unsloth
 # Also run: pip uninstall unsloth -y && pip install --upgrade --no-cache-dir "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+import unsloth
 
 import json
 import random
@@ -10,12 +11,13 @@ from pathlib import Path
 # %%
 # Initialization
 import pandas as pd
+from unsloth import FastLanguageModel
 import torch
 from datasets import load_dataset
 from transformers import TrainingArguments
 from trl.trainer.sft_trainer import SFTTrainer
 from huggingface_hub import login
-from unsloth import FastLanguageModel
+
 
 config = {
     "DATA_PATH": "training_data.parquet",
