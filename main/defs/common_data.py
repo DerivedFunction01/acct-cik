@@ -470,15 +470,12 @@ CATEGORY_EXTRAS = {
 PLACEHOLDERS = {
     "IR": [
         "interest-rate",
-        "single-currency",
         "forward-rate",
-        "benchmark-rate",
     ],
     "FX": [
         "foreign exchange",
         "forward exchange",
         "foreign currency",
-        "currency",
         "cross-currency",
         "forward currency",
         "foreign currency",
