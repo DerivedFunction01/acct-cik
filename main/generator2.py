@@ -3523,6 +3523,61 @@ def collect_evidence_strings(
 
     return other_evidence_strings, exposure_descriptions
 
+def _generate_introduction() -> List[str]:
+    introduction_lines = []
+    # Start with the description of the task
+    introduction_lines.extend(
+        [
+            "The goal is to extract structured evidence of derivative usage and risk management disclosures from financial text and produce a valid JSON summary."
+            "I will complete this by analyzing the user's input text identify derivative usage by: \n"
+            "1) Identify the company's risk exposures.\n",
+            "2) Identify the company's mitigation strategies.\n"
+            "3) Identify any specific derivative usage by analyzing the text.\n",
+            "4) Provide a response that is a single, valid JSON object.\n",
+        ]
+    )
+
+    # Then, state how the model will do so. It must first see if the provided text relates to financial statements
+    introduction_lines.extend(
+        [
+            "To achieve this, I must first determine of the text related to a company's financial statements. ",
+            "If it does, I then proceed to analyze the text for derivative usage, if it exists. ",
+            "If it doesn't, then I will provide a response that the text appears to be unrelated. ",
+        ]
+    )
+    introduction_lines.extend(
+        [
+            "After identifying exposures, I infer mitigation intent based on linguistic cues such as 'currently uses', 'may use', 'does not intend to use', 'expired', etc. ",
+            "I then associate derivative instruments with the most relevant risk type inferred from surrounding context. ",
+            "I must remember that liguistic cues can be speculative, so I must consider whether or not these statements result in actual derivative usage. ",
+        ]
+    )
+
+    # Next, recall what a derivative is
+    introduction_lines.extend(
+        [
+            "If I recall, a derivative is a financial contract whose value depends on an underlying asset or benchmark, such as interest rates, foreign currencies, equities, or commodities. ",
+            "Common derivative types include forwards, futures, options, swaps, and collars, which may or may not be used for hedging or mitigating those specific types of risk. ",
+        ]
+    )
+    # Missing step
+    introduction_lines.extend(
+        ["Next, I will review the text to determine if the company currently uses any derivative financial instruments. "]
+    )
+
+    # Then, explain what it will do to scan for instruments
+    introduction_lines.extend(
+        [
+            "Then, I should filter the text to include only relevant reporting years and exclude instruments with zero notional or expired references. ",
+            "If multiple years are present, I prioritize the reportingYear given in the text. ",
+        ]
+    )
+    introduction_lines.extend(
+        [
+            "Finally, I will generate a JSON output conforms to the schema with these keys: 'analysis_summary', 'exposure', 'mitigation', and 'derivatives'. "
+        ]
+    )
+    return introduction_lines
 
 def build_chain_of_thought(
     scenario: "GenerationScenario",
@@ -3535,22 +3590,11 @@ def build_chain_of_thought(
     """Build the chain of thought reasoning."""
     cot_summary_lines = []
 
-    if derivatives_list:
-        cot_summary_lines.append(
-            "Based on the text, I have identified the following derivative instruments for the reporting year:"
-        )
-        for deriv in derivatives_list:
-            status = mitigation_map.get(deriv["category"], "unknown")
-            cot_summary_lines.append(
-                f"- A {deriv['level']} {deriv['type']} ({deriv['category']}) used for {status} hedging."
-            )
-    else:
-        cot_summary_lines.append(
-            "Based on the text, no active derivative instruments were identified for the reporting year."
-        )
+    cot_summary_lines.extend(_generate_introduction())
+
 
     chain_of_thought_parts = (
-        cot_summary_lines + ["\nDetailed evidence:", "---"] + other_evidence_strings
+        cot_summary_lines + ["\nHere is what I have found:", "---"] + other_evidence_strings
     )
 
     # Add exposure descriptions
