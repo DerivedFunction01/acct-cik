@@ -418,24 +418,27 @@ class NotionalSentence:
                 self.currency_symbol,
                 self.prefer_abbreviated,
                 False,
-                self.zero_notional_format,
-                self.preferred_negative_format,
+                zero_format=self.zero_notional_format,
+                negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
             formatted_prev = _format_single_notional(
                 self.prev_notional,
                 self.currency_symbol,
                 self.prefer_abbreviated,
                 False,
-                self.zero_notional_format,
-                self.preferred_negative_format,
+                zero_format=self.zero_notional_format,
+                negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
             formatted_prev2 = _format_single_notional(
                 self.prev2_notional,
                 self.currency_symbol,
                 self.prefer_abbreviated,
                 False,
-                self.zero_notional_format,
-                self.preferred_negative_format,
+                zero_format=self.zero_notional_format,
+                negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
             amount_str = f"{formatted_current}, {formatted_prev}, and {formatted_prev2}"
         elif self.sentence_type.startswith("comparative") and self.notional is not None and self.prev_notional is not None:
@@ -445,16 +448,18 @@ class NotionalSentence:
                 self.currency_symbol,
                 self.prefer_abbreviated,
                 False,
-                self.zero_notional_format,
-                self.preferred_negative_format,
+                zero_format=self.zero_notional_format,
+                negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
             formatted_prev = _format_single_notional(
                 self.prev_notional,
                 self.currency_symbol,
                 self.prefer_abbreviated,
                 False,
-                self.zero_notional_format,
-                self.preferred_negative_format,
+                zero_format=self.zero_notional_format,
+                negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
             amount_str = f"{formatted_current} and {formatted_prev}"
             prev_amount_str = formatted_prev
@@ -465,8 +470,9 @@ class NotionalSentence:
                 self.currency_symbol,
                 self.prefer_abbreviated,
                 False,
-                self.zero_notional_format,
-                self.preferred_negative_format,
+                zero_format=self.zero_notional_format,
+                negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
         else:
             amount_str = _format_single_notional(
@@ -474,8 +480,9 @@ class NotionalSentence:
                 self.currency_symbol,
                 self.prefer_abbreviated,
                 False,
-                self.zero_notional_format,
-                self.preferred_negative_format,
+                zero_format=self.zero_notional_format,
+                negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
 
         # 2. Select time prefix template
@@ -611,6 +618,7 @@ class NotionalSentence:
                 self.prefer_abbreviated,
                 negative_format=self.preferred_negative_format,
                 zero_format=self.zero_notional_format,
+                notional_multiplier=self.notional_multiplier,
             )
             # Format currencies into a readable string from the details object
             details = self.specific_details or SpecificDetails()
@@ -922,6 +930,7 @@ class NotionalSentence:
                 self.prefer_abbreviated,
                 no_unit_word=False,
                 negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
 
             level_num = random.randint(1, 3)
@@ -1090,6 +1099,7 @@ class TimelineSentence:
                 self.currency_symbol,
                 self.prefer_abbreviated,
                 negative_format=self.preferred_negative_format,
+                notional_multiplier=self.notional_multiplier,
             )
             timeline_notional_strings[year] = formatted_notional
 
@@ -1112,6 +1122,7 @@ class TimelineSentence:
                     self.currency_symbol,
                     self.prefer_abbreviated,
                     negative_format=self.preferred_negative_format,
+                    notional_multiplier=self.notional_multiplier,
                 )
                 # If notional decreased by more than 30%, it's a partial settlement.
                 if (
