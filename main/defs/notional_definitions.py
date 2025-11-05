@@ -235,7 +235,9 @@ class NotionalEvidence(BaseNarrativeEvidence):
             if self.additional_details["mitigation"]:
                 additional_text += f" -> Reason: '{self.additional_details.get("mitigation")}'"
             if self.additional_details["result_clause"]:
-                additional_text += f" -> Result: '{self.additional_details.get("result_clause")}'"
+                additional_text += (
+                    f" -> Reason: '{self.additional_details.get("result_clause")}'"
+                )
             text += additional_text
 
         return _cleanup_sentence(text)
