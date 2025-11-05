@@ -3,6 +3,7 @@
 
 import random
 import math
+
 # %%
 # Initialization
 import pandas as pd
@@ -113,8 +114,8 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         output_dir=config["NEW_MODEL_PATH"],
         num_train_epochs=num_epochs,
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size, # Use same batch size for eval
-        gradient_accumulation_steps=4, # Accumulate gradients to simulate a larger batch size
+        per_device_eval_batch_size=batch_size,  # Use same batch size for eval
+        gradient_accumulation_steps=4,  # Accumulate gradients to simulate a larger batch size
         optim="paged_adamw_32bit",
         save_steps=100,
         logging_steps=25,
@@ -172,8 +173,13 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
 def run_manual_test():
     """Allows for manual, interactive testing of the fine-tuned model."""
     model_path = config["NEW_MODEL_PATH"]
-    if not Path(model_path).exists() or not (Path(model_path) / "adapter_config.json").exists():
-        print(f"❌ Model not found at '{model_path}'. Please train a model first (Option 1).")
+    if (
+        not Path(model_path).exists()
+        or not (Path(model_path) / "adapter_config.json").exists()
+    ):
+        print(
+            f"❌ Model not found at '{model_path}'. Please train a model first (Option 1)."
+        )
         return
 
     print("\n--- Loading Model for Manual Testing ---")
@@ -193,7 +199,9 @@ def run_manual_test():
 
     # Load the fine-tuned PEFT model
     model = PeftModel.from_pretrained(base_model, model_path)
-    tokenizer = AutoTokenizer.from_pretrained(config["BASE_MODEL"], trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        config["BASE_MODEL"], trust_remote_code=True
+    )
 
     # Load the dataset to pull random prompts from
     try:
@@ -206,7 +214,9 @@ def run_manual_test():
 
     tokenizer.pad_token = tokenizer.eos_token
 
-    print("✅ Model loaded. Enter your prompt below. Type 'exit' or 'quit' to return to the menu.")
+    print(
+        "✅ Model loaded. Enter your prompt below. Type 'exit' or 'quit' to return to the menu."
+    )
     while True:
         user_prompt = input("\nPrompt: ")
         if user_prompt.lower() in ["exit", "quit"]:
@@ -216,26 +226,58 @@ def run_manual_test():
         if not user_prompt and dataset:
             random_index = random.randint(0, len(dataset) - 1)
             sample = dataset[random_index]
-            user_prompt = sample['prompt']
+            user_prompt = sample["prompt"]
             print("\n--- 🎲 Using Random Prompt from Dataset ---")
             print(user_prompt)
             print("------------------------------------------")
 
         if not user_prompt:
-            print("No prompt provided. Please enter a prompt or press Enter for a random one.")
+            print(
+                "No prompt provided. Please enter a prompt or press Enter for a random one."
+            )
             continue
 
         # Format the prompt for the model
         formatted_prompt = f"<|user|>\n{user_prompt}<|end|>\n<|assistant|>\n"
-        inputs = tokenizer(formatted_prompt, return_tensors="pt", return_attention_mask=True).to("cuda")
+        # Fixed code:
+        # Add these debug statements in run_manual_test():
+        inputs = tokenizer(formatted_prompt, return_tensors="pt").to("cuda")
 
-        # Generate the response
-        outputs = model.generate(**inputs, max_new_tokens=512, pad_token_id=tokenizer.eos_token_id)
-        
-        # Decode and print the output, skipping the prompt part
-        response_text = tokenizer.batch_decode(outputs)[0]
-        print("\n--- Generated Response ---")
-        print(response_text.split("<|assistant|>")[1].replace("<|end|>", "").strip())
+        # Debug prints
+        print("\n--- DEBUG INFO ---")
+        print(f"Input keys: {inputs.keys()}")
+        print(f"input_ids shape: {inputs['input_ids'].shape}")
+        print(f"input_ids dtype: {inputs['input_ids'].dtype}")
+        if "attention_mask" in inputs:
+            print(f"attention_mask shape: {inputs['attention_mask'].shape}")
+            print(f"attention_mask dtype: {inputs['attention_mask'].dtype}")
+        print(f"Model device: {next(model.parameters()).device}")
+        print(f"Model dtype: {next(model.parameters()).dtype}")
+        print(f"Tokenizer pad_token: {tokenizer.pad_token}")
+        print(f"Tokenizer pad_token_id: {tokenizer.pad_token_id}")
+        print(f"Tokenizer eos_token_id: {tokenizer.eos_token_id}")
+        print("------------------\n")
+
+        # Add this right after loading the model in run_manual_test():
+        model.eval()  # Set to evaluation mode
+
+        # Then in the generation loop, wrap it with torch.no_grad():
+        with torch.no_grad():
+            outputs = model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                max_new_tokens=512,
+                pad_token_id=tokenizer.eos_token_id,
+                do_sample=False,  # Add this for deterministic generation
+            )
+
+            # Decode and print the output, skipping the prompt part
+            response_text = tokenizer.batch_decode(outputs)[0]
+            print("\n--- Generated Response ---")
+            print(
+                response_text.split("<|assistant|>")[1].replace("<|end|>", "").strip()
+            )
+
 
 def view_dataset_sample():
     """Loads and displays a random sample from the training dataset."""
@@ -249,17 +291,18 @@ def view_dataset_sample():
     try:
         # Load the full dataset
         dataset = load_dataset("parquet", data_files=data_path, split="train")
-        
+
         # Select a random sample
         random_index = random.randint(0, len(dataset) - 1)
         sample = dataset[random_index]
 
-        print("\n" + "="*25 + " RANDOM SAMPLE " + "="*25)
+        print("\n" + "=" * 25 + " RANDOM SAMPLE " + "=" * 25)
         print(f"\n[PROMPT]\n{sample['prompt']}")
         print(f"\n[COMPLETION]\n{sample['completion']}")
-        print("\n" + "="*65)
+        print("\n" + "=" * 65)
     except Exception as e:
         print(f"❌ Failed to load or read the dataset: {e}")
+
 
 def huggingface_auth():
     """Handles Hugging Face authentication."""
