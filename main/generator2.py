@@ -4097,7 +4097,7 @@ def generate_dataset(
         prompt = (
             "Analyze the following text from a financial report to identify derivative usage. "
             "Extract details on all derivative instruments, the company's risk exposures, and its mitigation strategies. "
-            "Your response must be a single, valid JSON object conforming to the required schema.\n\n"
+            "Your response must be a single, valid JSON object conforming to the required keys: 'analysis_summary', 'exposure', 'mitigation', and 'derivatives'.\n\n"
             f"Text: {narrative}"
         )
 
