@@ -229,8 +229,16 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
         if warning:
             text = f"{text} {warning}"
+        if self.additional_details:
+            # There is a mitigation clause or result clause
+            additional_text = ""
+            if self.additional_details["mitigation"]:
+                additional_text += f" -> Reason: '{self.additional_details.get("mitigation")}'"
+            if self.additional_details["result_clause"]:
+                additional_text += f" -> Result: '{self.additional_details.get("result_clause")}'"
+            text += additional_text
 
-        return " ".join(text.split())
+        return _cleanup_sentence(text)
 
 
 @dataclass
