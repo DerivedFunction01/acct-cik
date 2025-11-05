@@ -3865,8 +3865,15 @@ def generate_training_sample(archetype_index=None, allow_random_drops: bool = Tr
         archetype_index: The index of the archetype to use. If None, a random one is chosen.
         allow_random_drops: If True, simulates incomplete text by randomly dropping sections.
     """
-    # 1. Create the "story" or scenario
-    scenario = create_random_scenario(archetype_index=archetype_index)
+    # 1. Create the "story" or scenario.
+    # With a 25% chance, generate a completely random archetype instead of picking from the list.
+    if random.random() < 0.25:
+        # This will call _create_truly_random_archetype()
+        scenario = create_random_scenario(archetype_index=None)
+    else:
+        # Otherwise, pick a random one from the predefined list.
+        scenario = create_random_scenario(archetype_index=archetype_index)
+
     # 2. Generate the narrative text and the evidence list from the scenario
     narrative, evidence = generate_narrative_from_scenario(scenario, allow_random_drops=allow_random_drops)
     # 3. Generate the structured JSON output from the evidence
@@ -3896,7 +3903,10 @@ def generate_dataset(
     all_training_records = []
     for _ in tqdm(range(num_samples), desc="Generating Samples"):
         # 1. Generate the narrative and the target JSON object
+        # The archetype_index will be used most of the time, but generate_training_sample
+        # now has a 25% chance to override this and create a truly random archetype.
         narrative, target_json = generate_training_sample(
+            archetype_index=random.randint(0, len(SCENARIO_ARCHETYPES) - 1),
             allow_random_drops=allow_random_drops
         )
 
