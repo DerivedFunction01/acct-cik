@@ -71,13 +71,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
             # --- FIX: Restore maturity year to the reasoning for individual instruments. ---
             # This creates a more descriptive reasoning string like "(2020, matures: 2025)".
             if self.maturity_year is not None and self.maturity_year != self.year and self.maturity_year > 0:
-                return f" ({self.year}, matures: {self.maturity_year})"
+                return f" (stated year: {self.year}, matures: {self.maturity_year})"
             else:
                 # If maturity is unknown or same as the data year, just show the year.
-                return f" ({self.year})"
+                return f" (stated year: {self.year})"
 
         # Fallback for aggregate summaries and other cases.
-        return f" ({self.year})"
+        return f" (stated year: {self.year})"
 
     def _validate_temporal_consistency(self) -> Optional[str]:
         """Detect inconsistent or ambiguous temporal relationships."""
@@ -230,15 +230,14 @@ class NotionalEvidence(BaseNarrativeEvidence):
         if warning:
             text = f"{text} {warning}"
         if self.additional_details:
-            # There is a mitigation clause or result clause
-            additional_text = ""
-            if self.additional_details["mitigation"]:
-                additional_text += f" -> Reason: '{self.additional_details.get("mitigation")}'"
-            if self.additional_details["result_clause"]:
-                additional_text += (
-                    f" -> Reason: '{self.additional_details.get("result_clause")}'"
-                )
-            text += additional_text
+            reasons = []
+            if self.additional_details.get("mitigation"):
+                reasons.append(self.additional_details["mitigation"])
+            if self.additional_details.get("result_clause"):
+                reasons.append(self.additional_details["result_clause"])
+
+            if reasons:
+                text += f" -> Reason: {', '.join(f'\"{r}\"' for r in reasons)}"
 
         return _cleanup_sentence(text)
 
