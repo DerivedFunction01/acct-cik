@@ -102,7 +102,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
     def to_string(self) -> str:
         """Generates a detailed reasoning statement describing notional or fair value evidence, 
         while remaining robust to missing fields and providing temporal context."""
-        
+
         category_name = self._category_label()
         category_context = f"{category_name} derivative activity" if category_name else "derivative activity"
         classification_note = ""
@@ -172,7 +172,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
             curr_part = f" {self.notional_str} in {self.reporting_year}" if self.notional_str and self.reporting_year else ""
             return (
                 f"Comparative disclosure for {base_desc} shows {value_desc} change from{prev_part} to{curr_part}"
-                f"{temporal_info}{maturity_hint}{currency_hint}"
+                f"{maturity_hint}{currency_hint}{temporal_info}"
             )
 
         def comparative_no_outstanding_handler() -> str:
@@ -180,20 +180,20 @@ class NotionalEvidence(BaseNarrativeEvidence):
                 f"No current {base_desc} outstanding in {self.reporting_year}, "
                 f"compared with {self.prev_notional_str} in {self.prev_year}"
             )
-            return desc + f"{temporal_info}{maturity_hint}{currency_hint}"
+            return desc + f"{maturity_hint}{currency_hint}{temporal_info}"
 
         def comparative_no_prior_outstanding_handler() -> str:
             desc = (
                 f"New {base_desc} activity in {self.reporting_year}"
                 f" with a {value_desc} of {self.notional_str}, where none existed previously"
             )
-            return desc + f"{temporal_info}{maturity_hint}{currency_hint}"
+            return desc + f"{maturity_hint}{currency_hint}{temporal_info}"
 
         def historical_individual_handler() -> str:
             desc = f"A {base_desc} mention"
             if self.notional_str:
                 desc += f" reflecting a {value_desc} of {self.notional_str}"
-            return desc + temporal_info + maturity_hint + currency_hint
+            return desc + maturity_hint + currency_hint + temporal_info
 
         def timeline_handler() -> str:
             start_val = (
@@ -206,7 +206,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
             )
             return (
                 f"A timeline for {base_desc} shows {value_desc} progression"
-                f"{start_val}{end_val}{temporal_info}{maturity_hint}{currency_hint}"
+                f"{start_val}{end_val}{maturity_hint}{currency_hint}{temporal_info}"
             )
 
         handlers: Dict[str, Callable[[], str]] = {
