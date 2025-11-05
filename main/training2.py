@@ -31,7 +31,7 @@ IS_AUTHENTICATED = False
 
 def format_prompt(sample):
     """Formats a sample for instruction fine-tuning."""
-    return f"<|user|>\n{sample['prompt']}<|end|>\n<|assistant|>\n{sample['response']}<|end|>"
+    return f"<|user|>\n{sample['prompt']}<|end|>\n<|assistant|>\n{sample['completion']}<|end|>"
 
 
 def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=4):
