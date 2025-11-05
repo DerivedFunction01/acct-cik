@@ -18,7 +18,7 @@ from huggingface_hub import login
 from pathlib import Path
 
 config = {
-    "DATA_PATH": "./training_data.parquet",
+    "DATA_PATH": "training_data.parquet",
     "BASE_MODEL": "microsoft/Phi-4-mini-instruct",
     "NEW_MODEL_PATH": "phi4-mini-derivatives-v1",
     "MODEL_USER": "DerivedFunction",
