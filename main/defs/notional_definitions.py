@@ -71,7 +71,13 @@ class NotionalEvidence(BaseNarrativeEvidence):
             # --- FIX: Restore maturity year to the reasoning for individual instruments. ---
             # This creates a more descriptive reasoning string like "(2020, matures: 2025)".
             if self.maturity_year is not None and self.maturity_year != self.year and self.maturity_year > 0:
-                return f" (stated year: {self.year}, matures: {self.maturity_year})"
+                if self.sentence_type != "timeline":
+                    return f" (stated year: {self.year}, matures: {self.maturity_year})"
+                else:
+                    if self.year > self.maturity_year: # Didn't mature
+                        return f" (beginning year: {self.prev_year}, end year: {self.year})"
+                    else:
+                        return f" (beginning year: {self.year}, matures: {self.maturity_year})"
             else:
                 # If maturity is unknown or same as the data year, just show the year.
                 return f" (stated year: {self.year})"
@@ -105,7 +111,6 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
         category_name = self._category_label()
         category_context = f"{category_name} derivative activity" if category_name else "derivative activity"
-        classification_note = ""
         value_desc = "fair value" if self.value_type == "fair_value" else "notional value"
 
         temporal_info = self._temporal_reasoning() if self.year or self.reporting_year else ""
