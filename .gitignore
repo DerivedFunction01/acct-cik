@@ -22,3 +22,4 @@ derivative-classifier
 .*.*
 backup
 *.conf
+Unsloth*.py
