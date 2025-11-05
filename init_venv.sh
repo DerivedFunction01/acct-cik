@@ -55,8 +55,9 @@ else
 fi
 
 # --- Packages ---
-BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn matplotlib"
-ML_PACKAGES="scikit-learn datasets transformers accelerate bitsandbytes peft trl IPython ipywidgets ipykernel"
+BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn matplotlib unzip"
+ML_PACKAGES="scikit-learn datasets transformers accelerate bitsandbytes IPython ipywidgets ipykernel"
+ML_PACKAGES2="git+https://github.com/huggingface/peft.git git+https://github.com/huggingface/trl.git"
 
 # --- Handle PyTorch (skip if locked unless --reinstall-torch) ---
 if [ -f "$TORCH_LOCK_FILE" ] && [ "$REINSTALL_TORCH" = false ]; then
@@ -101,6 +102,7 @@ if [ "$BASE_ONLY" = true ]; then
 else
   echo "Installing all packages (including ML)..."
   pip install $BASE_PACKAGES $ML_PACKAGES
+  pip install $ML_PACKAGES2
 fi
 
 echo "✅ Environment setup complete."
