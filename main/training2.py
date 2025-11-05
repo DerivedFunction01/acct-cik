@@ -23,19 +23,22 @@ from pathlib import Path
 
 config = {
     "DATA_PATH": "training_data.parquet",
-    "BASE_MODEL": "microsoft/Phi-4-mini-instruct",
-    "NEW_MODEL_PATH": "phi4-mini-derivatives-v1",
+    "BASE_MODEL": "Qwen/Qwen2.5-7B-Instruct",
+    "NEW_MODEL_PATH": "qwen2.5-7B-derivatives-v1",
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN_PATH": "hf_token",
 }
+
+# Required package versions for Qwen2.5
+# transformers>=4.37.0, accelerate>=0.26.0, peft>=0.8.0
 IS_AUTHENTICATED = False
 
 # %%
 
 
 def format_prompt(sample):
-    """Formats a sample for instruction fine-tuning."""
-    return f"<|user|>\n{sample['prompt']}<|end|>\n<|assistant|>\n{sample['completion']}<|end|>"
+    """Formats a sample for instruction fine-tuning using Qwen's chat template."""
+    return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
 
 
 def compute_metrics(p: EvalPrediction):
@@ -114,8 +117,8 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         output_dir=config["NEW_MODEL_PATH"],
         num_train_epochs=num_epochs,
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,  # Use same batch size for eval
-        gradient_accumulation_steps=4,  # Accumulate gradients to simulate a larger batch size
+        per_device_eval_batch_size=batch_size,
+        gradient_accumulation_steps=4,
         optim="paged_adamw_32bit",
         save_steps=100,
         logging_steps=25,
@@ -140,11 +143,12 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         data_collator=None,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        processing_class=tokenizer,  # This is the correct parameter name
+        processing_class=tokenizer,
         compute_metrics=compute_metrics,
         peft_config=peft_config,
         formatting_func=format_prompt,
     )
+
     # --- Train and Save ---
     print(f"\nStarting training for {num_epochs} epochs...")
     trainer.train()
@@ -197,14 +201,15 @@ def run_manual_test():
         device_map="auto",
     )
 
-    # Load the fine-tuned PEFT model
-    # Add this right after loading the model in run_manual_test():
+    # Load the fine-tuned PEFT model and merge adapters
     model = PeftModel.from_pretrained(base_model, model_path)
-    model = model.merge_and_unload()  # Merge LoRA weights into base model
+    model = model.merge_and_unload()
     model.eval()
+
     tokenizer = AutoTokenizer.from_pretrained(
         config["BASE_MODEL"], trust_remote_code=True
     )
+    tokenizer.pad_token = tokenizer.eos_token
 
     # Load the dataset to pull random prompts from
     try:
@@ -215,11 +220,10 @@ def run_manual_test():
         print("   You can still enter prompts manually.")
         dataset = None
 
-    tokenizer.pad_token = tokenizer.eos_token
-
     print(
         "✅ Model loaded. Enter your prompt below. Type 'exit' or 'quit' to return to the menu."
     )
+
     while True:
         user_prompt = input("\nPrompt: ")
         if user_prompt.lower() in ["exit", "quit"]:
@@ -240,28 +244,13 @@ def run_manual_test():
             )
             continue
 
-        # Format the prompt for the model
-        formatted_prompt = f"<|user|>\n{user_prompt}<|end|>\n<|assistant|>\n"
-        # Fixed code:
-        # Add these debug statements in run_manual_test():
+        # Format the prompt using Qwen's chat template
+        formatted_prompt = (
+            f"<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
+        )
         inputs = tokenizer(formatted_prompt, return_tensors="pt").to("cuda")
 
-        # Debug prints
-        print("\n--- DEBUG INFO ---")
-        print(f"Input keys: {inputs.keys()}")
-        print(f"input_ids shape: {inputs['input_ids'].shape}")
-        print(f"input_ids dtype: {inputs['input_ids'].dtype}")
-        if "attention_mask" in inputs:
-            print(f"attention_mask shape: {inputs['attention_mask'].shape}")
-            print(f"attention_mask dtype: {inputs['attention_mask'].dtype}")
-        print(f"Model device: {next(model.parameters()).device}")
-        print(f"Model dtype: {next(model.parameters()).dtype}")
-        print(f"Tokenizer pad_token: {tokenizer.pad_token}")
-        print(f"Tokenizer pad_token_id: {tokenizer.pad_token_id}")
-        print(f"Tokenizer eos_token_id: {tokenizer.eos_token_id}")
-        print("------------------\n")
-
-        # Then in the generation loop, wrap it with torch.no_grad():
+        # Generate the response
         with torch.no_grad():
             outputs = model.generate(
                 input_ids=inputs["input_ids"],
@@ -270,16 +259,24 @@ def run_manual_test():
                 pad_token_id=tokenizer.eos_token_id,
                 eos_token_id=tokenizer.eos_token_id,
                 do_sample=False,
-                num_beams=1,  # Greedy decoding
+                num_beams=1,
                 use_cache=True,
             )
 
-            # Decode and print the output, skipping the prompt part
-            response_text = tokenizer.batch_decode(outputs)[0]
-            print("\n--- Generated Response ---")
-            print(
-                response_text.split("<|assistant|>")[1].replace("<|end|>", "").strip()
+        # Decode and print the output
+        response_text = tokenizer.batch_decode(outputs, skip_special_tokens=False)[0]
+        print("\n--- Generated Response ---")
+
+        # Extract just the assistant's response
+        if "<|im_start|>assistant" in response_text:
+            response = (
+                response_text.split("<|im_start|>assistant")[-1]
+                .replace("<|im_end|>", "")
+                .strip()
             )
+            print(response)
+        else:
+            print(response_text)
 
 
 def view_dataset_sample():
