@@ -227,7 +227,7 @@ def run_manual_test():
 
         # Format the prompt for the model
         formatted_prompt = f"<|user|>\n{user_prompt}<|end|>\n<|assistant|>\n"
-        inputs = tokenizer(formatted_prompt, return_tensors="pt", return_attention_mask=False).to("cuda")
+        inputs = tokenizer(formatted_prompt, return_tensors="pt", return_attention_mask=True).to("cuda")
 
         # Generate the response
         outputs = model.generate(**inputs, max_new_tokens=512, pad_token_id=tokenizer.eos_token_id)
