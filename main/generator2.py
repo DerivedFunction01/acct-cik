@@ -3456,7 +3456,7 @@ def collect_evidence_strings(
     }
 
     accounting_evidence_list: List["AccountingStandardEvidence"] = []
-
+    first_mitigation_mention = True
     for ev in evidence:
         if isinstance(ev, PolicyEvidence):
             if mitigation_map.get(ev.category) == "policy_only":
@@ -3467,7 +3467,13 @@ def collect_evidence_strings(
                 )
                 if reasoning not in other_evidence_strings:
                     other_evidence_strings.append(reasoning)
-
+        elif isinstance(ev, MitigationEvidence):
+            if first_mitigation_mention:
+                other_evidence_strings.append(
+                    "The text mentions the company's policy and mitigation efforts against various market risks. Let's see if that gives a hint on any usage of derivative instruments."
+                )
+                first_mitigation_mention = False
+            other_evidence_strings.append(ev.to_string())
         elif isinstance(ev, AccountingStandardEvidence):
             accounting_evidence_list.append(ev)
 
@@ -3495,11 +3501,6 @@ def collect_evidence_strings(
                 not in {e.category for e in evidence if isinstance(e, ContextEvidence)}
             ):
                 exposure_descriptions.append(ev.to_string())
-        elif not any(isinstance(e, MitigationEvidence) for e in evidence) and isinstance(ev, MitigationEvidence):
-            other_evidence_strings.append(
-                "The text mentions the company's policy and mitigation efforts against various market risks. Let's see if that gives a hint on any usage of derivative instruments."
-            )
-            other_evidence_strings.append(ev.to_string())
         else:
             reasoning = ev.to_string()
             if reasoning:
