@@ -379,7 +379,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
             linguistic_cue = f"The use of the verb '{self.verb}'"
 
         if self.usage_status == "non_use":
-            base_sentence = f"A statement of non-use was found for {category_name} derivatives. {linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging."
+            base_sentence = f"{linguistic_cue} in relation to {instrument_desc} indicates the company does not engage in this type of hedging for {category_name} risk."
             return base_sentence
 
         # --- FIX: Use more natural language for speculative/historical status ---
