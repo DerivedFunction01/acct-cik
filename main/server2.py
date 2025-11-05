@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
 import torch
 import os
 import json
@@ -8,6 +9,7 @@ from threading import Thread
 import multiprocessing as mp
 
 app = Flask(__name__)
+CORS(app)  # Enable Cross-Origin Resource Sharing for the entire app
 
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/derivatives-classifier-4B"  # Your new generative model
@@ -112,11 +114,8 @@ def generate_endpoint():
     if not data or "prompt" not in data or not isinstance(data["prompt"], str):
         return jsonify({"error": "Missing or invalid 'prompt' field; must be a string"}), 400
 
-    print(f"DEBUG: /generate endpoint hit with data: {data.keys()}")
-    prompt = data["prompt"]    
-    prediction = generate_response(prompt)    
-    # Use json.dumps to serialize the prediction to a JSON string
-    prediction = json.dumps({"prediction": prediction})
+    prompt = data["prompt"]
+    prediction = generate_response(prompt)
     print("DEBUG: Sending prediction back to client.")
     return jsonify({"prediction": prediction})
 
