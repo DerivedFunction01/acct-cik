@@ -68,8 +68,8 @@ This is the most critical phase. Before any model training, the data generation 
         -   Inclusion of embedded derivatives alongside standard hedges.
 
 -   **[ ] Port Contextual "Noise" Generation:**
-    -   **[x] Port Contextual "Noise" Generation:** The old `generator.py` had functions that created realistic, non-derivative sentences to provide context around the main topic. This "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk.
-    -   **[x] Port IR/Debt Context:** Done. `DebtContextSentence` has been created and integrated into the IR narrative generation in `generator2.py`.
+    -   **[x] Port Contextual "Noise" Generation:** The old `generator.py` had functions that created realistic, non-derivative sentences to provide context around the main topic. This "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk. Done.
+    -   **[x] Port IR/Debt Context:** Done. `DebtContextSentence` has been created and integrated into the IR narrative generation in `generator2.py`. Done.
     -   **[x] Port FX Context:**
         -   **[x] Action:** Create a new `FXContextSentence` class in `defs/fx_data.py`. Done.
     -   **[x] Port CP Context:**
@@ -77,8 +77,8 @@ This is the most critical phase. Before any model training, the data generation 
     -   **[x] Port EQ Context:**
         -   **[x] Action:** Create a new `EQContextSentence` class in `defs/eq_data.py`. Done.
     -   **[x] Integrate New Context Classes:**
-        -   **[x] Action:** Integrate the `build()` methods for `FXContextSentence` and `CPContextSentence` into `generator2.py`'s `_generate_category_narrative` function for their respective categories. This is done probabilistically to inject relevant, non-derivative context.
-        -   **[x] Action:** Integrate the `build()` method for `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for the EQ category.
+        -   **[x] Action:** Integrate the `build()` methods for `FXContextSentence` and `CPContextSentence` into `generator2.py`'s `_generate_category_narrative` function for their respective categories. This is done probabilistically to inject relevant, non-derivative context. Done.
+        -   **[x] Action:** Integrate the `build()` method for `EQContextSentence` into `generator2.py`'s `_generate_category_narrative` function for the EQ category. Done.
 
 -   **[x] Improve Generation Quality (Continued):**
     -   **[x] Further Improvements to Generation Quality:**
@@ -120,14 +120,14 @@ This is the most critical phase. Before any model training, the data generation 
     -   **Input (Prompt):** A consistent instruction, e.g., `Analyze the following text... Text: <paragraph>`.
     -   **Output (Response):** The generated JSON string from `generator.py`.
 
--   **[ ] Choose a Model and Training Framework:**
-    -   **Model:** Based on available hardware (T4, laptop 5070 GPU), `microsoft/phi-3-mini-4k-instruct` (3.8B parameters) is the recommended starting point. It offers an excellent balance of performance and resource efficiency.
-    -   **Framework:** Replace the current `Trainer` with Hugging Face's `SFTTrainer` (from the `trl` library), which is specifically designed for supervised fine-tuning of instruction models.
-    -   **Technique:** Use Q-LoRA for memory-efficient fine-tuning on consumer-grade GPUs.
+-   **[x] Choose a Model and Training Framework:**
+    -   **Model:** The `training2.py` script implements `unsloth/Qwen3-4B-Thinking-2507-unsloth-bnb-4bit`, a powerful 4B parameter model. This choice is excellent and aligns with the project's goals.
+    -   **Framework:** `training2.py` correctly uses Hugging Face's `SFTTrainer` from the `trl` library.
+    -   **Technique:** The training script successfully implements Q-LoRA via the Unsloth library for highly efficient fine-tuning.
 
 ---
 
-## 4. Phase 3: Implement the Inference and Analysis Pipeline
+## 4. Phase 3: Implement the Inference and Analysis Pipeline (In Progress)
 
 -   **[ ] Re-evaluate Text Extraction (`webpage.py`):**
     -   The current method extracts small paragraphs (~1200 chars). With a larger context model (e.g., Phi-3 Mini with a 4k window), we can extract larger, more coherent chunks of text.
@@ -135,9 +135,7 @@ This is the most critical phase. Before any model training, the data generation 
     -   The goal is to find a balance between chunk size and the model's context length to maximize comprehension without truncation.
 
 -   **[ ] Update `classify.py` to use the new Generative Model:**
-    -   The current workflow of extracting relevant paragraphs from filings (`webpage.py`) remains valid.
-    -   Modify `classify.py` to loop through these paragraphs. For each one, it will format the instruction prompt and send it to the fine-tuned generative model.
-    -   The script will collect a list of JSON objects (one for each paragraph).
+    -   **Done.** This has been implemented in `test2.py`. It reads prompts, sends them to the `server2.py` endpoint, and collects the resulting JSON objects. The logic can be ported to a new `classify2.py` when ready.
 
 -   **[ ] Update `analysis.py` for Aggregation:**
     -   The `PredictionsProcessor` needs to be rewritten.
