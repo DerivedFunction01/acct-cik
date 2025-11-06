@@ -158,11 +158,11 @@ This is the most critical phase. Before any model training, the data generation 
             3.  "Found another mention of a 'swap contract' with notional YY > 0 for year 2023 > 2025. Wait, this seems to be an alias for the 'interest-rate swap' from step 1. I will treat it as a duplicate mention."
             4.  "Found another mention of an 'interest-rate swap' with the same notional and year. This is a duplicate of the instrument from step 1."
 
--   [ ] Improve Chain of Thought (COT) for Tables:
-    -   The COT for tables is currently generic. It should be enhanced to provide more specific reasoning, linking the data in the table directly to the conclusions.
-    -   **Action: Update `DerivativeTable` and COT Generation:**
-        -   Modify the table builder classes (e.g., `DerivativeTable`) to also return metadata about which columns and rows correspond to specific instrument properties (e.g., notional amounts, maturity dates).
-        -   Update the COT generation logic to use this metadata to create more explicit reasoning, such as: "From the 'Notional Amounts' table, I see the row for 'Interest Rate Swaps' shows a value of $100 million for 2023, indicating an active instrument."
+    -   **[X] Improve Chain of Thought (COT) for Tables:**
+        -   The COT for tables is currently generic. It should be enhanced to provide more specific reasoning, linking the data in the table directly to the conclusions.
+        -   **Action: Update `DerivativeTable` and COT Generation:**
+            -   Modify the table builder classes (e.g., `DerivativeTable`) to also return metadata about which columns and rows correspond to specific instrument properties (e.g., notional amounts, maturity dates).
+            -   Update the COT generation logic to use this metadata to create more explicit reasoning, such as: "From the 'Notional Amounts' table, I see the row for 'Interest Rate Swaps' shows a value of $100 million for 2023, indicating an active instrument."
 ---
 
 ## 5. Deprecation Plan
