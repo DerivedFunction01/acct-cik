@@ -1,15 +1,17 @@
 # %%
 from dataclasses import asdict
 import random, copy
+from pathlib import Path
 import pandas as pd
 import sys
 import string
 from collections import Counter
 import json, re
 from tqdm import tqdm
+import wikipedia
 from typing import Any, List, Dict, Literal, Optional, Set, Tuple
 
-from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
+from defs.scenario_definitions import GenerationScenario, ScenarioArchetype, UnrelatedText
 from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
 from defs.common_data import *
 from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument 
@@ -530,6 +532,25 @@ SCENARIO_ARCHETYPES = [
         prefers_abbreviated_numbers=True,
         prefers_tables=False,
         preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
+        name="Non-Financial Noise",
+        debt_exposure_range=(0, 0),
+        fx_exposure_range=(0, 0),
+        commodity_exposure_range=(0, 0),
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none",
+        comparative_years=1,
+        notional_multiplier=0,
+        can_have_accounting_update=False,
     ),
 ]
 
@@ -1074,11 +1095,63 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
         policy=generate_policy_for_archetype(archetype),
         number_format_preference=archetype.prefers_abbreviated_numbers,
         archetype=archetype,
+        unrelated_text=(
+            UnrelatedText(text=get_non_financial_text())
+            if archetype.name == "Non-Financial Noise"
+            else None
+        ),
+
     )
 
     # Use the builder to construct the full scenario
     builder = ScenarioBuilder(scenario)
     return builder.build()
+
+def get_non_financial_text(
+    num_articles_to_cache: int = 50, max_length: int = 1500
+) -> str:
+    """
+    Fetches a random article from a predefined list of non-financial Wikipedia categories.
+    Caches results in a parquet file to avoid re-fetching.
+
+    Returns:
+        A string containing a chunk of non-financial text.
+    """
+    cache_file = Path("./non_financial_noise.parquet")
+    articles_df = None
+
+    # 1. Try to load from cache
+    if cache_file.exists():
+        articles_df = pd.read_parquet(cache_file)
+
+    # 2. If cache is empty or doesn't exist, fetch from Wikipedia
+    if articles_df is None or articles_df.empty:
+        print("Noise cache not found or empty. Fetching new articles from Wikipedia...")
+        fetched_articles = []
+        with tqdm(total=num_articles_to_cache, desc="Fetching Noise") as pbar:
+            while len(fetched_articles) < num_articles_to_cache:
+                try:
+                    # wikipedia.random() is a simple way to get diverse topics
+                    page_title = wikipedia.random(pages=1)
+                    page = wikipedia.page(page_title, auto_suggest=False, redirect=True)
+
+                    # Basic check to avoid financial topics that might slip through
+                    if any(kw in page.title.lower() for kw in ["finance", "business", "economics", "company"]):
+                        continue
+
+                    content = page.content
+                    content = re.sub(r'==.*?==', '', content) # Remove headers
+                    content = re.sub(r'\n+', ' ', content).strip()
+                    fetched_articles.append({"text": content})
+                    pbar.update(1)
+                except (wikipedia.exceptions.PageError, wikipedia.exceptions.DisambiguationError):
+                    continue # Ignore errors and try again
+        
+        articles_df = pd.DataFrame(fetched_articles)
+        articles_df.to_parquet(cache_file, index=False)
+
+    # 3. Return a random article from the dataframe
+    return articles_df.sample(1).iloc[0]["text"][:max_length]
 
 def _randomize_archetype_properties(archetype: ScenarioArchetype) -> ScenarioArchetype:
     """
@@ -3211,6 +3284,11 @@ def generate_narrative_from_scenario(
     # =========================================================================
     # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
     # =========================================================================
+    # --- NEW: Handle Non-Financial Noise Scenarios ---
+    if scenario.unrelated_text:
+        # For these scenarios, the narrative is just the unrelated text.
+        return scenario.unrelated_text.text, []
+
     narrative_sections = []
     narrative_sections.extend(s for s in forward_looking_section if s)
     narrative_sections.extend(s for s in business_section if s)
@@ -4049,6 +4127,20 @@ def generate_json_from_scenario(
         return mitigation_map
 
     # Check if this is a noise-only scenario
+    # --- NEW: Check for non-financial noise scenario ---
+    if scenario.unrelated_text:
+        return {
+            "chain_of_thought": ( 
+                "\n".join(_generate_introduction()),
+                "However, I have analyzed the text. The content appears to be unrelated to financial reporting, SEC filings, or derivative instruments. "
+                "Therefore, no financial analysis is applicable."
+            ),
+            "analysis_summary": "The provided text is non-financial and unrelated to derivative disclosures.",
+            "exposure": {cat: False for cat in DERIVATIVE_CATEGORIES},
+            "mitigation": {cat: "none" for cat in DERIVATIVE_CATEGORIES},
+            "derivatives": [],
+        }
+
     is_noise_only_scenario = not any(
         isinstance(ev, (NotionalEvidence, MitigationEvidence)) for ev in evidence
     )

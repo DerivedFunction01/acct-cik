@@ -24,6 +24,11 @@ class BaseArchetype:
 class UnrelatedArchetype(BaseArchetype):
     """Defines the profile of a scenario that is unrelated to the company archetype."""
     topic: str
+
+@dataclass
+class UnrelatedText:
+    """Holds a chunk of unrelated, non-financial text."""
+    text: str
     
 @dataclass
 class ScenarioArchetype(BaseArchetype):
@@ -76,4 +81,5 @@ class GenerationScenario:
     number_format_preference: bool = (
         True  # True for abbreviated, False for full numeric
     )
+    unrelated_text: Optional[UnrelatedText] = None
     accounting_updates: List[AccountingStandardUpdate] = field(default_factory=list)
