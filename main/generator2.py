@@ -3942,13 +3942,13 @@ def build_chain_of_thought(
         chain_of_thought_parts.append(generic_reasoning.strip())
     
     # --- NEW: Explain how exposure and mitigation are determined ---
-    cot_summary_lines.extend(_build_exposure_mitigation_cot())
+    chain_of_thought_parts.extend(_build_exposure_mitigation_cot())
     
     # Add final filtering step
     chain_of_thought_parts.append("---")
     chain_of_thought_parts.append(
         f"Finally, I will filter the extracted amounts to include only those for the reporting "
-        f"year ({scenario.reporting_year}) with a non-zero value to ensure the output reflects "
+        f"year ({scenario.reporting_year}) with a non-zero value to ensure the final JSON output reflects "
         "only active positions."
     )
 
