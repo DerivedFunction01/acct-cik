@@ -469,7 +469,7 @@ CATEGORY_EXTRAS = {
 
 PLACEHOLDERS = {
     "IR": [
-        "interest-rate",
+        "interest rate",
         "forward-rate",
     ],
     "FX": [

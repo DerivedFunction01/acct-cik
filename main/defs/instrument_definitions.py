@@ -13,7 +13,7 @@ CATEGORY_TO_NAME = {
 }
 
 CATEGORY_TO_DESCRIPTION = {
-    "IR": "debt obligations or other interest-rate sensitive items",
+    "IR": "debt obligations or other interest rate sensitive items",
     "FX": "foreign currency transactions or international operations",
     "CP": "commodity prices",
     "EQ": "equity price changes or stock-based activities",
