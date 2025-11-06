@@ -458,11 +458,13 @@ CATEGORY_EXTRAS = {
     "IR": [],
     "FX": ["NDF"],
     "CP": [],
-    "EQ": ["index future"],
+    "EQ": [
+        "index future",
+        "collar strategy",
+        "total return swap",
+    ],
     "GEN": [
         "over-the-counter contract",
-        "collar strategies",
-        "total return swap",
     ],
 }
 
