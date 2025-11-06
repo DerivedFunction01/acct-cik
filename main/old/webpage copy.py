@@ -137,17 +137,12 @@ CRUNCHED_TEXT_PATTERNS = [
 ]
 
 CLEANUP_PATTERNS = [
-    # MODIFIED: Preserve multiple spaces for table alignment, but normalize other whitespace like tabs, newlines (within the line-by-line context).
-    # The broader paragraph line merging is handled separately.
+    (re.compile(r"\s+"), " "),
     (re.compile(r"\(\s*"), "("),
     (re.compile(r"\s*\)"), ")"),
     (re.compile(r"\s*,"), ","),
-    # NEW: Preserve table-like structures made of ---, ===, or | but remove long dotted/underscored lines
-    (re.compile(r"(\.{4,}|\_{4,})"), ""),
-    # NEW: Remove any remaining HTML tags that might have slipped through.
-    # This is more specific than the old <.*?> to avoid removing valid SEC tags like <S> or <C>.
-    (re.compile(r"</?[a-zA-Z0-9]+( [^>]*)?>"), ""),
-    # Remove common report artifacts and links
+    (re.compile(r"(-{3,}|={3,}|\.{3,}|\_{3,})"), ""),
+    (re.compile(r"<.*?>"), ""),
     (re.compile(r"table of contents", re.IGNORECASE), ""),
     (re.compile(r"F-\d+"), ""),
     (re.compile(r"us-gaap:[a-zA-Z0-9]+"), ""),
@@ -766,20 +761,22 @@ def extract_content(data: str, asHTML=True, max_len=600) -> str:
         if not para:
             continue
 
-        # MODIFICATION: Removed the aggressive merging of newlines within a paragraph.
-        # This is the key change to preserve table structures.
-        # The old line was: `para = re.sub(r"\n+", " ", para)`
+        is_list_item = BULLET_PATTERN.match(
+            para) or NUMBERED_PATTERN.match(para)
+        if not is_list_item:
+            para = re.sub(r"\n+", " ", para)
 
         for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
             para = pattern.sub(replacement, para)
 
         for pattern, replacement in CLEANUP_PATTERNS:
             para = pattern.sub(replacement, para)
-        
+
         para = para.strip()
 
-        # MODIFICATION: Removed the logic that merges small paragraphs into the previous one.
-        if para:
+        if len(para) < 15 and cleaned_paragraphs:
+            cleaned_paragraphs[-1] = f"{cleaned_paragraphs[-1]} {para}"
+        elif para:
             cleaned_paragraphs.append(para)
 
     return "\n\n".join(cleaned_paragraphs)
