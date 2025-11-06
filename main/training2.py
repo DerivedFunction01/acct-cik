@@ -7,12 +7,14 @@ import json
 import random
 import math
 from pathlib import Path
+import multiprocessing
 
 # %%
 # Initialization
 import pandas as pd
 from unsloth import FastLanguageModel
 import torch
+from psutil import virtual_memory
 from datasets import load_dataset
 from transformers import TrainingArguments
 from trl import SFTTrainer
@@ -29,6 +31,48 @@ config = {
 }
 IS_AUTHENTICATED = False
 
+# =============================================================================
+# DYNAMIC CONFIGURATION PROFILES (NEW)
+# =============================================================================
+
+TRAINING_PROFILES = {
+    "1": {
+        "name": "High VRAM / Colab (>= 16GB)",
+        "r": 64,
+        "lora_alpha": 128,
+        "batch_size": 4,
+        "gradient_accumulation": 4,
+        "max_seq_length": 4096,
+        "load_in_4bit": True,
+    },
+    "2": {
+        "name": "Low VRAM (8-16GB)",
+        "r": 16,
+        "lora_alpha": 32,
+        "batch_size": 1,
+        "gradient_accumulation": 8,
+        "max_seq_length": 2048,
+        "load_in_4bit": True,
+    },
+    "3": {
+        "name": "CPU / Low RAM (< 16GB)",
+        "r": 8,
+        "lora_alpha": 16,
+        "batch_size": 1,
+        "gradient_accumulation": 4,
+        "max_seq_length": 1024,
+        "load_in_4bit": False, # 4-bit is not optimized for CPU
+    },
+}
+
+def detect_hardware():
+    """Detects GPU VRAM and system RAM to suggest a profile."""
+    if torch.cuda.is_available():
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        return "gpu", vram_gb
+    else:
+        ram_gb = virtual_memory().total / (1024**3)
+        return "cpu", ram_gb
 # %%
 
 
@@ -48,10 +92,10 @@ def format_prompt(sample):
         return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
 
 
-def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
+def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=1):
     """Main function to run the training process with Unsloth optimization."""
     print(f"\n--- Starting Training with Unsloth ---")
-    print(f"Base Model: {model_name}, Epochs: {num_epochs}, Batch Size: {batch_size}")
+    print(f"Profile: {profile['name']}, Base Model: {model_name}, Epochs: {num_epochs}")
 
     # --- Load and preprocess data ---
     print("\n--- Loading and Preprocessing Data ---")
@@ -90,15 +134,16 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=model_name,
-        max_seq_length=config["MAX_SEQ_LENGTH"],
+        max_seq_length=profile["max_seq_length"],
         dtype=None,  # Auto-detect (will use Float16 for Tesla T4, V100, Bfloat16 for Ampere+)
-        load_in_4bit=True,  # Use 4bit quantization to reduce memory
+        load_in_4bit=profile["load_in_4bit"],  # Use 4bit quantization based on profile
     )
 
     # --- Apply LoRA with Unsloth ---
     model = FastLanguageModel.get_peft_model(
         model,
-        r=16,  # LoRA rank. You can experiment with 8, 32, 64.
+        r=profile["r"],
+        # In a robust Colab environment, "all-linear" is preferred for better performance.
         # Unsloth's "all-linear" can sometimes fail. Specifying modules explicitly is more robust.
         target_modules=[
             "q_proj",
@@ -109,7 +154,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
             "up_proj",
             "down_proj",
         ],
-        lora_alpha=32, # lora_alpha is often set to 2 * r
+        lora_alpha=profile["lora_alpha"],
         lora_dropout=0,  # Unsloth optimizes better with 0 dropout
         bias="none",
         use_gradient_checkpointing="unsloth",  # Unsloth's optimized gradient checkpointing
@@ -122,9 +167,9 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
     training_args = TrainingArguments(
         output_dir=config["NEW_MODEL_NAME"],
         num_train_epochs=num_epochs,
-        per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        gradient_accumulation_steps=8, # Increased from 4 to 8
+        per_device_train_batch_size=profile["batch_size"],
+        per_device_eval_batch_size=profile["batch_size"],
+        gradient_accumulation_steps=profile["gradient_accumulation"],
         warmup_steps=5,
         learning_rate=2e-4,
         max_grad_norm=0.3, # Helps with training stability.
@@ -153,7 +198,7 @@ def run_training(model_name=config["BASE_MODEL"], num_epochs=1, batch_size=1):
         eval_dataset=eval_dataset,
         dataset_text_field="text",  # The field containing our formatted text
         max_seq_length=config["MAX_SEQ_LENGTH"],
-        dataset_num_proc=4,  # Increase for faster data processing
+        dataset_num_proc=multiprocessing.cpu_count(),  # Dynamically set based on available CPUs
         packing=True,  # Pack short sequences for faster training
         args=training_args,
     )
@@ -347,7 +392,7 @@ if __name__ == "__main__":
     try:
         while True:
             print("\n--- Generative Model Training Menu (Unsloth Optimized) ---")
-            print("1. Start Training")
+            print("1. Start Training (Interactive Setup)")
             print("2. View Sample from Dataset")
             print("3. Manually Test Model")
             print("4. Hugging Face Login")
@@ -355,11 +400,33 @@ if __name__ == "__main__":
             choice = input("> ").strip()
 
             if choice == "1":
-                num_epochs = int(
-                    input("Enter number of training epochs [default: 1]: ") or 1
-                )
-                batch_size = int(input("Enter training batch size [default: 1]: ") or 1)
-                run_training(num_epochs=num_epochs, batch_size=batch_size)
+                # --- New Dynamic Menu ---
+                print("\n--- Select a Training Profile ---")
+                hardware_type, ram = detect_hardware()
+                
+                # Suggest a profile
+                if hardware_type == "gpu" and ram >= 16:
+                    recommendation = "1"
+                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 1 is recommended.")
+                elif hardware_type == "gpu":
+                    recommendation = "2"
+                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 2 is recommended.")
+                else:
+                    recommendation = "3"
+                    print(f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Profile 3 is recommended.")
+
+                for key, prof in TRAINING_PROFILES.items():
+                    print(f"  {key}. {prof['name']}")
+                
+                profile_choice = input(f"Enter profile number [default: {recommendation}]: ").strip() or recommendation
+                selected_profile = TRAINING_PROFILES.get(profile_choice)
+
+                if not selected_profile:
+                    print("❌ Invalid profile. Aborting.")
+                    continue
+
+                num_epochs = int(input("Enter number of training epochs [default: 1]: ") or 1)
+                run_training(profile=selected_profile, num_epochs=num_epochs)
             elif choice == "2":
                 view_dataset_sample()
             elif choice == "3":
