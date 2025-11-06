@@ -4035,7 +4035,7 @@ def build_noise_only_chain_of_thought(evidence: List["BaseNarrativeEvidence"]) -
             match: Optional[re.Match[str]] = re.search(
                 r"exposure to (.*?)( but|$)", first_evidence.to_string()
             )
-            risk_area = match.group(1).strip() if match else f"{category} risk"
+            risk_area = match.group(1).strip() if match else f"various risk"
         elif isinstance(first_evidence, ExposureEvidence):
             risk_area = f"{category} risk"
         else:
