@@ -7,6 +7,8 @@ import sys
 import string
 from collections import Counter
 import json, re
+from concurrent.futures import ThreadPoolExecutor
+import multiprocessing as mp
 from tqdm import tqdm
 import wikipedia
 from typing import Any, List, Dict, Literal, Optional, Set, Tuple
@@ -4297,6 +4299,7 @@ def generate_dataset(
     noise_percentage: float = 0.25,
     allow_random_drops: bool = True,
     debug: bool = False,
+    num_workers: int = mp.cpu_count() or 1, # Default to CPU count or 1 if not detectable
 ):
     """
     Generates a dataset of training samples and saves it to a Parquet file.
@@ -4308,7 +4311,7 @@ def generate_dataset(
         allow_random_drops: Whether to enable probabilistic dropping of narrative sections.
         debug: If True, includes debug info in the output file.
     """
-    print(f"Starting dataset generation for {num_samples} samples...")
+    print(f"Starting dataset generation for {num_samples} samples using {num_workers} threads...")
     global DEBUG
     DEBUG = debug # Do not attach headers
 
@@ -4327,30 +4330,36 @@ def generate_dataset(
     if not regular_archetypes:
         raise ValueError("No regular archetypes found. Cannot generate regular samples.")
 
-    for _ in tqdm(range(num_samples), desc="Generating Samples"):
-        # --- NEW: Decide whether to generate a noise or regular sample based on the desired percentage ---
-        if random.random() < noise_percentage:
-            # Generate a noise sample
-            archetype_index, _ = random.choice(noise_archetypes)
-        else:
-            # Generate a regular sample
-            archetype_index, _ = random.choice(regular_archetypes)
+    # Use ThreadPoolExecutor for parallel generation
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = []
+        for _ in range(num_samples):
+            # --- Decide whether to generate a noise or regular sample based on the desired percentage ---
+            if random.random() < noise_percentage:
+                # Generate a noise sample
+                archetype_index, _ = random.choice(noise_archetypes)
+            else:
+                # Generate a regular sample
+                archetype_index, _ = random.choice(regular_archetypes)
 
-        narrative, target_json = generate_training_sample(
-            archetype_index=archetype_index,
-            allow_random_drops=allow_random_drops
-        )
+            # Submit task to the thread pool
+            futures.append(executor.submit(generate_training_sample,
+                                           archetype_index=archetype_index,
+                                           allow_random_drops=allow_random_drops))
 
-        # 2. Format for instruction fine-tuning
-        prompt = (
-            "Analyze the following text from a financial report to identify derivative usage. "
-            "Extract details on all derivative instruments, the company's risk exposures, and its mitigation strategies. "
-            "Your response must be a single, valid JSON object conforming to the required keys: 'analysis_summary', 'exposure', 'mitigation', and 'derivatives'.\n\n"
-            f"Text: {narrative}"
-        )
+        for future in tqdm(futures, desc="Generating Samples"):
+            narrative, target_json = future.result()
 
-        training_record = {"prompt": prompt, "completion": json.dumps(target_json, indent=2)}
-        all_training_records.append(training_record)
+            # 2. Format for instruction fine-tuning
+            prompt = (
+                "Analyze the following text from a financial report to identify derivative usage. "
+                "Extract details on all derivative instruments, the company's risk exposures, and its mitigation strategies. "
+                "Your response must be a single, valid JSON object conforming to the required keys: 'analysis_summary', 'exposure', 'mitigation', and 'derivatives'.\n\n"
+                f"Text: {narrative}"
+            )
+
+            training_record = {"prompt": prompt, "completion": json.dumps(target_json, indent=2)}
+            all_training_records.append(training_record)
 
     df = pd.DataFrame(all_training_records)
     df.to_parquet(output_file, index=False)
