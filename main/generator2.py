@@ -3623,7 +3623,7 @@ def _build_instrument_by_instrument_cot(
     including self-correction for duplicates.
     """
     cot_lines = []
-    processed_instruments: Dict[int, str] = {}  # {instrument_id: instrument_type}
+    processed_instruments: Dict[int, Tuple[str, int]] = {}  # {instrument_id: (instrument_type, step_number)}
     mention_counter = 1
 
     # Filter for only NotionalEvidence that has an amount and instrument ID
@@ -3668,19 +3668,19 @@ def _build_instrument_by_instrument_cot(
 
         # Check for duplicates
         if ev.instrument_id in processed_instruments:
-            original_type = processed_instruments[ev.instrument_id]
+            original_type, original_step = processed_instruments[ev.instrument_id]
             assert ev.instrument_type is not None
             if original_type.lower() == ev.instrument_type.lower():
                 line_parts.append(
-                    f"Wait, this is a duplicate mention of the instrument from step(s) involving '{original_type}'."
+                    f"Wait, this is a duplicate mention of {ev.instrument_type} from step {original_step}."
                 )
             else:
                 line_parts.append(
-                    f"Wait, this appears to be an alias for the '{original_type}' instrument. I will treat it as a duplicate mention."
+                    f"Wait, this appears to be an alias for the '{original_type}' instrument from step {original_step}. I will treat it as a duplicate mention."
                 )
         else:
             assert ev.instrument_type is not None
-            processed_instruments[ev.instrument_id] = ev.instrument_type
+            processed_instruments[ev.instrument_id] = (ev.instrument_type, mention_counter)
 
         cot_lines.append(line_prefix + " ".join(line_parts))
         mention_counter += 1
