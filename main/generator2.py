@@ -3665,7 +3665,7 @@ def _build_instrument_by_instrument_cot(
             # Use the pre-formatted notional string for consistency
             line_parts.append(f"{ev.notional_str} > 0")
         elif ev.active_override:
-            line_parts.append(f"amount not specified")
+            line_parts.append(f"amount not specified but active for ")
 
         if ev.year:
             line_parts.append(f"year {ev.year}")
