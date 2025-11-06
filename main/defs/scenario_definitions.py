@@ -15,12 +15,19 @@ from defs.policy_definitions import AccountingStandardUpdate, RiskManagementPoli
 from defs.common_data import *
 from defs.template_definitions import *
 
+@dataclass
+class BaseArchetype:
+    """Defines the profile of the scenario we are generating."""
+    name: str
 
 @dataclass
-class ScenarioArchetype:
+class UnrelatedArchetype(BaseArchetype):
+    """Defines the profile of a scenario that is unrelated to the company archetype."""
+    topic: str
+    
+@dataclass
+class ScenarioArchetype(BaseArchetype):
     """Defines the instrument profile for a type of company to make generation more realistic."""
-
-    name: str
     debt_exposure_range: tuple[int, int]
     fx_exposure_range: tuple[int, int]
     commodity_exposure_range: tuple[int, int]
@@ -30,7 +37,7 @@ class ScenarioArchetype:
         DerivativeCategory, Tuple[float, float]
     ]  # Per-category likelihood of hedging (past, current).
     policy_coverage: Literal["full", "partial", "light", "none"]
-    default_currency: str
+    default_currency: str = ""
     comparative_years: Literal[1, 2, 3] = 2  # How many years to show in comparative sentences
     zero_notional_format: Literal["nil", "zero", "amount"] = "amount"
     notional_multiplier: int = 1_000_000
