@@ -929,7 +929,13 @@ class ScenarioBuilder:
             # Each category gets a small, somewhat unique pool
             for cat in DERIVATIVE_CATEGORIES:
                 pool_size = random.randint(2, min(4, len(all_base_types)))
-                category_base_type_pools[cat] = random.sample(all_base_types, k=pool_size)
+                base_pool = random.sample(all_base_types, k=pool_size)
+                # --- NEW: Add category extras to the restricted pool ---
+                # With a chance, add a special instrument type to this category's pool.
+                category_extras = self.scenario_components.get("category_extras", {}).get(cat, [])
+                if category_extras and random.random() < 0.35: # 35% chance to include an extra
+                    base_pool.append(random.choice(category_extras))
+                category_base_type_pools[cat] = list(set(base_pool)) # Ensure uniqueness
 
         # Determine all base types that will appear in the scenario for context-aware aliasing
         if exposure_counts["debt"] > 0:
@@ -1484,7 +1490,6 @@ def _create_instrument_with_history(
     return instrument
 
 
-# --- Dynamic Instrument Type Generation ---
 def _generate_instrument_name(
     category: str,
     hedged_item: Optional["HedgedItem"] = None,
@@ -1501,12 +1506,31 @@ def _generate_instrument_name(
     """
     components = components or DERIVATIVE_COMPONENTS
     placeholders = components["placeholders"].get(category, [""])
+    
     # --- FIX: Use the provided available_base_types from the category pool ---
     # Fallback to global components only if no specific pool is provided.
     if not available_base_types:
         base_types = components["base_types"]
     else:
         base_types = available_base_types
+    
+    # --- NEW: Handle special instrument names from CATEGORY_EXTRAS ---
+    # These are added to the available_base_types pool in the ScenarioBuilder.
+    # We need to identify them here to prevent adding another suffix.
+    chosen_base_type = random.choice(base_types)
+    category_extras_flat = [item for sublist in components.get("category_extras", {}).values() for item in sublist]
+
+    if chosen_base_type in category_extras_flat:
+        # This is a special, pre-defined instrument. Don't add a random suffix.
+        # Instead, split it into a base and suffix for better downstream processing.
+        # e.g., "index future" -> base="index", suffix="future"
+        # e.g., "total return swap" -> base="total return", suffix="swap"
+        parts = chosen_base_type.split()
+        base_type = " ".join(parts[:-1])
+        suffix = parts[-1]
+        full_name = chosen_base_type
+        return "", "", base_type, suffix, full_name, full_name
+        
     suffixes = components["suffixes"]  # e.g., contract, agreement
     special_suffixes = components["special_suffixes"]  # e.g., put option
     special_ratio = 0.10  # configurable
@@ -3494,16 +3518,6 @@ def generate_exposure_map(
         if isinstance(ev, (ExposureEvidence, MitigationEvidence)):
             if ev.category in exposure_map:
                 exposure_map[ev.category] = True
-
-    # Handle policy-only scenarios first to give it precedence
-    if (
-        not scenario.instruments
-        and scenario.policy
-        and scenario.policy.category_policies
-    ):
-        for policy in scenario.policy.category_policies:
-            if policy.category in exposure_map and exposure_map[policy.category]:
-                 mitigation_map[policy.category] = "policy_only"
 
     return exposure_map
 
