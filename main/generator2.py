@@ -3761,8 +3761,12 @@ def _build_instrument_by_instrument_cot(
         if ev.notional is not None and ev.notional > 0 and ev.notional_str:
             # Use the pre-formatted notional string for consistency
             line_parts.append(f"{ev.notional_str.split("and")[0].strip()} > 0 for")
+        elif ev.notional is not None and ev.notional == 0:
+            line_parts.append(f"amount = 0 for")
         elif ev.active_override:
             line_parts.append(f"amount not specified but active for")
+        else:
+            line_parts.append(f"amount not specified for")
 
         if ev.year:
             line_parts.append(f"year {ev.year}")
