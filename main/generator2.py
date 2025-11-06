@@ -4294,15 +4294,17 @@ def generate_training_sample(archetype_index=None, allow_random_drops: bool = Tr
 def generate_dataset(
     num_samples: int,
     output_file: str = "./training_data.parquet",
+    noise_percentage: float = 0.20,
     allow_random_drops: bool = True,
     debug: bool = False,
 ):
     """
-    Generates a dataset of training samples and saves it to a JSONL file.
+    Generates a dataset of training samples and saves it to a Parquet file.
 
     Args:
         num_samples: The number of samples to generate.
-        output_file: The path to the output JSONL file.
+        output_file: The path to the output Parquet file.
+        noise_percentage: The percentage of the dataset that should be noise samples.
         allow_random_drops: Whether to enable probabilistic dropping of narrative sections.
         debug: If True, includes debug info in the output file.
     """
@@ -4311,12 +4313,31 @@ def generate_dataset(
     DEBUG = debug # Do not attach headers
 
     all_training_records = []
+
+    # --- NEW: Separate archetypes into noise and regular pools for balanced generation ---
+    noise_archetypes = [
+        (i, arch) for i, arch in enumerate(SCENARIO_ARCHETYPES) if "Noise" in arch.name
+    ]
+    regular_archetypes = [
+        (i, arch) for i, arch in enumerate(SCENARIO_ARCHETYPES) if "Noise" not in arch.name
+    ]
+
+    if not noise_archetypes:
+        raise ValueError("No 'Noise' archetypes found. Cannot generate noise samples.")
+    if not regular_archetypes:
+        raise ValueError("No regular archetypes found. Cannot generate regular samples.")
+
     for _ in tqdm(range(num_samples), desc="Generating Samples"):
-        # 1. Generate the narrative and the target JSON object
-        # The archetype_index will be used most of the time, but generate_training_sample
-        # now has a 25% chance to override this and create a truly random archetype.
+        # --- NEW: Decide whether to generate a noise or regular sample based on the desired percentage ---
+        if random.random() < noise_percentage:
+            # Generate a noise sample
+            archetype_index, _ = random.choice(noise_archetypes)
+        else:
+            # Generate a regular sample
+            archetype_index, _ = random.choice(regular_archetypes)
+
         narrative, target_json = generate_training_sample(
-            archetype_index=random.randint(0, len(SCENARIO_ARCHETYPES) - 1),
+            archetype_index=archetype_index,
             allow_random_drops=allow_random_drops
         )
 
@@ -4334,9 +4355,9 @@ def generate_dataset(
     df = pd.DataFrame(all_training_records)
     df.to_parquet(output_file, index=False)
 
-    print(f"\nSuccessfully generated {num_samples} samples to {output_file}")
+    print(f"\nSuccessfully generated {num_samples} samples to {output_file} with {noise_percentage:.0%} noise.")
 
 # %%
-generate_dataset(1000)
+generate_dataset(1000, noise_percentage=0.25)
 
 # %%
