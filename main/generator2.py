@@ -1106,10 +1106,9 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
     # Use the builder to construct the full scenario
     builder = ScenarioBuilder(scenario)
     return builder.build()
-import random
 
 def get_non_financial_text(
-    num_articles_to_cache: int = 50, max_length: int = 1500
+    num_articles_to_cache: int = 1500, max_length: int = 4096
 ) -> str:
     """
     Fetches a random article from a predefined list of non-financial Wikipedia categories.
