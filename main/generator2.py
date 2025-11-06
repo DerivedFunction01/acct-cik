@@ -3398,8 +3398,8 @@ def generate_mitigation_map(
                 if ev.is_implied and status == "current":
                     implied_evidence_map[category] = True
                     if category in categories_with_notional:
-                        mitigation_map[category] = "implied current"
-                elif ev.is_implied and status == " implied historical":
+                        mitigation_map[category] = "current"
+                elif ev.is_implied and status == "historical":
                     implied_evidence_map[category] = True
                     mitigation_map[category] = "historical"
                 elif not ev.is_implied:
@@ -3535,19 +3535,20 @@ def _generate_introduction() -> List[str]:
             "If it doesn't, then I will provide a response that the text appears to be unrelated. "
         ]
     )
-    introduction_lines.extend(
-        [
-            "After identifying exposures, I infer mitigation intent based on linguistic cues such as 'currently uses', 'may use', 'does not intend to use', 'expired', etc. "
-            "I then associate derivative instruments with the most relevant risk type inferred from surrounding context. "
-            "I must remember that liguistic cues can be speculative, so I must consider whether or not these statements result in actual derivative usage. ",
-        ]
-    )
-
-    # Next, recall what a derivative is
+     # Next, recall what a derivative is
     introduction_lines.extend(
         [
             "If I recall, a derivative is a financial contract whose value depends on an underlying asset or benchmark, such as interest rates, foreign currencies, equities, or commodities. "
             "Common derivative types include forwards, futures, options, swaps, and collars, which may or may not be used for hedging or mitigating those specific types of risk. ",
+        ]
+    )
+    introduction_lines.extend(
+        [
+            "To simplify, 'IR' for interest rate, 'FX' for foreign currency, 'CP' for commodities, 'EQ' for equity, and 'GEN' for categories if I cannot determine which derivative type is used from context. ",
+            "I will determine the company's risk exposures. I'll start by assuming no exposure to any category, (i.e. false for IR, FX, CP, EQ, and GEN). "
+            "After identifying exposures, I should find mitigation intent based on linguistic cues such as 'currently uses', 'may use', 'does not intend to use', 'expired', etc. "
+            "I then associate derivative instruments with the most relevant risk type inferred from surrounding context. "
+            "I must remember that liguistic cues can be speculative, so I must consider whether or not these statements result in actual derivative usage. ",
         ]
     )
 
@@ -3681,6 +3682,23 @@ def _build_instrument_by_instrument_cot(
     return cot_lines
 
 
+def _build_exposure_mitigation_cot() -> List[str]:
+    """
+    Generates COT sentences explaining how the exposure and mitigation maps are determined.
+    """
+    lines = [
+        "Finally, I will determine the `mitigation` status for each category (IR, FX, CP, EQ, GEN). ",
+        "For any evidence of active instruments with notional amounts greater than zero, or implied active in the reporting year, status will be 'current'.",
+        "For past instruments with maturity year greater than the reporting year, if and only if it is explicitly not terminated, the status will also be 'current'.",
+        "If the text only mentions past use or terminated contracts, the status will be 'historical'.",
+        "If the text explicitly states derivatives are not used for a risk category, the status will be 'never'.",
+        "If only hedging policies are discussed without mentioning specific instruments or use, the status will be 'policy_only'.",
+        "If the text is speculative (e.g., 'the company may use...'), the status will be 'likely'.",
+        "If exposure is mentioned but no clear mitigation strategy is detailed, the status will remain 'unknown'.",
+    ]
+    return lines
+
+
 def build_chain_of_thought(
     scenario: "GenerationScenario",
     evidence: List["BaseNarrativeEvidence"],
@@ -3800,13 +3818,16 @@ def build_chain_of_thought(
         if display_types:
             generic_reasoning += (
                 f" (unlike other instruments identified, such as {', '.join(display_types)}), "
-                "so it is treated as a generic reference."
+                "so it is treated as a generic reference (GEN)."
             )
         else:
-            generic_reasoning += ", so it is treated as a generic reference."
+            generic_reasoning += ", so it is treated as a generic reference (GEN)."
 
         chain_of_thought_parts.append(generic_reasoning.strip())
-
+    
+    # --- NEW: Explain how exposure and mitigation are determined ---
+    cot_summary_lines.extend(_build_exposure_mitigation_cot())
+    
     # Add final filtering step
     chain_of_thought_parts.append("---")
     chain_of_thought_parts.append(
