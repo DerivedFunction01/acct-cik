@@ -40,8 +40,8 @@ TRAINING_PROFILES = {
         "name": "High VRAM / Colab (>= 16GB)",
         "r": 128,
         "lora_alpha": 256,
-        "batch_size": 3,
-        "gradient_accumulation": 8,
+        "batch_size": 4,
+        "gradient_accumulation": 4,
         "max_seq_length": 8192,
         "load_in_4bit": False,
     },
@@ -50,7 +50,7 @@ TRAINING_PROFILES = {
         "r": 64,
         "lora_alpha": 128,
         "batch_size": 2,
-        "gradient_accumulation": 8,
+        "gradient_accumulation": 4,
         "max_seq_length": 4096,
         "load_in_4bit": False,
     },
@@ -59,7 +59,7 @@ TRAINING_PROFILES = {
         "r": 32,
         "lora_alpha": 32,
         "batch_size": 1,
-        "gradient_accumulation": 8,
+        "gradient_accumulation": 4,
         "max_seq_length": 2048,
         "load_in_4bit": True,  # 4-bit is not optimized for CPU
     },
@@ -92,7 +92,7 @@ def format_prompt(sample):
         return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
 
 
-def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=1):
+def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=4):
     """Main function to run the training process with Unsloth optimization."""
     print(f"\n--- Starting Training with Unsloth ---")
     print(f"Profile: {profile['name']}, Base Model: {model_name}, Epochs: {num_epochs}")
@@ -364,11 +364,6 @@ def huggingface_auth():
     token = ""
     if token_path.exists():
         token = token_path.read_text().strip()
-        use_saved = (
-            input(f"Found a saved token. Use it? (y/n) [default: y]: ").lower().strip()
-        )
-        if use_saved not in ("y", ""):
-            token = input("HF Token: ").strip()
     else:
         token = input("HF Token: ").strip()
 
