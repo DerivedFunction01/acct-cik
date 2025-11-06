@@ -1151,6 +1151,11 @@ class YearOverYearTableBuilder(DerivativeTableBuilder): # Already refactored, sh
                     currency=values["currency"],
                     sentence_type="summary", # From a table
                 ))
+                evidence_list[-1].additional_details["table_description"] = (
+                    f"A {len(headers)}-column table where rows represent derivative instrument types and columns show the '{value_type_str}' for the years {year1} and {year2}."
+                )
+
+
 
         if not data_rows:
             return "", [], []
@@ -1270,6 +1275,9 @@ class NotionalVsFairValueTableBuilder(DerivativeTableBuilder):
                             reporting_year=self.reporting_year, value_type="fair_value", currency=group_data["currency"],
                             sentence_type="summary",
                         )
+            )
+            evidence_list[-1].additional_details["table_description"] = (
+                f"A 3-column table for the year {year}, where rows are derivative types and columns show their 'Asset Fair Value' and 'Liability Fair Value'."
                     )
 
             if not data_rows:
@@ -1386,6 +1394,9 @@ class MaturityGroupingTableBuilder(DerivativeTableBuilder):
                     sentence_type="summary", # type: ignore
                     aggregate=True,
                 ))
+                evidence_list[-1].additional_details["table_description"] = (
+                    f"A 2-column table grouping derivative notional amounts by maturity ranges (e.g., 'Less than 1 year', '1-3 years') for the year {self.reporting_year}."
+                )
                 row_cells = [group, notional_str]
                 rows.extend(GenericTable(headers=[], data_rows=[], widths=widths, alignments=alignments, title="")._format_row_with_wrapping(row_cells, widths, alignments))
 
@@ -1484,6 +1495,9 @@ class AOCIReconciliationTableBuilder(DerivativeTableBuilder):
             sentence_type="summary",
             aggregate=True,
         ))
+        evidence_list[-1].additional_details["table_description"] = (
+            f"An AOCI roll-forward table for cash flow hedges for the year {year}, showing beginning balance, unrealized gains/losses, reclassifications, and the ending balance."
+        )
 
         full_table_str = "<TABLE>\n<CAPTION>\n" + f"{title}\n" + "\n".join(rows) + "\n</TABLE>"
         return full_table_str, evidence_list, []
@@ -1572,6 +1586,9 @@ class ThreeYearComparativeTableBuilder(DerivativeTableBuilder):
                         sentence_type="summary", # From a table
                     )
                 )
+                evidence_list[-1].additional_details["table_description"] = (
+                    f"A {len(headers)}-column comparative table where rows are derivative instrument types and columns represent the '{value_type_str}' for the years {year1}, {year2}, and {year3}."
+                )
 
         if not data_rows:
             return "", [], []
@@ -1654,6 +1671,9 @@ class AOCIReclassificationImpactTableBuilder(DerivativeTableBuilder):
                 reporting_year=self.reporting_year, value_type="fair_value",
                 currency=group_data["currency"], sentence_type="summary",
             ))
+            evidence_list[-1].additional_details["table_description"] = (
+                f"A 3-column table showing the impact of AOCI reclassifications for the year {year}. Rows are derivative types, and columns show the gain/loss amount and the affected income statement line item."
+            )
 
         if not data_rows:
             return "", [], []
@@ -1763,6 +1783,9 @@ class FXExposureTableBuilder(DerivativeTableBuilder):
                     reporting_year=self.reporting_year, value_type="notional_exposure",
                     currency=exposure.code, symbol=exposure.symbol, sentence_type="individual",
                 ))
+                evidence_list[-1].additional_details["table_description"] = (
+                    f"A 3-column table detailing the currency exposures for a specific FX instrument. Rows are individual currencies, and columns show the exposure amounts for years {year1} and {year2}."
+                )
 
             # Evidence for the preceding year (year2)
             if amount_year2 > 0:
@@ -1784,6 +1807,9 @@ class FXExposureTableBuilder(DerivativeTableBuilder):
                         symbol=exposure.symbol,
                         sentence_type="historical_individual",
                     )
+                )
+                evidence_list[-1].additional_details["table_description"] = (
+                    f"A 3-column table detailing the currency exposures for a specific FX instrument. Rows are individual currencies, and columns show the exposure amounts for years {year1} and {year2}."
                 )
 
         # --- NEW: Return the list of instruments that were NOT detailed in this table ---
@@ -1874,7 +1900,10 @@ class AssetLiabilityFairValueTableBuilder(DerivativeTableBuilder):
                     currency=group_data["currency"],
                     sentence_type="summary",
                 )
-            )
+                    )
+        evidence_list[-1].additional_details["table_description"] = (
+            f"A 3-column table for the year {year}, where rows represent derivative instrument types and columns show their 'Notional Amount' and 'Fair Value'."
+        )
 
         if not data_rows:
             return "", [], []
@@ -1964,6 +1993,9 @@ class FairValueHierarchyTableBuilder(DerivativeTableBuilder):
                 reporting_year=self.reporting_year, value_type="fair_value",
                 currency=group_data["currency"], sentence_type="summary",
             ))
+            evidence_list[-1].additional_details["table_description"] = (
+                f"A 5-column fair value hierarchy table for the year {year}. Rows are derivative types grouped by 'Assets' and 'Liabilities', and columns show the fair value distribution across Level 1, 2, and 3 inputs."
+            )
 
         title = f"Fair Value Measurements of Derivative Instruments as of {self.month} {self.day}, {self.reporting_year} {self._get_units()}"
         headers = ["", "Level 1", "Level 2", "Level 3", "Total"]
@@ -2092,6 +2124,9 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                             currency=self.currency_code, sentence_type="individual",
                             additional_details={"hedge_type": hedge_type, "line_item": "Interest Expense"}
                         ))
+                        evidence_list[-1].additional_details["table_description"] = (
+                            f"A multi-column table summarizing the income statement impact of hedging activities for years {year1} and {year2}. Rows are grouped by hedge type (e.g., 'Fair Value Hedge'), and columns represent affected line items (e.g., 'Interest Expense')."
+                        )
 
                     elif hedge_type == "Net Investment Hedge":
                         # Affects Other Expense for income and AOCI
@@ -2125,6 +2160,9 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                             currency=self.currency_code, sentence_type="individual",
                             additional_details={"hedge_type": hedge_type, "line_item": "AOCI (Other Expense)"}
                         ))
+                        evidence_list[-1].additional_details["table_description"] = (
+                            f"A multi-column table summarizing the income statement impact of hedging activities for years {year1} and {year2}. Rows are grouped by hedge type (e.g., 'Net Investment Hedge'), and columns represent affected line items."
+                        )
 
                     elif hedge_type == "Cash Flow Hedge":
                         # Affects multiple lines for reclassification and AOCI
@@ -2163,6 +2201,9 @@ class DerivativeImpactTableBuilder(DerivativeTableBuilder):
                             currency=self.currency_code, sentence_type="individual",
                             additional_details={"hedge_type": hedge_type, "line_item": "AOCI"}
                         ))
+                        evidence_list[-1].additional_details["table_description"] = (
+                            f"A multi-column table summarizing the income statement impact of hedging activities for years {year1} and {year2}. Rows are grouped by hedge type (e.g., 'Cash Flow Hedge'), and columns represent affected line items."
+                        )
 
             data_rows.append([""] * (num_data_cols * 2 + 1)) # Add a spacer row between hedge types
 
