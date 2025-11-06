@@ -13,7 +13,7 @@ from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
 from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
 from defs.common_data import *
 from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument 
-from defs.instrument_definitions import CATEGORY_TO_NAME, DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, ContextEvidence, NotionalInstrument, HedgedItem, GenericInstrument
+from defs.instrument_definitions import CATEGORY_TO_DESCRIPTION, CATEGORY_TO_NAME, DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, ContextEvidence, NotionalInstrument, HedgedItem, GenericInstrument
 from defs.policy_definitions import (
     AccountingPolicySentence,
     AccountingStandardUpdateSentence,
@@ -3653,12 +3653,13 @@ def _build_instrument_by_instrument_cot(
                 line_parts.append(f"(< {reporting_year})")
 
         # --- NEW: Add contextual reasoning for category assignment ---
-        if ev.category == "CP":
-            line_parts.append(f"since the surrounding context relates to commodities, category = {ev.category}.")
-        elif ev.category == "GEN":
+
+        if ev.category == "GEN":
             line_parts.append(f"it is unclear what the context was referring to, so it will be marked as {ev.category}.")
         else:
-            line_parts.append(f"Category = {ev.category}.")
+            line_parts.append(
+                f"since the surrounding context relates to {CATEGORY_TO_DESCRIPTION.get(ev.category, ev.category)}, category = {ev.category}."
+            )
 
         # Check for duplicates
         if ev.instrument_id is not None and ev.instrument_id in processed_instruments:

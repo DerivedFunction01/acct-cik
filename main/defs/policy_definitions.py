@@ -42,7 +42,7 @@ from defs.template_definitions import (
     other_topics,
     hedge_definition_templates,
 )
-from defs.instrument_definitions import CATEGORY_TO_NAME, AccountingStandardEvidence
+from defs.instrument_definitions import CATEGORY_TO_DESCRIPTION, CATEGORY_TO_NAME, AccountingStandardEvidence
 from defs.cp_data import get_cost_types_for_commodity
 from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
 from defs.function_definitions import _cleanup_sentence
@@ -56,14 +56,8 @@ class ExposureEvidence(BaseNarrativeEvidence):
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the exposure evidence."""
-        exposure_type_map = {
-            "IR": "debt obligations or other interest-rate sensitive items",
-            "FX": "foreign currency transactions or international operations",
-            "CP": "commodity price fluctuations",
-            "EQ": "equity price changes or stock-based activities",
-            "GEN": "general market risks",
-        }
-        exposure_description = exposure_type_map.get(
+
+        exposure_description = CATEGORY_TO_DESCRIPTION.get(
             self.category, "an unknown risk category"
         )
         # Return a concise statement for the chain of thought.

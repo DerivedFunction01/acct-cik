@@ -12,6 +12,14 @@ CATEGORY_TO_NAME = {
     "EQ": "equity",
 }
 
+CATEGORY_TO_DESCRIPTION = {
+    "IR": "debt obligations or other interest-rate sensitive items",
+    "FX": "foreign currency transactions or international operations",
+    "CP": "commodity prices",
+    "EQ": "equity price changes or stock-based activities",
+    "GEN": "general market risks",
+}
+
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
 @dataclass
