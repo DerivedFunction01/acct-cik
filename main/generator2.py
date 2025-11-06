@@ -41,7 +41,7 @@ from defs.noise_definitions import BalanceSheetTableBuilder, CashFlowStatementTa
 from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
 from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
 from defs.ownership_data import HedgeFundContextEvidence, OwnershipContextSentence
-from defs.function_definitions import _cleanup_counter
+from defs.function_definitions import _cleanup_counter, _format_single_notional, _get_correct_rounding
 
 DEBUG = True
 
@@ -3843,17 +3843,100 @@ def _build_exposure_mitigation_cot() -> List[str]:
     """
     Generates COT sentences explaining how the exposure and mitigation maps are determined.
     """
-    lines = [
-        "Finally, I will determine the `mitigation` status for each category (IR, FX, CP, EQ, GEN). ",
-        "For any evidence of active instruments with notional amounts greater than zero, or implied active in the reporting year, status will be 'current'.",
-        "For past instruments with maturity year greater than the reporting year, if and only if it is explicitly not terminated, the status will also be 'current'.",
-        "If the text only mentions past use or terminated contracts, the status will be 'historical'.",
-        "If the text explicitly states derivatives are not used for a risk category, the status will be 'never'.",
-        "If only hedging policies are discussed without mentioning specific instruments or use, the status will be 'policy_only'.",
-        "If the text is speculative (e.g., 'the company may use...'), the status will be 'likely'.",
-        "If exposure is mentioned but no clear mitigation strategy is detailed, the status will remain 'unknown'.",
+    return [
+        "Finally, I will determine the `mitigation` status for each category (IR, FX, CP, EQ, GEN) based on the following rules:",
+        "- 'current' for active instruments in the reporting year.",
+        "- 'historical' for past or terminated instruments.",
+        "- 'policy_only' for policy discussions without specific instruments.",
+        "- 'likely' for speculative mentions.",
+        "- 'never' for explicit statements of non-use.",
+        "- 'unknown' if exposure is mentioned but no mitigation strategy is detailed.",
     ]
-    return lines
+
+
+def _build_json_construction_plan(
+    scenario: "GenerationScenario",
+    mitigation_map: Dict[str, str],
+    evidence: List["BaseNarrativeEvidence"],
+    derivatives_list: List[Dict[str, Any]],
+    analysis_summary: str,
+) -> List[str]:
+    """
+    Generates the "JSON Construction Plan" section for the Chain of Thought,
+    detailing how the final JSON object will be assembled.
+    """
+
+    def _get_mitigation_reasoning(category: str, status: str) -> str:
+        """Provides a brief explanation for a given mitigation status."""
+        if status == "current":
+            # Check for active notional evidence in the reporting year
+            if any(
+                isinstance(ev, NotionalEvidence)
+                and ev.category == category
+                and ev.year == scenario.reporting_year
+                and (ev.notional is not None and ev.notional > 0 or ev.active_override)
+                for ev in evidence
+            ):
+                return "active instruments were found for the reporting year."
+            return "an active hedging program was mentioned."
+        elif status == "historical":
+            return "only past or terminated instruments were mentioned."
+        elif status == "policy_only":
+            return "hedging policies were discussed, but no specific instruments were identified."
+        elif status == "likely":
+            return "the text was speculative (e.g., 'the company may use...')."
+        elif status == "never":
+            return "the text explicitly stated derivatives are not used for this risk."
+        elif status == "unknown":
+            return "exposure was mentioned, but no clear mitigation strategy was detailed."
+        elif status == "none":
+            return "no exposure to this risk category was identified."
+        return "the status was determined based on the overall context."
+
+    plan_lines = []
+    plan_lines.append("\n**JSON Construction Plan:**")
+
+    # 1. Set Summary Flags (exposure and mitigation)
+    plan_lines.append("1.  **Set Summary Flags:**")
+    plan_lines.append(
+        "    *   `exposure`: Based on identified exposures, set boolean flags for IR, FX, CP, EQ, GEN."
+    )
+    plan_lines.append(
+        "    *   `mitigation`: Set status for each category (IR, FX, CP, EQ, GEN) based on the final mitigation map:"
+    )
+    for category, status in mitigation_map.items():
+        reasoning = _get_mitigation_reasoning(category, status)
+        plan_lines.append(f"        *   `{category}`: '{status}' because {reasoning}")
+
+    # 2. Construct Derivative Objects
+    plan_lines.append("2.  **Construct Derivative Objects:**")
+    if not derivatives_list:
+        plan_lines.append("    *   No active derivative instruments were identified for the reporting year.")
+    else:
+        for i, derivative in enumerate(derivatives_list):
+            plan_lines.append(
+                f"    *   **Object {i+1}:** Create a derivative object for the '{derivative.get('type', 'Unknown')}' instrument."
+            )
+            for key, value in derivative.items():
+                # Format amount and currency for better readability in the plan
+                if key == "amount" and isinstance(
+                    value, (int, float)
+                ):  # For raw JSON value, print directly
+                    plan_lines.append(f"        *   `{key}`: {value}")
+                elif key == "currency" and value:
+                    plan_lines.append(f"        *   `{key}`: \"{value}\"")
+                elif isinstance(value, str):
+                    plan_lines.append(f"        *   `{key}`: \"{value}\"")
+                else:
+                    plan_lines.append(f"        *   `{key}`: {value}")
+
+    # 3. Set Analysis Summary
+    plan_lines.append("3.  **Set Analysis Summary:**")
+    plan_lines.append(f"    *   `analysis_summary`: \"{analysis_summary}\"")
+
+    plan_lines.append("\nI will now generate the complete JSON object based on this plan.")
+
+    return plan_lines
 
 
 def build_chain_of_thought(
@@ -3863,6 +3946,7 @@ def build_chain_of_thought(
     mitigation_map: Dict[str, str],
     other_evidence_strings: List[str],
     exposure_descriptions: List[str],
+    analysis_summary: str, # NEW: Pass the final analysis summary
 ) -> str:
     """Build the chain of thought reasoning."""
     cot_summary_lines = []
@@ -3992,6 +4076,14 @@ def build_chain_of_thought(
         f"year ({scenario.reporting_year}) with a non-zero value to ensure the final JSON output reflects "
         "only active positions."
     )
+
+    # --- NEW: Add the JSON Construction Plan ---
+    json_plan_lines = _build_json_construction_plan(
+        scenario, mitigation_map, evidence, derivatives_list, analysis_summary
+    )
+    if json_plan_lines:
+        chain_of_thought_parts.extend(json_plan_lines)
+
 
     chain_of_thought = "\n".join(chain_of_thought_parts)
 
@@ -4248,6 +4340,9 @@ def generate_json_from_scenario(
     other_evidence_strings, exposure_descriptions = collect_evidence_strings(
         evidence, mitigation_map
     )
+    
+    # Generate analysis summary
+    analysis_summary: str = _generate_analysis_summary(scenario, evidence)
 
     # Build chain of thought
     chain_of_thought: str = build_chain_of_thought(
@@ -4257,10 +4352,9 @@ def generate_json_from_scenario(
         mitigation_map,
         other_evidence_strings,
         exposure_descriptions,
+        analysis_summary, # Pass the analysis summary
     )
 
-    # Generate analysis summary
-    analysis_summary: str = _generate_analysis_summary(scenario, evidence)
 
     return {
         "chain_of_thought": chain_of_thought,
