@@ -55,6 +55,7 @@ GENERATION_PROBABILITIES = {
     "fx_instrument_in_exposure_currency": 0.35,  # Chance an FX instrument's notional is in one of the exposure currencies.
     "instrument_history_has_gap": 0.15,  # Chance an instrument's history has a year with zero notional.
     "instrument_has_prefix": 0.05,  # Chance an instrument name gets a prefix (e.g., "pay-fixed").
+    "category_extra": 0.25,  # Chance to add category-specific extras.
     # Narrative Generation
     "active_instrument_mention": 0.9,  # Chance to mention an active instrument.
     "terminated_instrument_mention": 0.7,  # Chance to mention a terminated instrument.
@@ -623,6 +624,7 @@ class ScenarioBuilder:
             # --- FIX: Add missing keys to prevent KeyErrors ---
             "swap_prefixes": DERIVATIVE_COMPONENTS["swap_prefixes"],
             "global_prefixes": DERIVATIVE_COMPONENTS["global_prefixes"],
+            "category_extras": DERIVATIVE_COMPONENTS["category_extras"],
         }
 
     def _generate_debt_exposures(self, count: int):
@@ -933,7 +935,7 @@ class ScenarioBuilder:
                 # --- NEW: Add category extras to the restricted pool ---
                 # With a chance, add a special instrument type to this category's pool.
                 category_extras = self.scenario_components.get("category_extras", {}).get(cat, [])
-                if category_extras and random.random() < 0.35: # 35% chance to include an extra
+                if category_extras and random.random() < GENERATION_PROBABILITIES["category_extras"]: # 35% chance to include an extra
                     base_pool.append(random.choice(category_extras))
                 category_base_type_pools[cat] = list(set(base_pool)) # Ensure uniqueness
 
@@ -1519,7 +1521,6 @@ def _generate_instrument_name(
     # We need to identify them here to prevent adding another suffix.
     chosen_base_type = random.choice(base_types)
     category_extras_flat = [item for sublist in components.get("category_extras", {}).values() for item in sublist]
-
     if chosen_base_type in category_extras_flat:
         # This is a special, pre-defined instrument. Don't add a random suffix.
         # Instead, split it into a base and suffix for better downstream processing.
