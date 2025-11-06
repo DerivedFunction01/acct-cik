@@ -237,6 +237,8 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
             if reasons:
                 text += f" -> Reason: {', '.join(f'\"{r}\"' for r in reasons)}"
+            if self.additional_details.get("table_description"):
+                text = f"{self.additional_details['table_description']} {text}"
 
         return _cleanup_sentence(text)
 
