@@ -67,7 +67,7 @@ This is the most critical phase. Before any model training, the data generation 
         -   Mentions of accounting treatments (e.g., OCI, fair value).
         -   Inclusion of embedded derivatives alongside standard hedges.
 
--   **[ ] Port Contextual "Noise" Generation:**
+-   **[x] Port Contextual "Noise" Generation:**
     -   **[x] Port Contextual "Noise" Generation:** The old `generator.py` had functions that created realistic, non-derivative sentences to provide context around the main topic. This "noise" is crucial for training the model to distinguish between a discussion *about* risk exposure and the use of a derivative to *hedge* that risk. Done.
     -   **[x] Port IR/Debt Context:** Done. `DebtContextSentence` has been created and integrated into the IR narrative generation in `generator2.py`.
     -   **[x] Port FX Context:**
@@ -83,35 +83,35 @@ This is the most critical phase. Before any model training, the data generation 
 -   **[x] Improve Generation Quality (Continued):**
     -   **[x] Further Improvements to Generation Quality:**
         -   **[x] Probabilistic Component Generation:** In `generator2.py`, introduce probabilities for generating certain narrative sections to increase variety.
-            -   **[x] Action: Drop Mitigation:** Add a random chance to skip generating the `MitigationSentence` for a category, even if instruments exist. This simulates filings that are less explicit about their strategy.
-            -   **[x] Action: Drop Policy:** Add a random chance to skip generating the `AccountingPolicySentence` section.
-            -   **[x] Action: Drop Details:** Add a random chance to skip generating detailed instrument disclosures (`TimelineSentence`, individual `NotionalSentence`), relying only on the aggregate summary. Done via `active_instrument_mention` probability.
+            -   **Drop Mitigation:** Added a random chance to skip generating the `MitigationSentence` for a category, even if instruments exist. This simulates filings that are less explicit about their strategy.
+            -   **Drop Policy:** Added a random chance to skip generating the `AccountingPolicySentence` section.
+            -   **Drop Details:** Added a random chance to skip generating detailed instrument disclosures (`TimelineSentence`, individual `NotionalSentence`), relying only on the aggregate summary. Done via `active_instrument_mention` probability.
         -   **[x] Implement "Noise-Only" Scenarios:** Create scenarios containing only contextual "noise" without any derivative instruments to improve negative sampling.
-            -   **[x] Action: Create "Noise-Only" logic:** In `generator2.py`, add a path that, for a given category (e.g., IR), generates only `DebtContextSentence` paragraphs without any `IRInstrument` or `NotionalSentence` for derivatives. This is crucial for training the model to distinguish between discussions *about* risk (e.g., having debt) and the use of derivatives to *hedge* that risk.
+            -   **"Noise-Only" logic:** In `generator2.py`, a path was added that, for a given category (e.g., IR), generates only `DebtContextSentence` paragraphs without any `IRInstrument` or `NotionalSentence` for derivatives. This is crucial for training the model to distinguish between discussions *about* risk (e.g., having debt) and the use of derivatives to *hedge* that risk.
         -   **[x] Create Evidence for Contextual Noise:** Create a new evidence class for contextual noise sentences so the model can explain *why* a text is not a derivative disclosure.
-            -   **[x] Action: Define `ContextEvidence` class:** In `defs/instrument_definitions.py`, the `ContextEvidence` class has been created.
+            -   **Define `ContextEvidence` class:** In `defs/instrument_definitions.py`, the `ContextEvidence` class has been created.
                 -   It should store the category of the context (e.g., "IR", "FX") and the text of the sentence.
                 -   Its `to_string()` method should generate a `chain_of_thought` entry like: "The text discusses debt obligations but does not mention any derivative instruments used to hedge this interest rate exposure."
-            -   **[x] Action: Integrate into Context Sentence classes:** Done. The various context sentence builders now return `ExposureEvidence` or `ContextEvidence`, which serves this purpose.
-            -   **[x] Action: Update `generate_json_from_scenario`:** Done. The logic now handles `is_noise_only_scenario` correctly, producing an empty `derivatives` list and appropriate summary.
+            -   **Integrate into Context Sentence classes:** Done. The various context sentence builders now return `ExposureEvidence` or `ContextEvidence`, which serves this purpose.
+            -   **Update `generate_json_from_scenario`:** Done. The logic now handles `is_noise_only_scenario` correctly, producing an empty `derivatives` list and appropriate summary.
         -   **[x] Simulate "No Derivative" Chain of Thought:** For scenarios with only contextual noise, the `chain_of_thought` should simulate a human-like review process.
-            -   **[x] Action: Enhance `generate_json_from_scenario`:** Done. The `is_noise_only_scenario` block in `generate_json_from_scenario` now generates a human-like review process in the `chain_of_thought`.
+            -   **Enhance `generate_json_from_scenario`:** Done. The `is_noise_only_scenario` block in `generate_json_from_scenario` now generates a human-like review process in the `chain_of_thought`.
                 -   "The text discusses [risk area, e.g., debt obligations], which could involve derivatives. I will scan for keywords like 'swap', 'hedge', or 'forward'."
                 -   "After reviewing the text, no explicit mention of derivative instruments was found."
                 -   "Let me review the text one more time to ensure no mentions were missed. The text confirms exposure to [risk area] but does not detail any hedging instruments."
         -   **[x] Refactor `Table` Class for Reusability:**
-            -   **[x] Action: Create `defs/table_definitions.py`:** Done.
-            -   **[x] Action: Generalize `Table` class:** Done. The `GenericTable` class now handles formatting.
+            -   **Create `defs/table_definitions.py`:** Done.
+            -   **Generalize `Table` class:** Done. The `GenericTable` class now handles formatting.
                 -   It should accept a list of headers, a list of data rows (as lists of strings), column widths, and alignments.
                 -   The `build()` method should focus solely on formatting the text-based table with proper spacing and SEC tags (`<S>`, `<C>`).
-            -   **[x] Action: Create Specific Table Builders:** Create new classes (e.g., `DerivativeNotionalTable`, `AOCITable`) that *use* the generic `Table` class. These new classes will contain the logic for preparing the specific data and headers for their respective table types.
-            -   **[x] Action: Update `generator2.py`:** Modify the `_generate_category_narrative` function to call the new specific table builder classes.
+            -   **Create Specific Table Builders:** New classes (e.g., `DerivativeNotionalTable`, `AOCITable`) that *use* the generic `Table` class have been created. These new classes contain the logic for preparing the specific data and headers for their respective table types.
+            -   **Update `generator2.py`:** The `_generate_category_narrative` function has been modified to call the new specific table builder classes.
         -   **[x] Implement "Policy-Only" Scenarios:** Create scenarios that only contain policy discussions about derivatives (e.g., effectiveness testing, accounting treatment) without any corresponding instruments. This will train the model to recognize disclosures that talk *about* derivatives but don't confirm their *use*.
-            -   **[x] Action: Create "Policy-Only" Archetype/Logic:** In `generator2.py`, add a path or a new `ScenarioArchetype` that generates a `GenerationScenario` with a `RiskManagementPolicy` containing `CategorySpecificPolicy` objects, but an empty `instruments` list.
-            -   **[x] Action: Update Narrative Generation:** Ensure `generate_narrative_from_scenario` correctly generates paragraphs from `_generate_narrative_accounting` and `_generate_narrative_policy` even when no instruments are present. The narrative should contain text about hedge effectiveness, documentation, and accounting, but no sentences with notional amounts.
-            -   **[x] Action: Verify JSON Output:** For these scenarios, the final JSON should have an empty `derivatives` list. The `analysis_summary` should reflect that no active derivatives were found, and the `chain_of_thought` should explain that while policies were discussed, no evidence of active instruments was found.
+            -   **Create "Policy-Only" Archetype/Logic:** In `generator2.py`, a path or a new `ScenarioArchetype` has been added that generates a `GenerationScenario` with a `RiskManagementPolicy` containing `CategorySpecificPolicy` objects, but an empty `instruments` list.
+            -   **Update Narrative Generation:** `generate_narrative_from_scenario` now correctly generates paragraphs from `_generate_narrative_accounting` and `_generate_narrative_policy` even when no instruments are present. The narrative contains text about hedge effectiveness, documentation, and accounting, but no sentences with notional amounts.
+            -   **Verify JSON Output:** For these scenarios, the final JSON has an empty `derivatives` list. The `analysis_summary` reflects that no active derivatives were found, and the `chain_of_thought` explains that while policies were discussed, no evidence of active instruments was found.
 
--   **[ ] Implement Non-Financial "Noise-Only" Scenarios:** Create scenarios containing completely non-financial text to train the model to identify and ignore irrelevant content. This is crucial for real-world application where extracted text chunks may not be related to SEC filings.
+-   **[x] Implement Non-Financial "Noise-Only" Scenarios:** Create scenarios containing completely non-financial text to train the model to identify and ignore irrelevant content. This is crucial for real-world application where extracted text chunks may not be related to SEC filings.
     -   **Action: Integrate a source for non-financial text.** Using a library like `wikipedia` is an excellent idea. A new function in `generator2.py` can fetch random Wikipedia articles.
     -   **Action: Create a "Non-Financial Noise" Archetype/Logic.** Add a path in `generator2.py` that generates a `GenerationScenario` containing only text from the non-financial source.
     -   **Action: Verify JSON Output for Non-Financial Noise.** For these scenarios, the `chain_of_thought` should explain that the text is not a financial disclosure, and the `derivatives` list should be empty. The `analysis_summary` should state that the text is unrelated to financial reporting.
@@ -140,7 +140,7 @@ This is the most critical phase. Before any model training, the data generation 
     -   The goal is to find a balance between chunk size and the model's context length to maximize comprehension without truncation.
 
 -   **[ ] Update `classify.py` to use the new Generative Model:**
-    -   **[x] Done.** This has been implemented in `test2.py`. It reads prompts, sends them to the `server2.py` endpoint, and collects the resulting JSON objects. The logic can be ported to a new `classify2.py` when ready.
+    -   **In Progress.** This has been implemented in `test2.py`. It reads prompts, sends them to the `server2.py` endpoint, and collects the resulting JSON objects. The logic can be ported to a new `classify2.py` when ready.
 
 -   **[ ] Update `analysis.py` for Aggregation:**
     -   The `PredictionsProcessor` needs to be rewritten.
@@ -151,19 +151,19 @@ This is the most critical phase. Before any model training, the data generation 
         -   **Handle conflicting or evolving information.** The `chain_of_thought` must be detailed enough to capture status changes. For example, if one chunk indicates a `"status": "current"` swap and a later chunk mentions its termination, the aggregation logic must correctly resolve the final status to `"terminated"`. The old `term` label was a workaround for this; the new system handles it explicitly through status aggregation.
         -   **Derive Primary Labels (Post-Processing):** After aggregation, create a new function to derive simple, high-level flags (e.g., `is_ir_user: true`) from the final structured data for easy filtering or downstream use. This moves the "labeling" task from a model input to a flexible analysis output.
 
--   **[ ] Improve Chain of Thought (COT) Generation:**
-    -   The current COT is good but can be more explicit about its reasoning process, especially when handling multiple mentions of the same instrument.
-    -   **[x] Action: Implement "Instrument-by-Instrument" COT.**
+-   **[x] Improve Chain of Thought (COT) Generation:**
+    -   **Done.** The COT is now more explicit about its reasoning process, especially when handling multiple mentions of the same instrument.
+    -   **"Instrument-by-Instrument" COT:**
         -   Instead of summarizing mentions (e.g., "IR swap, 2 mentions"), the COT should process each `NotionalEvidence` object individually.
         -   It should explicitly state the properties of each mention (type, amount, year, category).
         -   It must then perform a "self-correction" or "realization" step when it encounters a duplicate or an alias for an instrument it has already processed.
-        -   **Example Desired Logic:**
+        -   **Example Logic:**
             1.  "Found mention of an 'interest-rate swap' with notional XX > 0 for year 2023 > 2025. This is an active IR instrument."
             2.  "Found mention of a 'hedging contract' with notional XX > 0 for year 2023 > 2025. This appears to be a separate GEN instrument."
             3.  "Found another mention of a 'swap contract' with notional YY > 0 for year 2023 > 2025. Wait, this seems to be an alias for the 'interest-rate swap' from step 1. I will treat it as a duplicate mention."
             4.  "Found another mention of an 'interest-rate swap' with the same notional and year. This is a duplicate of the instrument from step 1."
 
-    -   **[X] Improve Chain of Thought (COT) for Tables:**
+    -   **[x] Improve Chain of Thought (COT) for Tables:**
         -   The COT for tables is currently generic. It should be enhanced to provide more specific reasoning, linking the data in the table directly to the conclusions.
         -   **Action: Update `DerivativeTable` and COT Generation:**
             -   Modify the table builder classes (e.g., `DerivativeTable`) to also return metadata about which columns and rows correspond to specific instrument properties (e.g., notional amounts, maturity dates).
