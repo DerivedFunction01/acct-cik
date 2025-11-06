@@ -3616,7 +3616,8 @@ def _build_instrument_by_instrument_cot(
     notional_evidence_list = [
         ev
         for ev in evidence
-        if isinstance(ev, NotionalEvidence) and ev.instrument_id is not None
+        if isinstance(ev, NotionalEvidence)
+        and (ev.instrument_id is not None or ev.aggregate)
     ]
 
     if not notional_evidence_list:
@@ -3630,7 +3631,7 @@ def _build_instrument_by_instrument_cot(
 
     for ev in notional_evidence_list:
         # Ensure ev is the correct type for mypy
-        if not isinstance(ev, NotionalEvidence) or ev.instrument_id is None:
+        if not isinstance(ev, NotionalEvidence):
             continue
 
         line_prefix = f"{mention_counter}) "
@@ -3660,7 +3661,7 @@ def _build_instrument_by_instrument_cot(
             line_parts.append(f"Category = {ev.category}.")
 
         # Check for duplicates
-        if ev.instrument_id in processed_instruments:
+        if ev.instrument_id is not None and ev.instrument_id in processed_instruments:
             first_mention_type, original_step = processed_instruments[ev.instrument_id]
             canonical_name = canonical_names.get(ev.instrument_id, first_mention_type)
             assert ev.instrument_type is not None
@@ -3672,7 +3673,7 @@ def _build_instrument_by_instrument_cot(
                 line_parts.append(
                     f"Wait, this appears to be an alias for the '{canonical_name}' instrument from step {original_step}. I will treat it as a duplicate mention."
                 )
-        else:
+        elif ev.instrument_id is not None:
             assert ev.instrument_type is not None
             processed_instruments[ev.instrument_id] = (ev.instrument_type, mention_counter)
 
