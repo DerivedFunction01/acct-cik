@@ -42,7 +42,7 @@ TRAINING_PROFILES = {
         "lora_alpha": 128,
         "batch_size": 4,
         "gradient_accumulation": 4,
-        "max_seq_length": 4096,
+        "max_seq_length": 8192,
         "load_in_4bit": True,
     },
     "2": {
@@ -51,7 +51,7 @@ TRAINING_PROFILES = {
         "lora_alpha": 32,
         "batch_size": 1,
         "gradient_accumulation": 8,
-        "max_seq_length": 2048,
+        "max_seq_length": 4096,
         "load_in_4bit": True,
     },
     "3": {
@@ -60,8 +60,8 @@ TRAINING_PROFILES = {
         "lora_alpha": 16,
         "batch_size": 1,
         "gradient_accumulation": 4,
-        "max_seq_length": 1024,
-        "load_in_4bit": False, # 4-bit is not optimized for CPU
+        "max_seq_length": 2048,
+        "load_in_4bit": False,  # 4-bit is not optimized for CPU
     },
 }
 
@@ -199,7 +199,7 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=1):
         dataset_text_field="text",  # The field containing our formatted text
         max_seq_length=config["MAX_SEQ_LENGTH"],
         dataset_num_proc=multiprocessing.cpu_count(),  # Dynamically set based on available CPUs
-        packing=True,  # Pack short sequences for faster training
+        packing=False,  # Pack short sequences for faster training
         args=training_args,
     )
 
