@@ -3646,7 +3646,7 @@ def _build_instrument_by_instrument_cot(
             line_parts.append(f"amount not specified but active for")
 
         if ev.year:
-            line_parts.append(f"year {ev.year}.")
+            line_parts.append(f"year {ev.year}")
             if ev.year >= reporting_year:
                 line_parts.append(f"(>= {reporting_year}).")
             else:
