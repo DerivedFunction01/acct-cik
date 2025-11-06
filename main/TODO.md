@@ -164,8 +164,99 @@ This is the most critical phase. Before any model training, the data generation 
             4.  "Found another mention of an 'interest-rate swap' with the same notional and year. This is a duplicate of the instrument from step 1."
 
     -   **[x] Improve Chain of Thought (COT) for Tables:**
-        -   The COT for tables is currently generic. It should be enhanced to provide more specific reasoning, linking the data in the table directly to the conclusions.
-        -   **Action: Update `DerivativeTable` and COT Generation:**
+        -   **[x] Improve Chain of Thought (COT):**
+            -   The COT is now more explicit about its reasoning process, especially when handling multiple mentions of the same instrument.
+        -  **[ ] Explain how it will create the JSON object**
+                - As of now, it the COT ends with: 
+                ```md
+                    Finally, I will filter the extracted amounts to include only those for the reporting year (1991) and exclude instruments with a notional value of zero or expired references and generate a JSON output conforms to the schema with these keys: 'analysis_summary', 'exposure', 'mitigation', and 'derivatives'. 
+                ```.
+            I   It does not how it will create the JSON object, leading to nonsensical variations, such as:
+            ```json
+            {
+            "analysis_summary": "The company employs various instruments to manage risks exposure, with active positions in multiple categories.",
+            "exposure": {
+                "IR": true,
+                "FX": true,
+                "CP": true,
+                "EQ": false,
+                "GEN": true
+            },
+            "mitigation": {
+                "IR": "current",
+                "FX": "current",
+                "CP": "current",
+                "EQ": "none", 
+                "GEN": "current"
+            },
+            "derivatives": [
+                {
+                "type": "swap",
+                "notional": 114.8,
+                "currency": "GBP",
+                "year": 1991,
+                "gen": true
+                },
+                {
+                "type": "cap",
+                "notional": 1,
+                "currency": "various",
+                "year": 1991,
+                "gen": true
+                },
+                {
+                "type": "swap",
+                "notional": 18.4,
+                "currency": "various",
+                "year": 1991,
+                "gen": true
+                },
+                {
+                "type": "cap",
+                "notional": 8.4,
+                "currency": "various",
+                "year": 1991,
+                "gen": true
+                },
+                {
+                "type": "hedging",
+                "notional": 108.2,
+                "currency": "various",
+                "year": 1991,
+                "gen": true
+                },
+                {
+                "type": "swap",
+                "notional": 36119.4,
+                "currency": "GBP",
+                "year": 1991,
+                "gen": true
+                },
+                {
+                "type": "cap",
+                "notional": 15123.0,
+                "currency": "various",
+                "year": 1991,
+                "gen": true
+                },
+                {
+                "type": "swap",
+                "notional": 261.0,
+                "currency": "various",
+                "year": 1991,
+                "gen": true
+                },
+                {
+                "type": "cap",
+                "notional": 212.0,
+                "currency": "various",
+                "year": 1991,
+                "gen": true
+                }
+            ]
+            }
+            ```
+        -   **[x] Update `DerivativeTable` and COT Generation:**
             -   Modify the table builder classes (e.g., `DerivativeTable`) to also return metadata about which columns and rows correspond to specific instrument properties (e.g., notional amounts, maturity dates).
             -   Update the COT generation logic to use this metadata to create more explicit reasoning, such as: "From the 'Notional Amounts' table, I see the row for 'Interest Rate Swaps' shows a value of $100 million for 2023, indicating an active instrument."
 ---
