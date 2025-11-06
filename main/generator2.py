@@ -3616,12 +3616,21 @@ def _generate_done_sentence(none_found: bool = False) -> List[str]:
 
 
 def _build_instrument_by_instrument_cot(
-    evidence: List["BaseNarrativeEvidence"], reporting_year: int
+    evidence: List["BaseNarrativeEvidence"], scenario: "GenerationScenario"
 ) -> List[str]:
     """
     Generates a detailed, step-by-step analysis of each instrument mention,
     including self-correction for duplicates.
     """
+    # --- NEW: Create a lookup for the canonical instrument name from the scenario ---
+    # This ensures that when an alias is found, we refer to the original name,
+    # not just the first alias we happened to see.
+    canonical_names: Dict[int, str] = {
+        inst.instrument_id: inst.instrument_type
+        for inst in scenario.instruments
+        if isinstance(inst, NotionalInstrument)
+    }
+
     cot_lines = []
     processed_instruments: Dict[int, Tuple[str, int]] = {}  # {instrument_id: (instrument_type, step_number)}
     mention_counter = 1
@@ -3639,6 +3648,7 @@ def _build_instrument_by_instrument_cot(
     if not notional_evidence_list:
         return []
 
+    reporting_year = scenario.reporting_year
     cot_lines.append("Now, I will perform a detailed instrument-by-instrument review:")
 
     for ev in notional_evidence_list:
@@ -3668,15 +3678,16 @@ def _build_instrument_by_instrument_cot(
 
         # Check for duplicates
         if ev.instrument_id in processed_instruments:
-            original_type, original_step = processed_instruments[ev.instrument_id]
+            first_mention_type, original_step = processed_instruments[ev.instrument_id]
+            canonical_name = canonical_names.get(ev.instrument_id, first_mention_type)
             assert ev.instrument_type is not None
-            if original_type.lower() == ev.instrument_type.lower():
+            if canonical_name.lower() == ev.instrument_type.lower():
                 line_parts.append(
                     f"Wait, this is a duplicate mention of {ev.instrument_type} from step {original_step}."
                 )
             else:
                 line_parts.append(
-                    f"Wait, this appears to be an alias for the '{original_type}' instrument from step {original_step}. I will treat it as a duplicate mention."
+                    f"Wait, this appears to be an alias for the '{canonical_name}' instrument from step {original_step}. I will treat it as a duplicate mention."
                 )
         else:
             assert ev.instrument_type is not None
@@ -3748,7 +3759,7 @@ def build_chain_of_thought(
     chain_of_thought_parts.extend(_generate_done_sentence())
     
     # --- NEW: Add the instrument-by-instrument analysis ---
-    instrument_cot_lines = _build_instrument_by_instrument_cot(evidence, scenario.reporting_year)
+    instrument_cot_lines = _build_instrument_by_instrument_cot(evidence, scenario)
     if instrument_cot_lines:
         chain_of_thought_parts.extend(instrument_cot_lines)
 
