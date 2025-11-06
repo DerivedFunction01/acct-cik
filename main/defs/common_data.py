@@ -463,7 +463,6 @@ CATEGORY_EXTRAS = {
         "over-the-counter contract",
         "collar strategies",
         "total return swap",
-        "derivative financial instrument",
     ],
 }
 
