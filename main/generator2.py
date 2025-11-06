@@ -4408,5 +4408,5 @@ def generate_dataset(
     print(f"\nSuccessfully generated {num_samples} samples to {output_file} with {noise_percentage:.0%} noise.")
 
 # %%
-generate_dataset(1250, noise_percentage=0.35)
+generate_dataset(2500, noise_percentage=0.35)
 # %%
