@@ -1274,6 +1274,23 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
     if count == 2 and len(unique_types) > 1:
         return f"{unique_types[0]} and {unique_types[1]}"
 
+    # --- NEW: Check for a common suffix ---
+    # This handles cases like "equity option position" and "equity swap position" -> "equity option and swap positions"
+    unique_suffixes = {i.suffix for i in instruments if i.suffix}
+    if len(unique_suffixes) == 1:
+        common_suffix = list(unique_suffixes)[0]
+        # Get the part of the name *before* the common suffix
+        base_names = []
+        for inst in instruments:
+            # Use rstrip to handle cases where the suffix might not be at the very end
+            # or to avoid stripping parts of the base type.
+            base_name = inst.instrument_type.removesuffix(f" {common_suffix}").strip()
+            base_names.append(base_name)
+        final_base_names = sorted(list(set(base_names)))
+        final_base_str = ', '.join(final_base_names[:len(final_base_names) - 1]) + f" and {final_base_names[-1]}"
+            
+        return f"{final_base_str} {common_suffix}s"
+
     quantifier = random.choice(GENERIC_QUANTIFIERS)
     # Check for similarity based on placeholder
     placeholders = {i.placeholder for i in instruments}
