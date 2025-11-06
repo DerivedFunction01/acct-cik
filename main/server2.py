@@ -13,7 +13,7 @@ CORS(app)  # Enable Cross-Origin Resource Sharing for the entire app
 
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/derivatives-classifier-4B"  # Your new generative model
-MAX_SEQ_LENGTH = 4096
+MAX_SEQ_LENGTH = 8192
 
 # --- LOAD MODEL WITH UNSLOTH ---
 print(f"Loading model: {MODEL_PATH}...")
@@ -21,7 +21,7 @@ model, tokenizer = FastLanguageModel.from_pretrained(
     model_name=MODEL_PATH,
     max_seq_length=MAX_SEQ_LENGTH,
     dtype=None,  # Auto-detect dtype
-    load_in_4bit=True,
+    load_in_4bit=False,
 )
 FastLanguageModel.for_inference(model)  # Optimize for faster inference
 print("✅ Model loaded successfully.")
@@ -50,11 +50,11 @@ def generate_response(prompt: str):
         print("DEBUG: Generating model output...")
         outputs = model.generate(
             **inputs,
-            max_new_tokens=1024,  # Adjust as needed for your expected output size
+            max_new_tokens=MAX_SEQ_LENGTH,  # Adjust as needed for your expected output size
             use_cache=True,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
-            do_sample=False, # For deterministic output during debugging
+            do_sample=False,  # For deterministic output during debugging
         )
 
     # Decode and extract the assistant's response
@@ -86,7 +86,7 @@ def generate_stream(prompt: str):
     generation_kwargs = dict(
         inputs,
         streamer=streamer,
-        max_new_tokens=2048,
+        max_new_tokens=MAX_SEQ_LENGTH,
         use_cache=True,
         pad_token_id=tokenizer.eos_token_id,
         eos_token_id=tokenizer.eos_token_id,
