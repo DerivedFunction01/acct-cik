@@ -3643,14 +3643,14 @@ def _build_instrument_by_instrument_cot(
             # Use the pre-formatted notional string for consistency
             line_parts.append(f"{ev.notional_str} > 0")
         elif ev.active_override:
-            line_parts.append(f"amount not specified but active for ")
+            line_parts.append(f"amount not specified but active for")
 
         if ev.year:
-            line_parts.append(f"year {ev.year}")
+            line_parts.append(f"year {ev.year}.")
             if ev.year >= reporting_year:
-                line_parts.append(f"(>= {reporting_year})")
+                line_parts.append(f"(>= {reporting_year}).")
             else:
-                line_parts.append(f"(< {reporting_year})")
+                line_parts.append(f"(< {reporting_year}).")
 
         # --- NEW: Add contextual reasoning for category assignment ---
 
@@ -3658,7 +3658,7 @@ def _build_instrument_by_instrument_cot(
             line_parts.append(f"it is unclear what the context was referring to, so it will be marked as {ev.category}.")
         else:
             line_parts.append(
-                f"since the surrounding context relates to {CATEGORY_TO_DESCRIPTION.get(ev.category, ev.category)}, category = {ev.category}."
+                f"Since the surrounding context relates to {CATEGORY_TO_DESCRIPTION.get(ev.category, ev.category)}, category = {ev.category}."
             )
 
         # Check for duplicates
