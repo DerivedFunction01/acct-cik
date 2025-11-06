@@ -3971,7 +3971,7 @@ def build_noise_only_chain_of_thought(evidence: List["BaseNarrativeEvidence"]) -
             risk_area = "other topics"
 
         cot_steps.append(
-            f"The text discusses {risk_area}, which could potentially involve derivatives, "
+            f"The financial text discusses {risk_area}, which could potentially involve derivatives, "
             "but no such instruments were identified."
         )
 
@@ -4154,7 +4154,7 @@ def generate_json_from_scenario(
         return {
             "chain_of_thought": chain_of_thought,
             "analysis_summary": (
-                "The text discusses various topics but does not mention any derivative "
+                "The financial text discusses various topics but does not mention any derivative "
                 "instruments used for hedging."
             ),
             "exposure": exposure_map,
