@@ -4294,7 +4294,7 @@ def generate_training_sample(archetype_index=None, allow_random_drops: bool = Tr
 def generate_dataset(
     num_samples: int,
     output_file: str = "./training_data.parquet",
-    noise_percentage: float = 0.20,
+    noise_percentage: float = 0.25,
     allow_random_drops: bool = True,
     debug: bool = False,
 ):
