@@ -23,11 +23,11 @@ from huggingface_hub import login
 
 config = {
     "DATA_PATH": "training_data.parquet",
-    "BASE_MODEL": "unsloth/Qwen3-4B-Thinking-2507-unsloth-bnb-4bit",  # Unsloth's optimized version
+    "BASE_MODEL": "unsloth/Qwen3-4B-Thinking-2507",  # Unsloth's optimized version
     "NEW_MODEL_NAME": "derivatives-classifier-4B",  # Renamed for clarity
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN_PATH": "hf_token",
-    "MAX_SEQ_LENGTH": 2048,  # Qwen2.5 supports up to 32k, but 2048 is good for training
+    "MAX_SEQ_LENGTH": 2048,  # Qwen3 supports up to 32k, but 2048 is good for training
 }
 IS_AUTHENTICATED = False
 
@@ -38,30 +38,30 @@ IS_AUTHENTICATED = False
 TRAINING_PROFILES = {
     "1": {
         "name": "High VRAM / Colab (>= 16GB)",
-        "r": 64,
-        "lora_alpha": 128,
-        "batch_size": 4,
-        "gradient_accumulation": 4,
+        "r": 128,
+        "lora_alpha": 256,
+        "batch_size": 2,
+        "gradient_accumulation": 8,
         "max_seq_length": 8192,
-        "load_in_4bit": True,
+        "load_in_4bit": False,
     },
     "2": {
         "name": "Low VRAM (8-16GB)",
-        "r": 16,
-        "lora_alpha": 32,
-        "batch_size": 1,
+        "r": 64,
+        "lora_alpha": 128,
+        "batch_size": 2,
         "gradient_accumulation": 8,
         "max_seq_length": 4096,
-        "load_in_4bit": True,
+        "load_in_4bit": False,
     },
     "3": {
         "name": "CPU / Low RAM (< 16GB)",
-        "r": 8,
-        "lora_alpha": 16,
+        "r": 32,
+        "lora_alpha": 32,
         "batch_size": 1,
-        "gradient_accumulation": 4,
+        "gradient_accumulation": 8,
         "max_seq_length": 2048,
-        "load_in_4bit": False,  # 4-bit is not optimized for CPU
+        "load_in_4bit": True,  # 4-bit is not optimized for CPU
     },
 }
 
@@ -170,18 +170,19 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=1):
         per_device_train_batch_size=profile["batch_size"],
         per_device_eval_batch_size=profile["batch_size"],
         gradient_accumulation_steps=profile["gradient_accumulation"],
-        warmup_steps=10,
+        warmup_steps=50,
         learning_rate=2e-4,
         max_grad_norm=0.3, # Helps with training stability.
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
-        logging_steps=1, # Log every step
+        logging_steps=10, # Log every step
         optim="adamw_8bit",  # Unsloth optimized optimizer
         weight_decay=0.01,
         lr_scheduler_type="cosine", # Cosine scheduler can sometimes yield better results
         seed=3407,
         save_strategy="steps",
         save_steps=200, # Save checkpoints more frequently
+        save_total_limit=3, # Only save the last 3 checkpoints
         load_best_model_at_end=True, # Load the best model at the end of training
         eval_strategy="steps",
         eval_steps=100,
