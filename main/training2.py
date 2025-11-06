@@ -170,7 +170,7 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=1):
         per_device_train_batch_size=profile["batch_size"],
         per_device_eval_batch_size=profile["batch_size"],
         gradient_accumulation_steps=profile["gradient_accumulation"],
-        warmup_steps=5,
+        warmup_steps=10,
         learning_rate=2e-4,
         max_grad_norm=0.3, # Helps with training stability.
         fp16=not torch.cuda.is_bf16_supported(),
