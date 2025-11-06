@@ -174,6 +174,8 @@ This is the most critical phase. Before any model training, the data generation 
         -   **[x] Update `DerivativeTable` and COT Generation:**
             -   Modify the table builder classes (e.g., `DerivativeTable`) to also return metadata about which columns and rows correspond to specific instrument properties (e.g., notional amounts, maturity dates).
             -   Update the COT generation logic to use this metadata to create more explicit reasoning, such as: "From the 'Notional Amounts' table, I see the row for 'Interest Rate Swaps' shows a value of $100 million for 2023, indicating an active instrument."
+        - **[] Implement having smaller text, similar to the previous text classification:** Right now, it is trained on large amounts of text at once, similar to an SEC filing, that it doesn't consider a simple one-liner such as "The company uses IR swaps ..." because it is too short.
+            -   **Action: Add a new function in `generator2.py` that generates simple `NotionalSentence` Objects, similar to the old `generator.py` for text classification** This function should generate sentences that are short enough to be considered for training but still contain relevant information.
 ---
 
 ## 5. Deprecation Plan
