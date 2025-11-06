@@ -3413,21 +3413,51 @@ def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarr
 def _generate_analysis_summary(
     scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]
 ) -> str:
-    """Dynamically generates a one-sentence analysis summary based on the final mitigation map."""
-    # This function is now called *after* the mitigation map is finalized.
-    # We pass the final map to it to ensure consistency.
+    """Dynamically generates a more detailed analysis summary based on the final mitigation map."""
     final_mitigation_map = generate_json_from_scenario(scenario, evidence, return_mitigation_map_only=True) # type: ignore
 
-    active_cats = {
+    # Group categories by their status
+    current_cats = {
         cat for cat, status in final_mitigation_map.items() if status == "current"
     }
+    historical_cats = {
+        cat for cat, status in final_mitigation_map.items() if status == "historical"
+    }
+    policy_only_cats = {
+        cat for cat, status in final_mitigation_map.items() if status == "policy_only"
+    }
+    never_cats = {
+        cat for cat, status in final_mitigation_map.items() if status == "never"
+    }
 
-    if not active_cats:
-        return "The company does not appear to use derivative instruments."
+    summary_parts = []
 
-    # Create phrases like "utilizes IR derivatives", "utilizes FX derivatives"
-    summary_phrases = {f"actively utilizes {cat} derivatives" for cat in sorted(list(active_cats))}
-    return f"The company's risk management strategy {', '.join(sorted(list(summary_phrases)))} to hedge market exposures."
+    # 1. Describe currently active derivatives
+    if current_cats:
+        cat_str = " and ".join(sorted(list(current_cats)))
+        summary_parts.append(f"actively utilizes {cat_str} derivatives")
+
+    # 2. Describe historical use
+    if historical_cats:
+        cat_str = " and ".join(sorted(list(historical_cats)))
+        summary_parts.append(f"has historically used {cat_str} derivatives")
+
+    # 3. Describe policy-only mentions
+    if policy_only_cats:
+        cat_str = " and ".join(sorted(list(policy_only_cats)))
+        summary_parts.append(f"maintains policies for {cat_str} derivatives without evidence of active use")
+
+    # 4. Describe explicit non-use
+    if never_cats:
+        cat_str = " and ".join(sorted(list(never_cats)))
+        summary_parts.append(f"explicitly states it does not use {cat_str} derivatives")
+
+    # Assemble the final sentence
+    if not summary_parts:
+        return "The company does not appear to use or mention derivative instruments for hedging."
+
+    # Join the parts into a cohesive sentence
+    return f"The company's risk management strategy involves the following: {'; '.join(summary_parts)}."
 
 
 def generate_exposure_map(
