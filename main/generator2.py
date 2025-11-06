@@ -3585,7 +3585,7 @@ def _generate_done_sentence(none_found: bool = False) -> List[str]:
         )
     else:
         done.append(
-            "I have found explicit references of derivative instruments."
+            "I have found explicit references of derivative instruments. Let me recall what I found."
         )
 
     return done
