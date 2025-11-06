@@ -1145,6 +1145,7 @@ class TimelineSentence:
                 category=self.instrument.category,
                 reporting_year=self.reporting_year,
                 value_type=self.value_type,
+                notional_multiplier=self.notional_multiplier,
             )
             sentence_text, evidence = sentence_obj.build()
             sentences.append(sentence_text)
