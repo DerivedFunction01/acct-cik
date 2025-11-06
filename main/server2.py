@@ -15,23 +15,31 @@ CORS(app)  # Enable Cross-Origin Resource Sharing for the entire app
 MODEL_PATH = "DerivedFunction/derivatives-classifier-4B"  # Your new generative model
 MAX_SEQ_LENGTH = 8192
 
-# --- LOAD MODEL WITH UNSLOTH ---
-print(f"Loading model: {MODEL_PATH}...")
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name=MODEL_PATH,
-    max_seq_length=MAX_SEQ_LENGTH,
-    dtype=None,  # Auto-detect dtype
-    load_in_4bit=False,
-)
-FastLanguageModel.for_inference(model)  # Optimize for faster inference
-print("✅ Model loaded successfully.")
-
-# Check for an environment variable to force CPU, otherwise default to GPU if available
+# --- Detect device and VRAM ---
 DEVICE_TYPE = os.environ.get("DEVICE_TYPE", "gpu").lower()
 if DEVICE_TYPE == "cpu":
     device = torch.device("cpu")
+    load_in_4bit = False
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        # Rule of thumb: use 4-bit if VRAM < 20 GB
+        load_in_4bit = vram_gb < 20
+        print(f"Detected GPU VRAM: {vram_gb:.1f} GB → 4-bit = {load_in_4bit}")
+    else:
+        load_in_4bit = False
+
+# --- Load model ---
+print(f"Loading model {MODEL_PATH} (4-bit={load_in_4bit})...")
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=MODEL_PATH,
+    max_seq_length=MAX_SEQ_LENGTH,
+    dtype=None,
+    load_in_4bit=load_in_4bit,
+)
+FastLanguageModel.for_inference(model)
+print("✅ Model loaded successfully.")
 
 # Note: Unsloth handles model placement, so model.to(device) is not explicitly needed here.
 
