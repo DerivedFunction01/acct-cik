@@ -3478,6 +3478,16 @@ def generate_exposure_map(
             if ev.category in exposure_map:
                 exposure_map[ev.category] = True
 
+    # Handle policy-only scenarios first to give it precedence
+    if (
+        not scenario.instruments
+        and scenario.policy
+        and scenario.policy.category_policies
+    ):
+        for policy in scenario.policy.category_policies:
+            if policy.category in exposure_map and exposure_map[policy.category]:
+                 mitigation_map[policy.category] = "policy_only"
+
     return exposure_map
 
 
@@ -3508,6 +3518,11 @@ def generate_mitigation_map(
             status = ev.usage_status
             category = ev.category
 
+            # If it's already marked as policy_only, don't let a "non_use" statement overwrite it.
+            # This happens when a policy is discussed but then a sentence says "we don't currently use..."
+            if mitigation_map.get(category) == "policy_only" and status == "non_use":
+                continue
+
             if category in mitigation_map:
                 if ev.is_implied and status == "current":
                     implied_evidence_map[category] = True
@@ -3525,16 +3540,6 @@ def generate_mitigation_map(
                         mitigation_map[category] = "never"
                     elif status == "speculative":
                         mitigation_map[category] = "likely"
-
-    # Handle policy-only scenarios
-    if (
-        not scenario.instruments
-        and scenario.policy
-        and scenario.policy.category_policies
-    ):
-        for policy in scenario.policy.category_policies:
-            if mitigation_map[policy.category] == "unknown":
-                mitigation_map[policy.category] = "policy_only"
 
     return mitigation_map, implied_evidence_map
 
