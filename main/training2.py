@@ -40,7 +40,7 @@ TRAINING_PROFILES = {
         "name": "High VRAM / Colab (>= 16GB)",
         "r": 128,
         "lora_alpha": 256,
-        "batch_size": 2,
+        "batch_size": 3,
         "gradient_accumulation": 8,
         "max_seq_length": 8192,
         "load_in_4bit": False,
