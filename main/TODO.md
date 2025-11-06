@@ -111,6 +111,11 @@ This is the most critical phase. Before any model training, the data generation 
             -   **[x] Action: Update Narrative Generation:** Ensure `generate_narrative_from_scenario` correctly generates paragraphs from `_generate_narrative_accounting` and `_generate_narrative_policy` even when no instruments are present. The narrative should contain text about hedge effectiveness, documentation, and accounting, but no sentences with notional amounts.
             -   **[x] Action: Verify JSON Output:** For these scenarios, the final JSON should have an empty `derivatives` list. The `analysis_summary` should reflect that no active derivatives were found, and the `chain_of_thought` should explain that while policies were discussed, no evidence of active instruments was found.
 
+-   **[ ] Implement Non-Financial "Noise-Only" Scenarios:** Create scenarios containing completely non-financial text to train the model to identify and ignore irrelevant content. This is crucial for real-world application where extracted text chunks may not be related to SEC filings.
+    -   **Action: Integrate a source for non-financial text.** Using a library like `wikipedia` is an excellent idea. A new function in `generator2.py` can fetch random Wikipedia articles.
+    -   **Action: Create a "Non-Financial Noise" Archetype/Logic.** Add a path in `generator2.py` that generates a `GenerationScenario` containing only text from the non-financial source.
+    -   **Action: Verify JSON Output for Non-Financial Noise.** For these scenarios, the `chain_of_thought` should explain that the text is not a financial disclosure, and the `derivatives` list should be empty. The `analysis_summary` should state that the text is unrelated to financial reporting.
+
 ---
 
 ## 3. Phase 2: Implement the Training Pipeline (`training.py`)
