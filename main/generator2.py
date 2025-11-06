@@ -1106,6 +1106,7 @@ def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationS
     # Use the builder to construct the full scenario
     builder = ScenarioBuilder(scenario)
     return builder.build()
+import random
 
 def get_non_financial_text(
     num_articles_to_cache: int = 50, max_length: int = 1500
@@ -1115,7 +1116,7 @@ def get_non_financial_text(
     Caches results in a parquet file to avoid re-fetching.
 
     Returns:
-        A string containing a chunk of non-financial text.
+        A string containing a random chunk of non-financial text.
     """
     cache_file = Path("./non_financial_noise.parquet")
     articles_df = None
@@ -1131,11 +1132,9 @@ def get_non_financial_text(
         with tqdm(total=num_articles_to_cache, desc="Fetching Noise") as pbar:
             while len(fetched_articles) < num_articles_to_cache:
                 try:
-                    # wikipedia.random() is a simple way to get diverse topics
                     page_title = wikipedia.random(pages=1)
                     page = wikipedia.page(page_title, auto_suggest=False, redirect=True)
 
-                    # Basic check to avoid financial topics that might slip through
                     if any(kw in page.title.lower() for kw in ["finance", "business", "economics", "company"]):
                         continue
 
@@ -1145,13 +1144,18 @@ def get_non_financial_text(
                     fetched_articles.append({"text": content})
                     pbar.update(1)
                 except (wikipedia.exceptions.PageError, wikipedia.exceptions.DisambiguationError):
-                    continue # Ignore errors and try again
+                    continue
         
         articles_df = pd.DataFrame(fetched_articles)
         articles_df.to_parquet(cache_file, index=False)
 
-    # 3. Return a random article from the dataframe
-    return articles_df.sample(1).iloc[0]["text"][:max_length]
+    # 3. Return a random chunk from the dataframe
+    text = articles_df.sample(1).iloc[0]["text"]
+    if len(text) <= max_length:
+        return text
+    else:
+        start = random.randint(0, len(text) - max_length)
+        return text[start:start + max_length]
 
 def _randomize_archetype_properties(archetype: ScenarioArchetype) -> ScenarioArchetype:
     """
