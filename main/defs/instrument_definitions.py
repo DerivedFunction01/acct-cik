@@ -5,6 +5,13 @@ from dataclasses import dataclass, field
 DERIVATIVE_CATEGORIES = ("IR", "FX", "CP", "EQ", "GEN")
 DerivativeCategory = Literal["IR", "FX", "CP", "EQ", "GEN"]
 
+CATEGORY_TO_NAME = {
+    "IR": "interest rate",
+    "FX": "foreign currency",
+    "CP": "commodity price",
+    "EQ": "equity",
+}
+
 T_HedgedItem = TypeVar("T_HedgedItem", bound="HedgedItem")
 
 @dataclass
@@ -151,7 +158,7 @@ class BaseNarrativeEvidence:
 
     def to_string(self) -> str:
         """Generates a human-readable 'chain of thought' sentence for this evidence."""
-        return f"Uncategorized evidence found for {self.category}."
+        return f"Uncategorized evidence found for {CATEGORY_TO_NAME.get(self.category, self.category)}."
 
 @dataclass
 class AccountingStandardEvidence(BaseNarrativeEvidence):
@@ -170,15 +177,8 @@ class ContextEvidence(BaseNarrativeEvidence):
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the contextual evidence."""
-        exposure_type_map = {
-            "IR": "interest rate risk from debt obligations",
-            "FX": "foreign currency exchange risk",
-            "CP": "commodity price risk",
-            "EQ": "equity price risk",
-            "LAW": "legal proceedings",
-            "GEN": "general market risks",
-        }
-        exposure_description = exposure_type_map.get(
-            self.category, "an unknown risk category"
+        
+        exposure_description = CATEGORY_TO_NAME.get(
+            self.category, "an unknown"
         )
-        return f"The text discusses exposure to {exposure_description} but does not mention any derivative instruments used to hedge this exposure."
+        return f"The text discusses exposure to {exposure_description} risk but does not mention any derivative instruments used to hedge this exposure."

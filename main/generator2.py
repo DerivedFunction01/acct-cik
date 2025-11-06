@@ -13,7 +13,7 @@ from defs.scenario_definitions import GenerationScenario, ScenarioArchetype
 from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
 from defs.common_data import *
 from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument 
-from defs.instrument_definitions import DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, ContextEvidence, NotionalInstrument, HedgedItem, GenericInstrument
+from defs.instrument_definitions import CATEGORY_TO_NAME, DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, ContextEvidence, NotionalInstrument, HedgedItem, GenericInstrument
 from defs.policy_definitions import (
     AccountingPolicySentence,
     AccountingStandardUpdateSentence,
@@ -1248,14 +1248,10 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
         else:
             # "a portfolio of derivative instruments"
             # --- FIX: Use the full category name for a more natural phrase ---
-            category_map = {
-                "IR": "interest rate",
-                "FX": "foreign exchange",
-                "CP": "commodity",
-                "EQ": "equity",
-                "GEN": "various" # Fallback for generic
-            }
-            descriptive_category = category_map.get(category, "various")
+
+            descriptive_category = CATEGORY_TO_NAME.get(
+                category, random.choice(GENERIC_DESCRIPTORS)
+            )
             # --- FIX: Use a random suffix for more variety ---
             # e.g., "a portfolio of interest rate contracts" instead of always "derivative instruments"
             suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
@@ -1265,15 +1261,9 @@ def _get_smart_instrument_description(instruments: List[NotionalInstrument], cat
 
     # --- FIX: Dynamically generate the generic description, ensuring category is mentioned ---
     # This logic handles cases with 2-3 dissimilar instruments or fallbacks.
-    category_map = {
-        "IR": "interest rate",
-        "FX": "foreign exchange",
-        "CP": "commodity",
-        "EQ": "equity",
-        "GEN": "various"
-    }
+
     # Always prefer the specific category name over a generic descriptor if available.
-    descriptor = category_map.get(category, random.choice(GENERIC_DESCRIPTORS))
+    descriptor = CATEGORY_TO_NAME.get(category, random.choice(GENERIC_DESCRIPTORS))
     suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
     plural_suffix = suffix if suffix.endswith('s') else f"{suffix}s"
     plural_suffix = plural_suffix.strip().lower()
@@ -2315,16 +2305,9 @@ def _generate_category_narrative(
             and random.random() < 0.7  # 70% chance to generate a table if preferred
             and random.random() < GENERATION_PROBABILITIES["active_instrument_mention"]
         ):  # type: ignore
-            cat_to_map = {
-                "IR": "Interest Rate",
-                "FX": "Foreign Currency",
-                "CP": "Commodity",
-                "EQ": "Equity",
-                "GEN": "",
-            }
             table_builder = DerivativeTable(
                 instruments=current_year_data["instruments"],
-                category=cat_to_map.get(category, ""),
+                category=CATEGORY_TO_NAME.get(category, ""),
                 yearly_data=yearly_data,
                 reporting_year=reporting_year,
                 reporting_day=reporting_day,
@@ -3107,20 +3090,13 @@ def generate_narrative_from_scenario(
         if cats_with_instruments:
             num_tables_to_gen = random.randint(1, len(cats_with_instruments))
             cats_for_tables = random.sample(cats_with_instruments, num_tables_to_gen)
-            cat_to_map = {
-                "IR": "interest rate",
-                "FX": "foreign currency",
-                "CP": "commodity",
-                "EQ": "equity",
-                "GEN": "",
-            }
             for category in cats_for_tables:
                 all_instruments_for_cat = [
                     inst for inst in scenario.instruments if inst.category == category
                 ]
                 table_builder = DerivativeTable(
                     instruments=all_instruments_for_cat,
-                    category=cat_to_map.get(category, ""),
+                    category=CATEGORY_TO_NAME.get(category, ""),
                     yearly_data=aggregated_data.get(category, {}),
                     reporting_year=scenario.reporting_year,
                     reporting_day=scenario.reporting_day,
@@ -3674,7 +3650,13 @@ def _build_instrument_by_instrument_cot(
             else:
                 line_parts.append(f"(< {reporting_year})")
 
-        line_parts.append(f"Category = {ev.category}.")
+        # --- NEW: Add contextual reasoning for category assignment ---
+        if ev.category == "CP":
+            line_parts.append(f"since the surrounding context relates to commodities, category = {ev.category}.")
+        elif ev.category == "GEN":
+            line_parts.append(f"it is unclear what the context was referring to, so it will be marked as {ev.category}.")
+        else:
+            line_parts.append(f"Category = {ev.category}.")
 
         # Check for duplicates
         if ev.instrument_id in processed_instruments:

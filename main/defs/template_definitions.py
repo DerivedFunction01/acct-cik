@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import random
 from typing import Dict, List, Literal, Tuple, Union
 from defs.notional_definitions import NotionalEvidence
-from defs.instrument_definitions import NotionalInstrument
+from defs.instrument_definitions import CATEGORY_TO_NAME, NotionalInstrument
 from defs.common_data import DERIVATIVE_COMPONENTS
 from defs.fx_data import CurrencyExposure, ForeignCurrencyHedgedItem
 from defs.table_definitions import FinancialStatementTable, GenericTable
@@ -1156,15 +1156,9 @@ class YearOverYearTableBuilder(DerivativeTableBuilder): # Already refactored, sh
             return "", [], []
 
         # Add a title
-        category_map = {
-            "IR": "Interest Rate",
-            "FX": "Foreign Exchange",
-            "CP": "Commodity",
-            "EQ": "Equity",
-            "GEN": "Derivative",
-        }
-        title = f"Outstanding {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s {self._get_units()}"
-        
+
+        title = f"Outstanding {CATEGORY_TO_NAME.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s {self._get_units()}"
+
         # Use the generic table builder to format the output
         generic_table = GenericTable(
             headers=headers,
@@ -1295,16 +1289,9 @@ class NotionalVsFairValueTableBuilder(DerivativeTableBuilder):
 
         if not all_table_parts:
             return "", [], []
-        category_map = {
-            "IR": "Interest Rate",
-            "FX": "Foreign Exchange",
-            "CP": "Commodity",
-            "EQ": "Equity",
-            "GEN": "Derivative",
-        }
 
         # Combine the sub-tables into a single table string with one caption
-        title = f"Notional and Fair Value of {category_map.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s {self._get_units()}"
+        title = f"Notional and Fair Value of {CATEGORY_TO_NAME.get(self.category, 'Derivative')} {random.choice(DERIVATIVE_COMPONENTS['suffixes'])}s {self._get_units()}"
         full_table_str = f"<TABLE>\n<CAPTION>\n{title}\n" + "\n".join(all_table_parts) + "\n</TABLE>"
 
         return full_table_str, evidence_list, []

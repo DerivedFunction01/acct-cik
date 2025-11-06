@@ -7,7 +7,7 @@ from defs.cp_data import CPContextSentence, CommodityHedgedItem, get_random_comm
 from defs.eq_data import EQContextSentence, EquityHedgedItem
 from defs.fx_data import FXContextSentence, ForeignCurrencyHedgedItem, all_currencies
 from defs.ir_data import DebtContextSentence, DebtHedgedItem, IRInstrument
-from defs.instrument_definitions import NotionalInstrument
+from defs.instrument_definitions import CATEGORY_TO_NAME, NotionalInstrument
 from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
 
 
@@ -43,13 +43,7 @@ class NotionalEvidence(BaseNarrativeEvidence):
 
     def _category_label(self) -> str:
         """Map short category codes to descriptive names."""
-        return {
-            "IR": "Interest Rate",
-            "FX": "Foreign Exchange",
-            "CP": "Commodity",
-            "EQ": "Equity",
-            "GEN": "",
-        }.get(self.category, "Unknown Category")
+        return CATEGORY_TO_NAME.get(self.category, "")
 
     def _temporal_reasoning(self) -> str:
         """Generates a concise temporal reasoning string, e.g., '(2023, current maturity)'."""
@@ -740,15 +734,9 @@ class NotionalSentence:
         # Handle "no_instruments" case specifically
         if self.sentence_type == "no_instruments":
             template = random.choice(NO_INSTRUMENTS_TEMPLATES)
-            category_map = {
-                "IR": "interest rate",
-                "FX": "foreign currency",
-                "CP": "commodity price",
-                "EQ": "equity",
-                "GEN": "",
-            }
+
             # Define a descriptive phrase for the category
-            category_risk_phrase = category_map.get(self.category or "GEN", "")
+            category_risk_phrase = CATEGORY_TO_NAME.get(self.category or "GEN", "")
 
             # Populate the chosen template
             sentence = template.format(

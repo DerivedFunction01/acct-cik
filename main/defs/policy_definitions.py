@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import random
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 from defs.function_definitions import _get_company_reference
 
@@ -19,10 +19,8 @@ from defs.template_definitions import (
     hedged_item_subjects,
     deferred_gain_loss_subjects,
     hedge_types,
-    hedge_methods,
     hedge_standards,
     hedge_counterparty_templates,
-    hedge_no_trading_templates,
     hedge_change_policy_templates,
     hedge_additional_definition_templates,
     general_policy_templates,
@@ -42,12 +40,10 @@ from defs.template_definitions import (
     hedging_additional_features,
     shared_standards_templates,
     other_topics,
-    other_standards,
     hedge_definition_templates,
 )
-from defs.instrument_definitions import AccountingStandardEvidence
+from defs.instrument_definitions import CATEGORY_TO_NAME, AccountingStandardEvidence
 from defs.cp_data import get_cost_types_for_commodity
-from defs.fx_data import all_currencies
 from defs.instrument_definitions import BaseNarrativeEvidence, DerivativeCategory, SpecificDetails
 from defs.function_definitions import _cleanup_sentence
 
@@ -346,13 +342,7 @@ class MitigationEvidence(BaseNarrativeEvidence):
 
     def _category_label(self) -> str:
         """Map short category codes to descriptive names."""
-        return {
-            "IR": "Interest Rate",
-            "FX": "Foreign Exchange",
-            "CP": "Commodity",
-            "EQ": "Equity",
-            "GEN": "Generic",
-        }.get(self.category, "Unknown Category")
+        return CATEGORY_TO_NAME.get(self.category, "")
 
     def to_string(self) -> str:
         """Generates a reasoning statement for the mitigation evidence."""
