@@ -2717,6 +2717,7 @@ def _generate_category_narrative(
                         is_repeated_mention=is_first_repetition_terminated,
                         preferred_negative_format=scenario.archetype.preferred_negative_format,
                         instrument=instrument,
+                        notional_multiplier=scenario.archetype.notional_multiplier,
                     )
                     terminated_instrument_text, evidence_obj = (
                         terminated_instrument_obj.build()
@@ -4212,3 +4213,5 @@ def generate_dataset(
 
 # %%
 generate_dataset(1000)
+
+# %%
