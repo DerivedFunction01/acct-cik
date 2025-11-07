@@ -207,8 +207,8 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         lr_scheduler_type="cosine",  # Cosine scheduler can sometimes yield better results
         seed=3407,
         save_strategy="steps",
-        save_steps=584,  # Save checkpoints more frequently
-        save_total_limit=3,  # Only save the last 3 checkpoints
+        save_steps=eval_steps,  # Save checkpoints at the same frequency as evaluation
+        save_total_limit=2,  # Only save the last 2 checkpoints
         load_best_model_at_end=True,  # Load the best model at the end of training
         eval_strategy="steps",
         eval_steps=eval_steps,  # Use the dynamically calculated value
