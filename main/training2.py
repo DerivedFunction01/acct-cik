@@ -24,6 +24,7 @@ from huggingface_hub import login
 config = {
     "DATA_PATH": "training_data.parquet",
     "BASE_MODEL": "unsloth/Qwen3-4B-Thinking-2507",  # Unsloth's optimized version
+    "FINANCE_DATA_PATH": "DerivedFunction/Finance-Instruct-50K",
     "NEW_MODEL_NAME": "derivatives-classifier-4B",  # Renamed for clarity
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN_PATH": "hf_token",

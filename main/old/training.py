@@ -26,6 +26,7 @@ from pathlib import Path
 config = {
     "EXCEL_PATH": "./training_data.xlsx",
     "MODEL_PATH": "derivative-classifier",
+    "FINANCE_SUBSET_PATH": "Finance-Instruct-50K" # Same user
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN": "hf_token"
 }
