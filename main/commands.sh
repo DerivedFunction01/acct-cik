@@ -1,15 +1,8 @@
 # For Jupyter notebooks
-!pip install xlsxwriter
 !git clone https://github.com/DerivedFunction/acct-cik
 !cp -rf acct-cik/main/* .
 
-!pip install bitsandbytes
-!pip install git+https://github.com/huggingface/peft.git git+https://github.com/huggingface/trl.git
-!git clone https://github.com/DerivedFunction/acct-cik
-!cp -rf acct-cik/main/* .
-
-!cd acct-cik && git pull && cd ..
-!cp -rf acct-cik/main/* .
+!python init_venv.py --no-venv
 
 # For Ubuntu systems, switch to Python 3.12
 #!/usr/bin/env bash
