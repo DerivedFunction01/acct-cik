@@ -198,22 +198,22 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         gradient_accumulation_steps=profile["gradient_accumulation"],
         warmup_steps=50,
         learning_rate=2e-4,
-        max_grad_norm=0.3, # Helps with training stability.
+        max_grad_norm=0.3,  # Helps with training stability.
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
-        logging_steps=10, # Log every step
+        logging_steps=10,  # Log every step
         optim="adamw_8bit",  # Unsloth optimized optimizer
         weight_decay=0.01,
-        lr_scheduler_type="cosine", # Cosine scheduler can sometimes yield better results
+        lr_scheduler_type="cosine",  # Cosine scheduler can sometimes yield better results
         seed=3407,
         save_strategy="steps",
-        save_steps=200, # Save checkpoints more frequently
-        save_total_limit=3, # Only save the last 3 checkpoints
-        load_best_model_at_end=True, # Load the best model at the end of training
+        save_steps=584,  # Save checkpoints more frequently
+        save_total_limit=3,  # Only save the last 3 checkpoints
+        load_best_model_at_end=True,  # Load the best model at the end of training
         eval_strategy="steps",
-        eval_steps=eval_steps, # Use the dynamically calculated value
+        eval_steps=eval_steps,  # Use the dynamically calculated value
         report_to="tensorboard",
-        push_to_hub=IS_AUTHENTICATED, # Let the Trainer handle pushing
+        push_to_hub=IS_AUTHENTICATED,  # Let the Trainer handle pushing
         hub_model_id=f"{config['MODEL_USER']}/{new_model_name}",
     )
 
