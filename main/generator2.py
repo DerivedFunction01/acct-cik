@@ -4214,6 +4214,70 @@ def build_noise_only_chain_of_thought(evidence: List["BaseNarrativeEvidence"]) -
     return "\n".join(cot_steps)
 
 
+def generate_composite_training_sample(allow_random_drops: bool = True):
+    """
+    Generates a single training sample by combining two separate scenarios.
+    This is designed to teach the model compositional reasoning.
+
+    1. Creates two distinct scenarios (e.g., one for IR, one for FX).
+    2. Generates the narrative and evidence for each.
+    3. Merges the narratives into a single prompt text.
+    4. Merges the evidence lists.
+    5. Generates a single, unified JSON target from the merged evidence.
+    """
+    # 1. Generate two distinct, simple scenarios
+    #    We can use the simple sentence generator as a base.
+    scenario1 = generate_simple_notional_sentence_scenario()
+    scenario2 = generate_simple_notional_sentence_scenario()
+
+    # Ensure they are for different categories to make the composition meaningful
+    while scenario1.instruments[0].category == scenario2.instruments[0].category:
+        scenario2 = generate_simple_notional_sentence_scenario()
+
+    # 2. Generate narrative and evidence for each part
+    #    Here, we generate a very short narrative for each.
+    narrative1, evidence1 = generate_narrative_from_scenario(scenario1, allow_random_drops=False)
+    narrative2, evidence2 = generate_narrative_from_scenario(scenario2, allow_random_drops=False)
+
+    # 3. Merge the narratives into a single prompt
+    #    We can frame it with section headers, as discussed.
+    category1_name = CATEGORY_TO_NAME.get(scenario1.instruments[0].category, "Risk Analysis")
+    category2_name = CATEGORY_TO_NAME.get(scenario2.instruments[0].category, "Risk Analysis")
+
+    # Clean up the narratives to be more like paragraphs
+    narrative1_clean = re.sub(r'<reportingYear>\d+</reportingYear>', '', narrative1).strip()
+    narrative2_clean = re.sub(r'<reportingYear>\d+</reportingYear>', '', narrative2).strip()
+
+    # This combined text becomes the new prompt for the model
+    composite_narrative = (
+        f"<reportingYear>{scenario1.reporting_year}</reportingYear>\n\n"
+        f"**Section 1: {category1_name}**\n{narrative1_clean}\n\n"
+        f"**Section 2: {category2_name}**\n{narrative2_clean}"
+    )
+
+    # 4. Merge the scenarios and evidence lists
+    #    Create a new composite scenario object to hold the merged information.
+    composite_scenario = scenario1
+    composite_scenario.instruments.extend(scenario2.instruments)
+    
+    # The evidence list is a simple concatenation
+    composite_evidence = evidence1 + evidence2
+
+    # 5. Generate a single, unified JSON target
+    #    The existing `generate_json_from_scenario` function can now be used on the
+    #    composite data to produce a single JSON that covers both scenarios.
+    #    The `build_chain_of_thought` function will naturally handle the combined
+    #    evidence, creating a single, non-redundant reasoning block.
+    target_json = generate_json_from_scenario(composite_scenario, composite_evidence)
+
+    # The `build_chain_of_thought` function will see evidence from both scenarios
+    # and create a single, coherent thought process without repeating the introduction.
+    # For example, it will find IR evidence, then FX evidence, and list them sequentially
+    # in the instrument-by-instrument review.
+
+    return composite_narrative, target_json
+
+
 def build_derivatives_list(
     evidence: List["BaseNarrativeEvidence"], scenario: "GenerationScenario"
 ) -> List[Dict[str, Any]]:

@@ -177,12 +177,42 @@ This is the most critical phase. Before any model training, the data generation 
         - **[] Implement having smaller text, similar to the previous text classification:** Right now, it is trained on large amounts of text at once, similar to an SEC filing, that it doesn't consider a simple one-liner such as "The company uses IR swaps ..." because it is too short.
             -   **Action: Add a new function in `generator2.py` that generates simple `NotionalSentence` Objects, similar to the old `generator.py` for text classification** This function should generate sentences that are short enough to be considered for training but still contain relevant information.
 
--   **[ ] Implement a Bootstrapped Training Strategy:** To bridge the gap between general financial knowledge and the final, complex JSON generation task, implement a multi-stage data generation loop.
+-   **[ ] Implement a Bootstrapped Training Strategy (Distillation):** To bridge the gap between general financial knowledge and the final, complex JSON generation task, implement a multi-stage data generation loop. This "distillation" process uses the model's own reasoning to create a higher-quality training set.
     -   **Goal:** Use the model's own reasoning to create a high-quality, perfectly formatted dataset for the final fine-tuning stage.
     -   **Stage A: Generate Simple Prompts.** Use a function like `generate_simple_notional_sentence_scenario` to create a dataset of short, single-idea paragraphs.
-    -   **Stage B: Initial Extraction.** Feed these simple prompts to the Stage 1 fine-tuned model (the one trained on the general finance dataset). The instruction will be to extract key facts in natural language (e.g., "Extract the instrument, notional amount, and status.").
-    -   **Stage C: Programmatic Formatting.** Create a script that takes the model's correct natural language output from Stage B (the "thought bubble"). This script will then programmatically wrap this reasoning into a perfect `<|think|>` block and construct the corresponding, valid JSON object.
-    -   **Stage D: Final Fine-Tuning.** Use the high-quality dataset created in Stage C for the final fine-tuning process. This teaches the model the exact output format while building on its existing reasoning capabilities.
+    -   **Stage B: Initial Extraction (Reasoning Capture).**
+        -   Feed these simple prompts to the Stage 1 fine-tuned model (the one trained on the general finance dataset).
+        -   Use a **"perfect user instruction"** that forces the model to externalize its step-by-step reasoning (e.g., "1. Identify risk. 2. Identify instruments...").
+        -   Capture this natural language reasoning output (the "thought bubble").
+    -   **Stage C: Programmatic Formatting.** Create a script that takes the model's correct natural language output from Stage B. This script will then programmatically wrap this reasoning into a perfect `<|think|>` block and construct the corresponding, valid JSON object.
+    -   **Stage D: Compositional Training.**
+        -   Create more complex prompts by merging paragraphs from different scenarios (e.g., a debt context paragraph + an FX instrument paragraph).
+        -   Use a structured prompt format (e.g., "Section 1: ..., Section 2: ...") to guide the model to synthesize information without redundant thinking.
+        -   Repeat the reasoning capture and programmatic formatting for these composite prompts.
+    -   **Stage E: Final Fine-Tuning.** Use the high-quality, diverse dataset created in Stages C and D for the final fine-tuning process. This teaches the model both basic extraction and compositional reasoning in the exact output format required.
+    - **Example User Prompt.** 
+    ```md
+    Your task is to act as a financial analyst. You will be given multiple sections of a financial report. Analyze each section and synthesize your findings into a single, coherent analysis.
+
+        Follow these steps in your reasoning:
+        1.  Analyze Section 1 for its content.
+        2.  Analyze Section 2 for its content.
+        3.  Combine your findings, noting any relationships between the sections.
+        4.  Summarize your overall conclusions.
+
+        Begin your response with your step-by-step reasoning.
+
+        Section 1: Interest Rate Risk Context
+        ---
+        The company has significant exposure to interest rate fluctuations due to its $500 million in variable-rate debt.
+        ---
+
+        Section 2: Hedging Activities
+        ---
+        To mitigate this risk, the company entered into an interest rate swap agreement with a notional value of $250 million.
+        ---
+
+    ```
 
 ---
 
