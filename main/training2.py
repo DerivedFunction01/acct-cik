@@ -155,31 +155,35 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
         print(f"Error loading '{model_name}': {e}")
         print("If pulling from Hub, ensure the model ID is correct, you have access, and you are logged in.")
-        return # Exit the training function
+        return  # Exit the training function
 
     # --- Apply LoRA with Unsloth ---
-    model = FastLanguageModel.get_peft_model(
-        model,
-        r=profile["r"],
-        # In a robust Colab environment, "all-linear" is preferred for better performance.
-        # Unsloth's "all-linear" can sometimes fail. Specifying modules explicitly is more robust.
-        target_modules=[
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-        ],
-        lora_alpha=profile["lora_alpha"],
-        lora_dropout=0,  # Unsloth optimizes better with 0 dropout
-        bias="none",
-        use_gradient_checkpointing="unsloth",  # Unsloth's optimized gradient checkpointing
-        random_state=3407,
-        use_rslora=False,
-        loftq_config=None,
-    )
+    # Check if the model already has adapters. If so, we continue training them.
+    # If not, we add new ones. This prevents the TypeError.
+    if hasattr(model, "peft_config"):
+        print("Model already has LoRA adapters. Continuing training.")
+    else:
+        print("Adding new LoRA adapters for fine-tuning...")
+        model = FastLanguageModel.get_peft_model(
+            model,
+            r=profile["r"],
+            target_modules=[
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
+            lora_alpha=profile["lora_alpha"],
+            lora_dropout=0,
+            bias="none",
+            use_gradient_checkpointing="unsloth",
+            random_state=3407,
+            use_rslora=False,
+            loftq_config=None,
+        )
 
     # --- Dynamic Evaluation Steps ---
     # For large datasets, evaluating every 100 steps is too frequent.
