@@ -4108,18 +4108,21 @@ def generate_simple_notional_sentence_scenario() -> GenerationScenario:
         A GenerationScenario containing a single instrument and a single sentence.
     """
     # 1. Create a basic archetype and scenario shell
+    exposure_map = {cat: (0, 0) for cat in DERIVATIVE_CATEGORIES}
+    select_category = random.choice(DERIVATIVE_CATEGORIES)
+    exposure_map[select_category] = (1, 1)
     archetype = ScenarioArchetype(
         name="Simple Notional Sentence",
-        debt_exposure_range=(1, 1),
-        fx_exposure_range=(0, 0),
-        commodity_exposure_range=(0, 0),
-        equity_exposure_range=(0, 0),
-        generic_instrument_range=(0, 0),
-        hedging_propensities={"IR": (1.0, 1.0)},
+        debt_exposure_range=exposure_map["IR"],
+        fx_exposure_range=exposure_map["FX"],
+        commodity_exposure_range=exposure_map["CP"],
+        equity_exposure_range=exposure_map["EQ"],
+        generic_instrument_range=exposure_map["GEN"],
+        hedging_propensities={ cat: (0 , 0) if cat != select_category else (1, 1) for cat in DERIVATIVE_CATEGORIES},
         policy_coverage="none",
-        comparative_years=1,
-        default_currency="USD",
-        notional_multiplier=1_000_000,
+        comparative_years=random.randint(1,3), # type: ignore
+        default_currency=random.choice([c.code for c in all_currencies]),
+        notional_multiplier=random.choice([1_000, 1_000_000, 1_000_000]),
         prefers_abbreviated_numbers=True,
     )
     scenario = GenerationScenario(
