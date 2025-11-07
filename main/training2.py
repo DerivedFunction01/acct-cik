@@ -25,7 +25,7 @@ config = {
     "TASK_DATA_PATH": "training_data.parquet",  # Your synthetic JSON data
     "BASE_MODEL": "unsloth/Qwen3-4B-Thinking-2507",  # Unsloth's optimized version
     "FINANCE_DATASET_HF": "DerivedFunction/Finance-Instruct-100K", # Your HF dataset
-    "FINANCE_FINETUNED_MODEL": "Qwen3-4B-Thinking-2507-finance-base", # Intermediate model
+    "FINANCE_FINETUNED_MODEL": "Qwen3-4B-finance-base", # Intermediate model
     "FINAL_MODEL_NAME": "derivatives-classifier-4B",  # Renamed for clarity
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN_PATH": "hf_token",
@@ -42,7 +42,7 @@ TRAINING_PROFILES = {
         "name": "Max Performance (A100 40GB / H100)",
         "r": 256,
         "lora_alpha": 512,
-        "batch_size": 18,
+        "batch_size": 22,
         "gradient_accumulation": 1,
         "max_seq_length": 24576,
         "load_in_4bit": False,
@@ -178,6 +178,17 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         loftq_config=None,
     )
 
+    # --- Dynamic Evaluation Steps ---
+    # For large datasets, evaluating every 100 steps is too frequent.
+    # Let's aim for 4 evaluations per epoch.
+    num_train_samples = len(train_dataset)
+    if num_train_samples > 20000: # Heuristic for a "large" dataset
+        steps_per_epoch = math.ceil(num_train_samples / (profile["batch_size"] * profile["gradient_accumulation"]))
+        eval_steps = max(100, steps_per_epoch // 4) # Evaluate 4 times per epoch, but at least every 100 steps.
+    else:
+        eval_steps = 100 # Default for smaller datasets
+    print(f"📊 Setting evaluation frequency to every {eval_steps} steps.")
+
     # --- Training Arguments ---
     training_args = TrainingArguments(
         output_dir=new_model_name,
@@ -199,8 +210,8 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         save_steps=200, # Save checkpoints more frequently
         save_total_limit=3, # Only save the last 3 checkpoints
         load_best_model_at_end=True, # Load the best model at the end of training
-        eval_strategy="steps",
-        eval_steps=100,
+        evaluation_strategy="steps",
+        eval_steps=eval_steps, # Use the dynamically calculated value
         report_to="tensorboard",
         push_to_hub=IS_AUTHENTICATED, # Let the Trainer handle pushing
         hub_model_id=f"{config['MODEL_USER']}/{new_model_name}",
@@ -222,8 +233,13 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
     # --- Train and Save ---
     print(f"\nStarting training for {num_epochs} epochs...")
     print("🚀 Unsloth provides 2-5x faster training and 60% less memory usage!")
-
-    trainer_stats = trainer.train()
+    try:
+        checkpoint_exists = Path(new_model_name).exists()
+        if checkpoint_exists:
+            print("Checkpoint found. Resuming training from checkpoint...")
+        trainer_stats = trainer.train(resume_from_checkpoint=checkpoint_exists)
+    except:
+        trainer_stats = trainer.train()
 
     print("\n--- Training Statistics ---")
     print(f"Training time: {trainer_stats.metrics['train_runtime']:.2f} seconds")
