@@ -89,7 +89,7 @@ DERIVATIVE_CONTEXT_KEYWORDS = [
     'stock', 'equity', 'share price',
     # NEW: XBRL and Structured Data Context
     'xbrl', 'xbrl tagging', 'structured data', 'financial-ner-nlp',
-    'sec filing', '10-k', '10-q',
+    'sec filing', '10-k', '10-q', 'sec'
 ]
 
 # --- Other Finance Topics Keywords ---
