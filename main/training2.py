@@ -22,12 +22,16 @@ from huggingface_hub import login
 
 
 config = {
-    "TASK_DATA_PATH": "training_data.parquet",  # Your synthetic JSON data
-    "BASE_MODEL": "unsloth/Qwen3-4B-Thinking-2507",  # Unsloth's optimized version
-    "FINANCE_DATASET_HF": "DerivedFunction/Finance-Instruct-100K", # Your HF dataset
-    "FINANCE_FINETUNED_MODEL": "Qwen3-4B-finance-base", # Intermediate model
-    "FINAL_MODEL_NAME": "derivatives-classifier-4B",  # Renamed for clarity
     "MODEL_USER": "DerivedFunction",
+    "MODEL_NAMES": [
+        "unsloth/Qwen3-4B-Thinking-2507",
+        "unsloth/llama-3-8b-Instruct-bnb-4bit",
+        "unsloth/phi-3-mini-4k-instruct-bnb-4bit",
+    ],
+    "DATASETS": [
+        ("DerivedFunction/Finance-Instruct-100K", True),  # (path/id, is_hf_dataset)
+        ("training_data.parquet", False),
+    ],
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 2048,  # Qwen3 supports up to 32k, but 2048 is good for training
 }
@@ -99,14 +103,8 @@ def detect_hardware():
 def format_task_prompt(sample):
     """Formats a sample for instruction fine-tuning using Qwen's chat template with a thought block."""
     try:
-        completion_data = json.loads(sample["completion"])
-        chain_of_thought = completion_data.pop("chain_of_thought", "")
-
-        # The rest of the JSON data
-        rest_of_json = json.dumps(completion_data, indent=2)
-
         # Construct the new format
-        return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n<|think|>\n{chain_of_thought}\n<|endthink|>\n{rest_of_json}<|im_end|>"
+        return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n<|think|>\n{sample['think']}\n<|endthink|>\n{sample['completion']}<|im_end|>"
     except (json.JSONDecodeError, KeyError, TypeError):
         # Fallback for cases where completion is not a valid JSON or doesn't have the expected structure
         return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
@@ -279,14 +277,13 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
 def run_manual_test():
     """Allows for manual, interactive testing of the fine-tuned model."""
     print("\n--- Manual Model Test ---")
-    print(f"  1. Load Final Task Model ({config['FINAL_MODEL_NAME']})")
-    print(f"  2. Load Base Finance Model ({config['FINANCE_FINETUNED_MODEL']})")
-    model_choice = input("Choose model to load [1]: ").strip() or "1"
-    
-    if model_choice == "1":
-        model_path = config["FINAL_MODEL_NAME"]
-    else:
-        model_path = config["FINANCE_FINETUNED_MODEL"]
+
+    print("Available models to test:")
+    for i, name in enumerate(config["MODEL_NAMES"], 1):
+        print(f"  [{i}] {name}")
+    print("  [c] Enter a custom model name/path")
+    model_choice = input("Choose model to load: ").strip()
+    model_path = handle_model_choice(model_choice, config["MODEL_NAMES"])
 
     # --- NEW LOGIC: Check for local model, else try Hub ---
     local_model_path = Path(model_path)
@@ -394,7 +391,27 @@ def run_manual_test():
 
 def view_dataset_sample():
     """Loads and displays a random sample from the training dataset."""
-    data_path = config["TASK_DATA_PATH"]
+    print("\n--- Select a Dataset to View ---")
+    for i, (name, is_hf) in enumerate(config["DATASETS"], 1):
+        source = "Hugging Face" if is_hf else "Local"
+        print(f"  [{i}] {name} ({source})")
+    print("  [c] Custom local dataset (.parquet)")
+    
+    choice = input("Enter dataset to view: ").strip()
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(config["DATASETS"]):
+            data_path, is_hf_dataset = config["DATASETS"][idx]
+        else:
+            print("❌ Invalid selection.")
+            return
+    elif choice.lower() == 'c':
+        data_path = input("Enter path to custom .parquet file: ").strip()
+        is_hf_dataset = False
+    else:
+        data_path = choice # Assume it's a path
+        is_hf_dataset = False
+
     if not Path(data_path).exists():
         print(f"❌ Dataset file not found at '{data_path}'.")
         print("    Please ensure the training data has been generated.")
@@ -403,13 +420,13 @@ def view_dataset_sample():
     print(f"\n--- Loading a random sample from {data_path} ---")
     try:
         # Load the full dataset
-        dataset = load_dataset("parquet", data_files=data_path, split="train")
+        dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
 
         # Select a random sample
         random_index = random.randint(0, len(dataset) - 1)
         sample = dataset[random_index]
 
-        print("\n" + "=" * 25 + " RANDOM FORMATTED SAMPLE " + "=" * 25)
+        print("\n" + "=" * 25 + " RANDOM FORMATTED SAMPLE (using format_finance_prompt) " + "=" * 25)
         # Use the same formatting function as the trainer to see the final input
         formatted_text = format_task_prompt(sample)
         print(formatted_text)
@@ -418,10 +435,33 @@ def view_dataset_sample():
         print(f"❌ Failed to load or read the dataset: {e}")
 
 
+def handle_model_choice(choice: str, model_list: list) -> str:
+    """Helper to resolve user's model choice from a list or custom input."""
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(model_list):
+            return model_list[idx]
+    elif choice.lower() == 'c':
+        return input("Enter custom model name/path: ").strip()
+    # If it's not a digit or 'c', assume it's a custom name directly
+    return choice
+
+
 def huggingface_auth():
     """Handles Hugging Face authentication."""
     global IS_AUTHENTICATED
-    print("\nPlease paste your Hugging Face token below to log in.")
+    token_path = Path(config["HF_TOKEN_PATH"])
+    if token_path.exists():
+        print("Found saved Hugging Face token.")
+        try:
+            login(token=token_path.read_text().strip())
+            IS_AUTHENTICATED = True
+            print("✅ Successfully authenticated with Hugging Face.")
+            return
+        except Exception as e:
+            print(f"⚠️  Authentication with saved token failed: {e}")
+
+    print("\nPlease paste your Hugging Face token below to log in (optional).")
     print("(You can get a token from https://huggingface.co/settings/tokens)")
 
     token_path = Path(config["HF_TOKEN_PATH"])
@@ -454,10 +494,9 @@ if __name__ == "__main__":
     try:
         while True:
             print("\n--- Generative Model Training Menu (Unsloth Optimized) ---")
-            print("1. [Stage 1] Fine-tune on general finance data (from Hugging Face)")
-            print("2. [Stage 2] Fine-tune on specific task data (JSON generation)")
+            print("1. Fine-tune a base model")
             print("-------------------------------------------------------------")
-            print("3. View Sample from Task Dataset")
+            print("2. View Sample from Task Dataset")
             print("4. Manually Test Model")
             print("5. Hugging Face Login")
             print("6. Exit")
@@ -465,7 +504,7 @@ if __name__ == "__main__":
             
             if choice == "1":
                 # --- New Dynamic Menu ---
-                print("\n--- Select a Training Profile ---")
+                print("\n--- Step 1: Select a Training Profile ---")
                 hardware_type, ram = detect_hardware()
                 
                 # Suggest a profile based on VRAM
@@ -495,75 +534,48 @@ if __name__ == "__main__":
                     print("❌ Invalid profile. Aborting.")
                     continue
 
-                print("\n--- Stage 1: General Finance Fine-tuning ---")
-                num_epochs = int(input("Enter number of training epochs [default: 1]: ") or 1)
-                
-                # Use the dataset from Hugging Face Hub directly
-                run_training(
-                    profile=selected_profile,
-                    model_name=config["BASE_MODEL"],
-                    data_path=config["FINANCE_DATASET_HF"],
-                    formatting_func=format_finance_prompt,
-                    new_model_name=config["FINANCE_FINETUNED_MODEL"],
-                    num_epochs=num_epochs,
-                    is_hf_dataset=True,
-                )
+                print("\n--- Step 2: Select a Base Model ---")
+                for i, name in enumerate(config["MODEL_NAMES"], 1):
+                    print(f"  [{i}] {name}")
+                print("  [c] Enter a custom model name/path from Hugging Face")
+                model_choice = input("Enter base model to fine-tune: ").strip()
+                base_model_name = handle_model_choice(model_choice, config["MODEL_NAMES"])
 
-            elif choice == "2":
-                # --- CHECK: Ensure Stage 1 model exists locally OR can be pulled from Hub ---
-                stage1_local_path = Path(config["FINANCE_FINETUNED_MODEL"])
-                stage1_hub_id = f"{config['MODEL_USER']}/{config['FINANCE_FINETUNED_MODEL']}"
-                model_to_load_stage1 = ""
+                print("\n--- Step 3: Select a Dataset ---")
+                for i, (name, is_hf) in enumerate(config["DATASETS"], 1):
+                    source = "Hugging Face" if is_hf else "Local"
+                    print(f"  [{i}] {name} ({source})")
+                print("  [c] Custom local dataset (.parquet)")
+                data_choice = input("Enter dataset to use: ").strip()
 
-                if stage1_local_path.exists():
-                    print(f"✅ Found local Stage 1 model: '{stage1_local_path}'")
-                    model_to_load_stage1 = config["FINANCE_FINETUNED_MODEL"]
-                elif IS_AUTHENTICATED:
-                    print(f"ℹ️ Local Stage 1 model not found. Attempting to pull from Hub: '{stage1_hub_id}'")
-                    model_to_load_stage1 = stage1_hub_id
+                if data_choice.isdigit():
+                    idx = int(data_choice) - 1
+                    if 0 <= idx < len(config["DATASETS"]):
+                        data_path, is_hf_dataset = config["DATASETS"][idx]
+                    else:
+                        print("❌ Invalid dataset choice.")
+                        continue
+                elif data_choice.lower() == 'c':
+                    data_path = input("Enter path to custom .parquet file: ").strip()
+                    is_hf_dataset = False
+                    # We assume it uses the standard 'user'/'assistant' or 'prompt'/'completion' format
                 else:
-                    print(f"❌ Stage 1 model '{config['FINANCE_FINETUNED_MODEL']}' not found locally.")
-                    print("   Please run Stage 1 (Option 1) or log in (Option 5) to pull the model from Hub.")
-                    continue # Go back to menu
-                # --- END CHECK ---
-
-                # --- Stage 2 Training ---
-                print("\n--- Select a Training Profile ---")
-                # BUG FIX: Rerun hardware detection for this choice
-                hardware_type, ram = detect_hardware() 
-                
-                if hardware_type == "gpu" and ram >= 32:
-                    recommendation = "1"
-                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (Max Perf) is recommended.")
-                elif hardware_type == "gpu" and ram >= 12:
-                    recommendation = "2"
-                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 2 (A100) is recommended.")
-                elif hardware_type == "gpu" and ram >= 6:
-                    recommendation = "3"
-                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 3 is recommended.")
-                elif hardware_type == "gpu":
-                    recommendation = "4"
-                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 4 is recommended.")
-                else:
-                    recommendation = "5"
-                    print(f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Profile 5 is recommended.")
-
-                for key, prof in TRAINING_PROFILES.items(): print(f"  {key}. {prof['name']}")
-                profile_choice = input(f"Enter profile number [default: {recommendation}]: ").strip() or recommendation
-                selected_profile = TRAINING_PROFILES.get(profile_choice)
-                
-                if not selected_profile:
-                    print("❌ Invalid profile. Aborting.")
+                    print("❌ Invalid dataset choice.")
                     continue
 
-                print("\n--- Stage 2: Task-Specific Fine-tuning (JSON Generation) ---")
-                num_epochs = int(input("Enter number of training epochs [default: 4]: ") or 4)
+                print("\n--- Step 4: Configure Training Run ---")
+                num_epochs = int(input("Enter number of training epochs [default: 1]: ") or 1)
+                new_model_name = input("Enter name for the new fine-tuned model: ").strip()
+                if not new_model_name:
+                    print("❌ Output model name cannot be empty.")
+                    continue
+
                 run_training(
                     profile=selected_profile,
-                    model_name=model_to_load_stage1, # Use the determined model name
-                    data_path=config["TASK_DATA_PATH"],
-                    formatting_func=format_task_prompt,
-                    new_model_name=config["FINAL_MODEL_NAME"],
+                    model_name=base_model_name,
+                    data_path=data_path,
+                    formatting_func=format_finance_prompt, # Always use the finance prompt format
+                    new_model_name=new_model_name,
                     num_epochs=num_epochs,
                     is_hf_dataset=False,
                 )
