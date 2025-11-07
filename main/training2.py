@@ -107,7 +107,7 @@ def format_task_prompt(sample):
 
         # Construct the new format
         return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n<|think|>\n{chain_of_thought}\n<|endthink|>\n{rest_of_json}<|im_end|>"
-    except (json.JSONDecodeError, KeyError):
+    except (json.JSONDecodeError, KeyError, TypeError):
         # Fallback for cases where completion is not a valid JSON or doesn't have the expected structure
         return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
 
@@ -147,12 +147,17 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
     # --- Load Model with Unsloth ---
     print("\n--- Initializing Model and Tokenizer with Unsloth ---")
 
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=model_name,
-        max_seq_length=profile["max_seq_length"],
-        dtype=None,  # Auto-detect (will use Float16 for Tesla T4, V100, Bfloat16 for Ampere+)
-        load_in_4bit=profile["load_in_4bit"],  # Use 4bit quantization based on profile
-    )
+    try:
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=model_name,
+            max_seq_length=profile["max_seq_length"],
+            load_in_4bit=profile["load_in_4bit"],  # Use 4bit quantization based on profile
+        )
+    except Exception as e:
+        print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
+        print(f"Error loading '{model_name}': {e}")
+        print("If pulling from Hub, ensure the model ID is correct, you have access, and you are logged in.")
+        return # Exit the training function
 
     # --- Apply LoRA with Unsloth ---
     model = FastLanguageModel.get_peft_model(
@@ -201,7 +206,7 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         max_grad_norm=0.3,  # Helps with training stability.
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
-        logging_steps=10,  # Log every step
+        logging_steps=10,  # Log every 10 steps
         optim="adamw_8bit",  # Unsloth optimized optimizer
         weight_decay=0.01,
         lr_scheduler_type="cosine",  # Cosine scheduler can sometimes yield better results
@@ -238,8 +243,10 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         if checkpoint_exists:
             print("Checkpoint found. Resuming training from checkpoint...")
         trainer_stats = trainer.train(resume_from_checkpoint=checkpoint_exists)
-    except:
+    except Exception as e:
+        print(f"Training failed: {e}. Trying to train without resuming.")
         trainer_stats = trainer.train()
+
 
     print("\n--- Training Statistics ---")
     print(f"Training time: {trainer_stats.metrics['train_runtime']:.2f} seconds")
@@ -271,22 +278,50 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
 
 def run_manual_test():
     """Allows for manual, interactive testing of the fine-tuned model."""
-    model_path = config["FINAL_MODEL_NAME"] if input(f"Load {config["FINAL_MODEL_NAME"]}? (Y/n)").lower() == 'y' else config["FINANCE_FINETUNED_MODEL"]
-    if not Path(model_path).exists():
-        print(
-            f"❌ Model not found at '{model_path}'. Please train a model first (Option 1)."
-        )
-        return
+    print("\n--- Manual Model Test ---")
+    print(f"  1. Load Final Task Model ({config['FINAL_MODEL_NAME']})")
+    print(f"  2. Load Base Finance Model ({config['FINANCE_FINETUNED_MODEL']})")
+    model_choice = input("Choose model to load [1]: ").strip() or "1"
+    
+    if model_choice == "1":
+        model_path = config["FINAL_MODEL_NAME"]
+    else:
+        model_path = config["FINANCE_FINETUNED_MODEL"]
 
-    print("\n--- Loading Model for Manual Testing ---")
+    # --- NEW LOGIC: Check for local model, else try Hub ---
+    local_model_path = Path(model_path)
+    hub_model_id = f"{config['MODEL_USER']}/{model_path}"
+    model_to_load = ""
+
+    if local_model_path.exists():
+        print(f"✅ Found local model at '{model_path}'. Loading...")
+        model_to_load = model_path
+    elif IS_AUTHENTICATED:
+        print(f"ℹ️ Local model not found. Attempting to pull from Hub: '{hub_model_id}'")
+        model_to_load = hub_model_id
+    else:
+        print(
+            f"❌ Model not found locally at '{model_path}'. Please train the model first"
+        )
+        print("   or log in with Option 5 to pull from the Hugging Face Hub.")
+        return
+    # --- END NEW LOGIC ---
+
+    print(f"\n--- Loading Model '{model_to_load}' for Manual Testing ---")
 
     # Load the fine-tuned model with Unsloth
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=model_path,
-        max_seq_length=config["MAX_SEQ_LENGTH"],
-        dtype=None,
-        load_in_4bit=True,
-    )
+    try:
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=model_to_load, # Use the determined model name
+            max_seq_length=config["MAX_SEQ_LENGTH"],
+            dtype=None,
+            load_in_4bit=True,
+        )
+    except Exception as e:
+        print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
+        print(f"Error loading '{model_to_load}': {e}")
+        print("If pulling from Hub, ensure the model exists and you have access.")
+        return
 
     # Enable inference mode (faster)
     FastLanguageModel.for_inference(model)
@@ -297,12 +332,13 @@ def run_manual_test():
         print("✅ Dataset loaded for random prompt selection.")
     except Exception as e:
         print(f"⚠️  Could not load dataset for random prompts: {e}")
-        print("   You can still enter prompts manually.")
+        print("    You can still enter prompts manually.")
         dataset = None
 
     print(
         "✅ Model loaded. Enter your prompt below. Type 'exit' or 'quit' to return to the menu."
     )
+    print("   (Pressing Enter with no text will load a random prompt from the task dataset)")
 
     while True:
         user_prompt = input("\nPrompt: ")
@@ -361,7 +397,7 @@ def view_dataset_sample():
     data_path = config["TASK_DATA_PATH"]
     if not Path(data_path).exists():
         print(f"❌ Dataset file not found at '{data_path}'.")
-        print("   Please ensure the training data has been generated.")
+        print("    Please ensure the training data has been generated.")
         return
 
     print(f"\n--- Loading a random sample from {data_path} ---")
@@ -386,16 +422,19 @@ def huggingface_auth():
     """Handles Hugging Face authentication."""
     global IS_AUTHENTICATED
     print("\nPlease paste your Hugging Face token below to log in.")
+    print("(You can get a token from https://huggingface.co/settings/tokens)")
 
     token_path = Path(config["HF_TOKEN_PATH"])
     token = ""
     if token_path.exists():
+        print(f"Token found in {config['HF_TOKEN_PATH']}. Using it.")
         token = token_path.read_text().strip()
     else:
         token = input("HF Token: ").strip()
 
     if not token:
         print("Skipping authentication.")
+        IS_AUTHENTICATED = False
         return
 
     try:
@@ -419,7 +458,7 @@ if __name__ == "__main__":
             print("2. [Stage 2] Fine-tune on specific task data (JSON generation)")
             print("-------------------------------------------------------------")
             print("3. View Sample from Task Dataset")
-            print("4. Manually Test Final Model")
+            print("4. Manually Test Model")
             print("5. Hugging Face Login")
             print("6. Exit")
             choice = input("> ").strip()
@@ -435,7 +474,7 @@ if __name__ == "__main__":
                     print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (Max Perf) is recommended.")
                 elif hardware_type == "gpu" and ram >= 12:
                     recommendation = "2"
-                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (A100) is recommended.")
+                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 2 (A100) is recommended.")
                 elif hardware_type == "gpu" and ram >= 6:
                     recommendation = "3"
                     print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 3 is recommended.")
@@ -471,24 +510,48 @@ if __name__ == "__main__":
                 )
 
             elif choice == "2":
+                # --- CHECK: Ensure Stage 1 model exists locally OR can be pulled from Hub ---
+                stage1_local_path = Path(config["FINANCE_FINETUNED_MODEL"])
+                stage1_hub_id = f"{config['MODEL_USER']}/{config['FINANCE_FINETUNED_MODEL']}"
+                model_to_load_stage1 = ""
+
+                if stage1_local_path.exists():
+                    print(f"✅ Found local Stage 1 model: '{stage1_local_path}'")
+                    model_to_load_stage1 = config["FINANCE_FINETUNED_MODEL"]
+                elif IS_AUTHENTICATED:
+                    print(f"ℹ️ Local Stage 1 model not found. Attempting to pull from Hub: '{stage1_hub_id}'")
+                    model_to_load_stage1 = stage1_hub_id
+                else:
+                    print(f"❌ Stage 1 model '{config['FINANCE_FINETUNED_MODEL']}' not found locally.")
+                    print("   Please run Stage 1 (Option 1) or log in (Option 5) to pull the model from Hub.")
+                    continue # Go back to menu
+                # --- END CHECK ---
+
                 # --- Stage 2 Training ---
                 print("\n--- Select a Training Profile ---")
-                if hardware_type == "gpu" and ram >= 70:
+                # BUG FIX: Rerun hardware detection for this choice
+                hardware_type, ram = detect_hardware() 
+                
+                if hardware_type == "gpu" and ram >= 32:
                     recommendation = "1"
-                elif hardware_type == "gpu" and ram >= 35:
+                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (Max Perf) is recommended.")
+                elif hardware_type == "gpu" and ram >= 12:
                     recommendation = "2"
-                elif hardware_type == "gpu":
+                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 2 (A100) is recommended.")
+                elif hardware_type == "gpu" and ram >= 6:
                     recommendation = "3"
-                elif hardware_type == "gpu" and ram >= 15:
-                    recommendation = "3"
+                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 3 is recommended.")
                 elif hardware_type == "gpu":
                     recommendation = "4"
+                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 4 is recommended.")
                 else:
                     recommendation = "5"
+                    print(f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Profile 5 is recommended.")
 
                 for key, prof in TRAINING_PROFILES.items(): print(f"  {key}. {prof['name']}")
                 profile_choice = input(f"Enter profile number [default: {recommendation}]: ").strip() or recommendation
                 selected_profile = TRAINING_PROFILES.get(profile_choice)
+                
                 if not selected_profile:
                     print("❌ Invalid profile. Aborting.")
                     continue
@@ -497,7 +560,7 @@ if __name__ == "__main__":
                 num_epochs = int(input("Enter number of training epochs [default: 4]: ") or 4)
                 run_training(
                     profile=selected_profile,
-                    model_name=config["FINANCE_FINETUNED_MODEL"], # Start from the finance-tuned model
+                    model_name=model_to_load_stage1, # Use the determined model name
                     data_path=config["TASK_DATA_PATH"],
                     formatting_func=format_task_prompt,
                     new_model_name=config["FINAL_MODEL_NAME"],
