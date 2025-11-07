@@ -39,7 +39,7 @@ IS_AUTHENTICATED = False
 
 TRAINING_PROFILES = {
     "1": {
-        "name": "Max Performance (A100 80GB / H100)",
+        "name": "Max Performance (A100 40GB / H100)",
         "r": 256,
         "lora_alpha": 512,
         "batch_size": 18,
@@ -48,7 +48,7 @@ TRAINING_PROFILES = {
         "load_in_4bit": False,
     },
     "2": {
-        "name": "A100 / Pro (>= 40GB)",
+        "name": "A100 / Pro (>= 30GB)",
         "r": 256,
         "lora_alpha": 512,
         "batch_size": 12,
@@ -57,7 +57,7 @@ TRAINING_PROFILES = {
         "load_in_4bit": False,
     },
     "3": {
-        "name": "High VRAM / Colab (>= 16GB)",
+        "name": "High VRAM / Colab (>= 12GB)",
         "r": 128,
         "lora_alpha": 256,
         "batch_size": 4,
@@ -66,7 +66,7 @@ TRAINING_PROFILES = {
         "load_in_4bit": False,
     },
     "4": {
-        "name": "Low VRAM (8-16GB)",
+        "name": "Low VRAM (6-12GB)",
         "r": 64,
         "lora_alpha": 128,
         "batch_size": 2,
@@ -75,7 +75,7 @@ TRAINING_PROFILES = {
         "load_in_4bit": False,
     },
     "5": {
-        "name": "CPU / Low RAM (< 16GB)",
+        "name": "CPU / Low RAM (< 6GB)",
         "r": 32,
         "lora_alpha": 32,
         "batch_size": 1,
