@@ -1,5 +1,5 @@
 # %%
-# %pip install unsloth
+# %pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 # Also run: pip uninstall unsloth -y && pip install --upgrade --no-cache-dir "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 import unsloth
 
@@ -10,7 +10,7 @@ from pathlib import Path
 import multiprocessing
 
 # %%
-# Initialization
+# --- CONFIGURATION ---
 import pandas as pd
 from unsloth import FastLanguageModel
 import torch
@@ -22,10 +22,11 @@ from huggingface_hub import login
 
 
 config = {
-    "DATA_PATH": "training_data.parquet",
+    "TASK_DATA_PATH": "training_data.parquet",  # Your synthetic JSON data
     "BASE_MODEL": "unsloth/Qwen3-4B-Thinking-2507",  # Unsloth's optimized version
-    "FINANCE_DATA_PATH": "DerivedFunction/Finance-Instruct-50K", # ["user", "assistant"] columns
-    "NEW_MODEL_NAME": "derivatives-classifier-4B",  # Renamed for clarity
+    "FINANCE_DATASET_HF": "DerivedFunction/Finance-Instruct-50K", # Your HF dataset
+    "FINANCE_FINETUNED_MODEL": "Qwen3-4B-Thinking-2507-finance-base", # Intermediate model
+    "FINAL_MODEL_NAME": "derivatives-classifier-4B",  # Renamed for clarity
     "MODEL_USER": "DerivedFunction",
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 2048,  # Qwen3 supports up to 32k, but 2048 is good for training
@@ -33,7 +34,7 @@ config = {
 IS_AUTHENTICATED = False
 
 # =============================================================================
-# DYNAMIC CONFIGURATION PROFILES (NEW)
+# DYNAMIC CONFIGURATION PROFILES
 # =============================================================================
 
 TRAINING_PROFILES = {
@@ -77,7 +78,7 @@ def detect_hardware():
 # %%
 
 
-def format_prompt(sample):
+def format_task_prompt(sample):
     """Formats a sample for instruction fine-tuning using Qwen's chat template with a thought block."""
     try:
         completion_data = json.loads(sample["completion"])
@@ -93,15 +94,21 @@ def format_prompt(sample):
         return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
 
 
-def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=4):
+def format_finance_prompt(sample):
+    """Formats a sample from a dataset with 'user' and 'assistant' columns."""
+    # This dataset has 'user' and 'assistant' columns.
+    return f"<|im_start|>user\n{sample['user']}<|im_end|>\n<|im_start|>assistant\n{sample['assistant']}<|im_end|>"
+
+
+def run_training(profile: dict, model_name: str, data_path: str, formatting_func: callable, new_model_name: str, num_epochs: int = 1, is_hf_dataset: bool = False):
     """Main function to run the training process with Unsloth optimization."""
     print(f"\n--- Starting Training with Unsloth ---")
-    print(f"Profile: {profile['name']}, Base Model: {model_name}, Epochs: {num_epochs}")
+    print(f"  - Profile: {profile['name']}\n  - Base Model: {model_name}\n  - Data: {data_path}\n  - Output Model: {new_model_name}\n  - Epochs: {num_epochs}")
 
     # --- Load and preprocess data ---
     print("\n--- Loading and Preprocessing Data ---")
     try:
-        dataset = load_dataset("parquet", data_files=config["DATA_PATH"], split="train")
+        dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
 
         # Format the dataset
         def formatting_func(examples):
@@ -127,7 +134,7 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=4):
             f"Data loaded successfully. Training samples: {len(train_dataset)}, Evaluation samples: {len(eval_dataset)}"
         )
     except Exception as e:
-        print(f"❌ Failed to load data from {config['DATA_PATH']}: {e}")
+        print(f"❌ Failed to load data from {data_path}: {e}")
         return
 
     # --- Load Model with Unsloth ---
@@ -166,7 +173,7 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=4):
 
     # --- Training Arguments ---
     training_args = TrainingArguments(
-        output_dir=config["NEW_MODEL_NAME"],
+        output_dir=new_model_name,
         num_train_epochs=num_epochs,
         per_device_train_batch_size=profile["batch_size"],
         per_device_eval_batch_size=profile["batch_size"],
@@ -188,8 +195,8 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=4):
         eval_strategy="steps",
         eval_steps=100,
         report_to="tensorboard",
-        push_to_hub=True, # Let the Trainer handle pushing
-        hub_model_id=f"{config['MODEL_USER']}/{config['NEW_MODEL_NAME']}",
+        push_to_hub=IS_AUTHENTICATED, # Let the Trainer handle pushing
+        hub_model_id=f"{config['MODEL_USER']}/{new_model_name}",
     )
 
     # --- Initialize SFTTrainer ---
@@ -199,7 +206,7 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=4):
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         dataset_text_field="text",  # The field containing our formatted text
-        max_seq_length=config["MAX_SEQ_LENGTH"],
+        max_seq_length=profile["max_seq_length"],
         dataset_num_proc=multiprocessing.cpu_count(),  # Dynamically set based on available CPUs
         packing=False,  # Pack short sequences for faster training
         args=training_args,
@@ -219,20 +226,16 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=4):
 
     # --- Merge, Save, and Push ---
     # First, save the trained LoRA adapters
-    print("\n--- Saving LoRA Adapters ---")
-    model.save_pretrained("lora_adapters")
-    tokenizer.save_pretrained("lora_adapters")
-
-    # Optional: Push only the adapters to the Hub
-    # model.push_to_hub(f"{config['MODEL_USER']}/{config['NEW_MODEL_NAME']}-lora", token=True)
-    # tokenizer.push_to_hub(f"{config['MODEL_USER']}/{config['NEW_MODEL_NAME']}-lora", token=True)
+    print(f"\n--- Saving LoRA Adapters to '{new_model_name}_lora' ---")
+    model.save_pretrained(f"{new_model_name}_lora")
+    tokenizer.save_pretrained(f"{new_model_name}_lora")
 
     # Merge the adapters into the model for a final, standalone model
     if hasattr(model, "merge_and_unload"):
         print("\n--- Merging LoRA adapters into the base model ---")
         model = model.merge_and_unload()
 
-    print("\n--- Saving final merged model ---")
+    print(f"\n--- Saving final merged model to '{new_model_name}' ---")
     trainer.model = model # Update trainer's model reference to the merged one
     trainer.save_model(config["NEW_MODEL_NAME"])
 
@@ -240,12 +243,12 @@ def run_training(profile: dict, model_name=config["BASE_MODEL"], num_epochs=4):
     if training_args.push_to_hub:
         print(f"\nModel will be pushed to the Hub at '{training_args.hub_model_id}' by the Trainer.")
     else:
-        print(f"Skipping push to Hub. The final model is saved locally in the '{config['NEW_MODEL_NAME']}' directory.")
+        print(f"Skipping push to Hub. The final model is saved locally in the '{new_model_name}' directory.")
 
 
 def run_manual_test():
     """Allows for manual, interactive testing of the fine-tuned model."""
-    model_path = config["NEW_MODEL_NAME"]
+    model_path = config["FINAL_MODEL_NAME"]
     if not Path(model_path).exists():
         print(
             f"❌ Model not found at '{model_path}'. Please train a model first (Option 1)."
@@ -267,7 +270,7 @@ def run_manual_test():
 
     # Load the dataset to pull random prompts from
     try:
-        dataset = load_dataset("parquet", data_files=config["DATA_PATH"], split="train")
+        dataset = load_dataset("parquet", data_files=config["TASK_DATA_PATH"], split="train")
         print("✅ Dataset loaded for random prompt selection.")
     except Exception as e:
         print(f"⚠️  Could not load dataset for random prompts: {e}")
@@ -332,7 +335,7 @@ def run_manual_test():
 
 def view_dataset_sample():
     """Loads and displays a random sample from the training dataset."""
-    data_path = config["DATA_PATH"]
+    data_path = config["TASK_DATA_PATH"]
     if not Path(data_path).exists():
         print(f"❌ Dataset file not found at '{data_path}'.")
         print("   Please ensure the training data has been generated.")
@@ -349,7 +352,7 @@ def view_dataset_sample():
 
         print("\n" + "=" * 25 + " RANDOM FORMATTED SAMPLE " + "=" * 25)
         # Use the same formatting function as the trainer to see the final input
-        formatted_text = format_prompt(sample)
+        formatted_text = format_task_prompt(sample)
         print(formatted_text)
         print("\n" + "=" * 65)
     except Exception as e:
@@ -389,13 +392,15 @@ if __name__ == "__main__":
     try:
         while True:
             print("\n--- Generative Model Training Menu (Unsloth Optimized) ---")
-            print("1. Start Training (Interactive Setup)")
-            print("2. View Sample from Dataset")
-            print("3. Manually Test Model")
-            print("4. Hugging Face Login")
-            print("5. Exit")
+            print("1. [Stage 1] Fine-tune on general finance data (from Hugging Face)")
+            print("2. [Stage 2] Fine-tune on specific task data (JSON generation)")
+            print("-------------------------------------------------------------")
+            print("3. View Sample from Task Dataset")
+            print("4. Manually Test Final Model")
+            print("5. Hugging Face Login")
+            print("6. Exit")
             choice = input("> ").strip()
-
+            
             if choice == "1":
                 # --- New Dynamic Menu ---
                 print("\n--- Select a Training Profile ---")
@@ -422,15 +427,51 @@ if __name__ == "__main__":
                     print("❌ Invalid profile. Aborting.")
                     continue
 
+                print("\n--- Stage 1: General Finance Fine-tuning ---")
                 num_epochs = int(input("Enter number of training epochs [default: 1]: ") or 1)
-                run_training(profile=selected_profile, num_epochs=num_epochs)
+                
+                # Use the dataset from Hugging Face Hub directly
+                run_training(
+                    profile=selected_profile,
+                    model_name=config["BASE_MODEL"],
+                    data_path=config["FINANCE_DATASET_HF"],
+                    formatting_func=format_finance_prompt,
+                    new_model_name=config["FINANCE_FINETUNED_MODEL"],
+                    num_epochs=num_epochs,
+                    is_hf_dataset=True,
+                )
+
             elif choice == "2":
-                view_dataset_sample()
+                # --- Stage 2 Training ---
+                print("\n--- Select a Training Profile ---")
+                # (Same profile selection logic as above)
+                hardware_type, ram = detect_hardware()
+                recommendation = "1" if hardware_type == "gpu" and ram >= 16 else "2" if hardware_type == "gpu" else "3"
+                for key, prof in TRAINING_PROFILES.items(): print(f"  {key}. {prof['name']}")
+                profile_choice = input(f"Enter profile number [default: {recommendation}]: ").strip() or recommendation
+                selected_profile = TRAINING_PROFILES.get(profile_choice)
+                if not selected_profile:
+                    print("❌ Invalid profile. Aborting.")
+                    continue
+
+                print("\n--- Stage 2: Task-Specific Fine-tuning (JSON Generation) ---")
+                num_epochs = int(input("Enter number of training epochs [default: 4]: ") or 4)
+                run_training(
+                    profile=selected_profile,
+                    model_name=config["FINANCE_FINETUNED_MODEL"], # Start from the finance-tuned model
+                    data_path=config["TASK_DATA_PATH"],
+                    formatting_func=format_task_prompt,
+                    new_model_name=config["FINAL_MODEL_NAME"],
+                    num_epochs=num_epochs,
+                    is_hf_dataset=False,
+                )
             elif choice == "3":
-                run_manual_test()
+                view_dataset_sample()
             elif choice == "4":
-                huggingface_auth()
+                run_manual_test()
             elif choice == "5":
+                huggingface_auth()
+            elif choice == "6":
                 print("Exiting.")
                 break
             else:
