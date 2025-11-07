@@ -25,12 +25,12 @@ config = {
     "MODEL_USER": "DerivedFunction",
     "MODEL_NAMES": [
         "unsloth/Qwen3-4B-Thinking-2507",
-        "unsloth/llama-3-8b-Instruct-bnb-4bit",
-        "unsloth/phi-3-mini-4k-instruct-bnb-4bit",
+        "DerivedFunction/Qwen3-4B-finance-base"
     ],
     "DATASETS": [
         ("DerivedFunction/Finance-Instruct-100K", True),  # (path/id, is_hf_dataset)
         ("training_data.parquet", False),
+        ("derivatives.parquet", False)
     ],
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 2048,  # Qwen3 supports up to 32k, but 2048 is good for training
