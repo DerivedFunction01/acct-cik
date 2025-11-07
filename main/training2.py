@@ -52,7 +52,7 @@ TRAINING_PROFILES = {
         "load_in_4bit": False,
     },
     "2": {
-        "name": "A100 / Pro (>= 30GB)",
+        "name": "L4 / Pro (>= 20 GB)",
         "r": 256,
         "lora_alpha": 512,
         "batch_size": 12,
@@ -511,15 +511,18 @@ if __name__ == "__main__":
                 if hardware_type == "gpu" and ram >= 32:
                     recommendation = "1"
                     print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (Max Perf) is recommended.")
-                elif hardware_type == "gpu" and ram >= 12:
+                elif hardware_type == "gpu" and ram >= 16:
                     recommendation = "2"
-                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 2 (A100) is recommended.")
-                elif hardware_type == "gpu" and ram >= 6:
+                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 2 is recommended.")
+                elif hardware_type == "gpu" and ram >= 12:
                     recommendation = "3"
+                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 2 is recommended.")
+                elif hardware_type == "gpu" and ram >= 6:
+                    recommendation = "4"
                     print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 3 is recommended.")
                 elif hardware_type == "gpu":
-                    recommendation = "4"
-                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 4 is recommended.")
+                    recommendation = "5"
+                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 5 is recommended.")
                 else:
                     recommendation = "5"
                     print(f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Profile 5 is recommended.")
