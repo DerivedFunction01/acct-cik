@@ -176,6 +176,14 @@ This is the most critical phase. Before any model training, the data generation 
             -   Update the COT generation logic to use this metadata to create more explicit reasoning, such as: "From the 'Notional Amounts' table, I see the row for 'Interest Rate Swaps' shows a value of $100 million for 2023, indicating an active instrument."
         - **[] Implement having smaller text, similar to the previous text classification:** Right now, it is trained on large amounts of text at once, similar to an SEC filing, that it doesn't consider a simple one-liner such as "The company uses IR swaps ..." because it is too short.
             -   **Action: Add a new function in `generator2.py` that generates simple `NotionalSentence` Objects, similar to the old `generator.py` for text classification** This function should generate sentences that are short enough to be considered for training but still contain relevant information.
+
+-   **[ ] Implement a Bootstrapped Training Strategy:** To bridge the gap between general financial knowledge and the final, complex JSON generation task, implement a multi-stage data generation loop.
+    -   **Goal:** Use the model's own reasoning to create a high-quality, perfectly formatted dataset for the final fine-tuning stage.
+    -   **Stage A: Generate Simple Prompts.** Use a function like `generate_simple_notional_sentence_scenario` to create a dataset of short, single-idea paragraphs.
+    -   **Stage B: Initial Extraction.** Feed these simple prompts to the Stage 1 fine-tuned model (the one trained on the general finance dataset). The instruction will be to extract key facts in natural language (e.g., "Extract the instrument, notional amount, and status.").
+    -   **Stage C: Programmatic Formatting.** Create a script that takes the model's correct natural language output from Stage B (the "thought bubble"). This script will then programmatically wrap this reasoning into a perfect `<|think|>` block and construct the corresponding, valid JSON object.
+    -   **Stage D: Final Fine-Tuning.** Use the high-quality dataset created in Stage C for the final fine-tuning process. This teaches the model the exact output format while building on its existing reasoning capabilities.
+
 ---
 
 ## 5. Deprecation Plan
