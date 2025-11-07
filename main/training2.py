@@ -260,7 +260,7 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
 
     print(f"\n--- Saving final merged model to '{new_model_name}' ---")
     trainer.model = model # Update trainer's model reference to the merged one
-    trainer.save_model(config["NEW_MODEL_NAME"])
+    trainer.save_model(new_model_name)
 
     # The trainer will automatically push the final (merged) model if push_to_hub=True
     if training_args.push_to_hub:
@@ -271,7 +271,7 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
 
 def run_manual_test():
     """Allows for manual, interactive testing of the fine-tuned model."""
-    model_path = config["FINAL_MODEL_NAME"]
+    model_path = config["FINAL_MODEL_NAME"] if input(f"Load {config["FINAL_MODEL_NAME"]}? (Y/n)").lower() == 'y' else config["FINANCE_FINETUNED_MODEL"]
     if not Path(model_path).exists():
         print(
             f"❌ Model not found at '{model_path}'. Please train a model first (Option 1)."
