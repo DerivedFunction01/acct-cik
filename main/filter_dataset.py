@@ -87,6 +87,9 @@ DERIVATIVE_CONTEXT_KEYWORDS = [
     'supplier', 'energy', 'inventory', 'raw material',
     # Equity Context
     'stock', 'equity', 'share price',
+    # NEW: XBRL and Structured Data Context
+    'xbrl', 'xbrl tagging', 'structured data', 'financial-ner-nlp',
+    'sec filing', '10-k', '10-q',
 ]
 
 # --- Other Finance Topics Keywords ---
@@ -118,7 +121,7 @@ def get_other_finance_regex() -> re.Pattern:
 def get_derivative_context_regex() -> re.Pattern:
     """Creates a regex to find other common financial topics."""
     # Create a pattern that looks for individual words, allowing for spaces in multi-word terms
-    processed_keywords = [kw.replace(' ', '[- ]') for kw in OTHER_FINANCE_KEYWORDS]
+    processed_keywords = [kw.replace(' ', '[- ]') for kw in DERIVATIVE_CONTEXT_KEYWORDS]
     pattern = build_alternation(processed_keywords)
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
 
