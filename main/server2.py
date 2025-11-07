@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/derivatives-classifier-4B"
+MODEL_PATH = "DerivedFunction/Qwen3-4B-finance-base"
 MAX_SEQ_LENGTH = 8192
 
 # --- Global default generation parameters ---
