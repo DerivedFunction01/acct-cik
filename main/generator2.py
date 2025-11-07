@@ -4127,7 +4127,7 @@ def generate_simple_notional_sentence_scenario() -> GenerationScenario:
         reporting_year=random.randint(2018, 2024),
         archetype=archetype,
         reporting_day=random.randint(1, 28),
-        reporting_month=random.randint(1, 12),
+        reporting_month=random.choice(months),
     )
 
     # 2. Create a single, simple instrument
