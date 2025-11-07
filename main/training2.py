@@ -24,7 +24,7 @@ from huggingface_hub import login
 config = {
     "TASK_DATA_PATH": "training_data.parquet",  # Your synthetic JSON data
     "BASE_MODEL": "unsloth/Qwen3-4B-Thinking-2507",  # Unsloth's optimized version
-    "FINANCE_DATASET_HF": "DerivedFunction/Finance-Instruct-50K", # Your HF dataset
+    "FINANCE_DATASET_HF": "DerivedFunction/Finance-Instruct-100K", # Your HF dataset
     "FINANCE_FINETUNED_MODEL": "Qwen3-4B-Thinking-2507-finance-base", # Intermediate model
     "FINAL_MODEL_NAME": "derivatives-classifier-4B",  # Renamed for clarity
     "MODEL_USER": "DerivedFunction",
