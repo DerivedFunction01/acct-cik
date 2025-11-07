@@ -404,10 +404,10 @@ if __name__ == "__main__":
                 hardware_type, ram = detect_hardware()
                 
                 # Suggest a profile based on VRAM
-                if hardware_type == "gpu" and ram >= 40:
+                if hardware_type == "gpu" and ram >= 32:
                     recommendation = "1"
                     print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (A100) is recommended.")
-                elif hardware_type == "gpu" and ram >= 16:
+                elif hardware_type == "gpu" and ram >= 12:
                     recommendation = "2"
                     print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 2 is recommended.")
                 elif hardware_type == "gpu":
