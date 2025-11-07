@@ -119,20 +119,8 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
     try:
         dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
 
-        # Format the dataset
-        def formatting_func(examples):
-            texts = []
-            for i in range(len(examples["prompt"])):
-                text = format_prompt(
-                    {
-                        "prompt": examples["prompt"][i],
-                        "completion": examples["completion"][i],
-                    }
-                )
-                texts.append(text)
-            return {"text": texts}
-
-        dataset = dataset.map(formatting_func, batched=True)
+        # Use the provided formatting function
+        dataset = dataset.map(formatting_func, batched=False) # Set batched=False for simplicity with different structures
 
         # Create a 90/10 train/test split
         dataset = dataset.train_test_split(test_size=0.1)
