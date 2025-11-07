@@ -39,15 +39,24 @@ IS_AUTHENTICATED = False
 
 TRAINING_PROFILES = {
     "1": {
-        "name": "A100 / Pro (>= 40GB)",
+        "name": "Max Performance (A100 80GB / H100)",
         "r": 256,
         "lora_alpha": 512,
-        "batch_size": 8,
-        "gradient_accumulation": 2,
-        "max_seq_length": 16384,
+        "batch_size": 18,
+        "gradient_accumulation": 1,
+        "max_seq_length": 24576,
         "load_in_4bit": False,
     },
     "2": {
+        "name": "A100 / Pro (>= 40GB)",
+        "r": 256,
+        "lora_alpha": 512,
+        "batch_size": 12,
+        "gradient_accumulation": 1,
+        "max_seq_length": 20480,
+        "load_in_4bit": False,
+    },
+    "3": {
         "name": "High VRAM / Colab (>= 16GB)",
         "r": 128,
         "lora_alpha": 256,
@@ -56,7 +65,7 @@ TRAINING_PROFILES = {
         "max_seq_length": 8192,
         "load_in_4bit": False,
     },
-    "3": {
+    "4": {
         "name": "Low VRAM (8-16GB)",
         "r": 64,
         "lora_alpha": 128,
@@ -65,7 +74,7 @@ TRAINING_PROFILES = {
         "max_seq_length": 4096,
         "load_in_4bit": False,
     },
-    "4": {
+    "5": {
         "name": "CPU / Low RAM (< 16GB)",
         "r": 32,
         "lora_alpha": 32,
@@ -407,16 +416,19 @@ if __name__ == "__main__":
                 # Suggest a profile based on VRAM
                 if hardware_type == "gpu" and ram >= 32:
                     recommendation = "1"
-                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (A100) is recommended.")
+                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (Max Perf) is recommended.")
                 elif hardware_type == "gpu" and ram >= 12:
                     recommendation = "2"
-                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 2 is recommended.")
-                elif hardware_type == "gpu":
+                    print(f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (A100) is recommended.")
+                elif hardware_type == "gpu" and ram >= 6:
                     recommendation = "3"
                     print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 3 is recommended.")
-                else:
+                elif hardware_type == "gpu":
                     recommendation = "4"
-                    print(f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Profile 4 is recommended.")
+                    print(f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 4 is recommended.")
+                else:
+                    recommendation = "5"
+                    print(f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Profile 5 is recommended.")
 
                 for key, prof in TRAINING_PROFILES.items():
                     print(f"  {key}. {prof['name']}")
@@ -445,15 +457,18 @@ if __name__ == "__main__":
             elif choice == "2":
                 # --- Stage 2 Training ---
                 print("\n--- Select a Training Profile ---")
-                hardware_type, ram = detect_hardware()
-                if hardware_type == "gpu" and ram >= 40:
+                if hardware_type == "gpu" and ram >= 70:
                     recommendation = "1"
-                elif hardware_type == "gpu" and ram >= 16:
+                elif hardware_type == "gpu" and ram >= 35:
                     recommendation = "2"
                 elif hardware_type == "gpu":
                     recommendation = "3"
-                else:
+                elif hardware_type == "gpu" and ram >= 15:
+                    recommendation = "3"
+                elif hardware_type == "gpu":
                     recommendation = "4"
+                else:
+                    recommendation = "5"
 
                 for key, prof in TRAINING_PROFILES.items(): print(f"  {key}. {prof['name']}")
                 profile_choice = input(f"Enter profile number [default: {recommendation}]: ").strip() or recommendation
