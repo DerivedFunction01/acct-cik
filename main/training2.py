@@ -210,7 +210,7 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         save_steps=200, # Save checkpoints more frequently
         save_total_limit=3, # Only save the last 3 checkpoints
         load_best_model_at_end=True, # Load the best model at the end of training
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         eval_steps=eval_steps, # Use the dynamically calculated value
         report_to="tensorboard",
         push_to_hub=IS_AUTHENTICATED, # Let the Trainer handle pushing
