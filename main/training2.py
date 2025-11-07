@@ -119,8 +119,9 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
     try:
         dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
 
-        # Use the provided formatting function
-        dataset = dataset.map(formatting_func, batched=False) # Set batched=False for simplicity with different structures
+        # Use the provided formatting function and apply it to each sample.
+        # The result is stored in a new 'text' column.
+        dataset = dataset.map(lambda sample: {"text": formatting_func(sample)})
 
         # Create a 90/10 train/test split
         dataset = dataset.train_test_split(test_size=0.1)
