@@ -1,4 +1,6 @@
+import time
 import sqlite3
+import subprocess
 import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
@@ -17,7 +19,10 @@ INPUT_PATH = "high_quality_snippets.parquet"  # The clean text snippets for insp
 PROMPT_PATH = "summary_prompt.md"
 SYSTEM_PROMPT_PATH = "system_prompt.md"
 OUTPUT_PATH_TEMPLATE = "distilled_summary_data_chunk_{}.parquet"
-
+DRIVE_PATH = "./drive/MyDrive/db"
+LOAD_SHELL_CMD = f"cp -f {DRIVE_PATH}/{OUTPUT_PATH_TEMPLATE} ."
+SAVE_SHELL_CMD = f"cp -f {OUTPUT_PATH_TEMPLATE} {DRIVE_PATH}/{OUTPUT_PATH_TEMPLATE}.tmp && mv -f {DRIVE_PATH}/{OUTPUT_PATH_TEMPLATE}.tmp {DRIVE_PATH}/{OUTPUT_PATH_TEMPLATE}"
+IS_COLAB = Path(DRIVE_PATH).exists()
 # --- Generation & Processing Parameters ---
 MAX_SEQ_LENGTH = 4096  # Max sequence length for the model
 BATCH_SIZE = 1  # Set to 1 for streaming individual responses
@@ -47,8 +52,9 @@ def load_prompts() -> tuple[str, str]:
     except FileNotFoundError:
         raise
 
-
+last_drive_save_time, DRIVE_SAVE_INTERVAL_SECONDS = time.time(), 180
 def save_chunk(results: list, is_first_chunk: bool, output_path: str):
+    global last_drive_save_time, DRIVE_SAVE_INTERVAL_SECONDS
     """Saves a chunk of results to the parquet file."""
     if not results:
         return
@@ -62,6 +68,22 @@ def save_chunk(results: list, is_first_chunk: bool, output_path: str):
         # For subsequent chunks, append
         df_chunk.to_parquet(output_path, index=False, engine="pyarrow", append=True)
         print(f"Appended chunk of {len(results)} results.")
+    time_since_last_save = time.time() - last_drive_save_time
+    if IS_COLAB and (
+        time_since_last_save >= DRIVE_SAVE_INTERVAL_SECONDS
+    ):
+        try:
+            subprocess.Popen(
+                SAVE_SHELL_CMD,
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            print(f"  → Saving to database in background.")
+            last_drive_save_time = time.time()
+            results_since_last_save = 0
+        except Exception as e:
+            print(f"  ⚠️  Background save failed: {e}")
 
 
 # =============================================================================
