@@ -146,11 +146,12 @@ def main():
             print("\nBasic setup starting...")
             install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Basic setup complete!")
+            exit(0)
         if choice == "1":
             print("\n Full setup starting...")
             install_packages(PACKAGES, "project packages")
             print("\n✅ Environment setup complete!")
-
+            exit(0)
         elif choice == "2":
             check_installation()
 
@@ -160,9 +161,6 @@ def main():
 
         else:
             print("\n❌ Invalid choice. Please enter 1-3.")
-
-        input("\nPress Enter to continue...")
-
 
 if __name__ == "__main__":
     main()
