@@ -12,20 +12,9 @@ from pathlib import Path
 VENV_DIR = "venv-acct-cik"
 USE_VENV = True  # Global flag, can be overridden by --no-venv
 
-# Unsloth handles its own dependencies, including PyTorch, Transformers, etc.
-
-PACKAGES = [
-    # Core ML and data handling
-    # unsloth installs torch, transformers, peft, accelerate, trl, numpy
-    "unsloth[colab-new] git+https://github.com/unslothai/unsloth.git",
-    "torchvision",  # Installs torchvision, torchaudio
-    "datasets",  # Installs pandas, requests, tqdm, numpy
-    "scikit-learn",
+BASE_PACKAGES = [
     # Web scraping and server
     "beautifulsoup4",
-    "flask",
-    "gunicorn",
-    "waitress",
     # System and file utilities
     "psutil",
     "openpyxl",
@@ -35,6 +24,19 @@ PACKAGES = [
     "matplotlib",
     "IPython",
 ]
+# Unsloth handles its own dependencies, including PyTorch, Transformers, etc.
+
+PACKAGES = [
+    # Core ML and data handling
+    # unsloth installs torch, transformers, peft, accelerate, trl, numpy
+    "unsloth",
+    "torchvision",  # Installs torchvision, torchaudio
+    "datasets",  # Installs pandas, requests, tqdm, numpy
+    "scikit-learn",
+    "flask",
+    "gunicorn",
+    "waitress",
+] + BASE_PACKAGES
 
 
 def get_pip_executable():
@@ -49,7 +51,7 @@ def install_packages(package_list, description):
     print(f"📦 Installing {description}...")
     packages = " ".join(package_list)
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install --upgrade {packages}"
+    cmd = f"{pip_exec} install {packages}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -83,6 +85,7 @@ def show_menu():
     venv_status = f"ACTIVE (in ./{VENV_DIR})" if USE_VENV else "INACTIVE (global site-packages)"
     print(f"Virtual Environment Status: {venv_status}")
     print("\nOptions:")
+    print("  0. Basic setup")
     print("  1. Install all packages (Base + ML with Unsloth)")
     print("  2. Check current installation")
     print("  3. Exit")
@@ -138,8 +141,11 @@ def main():
 
     while True:
         show_menu()
-        choice = input("\nEnter your choice (1-3): ").strip()
-
+        choice = input("\nEnter your choice (0-3): ").strip()
+        if choice == "0":
+            print("\nBasic setup starting...")
+            install_packages(BASE_PACKAGES, "base packages")
+            print("\n✅ Basic setup complete!")
         if choice == "1":
             print("\n Full setup starting...")
             install_packages(PACKAGES, "project packages")
