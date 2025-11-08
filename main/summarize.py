@@ -62,7 +62,9 @@ def save_chunk(results: list, is_first_chunk: bool, output_path: str):
         df_chunk.to_parquet(output_path, index=False)
         print(f"Saved first chunk of {len(results)} results to '{output_path}'.")
     else:
-        df_chunk.to_parquet(output_path, index=False, engine="pyarrow", append=True)
+        old_df = pd.read_parquet(output_path)
+        combined_df = pd.concat([old_df, df_chunk], ignore_index=True)
+        combined_df.to_parquet(output_path, index=False)
         print(f"Appended chunk of {len(results)} results.")
     if IS_COLAB and (time.time() - last_drive_save_time >= DRIVE_SAVE_INTERVAL_SECONDS):
         try:
