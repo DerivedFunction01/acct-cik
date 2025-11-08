@@ -139,11 +139,14 @@ def main(total_chunks: int, chunk_index: int):
         user_prompt = f"{user_prompt_template}\n\n{text}"
         formatted_prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
         inputs = tokenizer([formatted_prompt], return_tensors="pt").to("cuda")
+        
+        # Explicitly create position_ids to prevent caching issues
+        position_ids = torch.arange(0, inputs.input_ids.shape[1], dtype=torch.long, device="cuda").unsqueeze(0)
 
         # Generation arguments
         generation_kwargs = dict(
-            inputs,
             streamer=streamer,
+            **inputs,
             max_new_tokens=MAX_NEW_TOKENS,
             pad_token_id=tokenizer.eos_token_id,
             use_cache=True,
@@ -157,6 +160,9 @@ def main(total_chunks: int, chunk_index: int):
         # Stream the output to the console and collect it
         print(f"\n--- Processing Snippet {i+1}/{len(input_df)} ---")
         completion = ""
+        print("------------------------------------")
+        print(user_prompt)
+        print("------------------------------------")
         for new_text in streamer:
             print(new_text, end='', flush=True)
             completion += new_text
