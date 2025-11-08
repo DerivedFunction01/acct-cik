@@ -1,5 +1,4 @@
 import time
-import sqlite3
 import subprocess
 import pandas as pd
 from tqdm import tqdm
@@ -8,7 +7,6 @@ import torch
 from unsloth import FastLanguageModel
 import gc
 import argparse
-import sys
 
 # =============================================================================
 # CONFIGURATION
@@ -104,6 +102,7 @@ def main(total_chunks: int, chunk_index: int):
     system_prompt, user_prompt_template = load_prompts()
     try:
         input_df = pd.read_parquet(INPUT_PATH)
+        input_df = input_df.sample(frac=0.1, random_state=42).reset_index(drop=True)
         print(f"Found {len(input_df)} snippets to process from '{INPUT_PATH}'.")
     except FileNotFoundError:
         print(
