@@ -3,7 +3,8 @@ import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
 import torch
-from unsloth import FastLanguageModel
+from unsloth import FastLanguageModel, unsloth_patch
+from transformers import TextIteratorStreamer
 import gc
 import argparse
 import sys
@@ -13,12 +14,13 @@ import sys
 # =============================================================================
 MODEL_PATH = "DerivedFunction/Qwen3-4B-finance-base"  # The model fine-tuned on general finance data
 INPUT_PATH = "high_quality_snippets.parquet"  # The clean text snippets for inspection
-PROMPT_PATH = "/home/denny/acct-cik/main/summary_prompt.md"
+PROMPT_PATH = "summary_prompt.md"
+SYSTEM_PROMPT_PATH = "system_prompt.md"
 OUTPUT_PATH_TEMPLATE = "distilled_summary_data_chunk_{}.parquet"
 
 # --- Generation & Processing Parameters ---
 MAX_SEQ_LENGTH = 4096  # Max sequence length for the model
-BATCH_SIZE = 4  # Adjust based on your GPU VRAM. 4 is a safe start.
+BATCH_SIZE = 1  # Set to 1 for streaming individual responses
 MAX_NEW_TOKENS = 512  # Max tokens to generate for the summary
 SAVE_CHUNK_SIZE = 100  # Save progress every N records
 
@@ -26,12 +28,21 @@ SAVE_CHUNK_SIZE = 100  # Save progress every N records
 # HELPER FUNCTIONS
 # =============================================================================
 
-def load_prompt_template() -> str:
-    """Loads the content of the summary prompt."""
+def load_prompt_template(path: str, name: str) -> str:
+    """Loads the content of a prompt file."""
     try:
-        return Path(PROMPT_PATH).read_text()
+        return Path(path).read_text()
     except FileNotFoundError:
-        print(f"ERROR: Prompt file not found at {PROMPT_PATH}")
+        print(f"ERROR: {name} prompt file not found at {path}")
+        raise
+
+def load_prompts() -> tuple[str, str]:
+    """Loads the system and user prompt templates."""
+    try:
+        system_prompt = load_prompt_template(SYSTEM_PROMPT_PATH, "System")
+        user_prompt = load_prompt_template(PROMPT_PATH, "User")
+        return system_prompt, user_prompt
+    except FileNotFoundError:
         raise
 
 def save_chunk(results: list, is_first_chunk: bool, output_path: str):
@@ -73,7 +84,7 @@ def main(total_chunks: int, chunk_index: int):
 
     # 2. Load prompt and data
     output_path = OUTPUT_PATH_TEMPLATE.format(chunk_index)
-    prompt_template = load_prompt_template()
+    system_prompt, user_prompt_template = load_prompts()
     try:
         input_df = pd.read_parquet(INPUT_PATH)
         print(f"Found {len(input_df)} snippets to process from '{INPUT_PATH}'.")
@@ -117,51 +128,57 @@ def main(total_chunks: int, chunk_index: int):
     results = []
     is_first_chunk = not Path(output_path).exists()
     
+    # Use TextIteratorStreamer for real-time output
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+
     # Main generation loop
     progress_bar = tqdm(range(0, len(input_df), BATCH_SIZE), desc="Generating Summaries")
     for i in progress_bar:
-        # Prepare batch
-        batch_texts = input_df['text'][i:i+BATCH_SIZE].tolist()
-        
-        # Construct full prompts for the batch
-        prompts = [f"{prompt_template}\n\n{text}" for text in batch_texts]
-        
-        # Format for Qwen chat model
-        formatted_prompts = [f"<|im_start|>user\n{p}<|im_end|>\n<|im_start|>assistant\n" for p in prompts]
-        
-        # Tokenize and generate
-        inputs = tokenizer(formatted_prompts, return_tensors="pt", padding=True).to("cuda")
-        
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs, 
-                max_new_tokens=MAX_NEW_TOKENS, 
-                pad_token_id=tokenizer.eos_token_id,
-                use_cache=True
-            )
-        
-        # Decode and extract completions
-        decoded_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=False)
-        
-        for idx, full_output in enumerate(decoded_outputs):
-            # Extract only the assistant's response
-            try:
-                completion = full_output.split("<|im_start|>assistant\n")[-1].replace("<|im_end|>", "").strip()
-                if "<|think|>" in completion: # Basic validation
-                    results.append({
-                        "prompt": prompts[idx],
-                        "completion": completion
-                    })
-            except IndexError:
-                print(f"\nWarning: Could not parse model output for a snippet in batch starting at index {i}.")
-                continue
+        # Since BATCH_SIZE is 1, we process one snippet at a time
+        text = input_df['text'].iloc[i]
+        user_prompt = f"{user_prompt_template}\n\n{text}"
+        formatted_prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
+        inputs = tokenizer([formatted_prompt], return_tensors="pt").to("cuda")
+
+        # Generation arguments
+        generation_kwargs = dict(
+            inputs,
+            streamer=streamer,
+            max_new_tokens=MAX_NEW_TOKENS,
+            pad_token_id=tokenizer.eos_token_id,
+            use_cache=True,
+        )
+
+        # Run generation in a separate thread
+        from threading import Thread
+        thread = Thread(target=model.generate, kwargs=generation_kwargs)
+        thread.start()
+
+        # Stream the output to the console and collect it
+        print(f"\n--- Processing Snippet {i+1}/{len(input_df)} ---")
+        completion = ""
+        for new_text in streamer:
+            print(new_text, end='', flush=True)
+            completion += new_text
+        print("\n------------------------------------")
+
+        # Add to results if valid
+        if "<|think|>" in completion:
+            results.append({
+                "prompt": user_prompt,
+                "completion": completion.strip()
+            })
+        else:
+            print(f"\nWarning: Invalid completion for snippet {i}. Skipping.")
 
         # Save chunk if size is reached
         if len(results) >= SAVE_CHUNK_SIZE:
             save_chunk(results, is_first_chunk, output_path)
             results = []  # Reset for the next chunk
             is_first_chunk = False  # Subsequent saves will append
-            gc.collect()  # Clean up memory
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
 
     # Save any remaining results in the last chunk
     if results:
