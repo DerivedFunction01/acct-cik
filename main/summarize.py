@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
 import torch
-from unsloth import FastLanguageModel, unsloth_patch
+from unsloth import FastLanguageModel
 from transformers import TextIteratorStreamer
 import gc
 import argparse
