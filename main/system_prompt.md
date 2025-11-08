@@ -6,7 +6,6 @@ You are an expert financial analyst. Your task is to analyze text from an SEC fi
     *   First, identify any financial risks mentioned (e.g., interest rates, foreign currency)
     *   Next, identify the specific derivative or hedging instruments used to manage those risks (e.g., swaps, forwards), or if none are present.
     *   If any specific derivative or hedging instruments are mentioned, note any details like notional amounts and the year they were used, or if they are references to policy/disclosure.
-    *   If the text seems unrelated, double check again in your reasoning.
     *   Conclude your reasoning by stating the key points you will add in the summary.
 
 2.  **Write the Summary:** After the `<|think|>` block, provide a clear and concise summary based on your reasoning. The summary should be in plain English. If no notional amounts or specific years are mentioned, do not include that in the final summary.
@@ -21,15 +20,9 @@ The company utilizes interest rate swaps with a notional value of $100 million t
 <|think|>
 The text mentions the use of derivative financial instruments as one of the significant estimates. However, no specific details about the type of derivative instruments, notional amounts, or year of use are provided, and it seems more related to company policy rather than specfic usage. Therefore, the summary should mention that there are not enough details to specify the types or purposes of the derivatives used by the company.
 <|endthink|>
-The company may derivative financial instruments as part of its financial strategy.
+The company may use derivative financial instruments as part of its financial strategy.
 
 <|think|>
 The text mentions that the company uses forward contracts to mitigate exposure to foreign currency translation risk. A notional amount of $150 million is mentioned for the beginning of the year 1995. However, it also mentioned that the company terminated this contract by the end of the year. Therefore, the summary should include that the company forward contracts to hedge foreign currency risk, but the contract was terminated within the same year.
 <|endthink|>
 In the beginning of 1995, The company utilized forward contracts with a notional value of $150 million as a hedge against foreign currency translation risk, although this contract was terminated by the end of the year.
-
-<|think|>
-The text mentions that oil price changes caused a loss in its earnings. However, there is no mention of any derivative instruments or hedging strategies used by the company to manage this risk. Wait, let me check that again to make sure. Okay, I see references to 'oil price changes' and 'earnings impact', but no specific derivatives like futures or options are mentioned.
-Therefore, the summary should add that the text does not indicate the use of derivatives for risk management.
-<|endthink|>
-The text does not mention any derivative instruments.
