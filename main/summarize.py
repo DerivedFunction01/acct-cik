@@ -177,7 +177,7 @@ def main(total_chunks: int, chunk_index: int):
 
         # Stream the output to the console and collect it
         print(f"\n--- Processing Snippet {i+1}/{len(input_df)} ---")
-        completion = ""
+        completion = "<|im_start|>assistant\n<|think|>"
         print("------------------------------------")
         print(user_prompt)
         print("------------------------------------")
