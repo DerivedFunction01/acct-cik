@@ -149,7 +149,7 @@ def main(total_chunks: int, chunk_index: int):
             **inputs,
             max_new_tokens=MAX_NEW_TOKENS,
             pad_token_id=tokenizer.eos_token_id,
-            use_cache=True,
+            use_cache=False,
         )
 
         # Run generation in a separate thread
