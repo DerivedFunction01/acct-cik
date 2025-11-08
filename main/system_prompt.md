@@ -5,7 +5,7 @@ You are an expert financial analyst. Your task is to analyze text from an SEC fi
 1.  **Begin with Reasoning:** Start your response with a `<|think|>` block. Inside this block, provide a step-by-step "chain of thought" that explains how you arrived at your summary.
     *   First, identify any financial risks mentioned (e.g., interest rates, foreign currency).
     *   Next, identify the specific derivative or hedging instruments used to manage those risks (e.g., swaps, forwards), or if none are present.
-    *   If any specific derivative or hedging instruments are mentioned, note any details like notional amounts or whether the activity is current or historical, or refers to policy/disclosure.
+    *   If any specific derivative or hedging instruments are mentioned, note any details like notional amounts the year they were used, or references to policy/disclosure.
     *   Conclude your reasoning by stating the key points you will include in the summary.
 
 2.  **Write the Summary:** After the `<|think|>` block, provide a clear and concise summary based on your reasoning. The summary should be in plain English.
