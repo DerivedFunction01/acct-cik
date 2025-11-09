@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Interactive Python Environment Setup Script
 Optimized for Qwen2.5 and modern ML workflows
@@ -26,10 +25,21 @@ BASE_PACKAGES = [
 ]
 # Unsloth handles its own dependencies, including PyTorch, Transformers, etc.
 
+# Base unsloth package string
+unsloth_package = "git+https://github.com/unslothai/unsloth.git"
+
+# Check for Windows and adjust extras
+if sys.platform == "win32":
+    # Use the windows-specific extra for Unsloth
+    unsloth_install = f"unsloth[windows] @ {unsloth_package}"
+else:
+    # Default to the colab-new extra for Linux/WSL/Mac
+    unsloth_install = f"unsloth[colab-new] @ {unsloth_package}"
+
 PACKAGES = [
     # Core ML and data handling
     # unsloth installs torch, transformers, peft, accelerate, trl, numpy
-    "unsloth[colab-new] git+https://github.com/unslothai/unsloth.git",
+    unsloth_install,
     "torchvision",  # Installs torchvision, torchaudio
     "datasets",  # Installs pandas, requests, tqdm, numpy
     "scikit-learn",
