@@ -534,7 +534,7 @@ if __name__ == "__main__":
                     formatting_func=format_finance_prompt, # Always use the finance prompt format
                     new_model_name=new_model_name,
                     num_epochs=num_epochs,
-                    is_hf_dataset=False,
+                    is_hf_dataset=is_hf_dataset,
                 )
             elif choice == "2":
                 run_manual_test()
