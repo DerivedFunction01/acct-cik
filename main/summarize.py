@@ -104,7 +104,7 @@ def main(total_chunks: int, chunk_index: int):
     system_prompt, user_prompt_template = load_prompts()
     try:
         input_df = pd.read_parquet(INPUT_PATH)
-        input_df = input_df.sample(frac=0.1, random_state=42).reset_index(drop=True)
+        input_df = input_df.sample(frac=0.1, random_state=42).reset_index(drop=True) if len(input_df) > 10000 else input_df
         print(f"Found {len(input_df)} snippets to process from '{INPUT_PATH}'.")
     except FileNotFoundError:
         print(
