@@ -23,7 +23,20 @@ else
 fi
 
 # --- Activate venv ---
-source "$VENV_DIR/bin/activate" 2>/dev/null || source "$VENV_DIR/Scripts/activate"
+if [ -f "$VENV_DIR/bin/activate" ]; then
+  source "$VENV_DIR/bin/activate"
+elif [ -f "$VENV_DIR/Scripts/activate" ]; then
+  source "$VENV_DIR/Scripts/activate"
+else
+  echo "Could not find activation script. Virtual environment may not have been created correctly."
+  exit 1
+fi
+
+# --- Verify activation ---
+if [ -z "$VIRTUAL_ENV" ]; then
+  echo "Virtual environment not activated. Aborting to avoid global install."
+  exit 1
+fi
 
 # --- Packages ---
 BASE_PACKAGES="beautifulsoup4 psutil openpyxl xlsxwriter pydrive2 matplotlib IPython"
