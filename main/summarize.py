@@ -154,7 +154,7 @@ def main(total_chunks: int, chunk_index: int):
         texts = batch_df["text"].tolist()
         user_prompts = [f"{user_prompt_template}\n\n{text}" for text in texts]
         formatted_prompts = [
-            f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{up}<|im_end|>\n<|im_start|>assistant\n<|think|>"
+            f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{up}<|im_end|>\n<|im_start|>assistant\n<think>"
             for up in user_prompts
         ]
 
@@ -175,8 +175,8 @@ def main(total_chunks: int, chunk_index: int):
             output_ids[:, inputs.input_ids.shape[1] :], skip_special_tokens=True
         )
         for up, comp in zip(user_prompts, completions):
-            full_comp = "<|im_start|>assistant\n<|think|>" + comp.strip()
-            if "<|think|>" in full_comp:
+            full_comp = "<|im_start|>assistant\n<think>" + comp.strip()
+            if "<think>" in full_comp:
                 results.append({"prompt": up, "completion": full_comp})
             else:
                 print(f"\nWarning: Invalid completion. Skipping one entry.")

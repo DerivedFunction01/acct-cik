@@ -184,7 +184,7 @@ This is the most critical phase. Before any model training, the data generation 
         -   Feed these simple prompts to the Stage 1 fine-tuned model (the one trained on the general finance dataset).
         -   Use a **"perfect user instruction"** that forces the model to externalize its step-by-step reasoning (e.g., "1. Identify risk. 2. Identify instruments...").
         -   Capture this natural language reasoning output (the "thought bubble").
-    -   **Stage C: Programmatic Formatting.** Create a script that takes the model's correct natural language output from Stage B. This script will then programmatically wrap this reasoning into a perfect `<|think|>` block and construct the corresponding, valid JSON object.
+    -   **Stage C: Programmatic Formatting.** Create a script that takes the model's correct natural language output from Stage B. This script will then programmatically wrap this reasoning into a perfect `<think>` block and construct the corresponding, valid JSON object.
     -   **Stage D: Compositional Training.**
         -   Create more complex prompts by merging paragraphs from different scenarios (e.g., a debt context paragraph + an FX instrument paragraph).
         -   Use a structured prompt format (e.g., "Section 1: ..., Section 2: ...") to guide the model to synthesize information without redundant thinking.

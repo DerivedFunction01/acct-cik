@@ -4508,7 +4508,7 @@ def main():
     def format_prompt(narrative: str, target_json: Dict[str, Any]) -> str:
         chain_of_thought = target_json.pop("chain_of_thought", "")
         rest_of_json_str = json.dumps(target_json, indent=2)
-        return f"{narrative}\n\n<|im_start|>assistant\n<|think|>\n{chain_of_thought}\n<|endthink|>\n{rest_of_json_str}<|im_end|>"
+        return f"{narrative}\n\n<|im_start|>assistant\n<think>\n{chain_of_thought}\n</think>\n{rest_of_json_str}<|im_end|>"
     print("--- Generating a single random sample for debugging ---")
 
     # 1. Create the "story" or scenario

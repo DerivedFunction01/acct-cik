@@ -25,12 +25,11 @@ config = {
     "MODEL_USER": "DerivedFunction",
     "MODEL_NAMES": [
         "unsloth/Qwen3-4B-Thinking-2507",
-        "DerivedFunction/Qwen3-4B-finance-base"
+        "unsloth/Qwen3-1.7B-unsloth-bnb-4bit", # Smaller, faster alternative
+        "DerivedFunction/Qwen3-4B-finance-base",
     ],
     "DATASETS": [
         ("DerivedFunction/Derivatives-Finance-Instruct-100K", True),  # (path/id, is_hf_dataset)
-        ("training_data.parquet", False),
-        ("derivatives.parquet", False)
     ],
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 2048,  # Qwen3 supports up to 32k, but 2048 is good for training
@@ -99,21 +98,10 @@ def detect_hardware():
         return "cpu", ram_gb
 # %%
 
-
-def format_task_prompt(sample):
-    """Formats a sample for instruction fine-tuning using Qwen's chat template with a thought block."""
-    try:
-        # Construct the new format
-        return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n<|think|>\n{sample['think']}\n<|endthink|>\n{sample['completion']}<|im_end|>"
-    except (json.JSONDecodeError, KeyError, TypeError):
-        # Fallback for cases where completion is not a valid JSON or doesn't have the expected structure
-        return f"<|im_start|>user\n{sample['prompt']}<|im_end|>\n<|im_start|>assistant\n{sample['completion']}<|im_end|>"
-
-
 def format_finance_prompt(sample):
     """Formats a sample from a dataset with 'user' and 'assistant' columns."""
     # This dataset has 'user' and 'assistant' columns.
-    return f"<|im_start|>user\n{sample['user']}<|im_end|>\n<|im_start|>assistant\n{sample['assistant']}<|im_end|>"
+    return f"<|im_start|>system\n{sample['system']}<|im_start|>user\n{sample['user']}<|im_end|>\n<|im_start|>assistant\n<think>{sample['think']}</think>\n{sample['assistant']}<|im_end|>"
 
 
 def run_training(profile: dict, model_name: str, data_path: str, formatting_func: callable, new_model_name: str, num_epochs: int = 1, is_hf_dataset: bool = False):
