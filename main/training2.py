@@ -27,6 +27,10 @@ config = {
         "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",  # Smaller, faster alternative
         "DerivedFunction/Qwen3-1.7B-derivatives-base",
     ],
+    "LORA_ADAPTERS": [
+        # Example: "my-finance-model_lora" (local) or "YourUser/my-finance-model_lora" (Hub)
+        "DerivedFunction/Qwen3-1.7B-derivatives-base_lora",
+    ],
     "DATASETS": [
         ("DerivedFunction/Derivatives-Finance-200K", True),  # (path/id, is_hf_dataset)
     ],
@@ -113,15 +117,25 @@ def format_finance_prompt(sample):
     return system_msg + user_msg + assistant_msg
 
 
-def run_training(profile: dict, model_name: str, data_path: str, formatting_func: callable, new_model_name: str, num_epochs: int = 1, is_hf_dataset: bool = False):
+def run_training(profile: dict, model_name: str, data_path: str, formatting_func: callable, new_model_name: str, num_epochs: int = 1, is_hf_dataset: bool = False, dataset_shard_index: int = 0, dataset_num_shards: int = 1, merge_at_end: bool = True):
     """Main function to run the training process with Unsloth optimization."""
     print(f"\n--- Starting Training with Unsloth ---")
-    print(f"  - Profile: {profile['name']}\n  - Base Model: {model_name}\n  - Data: {data_path}\n  - Output Model: {new_model_name}\n  - Epochs: {num_epochs}")
+    print(f"  - Profile: {profile['name']}")
+    print(f"  - Base Model: {model_name}")
+    print(f"  - Data: {data_path}")
+    if dataset_num_shards > 1:
+        print(f"  - Dataset Shard: {dataset_shard_index + 1} of {dataset_num_shards}")
+    print(f"  - Output Model: {new_model_name}")
+    print(f"  - Epochs: {num_epochs}")
+    print(f"  - Merge Adapters at End: {'Yes' if merge_at_end else 'No'}")
 
     # --- Load and preprocess data ---
     print("\n--- Loading and Preprocessing Data ---")
     try:
         dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
+        if dataset_num_shards > 1:
+            print(f"Applying dataset shard: Using index {dataset_shard_index} of {dataset_num_shards} total shards.")
+            dataset = dataset.shard(num_shards=dataset_num_shards, index=dataset_shard_index)
 
         # Use the provided formatting function and apply it to each sample.
         # The result is stored in a new 'text' column.
@@ -259,14 +273,16 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
     model.save_pretrained(f"{new_model_name}_lora")
     tokenizer.save_pretrained(f"{new_model_name}_lora")
 
-    # Merge the adapters into the model for a final, standalone model
-    if hasattr(model, "merge_and_unload"):
-        print("\n--- Merging LoRA adapters into the base model ---")
-        model = model.merge_and_unload()
+    if merge_at_end:
+        # Merge the adapters into the model for a final, standalone model
+        if hasattr(model, "merge_and_unload"):
+            print("\n--- Merging LoRA adapters into the base model ---")
+            model = model.merge_and_unload()
 
-    print(f"\n--- Saving final merged model to '{new_model_name}' ---")
-    trainer.model = model # Update trainer's model reference to the merged one
-    trainer.save_model(new_model_name)
+        print(f"\n--- Saving final merged model to '{new_model_name}' ---")
+        trainer.model = model # Update trainer's model reference to the merged one
+        trainer.save_model(new_model_name)
+        print(f"✅ Final merged model saved to '{new_model_name}'.")
 
     # The trainer will automatically push the final (merged) model if push_to_hub=True
     if training_args.push_to_hub:
@@ -280,10 +296,14 @@ def run_manual_test():
     print("\n--- Manual Model Test ---")
 
     print("Available models to test:")
+    print("  --- Base/Merged Models ---")
     for i, name in enumerate(config["MODEL_NAMES"], 1):
-        print(f"  [{i}] {name}")
+        print(f"  [b{i}] {name}")
+    print("  --- LoRA Adapters ---")
+    for i, name in enumerate(config["LORA_ADAPTERS"], 1):
+        print(f"  [a{i}] {name}")
     print("  [c] Enter a custom model name/path")
-    model_choice = input("Choose model to load: ").strip()
+    model_choice = input("Choose model to load (e.g., b1, a1, c): ").strip()
     model_path = handle_model_choice(model_choice, config["MODEL_NAMES"])
 
     # --- NEW LOGIC: Check for local model, else try Hub ---
@@ -392,14 +412,24 @@ def run_manual_test():
 
 def handle_model_choice(choice: str, model_list: list) -> str:
     """Helper to resolve user's model choice from a list or custom input."""
+    choice = choice.lower()
+    if choice.startswith('b') and choice[1:].isdigit():
+        idx = int(choice[1:]) - 1
+        if 0 <= idx < len(config["MODEL_NAMES"]):
+            return config["MODEL_NAMES"][idx]
+    elif choice.startswith('a') and choice[1:].isdigit():
+        idx = int(choice[1:]) - 1
+        if 0 <= idx < len(config["LORA_ADAPTERS"]):
+            return config["LORA_ADAPTERS"][idx]
+    elif choice == 'c':
+        return input("Enter custom model name/path: ").strip()
+    
+    # Fallback for old numeric or direct name entry
     if choice.isdigit():
         idx = int(choice) - 1
         if 0 <= idx < len(model_list):
             return model_list[idx]
-    elif choice.lower() == 'c':
-        return input("Enter custom model name/path: ").strip()
-    # If it's not a digit or 'c', assume it's a custom name directly
-    return choice
+    return choice # Assume it's a custom name if no prefix matches
 
 
 def huggingface_auth():
@@ -492,10 +522,16 @@ if __name__ == "__main__":
                     continue
 
                 print("\n--- Step 2: Select a Base Model ---")
+                print("  --- Base Models ---")
                 for i, name in enumerate(config["MODEL_NAMES"], 1):
-                    print(f"  [{i}] {name}")
+                    print(f"  [b{i}] {name}")
+                print("  --- LoRA Adapters (to continue training) ---")
+                for i, name in enumerate(config["LORA_ADAPTERS"], 1):
+                    print(f"  [a{i}] {name}")
                 print("  [c] Enter a custom model name/path from Hugging Face")
-                model_choice = input("Enter base model to fine-tune: ").strip()
+                model_choice = input(
+                    "Enter model to fine-tune (e.g., b1, a1, c): "
+                ).strip()
                 base_model_name = handle_model_choice(model_choice, config["MODEL_NAMES"])
 
                 print("\n--- Step 3: Select a Dataset ---")
@@ -527,6 +563,22 @@ if __name__ == "__main__":
                     print("❌ Output model name cannot be empty.")
                     continue
 
+                # --- New Sharding and Merging Logic ---
+                use_sharding = input("Use dataset sharding (for very large datasets)? [y/N]: ").strip().lower() == 'y'
+                num_shards = 1
+                shard_index = 0
+                merge_adapters = True
+
+                if use_sharding:
+                    num_shards = int(input(f"Enter total number of shards [e.g., 10]: ") or 10)
+                    shard_index = int(input(f"Enter shard index to train on (0 to {num_shards - 1}): ") or 0)
+                    # If using sharding, ask if this is the final run to decide on merging.
+                    is_final_run = input("Is this the FINAL shard? (This will merge the adapters) [y/N]: ").strip().lower() == 'y'
+                    merge_adapters = is_final_run
+                else:
+                    # If not sharding, we always merge.
+                    merge_adapters = True
+
                 run_training(
                     profile=selected_profile,
                     model_name=base_model_name,
@@ -535,6 +587,9 @@ if __name__ == "__main__":
                     new_model_name=new_model_name,
                     num_epochs=num_epochs,
                     is_hf_dataset=is_hf_dataset,
+                    dataset_shard_index=shard_index,
+                    dataset_num_shards=num_shards,
+                    merge_at_end=merge_adapters,
                 )
             elif choice == "2":
                 run_manual_test()
