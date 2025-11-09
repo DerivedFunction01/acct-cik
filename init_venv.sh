@@ -100,7 +100,7 @@ if [ "$BASE_ONLY" = true ]; then
   pip install $BASE_PACKAGES
 else
   echo "Installing all packages (including ML)..."
-  pip install $BASE_PACKAGES $ML_PACKAGES
+  pip install --upgrade $BASE_PACKAGES $ML_PACKAGES
 fi
 
 echo "✅ Environment setup complete."
