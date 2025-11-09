@@ -61,9 +61,11 @@ def _format_single_notional(
         if notional_multiplier and notional_multiplier > 1:
             formatted_number = f"{abs_amount / notional_multiplier:.1f}"
             if not no_unit_word:
-                # Find the word for the given multiplier
-                for word, val in amount_to_string.items():
-                    if val == notional_multiplier:
+                # Find the corresponding unit word with auto-detection
+                for word, divisor in sorted(
+                    amount_to_string.items(), key=lambda x: x[1], reverse=True
+                ):
+                    if abs_amount >= divisor:
                         unit_word = f" {word}"
                         break
         else: # Original auto-detection logic
