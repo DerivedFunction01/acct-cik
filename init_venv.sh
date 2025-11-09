@@ -27,7 +27,7 @@ source "$VENV_DIR/bin/activate" 2>/dev/null || source "$VENV_DIR/Scripts/activat
 
 # --- Packages ---
 BASE_PACKAGES="beautifulsoup4 psutil openpyxl xlsxwriter pydrive2 matplotlib IPython"
-ML_PACKAGES="unsloth torchvision datasets scikit-learn flask gunicorn waitress"
+ML_PACKAGES="unsloth torch torchvision datasets scikit-learn flask gunicorn waitress"
 
 # --- Install packages ---
 if [ "$BASE_ONLY" = true ]; then
