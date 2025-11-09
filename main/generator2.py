@@ -3348,7 +3348,7 @@ def generate_narrative_from_scenario(
     narrative = re.sub(r"\n{3,}", "\n\n", narrative)
 
     full_narrative = (
-        f"<reportingYear>{scenario.reporting_year}</reportingYear> {narrative}"
+        f"{narrative}"
     )
 
     # --- (Unchanged) Post-process evidence to remove redundant ExposureEvidence ---
@@ -4526,13 +4526,12 @@ def main():
 
     print(format_prompt(narrative, target_json)) 
 
-# %%
-if __name__ == "__main__":
-    main()
 # =============================================================================
 # PHASE 3: MAIN GENERATION LOOP
 # This will be the new entry point, replacing the old `generate()` function.
 # =============================================================================
+if __name__ == "__main__":
+    main()
 
 
 def generate_training_sample(archetype_index=None, allow_random_drops: bool = True):
@@ -4704,7 +4703,3 @@ def generate_dataset2(
     df.to_parquet(output_file, index=False)
 
     print(f"\nSuccessfully generated {num_samples} samples to {output_file} with {noise_percentage:.0%} noise.")
-
-# %%
-generate_dataset2(150, noise_percentage=0.35)
-# %%
