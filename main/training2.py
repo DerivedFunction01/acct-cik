@@ -391,52 +391,6 @@ def run_manual_test():
             print(response_text)
 
 
-def view_dataset_sample():
-    """Loads and displays a random sample from the training dataset."""
-    print("\n--- Select a Dataset to View ---")
-    for i, (name, is_hf) in enumerate(config["DATASETS"], 1):
-        source = "Hugging Face" if is_hf else "Local"
-        print(f"  [{i}] {name} ({source})")
-    print("  [c] Custom local dataset (.parquet)")
-    
-    choice = input("Enter dataset to view: ").strip()
-    if choice.isdigit():
-        idx = int(choice) - 1
-        if 0 <= idx < len(config["DATASETS"]):
-            data_path, is_hf_dataset = config["DATASETS"][idx]
-        else:
-            print("❌ Invalid selection.")
-            return
-    elif choice.lower() == 'c':
-        data_path = input("Enter path to custom .parquet file: ").strip()
-        is_hf_dataset = False
-    else:
-        data_path = choice # Assume it's a path
-        is_hf_dataset = False
-
-    if not Path(data_path).exists():
-        print(f"❌ Dataset file not found at '{data_path}'.")
-        print("    Please ensure the training data has been generated.")
-        return
-
-    print(f"\n--- Loading a random sample from {data_path} ---")
-    try:
-        # Load the full dataset
-        dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
-
-        # Select a random sample
-        random_index = random.randint(0, len(dataset) - 1)
-        sample = dataset[random_index]
-
-        print("\n" + "=" * 25 + " RANDOM FORMATTED SAMPLE (using format_finance_prompt) " + "=" * 25)
-        # Use the same formatting function as the trainer to see the final input
-        formatted_text = format_task_prompt(sample)
-        print(formatted_text)
-        print("\n" + "=" * 65)
-    except Exception as e:
-        print(f"❌ Failed to load or read the dataset: {e}")
-
-
 def handle_model_choice(choice: str, model_list: list) -> str:
     """Helper to resolve user's model choice from a list or custom input."""
     if choice.isdigit():
@@ -498,10 +452,9 @@ if __name__ == "__main__":
             print("\n--- Generative Model Training Menu (Unsloth Optimized) ---")
             print("1. Fine-tune a base model")
             print("-------------------------------------------------------------")
-            print("2. View Sample from Task Dataset")
-            print("4. Manually Test Model")
-            print("5. Hugging Face Login")
-            print("6. Exit")
+            print("2. Manually Test Model")
+            print("3. Hugging Face Login")
+            print("4. Exit")
             choice = input("> ").strip()
             
             if choice == "1":
@@ -584,13 +537,11 @@ if __name__ == "__main__":
                     num_epochs=num_epochs,
                     is_hf_dataset=False,
                 )
-            elif choice == "3":
-                view_dataset_sample()
-            elif choice == "4":
+            elif choice == "2":
                 run_manual_test()
-            elif choice == "5":
+            elif choice == "3":
                 huggingface_auth()
-            elif choice == "6":
+            elif choice == "4":
                 print("Exiting.")
                 break
             else:
