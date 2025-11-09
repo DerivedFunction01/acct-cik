@@ -31,9 +31,9 @@ ML_PACKAGES="unsloth torchvision datasets scikit-learn flask gunicorn waitress"
 
 # --- Install packages ---
 if [ "$BASE_ONLY" = true ]; then
-  pip install $BASE_PACKAGES
+  pip install --upgrade $BASE_PACKAGES
 else
-  pip install $BASE_PACKAGES $ML_PACKAGES
+  pip install --upgrade $BASE_PACKAGES $ML_PACKAGES
 fi
 
 echo "Setup complete."
