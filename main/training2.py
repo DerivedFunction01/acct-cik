@@ -28,7 +28,7 @@ config = {
         "DerivedFunction/Qwen3-4B-finance-base"
     ],
     "DATASETS": [
-        ("DerivedFunction/Finance-Instruct-100K", True),  # (path/id, is_hf_dataset)
+        ("DerivedFunction/Derivatives-Finance-Instruct-100K", True),  # (path/id, is_hf_dataset)
         ("training_data.parquet", False),
         ("derivatives.parquet", False)
     ],
