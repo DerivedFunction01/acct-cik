@@ -200,7 +200,7 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
     # For large datasets, evaluating every 100 steps is too frequent.
     # Let's aim for 4 evaluations per epoch.
     num_train_samples = len(train_dataset)
-    if num_train_samples > 20000: # Heuristic for a "large" dataset
+    if num_train_samples > 1000: # Heuristic for a "large" dataset
         steps_per_epoch = math.ceil(num_train_samples / (profile["batch_size"] * profile["gradient_accumulation"]))
         eval_steps = max(100, steps_per_epoch // 4) # Evaluate 4 times per epoch, but at least every 100 steps.
     else:
