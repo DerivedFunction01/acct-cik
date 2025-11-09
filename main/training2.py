@@ -48,7 +48,7 @@ TRAINING_PROFILES = {
         "batch_size": 18,
         "gradient_accumulation": 4,
         "max_seq_length": 24576,
-        "load_in_4bit": False,
+        "load_in_4bit": True,
     },
     "2": {
         "name": "L4 / Pro (>= 20 GB)",
@@ -57,7 +57,7 @@ TRAINING_PROFILES = {
         "batch_size": 12,
         "gradient_accumulation": 4,
         "max_seq_length": 20480,
-        "load_in_4bit": False,
+        "load_in_4bit": True,
     },
     "3": {
         "name": "High VRAM / Colab (>= 12GB)",
@@ -66,7 +66,7 @@ TRAINING_PROFILES = {
         "batch_size": 2,
         "gradient_accumulation": 4,
         "max_seq_length": 8192,
-        "load_in_4bit": False,
+        "load_in_4bit": True,
     },
     "4": {
         "name": "Low VRAM (6-12GB)",
@@ -75,7 +75,7 @@ TRAINING_PROFILES = {
         "batch_size": 1,
         "gradient_accumulation": 4,
         "max_seq_length": 4096,
-        "load_in_4bit": False,
+        "load_in_4bit": True,
     },
     "5": {
         "name": "CPU / Low RAM (< 6GB)",
