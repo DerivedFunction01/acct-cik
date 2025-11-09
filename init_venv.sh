@@ -40,7 +40,7 @@ fi
 
 # --- Packages ---
 BASE_PACKAGES="beautifulsoup4 psutil openpyxl xlsxwriter pydrive2 matplotlib IPython"
-ML_PACKAGES="torch unsloth torchvision datasets scikit-learn flask gunicorn waitress"
+ML_PACKAGES="torch torchvision datasets scikit-learn flask gunicorn waitress unsloth"
 
 # --- Install packages ---
 if [ "$BASE_ONLY" = true ]; then
