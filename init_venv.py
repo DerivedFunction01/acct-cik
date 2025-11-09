@@ -43,6 +43,7 @@ PACKAGES = [
     "torchvision",  # Installs torchvision, torchaudio
     "datasets",  # Installs pandas, requests, tqdm, numpy
     "scikit-learn",
+    "tensorboardX",
     "flask",
     "gunicorn",
     "waitress",
