@@ -59,40 +59,40 @@ BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwri
 ML_PACKAGES="unsloth[colab-new] git+https://github.com/unslothai/unsloth.git scikit-learn datasets transformers accelerate IPython ipywidgets ipykernel"
 
 # --- Handle PyTorch (skip if locked unless --reinstall-torch) ---
-# if [ -f "$TORCH_LOCK_FILE" ] && [ "$REINSTALL_TORCH" = false ]; then
-#   echo "🧱 PyTorch is locked. Skipping reinstall."
-#   echo "  (Run with --reinstall-torch to reinstall or upgrade)"
-# else
-#   echo "🔄 Installing or updating PyTorch..."
-#   if command -v nvidia-smi &> /dev/null; then
-#     echo "NVIDIA GPU detected."
-#     CUDA_VERSION=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+')
-#     echo "Detected CUDA version: $CUDA_VERSION"
+if [ -f "$TORCH_LOCK_FILE" ] && [ "$REINSTALL_TORCH" = false ]; then
+  echo "🧱 PyTorch is locked. Skipping reinstall."
+  echo "  (Run with --reinstall-torch to reinstall or upgrade)"
+else
+  echo "🔄 Installing or updating PyTorch..."
+  if command -v nvidia-smi &> /dev/null; then
+    echo "NVIDIA GPU detected."
+    CUDA_VERSION=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+')
+    echo "Detected CUDA version: $CUDA_VERSION"
     
-#     # Dynamically construct the CUDA tag from the version, e.g., 12.1 -> cu121
-#     CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
-#     CUDA_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f2)
-#     CUDA_TAG="cu${CUDA_MAJOR}${CUDA_MINOR}"
-#     echo "Using CUDA tag: $CUDA_TAG"
+    # Dynamically construct the CUDA tag from the version, e.g., 12.1 -> cu121
+    CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
+    CUDA_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f2)
+    CUDA_TAG="cu${CUDA_MAJOR}${CUDA_MINOR}"
+    echo "Using CUDA tag: $CUDA_TAG"
 
-#     # Install the latest PyTorch for the detected CUDA version
-#     pip install torch torchvision torchaudio \
-#       --index-url https://download.pytorch.org/whl/${CUDA_TAG}
-#     echo "✅ PyTorch with CUDA $CUDA_VERSION installed."
-#   elif command -v rocm-smi &> /dev/null; then
-#     echo "✅ AMD GPU with ROCm detected."
-#     pip install torch torchvision torchaudio \
-#       --index-url https://download.pytorch.org/whl/rocm6.2
-#     echo "✅ PyTorch with ROCm installed."
-#   else
-#     echo "No NVIDIA GPU detected. Installing CPU-only PyTorch..."
-#     pip install torch torchvision torchaudio \
-#       --index-url https://download.pytorch.org/whl/cpu
-#   fi
+    # Install the latest PyTorch for the detected CUDA version
+    pip install torch torchvision torchaudio \
+      --index-url https://download.pytorch.org/whl/${CUDA_TAG}
+    echo "✅ PyTorch with CUDA $CUDA_VERSION installed."
+  elif command -v rocm-smi &> /dev/null; then
+    echo "✅ AMD GPU with ROCm detected."
+    pip install torch torchvision torchaudio \
+      --index-url https://download.pytorch.org/whl/rocm6.2
+    echo "✅ PyTorch with ROCm installed."
+  else
+    echo "No NVIDIA GPU detected. Installing CPU-only PyTorch..."
+    pip install torch torchvision torchaudio \
+      --index-url https://download.pytorch.org/whl/cpu
+  fi
 
-#   echo "PyTorch $(python -c 'import torch; print(torch.__version__)') installed successfully."
-#   echo "$(python -c 'import torch; print(torch.__version__)')" > "$TORCH_LOCK_FILE"
-# fi
+  echo "PyTorch $(python -c 'import torch; print(torch.__version__)') installed successfully."
+  echo "$(python -c 'import torch; print(torch.__version__)')" > "$TORCH_LOCK_FILE"
+fi
 
 # --- Install other packages ---
 if [ "$BASE_ONLY" = true ]; then
