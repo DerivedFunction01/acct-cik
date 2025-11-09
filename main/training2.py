@@ -24,12 +24,11 @@ from huggingface_hub import login
 config = {
     "MODEL_USER": "DerivedFunction",
     "MODEL_NAMES": [
-        "unsloth/Qwen3-4B-Thinking-2507",
-        "unsloth/Qwen3-1.7B-unsloth-bnb-4bit", # Smaller, faster alternative
-        "DerivedFunction/Qwen3-4B-finance-base",
+        "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",  # Smaller, faster alternative
+        "DerivedFunction/Qwen3-1.7B-derivatives-base",
     ],
     "DATASETS": [
-        ("DerivedFunction/Derivatives-Finance-Instruct-100K", True),  # (path/id, is_hf_dataset)
+        ("DerivedFunction/Derivatives-Finance-200K", True),  # (path/id, is_hf_dataset)
     ],
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 2048,  # Qwen3 supports up to 32k, but 2048 is good for training
@@ -74,7 +73,7 @@ TRAINING_PROFILES = {
         "lora_alpha": 128,
         "batch_size": 1,
         "gradient_accumulation": 4,
-        "max_seq_length": 4096,
+        "max_seq_length": 8192,
         "load_in_4bit": True,
     },
     "5": {
@@ -83,7 +82,7 @@ TRAINING_PROFILES = {
         "lora_alpha": 32,
         "batch_size": 1,
         "gradient_accumulation": 4,
-        "max_seq_length": 2048,
+        "max_seq_length": 8192,
         "load_in_4bit": True,
     },
 }
