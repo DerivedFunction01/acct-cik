@@ -68,13 +68,13 @@ GENERATION_PROBABILITIES = {
     "use_timeline_for_long_history": 0.15,  # Chance to use a multi-sentence timeline for a historical instrument.
     "add_other_pronouncements": 0.4,  # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
     "can_have_accounting_update": 0.4,  # Chance a scenario will include an accounting standard update section.
-    "accounting_update_is_hedge_related": 0.5,  # If an update is generated, the chance it's about hedging.
-    "financial_statements": 0.25,
-    "company_description": 0.20,  # Chance to add a paragraph describing the company
-    "forward_looking_statement": 0.20,  # Chance to add a forward-looking statement paragraph
-    "add_legalistic_definition": 0.15,  # Chance to add a generic, legalistic derivative definition paragraph.
-    "ownership_context": 0.20,  # Chance to add a paragraph about institutional/insider ownership.
-    "legal_context": 0.20,  # If we generate a paragraph on derivative lawsuits
+    "accounting_update_is_hedge_related": 0.5,
+    "financial_statements": 0.0,
+    "company_description": 0.0,
+    "forward_looking_statement": 0.0,
+    "add_legalistic_definition": 0.0,
+    "ownership_context": 0.0,
+    "legal_context": 0.0,
 }
 
 # Probabilities for dropping narrative components to increase variety.
