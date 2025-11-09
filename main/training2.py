@@ -98,10 +98,20 @@ def detect_hardware():
         return "cpu", ram_gb
 # %%
 
+
 def format_finance_prompt(sample):
-    """Formats a sample from a dataset with 'user' and 'assistant' columns."""
-    # This dataset has 'user' and 'assistant' columns.
-    return f"<|im_start|>system\n{sample['system']}<|im_start|>user\n{sample['user']}<|im_end|>\n<|im_start|>assistant\n<think>{sample['think']}</think>\n{sample['assistant']}<|im_end|>"
+    """Formats a sample from a dataset with 'system', 'user', 'think', and 'assistant' columns."""
+    system_msg = f"<|im_start|>system\n{sample.get('system', '')}<|im_end|>\n"
+    user_msg = f"<|im_start|>user\n{sample['user']}<|im_end|>\n"
+    think_block = (
+        f"<think>\n{sample.get('think', '').strip()}\n</think>\n\n"
+        if sample.get("think")
+        else "<think>\n\n</think>\n\n"
+    )
+    assistant_msg = (
+        f"<|im_start|>assistant\n{think_block}{sample['assistant']}<|im_end|>"
+    )
+    return system_msg + user_msg + assistant_msg
 
 
 def run_training(profile: dict, model_name: str, data_path: str, formatting_func: callable, new_model_name: str, num_epochs: int = 1, is_hf_dataset: bool = False):
