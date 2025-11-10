@@ -75,7 +75,7 @@ TRAINING_PROFILES = {
         "name": "Low VRAM (6-12GB)",
         "r": 64,
         "lora_alpha": 128,
-        "batch_size": 4,
+        "batch_size": 3,
         "gradient_accumulation": 4,
         "max_seq_length": 8192,
         "load_in_4bit": True,
