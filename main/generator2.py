@@ -555,6 +555,22 @@ SCENARIO_ARCHETYPES = [
         notional_multiplier=0,
         can_have_accounting_update=False,
     ),
+    ScenarioArchetype(
+        name="Simple Notional Sentence",
+        debt_exposure_range=(0, 0),
+        fx_exposure_range=(0, 0),
+        commodity_exposure_range=(0, 0),
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0), # Will be overridden
+        hedging_propensities={ cat: (0.0, 0.0) for cat in DERIVATIVE_CATEGORIES }, # Will be overridden
+        policy_coverage="none",
+        comparative_years=1,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        # This archetype is special and will be handled by a dedicated function
+        # that generates only a single instrument and a single sentence.
+    ),
 ]
 
 
@@ -4104,37 +4120,51 @@ def generate_simple_notional_sentence_scenario() -> GenerationScenario:
     Generates a very simple, one-sentence scenario, similar to the old text
     classification data. This addresses the TODO item for training on smaller text.
 
+    This function now uses the "Simple Notional Sentence" archetype for clarity.
+
     Returns:
         A GenerationScenario containing a single instrument and a single sentence.
     """
     # 1. Create a basic archetype and scenario shell
-    exposure_map = {cat: (0, 0) for cat in DERIVATIVE_CATEGORIES}
-    select_category = random.choice(DERIVATIVE_CATEGORIES)
-    exposure_map[select_category] = (1, 1)
-    archetype = ScenarioArchetype(
-        name="Simple Notional Sentence",
-        debt_exposure_range=exposure_map["IR"],
-        fx_exposure_range=exposure_map["FX"],
-        commodity_exposure_range=exposure_map["CP"],
-        equity_exposure_range=exposure_map["EQ"],
-        generic_instrument_range=exposure_map["GEN"],
-        hedging_propensities={ cat: (0 , 0) if cat != select_category else (1, 1) for cat in DERIVATIVE_CATEGORIES},
-        policy_coverage="none",
-        comparative_years=random.randint(1,3), # type: ignore
-        default_currency=random.choice([c.code for c in all_currencies]),
-        notional_multiplier=random.choice([1_000, 1_000_000, 1_000_000]),
-        prefers_abbreviated_numbers=True,
-    )
+    # Find and copy the dedicated archetype
+    base_archetype = next((arch for arch in SCENARIO_ARCHETYPES if arch.name == "Simple Notional Sentence"), None)
+    if not base_archetype:
+        raise ValueError("Simple Notional Sentence archetype not found.")
+    archetype = copy.deepcopy(base_archetype)
+
+    # Randomly select a category for the single instrument
+    selected_category = random.choice(DERIVATIVE_CATEGORIES)
+    archetype.hedging_propensities[selected_category] = (1.0, 1.0)
+    if selected_category == "IR": archetype.debt_exposure_range = (1,1)
+    elif selected_category == "FX": archetype.fx_exposure_range = (1,1)
+    elif selected_category == "CP": archetype.commodity_exposure_range = (1,1)
+    elif selected_category == "EQ": archetype.equity_exposure_range = (1,1)
+    else: archetype.generic_instrument_range = (1,1)
+
+    # Randomize currency and multiplier for variety
+    archetype.default_currency = random.choice([c.code for c in all_currencies])
+    archetype.notional_multiplier = random.choice([1_000, 1_000_000, 1_000_000_000])
+
     scenario = GenerationScenario(
         company_name=random.choice(company_names),
         reporting_year=random.randint(2018, 2024),
         archetype=archetype,
         reporting_day=random.randint(1, 28),
         reporting_month=random.choice(months),
+        instruments=[], # Start with an empty list
     )
 
     # 2. Create a single, simple instrument
-    _, _, base_type, suffix, name, alias = _generate_instrument_name("IR")
+    # This part is simplified as we don't need the full ScenarioBuilder
+    _, _, _, _, name, alias = _generate_instrument_name(selected_category)
+
+    # Determine the correct instrument class based on category
+    instrument_class_map = {
+        "IR": IRInstrument, "FX": FXInstrument, "CP": CPInstrument,
+        "EQ": EQInstrument, "GEN": GenericInstrument
+    }
+    InstrumentClass = instrument_class_map[selected_category]
+
     instrument = IRInstrument(
         instrument_id=1,
         instrument_type=name,
@@ -4143,26 +4173,27 @@ def generate_simple_notional_sentence_scenario() -> GenerationScenario:
         start_year=scenario.reporting_year,
         maturity_year=scenario.reporting_year + random.randint(2, 5),
         currency="USD",
-        symbol="$",
+        symbol=next((c.symbol for c in all_currencies if c.code == archetype.default_currency), "$"),
+        category=selected_category,
     )
     scenario.instruments.append(instrument)
 
     # 3. Use NotionalSentence to build a single, direct sentence
-    # This bypasses the complex narrative generation for this specific case.
+    # This ensures the evidence is created correctly for this simple case.
+    # The main `generate_narrative_from_scenario` will then be called on this
+    # simple scenario, which will naturally produce a very short narrative.
     notional_sentence_builder = NotionalSentence(
         swap_type=instrument.instrument_type,
         year=scenario.reporting_year,
         notional=instrument.notional_history[scenario.reporting_year],
-        category="IR",
+        category=selected_category,
         reporting_year=scenario.reporting_year,
         sentence_type="individual",
         company_name=scenario.company_name,
         notional_multiplier=archetype.notional_multiplier,
     )
-    # We only need the evidence from this, the sentence itself will be generated in the main narrative flow
-    # but this ensures the evidence is created correctly for a simple case.
-    # In a full implementation, you'd integrate this into generate_narrative_from_scenario
-    # to create a prompt with just this one sentence.
+    # The main purpose here is to construct the scenario object.
+    # The narrative and JSON will be generated from this scenario in the main training loop.
     return scenario
 
 
