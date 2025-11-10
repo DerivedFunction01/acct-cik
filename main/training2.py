@@ -35,7 +35,7 @@ config = {
         ("DerivedFunction/Derivatives-Finance-200K", True),  # (path/id, is_hf_dataset)
     ],
     "HF_TOKEN_PATH": "hf_token",
-    "MAX_SEQ_LENGTH": 2048,  # Qwen3 supports up to 32k, but 2048 is good for training
+    "MAX_SEQ_LENGTH": 8192,  # Qwen3 supports up to 128K tokens, but 8K is more practical for most fine-tuning
 }
 IS_AUTHENTICATED = False
 
@@ -563,21 +563,30 @@ if __name__ == "__main__":
                     print("❌ Output model name cannot be empty.")
                     continue
 
+                # --- NEW: Append shard index to model name if sharding ---
+
                 # --- New Sharding and Merging Logic ---
                 use_sharding = input("Use dataset sharding (for very large datasets)? [y/N]: ").strip().lower() == 'y'
                 num_shards = 1
                 shard_index = 0
                 merge_adapters = True
+                # The number of epochs to run for this specific shard.
+                # For the "epoch-per-shard" method, this will always be 1.
+                epochs_for_this_run = num_epochs
 
                 if use_sharding:
                     num_shards = int(input(f"Enter total number of shards [e.g., 10]: ") or 10)
                     shard_index = int(input(f"Enter shard index to train on (0 to {num_shards - 1}): ") or 0)
+                    # In this method, each shard corresponds to one epoch.
+                    # The trainer will run up to the epoch number matching the shard index + 1.
+                    epochs_for_this_run = shard_index + 1
                     # If using sharding, ask if this is the final run to decide on merging.
                     is_final_run = input("Is this the FINAL shard? (This will merge the adapters) [y/N]: ").strip().lower() == 'y'
                     merge_adapters = is_final_run
                 else:
                     # If not sharding, we always merge.
                     merge_adapters = True
+                    epochs_for_this_run = num_epochs
 
                 run_training(
                     profile=selected_profile,
@@ -585,7 +594,7 @@ if __name__ == "__main__":
                     data_path=data_path,
                     formatting_func=format_finance_prompt, # Always use the finance prompt format
                     new_model_name=new_model_name,
-                    num_epochs=num_epochs,
+                    num_epochs=epochs_for_this_run,
                     is_hf_dataset=is_hf_dataset,
                     dataset_shard_index=shard_index,
                     dataset_num_shards=num_shards,
