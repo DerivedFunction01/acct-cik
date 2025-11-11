@@ -10,7 +10,7 @@ import time
 from bs4 import BeautifulSoup
 import json
 import sqlite3
-from typing import List
+from typing import List, Optional
 import random
 import re
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -561,7 +561,7 @@ def extract_filings(data: dict, cik: str, name: str, ticker: str) -> List[dict]:
     return links
 
 
-def get_cik_filings(cik: str) -> List[dict]:
+def get_cik_filings(cik: str) -> Optional[List[dict]]:
     cik = str(cik).zfill(10)
     url_main = f"https://data.sec.gov/submissions/CIK{cik}.json"
 
@@ -656,7 +656,7 @@ def extract_content(data: str, asHTML=True) -> str:
         text = pattern.sub(replacement, text)
     return text
 
-def fetch_url(url: str, timeout: int = 10, rate_limiter: "ThreadSafeRateLimiter" = None) -> str | None:
+def fetch_url(url: str, timeout: int = 10, rate_limiter: Optional["ThreadSafeRateLimiter"] = None) -> str | None:
     global SEC_RATE_LIMIT, SEC_RATE
     if not url:
         return None
@@ -757,7 +757,7 @@ def filter_by_fyear(filings: list[dict], fyear: int) -> list[dict]:
     return [
         f
         for f in filings
-        if f.get("report_date") and f.get("report_date").startswith(str(fyear))
+        if f.get("report_date", "").startswith(str(fyear))
     ]
 
 
@@ -924,7 +924,7 @@ def adjust_rate_in_background(
         )
 
 
-def fetch_raw_content(url: str, rate_limiter: ThreadSafeRateLimiter = None):
+def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
     """
     Fetches raw text content from a URL. This is purely I/O-bound.
     """
@@ -1046,7 +1046,7 @@ def process_all_reports_fully():
         with ThreadPoolExecutor(max_workers=NUM_FETCHERS) as fetch_executor:
             fetch_futures = [
                 fetch_executor.submit(fetch_raw_content, url, rate_limiter)
-                for url in chunk
+                for url in chunk if isinstance(url, str)
             ]
 
             # Create the tqdm bar instance
