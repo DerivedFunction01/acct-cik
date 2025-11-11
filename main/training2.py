@@ -102,22 +102,7 @@ def detect_hardware():
 # %%
 
 
-def format_finance_prompt(sample):
-    """Formats a sample from a dataset with 'system', 'user', 'think', and 'assistant' columns."""
-    system_msg = f"<|im_start|>system\n{sample.get('system', '')}<|im_end|>\n"
-    user_msg = f"<|im_start|>user\n{sample['user']}<|im_end|>\n"
-    think_block = (
-        f"<think>\n{sample.get('think', '').strip()}\n</think>\n\n"
-        if sample.get("think")
-        else "<think>\n\n</think>\n\n"
-    )
-    assistant_msg = (
-        f"<|im_start|>assistant\n{think_block}{sample['assistant']}<|im_end|>"
-    )
-    return system_msg + user_msg + assistant_msg
-
-
-def run_training(profile: dict, model_name: str, data_path: str, formatting_func: callable, new_model_name: str, num_epochs: int = 1, is_hf_dataset: bool = False, dataset_shard_index: int = 0, dataset_num_shards: int = 1, merge_at_end: bool = True):
+def run_training(profile: dict, model_name: str, data_path: str, new_model_name: str, num_epochs: int = 1, is_hf_dataset: bool = False, dataset_shard_index: int = 0, dataset_num_shards: int = 1, merge_at_end: bool = True):
     """Main function to run the training process with Unsloth optimization."""
     print(f"\n--- Starting Training with Unsloth ---")
     print(f"  - Profile: {profile['name']}")
@@ -128,30 +113,6 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
     print(f"  - Output Model: {new_model_name}")
     print(f"  - Epochs: {num_epochs}")
     print(f"  - Merge Adapters at End: {'Yes' if merge_at_end else 'No'}")
-
-    # --- Load and preprocess data ---
-    print("\n--- Loading and Preprocessing Data ---")
-    try:
-        dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
-        if dataset_num_shards > 1:
-            print(f"Applying dataset shard: Using index {dataset_shard_index} of {dataset_num_shards} total shards.")
-            dataset = dataset.shard(num_shards=dataset_num_shards, index=dataset_shard_index)
-
-        # Use the provided formatting function and apply it to each sample.
-        # The result is stored in a new 'text' column.
-        dataset = dataset.map(lambda sample: {"text": formatting_func(sample)})
-
-        # Create a 90/10 train/test split
-        dataset = dataset.train_test_split(test_size=0.1)
-        train_dataset = dataset["train"]
-        eval_dataset = dataset["test"]
-
-        print(
-            f"Data loaded successfully. Training samples: {len(train_dataset)}, Evaluation samples: {len(eval_dataset)}"
-        )
-    except Exception as e:
-        print(f"❌ Failed to load data from {data_path}: {e}")
-        return
 
     # --- Load Model with Unsloth ---
     print("\n--- Initializing Model and Tokenizer with Unsloth ---")
@@ -167,6 +128,42 @@ def run_training(profile: dict, model_name: str, data_path: str, formatting_func
         print(f"Error loading '{model_name}': {e}")
         print("If pulling from Hub, ensure the model ID is correct, you have access, and you are logged in.")
         return  # Exit the training function
+
+    # --- Load and preprocess data ---
+    print("\n--- Loading and Preprocessing Data ---")
+    try:
+        dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
+        if dataset_num_shards > 1:
+            print(f"Applying dataset shard: Using index {dataset_shard_index} of {dataset_num_shards} total shards.")
+            dataset = dataset.shard(num_shards=dataset_num_shards, index=dataset_shard_index)
+
+        def format_with_chat_template(sample):
+            messages = []
+            if sample.get("system"):
+                messages.append({"role": "system", "content": sample["system"]})
+            messages.append({"role": "user", "content": sample["user"]})
+            
+            # The assistant's turn includes the <think> block and the final answer
+            think_block = f"<think>\n{sample.get('think', '').strip()}\n</think>\n\n"
+            assistant_content = f"{think_block}{sample['assistant']}"
+            messages.append({"role": "assistant", "content": assistant_content})
+
+            # Use the tokenizer's chat template
+            return {"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}
+
+        dataset = dataset.map(format_with_chat_template)
+
+        # Create a 90/10 train/test split
+        dataset = dataset.train_test_split(test_size=0.1)
+        train_dataset = dataset["train"]
+        eval_dataset = dataset["test"]
+
+        print(
+            f"Data loaded successfully. Training samples: {len(train_dataset)}, Evaluation samples: {len(eval_dataset)}"
+        )
+    except Exception as e:
+        print(f"❌ Failed to load data from {data_path}: {e}")
+        return
 
     # --- Apply LoRA with Unsloth ---
     # Check if the model already has adapters. If so, we continue training them.
@@ -592,7 +589,6 @@ if __name__ == "__main__":
                     profile=selected_profile,
                     model_name=base_model_name,
                     data_path=data_path,
-                    formatting_func=format_finance_prompt, # Always use the finance prompt format
                     new_model_name=new_model_name,
                     num_epochs=epochs_for_this_run,
                     is_hf_dataset=is_hf_dataset,
