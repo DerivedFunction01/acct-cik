@@ -19,9 +19,9 @@ MAX_SEQ_LENGTH = 8192
 DEFAULT_GEN_PARAMS = {
     "max_new_tokens": MAX_SEQ_LENGTH,
     "do_sample": False,
-    "temperature": 0.7,
+    "temperature": 0.9,
     "top_p": 1.0,
-    "repetition_penalty": 1.0,
+    "repetition_penalty": 0.9,
     "use_cache": True,
 }
 
