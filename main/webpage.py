@@ -644,6 +644,10 @@ def extract_content(data: str, asHTML=True) -> str:
     if not data:
         return ""
 
+    # --- NEW: Apply cleanup patterns to the raw data first ---
+    for pattern, replacement in CLEANUP_PATTERNS:
+        data = pattern.sub(replacement, data)
+
     if asHTML:
         soup = BeautifulSoup(data, "html.parser")
 
@@ -693,6 +697,9 @@ def extract_content(data: str, asHTML=True) -> str:
 
         # Join all parts back together
         text = ''.join(processed_parts)
+    # --- NEW: Apply crunched text patterns to the final text incase of a bad merge ---
+    for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
+        text = pattern.sub(replacement, text)
     return text
 
 def fetch_url(url: str, timeout: int = 10, rate_limiter: "ThreadSafeRateLimiter" = None) -> str | None:
