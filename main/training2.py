@@ -33,9 +33,10 @@ config = {
     ],
     "DATASETS": [
         ("DerivedFunction/Derivatives-Finance-200K", True),  # (path/id, is_hf_dataset)
+        ("Jackrong/financial-economics-reasoning", True),
     ],
     "HF_TOKEN_PATH": "hf_token",
-    "MAX_SEQ_LENGTH": 8192,  # Qwen3 supports up to 128K tokens, but 8K is more practical for most fine-tuning
+    "MAX_SEQ_LENGTH": 32768,  # Qwen3 supports up to 128K tokens, 32k for financial-economics-reasoning
 }
 IS_AUTHENTICATED = False
 
@@ -48,45 +49,45 @@ TRAINING_PROFILES = {
         "name": "Max Performance (A100 40GB / H100)",
         "r": 256,
         "lora_alpha": 512,
-        "batch_size": 18,
+        "batch_size": 6,
         "gradient_accumulation": 4,
-        "max_seq_length": 24576,
+        "max_seq_length": 32768,
         "load_in_4bit": True,
     },
     "2": {
         "name": "L4 / Pro (>= 20 GB)",
         "r": 256,
         "lora_alpha": 512,
-        "batch_size": 12,
+        "batch_size": 4,
         "gradient_accumulation": 4,
-        "max_seq_length": 20480,
+        "max_seq_length": 32768,
         "load_in_4bit": True,
     },
     "3": {
         "name": "High VRAM / Colab (>= 12GB)",
         "r": 128,
         "lora_alpha": 256,
-        "batch_size": 8,
+        "batch_size": 2,
         "gradient_accumulation": 4,
-        "max_seq_length": 8192,
+        "max_seq_length": 32768,
         "load_in_4bit": True,
     },
     "4": {
         "name": "Low VRAM (6-12GB)",
         "r": 64,
         "lora_alpha": 128,
-        "batch_size": 3,
-        "gradient_accumulation": 4,
-        "max_seq_length": 8192,
+        "batch_size": 1, # Keep batch size at 1 for low VRAM
+        "gradient_accumulation": 8, # Increase gradient accumulation
+        "max_seq_length": 32768,
         "load_in_4bit": True,
     },
     "5": {
         "name": "CPU / Low RAM (< 6GB)",
         "r": 32,
         "lora_alpha": 32,
-        "batch_size": 1,
-        "gradient_accumulation": 4,
-        "max_seq_length": 8192,
+        "batch_size": 1, # Keep batch size at 1 for CPU
+        "gradient_accumulation": 16, # Significantly increase gradient accumulation
+        "max_seq_length": 32768,
         "load_in_4bit": True,
     },
 }
