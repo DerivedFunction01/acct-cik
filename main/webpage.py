@@ -352,45 +352,6 @@ def build_gen_regex() -> re.Pattern:
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
 
-# =============================================================================
-# DYNAMICALLY GENERATE ALLOWED_KEYWORDS
-# =============================================================================
-
-def generate_allowed_keywords() -> set:
-    """Collects all core terms, specific phrases, base types, and suffixes."""
-    # This is a simplified approach. A more robust way would be to inspect the functions.
-    # For now, we'll manually list the core concepts.
-    keywords = set([
-        "expire", "terminat", "outstanding", "designat", "matur", "settle",
-        "unwound", "close", "liquidat", "gain", "loss", "fair value", "notional",
-        "derivative", "hedg", "swap", "option", "forward", "future", "collar",
-        "contract", "instrument", "agreement", "liability", "asset", "position",
-        "interest", "rate", "currency", "exchange", "fx", "commodity", "equity",
-        "embedded", "warrant", "cash flow", "net investment"
-    ])
-    
-    # Clean up the keywords
-    cleaned_keywords = set()
-    for kw in keywords:
-        # Remove regex-specific characters for simple string matching
-        cleaned_kw = re.sub(r'\[- \]', ' ', kw)
-        cleaned_kw = re.sub(r'[\?\(\)\|\:]', '', cleaned_kw)
-        cleaned_keywords.add(cleaned_kw)
-
-    # Add all base types and suffixes without regex chars
-    for term_list in [ALL_BASE_TYPES, ALL_SUFFIXES]:
-        for term in term_list:
-            cleaned_term = re.sub(r'[\?\(\)\|\:]', '', term)
-            cleaned_term = re.sub(r'\[- \]', ' ', cleaned_term)
-            if 'ies' in cleaned_term: # for liability|liabilities
-                cleaned_keywords.add(cleaned_term.replace('ies', 'y'))
-            cleaned_keywords.add(cleaned_term)
-
-    return cleaned_keywords
-
-
-# Dynamically generate ALLOWED_KEYWORDS
-ALLOWED_KEYWORDS = generate_allowed_keywords()
 # EXPORT PATTERNS
 # =============================================================================
 
@@ -400,15 +361,8 @@ CP_REGEX = build_cp_regex()
 EQ_REGEX = build_eq_regex()
 GEN_REGEX = build_gen_regex()
 
-# Category regex patterns
-
-CATEGORY_REGEX_ORDER = [
-    ("ir", IR_REGEX),
-    ("fx", FX_REGEX),
-    ("cp", CP_REGEX),
-    ("eq", EQ_REGEX),
-    ("gen", GEN_REGEX),
-]
+# combined regex combines all of the regex
+COMBINED_REGEX = re.compile(r'|'.join([IR_REGEX.pattern, FX_REGEX.pattern, CP_REGEX.pattern, EQ_REGEX.pattern, GEN_REGEX.pattern]), re.IGNORECASE)
 
 
 # %%
@@ -746,240 +700,53 @@ def process_url(url: str):
 # =============================================================================
 
 
-def filter_by_keywords(
-    content: str, min_char_length: int = 500, max_char_length=1200
-) -> dict:
+def filter_by_keywords(content: str) -> list[str]:
     """
-    OPTIMIZED: Pre-filter sentences by category before expansion.
-    'gen' category can now expand with ANY other category.
+    Filters content for derivative-related keywords and creates larger text
+    chunks for analysis by a generative model. Tables are treated as
+    separate, whole chunks.
+
+    Args:
+        content: A single string containing the full, pre-processed text of a document.
+
+    Returns:
+        List of filtered paragraphs that match any regex pattern
     """
-    allowed_keywords = [kw.lower() for kw in ALLOWED_KEYWORDS]
+    filtered = []
+    seen = set()
 
-    def get_keyword_category(text: str) -> str | None:
-        for category, regex in CATEGORY_REGEX_ORDER:
-            if regex.search(text):
-                return category
-        return None
+    # Split the document into text parts and table blocks.
+    # The regex split will result in a list like: [text, table, text, table, ...]
+    parts = TABLE_SPLIT_PATTERN.split(content)
 
-    def clean_sentence(sentence: str) -> str:
-        return re.sub(r"[.!?]$", "", re.sub(r"\s+", " ", sentence.strip()))
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
 
-    def measure_merged_length(sentences: list) -> int:
-        return len(". ".join(sentences).strip() + ".")
+        # If the part is a table, check it for keywords and add it as a whole chunk.
+        if part.lower().startswith("<table"):
+            if COMBINED_REGEX.search(part):
+                if part.lower() not in seen:
+                    filtered.append(part)
+                    seen.add(part.lower())
+            continue
 
-    OVERLAP_COUNT = 2  # A sentence can appear in up to this many final paragraphs
-
-    def _expand_one_side(
-        direction: str,
-        current_idx: int,
-        merged_sentences: list,
-        used_indices: set,
-        sentence_to_para_map: list,
-        target_category: str,
-        all_sentences: list,
-        seen_counts: dict,
-    ) -> tuple[bool, int, bool]:
-        """Helper to expand context in one direction (left or right)."""
-        is_left = direction == "left"
-        next_idx = current_idx - 1 if is_left else current_idx + 1
-
-        if (
-            not (0 <= next_idx < len(all_sentences)) # Out of bounds
-            or seen_counts.get(next_idx, 0) >= OVERLAP_COUNT # Already used too many times
-            # New check: Stop if the next sentence is in a different paragraph
-            or sentence_to_para_map[next_idx] != sentence_to_para_map[current_idx]
-        ):
-            return False, -1 if is_left else len(all_sentences), False
-
-        sentence_to_add = all_sentences[next_idx]  # This is a full sentence
-        category = get_keyword_category(sentence_to_add)
-        is_allowed = should_allow(sentence_to_add)
-
-        # Allow expansion if the next sentence has a matching category, is generic, is allowed, or has no category at all (is neutral).
-        # Stop expansion only if it has a *different, non-generic* category.
-        if (
-            category
-            and category != target_category
-            and category != "gen"
-            and not is_allowed
-        ):
-            return False, -1 if is_left else len(all_sentences), False
-
-        # Prepare candidate for length check
-        candidate = (
-            [sentence_to_add] + merged_sentences
-            if is_left
-            else merged_sentences + [sentence_to_add]
-        )
-        candidate_length = measure_merged_length(candidate)
-
-        if candidate_length <= max_char_length:
-            (
-                merged_sentences.insert(0, sentence_to_add)
-                if is_left
-                else merged_sentences.append(sentence_to_add)
-            )
-            used_indices.add(next_idx)
-            return True, next_idx, False  # Not truncated
-        else:
-            # Trim and add, then stop expansion on this side
-            excess = candidate_length - max_char_length
-            trimmed_sentence = (
-                sentence_to_add[excess:] if is_left else sentence_to_add[:-excess]
-            )
-            (
-                merged_sentences.insert(0, trimmed_sentence)
-                if is_left
-                else merged_sentences.append(trimmed_sentence)
-            )
-            used_indices.add(next_idx)
-            return True, -1 if is_left else len(all_sentences), True  # Was truncated
-
-    def should_allow(text: str) -> bool:
-        # Optimization: check length first
-        if len(text) > 500: # Very long sentences are unlikely to be simple keywords
-            return False
-        
-        normalized = text.lower() # Now perform the more expensive check
-        return any(kw in normalized for kw in allowed_keywords)
-
-    def expand_context(
-        all_sentences: list, target_idx: int, target_category: str, seen_counts: dict, sentence_to_paragraph_map: list
-    ) -> tuple[str, set, set]:
-        # The seed sentence is always included, so we check its count in the main loop.
-        merged = [all_sentences[target_idx]]  # This is a full sentence
-        used_indices_in_this_expansion = {target_idx}
-        truncated_indices = set()
-        left_idx = target_idx - 1
-        right_idx = target_idx + 1
-
-        while True:
-            if measure_merged_length(merged) >= min_char_length:
-                break
-
-            added_left, new_left_idx, truncated_left = _expand_one_side(
-                "left",
-                left_idx,
-                merged,
-                used_indices_in_this_expansion,
-                sentence_to_paragraph_map,
-                target_category,
-                all_sentences,
-                seen_counts,
-            )
-            left_idx = new_left_idx
-            if truncated_left:
-                truncated_indices.add(new_left_idx)
-
-            added_right, new_right_idx, truncated_right = _expand_one_side(
-                "right",
-                right_idx,
-                merged,
-                used_indices_in_this_expansion,
-                sentence_to_paragraph_map,
-                target_category,
-                all_sentences,
-                seen_counts,
-            )
-            right_idx = new_right_idx
-            if truncated_right:
-                truncated_indices.add(new_right_idx)
-
-            if not added_left and not added_right:
-                break
-
-        final_text = ". ".join(merged).strip() + "."
-
-        return final_text, used_indices_in_this_expansion, truncated_indices
-
-    # --- Sentence preprocessing ---
-    # Split content into paragraphs first, then sentences, to respect boundaries.
-    paragraphs = content.split('\n\n')
-    all_sentences = []
-    sentence_to_paragraph_map = [] # maps sentence_index -> paragraph_index
-
-    for para_idx, para_text in enumerate(paragraphs):
-        para_sentences = [s.strip() for s in re.split(SENTENCE_SPLIT_PATTERN, para_text) if s.strip()]
-        cleaned_para_sentences = [clean_sentence(s) for s in para_sentences]
-        all_sentences.extend(cleaned_para_sentences)
-        sentence_to_paragraph_map.extend([para_idx] * len(cleaned_para_sentences))
-
-    # --- Pre-categorize ---
-    sentence_categories = []
-    for i, sentence in enumerate(all_sentences):
-        category = get_keyword_category(sentence)
-        sentence_categories.append((i, category))
-    debug_print("Pre-categorized sentences")
-    # Print the count of sentences per category for debugging
-    category_counts = {}
-    for _, category in sentence_categories:
-        if category:
-            category_counts[category] = category_counts.get(category, 0) + 1
-    debug_print("Sentence counts by category:", category_counts)
-    # Grab the tuple from CATEGORY_REGEX_ORDER
-    categorized_matches = {category: [] for category, _ in CATEGORY_REGEX_ORDER}
-    seen_matches = {category: set() for category, _ in CATEGORY_REGEX_ORDER}
-    seen_sentences_global = {}  # Using a dict as a counter: {index: count}
-
-    # --- Pass 1: non-gen categories ---
-    for i, category in sentence_categories:
-        if category and category != "gen":
-            # Skip if the seed sentence has already been used max times
-            if seen_sentences_global.get(i, 0) >= OVERLAP_COUNT:
+        # If the part is regular text, split it into paragraphs and check each one.
+        # This allows us to find relevant sections within larger blocks of text.
+        paragraphs = part.split('\n\n')
+        for para in paragraphs:
+            para = para.strip()
+            if not para or len(para) < 30:  # Skip very short paragraphs
                 continue
 
-            final_sentence, used_indices, truncated_indices = expand_context(
-                all_sentences, i, category, seen_sentences_global, sentence_to_paragraph_map
-            )
-            normalized = final_sentence.lower().strip()
+            if COMBINED_REGEX.search(para):
+                para_lower = para.lower()
+                if para_lower not in seen:
+                    filtered.append(para)
+                    seen.add(para_lower)
 
-            if normalized not in seen_matches[category]:
-                seen_matches[category].add(normalized)
-                categorized_matches[category].append(final_sentence)
-                # Increment the counter for all sentences used in this expansion
-                # Do NOT increment count for truncated sentences
-                for idx in used_indices:
-                    if idx in truncated_indices:
-                        continue
-                    seen_sentences_global[idx] = seen_sentences_global.get(idx, 0) + 1
-            else:
-                debug_print(
-                    f"Ignoring paragraph for category '{category}' as it is a duplicate."
-                )
-
-    # # --- Pass 2: 'gen' category (can attach anywhere) ---
-    for i, category in sentence_categories:
-        if category == "gen":
-            # Skip if the seed sentence has already been used max times
-            if (
-                len(all_sentences[i].split()) < 6
-                or seen_sentences_global.get(i, 0) >= OVERLAP_COUNT
-            ):
-                continue
-
-            # ✅ Will expand freely due to logic above
-            final_sentence, used_indices, truncated_indices = expand_context(
-                all_sentences, i, "gen", seen_sentences_global, sentence_to_paragraph_map
-            )
-            normalized = final_sentence.lower().strip()
-
-            if normalized not in seen_matches["gen"]:
-                seen_matches["gen"].add(normalized)
-                categorized_matches["gen"].append(final_sentence)
-                # Increment the counter for all sentences used in this expansion
-                # Do NOT increment count for truncated sentences
-                for idx in used_indices:
-                    if idx in truncated_indices:
-                        continue
-                    seen_sentences_global[idx] = seen_sentences_global.get(idx, 0) + 1
-            else:
-                debug_print("Ignoring 'gen' paragraph as it is a duplicate.")
-
-    debug_print(
-        "Done generating sentences", sum(len(v) for v in categorized_matches.values())
-    )
-
-    return categorized_matches
+    return filtered
 
 # =============================================================================
 # PARALLEL PROCESSING FUNCTIONS (OPTIMIZED FOR PARALLEL CORES)
