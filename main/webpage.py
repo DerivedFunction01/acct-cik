@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 import json
 from io import StringIO
 import sqlite3
+import unicodedata
 from typing import List, Optional
 import random
 import re
@@ -590,6 +591,20 @@ def get_cik_filings(cik: str) -> Optional[List[dict]]:
 # CONTENT EXTRACTION
 # =============================================================================
 
+def normalize_unicode(text: str) -> str:
+    """
+    Converts common Unicode punctuation and spacing characters to their
+    ASCII equivalents. For example, converts non-breaking spaces to regular
+    spaces and curly quotes to straight quotes.
+
+    Args:
+        text: The string to normalize.
+
+    Returns:
+        The normalized string.
+    """
+    # NFKD form decomposes compatibility characters into their base characters.
+    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8', 'ignore')
 
 def extract_content(data: str, asHTML=True) -> str:
     """
@@ -598,6 +613,9 @@ def extract_content(data: str, asHTML=True) -> str:
     """
     if not data:
         return ""
+
+    # --- NEW: Normalize Unicode characters to their ASCII equivalents ---
+    data = normalize_unicode(data)
 
     # --- NEW: Apply cleanup patterns to the raw data first ---
     for pattern, replacement in CLEANUP_PATTERNS:
