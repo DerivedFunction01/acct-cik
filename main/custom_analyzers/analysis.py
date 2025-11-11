@@ -191,13 +191,18 @@ class DataLoader:
         finally:
             conn.close()
 
-    def _parse_json_column(self, value):
+    def _parse_json_column(self, value: str):
         """Safely parse JSON column"""
         if isinstance(value, str):
             try:
+                # Standard JSON with double quotes
                 return json.loads(value)
             except json.JSONDecodeError:
-                return None
+                try:
+                    # Handle non-standard JSON with single quotes
+                    return json.loads(value.replace("'", '"'))
+                except (json.JSONDecodeError, AttributeError):
+                    return None
         return value
 
     def _flatten_matches(self, matches_dict):
