@@ -614,9 +614,6 @@ def extract_content(data: str, asHTML=True) -> str:
     if not data:
         return ""
 
-    # --- NEW: Normalize Unicode characters to their ASCII equivalents ---
-    data = normalize_unicode(data)
-
     # --- NEW: Apply cleanup patterns to the raw data first ---
     for pattern, replacement in CLEANUP_PATTERNS:
         data = pattern.sub(replacement, data)
@@ -686,6 +683,10 @@ def extract_content(data: str, asHTML=True) -> str:
     # --- NEW: Apply crunched text patterns to the final text incase of a bad merge ---
     for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
         text = pattern.sub(replacement, text)
+        
+    # --- FINAL CLEANUP: Normalize any remaining Unicode characters ---
+    text = normalize_unicode(text)
+    
     return text
 
 def fetch_url(url: str, timeout: int = 10, rate_limiter: Optional["ThreadSafeRateLimiter"] = None) -> str | None:
