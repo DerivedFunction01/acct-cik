@@ -12,14 +12,14 @@ app = Flask(__name__)
 CORS(app)
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/Qwen3-4B-finance-base"
+MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-base"
 MAX_SEQ_LENGTH = 8192
 
 # --- Global default generation parameters ---
 DEFAULT_GEN_PARAMS = {
     "max_new_tokens": MAX_SEQ_LENGTH,
     "do_sample": False,
-    "temperature": 0.3,
+    "temperature": 0.7,
     "top_p": 1.0,
     "repetition_penalty": 1.0,
     "use_cache": True,
@@ -32,20 +32,13 @@ if DEVICE_TYPE == "cpu":
     load_in_4bit = False
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if torch.cuda.is_available():
-        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-        load_in_4bit = vram_gb < 20
-        print(f"Detected GPU VRAM: {vram_gb:.1f} GB → 4-bit = {load_in_4bit}")
-    else:
-        load_in_4bit = False
 
 # --- Load model ---
-print(f"Loading model {MODEL_PATH} (4-bit={load_in_4bit})...")
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name=MODEL_PATH,
     max_seq_length=MAX_SEQ_LENGTH,
     dtype=None,
-    load_in_4bit=load_in_4bit,
+    load_in_4bit=False,
 )
 FastLanguageModel.for_inference(model)
 print("Model loaded.")
