@@ -32,7 +32,7 @@ config = {
         "DerivedFunction/Qwen3-1.7B-derivatives-base_lora",
     ],
     "DATASETS": [
-        ("DerivedFunction/Derivatives-Finance-200K", True),  # (path/id, is_hf_dataset)
+        ("DerivedFunction/Derivatives-Finance-100K", True),  # (path/id, is_hf_dataset)
         ("Jackrong/financial-economics-reasoning", True),
     ],
     "HF_TOKEN_PATH": "hf_token",
