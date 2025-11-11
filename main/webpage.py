@@ -9,6 +9,7 @@ import requests
 import time
 from bs4 import BeautifulSoup
 import json
+from io import StringIO
 import sqlite3
 from typing import List, Optional
 import random
@@ -619,7 +620,7 @@ def extract_content(data: str, asHTML=True) -> str:
                 title = prev_sibling.get_text(strip=True)
 
             try:
-                df = pd.read_html(str(table), flavor='bs4')[0]
+                df = pd.read_html(StringIO(str(table)), flavor='bs4')[0]
                 rows = [df.columns.tolist()] + df.astype(str).values.tolist()
             except Exception:
                 rows = []
