@@ -13,7 +13,7 @@ OUTPUT_FILE = "finance_instruct_derivatives_subset.parquet"
 
 # How many non-derivative samples to include.
 # Adjust these numbers based on your desired final dataset size.
-OTHER_FINANCE_SAMPLE_SIZE = 75000
+OTHER_FINANCE_SAMPLE_SIZE = 5000
 
 # The columns in the dataset that contain the text to be searched.
 # Based on the dataset card, these are the most likely columns.
@@ -103,13 +103,13 @@ OTHER_FINANCE_KEYWORDS = [
     # Investing & Portfolio
     'portfolio management', 'asset allocation', 'diversification', 'equity research', 'stock pitch',
     # Markets & Economy
-    'federal reserve', 'inflation', 'gdp', 'economic outlook',
+    'federal reserve', 'inflation', 'gdp', 'economic outlook', "inflation", "deflation"
     # Corporate Finance
     'capital structure', 'share buyback', 'dividends', 'corporate bond', 'credit rating',
     # Financial Analysis & Reporting
     'financial analysis', 'financial reporting', 'financial statement',
     # Legal & Regulatory
-    'legal', 'regulatory', 'compliance',
+    'legal', 'regulatory', 'compliance', 'regulation'
 ]
 
 def get_other_finance_regex() -> re.Pattern:
@@ -188,9 +188,13 @@ def main():
     final_indices: Set[int] = set(derivative_indices)
     print(f"  - Selected all {len(derivative_indices):,} derivative rows.")
 
-    # 2. Take all derivative-context rows
-    final_indices.update(derivative_context_indices)
-    print(f"  - Selected all {len(derivative_context_indices):,} derivative context rows.")
+    # 2. Sample from derivative-context rows
+    if len(derivative_context_indices) > OTHER_FINANCE_SAMPLE_SIZE:
+        context_sample_indices = random.sample(derivative_context_indices, OTHER_FINANCE_SAMPLE_SIZE)
+        print(f"  - Sampled {len(context_sample_indices):,} derivative context rows.")
+    else:
+        context_sample_indices = derivative_context_indices
+        print(f"  - Selected all {len(derivative_context_indices):,} derivative context rows.")
 
     # 3. Sample from "other finance" topics
     if len(other_finance_indices) > OTHER_FINANCE_SAMPLE_SIZE:
