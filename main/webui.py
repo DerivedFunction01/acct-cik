@@ -28,11 +28,13 @@ HTML_TEMPLATE = """
         .message { padding: 15px; border-radius: 8px; line-height: 1.5; max-width: 85%; }
         .user-message { background-color: #e1f5fe; align-self: flex-end; }
         .model-response { background-color: #f1f8e9; align-self: flex-start; white-space: pre-wrap; font-family: monospace; }
-        .input-area { border-top: 1px solid #eee; padding: 20px; display: flex; gap: 10px; }
+        .input-area { border-top: 1px solid #eee; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .input-row { display: flex; gap: 10px; }
         textarea { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-size: 1em; }
         button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; }
         #send-btn { background-color: #4CAF50; color: white; }
         #sample-btn { background-color: #03A9F4; color: white; }
+        #stop-btn { background-color: #f44336; color: white; display: none; }
         #send-btn:disabled { background-color: #aaa; }
         .thinking {
             display: inline-block;
@@ -43,6 +45,9 @@ HTML_TEMPLATE = """
             33% { content: 'Thinking..'; }
             66% { content: 'Thinking...'; }
         }
+        .controls { display: flex; align-items: center; gap: 15px; font-size: 0.9em; color: #555; }
+        .controls input { margin-right: 5px; }
+
     </style>
 </head>
 <body>
@@ -52,9 +57,15 @@ HTML_TEMPLATE = """
             <div class="message model-response">Hello! Enter a prompt below or use the sample button to get started.</div>
         </div>
         <div class="input-area">
-            <textarea id="prompt-input" rows="4" placeholder="Enter your prompt here..."></textarea>
-            <button id="send-btn">Send</button>
-            <button id="sample-btn">Sample Prompt</button>
+            <div class="input-row">
+                <textarea id="prompt-input" rows="3" placeholder="Enter your prompt here..."></textarea>
+                <button id="send-btn">Send</button>
+                <button id="sample-btn">Sample Prompt</button>
+                <button id="stop-btn">Stop</button>
+            </div>
+            <div class="controls">
+                <label><input type="checkbox" id="thinking-toggle" checked> Show thinking</label>
+            </div>
         </div>
     </div>
 
@@ -62,16 +73,26 @@ HTML_TEMPLATE = """
         const promptInput = document.getElementById('prompt-input');
         const sendBtn = document.getElementById('send-btn');
         const sampleBtn = document.getElementById('sample-btn');
+        const stopBtn = document.getElementById('stop-btn');
         const chatWindow = document.getElementById('chat-window');
+        const thinkingToggle = document.getElementById('thinking-toggle');
+
+        let abortController = new AbortController();
 
         async function sendPrompt() {
             const prompt = promptInput.value.trim();
             if (!prompt) return;
 
-            // Disable button and clear input
+            // Reset abort controller for the new request
+            abortController = new AbortController();
+
+            // UI updates for generation start
             sendBtn.disabled = true;
-            sendBtn.textContent = 'Thinking...';
+            sampleBtn.disabled = true;
+            stopBtn.style.display = 'inline-block';
+            sendBtn.style.display = 'none';
             promptInput.value = '';
+            promptInput.disabled = true;
 
             // Display user message
             const userMessageDiv = document.createElement('div');
@@ -89,8 +110,9 @@ HTML_TEMPLATE = """
             try {
                 const response = await fetch('{{ model_server_url }}/generate-stream', {
                     method: 'POST',
+                    signal: abortController.signal, // Link the abort controller
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: prompt })
+                    body: JSON.stringify({ prompt: prompt, enable_thinking: thinkingToggle.checked })
                 });
 
                 if (!response.ok) {
@@ -106,30 +128,48 @@ HTML_TEMPLATE = """
                     const { value, done } = await reader.read();
                     if (done) break;
                     const chunk = decoder.decode(value, { stream: true });
-                    fullResponse += chunk;
-                    // Try to format as JSON as it streams for nice printing
-                    try {
-                        const parsed = JSON.parse(fullResponse + '"}'); // Hack to allow partial JSON parsing
-                        modelResponseDiv.textContent = JSON.stringify(parsed, null, 2);
-                    } catch (e) {
-                        modelResponseDiv.textContent = fullResponse; // Fallback to raw text
-                    }
+                    fullResponse += chunk; // Append the raw chunk
+                    modelResponseDiv.textContent = fullResponse; // Display the raw streaming text
                     chatWindow.scrollTop = chatWindow.scrollHeight;
                 }
-                // Final formatting
+
+                // --- NEW: Parse and pretty-print the final JSON response ---
+                // This logic runs only after the stream has successfully completed.
                 try {
-                    modelResponseDiv.textContent = JSON.stringify(JSON.parse(fullResponse), null, 2);
+                    // The fullResponse might contain the <think> block. We need to parse it out.
+                    const thinkMatch = fullResponse.match(/<think>([\s\S]*?)<\/think>/);
+                    const thinkingContent = thinkMatch ? thinkMatch[1].trim() : null;
+                    const jsonContent = fullResponse.replace(/<think>[\s\S]*?<\/think>\s*/, '').trim();
+
+                    const parsedJson = JSON.parse(jsonContent);
+                    let finalDisplay = JSON.stringify(parsedJson, null, 2);
+
+                    if (thinkingContent && thinkingToggle.checked) {
+                        finalDisplay = `THINKING:\n${thinkingContent}\n\nANSWER:\n${finalDisplay}`;
+                    }
+                    modelResponseDiv.textContent = finalDisplay;
                 } catch (e) {
-                    // Already showing raw text, do nothing
+                    // If JSON parsing fails, the raw text is already displayed.
+                    console.error("Final JSON parsing failed:", e);
                 }
 
             } catch (error) {
-                modelResponseDiv.textContent = `Error: ${error.message}`;
+                // Handle abort and other errors
+                modelResponseDiv.textContent = (error.name === 'AbortError') ? 'Generation stopped.' : `Error: ${error.message}`;
                 console.error('Fetch error:', error);
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.textContent = 'Send';
             }
+        }
+
+        function stopGeneration() {
+            abortController.abort(); // This will trigger the catch block in sendPrompt
+            sendBtn.disabled = false;
+            sampleBtn.disabled = false;
+            stopBtn.style.display = 'none';
+            sendBtn.style.display = 'inline-block';
+            promptInput.disabled = false;
         }
 
         sendBtn.addEventListener('click', sendPrompt);
@@ -139,6 +179,8 @@ HTML_TEMPLATE = """
                 sendPrompt();
             }
         });
+
+        stopBtn.addEventListener('click', stopGeneration);
 
         sampleBtn.addEventListener('click', async () => {
             try {

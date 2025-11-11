@@ -12,21 +12,33 @@ app = Flask(__name__)
 CORS(app)
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-base"
-MAX_SEQ_LENGTH = 8192
+MODEL_PATH = "Qwen3-1.7B-finance-base"
+MAX_SEQ_LENGTH = 32768
 
-# --- Global default generation parameters ---
-DEFAULT_GEN_PARAMS = {
-    "max_new_tokens": MAX_SEQ_LENGTH,
-    "do_sample": False,
-    "temperature": 0.9,
-    "top_p": 1.0,
-    "repetition_penalty": 0.9,
-    "use_cache": True,
+# --- Recommended generation parameters ---
+THINKING_PARAMS = {
+    "do_sample": True,
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0,
+    "repetition_penalty": 1.1,
+    "presence_penalty": 0.5,
+}
+
+NON_THINKING_PARAMS = {
+    "do_sample": True,
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "min_p": 0.0,
+    "repetition_penalty": 1.1,
+    "presence_penalty": 0.5,
 }
 
 # --- Device & VRAM detection ---
 DEVICE_TYPE = os.environ.get("DEVICE_TYPE", "gpu").lower()
+load_in_4bit = True
 if DEVICE_TYPE == "cpu":
     device = torch.device("cpu")
     load_in_4bit = False
@@ -38,48 +50,56 @@ model, tokenizer = FastLanguageModel.from_pretrained(
     model_name=MODEL_PATH,
     max_seq_length=MAX_SEQ_LENGTH,
     dtype=None,
-    load_in_4bit=False,
+    load_in_4bit=load_in_4bit,
 )
 FastLanguageModel.for_inference(model)
 print("Model loaded.")
 
 
-def get_gen_params(user_params: dict = None):
-    params = DEFAULT_GEN_PARAMS.copy()
+def get_gen_params(user_params: dict = None, enable_thinking: bool = True):
+    """Selects the appropriate parameter set and merges user overrides."""
+    if enable_thinking:
+        params = THINKING_PARAMS.copy()
+    else:
+        params = NON_THINKING_PARAMS.copy()
+
     if user_params:
         params.update(user_params)
+
+    params["max_new_tokens"] = params.get("max_new_tokens", MAX_SEQ_LENGTH)
+    params["use_cache"] = True # Always use cache for inference
     return params
 
 
 def generate_response(prompt: str, user_params: dict = None):
-    params = get_gen_params(user_params)
-    formatted = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
-    inputs = tokenizer([formatted], return_tensors="pt").to(device)
-
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-            **params,
-        )
-
-    text = tokenizer.batch_decode(outputs, skip_special_tokens=False)[0]
+    """
+    Generates a complete JSON response by consuming the token stream from `generate_stream`.
+    """
+    # Consume the generator to get the full response string.
+    full_response = "".join(token for token in generate_stream(prompt, user_params))
     try:
-        assistant = text.split("<|im_start|>assistant")[-1]
-        clean = assistant.split("<|im_end|>")[0].strip()
-        return json.loads(clean)
+        # The stream is already the clean assistant output, so we can parse it directly.
+        return json.loads(full_response)
     except Exception as e:
-        return {"error": "JSON parse failed", "raw": text, "exception": str(e)}
+        return {"error": "JSON parse failed", "raw": full_response, "exception": str(e)}
 
 
 def generate_stream(prompt: str, user_params: dict = None):
     streamer = TextIteratorStreamer(
         tokenizer, skip_prompt=True, skip_special_tokens=True
     )
-    params = get_gen_params(user_params)
-    formatted = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
-    inputs = tokenizer([formatted], return_tensors="pt").to(device)
+    # --- NEW: Use tokenizer's chat template for proper formatting ---
+    # This allows us to control the <think> block via the `enable_thinking` flag.
+    enable_thinking = user_params.pop("enable_thinking", True) if user_params else True
+    params = get_gen_params(user_params, enable_thinking=enable_thinking)
+    messages = [{"role": "user", "content": prompt}]
+    formatted_prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=enable_thinking,
+    )
+    inputs = tokenizer([formatted_prompt], return_tensors="pt").to(device)
 
     gen_kwargs = dict(
         inputs,
@@ -110,6 +130,7 @@ def generate_stream_endpoint():
     data = request.json or {}
     prompt = data.get("prompt", "")
     params = data.get("params", {})
+    # The 'enable_thinking' flag is now passed within the params dictionary
     return Response(generate_stream(prompt, params), mimetype="text/plain")
 
 
