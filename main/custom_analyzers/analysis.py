@@ -218,12 +218,11 @@ class DataLoader:
             if not isinstance(category_sentences, list):
                 continue
             for item in category_sentences:
-                if isinstance(item, dict) and 'sentence' in item:
-                    # Handle new format: list of dicts with a 'sentence' key
-                    flattened_sentences.append(item['sentence'])
-                elif isinstance(item, str):
+                if isinstance(item, str):
                     # Handle old format: list of strings
                     flattened_sentences.append(item)
+                else:
+                    print(item)
 
         return flattened_sentences
 
