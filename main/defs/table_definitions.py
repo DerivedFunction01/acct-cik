@@ -118,3 +118,45 @@ class GenericTable:
             all_rows.extend(self._format_row_with_wrapping(row_data, self.widths, self.alignments))
 
         return f"\n\n<TABLE>\n<CAPTION>\n{self.title}\n" + "\n".join(all_rows) + "\n</TABLE>\n\n"
+
+
+@dataclass
+class HTMLTableConverter:
+    """
+    Converts a 2D list of strings (from a parsed HTML table) into a GenericTable.
+    """
+    grid: List[List[str]]
+    title: str = "Financial Table"
+
+    def _calculate_widths_and_alignments(self) -> tuple[List[int], List[str]]:
+        """Calculates column widths and default alignments from the grid."""
+        if not self.grid:
+            return [], []
+
+        num_cols = max(len(row) for row in self.grid) if self.grid else 0
+        widths = [0] * num_cols
+        for row in self.grid:
+            for i, cell in enumerate(row):
+                if i < num_cols:
+                    widths[i] = max(widths[i], len(cell))
+
+        # Default alignment: left for first column, right for others
+        alignments = ['l'] + ['r'] * (num_cols - 1)
+        return widths, alignments
+
+    def to_generic_table(self) -> GenericTable:
+        """Creates a GenericTable instance from the grid."""
+        if not self.grid:
+            return GenericTable(headers=[], data_rows=[], widths=[], alignments=[], title=self.title)
+
+        headers = self.grid[0]
+        data_rows = self.grid[1:]
+        widths, alignments = self._calculate_widths_and_alignments()
+
+        return GenericTable(
+            headers=headers,
+            data_rows=data_rows,
+            widths=widths,
+            alignments=alignments,
+            title=self.title
+        )

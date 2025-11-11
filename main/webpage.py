@@ -19,6 +19,7 @@ import multiprocessing as mp
 import psutil
 from pathlib import Path
 import threading
+from defs.table_definitions import HTMLTableConverter, GenericTable
 
 # Importing required module
 import subprocess
@@ -104,30 +105,6 @@ FILING_TYPES = {
     "10KSB40",
 }
 
-PLACEHOLDERS = {
-    "€": "__EURO__",
-    "£": "__POUND__",
-    "¥": "__YEN__",
-    "¢": "__CENTS__",
-}
-
-REPLACE_HOLDERS = PLACEHOLDERS | {
-    "•": "*",
-    "—": "--",
-    """: '"',
-    """: '"',
-    "'": "'",
-    "'": "'",
-}
-
-# Compile regex patterns once
-NON_ASCII_PATTERN = re.compile(r"[^\x00-\x7F]+")
-BULLET_PATTERN = re.compile(r"^[-*•]\s*")
-NUMBERED_PATTERN = re.compile(r"^\(?\d+[\.\)]\s+")
-PUNCTUATION_END_PATTERN = re.compile(r"[.!?;:•)]\s*$")
-# Split on periods, but also on lowercase-to-uppercase transitions (camelCase splitting)
-# This helps break up sentences that are missing periods.
-SENTENCE_SPLIT_PATTERN = re.compile(r'(?<=[.!?])\s+|(?<=[a-z])(?=[A-Z])')
 
 CRUNCHED_TEXT_PATTERNS = [
     (re.compile(r"([a-z])([A-Z])"), r"\1 \2"),
@@ -137,29 +114,17 @@ CRUNCHED_TEXT_PATTERNS = [
 ]
 
 CLEANUP_PATTERNS = [
-    # MODIFIED: Preserve multiple spaces for table alignment, but normalize other whitespace like tabs, newlines (within the line-by-line context).
-    # The broader paragraph line merging is handled separately.
-    (re.compile(r"\(\s*"), "("),
-    (re.compile(r"\s*\)"), ")"),
-    (re.compile(r"\s*,"), ","),
-    # NEW: Preserve table-like structures made of ---, ===, or | but remove long dotted/underscored lines
-    (re.compile(r"(\.{4,}|\_{4,})"), ""),
-    # NEW: Remove any remaining HTML tags that might have slipped through.
-    # This is more specific than the old <.*?> to avoid removing valid SEC tags like <S> or <C>.
-    (re.compile(r"</?[a-zA-Z0-9]+( [^>]*)?>"), ""),
-    # Remove common report artifacts and links
-    (re.compile(r"table of contents", re.IGNORECASE), ""),
-    (re.compile(r"F-\d+"), ""),
-    (re.compile(r"us-gaap:[a-zA-Z0-9]+"), ""),
     # remove links
     (re.compile(r"http\S+"), ""),
+    # Remove hidden content inside xbrl tags <ix:header> tags
+    (re.compile(r"<ix:header>.*?</ix:header>", re.DOTALL), ""),
 ]
 
-SEPARATOR_PATTERN = re.compile(r"[-=\s]+")
-CAPTION_PATTERN = re.compile(r"<CAPTION>", re.IGNORECASE)
-COLUMN_SPLIT_PATTERN = re.compile(r"\s{2,}")
 TABLE_SPLIT_PATTERN = re.compile(
     r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
+
+# Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
+WRAPPED_LINE_PATTERN = re.compile(r'(?<!\n)\n(?!\n)')
 # %%
 # =============================================================================
 # SMART REGEX BUILDER - Generates optimized patterns from keyword lists
@@ -671,277 +636,64 @@ def get_cik_filings(cik: str) -> List[dict]:
 # =============================================================================
 
 
-def extract_content(data: str, asHTML=True, max_len=600) -> str:
+def extract_content(data: str, asHTML=True) -> str:
+    """
+    Extract content with minimal cleanup.
+    Preserves paragraphs, formatting, structure.
+    """
     if not data:
         return ""
 
     if asHTML:
         soup = BeautifulSoup(data, "html.parser")
-        
-        # Extract and convert HTML tables to array, then to text
-        # tables = soup.find_all("table")
-        # for table in tables:
-        #     rows = parse_html_table(str(table))
-        #     if rows:
-        #         # Convert array to tab-separated text
-        #         table_text = "\n".join(["\t".join(row) for row in rows])
-        #         # Replace the table with the text representation
-        #         table.replace_with(soup.new_string(f"\n\n{table_text}\n\n"))
+
+        # Extract and convert HTML tables to SEC-style text
+        tables = soup.find_all("table")
+        for table in tables:
+            title = "Financial Table"  # Default title
+
+            # Try to find the previous sibling paragraph to use as a title
+            prev_sibling = table.find_previous_sibling()
+            # Fallback to caption if no previous paragraph is found
+            if table.caption:
+                title = table.caption.get_text(strip=True)
+            elif prev_sibling and prev_sibling.name == 'p':
+                title = prev_sibling.get_text(strip=True)
+
+            try:
+                df = pd.read_html(str(table), flavor='bs4')[0]
+                rows = [df.columns.tolist()] + df.astype(str).values.tolist()
+            except Exception:
+                rows = []
+
+            if rows:
+                # Use the new converter to build a GenericTable and then the text output
+                converter = HTMLTableConverter(grid=rows, title=title)
+                generic_table = converter.to_generic_table()
+                table_text = generic_table.build()
+                # Replace the HTML table with the formatted text block
+                table.replace_with(soup.new_string(table_text))
+
         text = soup.get_text(separator="\n\n", strip=True)
-        text = keep_allowed_chars(text, True)
-        paragraphs = [p.strip()
-                      for p in re.split(r"\n\s*\n", text) if p.strip()]
-        merged_paragraphs = []
-
-        i = 0
-        while i < len(paragraphs):
-            line = paragraphs[i]
-
-            if BULLET_PATTERN.match(line):
-                if len(line.strip()) == 1 and i + 1 < len(paragraphs):
-                    line = f"{line} {paragraphs[i + 1]}"
-                    i += 1
-
-                if merged_paragraphs and BULLET_PATTERN.match(merged_paragraphs[-1]):
-                    merged_paragraphs[-1] += f"\n{line}"
-                else:
-                    merged_paragraphs.append(line)
-
-            elif NUMBERED_PATTERN.match(line):
-                if merged_paragraphs and NUMBERED_PATTERN.match(merged_paragraphs[-1]):
-                    merged_paragraphs[-1] += f"\n{line}"
-                else:
-                    merged_paragraphs.append(line)
-
-            elif merged_paragraphs and not PUNCTUATION_END_PATTERN.search(
-                merged_paragraphs[-1]
-            ):
-                merged_paragraphs[-1] += f" {line}"
-            else:
-                merged_paragraphs.append(line)
-
-            i += 1
-
-        final_paragraphs = []
-        for para in merged_paragraphs:
-            if len(para) <= max_len:
-                final_paragraphs.append(para)
-            else:
-                parts = SENTENCE_SPLIT_PATTERN.split(para)
-                current_chunk = ""
-
-                for part in parts:
-                    if len(current_chunk) + len(part) + 1 <= max_len:
-                        current_chunk += f" {part}" if current_chunk else part
-                    else:
-                        if current_chunk:
-                            final_paragraphs.append(current_chunk)
-                        current_chunk = part
-
-                if current_chunk:
-                    final_paragraphs.append(current_chunk)
-
-        paragraphs = final_paragraphs
 
     else:
-        text = keep_allowed_chars(data)
-        parts = TABLE_SPLIT_PATTERN.split(text)
-        paragraphs = []
+        # For plain text documents, we need to handle wrapped lines but preserve table structures.
+        # We can split the document by table blocks, process the text outside of them,
+        # and then join everything back together.
+        parts = TABLE_SPLIT_PATTERN.split(data)
+        processed_parts = []
+        for i, part in enumerate(parts):
+            if i % 2 == 1:  # This is a table block
+                processed_parts.append(part)
+            else:  # This is regular text
+                # Process paragraphs to handle line wraps
+                paragraphs = part.split('\n\n')
+                processed_paragraphs = [WRAPPED_LINE_PATTERN.sub(' ', p).strip() for p in paragraphs]
+                processed_parts.append('\n\n'.join(p for p in processed_paragraphs if p))
 
-        for part in parts:
-            if part.strip().lower().startswith("<table>"):
-                rows = parse_plain_text_table_fixed(part)
-                if rows:
-                    # Convert array to tab-separated text
-                    table_text = "\n".join(["\t".join(row) for row in rows])
-                    paragraphs.append(table_text)
-            else:
-                sub_paras = [p for p in re.split(
-                    r"\n\s*\n", part) if p.strip()]
-                paragraphs.extend(sub_paras)
-
-    cleaned_paragraphs = []
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
-
-        # MODIFICATION: Removed the aggressive merging of newlines within a paragraph.
-        # This is the key change to preserve table structures.
-        # The old line was: `para = re.sub(r"\n+", " ", para)`
-
-        for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
-            para = pattern.sub(replacement, para)
-
-        for pattern, replacement in CLEANUP_PATTERNS:
-            para = pattern.sub(replacement, para)
-        
-        para = para.strip()
-
-        # MODIFICATION: Removed the logic that merges small paragraphs into the previous one.
-        if para:
-            cleaned_paragraphs.append(para)
-
-    return "\n\n".join(cleaned_paragraphs)
-
-
-def keep_allowed_chars(text, asHTML=False):
-    if not isinstance(text, str):
-        return text
-
-    if asHTML:
-        try:
-            text = text.encode("utf-8").decode("unicode_escape")
-        except Exception:
-            pass
-
-    for sym, ph in REPLACE_HOLDERS.items():
-        text = text.replace(sym, ph)
-
-    text = NON_ASCII_PATTERN.sub("", text)
-
-    for sym, ph in PLACEHOLDERS.items():
-        text = text.replace(ph, sym)
+        # Join all parts back together
+        text = ''.join(processed_parts)
     return text
-
-
-def parse_html_table(html: str):
-    """
-    Parse an HTML table and expand merged cells (colspan/rowspan).
-    Returns a 2D array where merged cells are duplicated.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    table = soup.find("table")
-
-    if not table:
-        return []
-
-    # Build a grid to track cell placement
-    grid = []
-
-    # Process all rows (both thead and tbody)
-    all_rows = table.find_all("tr")
-
-    for row_idx, tr in enumerate(all_rows):
-        # Ensure grid has enough rows
-        while len(grid) <= row_idx:
-            grid.append([])
-
-        cells = tr.find_all(["td", "th"])
-        col_idx = 0
-
-        for cell in cells:
-            # Find the next available column (skip cells occupied by rowspan)
-            while col_idx < len(grid[row_idx]) and grid[row_idx][col_idx] is not None:
-                col_idx += 1
-
-            # Get cell text and span attributes
-            text = cell.get_text(strip=True)
-            colspan = int(cell.get("colspan", 1))
-            rowspan = int(cell.get("rowspan", 1))
-
-            # Fill the grid with this cell's value (duplicating for merged cells)
-            for r in range(rowspan):
-                target_row = row_idx + r
-                # Ensure grid has enough rows
-                while len(grid) <= target_row:
-                    grid.append([])
-
-                for c in range(colspan):
-                    target_col = col_idx + c
-                    # Ensure row has enough columns
-                    while len(grid[target_row]) <= target_col:
-                        grid[target_row].append(None)
-
-                    # Duplicate the cell value for merged cells
-                    grid[target_row][target_col] = text
-
-            col_idx += colspan
-
-    # Clean up None values (shouldn't happen, but just in case)
-    result = []
-    for row in grid:
-        result.append([cell if cell is not None else "" for cell in row])
-
-    return result
-
-def parse_plain_text_table_fixed(block: str):
-    rows = []
-    header_lines = []
-    first_col_active = True
-
-    lines = [line.rstrip() for line in block.splitlines() if line.strip()]
-
-    for line in lines:
-        if SEPARATOR_PATTERN.fullmatch(line) or CAPTION_PATTERN.match(line.strip()):
-            continue
-
-        if "<S>" in line:
-            first_col_active = False
-            line = line.replace("<S>", "").lstrip()
-
-        if first_col_active:
-            header_lines.append(line.strip())
-            continue
-
-        # Split the line into columns
-        cols = [col.strip() for col in COLUMN_SPLIT_PATTERN.split(line)]
-
-        # If we have accumulated header lines, process and align them
-        if header_lines:
-            # Parse each header line into columns
-            parsed_headers = []
-            for header_line in header_lines:
-                header_cols = [
-                    col.strip() for col in COLUMN_SPLIT_PATTERN.split(header_line)
-                ]
-                parsed_headers.append(header_cols)
-
-            # The last (most detailed) header row determines the actual number of columns
-            num_cols = len(parsed_headers[-1])
-
-            # For each header row, expand it to match num_cols
-            expanded_headers = []
-            for header_row in parsed_headers:
-                if len(header_row) >= num_cols:
-                    # Already has enough columns
-                    expanded_headers.append(header_row[:num_cols])
-                else:
-                    # Need to expand - each header spans multiple columns
-                    cols_per_header = num_cols // len(header_row)
-                    remainder = num_cols % len(header_row)
-                    
-                    expanded_row = []
-                    for i, header_val in enumerate(header_row):
-                        # Calculate span for this header
-                        span = cols_per_header + (1 if i < remainder else 0)
-                        # Duplicate the header value for each column it spans
-                        expanded_row.extend([header_val] * span)
-                    
-                    expanded_headers.append(expanded_row)
-
-            # Now combine hierarchical headers vertically
-            aligned_headers = [""]  # Empty first column for row labels
-            for col_idx in range(num_cols):
-                header_parts = []
-                for expanded_row in expanded_headers:
-                    if col_idx < len(expanded_row):
-                        value = expanded_row[col_idx]
-                        # Only add if it's different from the last part
-                        if value and (not header_parts or value != header_parts[-1]):
-                            header_parts.append(value)
-
-                aligned_headers.append(" - ".join(header_parts) if header_parts else "")
-
-            # Add single combined header row
-            rows.append(aligned_headers)
-            header_lines = []
-
-        # Add the current data row (with empty first column)
-        rows.append([""] + cols)
-
-    return rows
-
 
 def fetch_url(url: str, timeout: int = 10, rate_limiter: "ThreadSafeRateLimiter" = None) -> str | None:
     global SEC_RATE_LIMIT, SEC_RATE
