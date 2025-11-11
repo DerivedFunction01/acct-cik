@@ -651,7 +651,20 @@ def extract_content(data: str, asHTML=True) -> str:
                 # Replace the HTML table with the formatted text block
                 table.replace_with(soup.new_string(table_text))
 
-        text = soup.get_text(separator="\n\n", strip=True)
+        # After table replacement, the soup contains a mix of text and our <TABLE> blocks.
+        # We need to process the text outside the tables without touching the tables themselves.
+        full_text = str(soup)
+        parts = TABLE_SPLIT_PATTERN.split(full_text)
+        processed_parts = []
+        for i, part in enumerate(parts):
+            if i % 2 == 1:  # This is a table block, add it as is.
+                processed_parts.append(part)
+            else:  # This is regular text.
+                part_soup = BeautifulSoup(part, 'html.parser')
+                raw_text = part_soup.get_text(separator="\n\n", strip=True)
+                processed_parts.append(WRAPPED_LINE_PATTERN.sub(' ', raw_text))
+
+        text = ''.join(p for p in processed_parts if p)
 
     else:
         # For plain text documents, we need to handle wrapped lines but preserve table structures.
