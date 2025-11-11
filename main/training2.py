@@ -138,14 +138,20 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
             dataset = dataset.shard(num_shards=dataset_num_shards, index=dataset_shard_index)
 
         def format_with_chat_template(sample):
+            # Ensure all parts are strings, defaulting to empty string if None
+            system_msg = sample.get("system") or ""
+            user_msg = sample.get("user") or ""
+            think_msg = sample.get("think") or ""
+            assistant_msg = sample.get("assistant") or ""
+
             messages = []
-            if sample.get("system"):
-                messages.append({"role": "system", "content": sample["system"]})
-            messages.append({"role": "user", "content": sample["user"]})
+            if system_msg:
+                messages.append({"role": "system", "content": system_msg})
+            messages.append({"role": "user", "content": user_msg})
             
             # The assistant's turn includes the <think> block and the final answer
-            think_block = f"<think>\n{sample.get('think', '').strip()}\n</think>\n\n"
-            assistant_content = f"{think_block}{sample['assistant']}"
+            think_block = f"<think>\n{think_msg.strip()}\n</think>\n\n"
+            assistant_content = f"{think_block}{assistant_msg}"
             messages.append({"role": "assistant", "content": assistant_content})
 
             # Use the tokenizer's chat template
