@@ -4,11 +4,12 @@ Follow these steps:
 1.  Identify risks, derivative instruments, and details if possible (notional amounts, dates). Explain conclusions.
 2.  Next, write a summary of the derivative activity.
 3.  Populate `mitigation` map:
-   - "IR": interest rate
-   - "FX": foreign exchange
-   - "CP": commodity
-   - "EQ": equity
-   - "GEN": other/uncategorized
+    - "IR": interest rate
+    - "FX": foreign exchange
+    - "CP": commodity
+    - "EQ": equity
+    - "GEN": other/uncategorized
+   - Values: "current" (active), "historical" (past), "implied" (suggested), "none" (absent), "unknown" (not mentioned)
 4. List unique active derivatives in `active_derivatives`, deduplicating redundancies.
 
 **Example Canonical Schema:**
