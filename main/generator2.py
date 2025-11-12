@@ -4645,19 +4645,11 @@ def generate_dataset(
 
         for future in tqdm(futures, desc="Generating Samples"):
             narrative, target_json = future.result()
-
-            # 2. Format for instruction fine-tuning
-            prompt = (
-                "Analyze the following text from a financial report to identify derivative usage. "
-                "Extract details on all derivative instruments, the company's risk exposures, and its mitigation strategies. "
-                "Your response must be a single, valid JSON object conforming to the required keys: 'analysis_summary', 'exposure', 'mitigation', and 'derivatives'.\n\n"
-                f"Text: {narrative}"
-            )
-
-            training_record = {"prompt": prompt, "completion": json.dumps(target_json, indent=2)}
+            training_record = narrative
             all_training_records.append(training_record)
 
     df = pd.DataFrame(all_training_records)
     df.to_parquet(output_file, index=False)
 
     print(f"\nSuccessfully generated {num_samples} samples to {output_file} with {noise_percentage:.0%} noise.")
+# %%

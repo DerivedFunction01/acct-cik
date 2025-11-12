@@ -14,7 +14,7 @@ Follow these steps:
     -   **Values**:
         -   `"current"`: The text explicitly states active derivative contracts are used to hedge this risk.
         -   `"historical"`: The text mentions past use of derivatives for this risk, but none are currently active.
-        -   `"implied"`: The text describes exposure to a risk but does not explicitly mention using derivatives to hedge it, suggesting a potential but unconfirmed strategy.
+        -   `"implied"`: The text states active derivative contracts are used to hedge this risk, but we cannot 100% confirm this.
         -   `"none"`: The text explicitly states the company does not hedge this risk or does not use derivatives for it.
         -   `"unknown"`: The risk category is not mentioned in the provided text.
 4.  **Detail Active Derivatives**: Populate the `active_derivatives` array. List each unique, currently active derivative instrument. Consolidate aggregate mentions (e.g., "various interest rate swaps") into a single entry.
