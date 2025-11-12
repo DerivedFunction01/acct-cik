@@ -122,8 +122,7 @@ CLEANUP_PATTERNS = [
     (re.compile(r"<ix:header>.*?</ix:header>", re.DOTALL), ""),
 ]
 
-TABLE_SPLIT_PATTERN = re.compile(
-    r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
+TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
 
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r'(?<!\n)\n(?!\n)')
@@ -625,6 +624,15 @@ def extract_content(data: str, asHTML=True) -> str:
         tables = soup.find_all("table")
         for table in tables:
             title = "Financial Table"  # Default title
+
+            # --- NEW: Sanitize table HTML before parsing ---
+            # Remove all attributes from table elements except for those
+            # that define structure (colspan, rowspan). This prevents
+            # styling from interfering with pandas' parsing.
+            for tag in table.find_all(True):
+                allowed_attrs = {"colspan", "rowspan"}
+                attrs = dict(tag.attrs)
+                tag.attrs = {k: v for k, v in attrs.items() if k in allowed_attrs}
 
             # Try to find the previous sibling paragraph to use as a title
             prev_sibling = table.find_previous_sibling()
