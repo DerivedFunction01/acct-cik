@@ -36,7 +36,7 @@ Follow these steps:
       "category": "FX",
       "mention_type": "individual", // or aggregate
       "notional_amount": 100000000,
-      "currency": "USD",
+      "currency": "USD", // or whatever the currency (or commodity unit)
     }
   ]
 }
