@@ -13,7 +13,7 @@ Follow these steps:
     -   **`GEN`**: General/Other/Uncategorized/Unknown
     -   **Values**:
         -   `"current"`: The text explicitly states active derivative contracts are used to hedge this risk.
-        -   `"historical"`: The text mentions past use of derivatives for this risk, but none are currently active.
+        -   `"historical"`: The text contains any mention of past use of derivatives for this risk, but none are currently active.
         -   `"implied"`: The text states active derivative contracts are used to hedge this risk, but we cannot 100% confirm this as there is limited information in the extracted text.
         -   `"none"`: The text explicitly states the company does not hedge this risk or does not use derivatives for it.
         -   `"unknown"`: The risk category is not mentioned in the provided text.
