@@ -51,7 +51,6 @@ def create_dataset(db_path: str, output_path: str, num_samples: int = None):
     query = """
     SELECT
         r.cik,
-        n.name AS company_name,
         r.year,
         w.url,
         w.matches
@@ -59,8 +58,6 @@ def create_dataset(db_path: str, output_path: str, num_samples: int = None):
         webpage_result w
     JOIN
         report_data r ON w.url = r.url
-    LEFT JOIN
-        names n ON r.cik = n.cik
     """
 
     print("Fetching data from the database...")
@@ -75,7 +72,7 @@ def create_dataset(db_path: str, output_path: str, num_samples: int = None):
 
     if num_samples and num_samples < len(df):
         print(f"Sampling {num_samples} records...")
-        df = df.sample(n=num_samples, random_state=42)
+        df = df.sample(n=num_samples)
 
     # Use tqdm for a progress bar during text processing
     tqdm.pandas(desc="Merging text snippets")
