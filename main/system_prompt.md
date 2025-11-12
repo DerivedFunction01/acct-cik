@@ -25,7 +25,7 @@ Follow these steps:
   "summary": "A brief, high-level summary of the derivative and hedging activity described in the text.",
   "mitigation": {
     "IR": "unknown",
-    "FX": "historical",
+    "FX": "current",
     "CP": "implied",
     "EQ": "none",
     "GEN": "unknown"
