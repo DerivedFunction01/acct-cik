@@ -34,7 +34,7 @@ Follow these steps:
     {
       "name": "cross-currency swap",
       "category": "FX",
-      "mention_type": "individual",
+      "mention_type": "individual", // or aggregate
       "notional_amount": 100000000,
       "currency": "USD",
     }
