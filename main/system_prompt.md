@@ -17,7 +17,7 @@ Follow these steps:
         -   `"implied"`: The text states active derivative contracts are used to hedge this risk, but we cannot 100% confirm this as there is limited information in the extracted text.
         -   `"none"`: The text explicitly states the company does not hedge this risk or does not use derivatives for it.
         -   `"unknown"`: The risk category is not mentioned in the provided text, or there is not enough information to determine the status.
-4.  **Detail Active Derivatives**: Populate the `active_derivatives` array. List each unique, currently active derivative instrument. Consolidate aggregate mentions (e.g., "various interest rate swaps") into a single entry. Prefer the current notional amount and currency in USD if there are redundant mentions. Omit any entry without sufficient detail.
+4.  **Detail Active Derivatives**: Populate the `active_derivatives` array. List each unique, currently active derivative (hedging or not) instrument. Consolidate aggregate mentions (e.g., "various interest rate swaps") into a single entry. Prefer the current notional amount and currency in USD if there are redundant mentions. Omit any entry without sufficient detail.
 
 **Example Canonical Schema:**
 ```json
