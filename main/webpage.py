@@ -4,6 +4,11 @@
 # %%
 # pip install pandas requests beautifulsoup4 tqdm psutil markdownify
 import string
+import sys
+# Increase recursion limit to handle deeply nested HTML structures
+# Default is usually 1000, increase to 5000 for robust handling
+sys.setrecursionlimit(5000)
+
 import pandas as pd
 import requests
 import time
@@ -663,8 +668,15 @@ def extract_content(data: str, asHTML=True) -> str:
         # --- NEW: Convert remaining HTML to Markdown ---
         # This preserves paragraphs, lists, and other formatting, while our
         # custom-formatted tables (which are now plain text) are passed through untouched.
-        # The `strip_tags` option removes any remaining unwanted tags.
-        text = markdownify(str(soup), strip=['a', 'img'], heading_style="ATX")
+        # Convert soup to string *carefully* to avoid excessive nesting,
+        # then pass to markdownify with a try-except for recursion errors.
+        try:
+            soup_str = str(soup)
+            text = markdownify(soup_str, strip=['a', 'img'], heading_style="ATX")
+        except RecursionError:
+            # Fallback: If markdownify hits recursion limit, use simple text extraction
+            print(f"⚠️  RecursionError in markdownify - using fallback text extraction")
+            text = soup.get_text(separator='\n', strip=True)
 
     else:
         # For plain text documents, we need to handle wrapped lines but preserve table structures.
