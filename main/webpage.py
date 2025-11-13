@@ -2,7 +2,7 @@
 # COMPLETE OPTIMIZED CODE
 # =============================================================================
 # %%
-# pip install pandas requests beautifulsoup4 tqdm psutil
+# pip install pandas requests beautifulsoup4 tqdm psutil markdownify
 import string
 import pandas as pd
 import requests
@@ -21,6 +21,7 @@ import multiprocessing as mp
 import psutil
 from pathlib import Path
 import threading
+from markdownify import markdownify
 from defs.table_definitions import HTMLTableConverter, GenericTable
 
 # Importing required module
@@ -619,6 +620,10 @@ def extract_content(data: str, asHTML=True) -> str:
         # with text extraction. We keep 'colspan' and 'rowspan' because
         # they are critical for table structure.
         # --- NEW: More robustly remove all invisible elements ---
+        # Decompose XBRL hidden sections first, as they contain non-visible data.
+        for element in soup.find_all("ix:hidden"):
+            element.decompose()
+
         # Decompose elements that are not rendered.
         for element in soup(["head", "script", "style", "title", "meta", "noscript", "ix:header"]):
             element.decompose()
@@ -655,10 +660,11 @@ def extract_content(data: str, asHTML=True) -> str:
                 # Replace the HTML table with the formatted text block
                 table.replace_with(soup.new_string(table_text))
 
-        # --- NEW: Simplified text extraction ---
-        # Get all text, letting BeautifulSoup handle the structure.
-        # The ' ' separator prevents words from merging.
-        text = soup.get_text(separator=' ', strip=True)
+        # --- NEW: Convert remaining HTML to Markdown ---
+        # This preserves paragraphs, lists, and other formatting, while our
+        # custom-formatted tables (which are now plain text) are passed through untouched.
+        # The `strip_tags` option removes any remaining unwanted tags.
+        text = markdownify(str(soup), strip=['a', 'img'], heading_style="ATX")
 
     else:
         # For plain text documents, we need to handle wrapped lines but preserve table structures.

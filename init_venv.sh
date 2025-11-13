@@ -55,7 +55,7 @@ else
 fi
 
 # --- Packages ---
-BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn matplotlib"
+BASE_PACKAGES="pandas requests beautifulsoup4 tqdm psutil numpy openpyxl xlsxwriter flask pydrive2 waitress gunicorn matplotlib markdownify"
 ML_PACKAGES="unsloth[colab-new] git+https://github.com/unslothai/unsloth.git scikit-learn datasets transformers accelerate IPython ipywidgets ipykernel"
 
 # --- Handle PyTorch (skip if locked unless --reinstall-torch) ---

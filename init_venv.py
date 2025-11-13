@@ -13,7 +13,7 @@ USE_VENV = True  # Global flag, can be overridden by --no-venv
 
 BASE_PACKAGES = [
     # Web scraping and server
-    "beautifulsoup4",
+    "beautifulsoup4", "markdownify",
     # System and file utilities
     "psutil",
     "openpyxl",
