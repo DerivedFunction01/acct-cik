@@ -31,6 +31,7 @@ HTML_TEMPLATE = """
         .input-area { border-top: 1px solid #eee; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
         .input-row { display: flex; gap: 10px; }
         textarea { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-size: 1em; }
+        #system-prompt-input { height: 40px; }
         button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; }
         #send-btn { background-color: #4CAF50; color: white; }
         #sample-btn { background-color: #03A9F4; color: white; }
@@ -57,6 +58,7 @@ HTML_TEMPLATE = """
             <div class="message model-response">Hello! Enter a prompt below or use the sample button to get started.</div>
         </div>
         <div class="input-area">
+            <textarea id="system-prompt-input" rows="2" placeholder="Enter system prompt here (optional)..."></textarea>
             <div class="input-row">
                 <textarea id="prompt-input" rows="3" placeholder="Enter your prompt here..."></textarea>
                 <button id="send-btn">Send</button>
@@ -71,6 +73,7 @@ HTML_TEMPLATE = """
 
     <script>
         const promptInput = document.getElementById('prompt-input');
+        const systemPromptInput = document.getElementById('system-prompt-input');
         const sendBtn = document.getElementById('send-btn');
         const sampleBtn = document.getElementById('sample-btn');
         const stopBtn = document.getElementById('stop-btn');
@@ -81,6 +84,7 @@ HTML_TEMPLATE = """
 
         async function sendPrompt() {
             const prompt = promptInput.value.trim();
+            const system_prompt = systemPromptInput.value.trim();
             if (!prompt) return;
 
             // Reset abort controller for the new request
@@ -90,8 +94,8 @@ HTML_TEMPLATE = """
             sendBtn.disabled = true;
             sampleBtn.disabled = true;
             stopBtn.style.display = 'inline-block';
-            sendBtn.style.display = 'none';
             promptInput.value = '';
+            promptInput.focus();
             promptInput.disabled = true;
 
             // Display user message
@@ -112,7 +116,10 @@ HTML_TEMPLATE = """
                     method: 'POST',
                     signal: abortController.signal, // Link the abort controller
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: prompt, enable_thinking: thinkingToggle.checked })
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        params: { enable_thinking: thinkingToggle.checked, system_prompt: system_prompt }
+                    })
                 });
 
                 if (!response.ok) {
@@ -160,6 +167,9 @@ HTML_TEMPLATE = """
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.textContent = 'Send';
+                stopBtn.style.display = 'none';
+                sampleBtn.disabled = false;
+                promptInput.disabled = false;
             }
         }
 
@@ -168,7 +178,6 @@ HTML_TEMPLATE = """
             sendBtn.disabled = false;
             sampleBtn.disabled = false;
             stopBtn.style.display = 'none';
-            sendBtn.style.display = 'inline-block';
             promptInput.disabled = false;
         }
 
