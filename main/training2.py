@@ -75,7 +75,7 @@ TRAINING_PROFILES = {
         "r": 64,
         "lora_alpha": 128,
         "batch_size": 1, # Keep batch size at 1 for low VRAM
-        "gradient_accumulation": 1, # Increase gradient accumulation
+        "gradient_accumulation": 8, # Increase gradient accumulation
         "max_seq_length": 32768,
         "load_in_8bit": True,
     },
