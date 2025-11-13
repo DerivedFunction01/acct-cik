@@ -36,10 +36,9 @@ NON_THINKING_PARAMS = {
 
 # --- Device & VRAM detection ---
 DEVICE_TYPE = os.environ.get("DEVICE_TYPE", "gpu").lower()
-load_in_4bit = False
+load_in_4bit = True
 if DEVICE_TYPE == "cpu":
     device = torch.device("cpu")
-    load_in_4bit = False
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

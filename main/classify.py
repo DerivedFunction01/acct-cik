@@ -27,9 +27,7 @@ REPORT_CSV_PATH = "./report_data.csv"
 SERVER_BASE_URL = "http://127.0.0.1:5000"
 DEBUG = False  # Debug printing
 CHUNK_SIZE = 20  # Base chunk size, will be adjusted based on RAM
-
-DRIVE_SAVE_INTERVAL_SECONDS = 10 * 60  # 10 minutes
-DRIVE_SAVE_INTERVAL_RESULTS = 100
+TEXT_SIZE = 4000  # Maximum number of chars a select text
 
 # =============================================================================
 # COLAB CONFIGURATION
@@ -37,6 +35,8 @@ DRIVE_SAVE_INTERVAL_RESULTS = 100
 DRIVE_PATH = "./drive/MyDrive/db"
 LOAD_SHELL_CMD = f"cp -f {DRIVE_PATH}/{DB_PATH} ."
 IS_COLAB = Path(DRIVE_PATH).exists()
+DRIVE_SAVE_INTERVAL_SECONDS = 10 * 60  # 10 minutes
+DRIVE_SAVE_INTERVAL_RESULTS = 100
 
 def get_system_config():
     """Auto-detects client and server capabilities to set configuration."""
@@ -396,24 +396,44 @@ def process_report_fully(report):
     3. Returns the result (does NOT save to database immediately).
     """
     # Get the report's `matches`
-    matches = get_matches(report.url)
-    server_predictions = []
+    original_matches = get_matches(report.url)
+    all_predictions = []
 
-    # Prepend <reportYear> to each sentence
-    if matches:
-        matches_with_year = [
-            f"<reportYear>{report.year}</reportYear> {s}" for s in matches
-        ]
-        # Get sentence analysis from the server
-        server_predictions = get_result_from_server(matches_with_year)
-    else:
-        server_predictions = []
+    if original_matches:
+        # This logic creates larger, semantically grouped chunks of text.
+        # It combines consecutive paragraphs until the TEXT_SIZE limit is approached.
+        text_chunks = []
+        current_chunk = ""
+        year_prefix = f"Text ({report.year}): "
 
+        for match in original_matches:
+            # If adding the next match would exceed the size, save the current chunk and start a new one.
+            if len(current_chunk) + len(match) + len(year_prefix) > TEXT_SIZE:
+                if current_chunk: # Ensure we don't add empty chunks
+                    text_chunks.append(year_prefix + current_chunk)
+                current_chunk = match
+            else:
+                # Add a newline for readability between concatenated paragraphs.
+                if current_chunk:
+                    current_chunk += "\n" + match
+                else:
+                    current_chunk = match
+        
+        # Add the last remaining chunk
+        if current_chunk:
+            text_chunks.append(year_prefix + current_chunk)
+
+        # Now, get predictions for these larger, more context-rich chunks.
+        # The server is expected to return one JSON object per chunk.
+        if text_chunks:
+            all_predictions = get_result_from_server(text_chunks)
+
+    # The server_response will be a list of JSON objects, one for each chunk processed.
     # Prepare the final result row (return, don't save yet)
     result_row = pd.Series(
         {
             "url": report.url,
-            "server_response": server_predictions,
+            "server_response": all_predictions,
         }
     )
 
