@@ -161,7 +161,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
             # Use the tokenizer's chat template
             return {"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}
 
-        dataset = dataset.map(format_with_chat_template)
+        dataset = dataset.map(format_with_chat_template, remove_columns=dataset.column_names)
 
         # Create a 90/10 train/test split
         dataset = dataset.train_test_split(test_size=0.1)
@@ -202,6 +202,14 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
             use_rslora=False,
             loftq_config=None,
         )
+
+    # Clean model config to remove any non-serializable objects (like functions)
+    # This prevents JSON serialization errors during training logging
+    if hasattr(model, 'config'):
+        config_dict = vars(model.config).copy()
+        for key, value in config_dict.items():
+            if callable(value) and not isinstance(value, type):
+                delattr(model.config, key)
 
     # --- Dynamic Evaluation Steps ---
     # For large datasets, evaluating every 100 steps is too frequent.
