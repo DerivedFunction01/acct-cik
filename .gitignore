@@ -22,6 +22,6 @@ derivative-classifier
 .*.*
 backup
 *.conf
-Unsloth*.py
+unsloth_compiled_cache/
 Qwen*/
 analysis_output/
