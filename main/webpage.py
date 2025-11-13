@@ -650,9 +650,16 @@ def extract_content(data: str, asHTML=True) -> str:
                 title = prev_sibling.get_text(strip=True)
 
             try:
+                # First, try the high-fidelity pandas parser
                 df = pd.read_html(StringIO(str(table)), flavor='bs4')[0]
                 rows = [df.columns.tolist()] + df.astype(str).values.tolist()
             except Exception:
+                # Fallback: If pandas fails, use a more lenient BeautifulSoup-based extraction
+                rows = []
+                for tr in table.find_all('tr'):
+                    row = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
+                    rows.append(row)
+            except:
                 rows = []
 
             if rows:
