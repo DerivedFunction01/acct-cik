@@ -622,20 +622,19 @@ def extract_content(data: str, asHTML=True) -> str:
     if asHTML:
         soup = BeautifulSoup(data, "html.parser")
 
+        # --- NEW: Strip attributes from all tags ---
+        # This simplifies the HTML and prevents styling from interfering
+        # with text extraction. We keep 'colspan' and 'rowspan' because
+        # they are critical for table structure.
+        for tag in soup.find_all(True):
+            allowed_attrs = {"colspan", "rowspan"}
+            attrs = dict(tag.attrs)
+            tag.attrs = {k: v for k, v in attrs.items() if k in allowed_attrs}
+
         # Extract and convert HTML tables to SEC-style text
         tables = soup.find_all("table")
         for table in tables:
             title = "Financial Table"  # Default title
-
-            # --- NEW: Sanitize table HTML before parsing ---
-            # Remove all attributes from table elements except for those
-            # that define structure (colspan, rowspan). This prevents
-            # styling from interfering with pandas' parsing.
-            for tag in table.find_all(True):
-                allowed_attrs = {"colspan", "rowspan"}
-                attrs = dict(tag.attrs)
-                tag.attrs = {k: v for k, v in attrs.items() if k in allowed_attrs}
-
             # Try to find the previous sibling paragraph to use as a title
             prev_sibling = table.find_previous_sibling()
             # Fallback to caption if no previous paragraph is found
