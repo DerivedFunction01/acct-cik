@@ -25,11 +25,10 @@ config = {
     "MODEL_USER": "DerivedFunction",
     "MODEL_NAMES": [
         "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",  # Smaller, faster alternative
-        "DerivedFunction/Qwen3-1.7B-derivatives-base",
+        "unsloth/Qwen3-4B-Thinking-2507",
+        "DerivedFunction/Qwen3-1.7B-finance-base",
     ],
     "LORA_ADAPTERS": [
-        # Example: "my-finance-model_lora" (local) or "YourUser/my-finance-model_lora" (Hub)
-        "DerivedFunction/Qwen3-1.7B-derivatives-base_lora",
     ],
     "DATASETS": [
         ("DerivedFunction/Derivatives-Finance-100K", True),  # (path/id, is_hf_dataset)
@@ -51,7 +50,7 @@ TRAINING_PROFILES = {
         "batch_size": 6,
         "gradient_accumulation": 4,
         "max_seq_length": 32768,
-        "load_in_4bit": True,
+        "load_in_8bit": True,
     },
     "2": {
         "name": "L4 / Pro (>= 20 GB)",
@@ -60,7 +59,7 @@ TRAINING_PROFILES = {
         "batch_size": 4,
         "gradient_accumulation": 4,
         "max_seq_length": 32768,
-        "load_in_4bit": True,
+        "load_in_8bit": True,
     },
     "3": {
         "name": "High VRAM / Colab (>= 12GB)",
@@ -69,16 +68,16 @@ TRAINING_PROFILES = {
         "batch_size": 2,
         "gradient_accumulation": 4,
         "max_seq_length": 32768,
-        "load_in_4bit": True,
+        "load_in_8bit": True,
     },
     "4": {
         "name": "Low VRAM (6-12GB)",
         "r": 64,
         "lora_alpha": 128,
         "batch_size": 1, # Keep batch size at 1 for low VRAM
-        "gradient_accumulation": 8, # Increase gradient accumulation
+        "gradient_accumulation": 1, # Increase gradient accumulation
         "max_seq_length": 32768,
-        "load_in_4bit": True,
+        "load_in_8bit": True,
     },
     "5": {
         "name": "CPU / Low RAM (< 6GB)",
@@ -87,7 +86,7 @@ TRAINING_PROFILES = {
         "batch_size": 1, # Keep batch size at 1 for CPU
         "gradient_accumulation": 16, # Significantly increase gradient accumulation
         "max_seq_length": 32768,
-        "load_in_4bit": True,
+        "load_in_8bit": True,
     },
 }
 
@@ -121,7 +120,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=model_name,
             max_seq_length=profile["max_seq_length"],
-            load_in_4bit=profile["load_in_4bit"],  # Use 4bit quantization based on profile
+            load_in_8bit=profile["load_in_8bit"],  # Use 4bit quantization based on profile
         )
     except Exception as e:
         print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
@@ -335,7 +334,7 @@ def run_manual_test():
             model_name=model_to_load, # Use the determined model name
             max_seq_length=config["MAX_SEQ_LENGTH"],
             dtype=None,
-            load_in_4bit=True,
+            load_in_8bit=True,
         )
     except Exception as e:
         print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
