@@ -134,6 +134,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
     print("\n--- Loading and Preprocessing Data ---")
     try:
         dataset = load_dataset(data_path, split="train") if is_hf_dataset else load_dataset("parquet", data_files=data_path, split="train")
+        dataset_size = len(dataset)
         if dataset_num_shards > 1:
             print(f"Applying dataset shard: Using index {dataset_shard_index} of {dataset_num_shards} total shards.")
             dataset = dataset.shard(num_shards=dataset_num_shards, index=dataset_shard_index)
@@ -159,7 +160,6 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
             return {"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}
 
         dataset = dataset.map(format_with_chat_template, remove_columns=dataset.column_names)
-
         # Create a 90/10 train/test split
         dataset = dataset.train_test_split(test_size=0.1)
         train_dataset = dataset["train"]
@@ -232,7 +232,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         model = FastLanguageModel.get_peft_model(
             model,
             r=profile["r"],
-            target_modules=get_target_modules(len(dataset)),
+            target_modules=get_target_modules(dataset_size),
             lora_alpha=profile["lora_alpha"],
             lora_dropout=0,
             bias="none",
