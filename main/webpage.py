@@ -756,19 +756,14 @@ def filter_by_keywords(content: str) -> list[str]:
     """
     Filters content for derivative-related keywords and creates larger text
     chunks for analysis by a generative model. Tables are treated as
-    separate, whole chunks.
-
-    Args:
-        content: A single string containing the full, pre-processed text of a document.
-
-    Returns:
-        List of filtered paragraphs that match any regex pattern
+    separate, whole chunks. If a paragraph matches but ends without a period,
+    the next valid paragraph is appended if it doesn't match ignore regex.
     """
+
     filtered = []
     seen = set()
 
     # Split the document into text parts and table blocks.
-    # The regex split will result in a list like: [text, table, text, table, ...]
     parts = TABLE_SPLIT_PATTERN.split(content)
 
     for part in parts:
@@ -776,28 +771,40 @@ def filter_by_keywords(content: str) -> list[str]:
         if not part:
             continue
         lower_part = part.lower()
-        # If the part is a table, check it for keywords and add it as a whole chunk.
-        if lower_part.find("<table") != -1 and not IGNORE_REGEX.search(part):
+
+        # Handle tables
+        if "<table" in lower_part and not IGNORE_REGEX.search(part):
             if COMBINED_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part):
                 if lower_part not in seen:
                     filtered.append(part)
                     seen.add(lower_part)
             continue
 
-        # If the part is regular text, split it into paragraphs and check each one.
-        # This allows us to find relevant sections within larger blocks of text.
+        # Handle text blocks
         paragraphs = part.split('\n\n')
-        for para in paragraphs:
-            para = para.strip()
+        i = 0
+        while i < len(paragraphs):
+            para = paragraphs[i].strip()
             if not para or len(para) < 30:  # Skip very short paragraphs
+                i += 1
                 continue
 
             if COMBINED_REGEX.search(para) and not IGNORE_REGEX.search(para):
                 para_lower = para.lower()
+                # Check if paragraph ends without a period
+                if not para.endswith('.'):
+                    if i + 1 < len(paragraphs):
+                        next_para = paragraphs[i + 1].strip()
+                        # Skip short next paragraphs (likely headers or cut-offs)
+                        if next_para and len(next_para) >= 30:
+                            if not IGNORE_REGEX.search(next_para):
+                                # Merge with next paragraph
+                                para = para + " " + next_para
+                                i += 1  # Skip next paragraph since it's merged
                 if para_lower not in seen:
                     filtered.append(para)
                     seen.add(para_lower)
-
+            i += 1
     return filtered
 
 # =============================================================================
