@@ -120,9 +120,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=model_name,
             max_seq_length=profile["max_seq_length"],
-            load_in_4bit=(
-                not profile["load_in_8bit"]
-            ),  # Use 8bit quantization based on profile
+            load_in_4bit=False,  # Use 8bit quantization based on profile
             load_in_8bit=profile[
                 "load_in_8bit"
             ],  # Use 4bit quantization based on profile
@@ -241,6 +239,15 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         push_to_hub=IS_AUTHENTICATED,  # Let the Trainer handle pushing
         hub_model_id=f"{config['MODEL_USER']}/{new_model_name}",
     )
+        # --- Post-init cleanup ---
+    # Clean model config to remove any non-serializable objects (like functions)
+    # that might have been added during trainer initialization.
+    # This prevents JSON serialization errors during training logging.
+    if hasattr(model, 'config'):
+        config_dict = vars(model.config).copy()
+        for key, value in config_dict.items():
+            if callable(value) and not isinstance(value, type):
+                delattr(model.config, key)
 
     # --- Initialize SFTTrainer ---
     trainer = SFTTrainer(
@@ -255,20 +262,12 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         args=training_args,
     )
 
-    # --- Post-init cleanup ---
-    # Clean model config to remove any non-serializable objects (like functions)
-    # that might have been added during trainer initialization.
-    # This prevents JSON serialization errors during training logging.
-    if hasattr(trainer.model, 'config'):
-        config_dict = vars(trainer.model.config).copy()
-        for key, value in config_dict.items():
-            if callable(value) and not isinstance(value, type):
-                delattr(trainer.model.config, key)
+
     # --- Train and Save ---
     print(f"\nStarting training for {num_epochs} epochs...")
     print("🚀 Unsloth provides 2-5x faster training and 60% less memory usage!")
     try:
-        checkpoint_exists = input("Resume from checkpoint? [y/N]: ").strip().lower() == 'y'
+        checkpoint_exists = input("Resume from checkpoint? [y/N]: ").strip().lower() == 'y' or False
         if checkpoint_exists:
             print("Checkpoint found. Resuming training from checkpoint...")
         trainer_stats = trainer.train(resume_from_checkpoint=checkpoint_exists)
