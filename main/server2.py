@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-base"
+MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
 MAX_SEQ_LENGTH = 32768
 
 # --- Recommended generation parameters ---
@@ -110,7 +110,7 @@ def generate_stream(prompt: str, user_params: dict = None):
     # it from stopping prematurely if it generates an <|im_end|> token
     # inside the <think> block, while still allowing it to continue until
     # the final <|im_end|> token after the answer.
-    eos_token_ids = [tokenizer.eos_token_id, tokenizer.convert_tokens_to_ids("</think>")]
+    eos_token_ids = [tokenizer.eos_token_id]
 
     gen_kwargs = dict(
         inputs,
