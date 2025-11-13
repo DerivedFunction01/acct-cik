@@ -118,10 +118,6 @@ CRUNCHED_TEXT_PATTERNS = [
 CLEANUP_PATTERNS = [
     # remove links
     (re.compile(r"http\S+"), ""),
-    # Remove hidden content inside xbrl tags <ix:header> tags
-    (re.compile(r"<ix:header>.*?</ix:header>", re.DOTALL), ""),
-    # Strip div tags from the entire document to simplify parsing
-    (re.compile(r'</?div[^>]*>', re.IGNORECASE), ""),
 ]
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
@@ -615,10 +611,6 @@ def extract_content(data: str, asHTML=True) -> str:
     if not data:
         return ""
 
-    # --- NEW: Apply cleanup patterns to the raw data first ---
-    for pattern, replacement in CLEANUP_PATTERNS:
-        data = pattern.sub(replacement, data)
-
     if asHTML:
         soup = BeautifulSoup(data, "html.parser")
 
@@ -626,12 +618,18 @@ def extract_content(data: str, asHTML=True) -> str:
         # This simplifies the HTML and prevents styling from interfering
         # with text extraction. We keep 'colspan' and 'rowspan' because
         # they are critical for table structure.
-        for tag in soup.find_all(True):
-            allowed_attrs = {"colspan", "rowspan"}
-            attrs = dict(tag.attrs)
-            tag.attrs = {k: v for k, v in attrs.items() if k in allowed_attrs}
+        # --- NEW: More robustly remove all invisible elements ---
+        # Decompose elements that are not rendered.
+        for element in soup(["head", "script", "style", "title", "meta", "noscript", "ix:header"]):
+            element.decompose()
+
+        # Decompose elements that are explicitly hidden via style attributes.
+        for element in soup.find_all(style=re.compile(r"display:\s*none|visibility:\s*hidden", re.IGNORECASE)):
+            element.decompose()
 
         # Extract and convert HTML tables to SEC-style text
+        # This must happen *before* stripping other attributes to allow
+        # pandas to parse the table correctly.
         tables = soup.find_all("table")
         for table in tables:
             title = "Financial Table"  # Default title
@@ -657,27 +655,17 @@ def extract_content(data: str, asHTML=True) -> str:
                 # Replace the HTML table with the formatted text block
                 table.replace_with(soup.new_string(table_text))
 
-        # After table replacement, the soup contains a mix of text and our <TABLE> blocks.
-        # We need to process the text outside the tables without touching the tables themselves.
-        full_text = str(soup)
-        parts = TABLE_SPLIT_PATTERN.split(full_text)
-        processed_parts = []
-        for i, part in enumerate(parts):
-            if i % 2 == 1:  # This is a table block, add it as is.
-                processed_parts.append(part)
-            else:  # This is regular text.
-                part_no_divs = part  # Divs are already stripped by CLEANUP_PATTERNS
-
-                part_soup = BeautifulSoup(part_no_divs, 'html.parser')
-                raw_text = part_soup.get_text(separator="\n\n", strip=False)
-                processed_parts.append(WRAPPED_LINE_PATTERN.sub(' ', raw_text))
-
-        text = ''.join(p for p in processed_parts if p)
+        # --- NEW: Simplified text extraction ---
+        # Get all text, letting BeautifulSoup handle the structure.
+        # The ' ' separator prevents words from merging.
+        text = soup.get_text(separator=' ', strip=True)
 
     else:
         # For plain text documents, we need to handle wrapped lines but preserve table structures.
         # We can split the document by table blocks, process the text outside of them,
         # and then join everything back together.
+        for pattern, replacement in CLEANUP_PATTERNS:
+            data = pattern.sub(replacement, data)
         parts = TABLE_SPLIT_PATTERN.split(data)
         processed_parts = []
         for i, part in enumerate(parts):
