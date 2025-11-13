@@ -203,14 +203,6 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
             loftq_config=None,
         )
 
-    # Clean model config to remove any non-serializable objects (like functions)
-    # This prevents JSON serialization errors during training logging
-    if hasattr(model, 'config'):
-        config_dict = vars(model.config).copy()
-        for key, value in config_dict.items():
-            if callable(value) and not isinstance(value, type):
-                delattr(model.config, key)
-
     # --- Dynamic Evaluation Steps ---
     # For large datasets, evaluating every 100 steps is too frequent.
     # Let's aim for 4 evaluations per epoch.
@@ -263,6 +255,15 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         args=training_args,
     )
 
+    # --- Post-init cleanup ---
+    # Clean model config to remove any non-serializable objects (like functions)
+    # that might have been added during trainer initialization.
+    # This prevents JSON serialization errors during training logging.
+    if hasattr(trainer.model, 'config'):
+        config_dict = vars(trainer.model.config).copy()
+        for key, value in config_dict.items():
+            if callable(value) and not isinstance(value, type):
+                delattr(trainer.model.config, key)
     # --- Train and Save ---
     print(f"\nStarting training for {num_epochs} epochs...")
     print("🚀 Unsloth provides 2-5x faster training and 60% less memory usage!")
