@@ -36,7 +36,7 @@ NON_THINKING_PARAMS = {
 
 # --- Device & VRAM detection ---
 DEVICE_TYPE = os.environ.get("DEVICE_TYPE", "gpu").lower()
-load_in_4bit = True
+load_in_4bit = False
 if DEVICE_TYPE == "cpu":
     device = torch.device("cpu")
     load_in_4bit = False
@@ -89,8 +89,14 @@ def generate_stream(prompt: str, user_params: dict = None):
     # --- NEW: Use tokenizer's chat template for proper formatting ---
     # This allows us to control the <think> block via the `enable_thinking` flag.
     enable_thinking = user_params.pop("enable_thinking", True) if user_params else True
+    system_prompt = user_params.pop("system_prompt", "") if user_params else ""
     params = get_gen_params(user_params, enable_thinking=enable_thinking)
-    messages = [{"role": "user", "content": prompt}]
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
     formatted_prompt = tokenizer.apply_chat_template(
         messages,
         tokenize=False,
