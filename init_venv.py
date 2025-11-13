@@ -22,6 +22,10 @@ BASE_PACKAGES = [
     # Plotting and interactive
     "matplotlib",
     "IPython",
+    "pandas",
+    #Other
+    "num2words",
+    "tqdm",
 ]
 # Unsloth handles its own dependencies, including PyTorch, Transformers, etc.
 
