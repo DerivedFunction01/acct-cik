@@ -120,6 +120,8 @@ CLEANUP_PATTERNS = [
     (re.compile(r"http\S+"), ""),
     # Remove hidden content inside xbrl tags <ix:header> tags
     (re.compile(r"<ix:header>.*?</ix:header>", re.DOTALL), ""),
+    # Strip div tags from the entire document to simplify parsing
+    (re.compile(r'</?div[^>]*>', re.IGNORECASE), ""),
 ]
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
@@ -665,8 +667,10 @@ def extract_content(data: str, asHTML=True) -> str:
             if i % 2 == 1:  # This is a table block, add it as is.
                 processed_parts.append(part)
             else:  # This is regular text.
-                part_soup = BeautifulSoup(part, 'html.parser')
-                raw_text = part_soup.get_text(separator="\n\n", strip=True)
+                part_no_divs = part  # Divs are already stripped by CLEANUP_PATTERNS
+
+                part_soup = BeautifulSoup(part_no_divs, 'html.parser')
+                raw_text = part_soup.get_text(separator="\n\n", strip=False)
                 processed_parts.append(WRAPPED_LINE_PATTERN.sub(' ', raw_text))
 
         text = ''.join(p for p in processed_parts if p)
