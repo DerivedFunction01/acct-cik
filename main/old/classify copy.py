@@ -25,16 +25,19 @@ import sys
 DB_PATH = "web_data.db"
 REPORT_CSV_PATH = "./report_data.csv"
 SERVER_BASE_URL = "http://127.0.0.1:5000"
+KEYWORDS_FILE = "./keywords_find.json"
 DEBUG = False  # Debug printing
-CHUNK_SIZE = 20  # Base chunk size, will be adjusted based on RAM
+CHUNK_SIZE = 100  # Base chunk size, will be adjusted based on RAM
 
 DRIVE_SAVE_INTERVAL_SECONDS = 10 * 60  # 10 minutes
-DRIVE_SAVE_INTERVAL_RESULTS = 100
+DRIVE_SAVE_INTERVAL_RESULTS = 4000
 
 # =============================================================================
 # COLAB CONFIGURATION
 # =============================================================================
 DRIVE_PATH = "./drive/MyDrive/db"
+DRIVE_SENTENCE_PATH = "sentence_results"
+DRIVE_KEYWORDS_PATH = "keywords_results"
 LOAD_SHELL_CMD = f"cp -f {DRIVE_PATH}/{DB_PATH} ."
 IS_COLAB = Path(DRIVE_PATH).exists()
 
@@ -57,16 +60,17 @@ def get_system_config():
             print(f"✅ Server has GPU: {server_info.get('gpu_name')} with {gpu_ram:.2f} GB RAM")
             # Scale threads based on GPU RAM. More RAM can handle more concurrent requests.
             if gpu_ram > 20:  # A100, etc.
-                num_threads = 5
+                num_threads = 20
             elif gpu_ram > 14: # T4, P100
-                num_threads = 3
+                num_threads = 8
             elif gpu_ram > 6: # Smaller GPUs
-                num_threads = 2
+                num_threads = 4
             else:
-                num_threads = 1
+                num_threads = 2
         else:
             print("⚠️  Server has no GPU, defaulting to CPU-based threading")
-            num_threads = 1
+            server_cpu_cores = server_info.get("cpu_cores", cpu_cores)
+            num_threads = min(1, server_cpu_cores // 8 if server_cpu_cores > 8 else 1)
     except requests.exceptions.RequestException as e:
         print(f"❌ Could not connect to server at {SERVER_BASE_URL}. Defaulting to CPU-based thread count.")
         print(f"   Error: {e}")
@@ -81,7 +85,7 @@ def get_system_config():
     else:
         chunk_multiplier = 1  # Low-RAM machine
 
-    chunk_size = min(10, CHUNK_SIZE * chunk_multiplier * cpu_cores)
+    chunk_size = min(10000, CHUNK_SIZE * chunk_multiplier * cpu_cores)
     print(f"⚙️  Configuration: NUM_THREADS={num_threads}, CHUNK_SIZE={chunk_size}")
     return num_threads, chunk_size
 
@@ -190,12 +194,23 @@ def get_matches(url):
         return []
     data = pd.DataFrame([result], columns=columns)    
     try:
-        # Load the matches, an array
+        # Load the matches, which is now a dictionary from colab.py
         categorized_matches = json.loads(data.matches.iloc[0])
-        if isinstance(categorized_matches, list):
-            return categorized_matches
+
+        # Flatten the dictionary of lists into a single list of sentences
+        # Ensure it's a dictionary before trying to iterate over its values
+        if isinstance(categorized_matches, dict):
+            flattened_sentences = []
+            for category_sentences in categorized_matches.values():
+                if isinstance(category_sentences, list): # Ensure the value is a list
+                    flattened_sentences.extend(category_sentences)
+            return flattened_sentences
         else:
-            return [] # Return empty list if it is not a list
+            # Fallback for old format or unexpected data, treat as a list if it is
+            if isinstance(categorized_matches, list):
+                return categorized_matches
+            else:
+                return [] # Return empty list if it's neither a dict nor a list
     except (json.JSONDecodeError, IndexError):
         return []
 
@@ -599,6 +614,21 @@ def process_reports_in_chunks(
 
     return total_results, len(chunks), output_parquet_file
 
+
+# =============================================================================
+# INITIALIZATION
+# =============================================================================
+# %%
+create_db()
+with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+    keyword_data = json.load(f)
+
+# Handle both old and new formats of keywords_find.json
+if isinstance(keyword_data, dict) and "0" in keyword_data:
+    id2label = {int(k): v for k, v in keyword_data.items()}
+else:
+    id2label = {i: label for i, label in enumerate(keyword_data)}
+label2id = {v: k for k, v in id2label.items()}
 
 # =============================================================================
 # MAIN EXECUTION
