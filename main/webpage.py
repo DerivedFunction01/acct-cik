@@ -371,7 +371,7 @@ COMBINED_REGEX = re.compile(r'|'.join([IR_REGEX.pattern, FX_REGEX.pattern, CP_RE
 
 # --- NEW: Regex for matching only base derivative types, intended for use within tables ---
 TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation(ALL_BASE_TYPES) + r'\b', re.IGNORECASE)
-
+IGNORE_REGEX = re.compile(r'|'.join([r"stock option", r"shares"]),  re.IGNORECASE)
 
 # %%
 # =============================================================================
@@ -775,13 +775,13 @@ def filter_by_keywords(content: str) -> list[str]:
         part = part.strip()
         if not part:
             continue
-
+        lower_part = part.lower()
         # If the part is a table, check it for keywords and add it as a whole chunk.
-        if part.lower().find("<table") != -1:
+        if lower_part.find("<table") != -1 and not IGNORE_REGEX.search(part):
             if COMBINED_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part):
-                if part.lower() not in seen:
+                if lower_part not in seen:
                     filtered.append(part)
-                    seen.add(part.lower())
+                    seen.add(lower_part)
             continue
 
         # If the part is regular text, split it into paragraphs and check each one.
