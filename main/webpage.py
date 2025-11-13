@@ -624,13 +624,8 @@ def extract_content(data: str, asHTML=True) -> str:
         # This simplifies the HTML and prevents styling from interfering
         # with text extraction. We keep 'colspan' and 'rowspan' because
         # they are critical for table structure.
-        # --- NEW: More robustly remove all invisible elements ---
-        # Decompose XBRL hidden sections first, as they contain non-visible data.
-        for element in soup.find_all("ix:hidden"):
-            element.decompose()
-
         # Decompose elements that are not rendered.
-        for element in soup(["head", "script", "style", "title", "meta", "noscript", "ix:header"]):
+        for element in soup(["head", "script", "style", "title", "meta", "noscript", "ix:hidden"]):
             element.decompose()
 
         # Decompose elements that are explicitly hidden via style attributes.
@@ -662,8 +657,12 @@ def extract_content(data: str, asHTML=True) -> str:
                 converter = HTMLTableConverter(grid=rows, title=title)
                 generic_table = converter.to_generic_table()
                 table_text = generic_table.build()
-                # Replace the HTML table with the formatted text block
-                table.replace_with(soup.new_string(table_text))
+                # Replace the HTML table with a <pre> tag containing the
+                # formatted text. This preserves the table's structure and
+                # prevents markdownify from parsing its content.
+                pre_tag = soup.new_tag("pre")
+                pre_tag.string = table_text
+                table.replace_with(pre_tag)
 
         # --- NEW: Convert remaining HTML to Markdown ---
         # This preserves paragraphs, lists, and other formatting, while our
