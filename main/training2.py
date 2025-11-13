@@ -172,6 +172,56 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         print(f"❌ Failed to load data from {data_path}: {e}")
         return
 
+    # Add this function before the run_training function
+
+    def get_target_modules(dataset_size: int) -> list:
+        """
+        Selects target modules for LoRA based on dataset size.
+        Smaller datasets benefit from fewer trainable parameters to prevent overfitting.
+        Larger datasets can utilize more modules for better fine-tuning.
+
+        Dataset size ranges:
+        - < 1K samples: minimal modules (attention layers only)
+        - 1K - 10K samples: core modules (attention + gating)
+        - 10K - 100K samples: standard modules (attention + feed-forward gating)
+        - 100K+ samples: full modules (all attention + feed-forward)
+        """
+
+        if dataset_size < 1000:
+            # Minimal: Only attention layers
+            modules = ["q_proj", "v_proj"]
+            print(
+                f"📊 Small dataset ({dataset_size} samples). Using minimal LoRA modules: {modules}"
+            )
+        elif dataset_size < 10000:
+            # Core: Attention + output
+            modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
+            print(
+                f"📊 Medium dataset ({dataset_size} samples). Using core LoRA modules: {modules}"
+            )
+        elif dataset_size < 50000:
+            # Standard: Attention + gating
+            modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"]
+            print(
+                f"📊 Large dataset ({dataset_size} samples). Using standard LoRA modules: {modules}"
+            )
+        else:
+            # Full: All modules
+            modules = [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ]
+            print(
+                f"📊 Very large dataset ({dataset_size} samples). Using full LoRA modules: {modules}"
+            )
+
+        return modules
+
     # --- Apply LoRA with Unsloth ---
     # Check if the model already has adapters. If so, we continue training them.
     # If not, we add new ones. This prevents the TypeError.
@@ -182,15 +232,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         model = FastLanguageModel.get_peft_model(
             model,
             r=profile["r"],
-            target_modules=[
-                "q_proj",
-                "k_proj",
-                "v_proj",
-                "o_proj",
-                "gate_proj",
-                "up_proj",
-                "down_proj",
-            ],
+            target_modules=get_target_modules(len(dataset)),
             lora_alpha=profile["lora_alpha"],
             lora_dropout=0,
             bias="none",
