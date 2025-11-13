@@ -52,8 +52,9 @@ PACKAGES = [
 
 def get_pip_executable():
     """Returns the path to the pip executable, respecting the venv toggle."""
+    slash = "/" if sys.platform != "win32" else "\\"
     if USE_VENV:
-        return f"{VENV_DIR}/bin/pip"
+        return f"{VENV_DIR}{slash}{"Scripts" if sys.platform == "win32" else "bin"}{slash}pip{".exe" if sys.platform == "win32" else ""}"
     return "pip"
 
 
