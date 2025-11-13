@@ -148,7 +148,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
             if system_msg:
                 messages.append({"role": "system", "content": system_msg})
             messages.append({"role": "user", "content": user_msg})
-            
+
             # The assistant's turn includes the <think> block and the final answer
             think_block = f"<think>\n{think_msg.strip()}\n</think>\n\n"
             assistant_content = f"{think_block}{assistant_msg}"
@@ -207,7 +207,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         steps_per_epoch = math.ceil(num_train_samples / (profile["batch_size"] * profile["gradient_accumulation"]))
         eval_steps = max(100, steps_per_epoch // 2) # Evaluate 2 times per epoch, but at least every 100 steps.
     else:
-        eval_steps = 100 # Default for smaller datasets
+        eval_steps = num_train_samples  # Default for smaller datasets
     print(f"📊 Setting evaluation frequency to every {eval_steps} steps.")
 
     # --- Training Arguments ---
@@ -262,7 +262,6 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
     except Exception as e:
         print(f"Training failed: {e}. Trying to train without resuming.")
         trainer_stats = trainer.train()
-
 
     print("\n--- Training Statistics ---")
     print(f"Training time: {trainer_stats.metrics['train_runtime']:.2f} seconds")
