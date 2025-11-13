@@ -140,6 +140,9 @@ class HTMLTableConverter:
                 if i < num_cols:
                     widths[i] = max(widths[i], len(cell))
 
+        # --- NEW: Ensure a minimum width of 1 for all columns ---
+        widths = [max(1, w) for w in widths]
+
         # Default alignment: left for first column, right for others
         alignments = ['l'] + ['r'] * (num_cols - 1)
         return widths, alignments
@@ -152,7 +155,7 @@ class HTMLTableConverter:
         headers = self.grid[0]
         data_rows = self.grid[1:]
         widths, alignments = self._calculate_widths_and_alignments()
-
+        
         return GenericTable(
             headers=headers,
             data_rows=data_rows,
