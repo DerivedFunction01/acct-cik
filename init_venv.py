@@ -22,6 +22,10 @@ BASE_PACKAGES = [
     # Plotting and interactive
     "matplotlib",
     "IPython",
+    "pandas",
+    #Other
+    "num2words",
+    "tqdm",
 ]
 # Unsloth handles its own dependencies, including PyTorch, Transformers, etc.
 
@@ -52,8 +56,9 @@ PACKAGES = [
 
 def get_pip_executable():
     """Returns the path to the pip executable, respecting the venv toggle."""
+    slash = "/" if sys.platform != "win32" else "\\"
     if USE_VENV:
-        return f"{VENV_DIR}/bin/pip"
+        return f"{VENV_DIR}{slash}{"Scripts" if sys.platform == "win32" else "bin"}{slash}pip{".exe" if sys.platform == "win32" else ""}"
     return "pip"
 
 
@@ -62,7 +67,7 @@ def install_packages(package_list, description):
     print(f"📦 Installing {description}...")
     packages = " ".join(package_list)
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install {packages}"
+    cmd = f"{pip_exec} install --upgrade {packages}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
