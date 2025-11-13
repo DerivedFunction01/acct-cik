@@ -1,4 +1,4 @@
-#%%
+# %%
 import sqlite3
 import pandas as pd
 import json
@@ -58,6 +58,8 @@ def create_dataset(db_path: str, output_path: str, num_samples: int = None):
         webpage_result w
     JOIN
         report_data r ON w.url = r.url
+    WHERE
+        w.matches IS NOT NULL or w.matches != '[]'
     """
 
     print("Fetching data from the database...")
@@ -77,9 +79,13 @@ def create_dataset(db_path: str, output_path: str, num_samples: int = None):
     # Use tqdm for a progress bar during text processing
     tqdm.pandas(desc="Merging text snippets")
     df["merged_text"] = df["matches"].progress_apply(merge_text)
+    df["user"] = df.apply(lambda row: f"Text({row['year']}):\n{row['merged_text']}", axis=1)
+    df["assistant"] = ""
+    df["system"] = ""
+    df["think"] = ""
 
     # Drop the original 'matches' column as it's no longer needed
-    df = df.drop(columns=["matches"])
+    df = df.drop(columns=["matches", "merged_text", "year", "cik", "url"])
 
     print(f"Saving {len(df)} processed records to {output_path}...")
     df.to_parquet(output_path, index=False)
