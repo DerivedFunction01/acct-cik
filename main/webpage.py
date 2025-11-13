@@ -371,7 +371,7 @@ COMBINED_REGEX = re.compile(r'|'.join([IR_REGEX.pattern, FX_REGEX.pattern, CP_RE
 
 # --- NEW: Regex for matching only base derivative types, intended for use within tables ---
 TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation(ALL_BASE_TYPES) + r'\b', re.IGNORECASE)
-IGNORE_REGEX = re.compile(r'|'.join([r"stock option", r"shares"]),  re.IGNORECASE)
+IGNORE_REGEX = re.compile(r'|'.join([r"stock option", r"shares", r"excercise"]),  re.IGNORECASE)
 
 # %%
 # =============================================================================
