@@ -792,7 +792,7 @@ def filter_by_keywords(content: str) -> list[str]:
             if not para or len(para) < 30:  # Skip very short paragraphs
                 continue
 
-            if COMBINED_REGEX.search(para):
+            if COMBINED_REGEX.search(para) and not IGNORE_REGEX.search(para):
                 para_lower = para.lower()
                 if para_lower not in seen:
                     filtered.append(para)
