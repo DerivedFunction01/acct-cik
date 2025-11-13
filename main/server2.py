@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 # --- CONFIGURATION ---
-MODEL_PATH = "Qwen3-1.7B-finance-base"
+MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives"
 MAX_SEQ_LENGTH = 32768
 
 # --- Recommended generation parameters ---
