@@ -8,7 +8,7 @@ from tqdm import tqdm
 # CONFIGURATION
 # =============================================================================
 DB_PATH = "web_data.db"
-DEFAULT_OUTPUT_PATH = "processed_filings.parquet"
+DEFAULT_OUTPUT_PATH = "processed_filings.xlsx"
 
 
 def merge_text(matches_json: str) -> str:
@@ -88,7 +88,7 @@ def create_dataset(db_path: str, output_path: str, num_samples: int = None):
     df = df.drop(columns=["matches", "merged_text", "year", "cik", "url"])
 
     print(f"Saving {len(df)} processed records to {output_path}...")
-    df.to_parquet(output_path, index=False)
+    df.to_excel(output_path, index=False)
     print("✅ Dataset creation complete.")
 
 
