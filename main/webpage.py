@@ -369,6 +369,9 @@ GEN_REGEX = build_gen_regex()
 # combined regex combines all of the regex
 COMBINED_REGEX = re.compile(r'|'.join([IR_REGEX.pattern, FX_REGEX.pattern, CP_REGEX.pattern, EQ_REGEX.pattern, GEN_REGEX.pattern]), re.IGNORECASE)
 
+# --- NEW: Regex for matching only base derivative types, intended for use within tables ---
+TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation(ALL_BASE_TYPES) + r'\b', re.IGNORECASE)
+
 
 # %%
 # =============================================================================
@@ -775,7 +778,7 @@ def filter_by_keywords(content: str) -> list[str]:
 
         # If the part is a table, check it for keywords and add it as a whole chunk.
         if part.lower().startswith("<table"):
-            if COMBINED_REGEX.search(part):
+            if COMBINED_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part):
                 if part.lower() not in seen:
                     filtered.append(part)
                     seen.add(part.lower())
