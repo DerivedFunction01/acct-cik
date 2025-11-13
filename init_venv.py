@@ -31,10 +31,10 @@ unsloth_package = "git+https://github.com/unslothai/unsloth.git"
 # Check for Windows and adjust extras
 if sys.platform == "win32":
     # Use the windows-specific extra for Unsloth
-    unsloth_install = f"unsloth[windows] @ {unsloth_package}"
+    unsloth_install = f"unsloth[windows] {unsloth_package}"
 else:
     # Default to the colab-new extra for Linux/WSL/Mac
-    unsloth_install = f"unsloth[colab-new] @ {unsloth_package}"
+    unsloth_install = f"unsloth[colab-new] {unsloth_package}"
 
 PACKAGES = [
     # Core ML and data handling
