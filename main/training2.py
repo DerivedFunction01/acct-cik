@@ -120,7 +120,12 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=model_name,
             max_seq_length=profile["max_seq_length"],
-            load_in_8bit=profile["load_in_8bit"],  # Use 4bit quantization based on profile
+            load_in_4bit=(
+                not profile["load_in_8bit"]
+            ),  # Use 8bit quantization based on profile
+            load_in_8bit=profile[
+                "load_in_8bit"
+            ],  # Use 4bit quantization based on profile
         )
     except Exception as e:
         print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
