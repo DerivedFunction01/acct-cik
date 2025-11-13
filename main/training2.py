@@ -235,7 +235,6 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         load_best_model_at_end=True,  # Load the best model at the end of training
         eval_strategy="steps",
         eval_steps=eval_steps,  # Use the dynamically calculated value
-        report_to="tensorboard",
         push_to_hub=IS_AUTHENTICATED,  # Let the Trainer handle pushing
         hub_model_id=f"{config['MODEL_USER']}/{new_model_name}",
     )
