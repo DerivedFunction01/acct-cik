@@ -105,11 +105,19 @@ def generate_stream(prompt: str, user_params: dict = None):
     )
     inputs = tokenizer([formatted_prompt], return_tensors="pt").to(device)
 
+    # --- FIX: Explicitly set the EOS token to '</think>' ---
+    # This forces the model to complete the thinking process and prevents
+    # it from stopping prematurely if it generates an <|im_end|> token
+    # inside the <think> block.
+    eos_token = "</think>"
+    eos_token_id = tokenizer.convert_tokens_to_ids(eos_token)
+
     gen_kwargs = dict(
         inputs,
         streamer=streamer,
         pad_token_id=tokenizer.eos_token_id,
-        eos_token_id=tokenizer.eos_token_id,
+        # Use the ID for '</think>' as the stopping point.
+        eos_token_id=eos_token_id,
         **params,
     )
     thread = Thread(target=model.generate, kwargs=gen_kwargs)
