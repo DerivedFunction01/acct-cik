@@ -259,7 +259,7 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
     print(f"\nStarting training for {num_epochs} epochs...")
     print("🚀 Unsloth provides 2-5x faster training and 60% less memory usage!")
     try:
-        checkpoint_exists = Path(new_model_name).exists()
+        checkpoint_exists = input("Resume from checkpoint? [y/N]: ").strip().lower() == 'y'
         if checkpoint_exists:
             print("Checkpoint found. Resuming training from checkpoint...")
         trainer_stats = trainer.train(resume_from_checkpoint=checkpoint_exists)
