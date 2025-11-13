@@ -777,7 +777,7 @@ def filter_by_keywords(content: str) -> list[str]:
             continue
 
         # If the part is a table, check it for keywords and add it as a whole chunk.
-        if part.lower().startswith("<table"):
+        if part.lower().find("<table") != -1:
             if COMBINED_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part):
                 if part.lower() not in seen:
                     filtered.append(part)
