@@ -50,7 +50,7 @@ TRAINING_PROFILES = {
         "batch_size": 6,
         "gradient_accumulation": 4,
         "max_seq_length": 32768,
-        "load_in_8bit": True,
+        "load_in_4bit": True,
     },
     "2": {
         "name": "L4 / Pro (>= 20 GB)",
@@ -59,7 +59,7 @@ TRAINING_PROFILES = {
         "batch_size": 4,
         "gradient_accumulation": 4,
         "max_seq_length": 32768,
-        "load_in_8bit": True,
+        "load_in_4bit": True,
     },
     "3": {
         "name": "High VRAM / Colab (>= 12GB)",
@@ -68,7 +68,7 @@ TRAINING_PROFILES = {
         "batch_size": 2,
         "gradient_accumulation": 4,
         "max_seq_length": 32768,
-        "load_in_8bit": True,
+        "load_in_4bit": True,
     },
     "4": {
         "name": "Low VRAM (6-12GB)",
@@ -77,7 +77,7 @@ TRAINING_PROFILES = {
         "batch_size": 1, # Keep batch size at 1 for low VRAM
         "gradient_accumulation": 8, # Increase gradient accumulation
         "max_seq_length": 32768,
-        "load_in_8bit": True,
+        "load_in_4bit": True,
     },
     "5": {
         "name": "CPU / Low RAM (< 6GB)",
@@ -86,7 +86,7 @@ TRAINING_PROFILES = {
         "batch_size": 1, # Keep batch size at 1 for CPU
         "gradient_accumulation": 16, # Significantly increase gradient accumulation
         "max_seq_length": 32768,
-        "load_in_8bit": True,
+        "load_in_4bit": True,
     },
 }
 
@@ -120,9 +120,8 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=model_name,
             max_seq_length=profile["max_seq_length"],
-            load_in_4bit=False,  # Use 8bit quantization based on profile
-            load_in_8bit=profile[
-                "load_in_8bit"
+            load_in_4bit=profile[
+                "load_in_4bit"
             ],  # Use 4bit quantization based on profile
         )
     except Exception as e:
@@ -222,8 +221,8 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         warmup_steps=50,
         learning_rate=2e-4,
         max_grad_norm=0.3,  # Helps with training stability.
-        fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
+        fp16=not torch.cuda.is_bf16_supported(),
         logging_steps=10,  # Log every 10 steps
         optim="adamw_8bit",  # Unsloth optimized optimizer
         weight_decay=0.01,
@@ -236,9 +235,10 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         eval_strategy="steps",
         eval_steps=eval_steps,  # Use the dynamically calculated value
         push_to_hub=IS_AUTHENTICATED,  # Let the Trainer handle pushing
+        report_to="tensorboard",
         hub_model_id=f"{config['MODEL_USER']}/{new_model_name}",
     )
-        # --- Post-init cleanup ---
+    # --- Post-init cleanup ---
     # Clean model config to remove any non-serializable objects (like functions)
     # that might have been added during trainer initialization.
     # This prevents JSON serialization errors during training logging.
@@ -260,7 +260,6 @@ def run_training(profile: dict, model_name: str, data_path: str, new_model_name:
         packing=False,  # Pack short sequences for faster training
         args=training_args,
     )
-
 
     # --- Train and Save ---
     print(f"\nStarting training for {num_epochs} epochs...")
@@ -346,7 +345,7 @@ def run_manual_test():
             model_name=model_to_load, # Use the determined model name
             max_seq_length=config["MAX_SEQ_LENGTH"],
             dtype=None,
-            load_in_8bit=True,
+            load_in_4bit=True,
         )
     except Exception as e:
         print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
