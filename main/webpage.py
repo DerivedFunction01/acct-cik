@@ -694,7 +694,7 @@ def extract_content(data: str, asHTML=True) -> str:
             else:  # This is regular text
                 # Process paragraphs to handle line wraps
                 paragraphs = part.split('\n\n')
-                processed_paragraphs = [WRAPPED_LINE_PATTERN.sub(' ', p).strip() for p in paragraphs]
+                processed_paragraphs = [WRAPPED_LINE_PATTERN.sub(' ', p).strip() for p in paragraphs if p.strip()]
                 processed_parts.append('\n\n'.join(p for p in processed_paragraphs if p))
 
         # Join all parts back together
