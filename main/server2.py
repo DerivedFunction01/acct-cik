@@ -18,7 +18,7 @@ MAX_SEQ_LENGTH = 32768
 # --- Recommended generation parameters ---
 THINKING_PARAMS = {
     "do_sample": True,
-    "temperature": 0.6,
+    "temperature": 0.55,
     "top_p": 0.95,
     "top_k": 20,
     "min_p": 0.0,
