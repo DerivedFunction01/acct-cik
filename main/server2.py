@@ -6,8 +6,8 @@ import os
 from threading import Thread
 
 try:
+    import unsloth
     from unsloth import FastLanguageModel
-
     USE_UNSLOTH = True
     print("✅ Unsloth found. Using Unsloth for model loading.")
 except ImportError:
