@@ -162,7 +162,7 @@ def generate_stream(prompt: str, user_params: dict = None):
     global is_busy
 
     streamer = TextIteratorStreamer(
-        tokenizer, skip_prompt=True, skip_special_tokens=True, timeout=2.0
+        tokenizer, skip_prompt=True, skip_special_tokens=True, max_new_tokens=10
     )
 
     if user_params is None:
