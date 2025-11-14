@@ -27,7 +27,7 @@ REPORT_CSV_PATH = "./report_data.csv"
 SERVER_BASE_URL = "http://127.0.0.1:5000"
 DEBUG = False  # Debug printing
 CHUNK_SIZE = 20  # Base chunk size, will be adjusted based on RAM
-TEXT_SIZE = 3000  # Maximum number of chars a select text (the model will perform deep reasoning, and we want to prevent attention dropoff)
+TEXT_SIZE = 4000  # Default text size, will be dynamically adjusted based on server config.
 
 # =============================================================================
 # COLAB CONFIGURATION
@@ -42,6 +42,7 @@ def get_system_config():
     """Auto-detects client and server capabilities to set configuration."""
     cpu_cores = mp.cpu_count()
     client_ram_gb = psutil.virtual_memory().total / (1024**3)
+    text_size = TEXT_SIZE # Start with the default
 
     print(f"🖥️  Client System: {cpu_cores} CPU cores, {client_ram_gb:.2f} GB RAM")
 
@@ -51,6 +52,13 @@ def get_system_config():
         response = requests.get(info_url, timeout=5)
         response.raise_for_status()
         server_info = response.json()
+
+        # Dynamically set TEXT_SIZE based on server's max_seq_length
+        server_max_len = server_info.get("max_seq_length")
+        if server_max_len:
+            # Set our text size to be slightly less than the server's max to leave room for prompts/tokens
+            text_size = int(server_max_len * 0.95)
+            print(f"✅ Server max sequence length is {server_max_len}. Adjusting TEXT_SIZE to {text_size}.")
 
         if server_info.get("gpu_available"):
             gpu_ram = server_info.get("total_ram_gb", 0)
@@ -82,10 +90,10 @@ def get_system_config():
         chunk_multiplier = 1  # Low-RAM machine
 
     chunk_size = min(10, CHUNK_SIZE * chunk_multiplier * cpu_cores)
-    print(f"⚙️  Configuration: NUM_THREADS={num_threads}, CHUNK_SIZE={chunk_size}")
-    return num_threads, chunk_size
+    print(f"⚙️  Configuration: NUM_THREADS={num_threads}, CHUNK_SIZE={chunk_size}, TEXT_SIZE={text_size}")
+    return num_threads, chunk_size, text_size
 
-NUM_THREADS, CHUNK_SIZE = get_system_config()
+NUM_THREADS, CHUNK_SIZE, TEXT_SIZE = get_system_config()
 
 if IS_COLAB:
     print("Running in Google Colab environment")

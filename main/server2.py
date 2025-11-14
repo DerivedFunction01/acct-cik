@@ -23,8 +23,8 @@ CORS(app)
 
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
-MAX_SEQ_LENGTH = 32768
-
+MAX_SEQ_LENGTH = 32768 # How many tokens the entire conversation should hold (reasoning may take up the majority)
+TEXT_SIZE = MAX_SEQ_LENGTH // 4 # A good estimate of how much text should use
 # --- Recommended generation parameters ---
 THINKING_PARAMS = {
     "do_sample": True,
@@ -47,7 +47,7 @@ SYS_PROMPT_FILE = "sys_prompt_regular.md"
 SYSTEM_PROMPT = ""
 if os.path.exists(SYS_PROMPT_FILE):
     with open(SYS_PROMPT_FILE, "r") as f:
-        SYSTEM_PROMPT = f.read()
+        SYSTEM_PROMPT = f.read() # Sys prompt is around 3000 chars
 
 # --- Dynamic Hardware Detection ---
 def get_hardware_config():
@@ -190,7 +190,7 @@ def generate_stream_endpoint():
 @app.route("/info", methods=["GET"])
 def info_endpoint():
     """Endpoint for server info and hardware details."""
-    info = {"device": str(device)}
+    info = {"device": str(device), "max_seq_length": TEXT_SIZE}
     if is_gpu:
         prop = torch.cuda.get_device_properties(0)
         info.update(
