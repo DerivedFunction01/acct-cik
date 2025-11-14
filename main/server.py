@@ -270,7 +270,7 @@ async def info_endpoint():
     """Endpoint for server info and hardware details."""
     info_dict = {
         "device": str(device),
-        "max_seq_length": MAX_SEQ_LENGTH,
+        "max_seq_length": TEXT_SIZE,
         "gpu_available": is_gpu,
     }
 
