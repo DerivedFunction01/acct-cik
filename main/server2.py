@@ -114,19 +114,6 @@ def get_gen_params(user_params: dict = None, enable_thinking: bool = True) -> di
     return params
 
 
-def generate_response(prompt: str, user_params: dict = None) -> dict:
-    """
-    Generates a complete JSON response by consuming the token stream from `generate_stream`.
-    """
-    # Consume the generator to get the full response string.
-    full_response = "".join(token for token in generate_stream(prompt, user_params))
-    try:
-        # The stream is already the clean assistant output, so we can parse it directly.
-        return json.loads(full_response)
-    except Exception as e:
-        return {"error": "JSON parse failed", "raw": full_response, "exception": str(e)}
-
-
 def generate_stream(prompt: str, user_params: dict = None):
     """Streams tokens from model generation with optional thinking mode."""
     streamer = TextIteratorStreamer(
