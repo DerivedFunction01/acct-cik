@@ -167,7 +167,7 @@ def generate_stream(prompt: str, user_params: dict = None):
 
     enable_thinking = user_params_copy.pop("enable_thinking", True)
     system_prompt = user_params_copy.pop("system_prompt", SYSTEM_PROMPT)
-    params = get_gen_params(user_params, enable_thinking=enable_thinking)
+    params = get_gen_params(user_params_copy, enable_thinking=enable_thinking)
 
     while attempt < max_retries:
         attempt += 1
