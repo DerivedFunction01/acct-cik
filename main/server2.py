@@ -90,6 +90,7 @@ else:
         quantization_config=quantization_config,
         dtype=torch.float16,
     )
+    model.eval()
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 
 print(
