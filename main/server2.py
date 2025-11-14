@@ -27,9 +27,9 @@ CORS(app)
 MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
 MAX_SEQ_LENGTH = 32768 
 TEXT_SIZE = MAX_SEQ_LENGTH // 8
-
+#  DO NOT use greedy decoding, as it can lead to performance degradation and endless repetitions.
 THINKING_PARAMS = {
-    "temperature": 0.6,
+    "temperature": 0.60,
     "top_p": 0.95,
     "top_k": 20,
     "min_p": 0.0,
