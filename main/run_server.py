@@ -217,6 +217,21 @@ def check_uvicorn():
 
     return False
 
+def check_waitress():
+    """Checks if waitress is installed, which is needed for Windows."""
+    if shutil.which("waitress-serve") is not None:
+        return True
+
+    print("⚠️  'waitress-serve' command not found.")
+    install_prompt = (
+        input("   It's needed for Windows support. Install it now? (pip install waitress) [y/N]: ")
+        .lower()
+        .strip()
+    )
+    if install_prompt == "y":
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "waitress"])
+        return shutil.which("waitress-serve") is not None
+    return False
 
 def is_windows():
     """Check if the operating system is Windows."""
@@ -393,7 +408,36 @@ def interactive_config_editor(num_processes, threads_per_process, gpu_ram_gb):
 def start_servers():
     """Starts the Gunicorn and Nginx servers."""
     if is_windows():
-        print("ℹ️  Windows support would go here (simplified for now)")
+        print(
+            "ℹ️  Windows detected. Using 'waitress' server instead of Gunicorn/Nginx."
+        )
+        if not check_waitress():
+            print("❌ Cannot start server on Windows without 'waitress'.")
+            return
+
+        # Get system info for caching and display
+        model_available = pre_download_model()
+        gpu_ram_gb = get_gpu_ram()
+        save_cache(model_available, gpu_ram_gb)
+
+        # On Windows, we run a single server process.
+        # The server.py script itself will detect the GPU and use it if available.
+        print(f"🚀 Starting server with waitress on http://127.0.0.1:{NGINX_PORT}")
+        print("   The server will automatically use the GPU if it is available.")
+        print("   To stop the server, press Ctrl+C in this window.")
+
+        # Command to run the waitress server
+        waitress_cmd = (
+            f"waitress-serve --host 127.0.0.1 --port {NGINX_PORT} {SERVER_SCRIPT}"
+        )
+
+        try:
+            # Run the server in the foreground
+            subprocess.run(waitress_cmd.split())
+        except KeyboardInterrupt:
+            print("\n✅ Server stopped by user.")
+        except Exception as e:
+            print(f"❌ An error occurred while running the waitress server: {e}")
         return
 
     # Check dependencies
