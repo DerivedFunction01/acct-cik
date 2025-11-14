@@ -95,20 +95,14 @@ def get_hardware_config():
     if torch.cuda.is_available():
         vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         print(f"✅ GPU detected with {vram_gb:.2f} GB VRAM.")
-        if vram_gb > 20:
-            batch_size = 4
-        elif vram_gb > 14:
-            batch_size = 3
-        else:
-            batch_size = 2
         load_in_4bit = vram_gb < 20
-        return torch.device("cuda"), True, batch_size, load_in_4bit
+        return torch.device("cuda"), True, load_in_4bit
     else:
         print("⚠️ No GPU detected. Running on CPU.")
-        return torch.device("cpu"), False, 1, False
+        return torch.device("cpu"), False, False
 
 
-device, is_gpu, BATCH_SIZE, load_in_4bit = get_hardware_config()
+device, is_gpu, load_in_4bit = get_hardware_config()
 
 # --- Load model ---
 print(f"Loading model from {MODEL_PATH}...")
@@ -136,7 +130,6 @@ else:
     print("✅ Standard transformers model loaded.")
 
 print(
-    f"✅ Model loaded. Server configured with BATCH_SIZE = {BATCH_SIZE}, "
     f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}"
 )
 
