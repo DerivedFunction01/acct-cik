@@ -191,13 +191,14 @@ def get_pip_executable():
         return f"{VENV_DIR}/bin/pip"
 
 
-def install_packages(package_list, description, no_deps=False):
+def install_packages(package_list, description, no_deps=False, upgrade=False):
     """Install a list of packages"""
     print(f"📦 Installing {description}...")
     packages = " ".join(package_list)
     pip_exec = get_pip_executable()
     no_deps_flag = "--no-deps" if no_deps else ""
-    cmd = f"{pip_exec} install {UPGRADE} {no_deps_flag} {packages}"
+    upgrade_flag = "--upgrade" if upgrade else ""
+    cmd = f"{pip_exec} install {upgrade_flag} {no_deps_flag} {packages}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -212,7 +213,7 @@ def install_pytorch():
     print(f"📦 Installing PyTorch...")
     torch_cmd = get_pytorch_install_cmd()
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install {UPGRADE} {torch_cmd}"
+    cmd = f"{pip_exec} install --upgrade {torch_cmd}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -353,16 +354,20 @@ def main():
         choice = input("\nEnter your choice (0-3): ").strip()
         if choice == "0":
             print("\nBasic setup starting...")
-            install_packages(BASE_PACKAGES, "base packages")
+            install_packages(BASE_PACKAGES, "base packages", upgrade=False)
             print("\n✅ Basic setup complete!")
             exit(0)
         elif choice == "1":
             print("\nFull setup starting...")
             install_pytorch()
             print("\n📦 Installing ML dependencies (protecting PyTorch)...")
-            install_packages(ML_DEPENDENCIES, "ML dependencies", no_deps=False)
-            install_packages(ML_PACKAGES_BASE, "ML and Unsloth packages", no_deps=True)
-            install_packages(BASE_PACKAGES, "base packages")
+            install_packages(
+                ML_DEPENDENCIES, "ML dependencies", no_deps=False, upgrade=False
+            )
+            install_packages(
+                ML_PACKAGES_BASE, "ML and Unsloth packages", no_deps=True, upgrade=False
+            )
+            install_packages(BASE_PACKAGES, "base packages", upgrade=False)
             print("\n✅ Environment setup complete!")
             print(
                 "🔒 PyTorch has been locked and protected from modification by other packages."
