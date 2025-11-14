@@ -7,7 +7,7 @@ import json
 import multiprocessing as mp
 import os
 from threading import Thread, Lock
-import asyncio
+import time
 
 try:
     import unsloth
@@ -152,76 +152,115 @@ def get_gen_params(user_params: dict = None, enable_thinking: bool = True) -> di
 def generate_stream(prompt: str, user_params: dict = None):
     """Streams tokens from model generation with optional thinking mode."""
     global is_busy
-
+    max_retries = 3
+    attempt = 0
+    current_prompt = prompt
+    full_response = ""
     streamer = TextIteratorStreamer(
         tokenizer, skip_prompt=True, skip_special_tokens=True, timeout=2.0
     )
 
     if user_params is None:
-        user_params = {}
+        user_params_copy = {}
     else:
-        user_params = user_params.copy()
+        user_params_copy = user_params.copy()
 
-    enable_thinking = user_params.pop("enable_thinking", True)
-    system_prompt = user_params.pop("system_prompt", SYSTEM_PROMPT)
+    enable_thinking = user_params_copy.pop("enable_thinking", True)
+    system_prompt = user_params_copy.pop("system_prompt", SYSTEM_PROMPT)
     params = get_gen_params(user_params, enable_thinking=enable_thinking)
 
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
+    while attempt < max_retries:
+        attempt += 1
+        # On subsequent attempts, the prompt is the continued generation
+        is_continuation = attempt > 1
 
-    try:
-        formatted_prompt = tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=enable_thinking,
-        )
-    except TypeError:
-        formatted_prompt = tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
+        messages = []
+        if system_prompt and not is_continuation:
+            messages.append({"role": "system", "content": system_prompt})
+        if not is_continuation:
+            messages.append({"role": "user", "content": current_prompt})
 
-    inputs = tokenizer([formatted_prompt], return_tensors="pt")
-    token_count = inputs["input_ids"].shape[1]
+        try:
+            if is_continuation:
+                # For retries, the prompt is the raw, incomplete output from the previous step.
+                # We don't apply the chat template again.
+                formatted_prompt = current_prompt
+            else:
+                try:
+                    formatted_prompt = tokenizer.apply_chat_template(
+                        messages,
+                        tokenize=False,
+                        add_generation_prompt=True,
+                        enable_thinking=enable_thinking,
+                    )
+                except TypeError:
+                    formatted_prompt = tokenizer.apply_chat_template(
+                        messages,
+                        tokenize=False,
+                        add_generation_prompt=True,
+                    )
 
-    if token_count > MAX_SEQ_LENGTH:
-        yield json.dumps(
-            {"error": f"Input too long: {token_count} tokens > {MAX_SEQ_LENGTH} max"}
-        )
-        return
+            inputs = tokenizer([formatted_prompt], return_tensors="pt")
+            token_count = inputs["input_ids"].shape[1]
 
-    inputs = inputs.to(device)
-    eos_token_ids = [tokenizer.eos_token_id]
+            if token_count > MAX_SEQ_LENGTH:
+                yield json.dumps(
+                    {"error": f"Input too long: {token_count} tokens > {MAX_SEQ_LENGTH} max"}
+                )
+                return
 
-    gen_kwargs = {
-        **inputs,
-        "streamer": streamer,
-        "pad_token_id": tokenizer.eos_token_id,
-        "eos_token_id": eos_token_ids,
-        **params,
-    }
+            inputs = inputs.to(device)
+            eos_token_ids = [tokenizer.eos_token_id]
 
-    # Mark as busy
-    with busy_lock:
-        is_busy = True
+            gen_kwargs = {
+                **inputs,
+                "streamer": streamer,
+                "pad_token_id": tokenizer.eos_token_id,
+                "eos_token_id": eos_token_ids,
+                **params,
+            }
 
-    try:
-        thread = Thread(target=model.generate, kwargs=gen_kwargs)
-        thread.start()
+            with busy_lock:
+                is_busy = True
 
-        for token in streamer:
-            print(token, end="", flush=True)
-            yield token
+            thread = Thread(target=model.generate, kwargs=gen_kwargs)
+            thread.start()
 
-        thread.join()
-    finally:
-        # Mark as idle after generation completes
-        with busy_lock:
-            is_busy = False
+            for token in streamer:
+                print(token, end="", flush=True)
+                full_response += token
+                yield token
+
+            thread.join()
+
+            # If thinking is enabled and we have the closing tag, we're done.
+            if enable_thinking and "</think>" in full_response:
+                break  # Success, exit retry loop
+            # If thinking is not enabled, one attempt is all we do.
+            elif not enable_thinking:
+                break
+
+            # If we're here, it means the generation was incomplete.
+            # Prepare for the next attempt by creating a continuation prompt.
+            print(f"\n[WARNING] Incomplete generation (attempt {attempt}/{max_retries}). Continuing generation...")
+            current_prompt = full_response + "</think>"
+            # We also need to yield the closing tag so the client sees it.
+            yield "</think>"
+
+        except Exception as e:
+            print(f"\n[ERROR] Generation failed on attempt {attempt}: {e}")
+            if attempt >= max_retries:
+                yield json.dumps({"error": "Generation failed after multiple retries.", "details": str(e)})
+                break
+            # Wait a moment before retrying on an exception
+            time.sleep(1)
+        finally:
+            with busy_lock:
+                is_busy = False
+
+    # Final check after all retries are exhausted
+    if enable_thinking and "</think>" not in full_response and attempt >= max_retries:
+        print(f"\n[ERROR] Generation failed to complete with </think> after {max_retries} attempts.")
 
 
 @app.post("/generate-stream")

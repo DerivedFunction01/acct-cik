@@ -57,7 +57,7 @@ def get_system_config():
 
         server_max_len = server_info.get("max_seq_length")
         if server_max_len:
-            text_size = int(server_max_len//6)
+            text_size = int(server_max_len//7)
             print(
                 f"✅ Server max sequence length is {server_max_len}. TEXT_SIZE set to {text_size}."
             )
