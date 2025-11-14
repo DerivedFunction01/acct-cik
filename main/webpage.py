@@ -26,7 +26,7 @@ import multiprocessing as mp
 import psutil
 from pathlib import Path
 import threading
-from markdownify import markdownify
+import html2text
 from defs.table_definitions import HTMLTableConverter, GenericTable
 
 # Importing required module
@@ -612,10 +612,11 @@ def normalize_unicode(text: str) -> str:
     # NFKD form decomposes compatibility characters into their base characters.
     return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8', 'ignore')
 
+
 def extract_content(data: str, asHTML=True) -> str:
     """
-    Extract content with minimal cleanup.
-    Preserves paragraphs, formatting, structure.
+    Extract content using html2text for better recursion handling.
+    Preserves tables and structure without deep recursion issues.
     """
     if not data:
         return ""
@@ -623,97 +624,92 @@ def extract_content(data: str, asHTML=True) -> str:
     if asHTML:
         soup = BeautifulSoup(data, "html.parser")
 
-        # --- NEW: Strip attributes from all tags ---
-        # This simplifies the HTML and prevents styling from interfering
-        # with text extraction. We keep 'colspan' and 'rowspan' because
-        # they are critical for table structure.
-        # Decompose elements that are not rendered.
-        for element in soup(["head", "script", "style", "title", "meta", "noscript", "ix:hidden"]):
+        # Decompose hidden elements
+        for element in soup(
+            ["head", "script", "style", "title", "meta", "noscript", "ix:hidden"]
+        ):
             element.decompose()
 
-        # Decompose elements that are explicitly hidden via style attributes.
-        for element in soup.find_all(style=re.compile(r"display:\s*none|visibility:\s*hidden", re.IGNORECASE)):
+        for element in soup.find_all(
+            style=re.compile(r"display:\s*none|visibility:\s*hidden", re.IGNORECASE)
+        ):
             element.decompose()
 
-        # Extract and convert HTML tables to SEC-style text
-        # This must happen *before* stripping other attributes to allow
-        # pandas to parse the table correctly.
+        # Process tables FIRST before converting to text
+        # This preserves SEC-style formatted tables
         tables = soup.find_all("table")
         for table in tables:
-            title = "Financial Table"  # Default title
-            # Try to find the previous sibling paragraph to use as a title
+            title = "Financial Table"
             prev_sibling = table.find_previous_sibling()
-            # Fallback to caption if no previous paragraph is found
             if table.caption:
                 title = table.caption.get_text(strip=True)
-            elif prev_sibling and prev_sibling.name == 'p':
+            elif prev_sibling and prev_sibling.name == "p":
                 title = prev_sibling.get_text(strip=True)
 
             try:
-                # First, try the high-fidelity pandas parser
-                df = pd.read_html(StringIO(str(table)), flavor='bs4')[0]
+                df = pd.read_html(StringIO(str(table)), flavor="bs4")[0]
                 rows = [df.columns.tolist()] + df.astype(str).values.tolist()
             except Exception:
-                # Fallback: If pandas fails, use a more lenient BeautifulSoup-based extraction
                 rows = []
-                for tr in table.find_all('tr'):
-                    row = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
+                for tr in table.find_all("tr"):
+                    row = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
                     rows.append(row)
-            except:
-                rows = []
 
             if rows:
-                # Use the new converter to build a GenericTable and then the text output
                 converter = HTMLTableConverter(grid=rows, title=title)
                 generic_table = converter.to_generic_table()
                 table_text = generic_table.build()
-                # Replace the HTML table with a <pre> tag containing the
-                # formatted text. This preserves the table's structure and
-                # prevents markdownify from parsing its content.
                 pre_tag = soup.new_tag("pre")
                 pre_tag.string = table_text
                 table.replace_with(pre_tag)
 
-        # --- NEW: Convert remaining HTML to Markdown ---
-        # This preserves paragraphs, lists, and other formatting, while our
-        # custom-formatted tables (which are now plain text) are passed through untouched.
-        # Convert soup to string *carefully* to avoid excessive nesting,
-        # then pass to markdownify with a try-except for recursion errors.
+        # Use html2text to convert remaining HTML to text
+        # This handles complex nested structures without recursion issues
+        h = html2text.HTML2Text()
+        h.ignore_links = True
+        h.ignore_images = True
+        h.ignore_emphasis = False  # Keep bold/italic formatting
+        h.body_width = 0  # Don't wrap text
+        h.unicode_snob = True  # Use unicode characters
+
         try:
             soup_str = str(soup)
-            text = markdownify(soup_str, strip=['a', 'img'], heading_style="ATX")
-        except RecursionError:
-            # Fallback: If markdownify hits recursion limit, use simple text extraction
-            print(f"⚠️  RecursionError in markdownify - using fallback text extraction")
-            text = soup.get_text(separator='\n', strip=True)
+            text = h.handle(soup_str)
+        except Exception as e:
+            print(f"⚠️  html2text conversion failed: {e}")
+            # Fallback to simple text extraction
+            text = soup.get_text(separator="\n", strip=True)
 
     else:
-        # For plain text documents, we need to handle wrapped lines but preserve table structures.
-        # We can split the document by table blocks, process the text outside of them,
-        # and then join everything back together.
+        # Plain text processing (unchanged)
         for pattern, replacement in CLEANUP_PATTERNS:
             data = pattern.sub(replacement, data)
         parts = TABLE_SPLIT_PATTERN.split(data)
         processed_parts = []
         for i, part in enumerate(parts):
-            if i % 2 == 1:  # This is a table block
+            if i % 2 == 1:
                 processed_parts.append(part)
-            else:  # This is regular text
-                # Process paragraphs to handle line wraps
-                paragraphs = part.split('\n\n')
-                processed_paragraphs = [WRAPPED_LINE_PATTERN.sub(' ', p).strip() for p in paragraphs if p.strip()]
-                processed_parts.append('\n\n'.join(p for p in processed_paragraphs if p))
+            else:
+                paragraphs = part.split("\n\n")
+                processed_paragraphs = [
+                    WRAPPED_LINE_PATTERN.sub(" ", p).strip()
+                    for p in paragraphs
+                    if p.strip()
+                ]
+                processed_parts.append(
+                    "\n\n".join(p for p in processed_paragraphs if p)
+                )
+        text = "".join(processed_parts)
 
-        # Join all parts back together
-        text = ''.join(processed_parts)
-    # --- NEW: Apply crunched text patterns to the final text incase of a bad merge ---
+    # Apply crunched text patterns
     for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
         text = pattern.sub(replacement, text)
-        
-    # --- FINAL CLEANUP: Normalize any remaining Unicode characters ---
+
+    # Normalize unicode
     text = normalize_unicode(text)
-    
+
     return text
+
 
 def fetch_url(url: str, timeout: int = 10, rate_limiter: Optional["ThreadSafeRateLimiter"] = None) -> str | None:
     global SEC_RATE_LIMIT, SEC_RATE
