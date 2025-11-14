@@ -1,5 +1,8 @@
-from flask import Flask, request, jsonify, Response
-from flask_cors import CORS
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
 import json
 import multiprocessing as mp
 import os
@@ -20,14 +23,24 @@ except ImportError:
 import torch
 from transformers import TextIteratorStreamer
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI(
+    title="Model Server", description="Streaming language model inference API"
+)
+
+# --- CORS Configuration ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
-MAX_SEQ_LENGTH = 32768 
+MAX_SEQ_LENGTH = 32768
 TEXT_SIZE = MAX_SEQ_LENGTH // 8
-#  DO NOT use greedy decoding, as it can lead to performance degradation and endless repetitions.
+# DO NOT use greedy decoding, as it can lead to performance degradation and endless repetitions.
 THINKING_PARAMS = {
     "temperature": 0.60,
     "top_p": 0.95,
@@ -49,6 +62,22 @@ SYSTEM_PROMPT = ""
 if os.path.exists(SYS_PROMPT_FILE):
     with open(SYS_PROMPT_FILE, "r") as f:
         SYSTEM_PROMPT = f.read()
+
+
+# --- Pydantic Models ---
+class GenerateRequest(BaseModel):
+    prompt: str
+    params: Optional[Dict[str, Any]] = None
+
+
+class InfoResponse(BaseModel):
+    device: str
+    max_seq_length: int
+    gpu_available: bool
+    gpu_name: Optional[str] = None
+    total_ram_gb: Optional[float] = None
+    load_in_4bit: Optional[bool] = None
+    cpu_cores: Optional[int] = None
 
 
 # --- Dynamic Hardware Detection ---
@@ -123,12 +152,14 @@ def generate_stream(prompt: str, user_params: dict = None):
     streamer = TextIteratorStreamer(
         tokenizer, skip_prompt=True, skip_special_tokens=True
     )
-    enable_thinking = user_params.pop("enable_thinking", True) if user_params else True
-    system_prompt = (
-        user_params.pop("system_prompt", SYSTEM_PROMPT)
-        if user_params
-        else SYSTEM_PROMPT
-    )
+
+    if user_params is None:
+        user_params = {}
+    else:
+        user_params = user_params.copy()
+
+    enable_thinking = user_params.pop("enable_thinking", True)
+    system_prompt = user_params.pop("system_prompt", SYSTEM_PROMPT)
     params = get_gen_params(user_params, enable_thinking=enable_thinking)
 
     messages = []
@@ -181,39 +212,60 @@ def generate_stream(prompt: str, user_params: dict = None):
         yield token
 
 
-@app.route("/generate-stream", methods=["POST"])
-def generate_stream_endpoint():
+@app.post("/generate-stream")
+async def generate_stream_endpoint(request: GenerateRequest):
     """Endpoint for streaming token generation."""
     try:
-        data = request.json or {}
-        prompt = data.get("prompt", "")
-        if not prompt:
-            return jsonify({"error": "Missing 'prompt'"}), 400
-        params = data.get("params", {})
-        return Response(generate_stream(prompt, params), mimetype="text/plain")
+        if not request.prompt:
+            raise HTTPException(status_code=400, detail="Missing 'prompt'")
+
+        params = request.params or {}
+        return StreamingResponse(
+            generate_stream(request.prompt, params), media_type="text/plain"
+        )
     except Exception as e:
         print(f"ERROR in stream endpoint: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.route("/info", methods=["GET"])
-def info_endpoint():
+@app.get("/info", response_model=InfoResponse)
+async def info_endpoint():
     """Endpoint for server info and hardware details."""
-    info = {"device": str(device), "max_seq_length": MAX_SEQ_LENGTH}
+    info_dict = {
+        "device": str(device),
+        "max_seq_length": MAX_SEQ_LENGTH,
+        "gpu_available": is_gpu,
+    }
+
     if is_gpu:
         prop = torch.cuda.get_device_properties(0)
-        info.update(
+        info_dict.update(
             {
-                "gpu_available": True,
                 "gpu_name": torch.cuda.get_device_name(0),
                 "total_ram_gb": round(prop.total_memory / (1024**3), 2),
                 "load_in_4bit": load_in_4bit,
             }
         )
     else:
-        info.update({"gpu_available": False, "cpu_cores": mp.cpu_count()})
-    return jsonify(info)
+        info_dict["cpu_cores"] = mp.cpu_count()
+
+    return InfoResponse(**info_dict)
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with API documentation link."""
+    return {
+        "message": "Model Server API",
+        "docs": "/docs",
+        "endpoints": {
+            "generate-stream": "POST /generate-stream - Stream token generation",
+            "info": "GET /info - Server info and hardware details",
+        },
+    }
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=5000)

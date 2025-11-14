@@ -61,10 +61,9 @@ else:
 ML_PACKAGES_BASE = [
     "scikit-learn",
     "tensorboardX",
-    "flask",
-    "flask_cors",
+    "fastapi", "uvicorn", "pydantic",
     "gunicorn",
-    "waitress",
+    "waitress", # windows
 ] + UNSLOTH_INSTALL
 
 PACKAGES = ML_PACKAGES_BASE + BASE_PACKAGES
