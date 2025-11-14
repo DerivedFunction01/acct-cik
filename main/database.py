@@ -18,6 +18,7 @@ IS_COLAB = Path(DRIVE_PATH).exists()
 DB_PATH = "web_data.db"
 BACKUP_PATH = "analysis_output/server_results_backup.xlsx"
 PARQUET_PATTERN = "server_result_chunk_*.parquet"
+REPORT_CSV_PATH = "report_data.csv"
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -252,6 +253,56 @@ def import_server_results_from_parquet():
         conn.close()
 
 
+def import_report_data_from_csv():
+    """
+    Imports data from report_data.csv into the report_data table.
+    Uses INSERT OR IGNORE to avoid adding duplicate records.
+    """
+    print(f"\n[1/4] Searching for '{REPORT_CSV_PATH}' file...")
+    csv_files = _ensure_file_is_local(REPORT_CSV_PATH)
+
+    if not csv_files:
+        print(f"  -> ❌ No '{REPORT_CSV_PATH}' file found to import.")
+        return
+
+    csv_path = csv_files[0]
+
+    print(f"\n[2/4] Reading data from '{csv_path}'...")
+    try:
+        df = pd.read_csv(csv_path)
+        print(f"  -> Found {len(df):,} records in CSV.")
+    except Exception as e:
+        print(f"  -> ❌ Error reading CSV file: {e}")
+        return
+
+    if "cik" not in df.columns or "year" not in df.columns or "url" not in df.columns:
+        print("  -> ❌ Error: CSV file is missing 'cik', 'year', or 'url' columns.")
+        return
+
+    # Keep only necessary columns and drop rows with missing values
+    df = df[["cik", "year", "url"]].dropna()
+
+    records_to_insert = df.to_records(index=False)
+
+    print(f"\n[3/4] Connecting to database '{DB_PATH}'...")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    print(f"\n[4/4] Inserting {len(records_to_insert):,} records into 'report_data'...")
+    try:
+        cursor.executemany(
+            "INSERT OR IGNORE INTO report_data (cik, year, url) VALUES (?, ?, ?)",
+            records_to_insert,
+        )
+        conn.commit()
+        print(f"✅ Successfully processed records. {cursor.rowcount} new rows were inserted.")
+    except sqlite3.Error as e:
+        print(f"  -> ❌ A database error occurred during import: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+
 def save_db_to_drive():
     """
     Saves the local web_data.db file to Google Drive if running in a Colab environment.
@@ -286,14 +337,15 @@ if __name__ == "__main__":
     print("2. SELECT * FROM server_result")
     print("3. Custom SQL Query")
     print("4. Import server_result from Excel backup")
-    print("5. Import server_result from Parquet chunks")
-    print("6. Save database to Google Drive (Colab only)")
-    print("7. Inspect last DataFrame")
-    print("8. Exit")
+    print("5. Import report_data from CSV")
+    print("6. Import server_result from Parquet chunks")
+    print("7. Save database to Google Drive (Colab only)")
+    print("8. Inspect last DataFrame")
+    print("9. Exit")
     print("-" * 50)
 
     while True:
-        choice = input("Enter your choice (1-8): ").strip()
+        choice = input("Enter your choice (1-9): ").strip()
         if choice == "1":
             df = execute_sql("SELECT * FROM webpage_result")
             if isinstance(df, pd.DataFrame):
@@ -330,10 +382,12 @@ if __name__ == "__main__":
         elif choice == "4":
             import_server_backup()
         elif choice == "5":
-            import_server_results_from_parquet()
+            import_report_data_from_csv()
         elif choice == "6":
-            save_db_to_drive()
+            import_server_results_from_parquet()
         elif choice == "7":
+            save_db_to_drive()
+        elif choice == "8":
             if last_df is not None and not last_df.empty:
                 print("Last DataFrame is available as 'last_df'.")
                 print(
@@ -347,7 +401,7 @@ if __name__ == "__main__":
                 code.interact(local=locals())
             else:
                 print("No DataFrame has been loaded yet. Please run a query first.")
-        elif choice == "8":
+        elif choice == "9":
             print("Exiting the program.")
             break
         else:
