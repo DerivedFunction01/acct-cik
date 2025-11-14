@@ -8,6 +8,7 @@ from threading import Thread
 try:
     import unsloth
     from unsloth import FastLanguageModel
+
     USE_UNSLOTH = True
     print("✅ Unsloth found. Using Unsloth for model loading.")
 except ImportError:
@@ -15,6 +16,7 @@ except ImportError:
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
+
 import torch
 from transformers import TextIteratorStreamer
 
@@ -23,11 +25,11 @@ CORS(app)
 
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
-MAX_SEQ_LENGTH = 32768 # How many tokens the entire conversation should hold (reasoning may take up the majority)
-TEXT_SIZE = MAX_SEQ_LENGTH // 8 # A good estimate of how much text should use
-# --- Recommended generation parameters ---
+MAX_SEQ_LENGTH = 32768 
+TEXT_SIZE = MAX_SEQ_LENGTH // 8
+
 THINKING_PARAMS = {
-    "do_sample": True,
+    "do_sample": False,  # Deterministic during debugging
     "temperature": 0.55,
     "top_p": 0.95,
     "top_k": 20,
@@ -36,18 +38,20 @@ THINKING_PARAMS = {
 }
 
 NON_THINKING_PARAMS = {
-    "do_sample": True,
+    "do_sample": False,  # Deterministic during debugging
     "temperature": 0.7,
     "top_p": 0.8,
     "top_k": 20,
     "min_p": 0.0,
     "repetition_penalty": 1.1,
 }
+
 SYS_PROMPT_FILE = "sys_prompt_regular.md"
 SYSTEM_PROMPT = ""
 if os.path.exists(SYS_PROMPT_FILE):
     with open(SYS_PROMPT_FILE, "r") as f:
-        SYSTEM_PROMPT = f.read() # Sys prompt is around 3000 chars
+        SYSTEM_PROMPT = f.read()
+
 
 # --- Dynamic Hardware Detection ---
 def get_hardware_config():
@@ -55,23 +59,23 @@ def get_hardware_config():
     if torch.cuda.is_available():
         vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         print(f"✅ GPU detected with {vram_gb:.2f} GB VRAM.")
-        # Set batch size based on VRAM. More VRAM allows for larger batches.
         if vram_gb > 20:
-            batch_size = 4  # High-end GPUs (A100, etc.)
+            batch_size = 4
         elif vram_gb > 14:
-            batch_size = 3  # Desktop GPUs (15GB+)
+            batch_size = 3
         else:
-            batch_size = 2  # Laptop GPUs (8GB+)
-        return torch.device("cuda"), True, batch_size
+            batch_size = 2
+        load_in_4bit = vram_gb < 20
+        return torch.device("cuda"), True, batch_size, load_in_4bit
     else:
         print("⚠️ No GPU detected. Running on CPU.")
-        return torch.device("cpu"), False, 1  # Batch size of 1 for CPU
+        return torch.device("cpu"), False, 1, False
 
 
-device, is_gpu, BATCH_SIZE = get_hardware_config()
-load_in_4bit = True
+device, is_gpu, BATCH_SIZE, load_in_4bit = get_hardware_config()
 
 # --- Load model ---
+print(f"Loading model from {MODEL_PATH}...")
 if USE_UNSLOTH:
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=MODEL_PATH,
@@ -79,7 +83,8 @@ if USE_UNSLOTH:
         dtype=None,
         load_in_4bit=load_in_4bit,
     )
-    model = FastLanguageModel.for_inference(model)
+    FastLanguageModel.for_inference(model)
+    print("✅ Unsloth model loaded and set to inference mode.")
 else:
     quantization_config = None
     if load_in_4bit:
@@ -88,14 +93,15 @@ else:
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_PATH,
         quantization_config=quantization_config,
-        dtype=torch.float16,
+        device_map="auto",
     )
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+    print("✅ Standard transformers model loaded.")
 
 print(
     f"✅ Model loaded. Server configured with BATCH_SIZE = {BATCH_SIZE}, "
-    f"USE_UNSLOTH = {USE_UNSLOTH}"
+    f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}"
 )
 
 
@@ -110,7 +116,7 @@ def get_gen_params(user_params: dict = None, enable_thinking: bool = True) -> di
         params.update(user_params)
 
     params["max_new_tokens"] = params.get("max_new_tokens", MAX_SEQ_LENGTH)
-    params["use_cache"] = True  # Always use cache for inference
+    params["use_cache"] = True
     return params
 
 
@@ -119,11 +125,12 @@ def generate_stream(prompt: str, user_params: dict = None):
     streamer = TextIteratorStreamer(
         tokenizer, skip_prompt=True, skip_special_tokens=True
     )
-    # Use tokenizer's chat template for proper formatting.
-    # Control the <think> block via the `enable_thinking` flag.
     enable_thinking = user_params.pop("enable_thinking", True) if user_params else True
-    # Use the user-provided system prompt, or fall back to the global default.
-    system_prompt = user_params.pop("system_prompt", SYSTEM_PROMPT) if user_params else SYSTEM_PROMPT
+    system_prompt = (
+        user_params.pop("system_prompt", SYSTEM_PROMPT)
+        if user_params
+        else SYSTEM_PROMPT
+    )
     params = get_gen_params(user_params, enable_thinking=enable_thinking)
 
     messages = []
@@ -131,101 +138,167 @@ def generate_stream(prompt: str, user_params: dict = None):
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
-    formatted_prompt = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True,
-        enable_thinking=enable_thinking,
-    )
-    inputs = tokenizer([formatted_prompt], return_tensors="pt").to(device)
+    try:
+        formatted_prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=enable_thinking,
+        )
+    except TypeError:
+        # Fallback for models that don't support enable_thinking parameter
+        formatted_prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
 
-    # Define EOS tokens to force the model to complete thinking process.
-    # This prevents premature stopping if it generates an <|im_end|> token
-    # inside the <think> block while still allowing completion.
+    print(f"DEBUG: Formatted prompt length: {len(formatted_prompt)} chars")
+
+    inputs = tokenizer([formatted_prompt], return_tensors="pt")
+    token_count = inputs["input_ids"].shape[1]
+    print(f"DEBUG: Token count: {token_count}")
+
+    if token_count > MAX_SEQ_LENGTH:
+        yield json.dumps(
+            {"error": f"Input too long: {token_count} tokens > {MAX_SEQ_LENGTH} max"}
+        )
+        return
+
+    inputs = inputs.to(device)
     eos_token_ids = [tokenizer.eos_token_id]
 
-    gen_kwargs = dict(
-        inputs,
-        streamer=streamer,
-        pad_token_id=tokenizer.eos_token_id,
-        eos_token_id=eos_token_ids,
+    gen_kwargs = {
+        **inputs,
+        "streamer": streamer,
+        "pad_token_id": tokenizer.eos_token_id,
+        "eos_token_id": eos_token_ids,
         **params,
-    )
+    }
+
     thread = Thread(target=model.generate, kwargs=gen_kwargs)
     thread.start()
+
     for token in streamer:
         yield token
+
 
 @app.route("/generate", methods=["POST"])
 def generate_endpoint():
     """Endpoint for non-streaming generation."""
-    data = request.json or {}
-    prompt = data.get("prompt", "")
-    if not prompt:
-        return jsonify({"error": "Missing 'prompt'"}), 400
-    params = data.get("params", {})
-    if not isinstance(params, dict):
-        return jsonify({"error": "'params' must be a dictionary"}), 400
-
-    # Make a copy to avoid modifying the original
-    params_copy = params.copy()
-    enable_thinking = params_copy.pop("enable_thinking", True)
-    system_prompt = params_copy.pop("system_prompt", SYSTEM_PROMPT)
-    gen_params = get_gen_params(params_copy, enable_thinking=enable_thinking)
-
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
-
-    formatted_prompt = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True,
-        enable_thinking=enable_thinking,
-    )
-    print(f"Formatted prompt: {formatted_prompt}")
-    inputs = tokenizer([formatted_prompt], return_tensors="pt").to(device)
-
-    eos_token_ids = [tokenizer.eos_token_id]
-
     try:
-        output_ids = model.generate(
-            **inputs,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=eos_token_ids,
-            **gen_params,
-        )
+        data = request.json or {}
+        prompt = data.get("prompt", "")
+        if not prompt:
+            return jsonify({"error": "Missing 'prompt'"}), 400
+
+        params = data.get("params", {})
+        if not isinstance(params, dict):
+            return jsonify({"error": "'params' must be a dictionary"}), 400
+
+        params_copy = params.copy()
+        enable_thinking = params_copy.pop("enable_thinking", False)  # Default to False
+        system_prompt = params_copy.pop("system_prompt", SYSTEM_PROMPT)
+        gen_params = get_gen_params(params_copy, enable_thinking=enable_thinking)
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        try:
+            formatted_prompt = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=enable_thinking,
+            )
+        except TypeError:
+            # Fallback for models without enable_thinking support
+            formatted_prompt = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+
+        print(f"DEBUG: Formatted prompt length: {len(formatted_prompt)} chars")
+
+        # Tokenize first, check size, then move to device
+        inputs = tokenizer([formatted_prompt], return_tensors="pt")
+        token_count = inputs["input_ids"].shape[1]
+        print(f"DEBUG: Token count: {token_count} / {MAX_SEQ_LENGTH}")
+
+        if token_count > MAX_SEQ_LENGTH:
+            return (
+                jsonify(
+                    {
+                        "error": "Input too long",
+                        "token_count": token_count,
+                        "max_allowed": MAX_SEQ_LENGTH,
+                    }
+                ),
+                400,
+            )
+
+        inputs = inputs.to(device)
+
+        with torch.no_grad():
+            output_ids = model.generate(
+                **inputs,
+                pad_token_id=tokenizer.eos_token_id,
+                eos_token_id=[tokenizer.eos_token_id],
+                **gen_params,
+            )
 
         # Decode the generated output
         output_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        print(f"Generated text: {output_text}")
-        # Try to parse as JSON if expected
+        print(f"DEBUG: Generated text (first 300 chars): {output_text[:300]}")
+
+        # Try to parse as JSON
         try:
             result = json.loads(output_text)
         except json.JSONDecodeError:
-            # If not valid JSON, return as raw text
             result = {"response": output_text}
 
         return jsonify({"prediction": result})
 
+    except torch.cuda.OutOfMemoryError as e:
+        return (
+            jsonify(
+                {
+                    "error": "Out of GPU memory",
+                    "suggestion": "Try reducing max_new_tokens or enabling 4-bit quantization",
+                }
+            ),
+            507,
+        )
     except Exception as e:
+        print(f"ERROR: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
         return jsonify({"error": "Generation failed", "details": str(e)}), 500
+
 
 @app.route("/generate-stream", methods=["POST"])
 def generate_stream_endpoint():
     """Endpoint for streaming token generation."""
-    data = request.json or {}
-    prompt = data.get("prompt", "")
-    params = data.get("params", {})
-    # The 'enable_thinking' flag is passed within the params dictionary
-    return Response(generate_stream(prompt, params), mimetype="text/plain")
+    try:
+        data = request.json or {}
+        prompt = data.get("prompt", "")
+        if not prompt:
+            return jsonify({"error": "Missing 'prompt'"}), 400
+        params = data.get("params", {})
+        return Response(generate_stream(prompt, params), mimetype="text/plain")
+    except Exception as e:
+        print(f"ERROR in stream endpoint: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/info", methods=["GET"])
 def info_endpoint():
     """Endpoint for server info and hardware details."""
-    info = {"device": str(device), "max_seq_length": TEXT_SIZE}
+    info = {"device": str(device), "max_seq_length": MAX_SEQ_LENGTH}
     if is_gpu:
         prop = torch.cuda.get_device_properties(0)
         info.update(
@@ -233,6 +306,7 @@ def info_endpoint():
                 "gpu_available": True,
                 "gpu_name": torch.cuda.get_device_name(0),
                 "total_ram_gb": round(prop.total_memory / (1024**3), 2),
+                "load_in_4bit": load_in_4bit,
             }
         )
     else:
@@ -241,4 +315,4 @@ def info_endpoint():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=False)
