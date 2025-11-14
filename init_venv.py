@@ -289,7 +289,7 @@ def check_installation():
 
 def main():
     """Main interactive loop"""
-    global USE_VENV
+    global USE_VENV, GPU_AVAILABLE
 
     parser = argparse.ArgumentParser(
         description="Interactive environment setup script."
@@ -305,10 +305,12 @@ def main():
         USE_VENV = False
 
     print("\n🔍 Detecting hardware...")
-    if sys.platform == "win32":
-        detect_nvidia_gpu()
+    if detect_nvidia_gpu():
+        GPU_AVAILABLE = "nvidia"
+    elif detect_amd_gpu():
+        GPU_AVAILABLE = "amd"
     else:
-        print("   (GPU detection skipped on non-Windows platforms)")
+        print("   No GPU detected. Will use CPU-only PyTorch.")
 
     if USE_VENV:
         create_venv()
