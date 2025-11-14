@@ -2,6 +2,7 @@
 Interactive Python Environment Setup Script
 Optimized for Qwen2.5 and modern ML workflows
 Includes automatic GPU detection for PyTorch installation
+PyTorch is locked after installation to prevent modification by other packages
 """
 
 import subprocess
@@ -61,10 +62,13 @@ else:
 ML_PACKAGES_BASE = [
     "scikit-learn",
     "tensorboardX",
-    "fastapi", "uvicorn", "pydantic",
+    "fastapi",
+    "uvicorn",
+    "pydantic",
     "gunicorn",
-    "flask", "flask_cors", # For webui
-    "waitress", # windows
+    "flask",
+    "flask_cors",  # For webui
+    "waitress",  # windows
 ] + UNSLOTH_INSTALL
 
 PACKAGES = ML_PACKAGES_BASE + BASE_PACKAGES
@@ -82,7 +86,7 @@ def detect_nvidia_gpu():
             timeout=5,
         )
         if result.returncode == 0:
-            GPU_AVAILABLE = "nvidia"
+            GPU_AVAILABLE = True
             print("✅ NVIDIA GPU detected!")
 
             # Try to get GPU info
@@ -133,7 +137,6 @@ def detect_nvidia_gpu():
 
 
 def detect_amd_gpu():
-    global GPU_AVAILABLE
     """Detect if AMD GPU is available with ROCm"""
     try:
         result = subprocess.run(
@@ -144,7 +147,6 @@ def detect_amd_gpu():
         )
         if result.returncode == 0:
             print("✅ AMD GPU with ROCm detected!")
-            GPU_AVAILABLE = "amd"
             return True
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
@@ -172,12 +174,13 @@ def get_pip_executable():
         return f"{VENV_DIR}/bin/pip"
 
 
-def install_packages(package_list, description):
+def install_packages(package_list, description, no_deps=False):
     """Install a list of packages"""
     print(f"📦 Installing {description}...")
     packages = " ".join(package_list)
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install {UPGRADE} {packages}"
+    no_deps_flag = "--no-deps" if no_deps else ""
+    cmd = f"{pip_exec} install {UPGRADE} {no_deps_flag} {packages}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -339,9 +342,12 @@ def main():
         elif choice == "1":
             print("\nFull setup starting...")
             install_pytorch()
-            install_packages(ML_PACKAGES_BASE, "ML and Unsloth packages")
+            install_packages(ML_PACKAGES_BASE, "ML and Unsloth packages", no_deps=True)
             install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Environment setup complete!")
+            print(
+                "🔒 PyTorch has been locked and protected from modification by other packages."
+            )
             exit(0)
         elif choice == "2":
             check_installation()
