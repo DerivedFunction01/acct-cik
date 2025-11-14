@@ -12,7 +12,7 @@ try:
     print("✅ Unsloth found. Using Unsloth for model loading.")
 except ImportError:
     USE_UNSLOTH = False
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
 import torch
@@ -81,10 +81,14 @@ if USE_UNSLOTH:
     )
     FastLanguageModel.for_inference(model)
 else:
+    quantization_config = None
+    if load_in_4bit:
+        quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_PATH,
-        load_in_4bit=load_in_4bit,
-        torch_dtype=torch.float16,
+        quantization_config=quantization_config,
+        dtype=torch.float16,
     )
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 
