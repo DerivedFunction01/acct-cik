@@ -35,7 +35,7 @@ BASE_PACKAGES = [
     "tqdm",
 ]
 
-# Core dependencies (without torch, which we'll handle specially)
+# Core ML packages (without torch versions - we'll lock torch separately)
 UNSLOTH_PACKAGES_BASE = [
     "torchvision",
     "torchaudio",
@@ -44,6 +44,23 @@ UNSLOTH_PACKAGES_BASE = [
     "accelerate",
     "trl",
     "datasets",
+]
+
+# Dependencies required by ML packages (but NOT torch/torchvision/torchaudio)
+# These are extracted from the requirements of the above packages
+ML_DEPENDENCIES = [
+    "huggingface_hub>=0.34.0",
+    "safetensors>=0.4.3",
+    "tokenizers>=0.22.0,<=0.23.0",
+    "regex",
+    "dill>=0.3.0,<0.4.1",
+    "httpx<1.0.0",
+    "multiprocess<0.70.19",
+    "pyarrow>=21.0.0",
+    "xxhash",
+    "joblib>=1.2.0",
+    "scipy>=1.8.0",
+    "threadpoolctl>=3.1.0",
 ]
 
 # Platform-specific Unsloth installation
@@ -342,6 +359,8 @@ def main():
         elif choice == "1":
             print("\nFull setup starting...")
             install_pytorch()
+            print("\n📦 Installing ML dependencies (protecting PyTorch)...")
+            install_packages(ML_DEPENDENCIES, "ML dependencies", no_deps=False)
             install_packages(ML_PACKAGES_BASE, "ML and Unsloth packages", no_deps=True)
             install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Environment setup complete!")
