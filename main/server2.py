@@ -2,11 +2,21 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import torch
 import json
-from unsloth import FastLanguageModel
-from transformers import TextIteratorStreamer
-from threading import Thread
 import multiprocessing as mp
 import os
+from threading import Thread
+from transformers import TextIteratorStreamer
+
+try:
+    from unsloth import FastLanguageModel
+
+    USE_UNSLOTH = True
+    print("✅ Unsloth found. Using Unsloth for model loading.")
+except ImportError:
+    USE_UNSLOTH = False
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
 
 app = Flask(__name__)
 CORS(app)
@@ -31,10 +41,11 @@ NON_THINKING_PARAMS = {
     "top_p": 0.8,
     "top_k": 20,
     "min_p": 0.0,
-    "repetition_penalty": 1.1
+    "repetition_penalty": 1.1,
 }
 
-# --- NEW: Dynamic Hardware Detection ---
+
+# --- Dynamic Hardware Detection ---
 def get_hardware_config():
     """Detects GPU and sets configuration for model loading and batching."""
     if torch.cuda.is_available():
@@ -50,23 +61,36 @@ def get_hardware_config():
         return torch.device("cuda"), True, batch_size
     else:
         print("⚠️ No GPU detected. Running on CPU.")
-        return torch.device("cpu"), False, 1 # Batch size of 1 for CPU
+        return torch.device("cpu"), False, 1  # Batch size of 1 for CPU
+
 
 device, is_gpu, BATCH_SIZE = get_hardware_config()
 load_in_4bit = True
 
 # --- Load model ---
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name=MODEL_PATH,
-    max_seq_length=MAX_SEQ_LENGTH,
-    dtype=None,
-    load_in_4bit=load_in_4bit,
+if USE_UNSLOTH:
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=MODEL_PATH,
+        max_seq_length=MAX_SEQ_LENGTH,
+        dtype=None,
+        load_in_4bit=load_in_4bit,
+    )
+    FastLanguageModel.for_inference(model)
+else:
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_PATH,
+        load_in_4bit=load_in_4bit,
+        torch_dtype=torch.float16,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+
+print(
+    f"✅ Model loaded. Server configured with BATCH_SIZE = {BATCH_SIZE}, "
+    f"USE_UNSLOTH = {USE_UNSLOTH}"
 )
-FastLanguageModel.for_inference(model)
-print(f"✅ Model loaded. Server configured with BATCH_SIZE = {BATCH_SIZE}")
 
 
-def get_gen_params(user_params: dict = None, enable_thinking: bool = True):
+def get_gen_params(user_params: dict = None, enable_thinking: bool = True) -> dict:
     """Selects the appropriate parameter set and merges user overrides."""
     if enable_thinking:
         params = THINKING_PARAMS.copy()
@@ -77,11 +101,11 @@ def get_gen_params(user_params: dict = None, enable_thinking: bool = True):
         params.update(user_params)
 
     params["max_new_tokens"] = params.get("max_new_tokens", MAX_SEQ_LENGTH)
-    params["use_cache"] = True # Always use cache for inference
+    params["use_cache"] = True  # Always use cache for inference
     return params
 
 
-def generate_response(prompt: str, user_params: dict = None):
+def generate_response(prompt: str, user_params: dict = None) -> dict:
     """
     Generates a complete JSON response by consuming the token stream from `generate_stream`.
     """
@@ -95,11 +119,12 @@ def generate_response(prompt: str, user_params: dict = None):
 
 
 def generate_stream(prompt: str, user_params: dict = None):
+    """Streams tokens from model generation with optional thinking mode."""
     streamer = TextIteratorStreamer(
         tokenizer, skip_prompt=True, skip_special_tokens=True
     )
-    # --- NEW: Use tokenizer's chat template for proper formatting ---
-    # This allows us to control the <think> block via the `enable_thinking` flag.
+    # Use tokenizer's chat template for proper formatting.
+    # Control the <think> block via the `enable_thinking` flag.
     enable_thinking = user_params.pop("enable_thinking", True) if user_params else True
     system_prompt = user_params.pop("system_prompt", "") if user_params else ""
     params = get_gen_params(user_params, enable_thinking=enable_thinking)
@@ -117,18 +142,15 @@ def generate_stream(prompt: str, user_params: dict = None):
     )
     inputs = tokenizer([formatted_prompt], return_tensors="pt").to(device)
 
-    # --- FIX: Define multiple EOS tokens ---
-    # This forces the model to complete the thinking process and prevents
-    # it from stopping prematurely if it generates an <|im_end|> token
-    # inside the <think> block, while still allowing it to continue until
-    # the final <|im_end|> token after the answer.
+    # Define EOS tokens to force the model to complete thinking process.
+    # This prevents premature stopping if it generates an <|im_end|> token
+    # inside the <think> block while still allowing completion.
     eos_token_ids = [tokenizer.eos_token_id]
 
     gen_kwargs = dict(
         inputs,
         streamer=streamer,
         pad_token_id=tokenizer.eos_token_id,
-        # Use the list of IDs as stopping points.
         eos_token_id=eos_token_ids,
         **params,
     )
@@ -140,6 +162,7 @@ def generate_stream(prompt: str, user_params: dict = None):
 
 @app.route("/generate", methods=["POST"])
 def generate_endpoint():
+    """Endpoint for non-streaming generation."""
     data = request.json or {}
     prompt = data.get("prompt", "")
     if not prompt:
@@ -151,15 +174,17 @@ def generate_endpoint():
 
 @app.route("/generate-stream", methods=["POST"])
 def generate_stream_endpoint():
+    """Endpoint for streaming token generation."""
     data = request.json or {}
     prompt = data.get("prompt", "")
     params = data.get("params", {})
-    # The 'enable_thinking' flag is now passed within the params dictionary
+    # The 'enable_thinking' flag is passed within the params dictionary
     return Response(generate_stream(prompt, params), mimetype="text/plain")
 
 
 @app.route("/info", methods=["GET"])
 def info_endpoint():
+    """Endpoint for server info and hardware details."""
     info = {"device": str(device)}
     if is_gpu:
         prop = torch.cuda.get_device_properties(0)

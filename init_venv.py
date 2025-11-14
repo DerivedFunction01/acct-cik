@@ -13,7 +13,8 @@ USE_VENV = True  # Global flag, can be overridden by --no-venv
 
 BASE_PACKAGES = [
     # Web scraping and server
-    "beautifulsoup4", "markdownify",
+    "beautifulsoup4",
+    "markdownify",
     # System and file utilities
     "psutil",
     "openpyxl",
@@ -23,43 +24,55 @@ BASE_PACKAGES = [
     "matplotlib",
     "IPython",
     "pandas",
-    #Other
+    # Other
     "num2words",
     "tqdm",
 ]
-# Unsloth handles its own dependencies, including PyTorch, Transformers, etc.
 
-# Base unsloth package string
-unsloth_package = "git+https://github.com/unslothai/unsloth.git"
+# Unsloth and its core dependencies
+UNSLOTH_PACKAGES = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "transformers",
+    "peft",
+    "accelerate",
+    "trl",
+    "datasets",
+]
 
-# Check for Windows and adjust extras
+# Platform-specific Unsloth installation
 if sys.platform == "win32":
-    # Use the windows-specific extra for Unsloth
-    unsloth_install = f"unsloth[windows] {unsloth_package}"
+    # On Windows, install Unsloth dependencies manually
+    UNSLOTH_INSTALL = UNSLOTH_PACKAGES
 else:
-    # Default to the colab-new extra for Linux/WSL/Mac
-    unsloth_install = f"unsloth[colab-new] {unsloth_package}"
+    # On Linux/WSL/Mac, use the optimized Unsloth package
+    UNSLOTH_INSTALL = [
+        "unsloth[colab-new] git+https://github.com/unslothai/unsloth.git",
+        "torchvision",
+        "torchaudio",
+    ]
 
-PACKAGES = [
-    # Core ML and data handling
-    # unsloth installs torch, transformers, peft, accelerate, trl, numpy
-    unsloth_install,
-    "torchvision",  # Installs torchvision, torchaudio
-    "datasets",  # Installs pandas, requests, tqdm, numpy
+ML_PACKAGES = [
     "scikit-learn",
     "tensorboardX",
     "flask",
     "gunicorn",
     "waitress",
-] + BASE_PACKAGES
+] + UNSLOTH_INSTALL
+
+PACKAGES = ML_PACKAGES + BASE_PACKAGES
 
 
 def get_pip_executable():
     """Returns the path to the pip executable, respecting the venv toggle."""
-    slash = "/" if sys.platform != "win32" else "\\"
-    if USE_VENV:
-        return f"{VENV_DIR}{slash}{"Scripts" if sys.platform == "win32" else "bin"}{slash}pip{".exe" if sys.platform == "win32" else ""}"
-    return "pip"
+    if not USE_VENV:
+        return "pip"
+
+    if sys.platform == "win32":
+        return f"{VENV_DIR}\\Scripts\\pip.exe"
+    else:
+        return f"{VENV_DIR}/bin/pip"
 
 
 def install_packages(package_list, description):
@@ -89,7 +102,7 @@ def create_venv():
             print(f"❌ Failed to create virtual environment: {e}")
             sys.exit(1)
     else:
-        print(f"Found existing virtual environment: '{VENV_DIR}'")
+        print(f"✓ Found existing virtual environment: '{VENV_DIR}'")
 
 
 def show_menu():
@@ -98,8 +111,12 @@ def show_menu():
     print("🐍 INTERACTIVE ENVIRONMENT SETUP")
     print("   Optimized for Unsloth")
     print("=" * 60)
-    venv_status = f"ACTIVE (in ./{VENV_DIR})" if USE_VENV else "INACTIVE (global site-packages)"
+    venv_status = (
+        f"ACTIVE (in ./{VENV_DIR})" if USE_VENV else "INACTIVE (global site-packages)"
+    )
     print(f"Virtual Environment Status: {venv_status}")
+    platform_info = "Windows" if sys.platform == "win32" else "Linux/WSL/Mac"
+    print(f"Platform: {platform_info}")
     print("\nOptions:")
     print("  0. Basic setup")
     print("  1. Install all packages (Base + ML with Unsloth)")
@@ -112,11 +129,20 @@ def check_installation():
     """Check what's currently installed"""
     print("\n🔍 Checking current installation...")
 
-    python_exec = f"{VENV_DIR}/bin/python" if USE_VENV else sys.executable
+    if USE_VENV:
+        if sys.platform == "win32":
+            python_exec = f"{VENV_DIR}\\Scripts\\python.exe"
+        else:
+            python_exec = f"{VENV_DIR}/bin/python"
+    else:
+        python_exec = sys.executable
+
     print(f"   Using Python: {python_exec}")
 
     def get_package_version(pkg_name):
-        return subprocess.run(f"{python_exec} -c \"import {pkg_name}; print({pkg_name}.__version__)\"", shell=True, capture_output=True, text=True).stdout.strip()
+        cmd = f'{python_exec} -c "import {pkg_name}; print({pkg_name}.__version__)"'
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        return result.stdout.strip()
 
     # Try to import key packages
     packages_to_check = [
@@ -141,7 +167,9 @@ def main():
     """Main interactive loop"""
     global USE_VENV
 
-    parser = argparse.ArgumentParser(description="Interactive environment setup script.")
+    parser = argparse.ArgumentParser(
+        description="Interactive environment setup script."
+    )
     parser.add_argument(
         "--no-venv",
         action="store_true",
@@ -163,20 +191,19 @@ def main():
             install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Basic setup complete!")
             exit(0)
-        if choice == "1":
-            print("\n Full setup starting...")
+        elif choice == "1":
+            print("\nFull setup starting...")
             install_packages(PACKAGES, "project packages")
             print("\n✅ Environment setup complete!")
             exit(0)
         elif choice == "2":
             check_installation()
-
         elif choice == "3":
             print("\n👋 Goodbye!")
             break
-
         else:
-            print("\n❌ Invalid choice. Please enter 1-3.")
+            print("\n❌ Invalid choice. Please enter 0-3.")
+
 
 if __name__ == "__main__":
     main()
