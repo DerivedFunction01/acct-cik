@@ -718,7 +718,8 @@ if __name__ == "__main__":
             print("=" * 70)
             print("  1. Run in Standalone Mode (continuous)")
             print("  2. Run in Chunked Mode (for parallel processing)")
-            print("  3. Exit")
+            print("  3. Toggle Debug Mode")
+            print("  4. Exit")
             choice = input("Enter your choice (1-3): ").strip()
 
             if choice == "1":
@@ -744,6 +745,9 @@ if __name__ == "__main__":
                 except ValueError:
                     print("   ❌ Error: Please enter valid numbers for chunks.")
             elif choice == "3":
+                DEBUG = not DEBUG
+                print(f"Debug mode is now {'on' if DEBUG else 'off'}.")
+            elif choice == "4":
                 print("Exiting.")
                 break
             else:
