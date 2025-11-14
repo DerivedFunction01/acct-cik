@@ -374,7 +374,7 @@ GEN_REGEX = build_gen_regex()
 COMBINED_REGEX = re.compile(r'|'.join([IR_REGEX.pattern, FX_REGEX.pattern, CP_REGEX.pattern, EQ_REGEX.pattern, GEN_REGEX.pattern]), re.IGNORECASE)
 
 # --- NEW: Regex for matching only base derivative types, intended for use within tables ---. Remove the question mark
-TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation([base.rstrip("?") for base in ALL_BASE_TYPES]) + r'\b', re.IGNORECASE)
+TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation([base.rstrip("?") for base in ALL_BASE_TYPES] + ["derivative"]) + r'\b', re.IGNORECASE)
 IGNORE_REGEX = re.compile(r'|'.join([r"stock option", r"shares", r"exercis"]),  re.IGNORECASE)
 
 # %%
