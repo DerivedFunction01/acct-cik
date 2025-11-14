@@ -336,6 +336,7 @@ http {{
             proxy_connect_timeout {GUNICORN_TIMEOUT};
             proxy_send_timeout {GUNICORN_TIMEOUT};
             proxy_read_timeout {GUNICORN_TIMEOUT};
+            proxy_buffering off;
         }}
     }}
 }}
