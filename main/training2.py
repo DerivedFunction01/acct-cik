@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Tuple
 
 import pandas as pd
-import torch
 from psutil import virtual_memory
 
 # Dynamic Unsloth import with fallback
@@ -27,6 +26,7 @@ except ImportError:
 
 from datasets import load_dataset
 from huggingface_hub import login
+import torch
 from trl import SFTTrainer
 from transformers import TrainingArguments, TextIteratorStreamer
 from threading import Thread
