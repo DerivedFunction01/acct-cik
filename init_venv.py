@@ -60,6 +60,7 @@ ML_PACKAGES_BASE = [
     "scikit-learn",
     "tensorboardX",
     "flask",
+    "flask_cors",
     "gunicorn",
     "waitress",
 ] + UNSLOTH_INSTALL
