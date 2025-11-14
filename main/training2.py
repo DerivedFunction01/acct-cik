@@ -699,12 +699,16 @@ if __name__ == "__main__":
                     # However, we want confirmation first
                     epochs_for_this_run = 1
                     if (
-                        input(f"The current epoch is {num_shards + 1}, continue? [y/N]: ")
+                        input(
+                            f"The current epoch is {shard_index + 1}, continue? [y/N]: "
+                        )
                         .strip()
                         .lower()
                         == "y"
                     ):
-                        epochs_for_this_run = num_shards + 1 # so we "increment" the epoch based on the shard index.
+                        epochs_for_this_run = (
+                            shard_index + 1
+                        )  # so we "increment" the epoch based on the shard index.
                     else: 
                         epochs_for_this_run = int(input("Enter epoch number for this run: ") or 1) 
                     # If using sharding, ask if this is the final run to decide on merging.
