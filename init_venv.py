@@ -51,7 +51,7 @@ if sys.platform == "win32":
 else:
     # On Linux/WSL/Mac, use the optimized Unsloth package
     UNSLOTH_INSTALL = [
-        "unsloth[colab-new] git+https://github.com/unslothai/unsloth.git",
+        "unsloth",
         "torchvision",
         "torchaudio",
     ]
