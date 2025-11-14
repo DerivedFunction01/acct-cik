@@ -14,7 +14,7 @@ VENV_DIR = "venv-acct-cik"
 USE_VENV = True  # Global flag, can be overridden by --no-venv
 GPU_AVAILABLE = False  # Will be "nvidia", "amd", or False
 CUDA_VERSION = "cu121"  # Default to CUDA 12.1
-UPGRADE = "--upgrade"  # Upgrade pip to the latest version
+UPGRADE = True  # Upgrade pip to the latest version
 
 BASE_PACKAGES = [
     # Web scraping and server
@@ -208,12 +208,12 @@ def install_packages(package_list, description, no_deps=False, upgrade=False):
         print(f"❌ Failed to install some {description}.")
 
 
-def install_pytorch():
+def install_pytorch(upgrade: bool = False):
     """Install PyTorch with appropriate GPU support"""
     print(f"📦 Installing PyTorch...")
     torch_cmd = get_pytorch_install_cmd()
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install --upgrade {torch_cmd}"
+    cmd = f"{pip_exec} install {"--upgrade" if upgrade else ""} {torch_cmd}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -336,7 +336,7 @@ def main():
     if args.no_venv:
         USE_VENV = False
     if args.no_upgrade:
-        UPGRADE = ""
+        UPGRADE = False
 
     print("\n🔍 Detecting hardware...")
     if detect_nvidia_gpu():
@@ -359,7 +359,7 @@ def main():
             exit(0)
         elif choice == "1":
             print("\nFull setup starting...")
-            install_pytorch()
+            install_pytorch(UPGRADE)
             print("\n📦 Installing ML dependencies (protecting PyTorch)...")
             install_packages(
                 ML_DEPENDENCIES, "ML dependencies", no_deps=False, upgrade=False
