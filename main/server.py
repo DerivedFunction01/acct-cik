@@ -214,6 +214,7 @@ def generate_stream(prompt: str, user_params: dict = None):
         thread.start()
 
         for token in streamer:
+            print(token, end="", flush=True)
             yield token
 
         thread.join()
