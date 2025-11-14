@@ -54,6 +54,7 @@ config = {
         "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
         "unsloth/Qwen3-4B-Thinking-2507",
         "DerivedFunction/Qwen3-1.7B-finance-base",
+        "DerivedFunction/Qwen3-4B-finance",
     ],
     "LORA_ADAPTERS": [],
     "DATASETS": [
@@ -668,8 +669,7 @@ if __name__ == "__main__":
                 new_model_name = input("Output model name: ").strip()
 
                 if not new_model_name:
-                    print("❌ Output name required.")
-                    continue
+                    new_model_name = base_model_name
 
                 # --- New Sharding and Merging Logic ---
                 use_sharding = (
