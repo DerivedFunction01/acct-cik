@@ -1,8 +1,7 @@
 """
 Interactive Python Environment Setup Script
 Optimized for Qwen2.5 and modern ML workflows
-Includes automatic GPU detection for PyTorch installation
-PyTorch is locked after installation to prevent modification by other packages
+Includes automatic GPU detection and TORCH LOCKING to prevent downgrades
 """
 
 import subprocess
@@ -11,31 +10,28 @@ import argparse
 from pathlib import Path
 
 VENV_DIR = "venv-acct-cik"
-USE_VENV = True  # Global flag, can be overridden by --no-venv
-GPU_AVAILABLE = False  # Will be "nvidia", "amd", or False
-CUDA_VERSION = "cu121"  # Default to CUDA 12.1
-UPGRADE = True  # Upgrade pip to the latest version
+TORCH_LOCK_FILE = Path(VENV_DIR) / "torch.lock"
+USE_VENV = True
+GPU_AVAILABLE = False
+CUDA_VERSION = "cu121"
+UPGRADE = "--upgrade"
+REINSTALL_TORCH = False
 
 BASE_PACKAGES = [
-    # Web scraping and server
     "beautifulsoup4",
     "html2text",
     "lxml",
-    # System and file utilities
     "psutil",
     "openpyxl",
     "xlsxwriter",
     "pydrive2",
-    # Plotting and interactive
     "matplotlib",
     "IPython",
     "pandas",
-    # Other
     "num2words",
     "tqdm",
 ]
 
-# Core ML packages (without torch versions - we'll lock torch separately)
 UNSLOTH_PACKAGES_BASE = [
     "torchvision",
     "torchaudio",
@@ -46,29 +42,9 @@ UNSLOTH_PACKAGES_BASE = [
     "datasets",
 ]
 
-# Dependencies required by ML packages (but NOT torch/torchvision/torchaudio)
-# These are extracted from the requirements of the above packages
-ML_DEPENDENCIES = [
-    "huggingface_hub>=0.34.0",
-    "safetensors>=0.4.3",
-    "tokenizers>=0.22.0,<=0.23.0",
-    "regex",
-    "dill>=0.3.0,<0.4.1",
-    "httpx<1.0.0",
-    "multiprocess<0.70.19",
-    "pyarrow>=21.0.0",
-    "xxhash",
-    "joblib>=1.2.0",
-    "scipy>=1.8.0",
-    "threadpoolctl>=3.1.0",
-]
-
-# Platform-specific Unsloth installation
 if sys.platform == "win32":
-    # On Windows, install Unsloth dependencies manually
     UNSLOTH_INSTALL = UNSLOTH_PACKAGES_BASE
 else:
-    # On Linux/WSL/Mac, use the optimized Unsloth package
     UNSLOTH_INSTALL = [
         "unsloth",
         "unsloth_zoo",
@@ -84,8 +60,8 @@ ML_PACKAGES_BASE = [
     "pydantic",
     "gunicorn",
     "flask",
-    "flask_cors",  # For webui
-    "waitress",  # windows
+    "flask_cors",
+    "waitress",
 ] + UNSLOTH_INSTALL
 
 PACKAGES = ML_PACKAGES_BASE + BASE_PACKAGES
@@ -106,7 +82,6 @@ def detect_nvidia_gpu():
             GPU_AVAILABLE = True
             print("✅ NVIDIA GPU detected!")
 
-            # Try to get GPU info
             try:
                 gpu_info = subprocess.run(
                     ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
@@ -119,7 +94,6 @@ def detect_nvidia_gpu():
             except:
                 pass
 
-            # Dynamically extract CUDA version from nvidia-smi output
             try:
                 cuda_info = subprocess.run(
                     ["nvidia-smi"],
@@ -127,7 +101,6 @@ def detect_nvidia_gpu():
                     text=True,
                     timeout=5,
                 )
-                # Look for pattern like "CUDA Version: 12.1" or "CUDA Version: 11.8"
                 import re
 
                 match = re.search(r"CUDA Version: (\d+)\.(\d+)", cuda_info.stdout)
@@ -191,14 +164,12 @@ def get_pip_executable():
         return f"{VENV_DIR}/bin/pip"
 
 
-def install_packages(package_list, description, no_deps=False, upgrade=False):
+def install_packages(package_list, description):
     """Install a list of packages"""
     print(f"📦 Installing {description}...")
     packages = " ".join(package_list)
     pip_exec = get_pip_executable()
-    no_deps_flag = "--no-deps" if no_deps else ""
-    upgrade_flag = "--upgrade" if upgrade else ""
-    cmd = f"{pip_exec} install {upgrade_flag} {no_deps_flag} {packages}"
+    cmd = f"{pip_exec} install {UPGRADE} {packages}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -208,16 +179,31 @@ def install_packages(package_list, description, no_deps=False, upgrade=False):
         print(f"❌ Failed to install some {description}.")
 
 
-def install_pytorch(upgrade: bool = False):
+def install_pytorch():
     """Install PyTorch with appropriate GPU support"""
     print(f"📦 Installing PyTorch...")
     torch_cmd = get_pytorch_install_cmd()
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install {"--upgrade" if upgrade else ""} {torch_cmd}"
+    cmd = f"{pip_exec} install {UPGRADE} {torch_cmd} torchvision torchaudio"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
     if result.returncode == 0:
+        # Get installed version and lock it
+        try:
+            version_result = subprocess.run(
+                f"{get_pip_executable()} show torch",
+                capture_output=True,
+                text=True,
+                shell=True,
+            )
+            if "Version:" in version_result.stdout:
+                version = version_result.stdout.split("Version: ")[1].split("\n")[0]
+                TORCH_LOCK_FILE.write_text(version)
+                print(f"🧱 PyTorch {version} locked to {TORCH_LOCK_FILE}")
+        except:
+            pass
+
         if GPU_AVAILABLE == "nvidia":
             print(f"✅ PyTorch (NVIDIA GPU {CUDA_VERSION}) installed successfully.")
         elif GPU_AVAILABLE == "amd":
@@ -226,6 +212,11 @@ def install_pytorch(upgrade: bool = False):
             print(f"✅ PyTorch (CPU) installed successfully.")
     else:
         print(f"❌ Failed to install PyTorch.")
+
+
+def is_torch_locked():
+    """Check if PyTorch is locked"""
+    return TORCH_LOCK_FILE.exists()
 
 
 def create_venv():
@@ -247,7 +238,7 @@ def show_menu():
     """Display interactive menu"""
     print("\n" + "=" * 60)
     print("🐍 INTERACTIVE ENVIRONMENT SETUP")
-    print("   Optimized for Unsloth")
+    print("   Optimized for Unsloth with Torch Locking")
     print("=" * 60)
     venv_status = (
         f"ACTIVE (in ./{VENV_DIR})" if USE_VENV else "INACTIVE (global site-packages)"
@@ -263,11 +254,18 @@ def show_menu():
     if GPU_AVAILABLE == "amd":
         gpu_status = "GPU: AMD ROCm detected"
     print(f"{gpu_status}")
+
+    torch_status = (
+        f"🧱 PyTorch is LOCKED" if is_torch_locked() else "PyTorch is unlocked"
+    )
+    print(f"Torch Status: {torch_status}")
+
     print("\nOptions:")
     print("  0. Basic setup")
     print("  1. Install all packages (Base + ML with Unsloth)")
     print("  2. Check current installation")
-    print("  3. Exit")
+    print("  3. Reinstall PyTorch (unlock and reinstall)")
+    print("  4. Exit")
     print("-" * 60)
 
 
@@ -290,7 +288,6 @@ def check_installation():
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         return result.stdout.strip()
 
-    # Try to import key packages
     packages_to_check = [
         "torch",
         "pandas",
@@ -308,18 +305,17 @@ def check_installation():
         else:
             print(f"   {pkg}: Not installed")
 
-    # Check GPU support if torch is installed
     print("\n🎮 Checking GPU support...")
-    gpu_check_cmd = f"{python_exec} -c \"import torch; print(f'CUDA available: {{torch.cuda.is_available()}}'); print(f'Device: {{torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"CPU\"}}');\""
+    gpu_check_cmd = f"{python_exec} -c \"import torch; print(f'CUDA available: {{torch.cuda.is_available()}}'); print(f'Device: {{torch.cuda.get_device_name(0) if torch.cuda.is_available() else \\\"CPU\\\"}}');\""
     subprocess.run(gpu_check_cmd, shell=True)
 
 
 def main():
     """Main interactive loop"""
-    global USE_VENV, GPU_AVAILABLE, UPGRADE
+    global USE_VENV, GPU_AVAILABLE, UPGRADE, REINSTALL_TORCH
 
     parser = argparse.ArgumentParser(
-        description="Interactive environment setup script."
+        description="Interactive environment setup script with torch locking."
     )
     parser.add_argument(
         "--no-venv",
@@ -331,12 +327,19 @@ def main():
         action="store_true",
         help="Do not use upgrade flags when installing packages.",
     )
+    parser.add_argument(
+        "--reinstall-torch",
+        action="store_true",
+        help="Reinstall PyTorch even if locked.",
+    )
     args = parser.parse_args()
 
     if args.no_venv:
         USE_VENV = False
     if args.no_upgrade:
-        UPGRADE = False
+        UPGRADE = ""
+    if args.reinstall_torch:
+        REINSTALL_TORCH = True
 
     print("\n🔍 Detecting hardware...")
     if detect_nvidia_gpu():
@@ -351,35 +354,37 @@ def main():
 
     while True:
         show_menu()
-        choice = input("\nEnter your choice (0-3): ").strip()
+        choice = input("\nEnter your choice (0-4): ").strip()
         if choice == "0":
             print("\nBasic setup starting...")
-            install_packages(BASE_PACKAGES, "base packages", upgrade=False)
+            install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Basic setup complete!")
             exit(0)
         elif choice == "1":
             print("\nFull setup starting...")
-            install_pytorch(UPGRADE)
-            print("\n📦 Installing ML dependencies (protecting PyTorch)...")
-            install_packages(
-                ML_DEPENDENCIES, "ML dependencies", no_deps=False, upgrade=False
-            )
-            install_packages(
-                ML_PACKAGES_BASE, "ML and Unsloth packages", no_deps=True, upgrade=False
-            )
-            install_packages(BASE_PACKAGES, "base packages", upgrade=False)
+            # KEY FIX: Install PyTorch FIRST and lock it
+            if is_torch_locked() and not REINSTALL_TORCH:
+                print("🧱 PyTorch is already locked. Skipping PyTorch install.")
+                print("  (Use option 3 to reinstall PyTorch)")
+            else:
+                install_pytorch()
+            # THEN install other packages (they can't downgrade the locked torch)
+            install_packages(ML_PACKAGES_BASE, "ML and Unsloth packages")
+            install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Environment setup complete!")
-            print(
-                "🔒 PyTorch has been locked and protected from modification by other packages."
-            )
             exit(0)
         elif choice == "2":
             check_installation()
         elif choice == "3":
+            print("\n🔄 Reinstalling PyTorch...")
+            TORCH_LOCK_FILE.unlink(missing_ok=True)
+            install_pytorch()
+            print("✅ PyTorch reinstalled and locked!")
+        elif choice == "4":
             print("\n👋 Goodbye!")
             break
         else:
-            print("\n❌ Invalid choice. Please enter 0-3.")
+            print("\n❌ Invalid choice. Please enter 0-4.")
 
 
 if __name__ == "__main__":
