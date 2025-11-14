@@ -22,7 +22,7 @@ except ImportError:
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
 
 import torch
-from transformers import TextIteratorStreamer
+from transformers import TextStreamer
 
 app = FastAPI(
     title="Model Server", description="Streaming language model inference API"
@@ -161,9 +161,7 @@ def generate_stream(prompt: str, user_params: dict = None):
     """Streams tokens from model generation with optional thinking mode."""
     global is_busy
 
-    streamer = TextIteratorStreamer(
-        tokenizer, skip_prompt=True, skip_special_tokens=True
-    )
+    streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 
     if user_params is None:
         user_params = {}
