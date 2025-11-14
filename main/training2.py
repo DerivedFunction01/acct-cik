@@ -671,14 +671,68 @@ if __name__ == "__main__":
                     print("❌ Output name required.")
                     continue
 
+                # --- New Sharding and Merging Logic ---
+                use_sharding = (
+                    input("Use dataset sharding (for very large datasets)? [y/N]: ")
+                    .strip()
+                    .lower()
+                    == "y"
+                )
+                num_shards = 1
+                shard_index = 0
+                merge_adapters = True
+                # The number of epochs to run for this specific shard.
+                # For the "epoch-per-shard" method, this will always be 1.
+                epochs_for_this_run = num_epochs
+
+                if use_sharding:
+                    num_shards = int(
+                        input(f"Enter total number of shards [e.g., 10]: ") or 10
+                    )
+                    shard_index = int(
+                        input(
+                            f"Enter shard index to train on (0 to {num_shards - 1}): "
+                        )
+                        or 0
+                    )
+                    # In this method, each shard corresponds to one epoch.
+                    # However, we want confirmation first
+                    epochs_for_this_run = 1
+                    if (
+                        input(f"The current epoch is {num_shards + 1}, continue? [y/N]: ")
+                        .strip()
+                        .lower()
+                        == "y"
+                    ):
+                        epochs_for_this_run = num_shards + 1 # so we "increment" the epoch based on the shard index.
+                    else: 
+                        epochs_for_this_run = int(input("Enter epoch number for this run: ") or 1) 
+                    # If using sharding, ask if this is the final run to decide on merging.
+                    is_final_run = (
+                        input(
+                            "Is this the FINAL shard? (This will merge the adapters) [y/N]: "
+                        )
+                        .strip()
+                        .lower()
+                        == "y"
+                    )
+                    merge_adapters = is_final_run
+                else:
+                    # If not sharding, we always merge.
+                    merge_adapters = True
+                    epochs_for_this_run = num_epochs
+
                 run_training(
                     profile=profile,
                     model_name=base_model_name,
                     data_path=data_path,
                     new_model_name=new_model_name,
-                    num_epochs=num_epochs,
+                    num_epochs=epochs_for_this_run,
                     is_hf_dataset=is_hf_dataset,
                     merge_at_end=True,
+                    dataset_num_shards=num_shards,
+                    dataset_shard_index=shard_index,
+                    merge_at_end=merge_adapters,
                 )
 
             elif choice == "2":
