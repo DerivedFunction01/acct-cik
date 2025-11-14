@@ -82,7 +82,7 @@ def detect_nvidia_gpu():
             timeout=5,
         )
         if result.returncode == 0:
-            GPU_AVAILABLE = True
+            GPU_AVAILABLE = "nvidia"
             print("✅ NVIDIA GPU detected!")
 
             # Try to get GPU info
@@ -133,6 +133,7 @@ def detect_nvidia_gpu():
 
 
 def detect_amd_gpu():
+    global GPU_AVAILABLE
     """Detect if AMD GPU is available with ROCm"""
     try:
         result = subprocess.run(
@@ -143,6 +144,7 @@ def detect_amd_gpu():
         )
         if result.returncode == 0:
             print("✅ AMD GPU with ROCm detected!")
+            GPU_AVAILABLE = "amd"
             return True
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
