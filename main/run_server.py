@@ -174,13 +174,47 @@ def check_gunicorn():
     if shutil.which("gunicorn") is not None:
         return True
 
-    print("⚠️  'gunicorn' command not found.")
+    print("\n⚠️  'gunicorn' command not found.")
     install_prompt = (
         input("   Install it now? (pip install gunicorn) [y/N]: ").lower().strip()
     )
     if install_prompt == "y":
         subprocess.check_call([sys.executable, "-m", "pip", "install", "gunicorn"])
         return shutil.which("gunicorn") is not None
+    return False
+
+
+def check_uvicorn():
+    """Ensure uvicorn (ASGI server) is available for gunicorn worker class.
+
+    Gunicorn with FastAPI must use an ASGI worker such as uvicorn.workers.UvicornWorker.
+    This function checks that uvicorn is importable (or installed as a CLI) and
+    offers to install it if missing.
+    """
+    # Check for uvicorn CLI first
+    if shutil.which("uvicorn") is not None:
+        return True
+
+    # If CLI not found, try importing the package
+    try:
+        import uvicorn  # type: ignore
+
+        return True
+    except Exception:
+        pass
+
+    print("\n⚠️  'uvicorn' package not found. Gunicorn will need uvicorn to run ASGI apps.")
+    install_prompt = (
+        input("   Install it now? (pip install uvicorn[standard]) [y/N]: ").lower().strip()
+    )
+    if install_prompt == "y":
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "uvicorn[standard]"])
+        try:
+            import uvicorn  # type: ignore
+            return True
+        except Exception:
+            return False
+
     return False
 
 
@@ -366,6 +400,9 @@ def start_servers():
         return
     if not check_gunicorn():
         return
+    # Ensure uvicorn is available so gunicorn can use UvicornWorker for ASGI
+    if not check_uvicorn():
+        return
 
     # Get system info
     model_available = pre_download_model()
@@ -403,7 +440,11 @@ def start_servers():
     processes = []
     for i in range(num_processes):
         port = BASE_GPU_SERVER_PORT + i
-        cmd = f"gunicorn --workers 1 --threads {threads_per_process} --timeout {GUNICORN_TIMEOUT} --bind 127.0.0.1:{port} --backlog 2048 {SERVER_SCRIPT}"
+        # Use UvicornWorker so FastAPI (ASGI) is served correctly under gunicorn
+        cmd = (
+            f"gunicorn --workers 1 --threads {threads_per_process} --timeout {GUNICORN_TIMEOUT} -k uvicorn.workers.UvicornWorker "
+            f"--bind 127.0.0.1:{port} --backlog 2048 {SERVER_SCRIPT}"
+        )
         proc = subprocess.Popen(cmd.split())
         processes.append(proc)
         print(f"🚀 Launched model process {i+1}/{num_processes} on port {port}")
