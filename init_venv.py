@@ -1,6 +1,7 @@
 """
 Interactive Python Environment Setup Script
 Optimized for Qwen2.5 and modern ML workflows
+Includes automatic GPU detection for PyTorch installation
 """
 
 import subprocess
@@ -10,6 +11,8 @@ from pathlib import Path
 
 VENV_DIR = "venv-acct-cik"
 USE_VENV = True  # Global flag, can be overridden by --no-venv
+GPU_AVAILABLE = False  # Will be "nvidia", "amd", or False
+CUDA_VERSION = "cu121"  # Default to CUDA 12.1
 
 BASE_PACKAGES = [
     # Web scraping and server
@@ -29,9 +32,8 @@ BASE_PACKAGES = [
     "tqdm",
 ]
 
-# Unsloth and its core dependencies
-UNSLOTH_PACKAGES = [
-    "torch",
+# Core dependencies (without torch, which we'll handle specially)
+UNSLOTH_PACKAGES_BASE = [
     "torchvision",
     "torchaudio",
     "transformers",
@@ -44,7 +46,7 @@ UNSLOTH_PACKAGES = [
 # Platform-specific Unsloth installation
 if sys.platform == "win32":
     # On Windows, install Unsloth dependencies manually
-    UNSLOTH_INSTALL = UNSLOTH_PACKAGES
+    UNSLOTH_INSTALL = UNSLOTH_PACKAGES_BASE
 else:
     # On Linux/WSL/Mac, use the optimized Unsloth package
     UNSLOTH_INSTALL = [
@@ -53,7 +55,7 @@ else:
         "torchaudio",
     ]
 
-ML_PACKAGES = [
+ML_PACKAGES_BASE = [
     "scikit-learn",
     "tensorboardX",
     "flask",
@@ -61,7 +63,96 @@ ML_PACKAGES = [
     "waitress",
 ] + UNSLOTH_INSTALL
 
-PACKAGES = ML_PACKAGES + BASE_PACKAGES
+PACKAGES = ML_PACKAGES_BASE + BASE_PACKAGES
+
+
+def detect_nvidia_gpu():
+    """Detect if NVIDIA GPU is available and extract CUDA version dynamically"""
+    global GPU_AVAILABLE, CUDA_VERSION
+
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            GPU_AVAILABLE = True
+            print("✅ NVIDIA GPU detected!")
+
+            # Try to get GPU info
+            try:
+                gpu_info = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if gpu_info.returncode == 0:
+                    print(f"   GPU: {gpu_info.stdout.strip()}")
+            except:
+                pass
+
+            # Dynamically extract CUDA version from nvidia-smi output
+            try:
+                cuda_info = subprocess.run(
+                    ["nvidia-smi"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                # Look for pattern like "CUDA Version: 12.1" or "CUDA Version: 11.8"
+                import re
+
+                match = re.search(r"CUDA Version: (\d+)\.(\d+)", cuda_info.stdout)
+                if match:
+                    major, minor = match.groups()
+                    CUDA_VERSION = f"cu{major}{minor}"
+                    print(f"   Detected CUDA version: {major}.{minor}")
+                else:
+                    print(
+                        f"   Could not parse CUDA version, using default: {CUDA_VERSION}"
+                    )
+                print(f"   Using PyTorch wheel: {CUDA_VERSION}")
+            except Exception as e:
+                print(
+                    f"   Could not detect CUDA version: {e}, using default: {CUDA_VERSION}"
+                )
+
+            return True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    GPU_AVAILABLE = False
+    return False
+
+
+def detect_amd_gpu():
+    """Detect if AMD GPU is available with ROCm"""
+    try:
+        result = subprocess.run(
+            ["rocm-smi"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            print("✅ AMD GPU with ROCm detected!")
+            return True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return False
+
+
+def get_pytorch_install_cmd():
+    """Generate PyTorch installation command based on GPU availability"""
+    if GPU_AVAILABLE == "nvidia":
+        return f"torch --index-url https://download.pytorch.org/whl/{CUDA_VERSION}"
+    elif GPU_AVAILABLE == "amd":
+        return "torch --index-url https://download.pytorch.org/whl/rocm6.2"
+    else:
+        return "torch --index-url https://download.pytorch.org/whl/cpu"
 
 
 def get_pip_executable():
@@ -88,6 +179,26 @@ def install_packages(package_list, description):
         print(f"✅ {description} installed successfully.")
     else:
         print(f"❌ Failed to install some {description}.")
+
+
+def install_pytorch():
+    """Install PyTorch with appropriate GPU support"""
+    print(f"📦 Installing PyTorch...")
+    torch_cmd = get_pytorch_install_cmd()
+    pip_exec = get_pip_executable()
+    cmd = f"{pip_exec} install --upgrade {torch_cmd}"
+    print(f"   Running: {cmd}")
+    result = subprocess.run(cmd, shell=True)
+
+    if result.returncode == 0:
+        if GPU_AVAILABLE == "nvidia":
+            print(f"✅ PyTorch (NVIDIA GPU {CUDA_VERSION}) installed successfully.")
+        elif GPU_AVAILABLE == "amd":
+            print(f"✅ PyTorch (AMD ROCm) installed successfully.")
+        else:
+            print(f"✅ PyTorch (CPU) installed successfully.")
+    else:
+        print(f"❌ Failed to install PyTorch.")
 
 
 def create_venv():
@@ -117,6 +228,14 @@ def show_menu():
     print(f"Virtual Environment Status: {venv_status}")
     platform_info = "Windows" if sys.platform == "win32" else "Linux/WSL/Mac"
     print(f"Platform: {platform_info}")
+    gpu_status = (
+        f"GPU: Detected ({CUDA_VERSION})"
+        if GPU_AVAILABLE == "nvidia"
+        else "GPU: Not detected (CPU-only)"
+    )
+    if GPU_AVAILABLE == "amd":
+        gpu_status = "GPU: AMD ROCm detected"
+    print(f"{gpu_status}")
     print("\nOptions:")
     print("  0. Basic setup")
     print("  1. Install all packages (Base + ML with Unsloth)")
@@ -162,6 +281,11 @@ def check_installation():
         else:
             print(f"   {pkg}: Not installed")
 
+    # Check GPU support if torch is installed
+    print("\n🎮 Checking GPU support...")
+    gpu_check_cmd = f"{python_exec} -c \"import torch; print(f'CUDA available: {{torch.cuda.is_available()}}'); print(f'Device: {{torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"CPU\"}}');\""
+    subprocess.run(gpu_check_cmd, shell=True)
+
 
 def main():
     """Main interactive loop"""
@@ -180,6 +304,12 @@ def main():
     if args.no_venv:
         USE_VENV = False
 
+    print("\n🔍 Detecting hardware...")
+    if sys.platform == "win32":
+        detect_nvidia_gpu()
+    else:
+        print("   (GPU detection skipped on non-Windows platforms)")
+
     if USE_VENV:
         create_venv()
 
@@ -193,7 +323,9 @@ def main():
             exit(0)
         elif choice == "1":
             print("\nFull setup starting...")
-            install_packages(PACKAGES, "project packages")
+            install_pytorch()
+            install_packages(ML_PACKAGES_BASE, "ML and Unsloth packages")
+            install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Environment setup complete!")
             exit(0)
         elif choice == "2":
