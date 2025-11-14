@@ -356,42 +356,31 @@ def fetch_report_data(valid=True):
 # =============================================================================
 
 
-def get_result_from_server(sentences, batch_size=128):
-    predictions = []
+def get_result_from_server(text_chunk: str) -> dict:
+    """
+    Sends a single text chunk to the model server and returns the generated JSON.
+    This replaces the old batch-based function.
+    """
     headers = {"Content-Type": "application/json"}
-
-    for i in range(0, len(sentences), batch_size):
-        batch = sentences[i : i + batch_size]
-        payload = {"texts": batch}
-        try:
-            predict_url = f"{SERVER_BASE_URL}/predict"
-            response = requests.post(predict_url, headers=headers, data=json.dumps(payload))
-            response.raise_for_status()
-            resp_json = response.json()
-            preds = resp_json.get("predictions")  # Server returns a list of prediction dicts
-            if not isinstance(preds, list):
-                preds = []
-
-            # If response length doesn't match batch, fill with error objects
-            if len(preds) != len(batch):
-                debug_print(
-                    f"Warning: batch size {len(batch)} vs response {len(preds)} mismatch"
-                )
-                # Use a consistent error object instead of -1
-                predictions.extend([{"error": "mismatch"}] * len(batch))
-                continue
-            predictions.extend(preds)
-        except requests.exceptions.RequestException as e:
-            print(f"Error communicating with server: {e}")
-            # Use a consistent error object for network errors
-            predictions.extend([{"error": "network_error"}] * len(batch))
-    return predictions
+    # The new server expects a 'prompt' key, not 'texts'
+    payload = {"prompt": text_chunk}
+    try:
+        # The new server endpoint is /generate
+        predict_url = f"{SERVER_BASE_URL}/generate"
+        response = requests.post(predict_url, headers=headers, data=json.dumps(payload), timeout=300)
+        response.raise_for_status()
+        # The server returns a dictionary with a 'prediction' key
+        return response.json().get("prediction", {})
+    except requests.exceptions.RequestException as e:
+        print(f"Error communicating with server: {e}")
+        # Return a consistent error object for network or other request errors
+        return {"error": "network_error", "details": str(e)}
 
 
 def process_report_fully(report):
     """
     Processes a single report completely:
-    1. Loads content (from cache or web).
+    1. Gets matches from the database.
     2. Gets analysis from the server for those sentences from `matches`.
     3. Returns the result (does NOT save to database immediately).
     """
@@ -423,10 +412,12 @@ def process_report_fully(report):
         if current_chunk:
             text_chunks.append(year_prefix + current_chunk)
 
-        # Now, get predictions for these larger, more context-rich chunks.
-        # The server is expected to return one JSON object per chunk.
+        # The server expects one prompt at a time. Since we have multiple chunks,
+        # we'll get one prediction for each. The ThreadPoolExecutor in the main
+        # loop will handle running these requests in parallel.
         if text_chunks:
-            all_predictions = get_result_from_server(text_chunks)
+            # Get a prediction for each chunk. This will be a list of JSON objects.
+            all_predictions = [get_result_from_server(chunk) for chunk in text_chunks]
 
     # The server_response will be a list of JSON objects, one for each chunk processed.
     # Prepare the final result row (return, don't save yet)

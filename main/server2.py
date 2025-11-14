@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import torch
-import os
 import json
 from unsloth import FastLanguageModel
 from transformers import TextIteratorStreamer
 from threading import Thread
 import multiprocessing as mp
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -34,13 +34,26 @@ NON_THINKING_PARAMS = {
     "repetition_penalty": 1.1
 }
 
-# --- Device & VRAM detection ---
-DEVICE_TYPE = os.environ.get("DEVICE_TYPE", "gpu").lower()
+# --- NEW: Dynamic Hardware Detection ---
+def get_hardware_config():
+    """Detects GPU and sets configuration for model loading and batching."""
+    if torch.cuda.is_available():
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        print(f"✅ GPU detected with {vram_gb:.2f} GB VRAM.")
+        # Set batch size based on VRAM. More VRAM allows for larger batches.
+        if vram_gb > 20:
+            batch_size = 4  # High-end GPUs (A100, etc.)
+        elif vram_gb > 14:
+            batch_size = 3  # Desktop GPUs (15GB+)
+        else:
+            batch_size = 2  # Laptop GPUs (8GB+)
+        return torch.device("cuda"), True, batch_size
+    else:
+        print("⚠️ No GPU detected. Running on CPU.")
+        return torch.device("cpu"), False, 1 # Batch size of 1 for CPU
+
+device, is_gpu, BATCH_SIZE = get_hardware_config()
 load_in_4bit = True
-if DEVICE_TYPE == "cpu":
-    device = torch.device("cpu")
-else:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # --- Load model ---
 model, tokenizer = FastLanguageModel.from_pretrained(
@@ -50,7 +63,7 @@ model, tokenizer = FastLanguageModel.from_pretrained(
     load_in_4bit=load_in_4bit,
 )
 FastLanguageModel.for_inference(model)
-print("Model loaded.")
+print(f"✅ Model loaded. Server configured with BATCH_SIZE = {BATCH_SIZE}")
 
 
 def get_gen_params(user_params: dict = None, enable_thinking: bool = True):
@@ -148,17 +161,17 @@ def generate_stream_endpoint():
 @app.route("/info", methods=["GET"])
 def info_endpoint():
     info = {"device": str(device)}
-    if torch.cuda.is_available():
+    if is_gpu:
         prop = torch.cuda.get_device_properties(0)
         info.update(
             {
-                "gpu": True,
-                "name": torch.cuda.get_device_name(0),
-                "vram_gb": round(prop.total_memory / (1024**3), 2),
+                "gpu_available": True,
+                "gpu_name": torch.cuda.get_device_name(0),
+                "total_ram_gb": round(prop.total_memory / (1024**3), 2),
             }
         )
     else:
-        info.update({"gpu": False, "cpu_cores": mp.cpu_count()})
+        info.update({"gpu_available": False, "cpu_cores": mp.cpu_count()})
     return jsonify(info)
 
 
