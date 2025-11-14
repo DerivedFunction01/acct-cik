@@ -729,7 +729,6 @@ if __name__ == "__main__":
                     new_model_name=new_model_name,
                     num_epochs=epochs_for_this_run,
                     is_hf_dataset=is_hf_dataset,
-                    merge_at_end=True,
                     dataset_num_shards=num_shards,
                     dataset_shard_index=shard_index,
                     merge_at_end=merge_adapters,
