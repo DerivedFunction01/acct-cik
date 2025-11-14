@@ -367,30 +367,51 @@ def fetch_report_data(valid=True):
 def get_result_from_server(text_chunk: str) -> dict:
     """
     Sends a single text chunk to the model server and returns the generated text.
+    Uses streaming to handle long-running generations.
     """
     headers = {"Content-Type": "application/json"}
     payload = {"prompt": text_chunk, "params": {"enable_thinking": True}}
     try:
         predict_url = f"{SERVER_BASE_URL}/generate-stream"
-        with requests.post(
+
+        # Set stream=True to get the response as a stream
+        response = requests.post(
             predict_url,
             headers=headers,
-            data=json.dumps(payload),
-            timeout=300,
-            stream=True,
-        ) as response:
-            response.raise_for_status()
+            json=payload,  # Use json= instead of data=json.dumps()
+            timeout=600,  # Increased timeout for streaming
+            stream=True,  # Enable streaming
+        )
+        response.raise_for_status()
 
-            full_response = ""
-            for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+        full_response = ""
+
+        # Iterate over response content in chunks
+        # Use a smaller chunk_size (e.g., 8192 bytes) for better streaming behavior
+        for chunk in response.iter_content(chunk_size=8192, decode_unicode=True):
+            if chunk:  # Filter out keep-alive new lines
                 full_response += chunk
+                debug_print(f"Received chunk: {chunk[:100]}...")
 
-            debug_print(f"Server response: {full_response[:200]}...")
-            return {"response": full_response}  # ✅ Return the actual response
+        debug_print(f"Complete response: {full_response[:200]}...")
+
+        # Return the full response wrapped in a dict
+        return {"response": full_response, "success": True}
+
+    except requests.exceptions.Timeout:
+        print(f"Timeout error communicating with server after 600s")
+        return {
+            "error": "timeout",
+            "details": "Server did not respond within 600 seconds",
+        }
 
     except requests.exceptions.RequestException as e:
         print(f"Error communicating with server: {e}")
         return {"error": "network_error", "details": str(e)}
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return {"error": "unexpected_error", "details": str(e)}
 
 
 def process_report_fully(report):
@@ -543,7 +564,7 @@ def process_reports_in_chunks(
         chunk_empty = 0
 
         # Process chunk with ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+        with ThreadPoolExecutor(max_workers=1) as executor:
             future_to_report = {
                 executor.submit(process_report_fully, r): r for r in chunk
             }
