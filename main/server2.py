@@ -1,12 +1,13 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import json
 import multiprocessing as mp
 import os
-from threading import Thread
+from threading import Thread, Lock
+import asyncio
 
 try:
     import unsloth
@@ -40,7 +41,6 @@ app.add_middleware(
 MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
 MAX_SEQ_LENGTH = 32768
 TEXT_SIZE = MAX_SEQ_LENGTH // 8
-# DO NOT use greedy decoding, as it can lead to performance degradation and endless repetitions.
 THINKING_PARAMS = {
     "temperature": 0.60,
     "top_p": 0.95,
@@ -63,6 +63,11 @@ if os.path.exists(SYS_PROMPT_FILE):
     with open(SYS_PROMPT_FILE, "r") as f:
         SYSTEM_PROMPT = f.read()
 
+# --- BUSY STATE TRACKING ---
+# Lock to prevent race conditions when updating busy state
+busy_lock = Lock()
+is_busy = False
+
 
 # --- Pydantic Models ---
 class GenerateRequest(BaseModel):
@@ -78,6 +83,11 @@ class InfoResponse(BaseModel):
     total_ram_gb: Optional[float] = None
     load_in_4bit: Optional[bool] = None
     cpu_cores: Optional[int] = None
+
+
+class StatusResponse(BaseModel):
+    status: str  # "idle" or "busy"
+    message: str
 
 
 # --- Dynamic Hardware Detection ---
@@ -149,6 +159,8 @@ def get_gen_params(user_params: dict = None, enable_thinking: bool = True) -> di
 
 def generate_stream(prompt: str, user_params: dict = None):
     """Streams tokens from model generation with optional thinking mode."""
+    global is_busy
+
     streamer = TextIteratorStreamer(
         tokenizer, skip_prompt=True, skip_special_tokens=True
     )
@@ -175,7 +187,6 @@ def generate_stream(prompt: str, user_params: dict = None):
             enable_thinking=enable_thinking,
         )
     except TypeError:
-        # Fallback for models that don't support enable_thinking parameter
         formatted_prompt = tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -205,11 +216,24 @@ def generate_stream(prompt: str, user_params: dict = None):
         **params,
     }
 
-    thread = Thread(target=model.generate, kwargs=gen_kwargs)
-    thread.start()
+    # Mark as busy
+    with busy_lock:
+        is_busy = True
+        print("🔴 Process marked as BUSY")
 
-    for token in streamer:
-        yield token
+    try:
+        thread = Thread(target=model.generate, kwargs=gen_kwargs)
+        thread.start()
+
+        for token in streamer:
+            yield token
+
+        thread.join()
+    finally:
+        # Mark as idle after generation completes
+        with busy_lock:
+            is_busy = False
+            print("🟢 Process marked as IDLE")
 
 
 @app.post("/generate-stream")
@@ -226,6 +250,24 @@ async def generate_stream_endpoint(request: GenerateRequest):
     except Exception as e:
         print(f"ERROR in stream endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/status", response_model=StatusResponse)
+async def status_endpoint():
+    """
+    Check if this process is busy or idle.
+    Useful for clients to know if they should send requests.
+    """
+    with busy_lock:
+        if is_busy:
+            return StatusResponse(
+                status="busy",
+                message="This process is currently generating. Request queued or try another server.",
+            )
+        else:
+            return StatusResponse(
+                status="idle", message="This process is ready to accept requests."
+            )
 
 
 @app.get("/info", response_model=InfoResponse)
@@ -260,6 +302,7 @@ async def root():
         "docs": "/docs",
         "endpoints": {
             "generate-stream": "POST /generate-stream - Stream token generation",
+            "status": "GET /status - Check if process is busy or idle",
             "info": "GET /info - Server info and hardware details",
         },
     }
