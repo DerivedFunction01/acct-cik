@@ -40,7 +40,7 @@ app.add_middleware(
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
 MAX_SEQ_LENGTH = 32768
-TEXT_SIZE = MAX_SEQ_LENGTH // 8
+TEXT_SIZE = MAX_SEQ_LENGTH // 6
 THINKING_PARAMS = {
     "temperature": 0.60,
     "top_p": 0.95,
