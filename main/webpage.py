@@ -27,7 +27,11 @@ import psutil
 from pathlib import Path
 import threading
 import html2text
-from defs.table_definitions import HTMLTableConverter, GenericTable
+from defs.table_definitions import HTMLTableConverter
+from bs4 import XMLParsedAsHTMLWarning
+import warnings
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 # Importing required module
 import subprocess
@@ -369,9 +373,9 @@ GEN_REGEX = build_gen_regex()
 # combined regex combines all of the regex
 COMBINED_REGEX = re.compile(r'|'.join([IR_REGEX.pattern, FX_REGEX.pattern, CP_REGEX.pattern, EQ_REGEX.pattern, GEN_REGEX.pattern]), re.IGNORECASE)
 
-# --- NEW: Regex for matching only base derivative types, intended for use within tables ---
-TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation(ALL_BASE_TYPES) + r'\b', re.IGNORECASE)
-IGNORE_REGEX = re.compile(r'|'.join([r"stock option", r"shares", r"excercise"]),  re.IGNORECASE)
+# --- NEW: Regex for matching only base derivative types, intended for use within tables ---. Remove the question mark
+TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation([base.rstrip("?") for base in ALL_BASE_TYPES] + ["derivative"]) + r'\b', re.IGNORECASE)
+IGNORE_REGEX = re.compile(r'|'.join([r"stock option", r"shares", r"exercis"]),  re.IGNORECASE)
 
 # %%
 # =============================================================================
