@@ -416,8 +416,12 @@ def process_report_fully(report):
         # we'll get one prediction for each. The ThreadPoolExecutor in the main
         # loop will handle running these requests in parallel.
         if text_chunks:
-            # Get a prediction for each chunk. This will be a list of JSON objects.
-            all_predictions = [get_result_from_server(chunk) for chunk in text_chunks]
+            # For each chunk, create a dictionary containing both the prompt and the prediction.
+            # This provides full context for later analysis and debugging.
+            all_predictions = [
+                {"prompt": chunk, "prediction": get_result_from_server(chunk)}
+                for chunk in text_chunks
+            ]
 
     # The server_response will be a list of JSON objects, one for each chunk processed.
     # Prepare the final result row (return, don't save yet)
