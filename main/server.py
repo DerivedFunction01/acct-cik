@@ -40,7 +40,6 @@ app.add_middleware(
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
 MAX_SEQ_LENGTH = 32768
-TEXT_SIZE = MAX_SEQ_LENGTH // 6
 THINKING_PARAMS = {
     "temperature": 0.60,
     "top_p": 0.95,
@@ -270,7 +269,7 @@ async def info_endpoint():
     """Endpoint for server info and hardware details."""
     info_dict = {
         "device": str(device),
-        "max_seq_length": TEXT_SIZE,
+        "max_seq_length": MAX_SEQ_LENGTH,
         "gpu_available": is_gpu,
     }
 
