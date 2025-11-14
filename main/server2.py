@@ -169,7 +169,6 @@ def generate_stream(prompt: str, user_params: dict = None):
     for token in streamer:
         yield token
 
-
 @app.route("/generate", methods=["POST"])
 def generate_endpoint():
     """Endpoint for non-streaming generation."""
@@ -178,9 +177,53 @@ def generate_endpoint():
     if not prompt:
         return jsonify({"error": "Missing 'prompt'"}), 400
     params = data.get("params", {})
-    result = generate_response(prompt, params)
-    return jsonify({"prediction": result})
+    if not isinstance(params, dict):
+        return jsonify({"error": "'params' must be a dictionary"}), 400
 
+    # Make a copy to avoid modifying the original
+    params_copy = params.copy()
+    enable_thinking = params_copy.pop("enable_thinking", True)
+    system_prompt = params_copy.pop("system_prompt", SYSTEM_PROMPT)
+    gen_params = get_gen_params(params_copy, enable_thinking=enable_thinking)
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    formatted_prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=enable_thinking,
+    )
+    print(f"Formatted prompt: {formatted_prompt}")
+    inputs = tokenizer([formatted_prompt], return_tensors="pt").to(device)
+
+    eos_token_ids = [tokenizer.eos_token_id]
+
+    try:
+        output_ids = model.generate(
+            **inputs,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=eos_token_ids,
+            **gen_params,
+        )
+
+        # Decode the generated output
+        output_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        print(f"Generated text: {output_text}")
+        # Try to parse as JSON if expected
+        try:
+            result = json.loads(output_text)
+        except json.JSONDecodeError:
+            # If not valid JSON, return as raw text
+            result = {"response": output_text}
+
+        return jsonify({"prediction": result})
+
+    except Exception as e:
+        return jsonify({"error": "Generation failed", "details": str(e)}), 500
 
 @app.route("/generate-stream", methods=["POST"])
 def generate_stream_endpoint():
