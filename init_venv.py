@@ -169,7 +169,7 @@ def install_packages(package_list, description):
     print(f"📦 Installing {description}...")
     packages = " ".join(package_list)
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install {UPGRADE} {packages}"
+    cmd = f"{pip_exec} install {packages}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
