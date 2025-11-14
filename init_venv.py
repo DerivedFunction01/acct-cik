@@ -18,6 +18,7 @@ BASE_PACKAGES = [
     # Web scraping and server
     "beautifulsoup4",
     "html2text",
+    "lxml",
     # System and file utilities
     "psutil",
     "openpyxl",

@@ -622,7 +622,8 @@ def extract_content(data: str, asHTML=True) -> str:
         return ""
 
     if asHTML:
-        soup = BeautifulSoup(data, "html.parser")
+        # Use lxml for significantly faster parsing. Ensure you have it installed: pip install lxml
+        soup = BeautifulSoup(data, "lxml")
 
         # Decompose hidden elements
         for element in soup(
@@ -646,14 +647,15 @@ def extract_content(data: str, asHTML=True) -> str:
             elif prev_sibling and prev_sibling.name == "p":
                 title = prev_sibling.get_text(strip=True)
 
+            # OPTIMIZATION: Avoid re-parsing with pd.read_html.
+            # Extract rows directly from the BeautifulSoup table object.
+            rows = []
             try:
-                df = pd.read_html(StringIO(str(table)), flavor="bs4")[0]
-                rows = [df.columns.tolist()] + df.astype(str).values.tolist()
-            except Exception:
-                rows = []
                 for tr in table.find_all("tr"):
                     row = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
                     rows.append(row)
+            except Exception as e:
+                debug_print(f"⚠️  Table extraction failed: {e}")
 
             if rows:
                 converter = HTMLTableConverter(grid=rows, title=title)
