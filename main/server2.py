@@ -43,7 +43,11 @@ NON_THINKING_PARAMS = {
     "min_p": 0.0,
     "repetition_penalty": 1.1,
 }
-
+SYS_PROMPT_FILE = "sys_prompt_regular.md"
+SYSTEM_PROMPT = ""
+if os.path.exists(SYS_PROMPT_FILE):
+    with open(SYS_PROMPT_FILE, "r") as f:
+        SYSTEM_PROMPT = f.read()
 
 # --- Dynamic Hardware Detection ---
 def get_hardware_config():
@@ -126,7 +130,8 @@ def generate_stream(prompt: str, user_params: dict = None):
     # Use tokenizer's chat template for proper formatting.
     # Control the <think> block via the `enable_thinking` flag.
     enable_thinking = user_params.pop("enable_thinking", True) if user_params else True
-    system_prompt = user_params.pop("system_prompt", "") if user_params else ""
+    # Use the user-provided system prompt, or fall back to the global default.
+    system_prompt = user_params.pop("system_prompt", SYSTEM_PROMPT) if user_params else SYSTEM_PROMPT
     params = get_gen_params(user_params, enable_thinking=enable_thinking)
 
     messages = []
