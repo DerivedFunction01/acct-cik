@@ -1,16 +1,17 @@
-# %%
-# %pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
-# Also run: pip uninstall unsloth -y && pip install --upgrade --no-cache-dir "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+"""
+Complete Generative Model Training Script with Unsloth
+Dynamic training profiles based on hardware (VRAM multipliers of 4GB)
+"""
 
 import json
-import random
 import math
 import sys
-from pathlib import Path
 import multiprocessing
+from pathlib import Path
+from typing import Tuple
 
 import pandas as pd
-
+import torch
 from psutil import virtual_memory
 
 # Dynamic Unsloth import with fallback
@@ -20,18 +21,33 @@ try:
     USE_UNSLOTH = True
     print("✅ Unsloth found. Using Unsloth for model loading.")
 except ImportError:
-    import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
     USE_UNSLOTH = False
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
-    
+
 from datasets import load_dataset
 from huggingface_hub import login
 from trl import SFTTrainer
-from transformers import TrainingArsguments
+from transformers import TrainingArguments, TextIteratorStreamer
+from threading import Thread
 
-# %%
-# --- CONFIGURATION ---
+# ============================================================================
+# CONFIGURATION & PROFILE MANAGEMENT
+# ============================================================================
+
+PROFILE_FILE = Path(".training_profile.json")
+
+# Base profile - all other profiles scale from this
+BASE_PROFILE = {
+    "name": "Base Configuration",
+    "r": 64,
+    "lora_alpha": 128,
+    "batch_size": 1,
+    "gradient_accumulation": 8,
+    "max_seq_length": 32768,
+    "load_in_4bit": True,
+}
+
 config = {
     "MODEL_USER": "DerivedFunction",
     "MODEL_NAMES": [
@@ -48,61 +64,9 @@ config = {
 }
 IS_AUTHENTICATED = False
 
-# =============================================================================
-# DYNAMIC CONFIGURATION PROFILES
-# =============================================================================
 
-TRAINING_PROFILES = {
-    "1": {
-        "name": "Max Performance (A100 40GB / H100)",
-        "r": 256,
-        "lora_alpha": 512,
-        "batch_size": 6,
-        "gradient_accumulation": 4,
-        "max_seq_length": 32768,
-        "load_in_4bit": True,
-    },
-    "2": {
-        "name": "L4 / Pro (>= 20 GB)",
-        "r": 256,
-        "lora_alpha": 512,
-        "batch_size": 4,
-        "gradient_accumulation": 4,
-        "max_seq_length": 32768,
-        "load_in_4bit": True,
-    },
-    "3": {
-        "name": "High VRAM / Colab (>= 12GB)",
-        "r": 128,
-        "lora_alpha": 256,
-        "batch_size": 2,
-        "gradient_accumulation": 4,
-        "max_seq_length": 32768,
-        "load_in_4bit": True,
-    },
-    "4": {
-        "name": "Low VRAM (6-12GB)",
-        "r": 64,
-        "lora_alpha": 128,
-        "batch_size": 1,
-        "gradient_accumulation": 8,
-        "max_seq_length": 32768,
-        "load_in_4bit": True,
-    },
-    "5": {
-        "name": "CPU / Low RAM (< 6GB)",
-        "r": 32,
-        "lora_alpha": 32,
-        "batch_size": 1,
-        "gradient_accumulation": 16,
-        "max_seq_length": 32768,
-        "load_in_4bit": True,
-    },
-}
-
-
-def detect_hardware() -> tuple:
-    """Detects GPU VRAM and system RAM to suggest a profile."""
+def detect_hardware() -> Tuple[str, float]:
+    """Detects GPU VRAM and system RAM."""
     if torch.cuda.is_available():
         vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         return "gpu", vram_gb
@@ -111,18 +75,146 @@ def detect_hardware() -> tuple:
         return "cpu", ram_gb
 
 
-def get_target_modules(dataset_size: int) -> list:
+def calculate_multipliers(vram_gb: float) -> dict:
     """
-    Selects target modules for LoRA based on dataset size.
-    Smaller datasets benefit from fewer trainable parameters to prevent overfitting.
-    Larger datasets can utilize more modules for better fine-tuning.
+    Calculates hardware multipliers based on VRAM in 4GB increments.
+    Scales linearly: each 4GB of VRAM increases batch/LoRA capacity.
+    """
+    # Clamp to minimum 4GB (prevent negative multipliers)
+    vram_gb = max(4, vram_gb)
 
-    Dataset size ranges:
-    - < 1K samples: minimal modules (attention layers only)
-    - 1K - 10K samples: core modules (attention + gating)
-    - 10K - 100K samples: standard modules (attention + feed-forward gating)
-    - 100K+ samples: full modules (all attention + feed-forward)
+    # Number of 4GB units
+    units = vram_gb / 4.0
+
+    # Scale multipliers based on 4GB units
+    # Base = 1 unit (4GB)
+    r_mult = max(0.5, units / 4)  # r scales slower
+    alpha_mult = max(0.25, units / 8)  # alpha scales even slower
+    batch_mult = max(1, units)  # batch scales linearly
+    grad_accum_mult = max(0.25, 8 / units)  # reduce grad accum as we have more VRAM
+
+    return {
+        "r_mult": round(r_mult, 2),
+        "alpha_mult": round(alpha_mult, 2),
+        "batch_mult": round(batch_mult, 2),
+        "grad_accum_mult": round(grad_accum_mult, 2),
+    }
+
+
+def get_hardware_tier(vram_gb: float) -> str:
+    """Maps VRAM to a human-readable tier name."""
+    if vram_gb >= 40:
+        return "Ultra High (A100/H100)"
+    elif vram_gb >= 24:
+        return "High (L4/RTX 6000)"
+    elif vram_gb >= 16:
+        return "Medium-High (RTX 3090/A10)"
+    elif vram_gb >= 8:
+        return "Medium (RTX 3070)"
+    elif vram_gb >= 4:
+        return "Low (RTX 3060)"
+    else:
+        return "CPU / Very Low VRAM"
+
+
+def scale_profile(base: dict, multipliers: dict) -> dict:
+    """Scales a base profile by hardware multipliers. Ensures integer values."""
+    scaled = base.copy()
+    scaled["r"] = max(8, int(base["r"] * multipliers["r_mult"]))
+    scaled["lora_alpha"] = max(16, int(base["lora_alpha"] * multipliers["alpha_mult"]))
+    scaled["batch_size"] = max(1, int(base["batch_size"] * multipliers["batch_mult"]))
+    scaled["gradient_accumulation"] = max(
+        1, int(base["gradient_accumulation"] * multipliers["grad_accum_mult"])
+    )
+    scaled["name"] = (
+        f"Auto-scaled ({get_hardware_tier(4 * (multipliers['batch_mult'] or 1))})"
+    )
+    scaled["load_in_4bit"] = base["load_in_4bit"]
+    scaled["max_seq_length"] = base["max_seq_length"]
+    return scaled
+
+
+def load_training_profile() -> dict:
     """
+    Loads training profile from .training_profile.json if it exists,
+    otherwise generates defaults based on current hardware.
+    """
+    if PROFILE_FILE.exists():
+        print(f"📖 Found .training_profile.json. Loading configuration...")
+        try:
+            with open(PROFILE_FILE, "r") as f:
+                profile_data = json.load(f)
+
+            # If it's a base profile with multipliers, scale it
+            if "multipliers" in profile_data:
+                base = profile_data.get("base_profile", BASE_PROFILE)
+                mults = profile_data["multipliers"]
+                profile_data = scale_profile(base, mults)
+                profile_data["name"] = profile_data.get("name", "Custom Profile")
+
+            # Validate required fields
+            required_fields = [
+                "r",
+                "lora_alpha",
+                "batch_size",
+                "gradient_accumulation",
+                "max_seq_length",
+                "load_in_4bit",
+            ]
+            if all(field in profile_data for field in required_fields):
+                if "name" not in profile_data:
+                    profile_data["name"] = "Custom Profile"
+                print(f"✅ Loaded profile: {profile_data.get('name')}")
+                return profile_data
+            else:
+                print(
+                    f"⚠️ .training_profile.json missing required fields. Using hardware-detected defaults."
+                )
+        except Exception as e:
+            print(
+                f"⚠️ Error reading .training_profile.json: {e}. Using hardware-detected defaults."
+            )
+
+    # Fall back to hardware detection
+    hardware_type, ram = detect_hardware()
+    multipliers = calculate_multipliers(ram)
+    profile = scale_profile(BASE_PROFILE, multipliers)
+
+    if hardware_type == "gpu":
+        print(f"✅ GPU with {ram:.1f}GB VRAM detected. Auto-scaling profile...")
+    else:
+        print(f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Using CPU profile...")
+
+    print(f"   Profile: {profile['name']}")
+    print(
+        f"   LoRA r={profile['r']}, batch_size={profile['batch_size']}, grad_accum={profile['gradient_accumulation']}"
+    )
+
+    return profile
+
+
+def create_profile_template() -> None:
+    """Creates a template .training_profile.json based on detected hardware."""
+    hardware_type, vram_gb = detect_hardware()
+    multipliers = calculate_multipliers(vram_gb)
+
+    template = {
+        "base_profile": BASE_PROFILE,
+        "hardware_vram_gb": round(vram_gb, 1),
+        "multipliers": multipliers,
+        "note": "This profile scales from BASE_PROFILE using 4GB VRAM increments. Edit multipliers to customize.",
+    }
+
+    with open(PROFILE_FILE, "w") as f:
+        json.dump(template, f, indent=2)
+
+    print(
+        f"✅ Created .training_profile.json template based on detected {vram_gb:.1f}GB VRAM."
+    )
+
+
+def get_target_modules(dataset_size: int) -> list:
+    """Selects LoRA target modules based on dataset size to prevent overfitting."""
     if dataset_size < 1000:
         modules = ["q_proj", "v_proj"]
         print(
@@ -155,7 +247,9 @@ def get_target_modules(dataset_size: int) -> list:
     return modules
 
 
-# %%
+# ============================================================================
+# TRAINING & INFERENCE
+# ============================================================================
 
 
 def run_training(
@@ -184,7 +278,6 @@ def run_training(
 
     # --- Load Model ---
     print("\n--- Initializing Model and Tokenizer ---")
-
     try:
         if USE_UNSLOTH:
             model, tokenizer = FastLanguageModel.from_pretrained(
@@ -199,13 +292,9 @@ def run_training(
                 torch_dtype=torch.float16,
             )
             tokenizer = AutoTokenizer.from_pretrained(model_name)
-
     except Exception as e:
         print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
-        print(f"Error loading '{model_name}': {e}")
-        print(
-            "If pulling from Hub, ensure the model ID is correct, you have access, and you are logged in."
-        )
+        print(f"Error: {e}")
         return
 
     # --- Load and preprocess data ---
@@ -219,14 +308,14 @@ def run_training(
         dataset_size = len(dataset)
         if dataset_num_shards > 1:
             print(
-                f"Applying dataset shard: Using index {dataset_shard_index} of {dataset_num_shards} total shards."
+                f"Applying dataset shard: {dataset_shard_index + 1} of {dataset_num_shards}"
             )
             dataset = dataset.shard(
                 num_shards=dataset_num_shards, index=dataset_shard_index
             )
 
         def format_with_chat_template(sample: dict) -> dict:
-            """Format sample using the tokenizer's chat template."""
+            """Format sample using tokenizer's chat template."""
             system_msg = sample.get("system") or ""
             user_msg = sample.get("user") or ""
             think_msg = sample.get("think") or ""
@@ -237,7 +326,9 @@ def run_training(
                 messages.append({"role": "system", "content": system_msg})
             messages.append({"role": "user", "content": user_msg})
 
-            think_block = f"<think>\n{think_msg.strip()}\n</think>\n\n"
+            think_block = (
+                f"<think>\n{think_msg.strip()}\n</think>\n\n" if think_msg else ""
+            )
             assistant_content = f"{think_block}{assistant_msg}"
             messages.append({"role": "assistant", "content": assistant_content})
 
@@ -246,7 +337,6 @@ def run_training(
                     messages, tokenize=False, add_generation_prompt=False
                 )
             }
-
         dataset = dataset.map(
             format_with_chat_template, remove_columns=dataset.column_names
         )
@@ -254,23 +344,16 @@ def run_training(
         train_dataset = dataset["train"]
         eval_dataset = dataset["test"]
 
-        print(
-            f"Data loaded successfully. Training samples: {len(train_dataset)}, "
-            f"Evaluation samples: {len(eval_dataset)}"
-        )
+        print(f"✅ Data loaded. Train: {len(train_dataset)}, Eval: {len(eval_dataset)}")
     except Exception as e:
-        print(f"❌ Failed to load data from {data_path}: {e}")
+        print(f"❌ Failed to load data: {e}")
         return
 
-    # --- Apply LoRA with Unsloth ---
+    # --- Apply LoRA ---
     if hasattr(model, "peft_config"):
         print("Model already has LoRA adapters. Continuing training.")
     else:
-        print(
-            "Adding new LoRA adapters for fine-tuning..."
-            if USE_UNSLOTH
-            else "PEFT LoRA not available without Unsloth. Training all parameters."
-        )
+        print("Adding new LoRA adapters for fine-tuning...")
         if USE_UNSLOTH:
             model = FastLanguageModel.get_peft_model(
                 model,
@@ -295,7 +378,7 @@ def run_training(
         eval_steps = max(100, steps_per_epoch // 2)
     else:
         eval_steps = num_train_samples
-    print(f"📊 Setting evaluation frequency to every {eval_steps} steps.")
+    print(f"📊 Evaluation frequency: every {eval_steps} steps")
 
     # --- Training Arguments ---
     training_args = TrainingArguments(
@@ -330,7 +413,10 @@ def run_training(
         config_dict = vars(model.config).copy()
         for key, value in config_dict.items():
             if callable(value) and not isinstance(value, type):
-                delattr(model.config, key)
+                try:
+                    delattr(model.config, key)
+                except:
+                    pass
 
     # --- Initialize SFTTrainer ---
     trainer = SFTTrainer(
@@ -354,79 +440,65 @@ def run_training(
         checkpoint_exists = (
             input("Resume from checkpoint? [y/N]: ").strip().lower() == "y"
         )
-        if checkpoint_exists:
-            print("Checkpoint found. Resuming training from checkpoint...")
         trainer_stats = trainer.train(resume_from_checkpoint=checkpoint_exists)
     except Exception as e:
-        print(f"Training failed: {e}. Trying to train without resuming.")
+        print(f"Training error: {e}. Retrying without checkpoint...")
         trainer_stats = trainer.train()
 
-    print("\n--- Training Statistics ---")
+    print(f"\n--- Training Complete ---")
     print(f"Training time: {trainer_stats.metrics['train_runtime']:.2f} seconds")
-    print(
-        f"Samples per second: {trainer_stats.metrics['train_samples_per_second']:.2f}"
-    )
+    print(f"Samples/second: {trainer_stats.metrics['train_samples_per_second']:.2f}")
 
     # --- Merge, Save, and Push ---
     print(f"\n--- Saving LoRA Adapters to '{new_model_name}_lora' ---")
     model.save_pretrained(f"{new_model_name}_lora")
     tokenizer.save_pretrained(f"{new_model_name}_lora")
 
-    if merge_at_end:
-        if hasattr(model, "merge_and_unload"):
-            print("\n--- Merging LoRA adapters into the base model ---")
-            model = model.merge_and_unload()
-
-        print(f"\n--- Saving final merged model to '{new_model_name}' ---")
+    if merge_at_end and hasattr(model, "merge_and_unload"):
+        print("\n--- Merging LoRA adapters into base model ---")
+        model = model.merge_and_unload()
         trainer.model = model
         trainer.save_model(new_model_name)
-        print(f"✅ Final merged model saved to '{new_model_name}'.")
+        print(f"✅ Final merged model saved to '{new_model_name}'")
 
     if training_args.push_to_hub:
-        print(
-            f"\nModel will be pushed to the Hub at '{training_args.hub_model_id}' by the Trainer."
-        )
+        print(f"\n✅ Model will be pushed to Hub: {training_args.hub_model_id}")
     else:
-        print(
-            f"Skipping push to Hub. The final model is saved locally in the '{new_model_name}' directory."
-        )
+        print(f"\n✅ Local model saved to: {new_model_name}")
 
 
 def run_manual_test() -> None:
-    """Allows for manual, interactive testing of the fine-tuned model."""
+    """Manual, interactive testing of fine-tuned models."""
     print("\n--- Manual Model Test ---")
 
-    print("Available models to test:")
+    print("Available models:")
     print("  --- Base/Merged Models ---")
     for i, name in enumerate(config["MODEL_NAMES"], 1):
         print(f"  [b{i}] {name}")
     print("  --- LoRA Adapters ---")
     for i, name in enumerate(config["LORA_ADAPTERS"], 1):
         print(f"  [a{i}] {name}")
-    print("  [c] Enter a custom model name/path")
-    model_choice = input("Choose model to load (e.g., b1, a1, c): ").strip()
-    model_path = handle_model_choice(model_choice, config["MODEL_NAMES"])
+    print("  [c] Enter custom model name/path")
 
-    # --- Check for local model, else try Hub ---
+    model_choice = input("Choose model (e.g., b1, a1, c): ").strip()
+    model_path = handle_model_choice(model_choice)
+
+    # --- Check local or Hub ---
     local_model_path = Path(model_path)
     hub_model_id = f"{config['MODEL_USER']}/{model_path}"
     model_to_load = ""
 
     if local_model_path.exists():
-        print(f"✅ Found local model at '{model_path}'. Loading...")
+        print(f"✅ Found local model at '{model_path}'")
         model_to_load = model_path
     elif IS_AUTHENTICATED:
-        print(f"ℹ️ Local model not found. Attempting to pull from Hub: '{hub_model_id}'")
+        print(f"ℹ️ Attempting to pull from Hub: '{hub_model_id}'")
         model_to_load = hub_model_id
     else:
-        print(
-            f"❌ Model not found locally at '{model_path}'. Please train the model first"
-        )
-        print("   or log in with Option 3 to pull from the Hugging Face Hub.")
+        print(f"❌ Model not found. Train first or log in to pull from Hub.")
         return
 
-    print(f"\n--- Loading Model '{model_to_load}' for Manual Testing ---")
-
+    print(f"\n--- Loading '{model_to_load}' ---")
     try:
         if USE_UNSLOTH:
             model, tokenizer = FastLanguageModel.from_pretrained(
@@ -435,6 +507,7 @@ def run_manual_test() -> None:
                 dtype=None,
                 load_in_4bit=True,
             )
+            FastLanguageModel.for_inference(model)
         else:
             model = AutoModelForCausalLM.from_pretrained(
                 model_to_load,
@@ -442,32 +515,21 @@ def run_manual_test() -> None:
                 torch_dtype=torch.float16,
             )
             tokenizer = AutoTokenizer.from_pretrained(model_to_load)
-
     except Exception as e:
-        print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
-        print(f"Error loading '{model_to_load}': {e}")
-        print("If pulling from Hub, ensure the model exists and you have access.")
+        print(f"❌ Failed to load model: {e}")
         return
 
-    if USE_UNSLOTH:
-        FastLanguageModel.for_inference(model)
+    print("✅ Model loaded. Type 'exit' or 'quit' to return to menu.\n")
 
-    print(
-        "✅ Model loaded. Enter your prompt below. Type 'exit' or 'quit' to return to the menu."
-    )
-
-    from transformers import TextIteratorStreamer
-    from threading import Thread
     while True:
-        user_prompt = input("\nPrompt: ")
+        user_prompt = input("Prompt: ").strip()
         if user_prompt.lower() in ["exit", "quit"]:
             break
-
         if not user_prompt:
-            print("No prompt provided. Please enter a prompt.")
+            print("No prompt provided.")
             continue
 
-        # Use the tokenizer's chat template
+        # Format with chat template
         messages = [{"role": "user", "content": user_prompt}]
         formatted_prompt = tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
@@ -478,8 +540,6 @@ def run_manual_test() -> None:
         streamer = TextIteratorStreamer(
             tokenizer, skip_prompt=True, skip_special_tokens=True
         )
-
-        # Generate with streaming
         gen_kwargs = dict(
             **inputs,
             streamer=streamer,
@@ -490,19 +550,18 @@ def run_manual_test() -> None:
             pad_token_id=tokenizer.eos_token_id,
         )
 
-        # Run generation in background thread
+        # Generate in background thread
         thread = Thread(target=model.generate, kwargs=gen_kwargs)
         thread.start()
-
-        print("\n--- Generated Response ---")
+        print("\n--- Response ---")
         for token in streamer:
             print(token, end="", flush=True)
         print("\n")
         thread.join()
 
 
-def handle_model_choice(choice: str, model_list: list) -> str:
-    """Helper to resolve user's model choice from a list or custom input."""
+def handle_model_choice(choice: str) -> str:
+    """Resolve user's model choice."""
     choice = choice.lower()
     if choice.startswith("b") and choice[1:].isdigit():
         idx = int(choice[1:]) - 1
@@ -514,11 +573,6 @@ def handle_model_choice(choice: str, model_list: list) -> str:
             return config["LORA_ADAPTERS"][idx]
     elif choice == "c":
         return input("Enter custom model name/path: ").strip()
-
-    if choice.isdigit():
-        idx = int(choice) - 1
-        if 0 <= idx < len(model_list):
-            return model_list[idx]
     return choice
 
 
@@ -532,15 +586,15 @@ def huggingface_auth() -> None:
         try:
             login(token=token_path.read_text().strip())
             IS_AUTHENTICATED = True
-            print("✅ Successfully authenticated with Hugging Face.")
+            print("✅ Authenticated with Hugging Face.")
             return
         except Exception as e:
-            print(f"⚠️  Authentication with saved token failed: {e}")
+            print(f"⚠️ Authentication failed: {e}")
 
-    print("\nPlease paste your Hugging Face token below to log in (optional).")
-    print("(You can get a token from https://huggingface.co/settings/tokens)")
-
-    token = input("HF Token: ").strip()
+    print(
+        "\nPaste your Hugging Face token (get one from https://huggingface.co/settings/tokens)"
+    )
+    token = input("HF Token (or press Enter to skip): ").strip()
 
     if not token:
         print("Skipping authentication.")
@@ -550,177 +604,93 @@ def huggingface_auth() -> None:
     try:
         login(token=token)
         IS_AUTHENTICATED = True
-        print("✅ Successfully authenticated with Hugging Face.")
-        with open(config["HF_TOKEN_PATH"], "w") as f:
-            f.write(token)
+        print("✅ Authenticated with Hugging Face.")
+        token_path.write_text(token)
     except Exception as e:
         print(f"❌ Authentication failed: {e}")
         IS_AUTHENTICATED = False
 
 
+# ============================================================================
+# MAIN MENU
+# ============================================================================
+
 if __name__ == "__main__":
     huggingface_auth()
     try:
         while True:
-            print("\n--- Generative Model Training Menu (Unsloth Optimized) ---")
+            print("\n" + "=" * 60)
+            print("🚀 Generative Model Training (Unsloth Optimized)")
+            print("=" * 60)
             print("1. Fine-tune a base model")
-            print("-------------------------------------------------------------")
-            print("2. Manually Test Model")
-            print("3. Hugging Face Login")
-            print("4. Exit")
+            print("2. Manually test model")
+            print("3. Hugging Face login")
+            print("4. Create training profile template")
+            print("5. Exit")
             choice = input("> ").strip()
 
             if choice == "1":
-                print("\n--- Step 1: Select a Training Profile ---")
-                hardware_type, ram = detect_hardware()
+                print("\n--- Step 1: Load Training Profile ---")
+                profile = load_training_profile()
 
-                if hardware_type == "gpu" and ram >= 32:
-                    recommendation = "1"
-                    print(
-                        f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 1 (Max Perf) is recommended."
-                    )
-                elif hardware_type == "gpu" and ram >= 16:
-                    recommendation = "2"
-                    print(
-                        f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 2 is recommended."
-                    )
-                elif hardware_type == "gpu" and ram >= 12:
-                    recommendation = "3"
-                    print(
-                        f"✅ High-End GPU with {ram:.1f}GB VRAM detected. Profile 3 is recommended."
-                    )
-                elif hardware_type == "gpu" and ram >= 6:
-                    recommendation = "4"
-                    print(
-                        f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 4 is recommended."
-                    )
-                elif hardware_type == "gpu":
-                    recommendation = "5"
-                    print(
-                        f"✅ GPU with {ram:.1f}GB VRAM detected. Profile 5 is recommended."
-                    )
-                else:
-                    recommendation = "5"
-                    print(
-                        f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Profile 5 is recommended."
-                    )
-
-                for key, prof in TRAINING_PROFILES.items():
-                    print(f"  {key}. {prof['name']}")
-
-                profile_choice = (
-                    input(f"Enter profile number [default: {recommendation}]: ").strip()
-                    or recommendation
-                )
-                selected_profile = TRAINING_PROFILES.get(profile_choice)
-
-                if not selected_profile:
-                    print("❌ Invalid profile. Aborting.")
-                    continue
-
-                print("\n--- Step 2: Select a Base Model ---")
+                print("\n--- Step 2: Select Base Model ---")
                 print("  --- Base Models ---")
                 for i, name in enumerate(config["MODEL_NAMES"], 1):
                     print(f"  [b{i}] {name}")
-                print("  --- LoRA Adapters (to continue training) ---")
+                print("  --- LoRA Adapters ---")
                 for i, name in enumerate(config["LORA_ADAPTERS"], 1):
                     print(f"  [a{i}] {name}")
-                print("  [c] Enter a custom model name/path from Hugging Face")
-                model_choice = input(
-                    "Enter model to fine-tune (e.g., b1, a1, c): "
-                ).strip()
-                base_model_name = handle_model_choice(
-                    model_choice, config["MODEL_NAMES"]
-                )
+                print("  [c] Custom model from Hugging Face")
 
-                print("\n--- Step 3: Select a Dataset ---")
+                model_choice = input("Enter model (e.g., b1, a1, c): ").strip()
+                base_model_name = handle_model_choice(model_choice)
+
+                print("\n--- Step 3: Select Dataset ---")
                 for i, (name, is_hf) in enumerate(config["DATASETS"], 1):
                     source = "Hugging Face" if is_hf else "Local"
                     print(f"  [{i}] {name} ({source})")
                 print("  [c] Custom local dataset (.parquet)")
-                data_choice = input("Enter dataset to use: ").strip()
 
-                if data_choice.isdigit():
-                    idx = int(data_choice) - 1
-                    if 0 <= idx < len(config["DATASETS"]):
-                        data_path, is_hf_dataset = config["DATASETS"][idx]
-                    else:
-                        print("❌ Invalid dataset choice.")
-                        continue
+                data_choice = input("Enter dataset: ").strip()
+                if data_choice.isdigit() and 0 <= int(data_choice) - 1 < len(
+                    config["DATASETS"]
+                ):
+                    data_path, is_hf_dataset = config["DATASETS"][int(data_choice) - 1]
                 elif data_choice.lower() == "c":
-                    data_path = input("Enter path to custom .parquet file: ").strip()
+                    data_path = input("Path to .parquet file: ").strip()
                     is_hf_dataset = False
                 else:
-                    print("❌ Invalid dataset choice.")
+                    print("❌ Invalid choice.")
                     continue
 
-                print("\n--- Step 4: Configure Training Run ---")
-                num_epochs = int(
-                    input("Enter number of training epochs [default: 1]: ") or 1
-                )
-                new_model_name = input(
-                    "Enter name for the new fine-tuned model: "
-                ).strip()
+                print("\n--- Step 4: Configure Training ---")
+                num_epochs = int(input("Number of epochs [default: 1]: ") or 1)
+                new_model_name = input("Output model name: ").strip()
+
                 if not new_model_name:
-                    print("❌ Output model name cannot be empty.")
+                    print("❌ Output name required.")
                     continue
-
-                use_sharding = (
-                    input("Use dataset sharding (for very large datasets)? [y/N]: ")
-                    .strip()
-                    .lower()
-                    == "y"
-                )
-                num_shards = 1
-                shard_index = 0
-                merge_adapters = True
-                epochs_for_this_run = num_epochs
-
-                if use_sharding:
-                    num_shards = int(
-                        input(f"Enter total number of shards [e.g., 10]: ") or 10
-                    )
-                    shard_index = int(
-                        input(
-                            f"Enter shard index to train on (0 to {num_shards - 1}): "
-                        )
-                        or 0
-                    )
-                    epochs_for_this_run = shard_index + 1
-                    is_final_run = (
-                        input(
-                            "Is this the FINAL shard? (This will merge the adapters) [y/N]: "
-                        )
-                        .strip()
-                        .lower()
-                        == "y"
-                    )
-                    merge_adapters = is_final_run
-                else:
-                    merge_adapters = True
-                    epochs_for_this_run = num_epochs
 
                 run_training(
-                    profile=selected_profile,
+                    profile=profile,
                     model_name=base_model_name,
                     data_path=data_path,
                     new_model_name=new_model_name,
-                    num_epochs=epochs_for_this_run,
+                    num_epochs=num_epochs,
                     is_hf_dataset=is_hf_dataset,
-                    dataset_shard_index=shard_index,
-                    dataset_num_shards=num_shards,
-                    merge_at_end=merge_adapters,
+                    merge_at_end=True,
                 )
+
             elif choice == "2":
                 run_manual_test()
             elif choice == "3":
                 huggingface_auth()
             elif choice == "4":
-                print("Exiting.")
+                create_profile_template()
+            elif choice == "5":
+                print("👋 Goodbye!")
                 break
             else:
-                print("Invalid choice, please try again.")
+                print("❌ Invalid choice.")
     except KeyboardInterrupt:
-        print("\nExiting.")
-
-# %%
+        print("\n👋 Exiting.")
