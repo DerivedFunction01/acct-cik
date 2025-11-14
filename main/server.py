@@ -22,7 +22,7 @@ except ImportError:
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
 
 import torch
-from transformers import TextStreamer
+from transformers import TextIteratorStreamer
 
 app = FastAPI(
     title="Model Server", description="Streaming language model inference API"
@@ -161,7 +161,9 @@ def generate_stream(prompt: str, user_params: dict = None):
     """Streams tokens from model generation with optional thinking mode."""
     global is_busy
 
-    streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+    streamer = TextIteratorStreamer(
+        tokenizer, skip_prompt=True, skip_special_tokens=True, timeout=2.0
+    )
 
     if user_params is None:
         user_params = {}
@@ -191,11 +193,8 @@ def generate_stream(prompt: str, user_params: dict = None):
             add_generation_prompt=True,
         )
 
-    print(f"DEBUG: Formatted prompt length: {len(formatted_prompt)} chars")
-
     inputs = tokenizer([formatted_prompt], return_tensors="pt")
     token_count = inputs["input_ids"].shape[1]
-    print(f"DEBUG: Token count: {token_count}")
 
     if token_count > MAX_SEQ_LENGTH:
         yield json.dumps(
@@ -217,7 +216,6 @@ def generate_stream(prompt: str, user_params: dict = None):
     # Mark as busy
     with busy_lock:
         is_busy = True
-        print("🔴 Process marked as BUSY")
 
     try:
         thread = Thread(target=model.generate, kwargs=gen_kwargs)
@@ -231,7 +229,6 @@ def generate_stream(prompt: str, user_params: dict = None):
         # Mark as idle after generation completes
         with busy_lock:
             is_busy = False
-            print("🟢 Process marked as IDLE")
 
 
 @app.post("/generate-stream")
