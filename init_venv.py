@@ -17,7 +17,7 @@ CUDA_VERSION = "cu121"  # Default to CUDA 12.1
 BASE_PACKAGES = [
     # Web scraping and server
     "beautifulsoup4",
-    "markdownify",
+    "html2text",
     # System and file utilities
     "psutil",
     "openpyxl",
