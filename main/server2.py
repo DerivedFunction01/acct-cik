@@ -29,8 +29,7 @@ MAX_SEQ_LENGTH = 32768
 TEXT_SIZE = MAX_SEQ_LENGTH // 8
 
 THINKING_PARAMS = {
-    "do_sample": False,  # Deterministic during debugging
-    "temperature": 0.55,
+    "temperature": 0.6,
     "top_p": 0.95,
     "top_k": 20,
     "min_p": 0.0,
@@ -38,7 +37,6 @@ THINKING_PARAMS = {
 }
 
 NON_THINKING_PARAMS = {
-    "do_sample": False,  # Deterministic during debugging
     "temperature": 0.7,
     "top_p": 0.8,
     "top_k": 20,
