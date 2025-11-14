@@ -16,12 +16,12 @@ from psutil import virtual_memory
 
 # Dynamic Unsloth import with fallback
 try:
+    import unsloth
     from unsloth import FastLanguageModel
-
     USE_UNSLOTH = True
     print("✅ Unsloth found. Using Unsloth for model loading.")
 except ImportError:
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     USE_UNSLOTH = False
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
 
@@ -287,10 +287,14 @@ def run_training(
                 load_in_4bit=profile["load_in_4bit"],
             )
         else:
+            quantization_config = None
+            if profile['load_in_4bit']:
+                quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                load_in_4bit=profile["load_in_4bit"],
-                torch_dtype=torch.float16,
+                quantization_config=quantization_config,
+                dtype=torch.float16,
             )
             tokenizer = AutoTokenizer.from_pretrained(model_name)
     except Exception as e:
@@ -512,8 +516,8 @@ def run_manual_test() -> None:
         else:
             model = AutoModelForCausalLM.from_pretrained(
                 model_to_load,
-                load_in_4bit=True,
-                torch_dtype=torch.float16,
+                quantization_config=BitsAndBytesConfig(load_in_4bit=True),
+                dtype=torch.float16,
             )
             tokenizer = AutoTokenizer.from_pretrained(model_to_load)
     except Exception as e:
