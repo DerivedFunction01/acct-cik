@@ -13,6 +13,7 @@ VENV_DIR = "venv-acct-cik"
 USE_VENV = True  # Global flag, can be overridden by --no-venv
 GPU_AVAILABLE = False  # Will be "nvidia", "amd", or False
 CUDA_VERSION = "cu121"  # Default to CUDA 12.1
+UPGRADE = "--upgrade"  # Upgrade pip to the latest version
 
 BASE_PACKAGES = [
     # Web scraping and server
@@ -174,7 +175,7 @@ def install_packages(package_list, description):
     print(f"📦 Installing {description}...")
     packages = " ".join(package_list)
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install --upgrade {packages}"
+    cmd = f"{pip_exec} install {UPGRADE} {packages}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -189,7 +190,7 @@ def install_pytorch():
     print(f"📦 Installing PyTorch...")
     torch_cmd = get_pytorch_install_cmd()
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install --upgrade {torch_cmd}"
+    cmd = f"{pip_exec} install {UPGRADE} {torch_cmd}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -292,7 +293,7 @@ def check_installation():
 
 def main():
     """Main interactive loop"""
-    global USE_VENV, GPU_AVAILABLE
+    global USE_VENV, GPU_AVAILABLE, UPGRADE
 
     parser = argparse.ArgumentParser(
         description="Interactive environment setup script."
@@ -302,10 +303,17 @@ def main():
         action="store_true",
         help="Install packages in the global environment instead of the virtual environment.",
     )
+    parser.add_argument(
+        "--no-upgrade",
+        action="store_true",
+        help="Do not use upgrade flags when installing packages.",
+    )
     args = parser.parse_args()
 
     if args.no_venv:
         USE_VENV = False
+    if args.no_upgrade:
+        UPGRADE = ""
 
     print("\n🔍 Detecting hardware...")
     if detect_nvidia_gpu():
