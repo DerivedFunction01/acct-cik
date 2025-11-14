@@ -404,7 +404,7 @@ def process_report_fully(report):
         # It combines consecutive paragraphs until the TEXT_SIZE limit is approached.
         text_chunks = []
         current_chunk = ""
-        year_prefix = f"Text ({report.year}): "
+        year_prefix = f"Incomplete Text ({report.year}): "
 
         for match in original_matches:
             # If adding the next match would exceed the size, save the current chunk and start a new one.
