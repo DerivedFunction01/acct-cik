@@ -1,11 +1,9 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-import torch
 import json
 import multiprocessing as mp
 import os
 from threading import Thread
-from transformers import TextIteratorStreamer
 
 try:
     from unsloth import FastLanguageModel
@@ -17,6 +15,8 @@ except ImportError:
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
+import torch
+from transformers import TextIteratorStreamer
 
 app = Flask(__name__)
 CORS(app)
