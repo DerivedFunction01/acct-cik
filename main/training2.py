@@ -10,12 +10,8 @@ from pathlib import Path
 import multiprocessing
 
 import pandas as pd
-import torch
+
 from psutil import virtual_memory
-from datasets import load_dataset
-from transformers import TrainingArguments, AutoModelForCausalLM, AutoTokenizer
-from trl import SFTTrainer
-from huggingface_hub import login
 
 # Dynamic Unsloth import with fallback
 try:
@@ -24,8 +20,15 @@ try:
     USE_UNSLOTH = True
     print("✅ Unsloth found. Using Unsloth for model loading.")
 except ImportError:
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
     USE_UNSLOTH = False
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
+    
+from datasets import load_dataset
+from huggingface_hub import login
+from trl import SFTTrainer
+from transformers import TrainingArsguments
 
 # %%
 # --- CONFIGURATION ---
