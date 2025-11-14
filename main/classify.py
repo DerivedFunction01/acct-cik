@@ -27,7 +27,7 @@ REPORT_CSV_PATH = "./report_data.csv"
 SERVER_BASE_URL = "http://127.0.0.1:5000"
 DEBUG = False  # Debug printing
 CHUNK_SIZE = 20  # Base chunk size, will be adjusted based on RAM
-TEXT_SIZE = 2750  # Maximum number of chars a select text
+TEXT_SIZE = 3000  # Maximum number of chars a select text (the model will perform deep reasoning, and we want to prevent attention dropoff)
 
 # =============================================================================
 # COLAB CONFIGURATION
