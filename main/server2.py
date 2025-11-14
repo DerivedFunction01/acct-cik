@@ -24,7 +24,7 @@ CORS(app)
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
 MAX_SEQ_LENGTH = 32768 # How many tokens the entire conversation should hold (reasoning may take up the majority)
-TEXT_SIZE = MAX_SEQ_LENGTH // 4 # A good estimate of how much text should use
+TEXT_SIZE = MAX_SEQ_LENGTH // 8 # A good estimate of how much text should use
 # --- Recommended generation parameters ---
 THINKING_PARAMS = {
     "do_sample": True,
