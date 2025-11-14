@@ -79,7 +79,7 @@ if USE_UNSLOTH:
         dtype=None,
         load_in_4bit=load_in_4bit,
     )
-    FastLanguageModel.for_inference(model)
+    model = FastLanguageModel.for_inference(model)
 else:
     quantization_config = None
     if load_in_4bit:
