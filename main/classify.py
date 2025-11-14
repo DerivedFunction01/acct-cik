@@ -366,36 +366,27 @@ def fetch_report_data(valid=True):
 
 def get_result_from_server(text_chunk: str) -> dict:
     """
-    Sends a single text chunk to the model server and returns the generated JSON.
-    This replaces the old batch-based function.
+    Sends a single text chunk to the model server and returns the generated text.
     """
     headers = {"Content-Type": "application/json"}
-    # We will use the streaming endpoint, but collect the full response.
-    payload = {
-        "prompt": text_chunk,
-        "params": {
-            "enable_thinking": True
-        }
-    }
+    payload = {"prompt": text_chunk, "params": {"enable_thinking": True}}
     try:
-        # Use the streaming endpoint to avoid timeouts on long generations.
         predict_url = f"{SERVER_BASE_URL}/generate-stream"
-        with requests.post(predict_url, headers=headers, data=json.dumps(payload), timeout=300, stream=True) as response:
+        with requests.post(
+            predict_url,
+            headers=headers,
+            data=json.dumps(payload),
+            timeout=300,
+            stream=True,
+        ) as response:
             response.raise_for_status()
 
             full_response = ""
-            # Iterate over the streamed tokens and build the full string.
             for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
                 full_response += chunk
 
-            # Once streaming is complete, return the full string
-            try:
-                # The streaming endpoint directly returns the JSON content, not nested under "prediction".
-                debug_print(full_response)
-                return None
-            except json.JSONDecodeError:
-                print(f"Error: Failed to decode JSON from stream response: {full_response[:200]}...")
-                return {"error": "json_decode_error", "details": full_response}
+            debug_print(f"Server response: {full_response[:200]}...")
+            return {"response": full_response}  # ✅ Return the actual response
 
     except requests.exceptions.RequestException as e:
         print(f"Error communicating with server: {e}")
@@ -446,7 +437,7 @@ def process_report_fully(report):
             # For each chunk, create a dictionary containing both the prompt and the prediction.
             # This provides full context for later analysis and debugging.
             all_predictions = [
-                {"prompt": chunk, "prediction": get_result_from_server(chunk)} # get_result_from_server now returns the prediction directly
+                {"prompt": chunk, **get_result_from_server(chunk)} # get_result_from_server now returns the prediction directly
                 for chunk in text_chunks
             ]
 
