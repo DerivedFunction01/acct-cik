@@ -258,7 +258,7 @@ def import_report_data_from_csv():
     Imports data from report_data.csv into the report_data table.
     Uses INSERT OR IGNORE to avoid adding duplicate records.
     """
-    print(f"\n[1/4] Searching for '{REPORT_CSV_PATH}' file...")
+    print(f"\n[1/3] Searching for '{REPORT_CSV_PATH}' file...")
     csv_files = _ensure_file_is_local(REPORT_CSV_PATH)
 
     if not csv_files:
@@ -267,7 +267,7 @@ def import_report_data_from_csv():
 
     csv_path = csv_files[0]
 
-    print(f"\n[2/4] Reading data from '{csv_path}'...")
+    print(f"\n[2/3] Reading data from '{csv_path}'...")
     try:
         df = pd.read_csv(csv_path)
         print(f"  -> Found {len(df):,} records in CSV.")
@@ -282,21 +282,11 @@ def import_report_data_from_csv():
     # Keep only necessary columns and drop rows with missing values
     df = df[["cik", "year", "url"]].dropna()
 
-    records_to_insert = df.to_records(index=False)
-
-    print(f"\n[3/4] Connecting to database '{DB_PATH}'...")
+    print(f"\n[3/3] Connecting to database '{DB_PATH}'...")
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    print(f"\n[4/4] Inserting {len(records_to_insert):,} records into 'report_data'...")
     try:
-        cursor.executemany(
-            "INSERT OR IGNORE INTO report_data (cik, year, url) VALUES (?, ?, ?)",
-            records_to_insert,
-        )
-        conn.commit()
-        print(f"✅ Successfully processed records. {cursor.rowcount} new rows were inserted.")
-    except sqlite3.Error as e:
+        df.to_sql("report_data", conn, if_exists="replace", index=False)
+    except Exception as e:
         print(f"  -> ❌ A database error occurred during import: {e}")
         conn.rollback()
     finally:
