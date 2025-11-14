@@ -40,6 +40,7 @@ UNSLOTH_PACKAGES_BASE = [
     "accelerate",
     "trl",
     "datasets",
+    "bitsandbytes"
 ]
 
 if sys.platform == "win32":
