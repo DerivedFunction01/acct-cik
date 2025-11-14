@@ -63,6 +63,7 @@ ML_PACKAGES_BASE = [
     "tensorboardX",
     "fastapi", "uvicorn", "pydantic",
     "gunicorn",
+    "flask", "flask_cors", # For webui
     "waitress", # windows
 ] + UNSLOTH_INSTALL
 
