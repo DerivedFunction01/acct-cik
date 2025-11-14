@@ -172,33 +172,28 @@ def generate_stream(prompt: str, user_params: dict = None):
     while attempt < max_retries:
         attempt += 1
         # On subsequent attempts, the prompt is the continued generation
-        is_continuation = attempt > 1
 
         messages = []
-        if system_prompt and not is_continuation:
+        if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        if not is_continuation:
-            messages.append({"role": "user", "content": current_prompt})
+        messages.append({"role": "user", "content": prompt})
+        if full_response: # If we are continuing, add the assistant's partial response
+            messages.append({"role": "assistant", "content": full_response})
 
         try:
-            if is_continuation:
-                # For retries, the prompt is the raw, incomplete output from the previous step.
-                # We don't apply the chat template again.
-                formatted_prompt = current_prompt
-            else:
-                try:
-                    formatted_prompt = tokenizer.apply_chat_template(
-                        messages,
-                        tokenize=False,
-                        add_generation_prompt=True,
-                        enable_thinking=enable_thinking,
-                    )
-                except TypeError:
-                    formatted_prompt = tokenizer.apply_chat_template(
-                        messages,
-                        tokenize=False,
-                        add_generation_prompt=True,
-                    )
+            try:
+                formatted_prompt = tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=enable_thinking,
+                )
+            except TypeError:
+                formatted_prompt = tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
 
             inputs = tokenizer([formatted_prompt], return_tensors="pt")
             token_count = inputs["input_ids"].shape[1]
@@ -242,10 +237,8 @@ def generate_stream(prompt: str, user_params: dict = None):
 
             # If we're here, it means the generation was incomplete.
             # Prepare for the next attempt by creating a continuation prompt.
-            print(f"\n[WARNING] Incomplete generation (attempt {attempt}/{max_retries}). Continuing generation...")
-            current_prompt = full_response + "</think>"
-            # We also need to yield the closing tag so the client sees it.
-            yield "</think>"
+            print(f"\n[WARNING] Incomplete generation (attempt {attempt}/{max_retries}). Continuing...")
+            # The full_response is already updated, loop will reconstruct messages
 
         except Exception as e:
             print(f"\n[ERROR] Generation failed on attempt {attempt}: {e}")
