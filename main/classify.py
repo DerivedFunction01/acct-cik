@@ -424,6 +424,8 @@ def process_report_fully(report):
         # we'll get one prediction for each. The ThreadPoolExecutor in the main
         # loop will handle running these requests in parallel.
         if text_chunks:
+            debug_print("Sending chunks to server:")
+            debug_print(text_chunks, "\n")
             # For each chunk, create a dictionary containing both the prompt and the prediction.
             # This provides full context for later analysis and debugging.
             all_predictions = [
