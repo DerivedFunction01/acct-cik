@@ -52,6 +52,7 @@ else:
     # On Linux/WSL/Mac, use the optimized Unsloth package
     UNSLOTH_INSTALL = [
         "unsloth",
+        "unsloth_zoo",
         "torchvision",
         "torchaudio",
     ]
