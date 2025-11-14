@@ -74,6 +74,6 @@ echo "✅ Setup complete! Command is copied to clipboard"
 
 printf "source /h/.bashrc && \
 cd /c/Users/del226/acct-cik && \
-./init_venv.sh && \
+python init_venv.py && \
 source ./venv-acct-cik/Scripts/activate && \
 cd main" | clip
