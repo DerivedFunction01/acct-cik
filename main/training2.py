@@ -1,6 +1,6 @@
 """
-Complete Generative Model Training Script with Unsloth
-Dynamic training profiles based on hardware (VRAM multipliers of 4GB)
+Simplified Generative Model Training Script with Unsloth
+Single JSON config file with auto-generation
 """
 
 import json
@@ -31,44 +31,27 @@ from trl import SFTTrainer
 from transformers import TrainingArguments
 
 # ============================================================================
-# CONFIGURATION & PROFILE MANAGEMENT
+# CONFIGURATION MANAGEMENT
 # ============================================================================
 
-PROFILE_FILE = Path(".training_profile.json")
+CONFIG_FILE = Path("training_config.json")
+IS_AUTHENTICATED = False
 
-# Base profile - all other profiles scale from this
-BASE_PROFILE = {
-    "name": "Base Configuration",
-    "r": 64,
-    "lora_alpha": 128,
-    "batch_size": 1,
-    "gradient_accumulation": 8,
-    "max_seq_length": 32768,
-    "load_in_4bit": True,
-}
 
-config = {
-    "MODEL_USER": "DerivedFunction",
-    "MODEL_NAMES": [
-        "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
-        "unsloth/Qwen3-4B-Thinking-2507",
-        "DerivedFunction/Qwen3-1.7B-finance",
-        "DerivedFunction/Qwen3-4B-finance",
-        "DerivedFunction/Qwen3-1.7B-derivatives",
-    ],
-    "DATASETS": [
-        ("DerivedFunction/Finance-50K", True),
-    ],
-    "HF_TOKEN_PATH": "hf_token",
-    "MAX_SEQ_LENGTH": 32768,
-    "TARGET_MODULES": {
-        "small": [
-            "k_proj",
-            "v_proj",
-        ],
-        "medium": ["q_proj", "k_proj", "v_proj", "o_proj"],
-        "large": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"],
-        "full": [
+def create_default_config() -> dict:
+    """Creates default configuration."""
+    config = {
+        "model_user": "DerivedFunction",
+        "hf_token_path": "hf_token",
+        "training_profile": {
+            "r": 64,
+            "lora_alpha": 128,
+            "batch_size": 1,
+            "gradient_accumulation": 8,
+            "max_seq_length": 32768,
+            "load_in_4bit": True,
+        },
+        "all_target_modules": [
             "q_proj",
             "k_proj",
             "v_proj",
@@ -77,203 +60,43 @@ config = {
             "up_proj",
             "down_proj",
         ],
-    },
-    "DATASET_SIZE_THRESHOLDS": {
-        "small": 1000,
-        "medium": 10000,
-        "large": 50000,
-    },
-}
-IS_AUTHENTICATED = False
-
-
-def detect_hardware() -> Tuple[str, float]:
-    """Detects GPU VRAM and system RAM."""
-    if torch.cuda.is_available():
-        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-        return "gpu", vram_gb
-    else:
-        ram_gb = virtual_memory().total / (1024**3)
-        return "cpu", ram_gb
-
-
-def calculate_multipliers(vram_gb: float) -> dict:
-    """
-    Calculates hardware multipliers based on VRAM in 4GB increments.
-    Scales linearly: each 4GB of VRAM increases batch/LoRA capacity.
-    """
-    # Clamp to minimum 4GB (prevent negative multipliers)
-    vram_gb = max(4, vram_gb)
-
-    # Number of 4GB units
-    units = vram_gb / 4.0
-
-    # Scale multipliers based on 4GB units
-    # Base = 1 unit (4GB)
-    r_mult = max(0.5, units / 4)  # r scales slower
-    alpha_mult = max(0.25, units / 8)  # alpha scales even slower
-    batch_mult = max(1, units)  # batch scales linearly
-    grad_accum_mult = max(0.25, 8 / units)  # reduce grad accum as we have more VRAM
-
-    return {
-        "r_mult": round(r_mult, 2),
-        "alpha_mult": round(alpha_mult, 2),
-        "batch_mult": round(batch_mult, 2),
-        "grad_accum_mult": round(grad_accum_mult, 2),
+        "model_names": [
+            "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
+            "unsloth/Qwen3-4B-Thinking-2507",
+            "DerivedFunction/Qwen3-1.7B-finance",
+            "DerivedFunction/Qwen3-4B-finance",
+            "DerivedFunction/Qwen3-1.7B-derivatives",
+        ],
+        "datasets": [
+            {"name": "DerivedFunction/Finance-50K", "is_hf": True},
+        ],
     }
+    return config
 
 
-def get_hardware_tier(vram_gb: float) -> str:
-    """Maps VRAM to a human-readable tier name."""
-    if vram_gb >= 40:
-        return "Ultra High (A100/H100)"
-    elif vram_gb >= 24:
-        return "High (L4/RTX 6000)"
-    elif vram_gb >= 16:
-        return "Medium-High (RTX 3090/A10)"
-    elif vram_gb >= 8:
-        return "Medium (RTX 3070)"
-    elif vram_gb >= 4:
-        return "Low (RTX 3060)"
-    else:
-        return "CPU / Very Low VRAM"
-
-
-def scale_profile(base: dict, multipliers: dict) -> dict:
-    """Scales a base profile by hardware multipliers. Ensures integer values."""
-    scaled = base.copy()
-    scaled["r"] = max(8, int(base["r"] * multipliers["r_mult"]))
-    scaled["lora_alpha"] = max(16, int(base["lora_alpha"] * multipliers["alpha_mult"]))
-    scaled["batch_size"] = max(1, int(base["batch_size"] * multipliers["batch_mult"]))
-    scaled["gradient_accumulation"] = max(
-        1, int(base["gradient_accumulation"] * multipliers["grad_accum_mult"])
-    )
-    scaled["name"] = (
-        f"Auto-scaled ({get_hardware_tier(4 * (multipliers['batch_mult'] or 1))})"
-    )
-    scaled["load_in_4bit"] = base["load_in_4bit"]
-    scaled["max_seq_length"] = base["max_seq_length"]
-    return scaled
-
-
-def load_training_profile() -> dict:
-    """
-    Loads training profile from .training_profile.json if it exists,
-    otherwise generates defaults based on current hardware.
-    """
-    if PROFILE_FILE.exists():
-        print(f"📖 Found .training_profile.json. Loading configuration...")
+def load_config() -> dict:
+    """Loads config from JSON or creates default."""
+    if CONFIG_FILE.exists():
+        print(f"📖 Loading configuration from {CONFIG_FILE}...")
         try:
-            with open(PROFILE_FILE, "r") as f:
-                profile_data = json.load(f)
-
-            # If it's a base profile with multipliers, scale it
-            if "multipliers" in profile_data:
-                base = profile_data.get("base_profile", BASE_PROFILE)
-                mults = profile_data["multipliers"]
-                profile_data = scale_profile(base, mults)
-                profile_data["name"] = profile_data.get("name", "Custom Profile")
-
-            # Validate required fields
-            required_fields = [
-                "r",
-                "lora_alpha",
-                "batch_size",
-                "gradient_accumulation",
-                "max_seq_length",
-                "load_in_4bit",
-            ]
-            if all(field in profile_data for field in required_fields):
-                if "name" not in profile_data:
-                    profile_data["name"] = "Custom Profile"
-                print(f"✅ Loaded profile: {profile_data.get('name')}")
-                return profile_data
-            else:
-                print(
-                    f"⚠️ .training_profile.json missing required fields. Using hardware-detected defaults."
-                )
+            with open(CONFIG_FILE, "r") as f:
+                config = json.load(f)
+            print(f"✅ Configuration loaded successfully.")
+            return config
         except Exception as e:
-            print(
-                f"⚠️ Error reading .training_profile.json: {e}. Using hardware-detected defaults."
-            )
+            print(f"⚠️ Error reading config: {e}. Creating new config...")
 
-    # Fall back to hardware detection
-    hardware_type, ram = detect_hardware()
-    multipliers = calculate_multipliers(ram)
-    profile = scale_profile(BASE_PROFILE, multipliers)
-
-    if hardware_type == "gpu":
-        print(f"✅ GPU with {ram:.1f}GB VRAM detected. Auto-scaling profile...")
-    else:
-        print(f"ℹ️ No GPU detected. System has {ram:.1f}GB RAM. Using CPU profile...")
-
-    print(f"   Profile: {profile['name']}")
-    print(
-        f"   LoRA r={profile['r']}, batch_size={profile['batch_size']}, grad_accum={profile['gradient_accumulation']}"
-    )
-
-    return profile
+    print("Creating default configuration...")
+    config = create_default_config()
+    save_config(config)
+    return config
 
 
-def create_profile_template() -> None:
-    """Creates a template .training_profile.json based on detected hardware."""
-    hardware_type, vram_gb = detect_hardware()
-    multipliers = calculate_multipliers(vram_gb)
-
-    template = {
-        "base_profile": BASE_PROFILE,
-        "hardware_vram_gb": round(vram_gb, 1),
-        "multipliers": multipliers,
-        "target_modules": config.get("TARGET_MODULES", {}), 
-        "note": "This profile scales from BASE_PROFILE using 4GB VRAM increments. Edit multipliers to customize.",
-    }
-
-    with open(PROFILE_FILE, "w") as f:
-        json.dump(template, f, indent=2)
-
-    print(
-        f"✅ Created .training_profile.json template based on detected {vram_gb:.1f}GB VRAM."
-    )
-
-
-def get_target_modules(dataset_size: int) -> list:
-    """
-    Selects LoRA target modules based on dataset size to prevent overfitting.
-    Uses TARGET_MODULES configuration from config.
-    """
-    thresholds = config.get("DATASET_SIZE_THRESHOLDS", {})
-    target_modules_config = config.get("TARGET_MODULES", {})
-
-    if dataset_size < thresholds.get("small", 1000):
-        modules = target_modules_config.get(
-            "small", ["q_proj", "k_proj"]
-        )
-        print(
-            f"📊 Small dataset ({dataset_size} samples). Using minimal LoRA modules: {modules}"
-        )
-    elif dataset_size < thresholds.get("medium", 10000):
-        modules = target_modules_config.get(
-            "medium", ["q_proj", "k_proj", "v_proj", "o_proj"]
-        )
-        print(
-            f"📊 Medium dataset ({dataset_size} samples). Using core LoRA modules: {modules}"
-        )
-    elif dataset_size < thresholds.get("large", 50000):
-        modules = target_modules_config.get(
-            "large", ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"],
-        )
-        print(
-            f"📊 Large dataset ({dataset_size} samples). Using standard LoRA modules: {modules}"
-        )
-    else:
-        modules = target_modules_config.get(
-            "full", ["q_proj", "k_proj", "v_proj", "o_proj",  "gate_proj", "up_proj", "down_proj"]
-        )
-        print(
-            f"📊 Very large dataset ({dataset_size} samples). Using full LoRA modules: {modules}"
-        )
-
-    return modules
+def save_config(config: dict) -> None:
+    """Saves configuration to JSON file."""
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
+    print(f"✅ Configuration saved to {CONFIG_FILE}")
 
 
 # ============================================================================
@@ -286,6 +109,7 @@ def run_training(
     model_name: str,
     data_path: str,
     new_model_name: str,
+    target_modules: list,
     num_epochs: int = 1,
     is_hf_dataset: bool = False,
     dataset_shard_index: int = 0,
@@ -295,13 +119,11 @@ def run_training(
     print(
         f"\n--- Starting Training with {'Unsloth' if USE_UNSLOTH else 'Hugging Face'} ---"
     )
-    print(f"  - Profile: {profile['name']}")
     print(f"  - Base Model: {model_name}")
     print(f"  - Data: {data_path}")
-    if dataset_num_shards > 1:
-        print(f"  - Dataset Shard: {dataset_shard_index + 1} of {dataset_num_shards}")
     print(f"  - Output Model: {new_model_name}")
     print(f"  - Epochs: {num_epochs}")
+    print(f"  - LoRA modules: {target_modules}")
 
     # --- Load Model ---
     print("\n--- Initializing Model and Tokenizer ---")
@@ -324,8 +146,7 @@ def run_training(
             )
             tokenizer = AutoTokenizer.from_pretrained(model_name)
     except Exception as e:
-        print(f"❌❌❌ FAILED TO LOAD MODEL ❌❌❌")
-        print(f"Error: {e}")
+        print(f"❌ FAILED TO LOAD MODEL: {e}")
         return
 
     # --- Load and preprocess data ---
@@ -336,11 +157,8 @@ def run_training(
         else:
             dataset = load_dataset("parquet", data_files=data_path, split="train")
 
-        dataset_size = len(dataset)
         if dataset_num_shards > 1:
-            print(
-                f"Applying dataset shard: {dataset_shard_index + 1} of {dataset_num_shards}"
-            )
+            print(f"Applying shard: {dataset_shard_index + 1} of {dataset_num_shards}")
             dataset = dataset.shard(
                 num_shards=dataset_num_shards, index=dataset_shard_index
             )
@@ -390,7 +208,7 @@ def run_training(
             model = FastLanguageModel.get_peft_model(
                 model,
                 r=profile["r"],
-                target_modules=get_target_modules(dataset_size),
+                target_modules=target_modules,
                 lora_alpha=profile["lora_alpha"],
                 lora_dropout=0,
                 bias="none",
@@ -402,20 +220,10 @@ def run_training(
 
     # --- Dynamic Evaluation Steps ---
     num_train_samples = len(train_dataset)
-    if num_train_samples > 1000:
-        steps_per_epoch = math.ceil(
-            num_train_samples
-            / (profile["batch_size"] * profile["gradient_accumulation"])
-        )
-        eval_steps = max(100, steps_per_epoch // 2)
-    else:
-        steps_per_epoch = math.ceil(
-            num_train_samples
-            / (profile["batch_size"] * profile["gradient_accumulation"])
-        )
-        eval_steps = max(
-            50, steps_per_epoch // 4
-        )  # Evaluate more frequently for small datasets
+    steps_per_epoch = math.ceil(
+        num_train_samples / (profile["batch_size"] * profile["gradient_accumulation"])
+    )
+    eval_steps = max(100, steps_per_epoch // 2)
     print(f"📊 Evaluation frequency: every {eval_steps} steps")
 
     # --- Training Arguments ---
@@ -443,7 +251,6 @@ def run_training(
         eval_steps=eval_steps,
         push_to_hub=IS_AUTHENTICATED,
         report_to="tensorboard",
-        hub_model_id=f"{config['MODEL_USER']}/{new_model_name}",
     )
 
     # --- Post-init cleanup ---
@@ -500,18 +307,16 @@ def run_training(
             == "y"
         )
         if push_to_hub:
-            hub_model_id = f"{config['MODEL_USER']}/{new_model_name}_lora"
-            print(f"🚀 Pushing to Hugging Face Hub at '{hub_model_id}'...")
-            model.push_to_hub(
-                hub_model_id, token=Path(config["HF_TOKEN_PATH"]).read_text().strip()
-            )
+            print(f"🚀 Pushing to Hugging Face Hub...")
+            model.push_to_hub(adapter_save_path)
             print("✅ Successfully pushed adapter to Hub.")
 
 
 def huggingface_auth() -> None:
     """Handles Hugging Face authentication."""
     global IS_AUTHENTICATED
-    token_path = Path(config["HF_TOKEN_PATH"])
+    config = load_config()
+    token_path = Path(config["hf_token_path"])
 
     if token_path.exists():
         print("Found saved Hugging Face token.")
@@ -548,7 +353,9 @@ def huggingface_auth() -> None:
 # ============================================================================
 
 if __name__ == "__main__":
+    config = load_config()
     huggingface_auth()
+
     try:
         while True:
             print("\n" + "=" * 60)
@@ -556,42 +363,39 @@ if __name__ == "__main__":
             print("=" * 60)
             print("1. Fine-tune a base model")
             print("2. Hugging Face login")
-            print("3. Create training profile template")
+            print("3. Edit configuration")
             print("4. Exit")
             choice = input("> ").strip()
 
             if choice == "1":
-                print("\n--- Step 1: Load Training Profile ---")
-                profile = load_training_profile()
-
-                print("\n--- Step 2: Select Base Model ---")
-                print("  --- Base Models ---")
-                for i, name in enumerate(config["MODEL_NAMES"], 1):
+                print("\n--- Step 1: Select Base Model ---")
+                for i, name in enumerate(config["model_names"], 1):
                     print(f"  [{i}] {name}")
                 print("  [c] Custom model from Hugging Face")
 
                 model_choice = input("Enter model (e.g., 1, c): ").strip()
                 if model_choice.isdigit() and 0 <= int(model_choice) - 1 < len(
-                    config["MODEL_NAMES"]
+                    config["model_names"]
                 ):
-                    base_model_name = config["MODEL_NAMES"][int(model_choice) - 1]
+                    base_model_name = config["model_names"][int(model_choice) - 1]
                 elif model_choice.lower() == "c":
                     base_model_name = input("Enter custom model name/path: ").strip()
                 else:
                     print("❌ Invalid choice.")
                     continue
 
-                print("\n--- Step 3: Select Dataset ---")
-                for i, (name, is_hf) in enumerate(config["DATASETS"], 1):
-                    source = "Hugging Face" if is_hf else "Local"
-                    print(f"  [{i}] {name} ({source})")
+                print("\n--- Step 2: Select Dataset ---")
+                for i, ds in enumerate(config["datasets"], 1):
+                    source = "Hugging Face" if ds["is_hf"] else "Local"
+                    print(f"  [{i}] {ds['name']} ({source})")
                 print("  [c] Custom local dataset (.parquet)")
 
                 data_choice = input("Enter dataset: ").strip()
                 if data_choice.isdigit() and 0 <= int(data_choice) - 1 < len(
-                    config["DATASETS"]
+                    config["datasets"]
                 ):
-                    data_path, is_hf_dataset = config["DATASETS"][int(data_choice) - 1]
+                    ds = config["datasets"][int(data_choice) - 1]
+                    data_path, is_hf_dataset = ds["name"], ds["is_hf"]
                 elif data_choice.lower() == "c":
                     data_path = input("Path to .parquet file: ").strip()
                     is_hf_dataset = False
@@ -599,57 +403,33 @@ if __name__ == "__main__":
                     print("❌ Invalid choice.")
                     continue
 
-                print("\n--- Step 4: Configure Training ---")
+                print("\n--- Step 3: Configure Training ---")
                 num_epochs = int(input("Number of epochs [default: 1]: ") or 1)
                 new_model_name = input("Output model name: ").strip()
 
                 if not new_model_name:
-                    new_model_name = base_model_name
+                    new_model_name = base_model_name.split("/")[-1]
 
                 use_sharding = (
-                    input("Use dataset sharding (for very large datasets)? [y/N]: ")
-                    .strip()
-                    .lower()
-                    == "y"
+                    input("Use dataset sharding? [y/N]: ").strip().lower() == "y"
                 )
                 num_shards = 1
                 shard_index = 0
-                merge_adapters = True
-                epochs_for_this_run = num_epochs
 
                 if use_sharding:
-                    num_shards = int(
-                        input(f"Enter total number of shards [e.g., 10]: ") or 10
-                    )
+                    num_shards = int(input("Enter total number of shards: ") or 1)
                     shard_index = int(
-                        input(
-                            f"Enter shard index to train on (0 to {num_shards - 1}): "
-                        )
-                        or 0
+                        input(f"Enter shard index (0 to {num_shards - 1}): ") or 0
                     )
-                    epochs_for_this_run = 1
-                    if (
-                        input(
-                            f"The current epoch is {shard_index + 1}, continue? [y/N]: "
-                        )
-                        .strip()
-                        .lower()
-                        == "y"
-                    ):
-                        epochs_for_this_run = shard_index + 1
-                    else:
-                        epochs_for_this_run = int(
-                            input("Enter epoch number for this run: ") or 1
-                        )
-                else:
-                    epochs_for_this_run = num_epochs
+                    num_epochs = 1
 
                 run_training(
-                    profile=profile,
+                    profile=config["training_profile"],
                     model_name=base_model_name,
                     data_path=data_path,
                     new_model_name=new_model_name,
-                    num_epochs=epochs_for_this_run,
+                    target_modules=config["all_target_modules"],
+                    num_epochs=num_epochs,
                     is_hf_dataset=is_hf_dataset,
                     dataset_num_shards=num_shards,
                     dataset_shard_index=shard_index,
@@ -658,7 +438,8 @@ if __name__ == "__main__":
             elif choice == "2":
                 huggingface_auth()
             elif choice == "3":
-                create_profile_template()
+                print(f"📝 Open {CONFIG_FILE} to edit configuration.")
+                print("Changes will be loaded on next startup.")
             elif choice == "4":
                 print("👋 Goodbye!")
                 break
