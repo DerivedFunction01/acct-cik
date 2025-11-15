@@ -60,6 +60,33 @@ config = {
     ],
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 32768,
+    "TARGET_MODULES": {
+        "small": [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+        "medium": ["q_proj", "k_proj", "v_proj", "o_proj"],
+        "large": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"],
+        "full": [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+    },
+    "DATASET_SIZE_THRESHOLDS": {
+        "small": 1000,
+        "medium": 10000,
+        "large": 50000,
+    },
 }
 IS_AUTHENTICATED = False
 
@@ -213,32 +240,38 @@ def create_profile_template() -> None:
 
 
 def get_target_modules(dataset_size: int) -> list:
-    """Selects LoRA target modules based on dataset size to prevent overfitting."""
-    if dataset_size < 1000:
-        modules = ["q_proj", "v_proj"]
+    """
+    Selects LoRA target modules based on dataset size to prevent overfitting.
+    Uses TARGET_MODULES configuration from config.
+    """
+    thresholds = config.get("DATASET_SIZE_THRESHOLDS", {})
+    target_modules_config = config.get("TARGET_MODULES", {})
+
+    if dataset_size < thresholds.get("small", 1000):
+        modules = target_modules_config.get(
+            "small", ["q_proj", "k_proj"]
+        )
         print(
             f"📊 Small dataset ({dataset_size} samples). Using minimal LoRA modules: {modules}"
         )
-    elif dataset_size < 10000:
-        modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
+    elif dataset_size < thresholds.get("medium", 10000):
+        modules = target_modules_config.get(
+            "medium", ["q_proj", "k_proj", "v_proj", "o_proj"]
+        )
         print(
             f"📊 Medium dataset ({dataset_size} samples). Using core LoRA modules: {modules}"
         )
-    elif dataset_size < 50000:
-        modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"]
+    elif dataset_size < thresholds.get("large", 50000):
+        modules = target_modules_config.get(
+            "large", ["q_proj", "k_proj", "v_proj", "o_proj"]
+        )
         print(
             f"📊 Large dataset ({dataset_size} samples). Using standard LoRA modules: {modules}"
         )
     else:
-        modules = [
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-        ]
+        modules = target_modules_config.get(
+            "full", ["q_proj", "k_proj", "v_proj", "o_proj",  "gate_proj", "up_proj", "down_proj"]
+        )
         print(
             f"📊 Very large dataset ({dataset_size} samples). Using full LoRA modules: {modules}"
         )
