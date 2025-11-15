@@ -57,7 +57,7 @@ config = {
         "DerivedFunction/Qwen3-1.7B-derivatives",
     ],
     "DATASETS": [
-        ("DerivedFunction/Derivatives-Finance-100K", True),
+        ("DerivedFunction/Finance-50K", True),
     ],
     "HF_TOKEN_PATH": "hf_token",
     "MAX_SEQ_LENGTH": 32768,
