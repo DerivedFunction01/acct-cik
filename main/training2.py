@@ -63,9 +63,7 @@ def create_default_config() -> dict:
         "model_names": [
             "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
             "unsloth/Qwen3-4B-Thinking-2507",
-            "DerivedFunction/Qwen3-1.7B-finance",
-            "DerivedFunction/Qwen3-4B-finance",
-            "DerivedFunction/Qwen3-1.7B-derivatives",
+            "unsloth/Qwen3-4B-unsloth-bnb-4bit",
         ],
         "datasets": [
             {"name": "DerivedFunction/Finance-50K", "is_hf": True},
