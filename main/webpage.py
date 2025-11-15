@@ -630,11 +630,8 @@ def extract_content(data: str, asHTML=True) -> str:
         tables = soup.find_all("table")
         for table in tables:
             title = "Financial Table"
-            prev_sibling = table.find_previous_sibling()
             if table.caption:
                 title = table.caption.get_text(strip=True)
-            elif prev_sibling and prev_sibling.name == "p":
-                title = prev_sibling.get_text(strip=True)
 
             # OPTIMIZATION: Avoid re-parsing with pd.read_html.
             # Extract rows directly from the BeautifulSoup table object.
@@ -646,7 +643,7 @@ def extract_content(data: str, asHTML=True) -> str:
             except Exception as e:
                 debug_print(f"⚠️  Table extraction failed: {e}")
 
-            if rows:
+            if len(rows) > 1:
                 converter = HTMLTableConverter(grid=rows, title=title)
                 generic_table = converter.to_generic_table()
                 table_text = generic_table.build()
