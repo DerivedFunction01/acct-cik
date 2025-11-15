@@ -1,18 +1,26 @@
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-base = "unsloth/Qwen3-1.7B-unsloth-bnb-4bit"  # or exact base used
-model = AutoModelForCausalLM.from_pretrained(
-    base, load_in_4bit=False, dtype="auto", device_map="auto"
+# %%
+from unsloth import FastLanguageModel
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="",  # YOUR MODEL YOU USED FOR TRAINING
+    max_seq_length=32768,
+    load_in_4bit=True,
 )
-model = PeftModel.from_pretrained(model, model_id="DerivedFunction/Qwen3-1.7B-finance-base", load_in_4bit=False)
-merged = model.merge_and_unload()
 
-tokenizer = AutoTokenizer.from_pretrained("DerivedFunction/Qwen3-1.7B-finance-base")
+# %%
+model.save_pretrained_merged(
+    "model",
+    tokenizer,
+    save_method="merged_16bit",
+)
 
-merged.save_pretrained("./merged")
-tokenizer.save_pretrained("./merged")
+# %%
+# Authenthicate
+from huggingface_hub import login
+# Read from the hf_token file
+with open("hf_token", "r") as f:
+    token = f.read().strip()
+    login(token=token)
+# %%
+model.push_to_hub_merged("", tokenizer, save_method="merged_16bit")
 
-# Save it to HF:
-merged.push_to_hub("merged")
-tokenizer.push_to_hub("merged")
+# %%
