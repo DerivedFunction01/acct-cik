@@ -63,13 +63,8 @@ config = {
     "MAX_SEQ_LENGTH": 32768,
     "TARGET_MODULES": {
         "small": [
-            "q_proj",
             "k_proj",
             "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
         ],
         "medium": ["q_proj", "k_proj", "v_proj", "o_proj"],
         "large": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"],
