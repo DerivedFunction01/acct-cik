@@ -8,3 +8,5 @@ Focus on extracting only the most critical information. Your summary should answ
 4.  **Activity Level**: Is the company actively using these instruments, or is the use historical or terminated?
 
 5. **Amount and Terms**: Are there any significant notional amounts, maturities for these instruments?
+
+6. **Confidence Level**: How confident are you in the accuracy of this summary based on the provided text?
