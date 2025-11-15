@@ -260,7 +260,6 @@ def run_training(
     is_hf_dataset: bool = False,
     dataset_shard_index: int = 0,
     dataset_num_shards: int = 1,
-    merge_at_end: bool = True,
 ) -> None:
     """Main function to run the training process with Unsloth optimization."""
     print(
@@ -273,7 +272,6 @@ def run_training(
         print(f"  - Dataset Shard: {dataset_shard_index + 1} of {dataset_num_shards}")
     print(f"  - Output Model: {new_model_name}")
     print(f"  - Epochs: {num_epochs}")
-    print(f"  - Merge Adapters at End: {'Yes' if merge_at_end else 'No'}")
 
     # --- Load Model ---
     print("\n--- Initializing Model and Tokenizer ---")
@@ -453,43 +451,25 @@ def run_training(
     print(f"Training time: {trainer_stats.metrics['train_runtime']:.2f} seconds")
     print(f"Samples/second: {trainer_stats.metrics['train_samples_per_second']:.2f}")
 
-    if merge_at_end:
-        print("\n--- Merging and Saving Final Model ---")
-        # Use the modern save_pretrained_merged for better control
-        save_method = "merged_16bit"
-        if (
-            input("Save in 16-bit (recommended for inference)? [Y/n]: ").strip().lower()
-            == "n"
-        ):
-            save_method = "merged_4bit"
+    # --- Saving LoRA Adapters ---
+    print(f"\n--- Saving LoRA Adapters ---")
+    adapter_save_path = f"{new_model_name}_lora"
+    model.save_pretrained(adapter_save_path)
+    tokenizer.save_pretrained(adapter_save_path)
+    print(f"✅ LoRA adapters saved to '{adapter_save_path}'")
 
-        print(f"Saving merged model to '{new_model_name}' in {save_method} format...")
-        model.save_pretrained_merged(new_model_name, tokenizer, save_method=save_method)
-        print(f"✅ Final merged model saved to '{new_model_name}'")
-
-        if IS_AUTHENTICATED and (
-            input("Push final merged model to Hub? [y/N]: ").strip().lower() == "y"
-        ):
-            hub_model_id = f"{config['MODEL_USER']}/{new_model_name}"
+    if IS_AUTHENTICATED:
+        push_to_hub = (
+            input("Push LoRA adapter to Hugging Face Hub? [y/N]: ").strip().lower()
+            == "y"
+        )
+        if push_to_hub:
+            hub_model_id = f"{config['MODEL_USER']}/{new_model_name}_lora"
             print(f"🚀 Pushing to Hugging Face Hub at '{hub_model_id}'...")
-            model.push_to_hub_merged(
-                hub_model_id,
-                tokenizer,
-                save_method=save_method,
-                token=Path(config["HF_TOKEN_PATH"]).read_text().strip(),
+            model.push_to_hub(
+                hub_model_id, token=Path(config["HF_TOKEN_PATH"]).read_text().strip()
             )
-            print("✅ Successfully pushed to Hub.")
-    else:
-        # If not merging, just save the adapters
-        print(f"\n--- Saving LoRA Adapters to '{new_model_name}_lora' ---")
-        model.save_pretrained(f"{new_model_name}_lora")
-        tokenizer.save_pretrained(f"{new_model_name}_lora")
-        print(f"✅ LoRA adapters saved to '{new_model_name}_lora'.")
-
-    if training_args.push_to_hub:
-        print(f"\n✅ Model will be pushed to Hub: {training_args.hub_model_id}")
-    else:
-        print(f"\n✅ Local model saved to: {new_model_name}")
+            print("✅ Successfully pushed adapter to Hub.")
 
 
 def huggingface_auth() -> None:
