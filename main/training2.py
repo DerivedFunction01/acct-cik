@@ -454,17 +454,28 @@ def run_training(
     print(f"Training time: {trainer_stats.metrics['train_runtime']:.2f} seconds")
     print(f"Samples/second: {trainer_stats.metrics['train_samples_per_second']:.2f}")
 
-    # --- Merge, Save, and Push ---
-    print(f"\n--- Saving LoRA Adapters to '{new_model_name}_lora' ---")
-    model.save_pretrained(f"{new_model_name}_lora")
-    tokenizer.save_pretrained(f"{new_model_name}_lora")
+    if merge_at_end:
+        print("\n--- Merging and Saving Final Model ---")
+        # Use the modern save_pretrained_merged for better control
+        save_method = "merged_16bit"
+        if input("Save in 16-bit (recommended for inference)? [Y/n]: ").strip().lower() == 'n':
+            save_method = "merged_4bit"
 
-    if merge_at_end and hasattr(model, "merge_and_unload"):
-        print("\n--- Merging LoRA adapters into base model ---")
-        model = model.merge_and_unload()
-        trainer.model = model
-        trainer.save_model(new_model_name)
+        print(f"Saving merged model to '{new_model_name}' in {save_method} format...")
+        model.save_pretrained_merged(new_model_name, tokenizer, save_method=save_method)
         print(f"✅ Final merged model saved to '{new_model_name}'")
+
+        if IS_AUTHENTICATED and (input("Push final merged model to Hub? [y/N]: ").strip().lower() == 'y'):
+            hub_model_id = f"{config['MODEL_USER']}/{new_model_name}"
+            print(f"🚀 Pushing to Hugging Face Hub at '{hub_model_id}'...")
+            model.push_to_hub_merged(hub_model_id, tokenizer, save_method=save_method, token=Path(config["HF_TOKEN_PATH"]).read_text().strip())
+            print("✅ Successfully pushed to Hub.")
+    else:
+        # If not merging, just save the adapters
+        print(f"\n--- Saving LoRA Adapters to '{new_model_name}_lora' ---")
+        model.save_pretrained(f"{new_model_name}_lora")
+        tokenizer.save_pretrained(f"{new_model_name}_lora")
+        print(f"✅ LoRA adapters saved to '{new_model_name}_lora'.")
 
     if training_args.push_to_hub:
         print(f"\n✅ Model will be pushed to Hub: {training_args.hub_model_id}")
@@ -513,6 +524,11 @@ def run_manual_test() -> None:
                 load_in_4bit=True,
             )
             FastLanguageModel.for_inference(model)
+
+            # Check if the directory also contains an adapter and load it.
+            if (local_model_path / "adapter_model.safetensors").exists():
+                print("🤝 Adapter found in the same directory. Loading it automatically...")
+                model.load_adapter(model_to_load)
         else:
             model = AutoModelForCausalLM.from_pretrained(
                 model_to_load,
@@ -585,10 +601,23 @@ def run_merge_and_save() -> None:
     lora_choice = input("Enter LoRA adapter (e.g., a1, c): ").strip()
     lora_path = handle_model_choice(lora_choice)
 
-    output_model_name = input("\n--- Step 3: Enter Output Model Name ---\n> ").strip()
+    output_model_name = input("\n--- Step 3: Enter Local Output Model Name ---\n> ").strip()
     if not output_model_name:
         print("❌ Output model name cannot be empty.")
         return
+
+    print("\n--- Step 4: Choose Save Format ---")
+    print("  [1] 16-bit (float16) - Recommended for vLLM and inference.")
+    print("  [2] 4-bit (quantized) - Smaller, for sharing or resource-constrained environments.")
+    save_format_choice = input("Enter format [1]: ").strip() or "1"
+    save_method = "merged_16bit" if save_format_choice == "1" else "merged_4bit"
+
+    push_to_hub = IS_AUTHENTICATED and (input("\n--- Step 5: Push to Hugging Face Hub? [y/N] --- \n> ").strip().lower() == 'y')
+    hub_model_id = ""
+    if push_to_hub:
+        hub_model_id = input(f"Enter Hub model ID (default: {config['MODEL_USER']}/{output_model_name}): ").strip()
+        if not hub_model_id:
+            hub_model_id = f"{config['MODEL_USER']}/{output_model_name}"
 
     print(f"\nLoading base model '{base_model_path}'...")
     try:
@@ -596,20 +625,23 @@ def run_merge_and_save() -> None:
             model, tokenizer = FastLanguageModel.from_pretrained(
                 model_name=base_model_path,
                 max_seq_length=config["MAX_SEQ_LENGTH"],
+                dtype=None,
                 load_in_4bit=True,
             )
             print(f"Applying LoRA adapter '{lora_path}'...")
             model.load_adapter(lora_path)
-            print("Merging adapters...")
-            model = model.merge_and_unload()
-        else:
-            print("Standard Hugging Face merging is not implemented in this script.")
-            return
 
-        print(f"Saving merged model to '{output_model_name}'...")
-        model.save_pretrained(output_model_name)
-        tokenizer.save_pretrained(output_model_name)
-        print(f"\n✅ Successfully merged and saved model to '{output_model_name}'.")
+            print(f"\nSaving merged model to '{output_model_name}' in {save_method} format...")
+            model.save_pretrained_merged(output_model_name, tokenizer, save_method=save_method)
+            print(f"\n✅ Successfully saved merged model to '{output_model_name}'.")
+
+            if push_to_hub:
+                print(f"🚀 Pushing to Hugging Face Hub at '{hub_model_id}'...")
+                model.push_to_hub_merged(hub_model_id, tokenizer, save_method=save_method, token=Path(config["HF_TOKEN_PATH"]).read_text().strip())
+                print("✅ Successfully pushed to Hub.")
+        else:
+            print("❌ Merging is only supported with Unsloth in this script.")
+            return
 
     except Exception as e:
         print(f"\n❌ An error occurred during the merge process: {e}")
