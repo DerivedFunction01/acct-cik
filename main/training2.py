@@ -565,6 +565,55 @@ def run_manual_test() -> None:
         thread.join()
 
 
+def run_merge_and_save() -> None:
+    """Loads a base model, merges LoRA adapters, and saves the result."""
+    print("\n--- Merge LoRA Adapters into Base Model ---")
+
+    print("\n--- Step 1: Select Base Model ---")
+    print("  --- Base Models ---")
+    for i, name in enumerate(config["MODEL_NAMES"], 1):
+        print(f"  [b{i}] {name}")
+    print("  [c] Custom model from Hugging Face or local path")
+    base_model_choice = input("Enter base model (e.g., b1, c): ").strip()
+    base_model_path = handle_model_choice(base_model_choice)
+
+    print("\n--- Step 2: Select LoRA Adapter ---")
+    print("  --- LoRA Adapters ---")
+    for i, name in enumerate(config["LORA_ADAPTERS"], 1):
+        print(f"  [a{i}] {name}")
+    print("  [c] Custom adapter from Hugging Face or local path")
+    lora_choice = input("Enter LoRA adapter (e.g., a1, c): ").strip()
+    lora_path = handle_model_choice(lora_choice)
+
+    output_model_name = input("\n--- Step 3: Enter Output Model Name ---\n> ").strip()
+    if not output_model_name:
+        print("❌ Output model name cannot be empty.")
+        return
+
+    print(f"\nLoading base model '{base_model_path}'...")
+    try:
+        if USE_UNSLOTH:
+            model, tokenizer = FastLanguageModel.from_pretrained(
+                model_name=base_model_path,
+                max_seq_length=config["MAX_SEQ_LENGTH"],
+                load_in_4bit=True,
+            )
+            print(f"Applying LoRA adapter '{lora_path}'...")
+            model.load_adapter(lora_path)
+            print("Merging adapters...")
+            model = model.merge_and_unload()
+        else:
+            print("Standard Hugging Face merging is not implemented in this script.")
+            return
+
+        print(f"Saving merged model to '{output_model_name}'...")
+        model.save_pretrained(output_model_name)
+        tokenizer.save_pretrained(output_model_name)
+        print(f"\n✅ Successfully merged and saved model to '{output_model_name}'.")
+
+    except Exception as e:
+        print(f"\n❌ An error occurred during the merge process: {e}")
+
 def handle_model_choice(choice: str) -> str:
     """Resolve user's model choice."""
     choice = choice.lower()
@@ -629,9 +678,10 @@ if __name__ == "__main__":
             print("=" * 60)
             print("1. Fine-tune a base model")
             print("2. Manually test model")
-            print("3. Hugging Face login")
-            print("4. Create training profile template")
-            print("5. Exit")
+            print("3. Merge LoRA adapters into base model")
+            print("4. Hugging Face login")
+            print("5. Create training profile template")
+            print("6. Exit")
             choice = input("> ").strip()
 
             if choice == "1":
@@ -745,10 +795,12 @@ if __name__ == "__main__":
             elif choice == "2":
                 run_manual_test()
             elif choice == "3":
-                huggingface_auth()
+                run_merge_and_save()
             elif choice == "4":
-                create_profile_template()
+                huggingface_auth()
             elif choice == "5":
+                create_profile_template()
+            elif choice == "6":
                 print("👋 Goodbye!")
                 break
             else:
