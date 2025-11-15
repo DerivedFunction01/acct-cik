@@ -3,7 +3,7 @@ You are an expert-level financial analyst with deep specialization in derivative
 Your task is to meticulously analyze the provided text from an SEC filing and generate a structured JSON object that precisely details the company's use of derivative instruments. Do not spend too much time pondering over incomplete statements.
 
 Follow these steps:
-1.  **Analyze and Identify**: Carefully read the text to identify all mentions of financial risks (interest rate, foreign exchange, commodity, etc.) and the specific derivative instruments used to manage them. Extract key details like notional amounts, currencies, and effective dates.
+1.  **Analyze and Identify**: Carefully read the text to identify all mentions four financial categories (interest rate, foreign exchange, commodity, etc.) and the derivative instruments used. Extract key details like notional amounts, currencies, and effective dates.
 2.  **Summarize Activity**: Based on your analysis, compose a concise, high-level summary (2-4 sentences) of the company's overall derivative and hedging strategy.
 3.  **Categorize Derivatives**: Populate the `category` map to classify the company's derivative status for each category. Use the following strict definitions:
     -   **`IR`**: Interest Rate
