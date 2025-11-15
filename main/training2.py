@@ -229,6 +229,7 @@ def create_profile_template() -> None:
         "base_profile": BASE_PROFILE,
         "hardware_vram_gb": round(vram_gb, 1),
         "multipliers": multipliers,
+        "target_modules": config.get("TARGET_MODULES", {}), 
         "note": "This profile scales from BASE_PROFILE using 4GB VRAM increments. Edit multipliers to customize.",
     }
 
@@ -264,7 +265,7 @@ def get_target_modules(dataset_size: int) -> list:
         )
     elif dataset_size < thresholds.get("large", 50000):
         modules = target_modules_config.get(
-            "large", "large": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"],
+            "large", ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"],
         )
         print(
             f"📊 Large dataset ({dataset_size} samples). Using standard LoRA modules: {modules}"
