@@ -54,6 +54,7 @@ config = {
         "unsloth/Qwen3-4B-Thinking-2507",
         "DerivedFunction/Qwen3-1.7B-finance",
         "DerivedFunction/Qwen3-4B-finance",
+        "DerivedFunction/Qwen3-1.7B-derivatives",
     ],
     "DATASETS": [
         ("DerivedFunction/Derivatives-Finance-100K", True),
