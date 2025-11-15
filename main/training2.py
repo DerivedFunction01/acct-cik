@@ -5,22 +5,22 @@ Dynamic training profiles based on hardware (VRAM multipliers of 4GB)
 
 import json
 import math
-import sys
 import multiprocessing
 from pathlib import Path
 from typing import Tuple
 
-import pandas as pd
 from psutil import virtual_memory
 
 # Dynamic Unsloth import with fallback
 try:
     import unsloth
     from unsloth import FastLanguageModel
+
     USE_UNSLOTH = True
     print("✅ Unsloth found. Using Unsloth for model loading.")
 except ImportError:
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
     USE_UNSLOTH = False
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
 
@@ -28,8 +28,7 @@ from datasets import load_dataset
 from huggingface_hub import login
 import torch
 from trl import SFTTrainer
-from transformers import TrainingArguments, TextIteratorStreamer
-from threading import Thread
+from transformers import TrainingArguments
 
 # ============================================================================
 # CONFIGURATION & PROFILE MANAGEMENT
@@ -56,7 +55,6 @@ config = {
         "DerivedFunction/Qwen3-1.7B-finance-base",
         "DerivedFunction/Qwen3-4B-finance",
     ],
-    "LORA_ADAPTERS": [],
     "DATASETS": [
         ("DerivedFunction/Derivatives-Finance-100K", True),
     ],
@@ -249,7 +247,7 @@ def get_target_modules(dataset_size: int) -> list:
 
 
 # ============================================================================
-# TRAINING & INFERENCE
+# TRAINING
 # ============================================================================
 
 
@@ -288,7 +286,7 @@ def run_training(
             )
         else:
             quantization_config = None
-            if profile['load_in_4bit']:
+            if profile["load_in_4bit"]:
                 quantization_config = BitsAndBytesConfig(load_in_4bit=True)
 
             model = AutoModelForCausalLM.from_pretrained(
@@ -342,6 +340,7 @@ def run_training(
                     messages, tokenize=False, add_generation_prompt=False
                 )
             }
+
         dataset = dataset.map(
             format_with_chat_template, remove_columns=dataset.column_names
         )
@@ -458,17 +457,27 @@ def run_training(
         print("\n--- Merging and Saving Final Model ---")
         # Use the modern save_pretrained_merged for better control
         save_method = "merged_16bit"
-        if input("Save in 16-bit (recommended for inference)? [Y/n]: ").strip().lower() == 'n':
+        if (
+            input("Save in 16-bit (recommended for inference)? [Y/n]: ").strip().lower()
+            == "n"
+        ):
             save_method = "merged_4bit"
 
         print(f"Saving merged model to '{new_model_name}' in {save_method} format...")
         model.save_pretrained_merged(new_model_name, tokenizer, save_method=save_method)
         print(f"✅ Final merged model saved to '{new_model_name}'")
 
-        if IS_AUTHENTICATED and (input("Push final merged model to Hub? [y/N]: ").strip().lower() == 'y'):
+        if IS_AUTHENTICATED and (
+            input("Push final merged model to Hub? [y/N]: ").strip().lower() == "y"
+        ):
             hub_model_id = f"{config['MODEL_USER']}/{new_model_name}"
             print(f"🚀 Pushing to Hugging Face Hub at '{hub_model_id}'...")
-            model.push_to_hub_merged(hub_model_id, tokenizer, save_method=save_method, token=Path(config["HF_TOKEN_PATH"]).read_text().strip())
+            model.push_to_hub_merged(
+                hub_model_id,
+                tokenizer,
+                save_method=save_method,
+                token=Path(config["HF_TOKEN_PATH"]).read_text().strip(),
+            )
             print("✅ Successfully pushed to Hub.")
     else:
         # If not merging, just save the adapters
@@ -481,185 +490,6 @@ def run_training(
         print(f"\n✅ Model will be pushed to Hub: {training_args.hub_model_id}")
     else:
         print(f"\n✅ Local model saved to: {new_model_name}")
-
-
-def run_manual_test() -> None:
-    """Manual, interactive testing of fine-tuned models."""
-    print("\n--- Manual Model Test ---")
-
-    print("Available models:")
-    print("  --- Base/Merged Models ---")
-    for i, name in enumerate(config["MODEL_NAMES"], 1):
-        print(f"  [b{i}] {name}")
-    print("  --- LoRA Adapters ---")
-    for i, name in enumerate(config["LORA_ADAPTERS"], 1):
-        print(f"  [a{i}] {name}")
-    print("  [c] Enter custom model name/path")
-
-    model_choice = input("Choose model (e.g., b1, a1, c): ").strip()
-    model_path = handle_model_choice(model_choice)
-
-    # --- Check local or Hub ---
-    local_model_path = Path(model_path)
-    hub_model_id = f"{config['MODEL_USER']}/{model_path}"
-    model_to_load = ""
-
-    if local_model_path.exists():
-        print(f"✅ Found local model at '{model_path}'")
-        model_to_load = model_path
-    elif IS_AUTHENTICATED:
-        print(f"ℹ️ Attempting to pull from Hub: '{hub_model_id}'")
-        model_to_load = hub_model_id
-    else:
-        print(f"❌ Model not found. Train first or log in to pull from Hub.")
-        return
-
-    print(f"\n--- Loading '{model_to_load}' ---")
-    try:
-        if USE_UNSLOTH:
-            model, tokenizer = FastLanguageModel.from_pretrained(
-                model_name=model_to_load,
-                max_seq_length=config["MAX_SEQ_LENGTH"],
-                dtype=None,
-                load_in_4bit=True,
-            )
-            FastLanguageModel.for_inference(model)
-
-            # Check if the directory also contains an adapter and load it.
-            if (local_model_path / "adapter_model.safetensors").exists():
-                print("🤝 Adapter found in the same directory. Loading it automatically...")
-                model.load_adapter(model_to_load)
-        else:
-            model = AutoModelForCausalLM.from_pretrained(
-                model_to_load,
-                quantization_config=BitsAndBytesConfig(load_in_4bit=True),
-                dtype=torch.float16,
-            )
-            tokenizer = AutoTokenizer.from_pretrained(model_to_load)
-    except Exception as e:
-        print(f"❌ Failed to load model: {e}")
-        return
-
-    print("✅ Model loaded. Type 'exit' or 'quit' to return to menu.\n")
-
-    while True:
-        user_prompt = input("Prompt: ").strip()
-        if user_prompt.lower() in ["exit", "quit"]:
-            break
-        if not user_prompt:
-            print("No prompt provided.")
-            continue
-
-        # Format with chat template
-        messages = [{"role": "user", "content": user_prompt}]
-        formatted_prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        inputs = tokenizer(formatted_prompt, return_tensors="pt").to("cuda")
-
-        # Set up streaming
-        streamer = TextIteratorStreamer(
-            tokenizer, skip_prompt=True, skip_special_tokens=True
-        )
-        gen_kwargs = dict(
-            **inputs,
-            streamer=streamer,
-            max_new_tokens=config["MAX_SEQ_LENGTH"],
-            use_cache=True,
-            temperature=0.7,
-            top_p=0.9,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-
-        # Generate in background thread
-        thread = Thread(target=model.generate, kwargs=gen_kwargs)
-        thread.start()
-        print("\n--- Response ---")
-        for token in streamer:
-            print(token, end="", flush=True)
-        print("\n")
-        thread.join()
-
-
-def run_merge_and_save() -> None:
-    """Loads a base model, merges LoRA adapters, and saves the result."""
-    print("\n--- Merge LoRA Adapters into Base Model ---")
-
-    print("\n--- Step 1: Select Base Model ---")
-    print("  --- Base Models ---")
-    for i, name in enumerate(config["MODEL_NAMES"], 1):
-        print(f"  [b{i}] {name}")
-    print("  [c] Custom model from Hugging Face or local path")
-    base_model_choice = input("Enter base model (e.g., b1, c): ").strip()
-    base_model_path = handle_model_choice(base_model_choice)
-
-    print("\n--- Step 2: Select LoRA Adapter ---")
-    print("  --- LoRA Adapters ---")
-    for i, name in enumerate(config["LORA_ADAPTERS"], 1):
-        print(f"  [a{i}] {name}")
-    print("  [c] Custom adapter from Hugging Face or local path")
-    lora_choice = input("Enter LoRA adapter (e.g., a1, c): ").strip()
-    lora_path = handle_model_choice(lora_choice)
-
-    output_model_name = input("\n--- Step 3: Enter Local Output Model Name ---\n> ").strip()
-    if not output_model_name:
-        print("❌ Output model name cannot be empty.")
-        return
-
-    print("\n--- Step 4: Choose Save Format ---")
-    print("  [1] 16-bit (float16) - Recommended for vLLM and inference.")
-    print("  [2] 4-bit (quantized) - Smaller, for sharing or resource-constrained environments.")
-    save_format_choice = input("Enter format [1]: ").strip() or "1"
-    save_method = "merged_16bit" if save_format_choice == "1" else "merged_4bit"
-
-    push_to_hub = IS_AUTHENTICATED and (input("\n--- Step 5: Push to Hugging Face Hub? [y/N] --- \n> ").strip().lower() == 'y')
-    hub_model_id = ""
-    if push_to_hub:
-        hub_model_id = input(f"Enter Hub model ID (default: {config['MODEL_USER']}/{output_model_name}): ").strip()
-        if not hub_model_id:
-            hub_model_id = f"{config['MODEL_USER']}/{output_model_name}"
-
-    print(f"\nLoading base model '{base_model_path}'...")
-    try:
-        if USE_UNSLOTH:
-            model, tokenizer = FastLanguageModel.from_pretrained(
-                model_name=base_model_path,
-                max_seq_length=config["MAX_SEQ_LENGTH"],
-                dtype=None,
-                load_in_4bit=True,
-            )
-            print(f"Applying LoRA adapter '{lora_path}'...")
-            model.load_adapter(lora_path)
-
-            print(f"\nSaving merged model to '{output_model_name}' in {save_method} format...")
-            model.save_pretrained_merged(output_model_name, tokenizer, save_method=save_method)
-            print(f"\n✅ Successfully saved merged model to '{output_model_name}'.")
-
-            if push_to_hub:
-                print(f"🚀 Pushing to Hugging Face Hub at '{hub_model_id}'...")
-                model.push_to_hub_merged(hub_model_id, tokenizer, save_method=save_method, token=Path(config["HF_TOKEN_PATH"]).read_text().strip())
-                print("✅ Successfully pushed to Hub.")
-        else:
-            print("❌ Merging is only supported with Unsloth in this script.")
-            return
-
-    except Exception as e:
-        print(f"\n❌ An error occurred during the merge process: {e}")
-
-def handle_model_choice(choice: str) -> str:
-    """Resolve user's model choice."""
-    choice = choice.lower()
-    if choice.startswith("b") and choice[1:].isdigit():
-        idx = int(choice[1:]) - 1
-        if 0 <= idx < len(config["MODEL_NAMES"]):
-            return config["MODEL_NAMES"][idx]
-    elif choice.startswith("a") and choice[1:].isdigit():
-        idx = int(choice[1:]) - 1
-        if 0 <= idx < len(config["LORA_ADAPTERS"]):
-            return config["LORA_ADAPTERS"][idx]
-    elif choice == "c":
-        return input("Enter custom model name/path: ").strip()
-    return choice
 
 
 def huggingface_auth() -> None:
@@ -709,11 +539,9 @@ if __name__ == "__main__":
             print("🚀 Generative Model Training (Unsloth Optimized)")
             print("=" * 60)
             print("1. Fine-tune a base model")
-            print("2. Manually test model")
-            print("3. Merge LoRA adapters into base model")
-            print("4. Hugging Face login")
-            print("5. Create training profile template")
-            print("6. Exit")
+            print("2. Hugging Face login")
+            print("3. Create training profile template")
+            print("4. Exit")
             choice = input("> ").strip()
 
             if choice == "1":
@@ -723,14 +551,19 @@ if __name__ == "__main__":
                 print("\n--- Step 2: Select Base Model ---")
                 print("  --- Base Models ---")
                 for i, name in enumerate(config["MODEL_NAMES"], 1):
-                    print(f"  [b{i}] {name}")
-                print("  --- LoRA Adapters ---")
-                for i, name in enumerate(config["LORA_ADAPTERS"], 1):
-                    print(f"  [a{i}] {name}")
+                    print(f"  [{i}] {name}")
                 print("  [c] Custom model from Hugging Face")
 
-                model_choice = input("Enter model (e.g., b1, a1, c): ").strip()
-                base_model_name = handle_model_choice(model_choice)
+                model_choice = input("Enter model (e.g., 1, c): ").strip()
+                if model_choice.isdigit() and 0 <= int(model_choice) - 1 < len(
+                    config["MODEL_NAMES"]
+                ):
+                    base_model_name = config["MODEL_NAMES"][int(model_choice) - 1]
+                elif model_choice.lower() == "c":
+                    base_model_name = input("Enter custom model name/path: ").strip()
+                else:
+                    print("❌ Invalid choice.")
+                    continue
 
                 print("\n--- Step 3: Select Dataset ---")
                 for i, (name, is_hf) in enumerate(config["DATASETS"], 1):
@@ -757,7 +590,6 @@ if __name__ == "__main__":
                 if not new_model_name:
                     new_model_name = base_model_name
 
-                # --- New Sharding and Merging Logic ---
                 use_sharding = (
                     input("Use dataset sharding (for very large datasets)? [y/N]: ")
                     .strip()
@@ -767,8 +599,6 @@ if __name__ == "__main__":
                 num_shards = 1
                 shard_index = 0
                 merge_adapters = True
-                # The number of epochs to run for this specific shard.
-                # For the "epoch-per-shard" method, this will always be 1.
                 epochs_for_this_run = num_epochs
 
                 if use_sharding:
@@ -781,8 +611,6 @@ if __name__ == "__main__":
                         )
                         or 0
                     )
-                    # In this method, each shard corresponds to one epoch.
-                    # However, we want confirmation first
                     epochs_for_this_run = 1
                     if (
                         input(
@@ -792,12 +620,11 @@ if __name__ == "__main__":
                         .lower()
                         == "y"
                     ):
-                        epochs_for_this_run = (
-                            shard_index + 1
-                        )  # so we "increment" the epoch based on the shard index.
-                    else: 
-                        epochs_for_this_run = int(input("Enter epoch number for this run: ") or 1) 
-                    # If using sharding, ask if this is the final run to decide on merging.
+                        epochs_for_this_run = shard_index + 1
+                    else:
+                        epochs_for_this_run = int(
+                            input("Enter epoch number for this run: ") or 1
+                        )
                     is_final_run = (
                         input(
                             "Is this the FINAL shard? (This will merge the adapters) [y/N]: "
@@ -808,7 +635,6 @@ if __name__ == "__main__":
                     )
                     merge_adapters = is_final_run
                 else:
-                    # If not sharding, we always merge.
                     merge_adapters = True
                     epochs_for_this_run = num_epochs
 
@@ -825,14 +651,10 @@ if __name__ == "__main__":
                 )
 
             elif choice == "2":
-                run_manual_test()
-            elif choice == "3":
-                run_merge_and_save()
-            elif choice == "4":
                 huggingface_auth()
-            elif choice == "5":
+            elif choice == "3":
                 create_profile_template()
-            elif choice == "6":
+            elif choice == "4":
                 print("👋 Goodbye!")
                 break
             else:
