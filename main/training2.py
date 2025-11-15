@@ -52,7 +52,7 @@ config = {
     "MODEL_NAMES": [
         "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
         "unsloth/Qwen3-4B-Thinking-2507",
-        "DerivedFunction/Qwen3-1.7B-finance-base",
+        "DerivedFunction/Qwen3-1.7B-finance",
         "DerivedFunction/Qwen3-4B-finance",
     ],
     "DATASETS": [
