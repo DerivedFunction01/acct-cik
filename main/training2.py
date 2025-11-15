@@ -409,7 +409,13 @@ def run_training(
         )
         eval_steps = max(100, steps_per_epoch // 2)
     else:
-        eval_steps = num_train_samples
+        steps_per_epoch = math.ceil(
+            num_train_samples
+            / (profile["batch_size"] * profile["gradient_accumulation"])
+        )
+        eval_steps = max(
+            50, steps_per_epoch // 4
+        )  # Evaluate more frequently for small datasets
     print(f"📊 Evaluation frequency: every {eval_steps} steps")
 
     # --- Training Arguments ---
