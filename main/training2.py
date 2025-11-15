@@ -605,17 +605,7 @@ if __name__ == "__main__":
                         epochs_for_this_run = int(
                             input("Enter epoch number for this run: ") or 1
                         )
-                    is_final_run = (
-                        input(
-                            "Is this the FINAL shard? (This will merge the adapters) [y/N]: "
-                        )
-                        .strip()
-                        .lower()
-                        == "y"
-                    )
-                    merge_adapters = is_final_run
                 else:
-                    merge_adapters = True
                     epochs_for_this_run = num_epochs
 
                 run_training(
@@ -627,7 +617,6 @@ if __name__ == "__main__":
                     is_hf_dataset=is_hf_dataset,
                     dataset_num_shards=num_shards,
                     dataset_shard_index=shard_index,
-                    merge_at_end=merge_adapters,
                 )
 
             elif choice == "2":
