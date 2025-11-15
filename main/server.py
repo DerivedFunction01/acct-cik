@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivatives-classifier"
+MODEL_PATH = "DerivedFunction/Qwen3-1.7B-finance"
 MAX_SEQ_LENGTH = 32768
 THINKING_PARAMS = {
     "temperature": 0.60,
