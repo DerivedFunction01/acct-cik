@@ -264,7 +264,7 @@ def get_target_modules(dataset_size: int) -> list:
         )
     elif dataset_size < thresholds.get("large", 50000):
         modules = target_modules_config.get(
-            "large", ["q_proj", "k_proj", "v_proj", "o_proj"]
+            "large", "large": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj"],
         )
         print(
             f"📊 Large dataset ({dataset_size} samples). Using standard LoRA modules: {modules}"
