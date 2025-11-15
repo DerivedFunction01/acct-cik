@@ -34,9 +34,8 @@ from transformers import TrainingArguments
 # CONFIGURATION MANAGEMENT
 # ============================================================================
 
-CONFIG_FILE = Path("training_config.json")
+CONFIG_FILE = Path(".training_config.json")
 IS_AUTHENTICATED = False
-
 
 def create_default_config() -> dict:
     """Creates default configuration."""
@@ -96,6 +95,11 @@ def save_config(config: dict) -> None:
         json.dump(config, f, indent=2)
     print(f"✅ Configuration saved to {CONFIG_FILE}")
 
+
+# automatically create the config file if it doesn't exist
+if not CONFIG_FILE.exists():
+    config = create_default_config()
+    save_config(config)
 
 # ============================================================================
 # TRAINING
