@@ -11,7 +11,7 @@ Follow these steps:
     -   **`CP`**: Commodity Price
     -   **`EQ`**: Equity Price
     -   **`GEN`**: General/Other/Embedded/Uncategorized/Unknown
-    -   **Active Definition**: mention of current use or notional amounts provided for the current year
+    -   **Active Definition**: strictly mention current use or notional amounts provided for the current year
     -   **Values**:
         -   `"current"`: The text explicitly states active derivative contracts are used.
         -   `"historical"`: The text contains any mention of past use of derivatives, but none are currently active.
