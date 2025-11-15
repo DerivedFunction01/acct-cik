@@ -61,6 +61,8 @@ def create_default_config() -> dict:
         ],
         "model_names": [
             "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
+            "unsloth/Qwen3-1.7B",
+            "unsloth/Qwen3-0.6B",
             "unsloth/Qwen3-4B-Thinking-2507",
             "unsloth/Qwen3-4B-unsloth-bnb-4bit",
         ],
