@@ -799,17 +799,19 @@ def filter_by_keywords(content: str) -> list[str]:
                 continue
 
             if COMBINED_REGEX.search(para) and not IGNORE_REGEX.search(para):
-                para_lower = para.lower()
                 # Check if paragraph ends without a period
                 if not para.endswith('.'):
                     if i + 1 < len(paragraphs):
                         next_para = paragraphs[i + 1].strip()
                         # Skip short next paragraphs (likely headers or cut-offs)
                         if next_para and len(next_para) >= 30:
-                            if not IGNORE_REGEX.search(next_para):
+                            # Also check if the next paragraph itself is a derivative paragraph
+                            # to avoid merging unrelated content.
+                            if not IGNORE_REGEX.search(next_para) and not COMBINED_REGEX.search(next_para):
                                 # Merge with next paragraph
                                 para = para + " " + next_para
                                 i += 1  # Skip next paragraph since it's merged
+                para_lower = para.lower()
                 if para_lower not in seen:
                     filtered.append(para)
                     seen.add(para_lower)
