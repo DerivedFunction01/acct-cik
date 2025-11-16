@@ -567,39 +567,6 @@ def save_to_discarded_db(
         conn.close()
 
 
-def classify_and_save_derivative_types(url: str, matches: List[str]):
-    """
-    Classify strict matches by derivative type and save to the database.
-
-    Checks for IR, FX, CP, and EQ keywords.
-    """
-    # Join all sentences into one block for efficient regex searching
-    text_block = " ".join(matches)
-    # This function is no longer used in the parallel processing flow
-
-    # Check for presence of each derivative type
-    has_ir = 1 if IR_REGEX.search(text_block) else 0
-    has_fx = 1 if FX_REGEX.search(text_block) else 0
-    has_cp = 1 if CP_REGEX.search(text_block) else 0
-    has_eq = 1 if EQ_REGEX.search(text_block) else 0
-
-    # Save to the new table
-    conn = sqlite3.connect(CLEAN_DB_PATH)
-    c = conn.cursor()
-    try:
-        c.execute(
-            """
-            INSERT OR REPLACE INTO derivative_type_matches (url, has_ir, has_fx, has_cp, has_eq)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (url, has_ir, has_fx, has_cp, has_eq),
-        )
-        conn.commit()
-    except Exception as e:
-        print(f"❌ Error saving to derivative_type_matches: {e}")
-    finally:
-        conn.close()
-
 
 # =============================================================================
 # MAIN PROCESSING FUNCTION
