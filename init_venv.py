@@ -32,40 +32,38 @@ BASE_PACKAGES = [
     "tqdm",
 ]
 
-UNSLOTH_PACKAGES_BASE = [
-    "torchvision",
-    "torchaudio",
-    "transformers",
-    "peft",
-    "accelerate",
-    "trl",
-    "datasets",
-    "bitsandbytes"
-]
-
-if sys.platform == "win32":
-    UNSLOTH_INSTALL = UNSLOTH_PACKAGES_BASE
-else:
-    UNSLOTH_INSTALL = [
-        "unsloth",
-        "unsloth_zoo",
-        "torchvision",
-        "torchaudio",
-    ]
-
-ML_PACKAGES_BASE = [
+# Packages for the classification server (FastAPI, NLI model)
+CLASSIFICATION_PACKAGES = [
     "scikit-learn",
     "tensorboardX",
     "fastapi",
     "uvicorn",
     "pydantic",
     "gunicorn",
-    "flask",
-    "flask_cors",
-    "waitress",
-] + UNSLOTH_INSTALL
+    "transformers",  # For the cross-encoder model
+]
 
-PACKAGES = ML_PACKAGES_BASE + BASE_PACKAGES
+# Packages for Unsloth fine-tuning (platform-dependent)
+if sys.platform == "win32":
+    # Unsloth is not officially supported on Windows.
+    # We install its core dependencies for compatibility if needed.
+    UNSLOTH_PACKAGES = [
+        "peft",
+        "accelerate",
+        "trl",
+        "datasets",
+        "bitsandbytes",
+    ]
+else:
+    # On Linux/WSL, install Unsloth directly.
+    UNSLOTH_PACKAGES = [
+        "unsloth",
+        "unsloth_zoo",
+    ]
+
+# For the old "install all" option, kept for compatibility if needed
+# but the new menu provides more granular control.
+PACKAGES = CLASSIFICATION_PACKAGES + UNSLOTH_PACKAGES + BASE_PACKAGES
 
 
 def detect_nvidia_gpu():
@@ -263,10 +261,11 @@ def show_menu():
 
     print("\nOptions:")
     print("  0. Basic setup")
-    print("  1. Install all packages (Base + ML with Unsloth)")
-    print("  2. Check current installation")
-    print("  3. Reinstall PyTorch (unlock and reinstall)")
-    print("  4. Exit")
+    print("  1. Install ML Packages (Classification Server)")
+    print("  2. Install ML Packages + Unsloth (Full Training Setup)")
+    print("  3. Check current installation")
+    print("  4. Reinstall PyTorch (unlock and reinstall)")
+    print("  5. Exit")
     print("-" * 60)
 
 
@@ -352,41 +351,46 @@ def main():
 
     if USE_VENV:
         create_venv()
-
     while True:
         show_menu()
-        choice = input("\nEnter your choice (0-4): ").strip()
+        choice = input("\nEnter your choice (0-5): ").strip()
         if choice == "0":
             print("\nBasic setup starting...")
             install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Basic setup complete!")
             exit(0)
         elif choice == "1":
-            print("\nFull setup starting...")
-            # KEY FIX: Install PyTorch FIRST and lock it
+            print("\nSetting up for Classification Server...")
             if is_torch_locked() and not REINSTALL_TORCH:
                 print("🧱 PyTorch is already locked. Skipping PyTorch install.")
-                print("  (Use option 3 to reinstall PyTorch)")
             else:
                 install_pytorch()
-            # THEN install other packages (they can't downgrade the locked torch)
-            install_packages(ML_PACKAGES_BASE, "ML and Unsloth packages")
+            install_packages(CLASSIFICATION_PACKAGES, "classification packages")
             install_packages(BASE_PACKAGES, "base packages")
-            print("\n✅ Environment setup complete!")
+            print("\n✅ Classification Server setup complete!")
             exit(0)
         elif choice == "2":
-            check_installation()
+            print("\nStarting Full Training Setup...")
+            if is_torch_locked() and not REINSTALL_TORCH:
+                print("🧱 PyTorch is already locked. Skipping PyTorch install.")
+            else:
+                install_pytorch()
+            install_packages(CLASSIFICATION_PACKAGES, "classification packages")
+            if sys.platform == "win32":
+                print("\n⚠️  Skipping Unsloth installation on Windows (not supported).")
+                print("   Installing core dependencies like peft, bitsandbytes instead.")
+            install_packages(UNSLOTH_PACKAGES, "training packages")
+            install_packages(BASE_PACKAGES, "base packages")
+            print("\n✅ Full Training Environment setup complete!")
+            exit(0)
         elif choice == "3":
+            check_installation()
+        elif choice == "4":
             print("\n🔄 Reinstalling PyTorch...")
             TORCH_LOCK_FILE.unlink(missing_ok=True)
             install_pytorch()
-            print("✅ PyTorch reinstalled and locked!")
-        elif choice == "4":
+        else:
             print("\n👋 Goodbye!")
             break
-        else:
-            print("\n❌ Invalid choice. Please enter 0-4.")
-
-
 if __name__ == "__main__":
     main()
