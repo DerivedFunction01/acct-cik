@@ -388,6 +388,21 @@ def get_sentences_for_filing(url: str) -> Dict[str, List[str]]:
     return sentences_by_type
 
 
+def iter_work_queue_from_db(filings: List[Tuple[str, int, int]]):
+    """
+    Generator that yields (url, cik, year, db_category, sentences) tuples.
+    Lazily loads sentences only when needed, avoiding memory bloat.
+    """
+    for url, cik, year in filings:
+        try:
+            sentences_by_type = get_sentences_for_filing(url)
+            for db_category, sentences in sentences_by_type.items():
+                if sentences:  # Only yield if there are sentences
+                    yield (url, cik, year, db_category, sentences)
+        except Exception as e:
+            print(f"[DEBUG] Error loading sentences for {url}: {e}")
+
+
 # =============================================================================
 # CLASSIFICATION WORKER
 # =============================================================================
@@ -578,37 +593,32 @@ def run_classification(total_chunks: int, chunk_index: int):
     results_since_last_save = 0
     start_time = time.time()
 
-    # Build work queue: for each filing, create tasks for each derivative category
-    work_queue = []
-    for url, cik, year in filings_to_process:
-        sentences_by_type = get_sentences_for_filing(url)
-        for db_category, sentences in sentences_by_type.items():
-            if sentences:  # Only add if there are sentences
-                work_queue.append((url, cik, year, db_category, sentences))
+    # Create a generator for the work queue (lazy loading)
+    work_queue_generator = iter_work_queue_from_db(filings_to_process)
 
-    if not work_queue:
-        print("✅ No sentences to process. Exiting.")
-        sys.exit(0)
-
-    # Create mini-chunks for better progress tracking and saves
-    mini_chunks = [
-        work_queue[i : i + SAVE_INTERVAL_FILINGS]
-        for i in range(0, len(work_queue), SAVE_INTERVAL_FILINGS)
-    ]
-
-    print(
-        f"\nProcessing {len(work_queue)} filing-category pairs in {len(mini_chunks)} mini-chunks"
-    )
+    print(f"\nProcessing filing-category pairs with lazy loading...")
     print("=" * 80)
 
-    # 4. Process mini-chunks sequentially
-    for mini_chunk_idx, mini_chunk in enumerate(mini_chunks, 1):
-        mini_chunk_results = []
+    # 4. Process work items in mini-chunks sequentially
+    mini_chunk_idx = 0
+    while True:
+        mini_chunk_idx += 1
+        mini_chunk = []
         mini_chunk_start = time.time()
+        mini_chunk_results = []
+        
+        # Collect up to SAVE_INTERVAL_FILINGS items from the generator
+        for _ in range(SAVE_INTERVAL_FILINGS):
+            try:
+                work_item = next(work_queue_generator)
+                mini_chunk.append(work_item)
+            except StopIteration:
+                break
 
-        print(
-            f"\n📦 Mini-chunk {mini_chunk_idx}/{len(mini_chunks)} ({len(mini_chunk)} pairs)"
-        )
+        if not mini_chunk:
+            break  # No more items to process
+
+        print(f"\n📦 Mini-chunk {mini_chunk_idx} ({len(mini_chunk)} pairs)")
 
         # Process this mini-chunk with threading
         try:
