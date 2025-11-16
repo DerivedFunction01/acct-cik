@@ -200,7 +200,7 @@ ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?"]
 
 def build_ir_regex() -> re.Pattern:
     """Build optimized Interest Rate derivatives regex."""
-    
+
     core_terms = [
         "interest[- ]rate",
         "single[- ]currency",
@@ -210,24 +210,17 @@ def build_ir_regex() -> re.Pattern:
         "LIBOR",
         "LIBOR[- ]based",
         "EURIBOR",
-        "treasury[- ]rate",
-        "forward[- ]rate",
-        "fixed[- ]rate",
-        "floating[- ]rate",
-        "variable[- ]rate",
-        "benchmark[- ]rate",
+        "(?:treasury|forward|fixed|floating|variable|benchmark)[- ]rate",
     ]
 
     specific_phrases = [
         "zero[- ]coupon swap",
         "FRA",
         "treasury lock",
-        "interest rate lock",
-        "interest rate cap",
-        "interest rate floor",
-        "single currency basis swap"
+        "single currency basis swap",
+        "basis swap",
     ]
-    
+
     # Use ALL_SUFFIXES to catch "interest rate contract/instrument"
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases)
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
@@ -238,24 +231,17 @@ def build_fx_regex() -> re.Pattern:
 
     core_terms = [
         "foreign[- ]exchange",
-        "foreign[- ]currency",
+        "forward[- ]exchange",
         "currency",
-        "cross[- ]currency",
         "currency[- ]rate",
-        "foreign[- ]exchange[- ]rate",
+        "exchange[- ]rate",
         "FX",
-        "forex"
+        "forex",
     ]
 
     specific_phrases = [
         "NDF",
-        "currency swaps?",
-        "currency collars?",
-        "currency caps?",
-        "non[- ]deliverable forwards?",
         "deliverable forwards?",
-        "forward foreign exchange",
-        "foreign currency contracts?",
     ]
 
     pattern = build_smart_regex(
@@ -283,7 +269,6 @@ def build_cp_regex() -> re.Pattern:
 
     specific_phrases = [
         "commodity index",
-        "commodity swaps?"
     ]
     
     # Use ALL_SUFFIXES to catch "commodity contract/instrument" etc.
@@ -302,7 +287,6 @@ def build_eq_regex() -> re.Pattern:
     specific_phrases = [ # No specific equity keywords were provided, so keeping existing
         "call options?",
         "put options?",
-        "equity collar strateg(?:y|ies)",
     ]
     
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
