@@ -78,22 +78,22 @@ app = FastAPI(
 class ClassificationRequest(BaseModel):
     term: str = Field(
         ...,
-        example="interest rate swaps",
+        json_schema_extra={"example": "interest rate swaps"},
         description="The derivative term to insert into the hypotheses.",
     )
     stage: Literal["policy", "position", "notional"] = Field(
         ...,
-        example="position",
+        json_schema_extra={"example": "position"},
         description="The classification stage to determine which hypotheses to use.",
     )
     sentences: List[str] = Field(
         ...,
-        min_items=1,
-        example=["The company uses interest rate swaps to manage risk."],
+        min_length=1,
+        json_schema_extra={"example": ["The company uses interest rate swaps to manage risk."]},
     )
     year: int | None = Field(
         None,
-        example=2023,
+        json_schema_extra={"example": 2023},
         description="Optional: The reporting year to insert into the hypotheses for time-specific classification.",
     )
 
