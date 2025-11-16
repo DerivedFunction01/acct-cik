@@ -263,6 +263,8 @@ EXCLUDE_KEYWORDS = [
     "warrant",
     "convertible",
     "conversion",
+    "hedge fund",
+    "lawsuit",
 ]
 
 # Minimum sentence length to consider
