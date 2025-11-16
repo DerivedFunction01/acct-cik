@@ -12,7 +12,9 @@
 #    in the `clean_web_data.db` database.
 # =============================================================================
 
+import json
 import sqlite3
+import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 import pandas as pd
@@ -153,12 +155,19 @@ def import_classification_results_from_parquet():
         print(f"     Found:    {list(combined_df.columns)}")
         return
 
+    def serialize_value(v):
+        """Handle special types for SQLite insertion."""
+        if isinstance(v, float) and pd.isna(v):
+            return None  # Convert NaN to None
+        if isinstance(v, np.ndarray):
+            return json.dumps(v.tolist())  # Serialize numpy array to JSON string
+        return v
+
     # Prepare records for database insertion
     records_to_insert = combined_df[required_cols].to_records(index=False)
-    # Convert numpy.nan to None for SQLite compatibility
-    records_to_insert = [
-        tuple(None if isinstance(v, float) and pd.isna(v) else v for v in rec) for rec in records_to_insert
-    ]
+
+    # Convert special types (like np.nan, np.ndarray) for SQLite compatibility
+    records_to_insert = [tuple(serialize_value(v) for v in rec) for rec in records_to_insert]
 
     print(f"\n[4/5] Connecting to database '{DB_PATH}'...")
     conn = sqlite3.connect(DB_PATH)
