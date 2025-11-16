@@ -54,6 +54,7 @@ fi
 cd acct-cik/main
 echo "📋 Copying secrets file..."
 cp /h/client_secrets.json .
+cp /h/hf_token .
 
 # 3. Extract WinPython if needed
 if [ ! -d "/c/Users/del226/WPy64-31241" ]; then
@@ -64,7 +65,7 @@ fi
 # 4. Run init_venv.sh AND launch workers - all inside WinPython PowerShell's sh environment
 echo "🐍 Initializing virtual environment and launching workers..."
 
-for i in $(seq 1 5); do
+for i in $(seq 1 3); do
     echo "🔁 Launching WinPython PowerShell Prompt (run $i of 5)..."
     powershell.exe -NoProfile -Command "& { & 'C:\Users\del226\WPy64-31241\WinPython Powershell Prompt.exe' }"
 done
