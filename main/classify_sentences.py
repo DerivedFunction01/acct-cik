@@ -1,199 +1,207 @@
-#%%
 # =============================================================================
-# SENTENCE CLASSIFICATION SCRIPT
+# CLASSIFICATION SERVER
 # =============================================================================
-# This script reads the extracted derivative sentences and classifies them
-# into categories like 'current', 'historical', 'terminated', or 'speculative'
-# using a zero-shot classification model.
+# A FastAPI server that uses a cross-encoder model to classify sentences
+# against a set of core hypotheses for derivative usage.
 #
-# To run this, you'll need to install the transformers library:
-# pip install transformers torch
+# The server exposes a single endpoint, `/classify`, which expects a POST
+# request with a JSON body containing:
+#   - `term`: The specific derivative term (e.g., "interest rate swaps").
+#   - `stage`: The classification stage ("policy" or "position").
+#   - `sentences`: A list of sentences to classify.
+#
+# It returns a JSON object containing the classification results for each
+# sentence, including the predicted label (entailment, contradiction, neutral)
+# and raw scores for each hypothesis.
+#
+# This tiered approach allows for efficient, targeted classification based on
+# the context of the sentences being processed.
+#
+# ---
+#
+# To run the server:
+# uvicorn classification_server:app --host 0.0.0.0 --port 8000
 # =============================================================================
 
-import sqlite3
-import json
-from tqdm import tqdm
-from transformers import pipeline
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
+from typing import List, Dict, Literal
 
 # =============================================================================
-# CONFIGURATION
+# CONFIGURATION & MODEL LOADING
 # =============================================================================
 
-DB_PATH = "clean_web_data.db"
+MODEL_NAME = "cross-encoder/nli-deberta-v3-large"
 
-# The labels you want to classify sentences into.
-SIMPLE_LABELS = ["current", "historical", "terminated", "speculative"]
+# Load the model and tokenizer at startup
+print(f"🚀 Loading model: {MODEL_NAME}...")
+try:
+    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model.eval()  # Set model to evaluation mode
+    print("✅ Model loaded successfully.")
+except Exception as e:
+    print(f"❌ Failed to load model: {e}")
+    model, tokenizer = None, None
 
-# Multi-shot examples to guide the classifier.
-# These provide context for what each label means.
-LABEL_EXAMPLES = {
-    "current": "The company holds interest rate swaps with a notional value of $100 million.",
-    "historical": "In 2022, the company settled all of its outstanding forward contracts.",
-    "terminated": "The commodity hedge was terminated in the third quarter, resulting in a loss.",
-    "speculative": "We may in the future enter into derivative contracts to manage risk."
+# Define the 4 core hypotheses with the {TERM} placeholder
+CORE_HYPOTHESES = {
+    "H1_Policy": "The company's financial policy discloses or allows for the use or execution of {TERM}{YEAR_PHRASE}.",
+    "H2_Existence": "The company held or carried outstanding, un-terminated {TERM} positions{YEAR_PHRASE}.",
+    "H3_Notional": "The company reported a non-zero notional amount for {TERM}{YEAR_PHRASE}.",
+    "H4_PnL_Impact": "The company recognized a gain, loss, or ongoing cash flow attributable to {TERM}{YEAR_PHRASE}.",
 }
 
-# The template for creating the classification hypotheses.
-HYPOTHESIS_TEMPLATE = "Given the report is for the year {report_year}, this sentence is about {label} derivatives. For example: '{example}'"
+# Define which hypotheses to use for each stage
+STAGE_HYPOTHESES_MAP = {
+    "policy": ["H1_Policy"],
+    "position": ["H2_Existence", "H3_Notional", "H4_PnL_Impact"],
+}
 
-
-# You can choose a different model. distilbert is a good balance of speed and accuracy.
-MODEL_NAME = "facebook/bart-large-mnli"
-
-# Determine if a GPU is available for faster processing
-DEVICE = 0 if torch.cuda.is_available() else -1
+# Mapping from model output index to label
+LABEL_MAPPING = ["contradiction", "entailment", "neutral"]
 
 # =============================================================================
-# DATABASE FUNCTIONS
+# FASTAPI APP & DATA MODELS
 # =============================================================================
 
-def create_classification_table():
-    """Creates the table to store sentence classification results."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+app = FastAPI(
+    title="Sentence Classification Server",
+    description="A server to classify sentences against derivative usage hypotheses.",
+    version="1.0.0",
+)
+
+
+class ClassificationRequest(BaseModel):
+    term: str = Field(
+        ...,
+        example="interest rate swaps",
+        description="The derivative term to insert into the hypotheses.",
+    )
+    stage: Literal["policy", "position"] = Field(
+        ...,
+        example="position",
+        description="The classification stage to determine which hypotheses to use.",
+    )
+    sentences: List[str] = Field(
+        ...,
+        min_items=1,
+        example=["The company uses interest rate swaps to manage risk."],
+    )
+    year: int | None = Field(
+        None,
+        example=2023,
+        description="Optional: The reporting year to insert into the hypotheses for time-specific classification.",
+    )
+
+class ClassificationResult(BaseModel):
+    sentence: str
+    classifications: Dict[str, str] = Field(
+        description="A dictionary mapping hypothesis ID to its classification label (e.g., entailment)."
+    )
+    scores: Dict[str, List[float]] = Field(
+        description="A dictionary mapping hypothesis ID to its raw logit scores, ordered as [contradiction, entailment, neutral]."
+    )
+
+
+class ClassificationResponse(BaseModel):
+    results: List[ClassificationResult]
+
+# =============================================================================
+# API ENDPOINT
+# =============================================================================
+
+@app.post("/classify", response_model=ClassificationResponse)
+async def classify_sentences(request: ClassificationRequest):
+    """
+    Classifies a batch of sentences against a selected set of hypotheses.
+
+    This endpoint implements the tiered classification strategy:
+    - **Stage 'policy'**: Checks sentences against the general `H1_Policy` hypothesis.
+      This is ideal for sentences without a clear time reference.
+    - **Stage 'position'**: Checks sentences against `H2_Existence`, `H3_Notional`,
+      and `H4_PnL_Impact`. This is for sentences with a year or other time-specific
+      markers to confirm active usage.
+
+    **Request Body:**
+    - `term` (str): The derivative term to inject into the hypothesis (e.g., "interest rate swaps").
+    - `stage` (str): Either "policy" or "position".
+    - `sentences` (List[str]): A list of sentences to classify.
+    - `year` (int, optional): The reporting year for time-specific classification.
+
+    **Returns:**
+    A JSON object containing a list of results, where each result includes:
+    - `sentence`: The original input sentence.
+    - `classifications`: A dictionary mapping each tested hypothesis ID to its predicted label.
+    - `scores`: A dictionary mapping each hypothesis ID to its raw logit scores for
+      [contradiction, entailment, neutral].
+    """
+    if not model or not tokenizer:
+        raise HTTPException(status_code=503, detail="Model is not available.")
+
+    # 1. Select hypotheses based on the requested stage
+    hypothesis_ids = STAGE_HYPOTHESES_MAP.get(request.stage)
+    if not hypothesis_ids:
+        raise HTTPException(status_code=400, detail=f"Invalid stage: {request.stage}")
+
+    # 2. Determine the year phrase based on whether a year was provided
+    year_phrase = f" in the year {request.year}" if request.year else ""
+
+    # 3. Prepare sentence pairs for the model
+    sentence_pairs = []
+    hypotheses_to_run = {}
+    for hypo_id in hypothesis_ids:
+        # Insert the specific term and year phrase into the hypothesis template
+        base_hypothesis = CORE_HYPOTHESES[hypo_id]
+        formatted_hypothesis = base_hypothesis.format(
+            TERM=request.term, YEAR_PHRASE=year_phrase
+        ).strip()
+
+        hypotheses_to_run[hypo_id] = formatted_hypothesis
+        for sentence in request.sentences:
+            sentence_pairs.append([sentence, formatted_hypothesis])
+
+    # 3. Tokenize and predict in a single batch
     try:
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS sentence_classifications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                url TEXT,
-                sentence TEXT,
-                label TEXT,
-                score REAL,
-                derivative_type TEXT
+        with torch.no_grad():
+            features = tokenizer(
+                sentence_pairs,
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
             )
-        """)
-        c.execute("CREATE INDEX IF NOT EXISTS idx_sentence_url ON sentence_classifications (url)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_sentence_label ON sentence_classifications (label)")
-        conn.commit()
-        print("✅ `sentence_classifications` table created or already exists.")
+            scores = model(**features).logits
+            predictions = scores.argmax(dim=1)
     except Exception as e:
-        print(f"❌ Error creating table: {e}")
-    finally:
-        conn.close()
+        raise HTTPException(status_code=500, detail=f"Model inference failed: {e}")
 
-def get_url_to_year_map():
-    """Fetches data from the source DB to map URLs to their report year."""
-    # This function connects to the *source* DB to get metadata
-    conn = sqlite3.connect(SOURCE_DB_PATH)
-    c = conn.cursor()
-    url_map = {}
-    try:
-        c.execute("SELECT url, year FROM report_data WHERE url IS NOT NULL")
-        for url, year in c.fetchall():
-            url_map[url] = year
-    finally:
-        conn.close()
-    return url_map
+    # 4. Structure the results
+    results: List[ClassificationResult] = []
+    num_hypotheses = len(hypotheses_to_run)
 
-def get_sentences_to_classify():
-    """Fetches all unique sentences from the derivative_type_matches table."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    sentences = {} # Use a dict to store sentences and their types, ensuring uniqueness
-    
-    try:
-        c.execute("SELECT url, ir_matches, fx_matches, cp_matches, eq_matches FROM derivative_type_matches")
-        rows = c.fetchall()
-        
-        for row in rows:
-            url, ir_json, fx_json, cp_json, eq_json = row
-            type_map = {
-                "ir": json.loads(ir_json),
-                "fx": json.loads(fx_json),
-                "cp": json.loads(cp_json),
-                "eq": json.loads(eq_json),
-            }
-            
-            for dtype, sentence_list in type_map.items():
-                for sentence in sentence_list:
-                    # Store by sentence to keep it unique, value is a tuple of (url, type)
-                    if sentence not in sentences:
-                        sentences[sentence] = (url, dtype)
+    for i, sentence in enumerate(request.sentences):
+        sentence_classifications = {}
+        sentence_scores = {}
 
-        print(f"📚 Found {len(sentences)} unique sentences to classify.")
-        return list(sentences.items())
-    except Exception as e:
-        print(f"❌ Error fetching sentences: {e}")
-        return []
-    finally:
-        conn.close()
+        for j, hypo_id in enumerate(hypothesis_ids):
+            # The model processes all sentences for the first hypothesis, then all for the second, etc.
+            # We need to index into the flat list of results correctly.
+            result_index = j * len(request.sentences) + i
 
-def save_classifications(results):
-    """Saves a batch of classification results to the database."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    try:
-        c.executemany(
-            "INSERT INTO sentence_classifications (url, sentence, label, score, derivative_type) VALUES (?, ?, ?, ?, ?)",
-            results
+            label = LABEL_MAPPING[predictions[result_index]]
+            raw_scores = scores[result_index].tolist()
+
+            sentence_classifications[hypo_id] = label
+            sentence_scores[hypo_id] = raw_scores
+
+        results.append(
+            ClassificationResult(
+                sentence=sentence,
+                classifications=sentence_classifications,
+                scores=sentence_scores,
+            )
         )
-        conn.commit()
-    except Exception as e:
-        print(f"❌ Error saving batch to database: {e}")
-    finally:
-        conn.close()
 
-# =============================================================================
-# MAIN EXECUTION
-# =============================================================================
-
-if __name__ == "__main__":
-    print("="*80)
-    print("🚀 Starting Sentence Classification")
-    print("="*80)
-
-    create_classification_table()
-    
-    sentences_with_meta = get_sentences_to_classify()
-    if not sentences_with_meta:
-        print("❌ No sentences to classify. Exiting.")
-    else:
-        # Load the zero-shot classification pipeline
-        print(f"Loading zero-shot model '{MODEL_NAME}'...")
-        classifier = pipeline("zero-shot-classification", model=MODEL_NAME, device=DEVICE)
-        
-        print("🧠 Mapping URLs to report years...")
-        url_to_year = get_url_to_year_map()
-
-        # Group sentences by report year to create year-specific hypotheses
-        sentences_by_year = {}
-        for sentence, (url, dtype) in sentences_with_meta:
-            report_year = url_to_year.get(url)
-            if not report_year:
-                continue # Skip if we can't find a year for the report
-            
-            if report_year not in sentences_by_year:
-                sentences_by_year[report_year] = []
-            sentences_by_year[report_year].append({'sentence': sentence, 'url': url, 'dtype': dtype})
-
-        print(f"🤖 Found sentences from {len(sentences_by_year)} different report years. Classifying year by year...")
-        db_records = []
-
-        for report_year, items in tqdm(sentences_by_year.items(), desc="Processing by year"):
-            # 1. Create year-specific hypotheses
-            candidate_labels_with_examples = [
-                HYPOTHESIS_TEMPLATE.format(report_year=report_year, label=label, example=LABEL_EXAMPLES[label])
-                for label in SIMPLE_LABELS
-            ]
-            hypothesis_to_label_map = {desc: label for desc, label in zip(candidate_labels_with_examples, SIMPLE_LABELS)}
-            
-            # 2. Get sentences for this year
-            sentence_texts = [item['sentence'] for item in items]
-
-            # 3. Classify this batch
-            outputs = classifier(sentence_texts, candidate_labels_with_examples, multi_label=False, batch_size=16)
-
-            # 4. Process and store results
-            for i, output in enumerate(outputs):
-                original_item = items[i]
-                sentence = output['sequence']
-                best_hypothesis = output['labels'][0]
-                label = hypothesis_to_label_map[best_hypothesis]
-                score = output['scores'][0]
-                db_records.append((original_item['url'], sentence, label, score, original_item['dtype']))
-
-        print("💾 Saving results to the database...")
-        save_classifications(db_records)
-        print("\n✨ Classification complete! Results are saved in the `sentence_classifications` table.")
-        print("="*80)
+    return ClassificationResponse(results=results)
