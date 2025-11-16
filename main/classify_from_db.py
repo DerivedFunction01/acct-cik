@@ -96,23 +96,26 @@ def prepare_results_for_parquet(results: List[Dict[str, Any]]) -> List[Dict[str,
     Ensures all results have the same schema, preventing write errors.
     """
     normalized = []
+    categories = ["ir", "fx", "cp", "eq"]
+    found_types = ["policy", "existence", "notional", "pnl"]
+
     for r in results:
-        normalized.append(
-            {
-                "url": r.get("url"),
-                "cik": r.get("cik"),
-                "year": r.get("year"),
-                "found_policy": int(r.get("found_policy", 0)),
-                "found_existence": int(r.get("found_existence", 0)),
-                "found_notional": int(r.get("found_notional", 0)),
-                "found_pnl": int(r.get("found_pnl", 0)),
-                "status": str(r.get("status", "unknown")),
-                "duration_s": float(r.get("duration_s", 0.0)),
-                "error_message": (
-                    str(r.get("error_message")) if r.get("error_message") else None
-                ),
-            }
-        )
+        record = {
+            "url": r.get("url"),
+            "cik": r.get("cik"),
+            "year": r.get("year"),
+            "status": str(r.get("status", "unknown")),
+            "duration_s": float(r.get("duration_s", 0.0)),
+            "error_message": (
+                str(r.get("error_message")) if r.get("error_message") else None
+            ),
+        }
+        # Add all the granular 'found' columns
+        for f_type in found_types:
+            for cat in categories:
+                col_name = f"found_{f_type}_{cat}"
+                record[col_name] = int(r.get(col_name, 0))
+        normalized.append(record)
     return normalized
 
 
@@ -184,18 +187,36 @@ def print_mini_chunk_stats(mini_chunk_results: List[Dict[str, Any]]):
         return
 
     statuses = Counter(r.get("status") for r in mini_chunk_results)
-    found_notional = sum(1 for r in mini_chunk_results if r.get("found_notional"))
-    found_policy = sum(1 for r in mini_chunk_results if r.get("found_policy"))
-    found_existence = sum(1 for r in mini_chunk_results if r.get("found_existence"))
-    found_pnl = sum(1 for r in mini_chunk_results if r.get("found_pnl"))
-    avg_duration = sum(r.get("duration_s", 0) for r in mini_chunk_results) / len(
-        mini_chunk_results
+
+    # Sum up across all categories for summary stats
+    categories = ["ir", "fx", "cp", "eq"]
+    total_notional = sum(
+        r.get(f"found_notional_{cat}", 0)
+        for r in mini_chunk_results
+        for cat in categories
+    )
+    total_policy = sum(
+        r.get(f"found_policy_{cat}", 0)
+        for r in mini_chunk_results
+        for cat in categories
+    )
+    total_existence = sum(
+        r.get(f"found_existence_{cat}", 0)
+        for r in mini_chunk_results
+        for cat in categories
+    )
+    total_pnl = sum(
+        r.get(f"found_pnl_{cat}", 0) for r in mini_chunk_results for cat in categories
+    )
+
+    avg_duration = sum(r.get("duration_s", 0) for r in mini_chunk_results) / (
+        len(mini_chunk_results) or 1
     )
 
     print(f"    📊 Mini-chunk Stats ({len(mini_chunk_results)} filings):")
     print(f"       Status breakdown: {dict(statuses)}")
     print(
-        f"       Findings - Notional: {found_notional}, Policy: {found_policy}, Existence: {found_existence}, PnL: {found_pnl}"
+        f"       Findings (total flags) - Notional: {total_notional}, Policy: {total_policy}, Existence: {total_existence}, PnL: {total_pnl}"
     )
     print(f"       Avg processing time: {avg_duration:.2f}s")
 
@@ -256,22 +277,26 @@ def setup_database():
     """Creates the results table in the database if it doesn't exist."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS {RESULTS_TABLE} (
-            url TEXT PRIMARY KEY,
-            cik INTEGER,
-            year INTEGER,
-            found_policy INTEGER,
-            found_existence INTEGER,
-            found_notional INTEGER,
-            found_pnl INTEGER,
-            status TEXT,
-            duration_s REAL,
-            error_message TEXT
-        )
-        """
-    )
+
+    # Build the CREATE TABLE statement dynamically
+    categories = ["ir", "fx", "cp", "eq"]
+    found_cols = [f"found_{cat}" for cat in ["policy", "existence", "notional", "pnl"]]
+
+    columns = [
+        "url TEXT PRIMARY KEY",
+        "cik INTEGER",
+        "year INTEGER",
+        "status TEXT",
+        "duration_s REAL",
+        "error_message TEXT",
+    ]
+
+    for col_base in found_cols:
+        for cat in categories:
+            columns.append(f"{col_base}_{cat} INTEGER")
+
+    create_sql = f"CREATE TABLE IF NOT EXISTS {RESULTS_TABLE} ({', '.join(columns)})"
+    c.execute(create_sql)
     c.execute(f"CREATE INDEX IF NOT EXISTS idx_res_url ON {RESULTS_TABLE} (url)")
     conn.commit()
     conn.close()
@@ -392,18 +417,19 @@ def process_filing(filing_info: Tuple[str, int, int]) -> Dict[str, Any]:
     url, cik, year = filing_info
     start_time = time.time()
 
-    # Initialize result with all fields
+    # Initialize result with all granular fields
+    categories = ["ir", "fx", "cp", "eq"]
+    found_types = ["policy", "existence", "notional", "pnl"]
     final_result: Dict[str, Any] = {
         "cik": cik,
         "year": year,
         "url": url,
-        "found_policy": 0,
-        "found_existence": 0,
-        "found_notional": 0,
-        "found_pnl": 0,
         "status": "processed",
         "error_message": "",
     }
+    for f_type in found_types:
+        for cat in categories:
+            final_result[f"found_{f_type}_{cat}"] = 0
 
     try:
         # 1. Get all categorized sentences for the filing
@@ -413,51 +439,45 @@ def process_filing(filing_info: Tuple[str, int, int]) -> Dict[str, Any]:
             final_result["duration_s"] = round(time.time() - start_time, 2)
             return final_result
 
-        # 2. STAGE 1: Notional Check (Highest Confidence, Early Exit)
-        for category, term in DERIVATIVE_TYPE_TO_TERM_MAP.items():
-            sentences = sentences_by_type.get(category, [])
+        # 2. Process all stages for all categories
+        # No more early exit; we want to capture all evidence types
+        for db_category, term in DERIVATIVE_TYPE_TO_TERM_MAP.items():
+            sentences = sentences_by_type.get(db_category, [])
+            cat_short = db_category.split("_")[0]  # 'ir_matches' -> 'ir'
             if not sentences:
                 continue
 
+            # Stage 1: Notional
             notional_results = classify_sentences_for_stage(
                 sentences, term, year, "notional"
             )
             if notional_results.get("H3_Notional"):
-                final_result["found_notional"] = 1
-                final_result["status"] = "found_notional_early"
-                final_result["duration_s"] = round(time.time() - start_time, 2)
-                return final_result  # EARLY EXIT
+                final_result[f"found_notional_{cat_short}"] = 1
 
-        # 3. STAGE 2: Position Check (if no notional found)
-        for category, term in DERIVATIVE_TYPE_TO_TERM_MAP.items():
-            sentences = sentences_by_type.get(category, [])
-            if not sentences:
-                continue
-
+            # Stage 2: Position & PnL
             position_results = classify_sentences_for_stage(
                 sentences, term, year, "position"
             )
             if position_results.get("H2_Existence"):
-                final_result["found_existence"] = 1
+                final_result[f"found_existence_{cat_short}"] = 1
             if position_results.get("H4_PnL_Impact"):
-                final_result["found_pnl"] = 1
+                final_result[f"found_pnl_{cat_short}"] = 1
 
-        # 4. STAGE 3: Policy Check (run regardless, as it's a different type of evidence)
-        for category, term in DERIVATIVE_TYPE_TO_TERM_MAP.items():
-            sentences = sentences_by_type.get(category, [])
-            if not sentences:
-                continue
-
+            # Stage 3: Policy
             policy_results = classify_sentences_for_stage(
                 sentences, term, year, "policy"
             )
             if policy_results.get("H1_Policy"):
-                final_result["found_policy"] = 1
+                final_result[f"found_policy_{cat_short}"] = 1
 
-        # 5. Determine final status
-        if final_result["found_existence"] or final_result["found_pnl"]:
+        # 3. Determine final summary status based on any findings
+        if any(final_result.get(f"found_notional_{c}", 0) for c in categories):
+            final_result["status"] = "found_notional"
+        elif any(
+            final_result.get(f"found_existence_{c}", 0) for c in categories
+        ) or any(final_result.get(f"found_pnl_{c}", 0) for c in categories):
             final_result["status"] = "found_position"
-        elif final_result["found_policy"]:
+        elif any(final_result.get(f"found_policy_{c}", 0) for c in categories):
             final_result["status"] = "found_policy_only"
         else:
             final_result["status"] = "no_evidence_found"
@@ -578,7 +598,7 @@ def run_classification(total_chunks: int, chunk_index: int):
                             all_chunk_results.append(result)
                             mini_chunk_results.append(result)
                             total_processed += 1
-                            if result.get("found_notional"):
+                            if any(result.get(f"found_notional_{c}") for c in ["ir", "fx", "cp", "eq"]):
                                 total_positive += 1
 
                     except Exception as e:
@@ -629,11 +649,12 @@ def run_classification(total_chunks: int, chunk_index: int):
     print("✅ CLASSIFICATION COMPLETE")
     print("=" * 80)
     print(f"Total filings processed: {total_processed:,}")
-    print(f"Filings with positive H3_Notional entailment: {total_positive:,}")
+    print(f"Filings with any notional evidence: {total_positive:,}")
     if total_processed > 0:
         print(f"Notional rate: {(total_positive / total_processed * 100):.1f}%")
-    print(f"Total time: {format_time(total_time)}")
-    print(f"Avg time per filing: {(total_time / total_processed):.2f}s")
+        print(f"Total time: {format_time(total_time)}")
+        print(f"Avg time per filing: {(total_time / total_processed):.2f}s")
+
     print(f"💾 Results saved to '{output_parquet_file}'")
     if total_chunks > 1:
         print(f"ℹ️  Remember to merge all chunk files when processing is complete.")
