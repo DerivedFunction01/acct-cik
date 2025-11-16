@@ -227,14 +227,14 @@ def import_classification_results_from_parquet():
     # Prepare records for database insertion
     records_to_insert = combined_df[required_cols].to_records(index=False)
 
-    # Convert special types (like np.nan, np.ndarray) for SQLite compatibility
-    print("[4/5] Serializing values for database insertion...")
-    records_to_insert = [
-        tuple(serialize_value(v) for v in rec)
-        for rec in tqdm(
-            records_to_insert, desc="  Serializing", total=len(records_to_insert)
-        )
-    ]
+    # # Convert special types (like np.nan, np.ndarray) for SQLite compatibility (not needed)
+    # print("[4/5] Serializing values for database insertion...")
+    # records_to_insert = [
+    #     tuple(serialize_value(v) for v in rec)
+    #     for rec in tqdm(
+    #         records_to_insert, desc="  Serializing", total=len(records_to_insert)
+    #     )
+    # ]
 
     print(f"\n[5/5] Connecting to database '{DB_PATH}'...")
     conn = sqlite3.connect(DB_PATH)
