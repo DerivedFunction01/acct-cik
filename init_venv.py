@@ -32,6 +32,12 @@ BASE_PACKAGES = [
     "tqdm",
 ]
 
+# Packages for data serialization and I/O
+DATA_PACKAGES = [
+    "pyarrow",  # For Parquet file support (required by pandas.to_parquet)
+    "fastparquet",  # Alternative Parquet engine (backup)
+]
+
 # Packages for the classification server (FastAPI, NLI model)
 CLASSIFICATION_PACKAGES = [
     "scikit-learn",
@@ -63,7 +69,7 @@ else:
 
 # For the old "install all" option, kept for compatibility if needed
 # but the new menu provides more granular control.
-PACKAGES = CLASSIFICATION_PACKAGES + UNSLOTH_PACKAGES + BASE_PACKAGES
+PACKAGES = CLASSIFICATION_PACKAGES + UNSLOTH_PACKAGES + BASE_PACKAGES + DATA_PACKAGES
 
 
 def detect_nvidia_gpu():
@@ -168,7 +174,7 @@ def install_packages(package_list, description):
     print(f"📦 Installing {description}...")
     packages = " ".join(package_list)
     pip_exec = get_pip_executable()
-    cmd = f"{pip_exec} install {packages}"
+    cmd = f"{pip_exec} install {UPGRADE} {packages}"
     print(f"   Running: {cmd}")
     result = subprocess.run(cmd, shell=True)
 
@@ -260,7 +266,7 @@ def show_menu():
     print(f"Torch Status: {torch_status}")
 
     print("\nOptions:")
-    print("  0. Basic setup")
+    print("  0. Basic setup (includes data packages)")
     print("  1. Install ML Packages (Classification Server)")
     print("  2. Install ML Packages + Unsloth (Full Training Setup)")
     print("  3. Check current installation")
@@ -291,6 +297,7 @@ def check_installation():
     packages_to_check = [
         "torch",
         "pandas",
+        "pyarrow",
         "transformers",
         "accelerate",
         "peft",
@@ -308,6 +315,10 @@ def check_installation():
     print("\n🎮 Checking GPU support...")
     gpu_check_cmd = f"{python_exec} -c \"import torch; print(f'CUDA available: {{torch.cuda.is_available()}}'); print(f'Device: {{torch.cuda.get_device_name(0) if torch.cuda.is_available() else \\\"CPU\\\"}}');\""
     subprocess.run(gpu_check_cmd, shell=True)
+
+    print("\n📦 Checking Parquet support...")
+    parquet_check_cmd = f"{python_exec} -c \"import pandas as pd; import sys; try: pd.io.parquet.get_engine('auto'); print('✅ Parquet engine available'); except Exception as e: print(f'❌ Parquet support missing: {{e}}'); sys.exit(1)\""
+    subprocess.run(parquet_check_cmd, shell=True)
 
 
 def main():
@@ -357,6 +368,7 @@ def main():
         if choice == "0":
             print("\nBasic setup starting...")
             install_packages(BASE_PACKAGES, "base packages")
+            install_packages(DATA_PACKAGES, "data packages (pyarrow, fastparquet)")
             print("\n✅ Basic setup complete!")
             exit(0)
         elif choice == "1":
@@ -366,6 +378,7 @@ def main():
             else:
                 install_pytorch()
             install_packages(CLASSIFICATION_PACKAGES, "classification packages")
+            install_packages(DATA_PACKAGES, "data packages (pyarrow, fastparquet)")
             install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Classification Server setup complete!")
             exit(0)
@@ -378,8 +391,11 @@ def main():
             install_packages(CLASSIFICATION_PACKAGES, "classification packages")
             if sys.platform == "win32":
                 print("\n⚠️  Skipping Unsloth installation on Windows (not supported).")
-                print("   Installing core dependencies like peft, bitsandbytes instead.")
+                print(
+                    "   Installing core dependencies like peft, bitsandbytes instead."
+                )
             install_packages(UNSLOTH_PACKAGES, "training packages")
+            install_packages(DATA_PACKAGES, "data packages (pyarrow, fastparquet)")
             install_packages(BASE_PACKAGES, "base packages")
             print("\n✅ Full Training Environment setup complete!")
             exit(0)
@@ -392,5 +408,6 @@ def main():
         else:
             print("\n👋 Goodbye!")
             break
+
 if __name__ == "__main__":
     main()
