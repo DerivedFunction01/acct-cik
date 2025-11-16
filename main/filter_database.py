@@ -525,10 +525,7 @@ def save_to_clean_db(
     c = conn.cursor()
     try:
         c.execute(
-            """
-            INSERT OR REPLACE INTO webpage_result (url, matches) 
-            VALUES (?, ?)
-            """,
+            "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
             (url, json.dumps(matches)),
         )
 
@@ -536,8 +533,7 @@ def save_to_clean_db(
             c.execute(
                 """
                 INSERT OR REPLACE INTO report_data (url, cik, year) 
-                VALUES (?, ?, ?)
-                """,
+                VALUES (?, ?, ?)""",
                 (url, cik, year),
             )
 
@@ -560,10 +556,7 @@ def save_derivative_types(
     c = conn.cursor()
     try:
         c.execute(
-            """
-            INSERT OR REPLACE INTO derivative_type_matches (url, ir_matches, fx_matches, cp_matches, eq_matches)
-            VALUES (?, ?, ?, ?, ?)
-            """,
+            "INSERT OR IGNORE INTO derivative_type_matches (url, ir_matches, fx_matches, cp_matches, eq_matches) VALUES (?, ?, ?, ?, ?)",
             (
                 url,
                 json.dumps(ir_matches),
