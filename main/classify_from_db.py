@@ -35,7 +35,10 @@ from pathlib import Path
 DB_PATH = "clean_web_data.db"
 
 # API endpoint of your classification server
-CLASSIFY_ENDPOINT = "http://127.0.0.1:8000/classify"
+# Configuration
+SERVER_BASE_URL = "http://127.0.0.1:8000"
+CLASSIFY_ENDPOINT = f"{SERVER_BASE_URL}/classify"
+INFO_ENDPOINT = f"{SERVER_BASE_URL}/info"
 
 # --- NEW: Configuration for robust, resumable processing ---
 # Name of the table to store final classification results
@@ -79,10 +82,9 @@ def ping_server() -> bool:
     Pings the classification server's /info endpoint to check for connectivity
     and prints its configuration.
     """
-    print(f"Attempting to connect to server at {CLASSIFY_ENDPOINT}...")
+    print(f"Attempting to connect to server at {INFO_ENDPOINT}...")
     try:
-        info_url = CLASSIFY_ENDPOINT.replace("/classify", "/info")
-        response = requests.get(info_url, timeout=10)
+        response = requests.get(INFO_ENDPOINT, timeout=10)
         response.raise_for_status()
         server_info = response.json()
 
