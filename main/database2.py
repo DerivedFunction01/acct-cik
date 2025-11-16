@@ -161,6 +161,11 @@ def import_classification_results_from_parquet():
             return None  # Convert NaN to None
         if isinstance(v, np.ndarray):
             return json.dumps(v.tolist())  # Serialize numpy array to JSON string
+        if isinstance(v, bytes):
+            try:
+                return int.from_bytes(v, 'little') # Deserialize bytes to integer
+            except (TypeError, ValueError):
+                return v.decode('utf-8', errors='ignore') # Fallback to string
         return v
 
     # Prepare records for database insertion
