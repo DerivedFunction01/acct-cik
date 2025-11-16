@@ -49,14 +49,14 @@ RESULTS_PARQUET_TEMPLATE = "classification_results_chunk_{}.parquet"
 SAVE_INTERVAL_FILINGS = 500
 
 # Number of filings to process in parallel
-MAX_WORKERS = 4
+MAX_WORKERS = 2
 
 # Number of sentences to send in a single API request
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 
 # Optional: For backing up results to Google Drive (similar to classify.py)
 IS_COLAB = Path("./drive/MyDrive/").exists()
-DRIVE_PATH = "./drive/MyDrive/db"
+DRIVE_PATH = "./drive/MyDrive/db" # This should be a folder
 
 # Map derivative types from the DB to the 'term' for the model
 DERIVATIVE_TYPE_TO_TERM_MAP = {
@@ -77,32 +77,53 @@ STAGE_HYPOTHESES_MAP = {
 # DATABASE FUNCTIONS
 # =============================================================================
 
-def ping_server() -> bool:
+# DATABASE FUNCTIONS
+# =============================================================================
+
+def ping_server() -> Tuple[int, int]:
     """
-    Pings the classification server's /info endpoint to check for connectivity
-    and prints its configuration.
+    Pings the classification server's /info endpoint to dynamically configure
+    MAX_WORKERS and BATCH_SIZE based on server GPU RAM.
     """
     print(f"Attempting to connect to server at {INFO_ENDPOINT}...")
     try:
         response = requests.get(INFO_ENDPOINT, timeout=10)
         response.raise_for_status()
         server_info = response.json()
-
         print("✅ Successfully connected to the classification server.")
+
         if server_info.get("gpu_available"):
             gpu_ram = server_info.get("total_ram_gb", 0)
             print(
                 f"   -> Server has GPU: {server_info.get('gpu_name')} with {gpu_ram:.2f} GB RAM"
             )
+            # Scale workers and batch size based on GPU RAM
+            if gpu_ram > 20:  # A100, H100, etc.
+                max_workers = 16
+                batch_size = 128
+            elif gpu_ram > 14:  # T4, P100, V100
+                max_workers = 8
+                batch_size = 64
+            elif gpu_ram > 6:  # Smaller GPUs
+                max_workers = 4
+                batch_size = 32
+            else:
+                max_workers = 2
+                batch_size = 16
         else:
             print("   -> ⚠️ Server has no GPU.")
-        return True
+            max_workers = 2
+            batch_size = 16
+        
+        print(f"   -> Dynamically configured: MAX_WORKERS={max_workers}, BATCH_SIZE={batch_size}")
+        return max_workers, batch_size
 
     except requests.exceptions.RequestException as e:
         print(f"❌ Could not connect to server.")
         print(f"   Error: {e}")
         print("   Please ensure the classification server is running and accessible.")
-        return False
+        # Fallback to default values
+        return MAX_WORKERS, BATCH_SIZE
 
 
 def setup_database():
@@ -375,7 +396,9 @@ def run_classification(total_chunks: int, chunk_index: int):
     print("=" * 80)
 
     # Ping the server first to ensure it's available
-    if not ping_server():
+    global MAX_WORKERS, BATCH_SIZE
+    MAX_WORKERS, BATCH_SIZE = ping_server()
+    if MAX_WORKERS == 0: # Indicates a connection failure
         print("\nExiting due to server connection failure.")
         exit()
 
