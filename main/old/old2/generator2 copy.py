@@ -1,0 +1,4655 @@
+# %%
+from dataclasses import asdict
+import random, copy
+from pathlib import Path
+import pandas as pd
+import sys
+import string
+from collections import Counter
+import json, re
+from concurrent.futures import ThreadPoolExecutor
+import multiprocessing as mp
+from tqdm import tqdm
+import wikipedia
+from typing import Any, List, Dict, Literal, Optional, Set, Tuple
+
+from defs.scenario_definitions import GenerationScenario, ScenarioArchetype, UnrelatedText
+from defs.fx_data import ForeignCurrencyHedgedItem, all_currencies, CurrencyExposure, FXInstrument, FXContextSentence
+from defs.common_data import *
+from defs.cp_data import CPContextSentence, CommodityHedgedItem, CPInstrument 
+from defs.instrument_definitions import CATEGORY_TO_DESCRIPTION, CATEGORY_TO_NAME, DERIVATIVE_CATEGORIES, AccountingStandardEvidence, BaseNarrativeEvidence, ContextEvidence, NotionalInstrument, HedgedItem, GenericInstrument
+from defs.policy_definitions import (
+    AccountingPolicySentence,
+    AccountingStandardUpdateSentence,
+    HedgeDefinitionSentence,
+    CounterpartyRiskSentence,
+    ExposureEvidence,
+    GeneralHedgingPolicy,
+    MitigationEvidence,
+    MitigationSentence,
+    PolicyEvidence,
+    PolicySentence,
+    RiskManagementPolicy,
+    CategorySpecificPolicy,
+) 
+from defs.prose_definitions import CompanyDescriptionSentence, ForwardLookingSentence
+from defs.scenario_definitions import AccountingStandardUpdate, company_names
+from defs.ir_data import DEBT_CATEGORIES, DebtHedgedItem, DebtType, all_debt_types, IRInstrument, DebtContextSentence
+from defs.legal_data import LegalContextSentence, ContextEvidence
+from defs.notional_definitions import NotionalEvidence, NotionalSentence, TimelineSentence, SpecificDetails
+from defs.noise_definitions import BalanceSheetTableBuilder, CashFlowStatementTableBuilder, IncomeStatementTableBuilder
+from defs.template_definitions import hedge_no_trading_templates, DerivativeTable
+from defs.eq_data import EQContextSentence, EQInstrument, EquityHedgedItem, _generate_stock_symbol
+from defs.ownership_data import HedgeFundContextEvidence, OwnershipContextSentence
+from defs.function_definitions import _cleanup_counter, _format_single_notional, _get_correct_rounding
+
+DEBUG = True
+
+GENERATION_PROBABILITIES = {
+    # Instrument & Exposure Generation
+    "debt_in_foreign_currency": 0.20,  # Chance a debt item is in a foreign currency.
+    "commodity_has_supplier": 0.20,  # Chance a commodity exposure lists a supplier.
+    "instrument_is_brand_new": 0.30,  # Chance an active hedge was initiated in the current year.
+    "cross_currency_swap": 0.50,  # Chance a foreign currency debt is hedged with a cross-currency swap.
+    "cp_instrument_in_units": 0.35,  # Chance a CP instrument's notional is in units (e.g., barrels) instead of currency.
+    "fx_instrument_in_exposure_currency": 0.35,  # Chance an FX instrument's notional is in one of the exposure currencies.
+    "instrument_history_has_gap": 0.15,  # Chance an instrument's history has a year with zero notional.
+    "instrument_has_prefix": 0.05,  # Chance an instrument name gets a prefix (e.g., "pay-fixed").
+    "category_extra": 0.25,  # Chance to add category-specific extras.
+    # Narrative Generation
+    "active_instrument_mention": 0.9,  # Chance to mention an active instrument.
+    "terminated_instrument_mention": 0.7,  # Chance to mention a terminated instrument.
+    "repeat_instrument_mention": 0,  # Chance to mention the same instrument again (for aliasing).
+    "additional_table": 0.3,  # Chance to generate an extra table (AOCI, Maturity, etc.).
+    "use_table_for_exposure": 0.4,  # Chance to use a table for exposure context instead of paragraphs.
+    "add_secondary_debt_sentence": 0.4,  # Chance to add a second sentence about a debt event (issuance, repayment).
+    "use_fair_value_for_summary": 0.2,  # Chance an aggregate summary sentence uses "fair value" instead of "notional".
+    "generate_aggregate_summary": 0.5,  # Chance to generate an aggregate summary sentence for a category.
+    "use_timeline_for_long_history": 0.15,  # Chance to use a multi-sentence timeline for a historical instrument.
+    "add_other_pronouncements": 0.4,  # Chance to add a generic "other pronouncements" sentence to the accounting standards section.
+    "can_have_accounting_update": 0.4,  # Chance a scenario will include an accounting standard update section.
+    "accounting_update_is_hedge_related": 0.5,
+    "financial_statements": 0.0,
+    "company_description": 0.0,
+    "forward_looking_statement": 0.0,
+    "add_legalistic_definition": 0.0,
+    "ownership_context": 0.0,
+    "legal_context": 0.0,
+}
+
+# Probabilities for dropping narrative components to increase variety.
+# Using a dictionary for better organization.
+DROP_PROBABILITIES = {
+    "mitigation": 0.15,  # Chance to skip the MitigationSentence
+    "accounting_policy": 0.20,  # Chance to skip the entire accounting policy section
+    "summary_7a": 0.10,  # Chance to skip the entire Item 7A-style summary section
+    "general_policy": 0.15,  # Chance to skip the top-level policy statements
+}
+
+# NEW: Global list to track dropped sentences for debugging or analysis
+DROPPED_SENTENCES: List[str] = []
+
+def _get_currency_and_unit_details(scenario: GenerationScenario) -> Tuple[str, str, str]:
+    """Returns (currency_symbol, money_unit_word, ISO Code) based on scenario's archetype."""
+    currency_code = scenario.archetype.default_currency
+    currency_obj = next((c for c in all_currencies if c.code == currency_code), None)
+    # --- NEW: Use ISO code instead of symbol if the archetype prefers it ---
+    if scenario.archetype.prefers_currency_code:
+        display_symbol = currency_code
+    else:
+
+        display_symbol = currency_obj.symbol if currency_obj else "$"  # Default to $
+    money_unit_word = currency_obj.full_name if currency_obj else "US Dollar"  # Default to "dollar"
+
+    return display_symbol, money_unit_word, currency_code
+
+
+# Define a list of company archetypes to choose from during generation.
+SCENARIO_ARCHETYPES = [
+    ScenarioArchetype(
+        name="Large Multinational",
+        debt_exposure_range=(3, 6),
+        fx_exposure_range=(3, 6),
+        commodity_exposure_range=(3, 6),
+        commodity_types=["energy", "metals_minerals", "agriculture"],
+        equity_exposure_range=(3, 5),
+        generic_instrument_range=(0, 2),
+        hedging_propensities={
+            "IR": (0.9, 0.9),
+            "FX": (0.8, 0.8),
+            "CP": (0.6, 0.6),
+            "EQ": (0.3, 0.3),
+            "GEN": (0.1, 0.1),
+        },
+        policy_coverage="full",
+        comparative_years=3,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=True,
+        preferred_negative_format=-1,  # Accounting style: ($100)
+        prefers_currency_code=True
+    ),
+    ScenarioArchetype(
+        name="Domestic Industrial",
+        debt_exposure_range=(2, 4),
+        fx_exposure_range=(0, 2),
+        commodity_exposure_range=(3, 5),
+        commodity_types=["metals_minerals", "lumber_wood", "chemicals_plastics"],
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 1),
+        hedging_propensities={
+            "IR": (0.7, 0.7),
+            "FX": (0.2, 0.2),
+            "CP": (0.8, 0.8),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.1, 0.1),
+        },
+        policy_coverage="partial",
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        preferred_negative_format=0,  # Standard minus sign: -$100
+    ),
+    ScenarioArchetype(
+        name="Tech Company",
+        debt_exposure_range=(1, 3),
+        fx_exposure_range=(2, 5),
+        commodity_exposure_range=(0, 0),
+        commodity_types=[],
+        equity_exposure_range=(2, 4),
+        generic_instrument_range=(0, 1),
+        hedging_propensities={
+            "IR": (0.5, 0.5),
+            "FX": (0.7, 0.7),
+            "CP": (0.0, 0.0),
+            "EQ": (0.6, 0.6),
+            "GEN": (0.1, 0.1),
+        },
+        policy_coverage="partial",
+        comparative_years=1,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=False,  # Tech companies sometimes use full numbers
+        preferred_negative_format=0,  # Standard minus sign: -$100
+    ),
+    ScenarioArchetype(
+        name="Financial Institution",
+        debt_exposure_range=(4, 8),
+        fx_exposure_range=(4, 8),
+        commodity_exposure_range=(0, 2),
+        commodity_types=["precious_metals", "energy"],
+        equity_exposure_range=(1, 3),
+        generic_instrument_range=(1, 2),
+        hedging_propensities={
+            "IR": (0.95, 0.95),
+            "FX": (0.9, 0.9),
+            "CP": (0.5, 0.5),
+            "EQ": (0.5, 0.5),
+            "GEN": (0.2, 0.2),
+        },
+        policy_coverage="full",
+        default_currency="USD",
+        comparative_years=2,
+        notional_multiplier=1_000_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=True,
+        preferred_negative_format=-1,  # Accounting style: ($100)
+    ),
+    ScenarioArchetype(
+        name="Policy Only / Light User",
+        debt_exposure_range=(0, 2),
+        fx_exposure_range=(0, 2),
+        commodity_exposure_range=(0, 1),
+        commodity_types=["generic"],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(1, 2),
+        hedging_propensities={
+            "IR": (0.3, 0.3),
+            "FX": (0.3, 0.3),
+            "CP": (0.1, 0.1),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.4, 0.4),
+        },
+        policy_coverage="light",
+        comparative_years=1,
+        default_currency="USD",
+        notional_multiplier=1_000,
+        prefers_abbreviated_numbers=False,
+        preferred_negative_format=0,
+    ),
+    ScenarioArchetype(
+        name="Policy Only",
+        debt_exposure_range=(2, 4),      # Has exposures...
+        fx_exposure_range=(2, 4),
+        commodity_exposure_range=(1, 3),
+        commodity_types=["energy", "metals_minerals"],
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 0), # ...but will not hedge them.
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="full", # Has full policies...
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False, # No instruments, so no tables.
+        preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
+        name="Potential User",
+        debt_exposure_range=(1, 3),  # Has exposures...
+        fx_exposure_range=(1, 3),  # ...but won't hedge them.
+        commodity_exposure_range=(1, 2),
+        commodity_types=["agriculture", "energy"],
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 1),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="light",
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=False,
+        preferred_negative_format=0,
+    ),
+    ScenarioArchetype(
+        name="Non-User",
+        debt_exposure_range=(1, 2),  # Has exposures...
+        fx_exposure_range=(1, 2),  # ...but will never hedge them.
+        commodity_exposure_range=(0, 1),
+        commodity_types=["generic"],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 1),
+        hedging_propensities={
+            "IR": (0.0, -1),
+            "FX": (0.0, -1),
+            "CP": (0.0, -1),
+            "EQ": (0.0, -1),
+            "GEN": (0.0, -1),
+        },
+        policy_coverage="light",
+        default_currency="USD",
+        comparative_years=2,
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=False,
+        preferred_negative_format=0,
+    ),
+    ScenarioArchetype(
+        name="New Hedger",
+        debt_exposure_range=(2, 4),
+        fx_exposure_range=(2, 4),
+        commodity_exposure_range=(0, 1),
+        commodity_types=["energy"],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        # Past propensity is 0, current is high.
+        hedging_propensities={
+            "IR": (0.0, 0.9),
+            "FX": (0.0, 0.9),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="light",
+        default_currency="USD",
+        comparative_years=3,
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        preferred_negative_format=1,  # Parentheses around number: $(100)
+    ),
+    ScenarioArchetype(
+        name="Exiting Hedger",
+        debt_exposure_range=(2, 4),
+        fx_exposure_range=(2, 4),
+        commodity_exposure_range=(0, 1),
+        commodity_types=["energy"],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        # Past propensity was high, current is 0.
+        hedging_propensities={
+            "IR": (1.0, 0.0),
+            "FX": (1.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="light",
+        default_currency="USD",
+        comparative_years=3,
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        preferred_negative_format=1,
+    ),
+    ScenarioArchetype(
+        name="Debt-Heavy Exiter",
+        debt_exposure_range=(5, 8),
+        fx_exposure_range=(1, 3),
+        commodity_exposure_range=(0, 1),
+        commodity_types=["energy"],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        # Past propensity for IR was high, current is 0.
+        hedging_propensities={
+            "IR": (1.0, 0.0),
+            "FX": (0.5, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="partial",
+        default_currency="USD",
+        comparative_years=2,
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
+        name="Global Consumer Goods",
+        debt_exposure_range=(2, 4),
+        fx_exposure_range=(4, 7),
+        commodity_exposure_range=(3, 5),
+        commodity_types=["agriculture", "chemicals_plastics", "energy"],
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 1),
+        hedging_propensities={
+            "IR": (0.6, 0.6),
+            "FX": (0.9, 0.9),
+            "CP": (0.8, 0.8),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.1, 0.1),
+        },
+        policy_coverage="full",
+        comparative_years=3,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        preferred_negative_format=0,
+    ),
+    ScenarioArchetype(
+        name="Airline",
+        debt_exposure_range=(3, 6),
+        fx_exposure_range=(2, 4),
+        commodity_exposure_range=(4, 6),
+        commodity_types=["energy"],
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 1),
+        hedging_propensities={
+            "IR": (0.8, 0.8),
+            "FX": (0.7, 0.7),
+            "CP": (0.95, 0.95),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.1, 0.1),
+        },
+        policy_coverage="full",
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
+        name="Biotech/Pharma",
+        debt_exposure_range=(1, 3),
+        fx_exposure_range=(2, 4),
+        commodity_exposure_range=(0, 1),
+        commodity_types=["chemicals_plastics"],
+        equity_exposure_range=(3, 6),
+        generic_instrument_range=(0, 1),
+        hedging_propensities={
+            "IR": (0.4, 0.4),
+            "FX": (0.7, 0.7),
+            "CP": (0.1, 0.1),
+            "EQ": (0.8, 0.8),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="partial",
+        default_currency="CHF",
+        comparative_years=2,
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        preferred_negative_format=2,  # Minus after symbol: $-100
+    ),
+    ScenarioArchetype(
+        name="Noise Only - Debt Focus",
+        debt_exposure_range=(3, 5),      # Strong debt exposure
+        fx_exposure_range=(0, 1),
+        commodity_exposure_range=(0, 1),
+        commodity_types=[],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0), # No hedging
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False,
+        preferred_negative_format=0,
+    ),
+    ScenarioArchetype(
+        name="Noise Only - FX Focus",
+        debt_exposure_range=(1, 2),
+        fx_exposure_range=(4, 6),      # Strong FX exposure
+        commodity_exposure_range=(0, 0),
+        commodity_types=[],
+        equity_exposure_range=(0, 1),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0), # No hedging
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=False,
+        prefers_tables=False,
+        preferred_negative_format=0,
+    ),
+    ScenarioArchetype(
+        name="Noise Only - Commodity Focus",
+        debt_exposure_range=(1, 2),
+        fx_exposure_range=(1, 2),
+        commodity_exposure_range=(4, 6), # Strong commodity exposure
+        commodity_types=["energy", "agriculture"],
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0), # No hedging
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False,
+        preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
+        name="Noise Only - Equity Focus",
+        debt_exposure_range=(1, 2),
+        fx_exposure_range=(1, 2),
+        commodity_exposure_range=(1, 2), 
+        commodity_types=["energy"],
+        equity_exposure_range=(3, 4),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0), 
+            "EQ": (0.0, 0.0), # No hedging
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False,
+        preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
+        name="Noise Only",
+        debt_exposure_range=(1, 2),
+        fx_exposure_range=(1, 2),
+        commodity_exposure_range=(1, 2), 
+        commodity_types=["energy"],
+        equity_exposure_range=(1, 2),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0), 
+            "EQ": (0.0, 0.0), # No hedging
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none", # No policy discussion
+        comparative_years=2,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        prefers_tables=False,
+        preferred_negative_format=-1,
+    ),
+    ScenarioArchetype(
+        name="Non-Financial Noise",
+        debt_exposure_range=(0, 0),
+        fx_exposure_range=(0, 0),
+        commodity_exposure_range=(0, 0),
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0),
+        hedging_propensities={
+            "IR": (0.0, 0.0),
+            "FX": (0.0, 0.0),
+            "CP": (0.0, 0.0),
+            "EQ": (0.0, 0.0),
+            "GEN": (0.0, 0.0),
+        },
+        policy_coverage="none",
+        comparative_years=1,
+        notional_multiplier=0,
+        can_have_accounting_update=False,
+    ),
+    ScenarioArchetype(
+        name="Simple Notional Sentence",
+        debt_exposure_range=(0, 0),
+        fx_exposure_range=(0, 0),
+        commodity_exposure_range=(0, 0),
+        equity_exposure_range=(0, 0),
+        generic_instrument_range=(0, 0), # Will be overridden
+        hedging_propensities={ cat: (0.0, 0.0) for cat in DERIVATIVE_CATEGORIES }, # Will be overridden
+        policy_coverage="none",
+        comparative_years=1,
+        default_currency="USD",
+        notional_multiplier=1_000_000,
+        prefers_abbreviated_numbers=True,
+        # This archetype is special and will be handled by a dedicated function
+        # that generates only a single instrument and a single sentence.
+    ),
+]
+
+
+# =============================================================================
+# PHASE 1 PART 2: SCENARIO GENERATION
+# This section implements the core idea: "Decide the story upfront."
+# We define the state of our financial narrative using structured dataclasses.
+# =============================================================================
+class ScenarioBuilder:
+    """
+    Handles the logic of building a complete GenerationScenario,
+    including creating exposures and derivative instruments.
+    """
+
+    def __init__(self, scenario: GenerationScenario):
+        self.scenario = scenario
+        self.archetype = scenario.archetype
+        self.reporting_year = scenario.reporting_year
+        self.multiplier = self.archetype.notional_multiplier
+        self.instrument_id_counter = 1
+        self.hedged_item_id_counter = 1
+        self.potential_hedged_items: Dict[str, List] = {
+            "debt": [],
+            "fx": [],
+            "commodity": [],
+            "equity": [],
+        }
+        self.all_scenario_base_types: Set[str] = set()
+
+        # --- NEW: Pre-define a limited pool of commodities for this scenario ---
+        # This ensures that all commodity exposures are of a similar type (e.g., only crude oil and natural gas).
+        possible_commodities = []
+        if self.archetype.commodity_types:
+            for cat in self.archetype.commodity_types:
+                from defs.cp_data import COMMODITIES
+                possible_commodities.extend(COMMODITIES.get(cat, []))
+
+        # If no specific commodities are available for the archetype, fall back to a generic list.
+        if not possible_commodities:
+            from defs.cp_data import commodities as all_commodities_flat
+            possible_commodities = all_commodities_flat
+
+        self.scenario_commodities = random.sample(possible_commodities, k=min(len(possible_commodities), random.randint(2, 3)))
+        self.scenario_debt = random.choice(DEBT_CATEGORIES)
+        self.scenario_fx = random.sample(all_currencies, k=random.randint(4, 7))
+
+        # --- NEW: Pre-define a limited pool of terms for this specific scenario ---
+        # This makes the generated text more consistent and realistic.
+        self.scenario_components = {
+            "base_types": random.sample(
+                DERIVATIVE_COMPONENTS["base_types"],
+                k=random.randint(2, 3)
+            ),
+            "suffixes": random.sample(
+                DERIVATIVE_COMPONENTS["suffixes"],
+                k=random.randint(1, 2)
+            ),
+            "placeholders": {
+                cat: random.sample(
+                    placeholders,
+                    k=min(len(placeholders), random.randint(1, 3))
+                )
+                for cat, placeholders in DERIVATIVE_COMPONENTS["placeholders"].items()
+            },
+            "special_suffixes": DERIVATIVE_COMPONENTS["special_suffixes"], # Keep all special suffixes
+            "no_alias_types": DERIVATIVE_COMPONENTS["no_alias_types"],
+            # --- FIX: Add missing keys to prevent KeyErrors ---
+            "swap_prefixes": DERIVATIVE_COMPONENTS["swap_prefixes"],
+            "global_prefixes": DERIVATIVE_COMPONENTS["global_prefixes"],
+            "category_extras": DERIVATIVE_COMPONENTS["category_extras"],
+        }
+
+    def _generate_debt_exposures(self, count: int):
+        if not self.scenario_debt:
+            return
+        # Pick up to 3 from the debt pool
+        selected_debts = random.sample(self.scenario_debt.debt_types, k=min(3, len(self.scenario_debt.debt_types)))
+
+        for _ in range(count):
+            issuance_year = random.randint( # type: ignore
+                self.reporting_year - 15, self.reporting_year - 1
+            )
+            maturity_year = random.randint(
+                self.reporting_year + 2, self.reporting_year + 20
+            )
+            selected_debt_type: DebtType = random.choice(selected_debts)
+            benchmark_rate = (
+                random.choice(selected_debt_type.benchmarks + specific_rate_terms if "treasury" not in selected_debt_type.name.lower() else ["interest rate"])
+                if selected_debt_type.benchmarks
+                else None
+            )
+            debt_currency = self.archetype.default_currency
+            if random.random() < GENERATION_PROBABILITIES["debt_in_foreign_currency"] and "treasury" not in selected_debt_type.name.lower():
+                foreign_curr = random.choice(
+                    [
+                        c
+                        for c in all_currencies
+                        if c.code != self.archetype.default_currency
+                    ]
+                )
+                debt_currency = foreign_curr.code
+
+            hedged_debt = DebtHedgedItem(
+                hedged_item_id=self.hedged_item_id_counter,
+                debt_type=selected_debt_type.name,
+                currency=debt_currency,
+                issuance_year=issuance_year,
+                maturity_year=maturity_year,
+                principal_amount=random.randint(5, 500) * self.multiplier,
+                benchmark_rate=benchmark_rate,
+                issuance_month=random.choice(months),
+                maturity_month=random.choice(months),
+                spread_bps=random.randint(100, 300),
+            )
+            self.potential_hedged_items["debt"].append(hedged_debt)
+            self.hedged_item_id_counter += 1
+
+    def _generate_fx_exposures(self, count: int):
+        if not self.scenario_fx:
+            return
+        for _ in range(count):
+            exposures = [
+                CurrencyExposure(
+                    code=cur.code,
+                    full_name=cur.full_name,
+                    symbol=cur.symbol,
+                    adjective=cur.adjective,
+                    location=cur.location,
+                    amount=random.randint(1, 100) * self.multiplier,
+                )
+                for cur in random.sample(self.scenario_fx, random.randint(1, 3))
+            ]
+            self.potential_hedged_items["fx"].append(
+                ForeignCurrencyHedgedItem(
+                    hedged_item_id=self.hedged_item_id_counter, exposures=exposures
+                )
+            )
+            self.hedged_item_id_counter += 1
+
+    def _generate_commodity_exposures(self, count: int):
+        for _ in range(count):
+            # --- FIX: Use the pre-selected small pool of commodities for this scenario ---
+            if not self.scenario_commodities:
+                continue # Should not happen, but as a safeguard.
+
+            commodity_name = random.choice(self.scenario_commodities)
+            from defs.cp_data import get_units_for_commodity, get_cost_types_for_commodity
+            unit = random.choice(get_units_for_commodity(commodity_name))
+            cost_type = random.choice(get_cost_types_for_commodity(commodity_name))
+
+            self.potential_hedged_items["commodity"].append(
+                CommodityHedgedItem(
+                    hedged_item_id=self.hedged_item_id_counter,
+                    commodity_type=commodity_name,
+                    transaction_type=random.choice(transaction_types),
+                    quantity=random.randint(100, 400) * self.multiplier,
+                    unit_of_volume=unit,
+                    price_per_unit=random.uniform(10, 200),
+                    cost_type=cost_type, # type: ignore
+                    supplier=(
+                        random.choice(company_names) if random.random() < 0.2 else None
+                    ),
+                )
+            )
+            self.hedged_item_id_counter += 1
+
+    def _generate_equity_exposures(self, count: int):
+        for _ in range(count):
+            equity_type = random.choice(
+                ["market_index", "own_stock", "third_party_stock"]
+            )
+            stock_symbol = None
+            if equity_type == "third_party_stock":
+                third_party_name = random.choice([c for c in company_names if c != self.scenario.company_name])
+                stock_symbol = _generate_stock_symbol(third_party_name)
+            elif equity_type == "own_stock":
+                stock_symbol = _generate_stock_symbol(self.scenario.company_name)
+            self.potential_hedged_items["equity"].append(
+                EquityHedgedItem(
+                    hedged_item_id=self.hedged_item_id_counter,
+                    equity_type=equity_type,  # type: ignore
+                    number_of_shares=random.randint(10000, 500000),
+                    share_price=random.uniform(10.0, 250.0),
+                    stock_symbol=stock_symbol,
+                )
+            )
+            self.hedged_item_id_counter += 1
+
+    def _build_instruments_for_category(
+        self,
+        category: str,
+        instrument_class: type,
+        potential_items: List[HedgedItem],
+        available_base_types: List[str],
+    ):
+        past_prop, current_prop = self.archetype.hedging_propensities.get(
+            category, (0.0, 0.0)  # type: ignore
+        )  # type: ignore
+        num_hedges = round(len(potential_items) * max(0, current_prop))
+        items_to_hedge = random.sample(potential_items, num_hedges)
+
+        for item in potential_items:
+            hedged_item = None
+            notional = 0
+            maturity_year = 0
+
+            if item in items_to_hedge:
+                hedged_item = item
+                if isinstance(item, DebtHedgedItem):
+                    maturity_year = item.maturity_year
+                    notional = item.principal_amount * random.uniform(0.8, 1.2)
+                elif isinstance(item, ForeignCurrencyHedgedItem):
+                    maturity_year = random.randint(
+                        self.reporting_year + 1, self.reporting_year + 3
+                    )
+                    notional = sum(e.amount for e in item.exposures)
+                elif isinstance(item, CommodityHedgedItem):
+                    maturity_year = random.randint(
+                        self.reporting_year + 1, self.reporting_year + 5
+                    )
+                    notional = int(item.quantity * item.price_per_unit)
+                elif isinstance(item, EquityHedgedItem):
+                    maturity_year = random.randint(
+                        self.reporting_year + 1, self.reporting_year + 5
+                    )
+                    assert item.number_of_shares is not None and item.share_price is not None
+                    notional = int(item.number_of_shares * item.share_price)
+            else:
+                is_exiting = past_prop > 0 and current_prop == 0
+                if is_exiting or random.random() < past_prop:
+                    hedged_item = item
+                    maturity_year = random.randint(
+                        self.reporting_year - 5, self.reporting_year
+                    )
+                    notional = random.randint(5, 500) * self.multiplier
+                else:
+                    continue  # Unhedged exposure
+
+            # Special case for cross-currency swaps
+            if (
+                isinstance(hedged_item, DebtHedgedItem)
+                and hedged_item.currency != self.archetype.default_currency # type: ignore
+                and random.random() < 0.5
+            ):
+                placeholder = "cross-currency interest rate"
+                prefix = ""
+                base_type = random.choice(DERIVATIVE_COMPONENTS["base_types"])
+                suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+                name = f"{placeholder} {base_type} {suffix}"
+                alias = f"{base_type} {suffix}"
+
+            else:
+                prefix, placeholder, base_type, suffix, name, alias = (
+                    _generate_instrument_name(
+                        category,
+                        hedged_item=hedged_item,
+                        available_base_types=available_base_types,
+                        all_scenario_base_types=self.all_scenario_base_types,
+                        components=self.scenario_components,
+                    )
+                )
+
+            # --- NEW: For CP, sometimes report in units instead of currency ---
+            instrument_currency = self.archetype.default_currency
+            instrument_symbol = _get_currency_and_unit_details(self.scenario)[0]
+            if category == "CP" and random.random() < GENERATION_PROBABILITIES["cp_instrument_in_units"]: # 40% chance to use units
+                if isinstance(hedged_item, CommodityHedgedItem):
+                    # Use the commodity's unit as the "currency"
+                    instrument_currency = hedged_item.unit_of_volume.upper()
+                    instrument_symbol = hedged_item.unit_of_volume
+                    notional = hedged_item.quantity # Notional is now the quantity
+
+            # --- NEW: For FX, sometimes report in one of the exposure currencies ---
+            if category == "FX" and random.random() < GENERATION_PROBABILITIES["fx_instrument_in_exposure_currency"]: # 35% chance
+                if isinstance(hedged_item, ForeignCurrencyHedgedItem) and hedged_item.exposures:
+                    # Pick one of the specific currency exposures to be the instrument's currency
+                    random_exposure = random.choice(hedged_item.exposures)
+                    instrument_currency = random_exposure.code
+                    instrument_symbol = random_exposure.symbol
+                    # The notional amount should now be the amount of that specific exposure
+                    notional = random_exposure.amount
+                    # For cross-currency swaps, the hedged item might be debt in another currency
+                    if isinstance(hedged_item, DebtHedgedItem):
+                        notional = hedged_item.principal_amount
+
+            base_args = {
+                "instrument_type": name,
+                "instrument_alias": alias,
+                "notional_amount": notional,
+                "start_month": random.choice(months),
+                "start_year": random.randint(
+                    self.reporting_year - 10, self.reporting_year - 1
+                ),
+                "currency": instrument_currency,
+                "maturity_year": maturity_year,
+                "hedged_item": hedged_item,
+                "instrument_prefix": prefix,
+                "placeholder": placeholder,
+                "base_type": base_type,
+                "suffix": suffix,
+            }
+
+            new_instrument = _create_instrument_with_history(
+                scenario=self.scenario,
+                instrument_class=instrument_class,
+                is_new=(item in items_to_hedge and random.random() < GENERATION_PROBABILITIES["instrument_is_brand_new"]), # 30% chance a new hedge is brand new this year
+                is_past=(hedged_item not in items_to_hedge),
+                instrument_id=self.instrument_id_counter,
+                base_instrument_args=base_args,
+                symbol=instrument_symbol, # Pass the symbol here
+            )
+            self.scenario.instruments.append(new_instrument)
+            self.instrument_id_counter += 1
+
+    def _generate_accounting_updates(self):
+        """With a chance, generates an AccountingStandardUpdate object for the scenario."""
+        if not self.archetype.can_have_accounting_update or random.random() > GENERATION_PROBABILITIES["can_have_accounting_update"]:
+            return
+
+        # Decide if it's a hedge-related update or a general (noise) one.
+        is_hedge_update = random.random() < GENERATION_PROBABILITIES["accounting_update_is_hedge_related"]
+
+        if is_hedge_update:
+            # Use hedge-specific data
+            from defs.template_definitions import hedge_standards, hedging_descriptions
+            standard_name = random.choice(hedge_standards)
+            topic = "hedging activities"
+            impact = random.choice(hedging_descriptions)
+        else:
+            # Use general accounting data (the "counter-example")
+            from defs.template_definitions import other_standards, other_topics, general_descriptions
+            standard_name = random.choice(other_standards)
+            topic = random.choice(other_topics)
+            impact = random.choice(general_descriptions)
+
+        # Determine adoption status and year
+        is_adopted = random.random() < 0.6
+        effective_year = self.reporting_year + random.randint(0, 2)
+        adoption_year = random.randint(self.reporting_year - 1, self.reporting_year) if is_adopted else 0
+
+        from defs.template_definitions import shared_issuers, shared_adoption_methods
+
+        update = AccountingStandardUpdate(
+            standard_name=standard_name,
+            issuer=random.choice(shared_issuers),
+            topic=topic,
+            is_hedge_related=is_hedge_update,
+            is_adopted=is_adopted,
+            adoption_year=adoption_year,
+            effective_year=effective_year,
+            impact_description=impact,
+            adoption_method=random.choice(shared_adoption_methods)
+        )
+
+        # Add the update to the scenario. It will be processed later during narrative generation.
+        if not self.scenario.accounting_updates:
+            self.scenario.accounting_updates = []
+        self.scenario.accounting_updates.append(update)
+
+    def build(self) -> GenerationScenario:
+        exposure_counts = self.archetype.get_exposure_counts()
+
+        # --- NEW: Create a restricted pool of base types for each category ---
+        all_base_types = self.scenario_components["base_types"]
+        category_base_type_pools = {}
+        
+        # Ensure there are enough base types to distribute
+        if len(all_base_types) < len(DERIVATIVE_CATEGORIES):
+            # If the pool is too small, all categories share the same pool
+            for cat in DERIVATIVE_CATEGORIES:
+                category_base_type_pools[cat] = all_base_types
+        else:
+            # Distribute base types among categories, allowing for some overlap
+            # Each category gets a small, somewhat unique pool
+            for cat in DERIVATIVE_CATEGORIES:
+                pool_size = random.randint(2, min(4, len(all_base_types)))
+                base_pool = random.sample(all_base_types, k=pool_size)
+                # --- NEW: Add category extras to the restricted pool ---
+                # With a chance, add a special instrument type to this category's pool.
+                category_extras = self.scenario_components.get("category_extras", {}).get(cat, [])
+                if category_extras and random.random() < GENERATION_PROBABILITIES["category_extras"]: # 35% chance to include an extra
+                    base_pool.append(random.choice(category_extras))
+                category_base_type_pools[cat] = list(set(base_pool)) # Ensure uniqueness
+
+        # Determine all base types that will appear in the scenario for context-aware aliasing
+        if exposure_counts["debt"] > 0:
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["IR"]))
+        if exposure_counts["fx"] > 0:
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["FX"]))
+        if exposure_counts["commodity"] > 0:
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["CP"]))
+        if exposure_counts["equity"] > 0:
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["EQ"]))
+        if exposure_counts["generic"] > 0:
+            self.all_scenario_base_types.add(random.choice(category_base_type_pools["GEN"]))
+
+        # Generate all potential exposures
+        self._generate_debt_exposures(exposure_counts["debt"])
+        self._generate_fx_exposures(exposure_counts["fx"])
+        self._generate_commodity_exposures(exposure_counts["commodity"])
+        self._generate_equity_exposures(exposure_counts["equity"])
+
+        # Build instruments based on exposures and propensities
+        # --- MODIFIED: Pass the category-specific pool to the builder ---
+        self._build_instruments_for_category(
+            "IR",
+            IRInstrument,
+            self.potential_hedged_items["debt"],
+            category_base_type_pools["IR"],
+        )
+        self._build_instruments_for_category(
+            "FX",
+            FXInstrument,
+            self.potential_hedged_items["fx"],
+            category_base_type_pools["FX"],
+        )
+        self._build_instruments_for_category(
+            "CP",
+            CPInstrument,
+            self.potential_hedged_items["commodity"],
+            category_base_type_pools["CP"],
+        )
+        self._build_instruments_for_category(
+            "EQ",
+            EQInstrument,
+            self.potential_hedged_items["equity"],
+            category_base_type_pools["EQ"],
+        )
+
+        # Create Generic Instruments (which don't have pre-defined exposures)
+        for _ in range(exposure_counts.get("generic", 0)):
+            is_terminated = random.random() < 0.4
+            maturity_year = (
+                random.randint(self.reporting_year - 3, self.reporting_year)
+                if is_terminated
+                else random.randint(self.reporting_year + 1, self.reporting_year + 5)
+            )
+            prefix, placeholder, base_type, suffix, name, alias = (
+                _generate_instrument_name(
+                    "GEN",
+                    available_base_types=category_base_type_pools["GEN"],
+                    all_scenario_base_types=self.all_scenario_base_types,
+                    components=self.scenario_components,
+                )
+            )
+            base_args = {
+                "instrument_type": name,
+                "instrument_alias": alias,
+                "notional_amount": random.randint(10, 300) * self.multiplier,
+                "start_month": random.choice(months),
+                "start_year": random.randint(
+                    self.reporting_year - 5, self.reporting_year - 1
+                ),
+                "currency": self.archetype.default_currency,
+                "maturity_year": maturity_year,
+                "hedged_item": None,
+                "instrument_prefix": prefix,
+                "placeholder": placeholder,
+                "base_type": base_type,
+                "suffix": suffix,
+            }
+            new_instrument = _create_instrument_with_history(
+                scenario=self.scenario,
+                instrument_class=GenericInstrument,
+                is_new=not is_terminated and random.random() < 0.3, # 30% chance an active instrument is brand new
+                is_past=is_terminated,
+                instrument_id=self.instrument_id_counter,
+                base_instrument_args=base_args,
+                symbol=_get_currency_and_unit_details(self.scenario)[0], # Default currency symbol
+            )
+            self.scenario.instruments.append(new_instrument) # type: ignore
+            self.instrument_id_counter += 1
+
+        # --- NEW: Generate accounting standard updates ---
+        self._generate_accounting_updates()
+
+        return self.scenario
+
+
+def create_random_scenario(archetype_index: Optional[int] = None) -> GenerationScenario:
+    """
+    Creates a random, complex scenario by building a structured `GenerationScenario` object.
+    This function acts as the "story planner," deciding upfront which instruments
+    a company has, their status (active or terminated), and their key properties.
+
+    Args:
+        archetype_index: If provided, selects a specific archetype by its index.
+    """
+    reporting_year = random.randint(1990, 2024)
+    reporting_day = random.randint(13, 31)
+    reporting_month = random.choice(months)
+
+    # --- Decide on a company archetype and get exposure counts ---
+    if archetype_index is not None and 0 <= archetype_index < len(SCENARIO_ARCHETYPES):
+        # Make a copy and randomize some properties for variety
+        base_archetype = copy.deepcopy(SCENARIO_ARCHETYPES[archetype_index])
+        archetype = _randomize_archetype_properties(base_archetype)
+    else:
+        archetype = _create_truly_random_archetype()
+
+    def generate_policy_for_archetype(
+        archetype: ScenarioArchetype,
+    ) -> RiskManagementPolicy:
+        """Generates a realistic RiskManagementPolicy based on the company archetype."""
+        general_policy = GeneralHedgingPolicy(
+            counterparty_details=random.choice([
+                "major financial institutions",
+                "a diversified group of highly-rated financial institutions",
+            ])
+        )
+        category_policies = []
+        # Determine which categories *could* have policies based on propensity
+        possible_policy_categories = [
+            cat for cat, props in archetype.hedging_propensities.items()
+            if props[0] > 0 or props[1] > 0
+        ]
+
+        if archetype.policy_coverage == "full":
+            num_policies = len(possible_policy_categories)
+        elif archetype.policy_coverage == "partial":
+            num_policies = (
+                random.randint(1, min(2, len(possible_policy_categories)))
+                if len(possible_policy_categories) >= 2
+                else 1
+            )
+        elif archetype.policy_coverage == "light": # "light"
+            num_policies = random.randint(0, min(1, len(possible_policy_categories))) if len(possible_policy_categories) >= 2 else 1
+        else:
+            num_policies = 0
+
+        if possible_policy_categories and num_policies > 0:
+            cats_with_policies = random.sample(possible_policy_categories, num_policies)
+            for category in cats_with_policies:
+                policy = CategorySpecificPolicy(category=category) # type: ignore
+                category_policies.append(policy)
+
+        return RiskManagementPolicy(
+            general_policy=general_policy,
+            category_policies=category_policies
+        )
+
+    scenario = GenerationScenario(
+        company_name=random.choice(company_names),
+        reporting_month=reporting_month,
+        reporting_day=reporting_day,
+        reporting_year=reporting_year,
+        instruments=[],
+        policy=generate_policy_for_archetype(archetype),
+        number_format_preference=archetype.prefers_abbreviated_numbers,
+        archetype=archetype,
+        unrelated_text=(
+            UnrelatedText(text=get_non_financial_text())
+            if archetype.name == "Non-Financial Noise"
+            else None
+        ),
+
+    )
+
+    # Use the builder to construct the full scenario
+    builder = ScenarioBuilder(scenario)
+    return builder.build()
+
+def get_non_financial_text(
+    num_articles_to_cache: int = 1500, max_length: int = 4096
+) -> str:
+    """
+    Fetches a random article from a predefined list of non-financial Wikipedia categories.
+    Caches results in a parquet file to avoid re-fetching.
+
+    Returns:
+        A string containing a random chunk of non-financial text.
+    """
+    cache_file = Path("./non_financial_noise.parquet")
+    articles_df = None
+
+    # 1. Try to load from cache
+    if cache_file.exists():
+        articles_df = pd.read_parquet(cache_file)
+
+    # 2. If cache is empty or doesn't exist, fetch from Wikipedia
+    if articles_df is None or articles_df.empty:
+        print("Noise cache not found or empty. Fetching new articles from Wikipedia...")
+        fetched_articles = []
+        with tqdm(total=num_articles_to_cache, desc="Fetching Noise") as pbar:
+            while len(fetched_articles) < num_articles_to_cache:
+                try:
+                    page_title = wikipedia.random(pages=1)
+                    page = wikipedia.page(page_title, auto_suggest=False, redirect=True)
+
+                    if any(kw in page.title.lower() for kw in ["finance", "business", "economics", "company"]):
+                        continue
+
+                    content = page.content
+                    content = re.sub(r'==.*?==', '', content) # Remove headers
+                    content = re.sub(r'\n+', ' ', content).strip()
+                    fetched_articles.append({"text": content})
+                    pbar.update(1)
+                except (wikipedia.exceptions.PageError, wikipedia.exceptions.DisambiguationError):
+                    continue
+        
+        articles_df = pd.DataFrame(fetched_articles)
+        articles_df.to_parquet(cache_file, index=False)
+
+    # 3. Return a random chunk from the dataframe
+    text = articles_df.sample(1).iloc[0]["text"]
+    if len(text) <= max_length:
+        return text
+    else:
+        start = random.randint(0, len(text) - max_length)
+        return text[start:start + max_length]
+
+def _randomize_archetype_properties(archetype: ScenarioArchetype) -> ScenarioArchetype:
+    """
+    Takes a copy of an archetype and randomizes some of its properties
+    to increase training data variety.
+    """
+    # Randomize the default currency
+    # Give major currencies a higher chance of being selected.
+    major_currencies = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD"]
+    if random.random() < 0.8: # 80% chance to pick a major currency
+        archetype.default_currency = random.choice(major_currencies)
+    else:
+        archetype.default_currency = random.choice([c.code for c in all_currencies])
+
+    # Randomize the number of comparative years slightly
+    archetype.comparative_years = max(1, archetype.comparative_years + random.choice([-1, 0, 0, 1])) # type: ignore
+
+    # Randomize the notional multiplier by one order of magnitude up or down
+    if random.random() < 0.2: # 20% chance to adjust multiplier
+        adjustment_factor = random.choice([0.1, 10])
+        archetype.notional_multiplier = int(archetype.notional_multiplier * adjustment_factor)
+
+    return archetype
+
+def _create_truly_random_archetype() -> ScenarioArchetype:
+    """Creates a ScenarioArchetype with randomized properties."""
+    from defs.cp_data import COMMODITIES
+
+    def rand_range(max_val=8):
+        a = random.randint(0, max_val)
+        b = random.randint(a, max_val)
+        return (a, b)
+
+    def rand_propensity():
+        # (past_prop, current_prop)
+        # -1 means explicit "never"
+        past = random.choice([-1, 0.0] + [round(random.uniform(0.1, 1.0), 1) for _ in range(3)])
+        if past == -1:
+            current = -1
+        else:
+            current = random.choice([-1, 0.0] + [round(random.uniform(0.1, 1.0), 1) for _ in range(3)])
+        return (past, current)
+
+    commodity_keys = list(COMMODITIES.keys())
+    num_commodity_types = random.randint(0, 4)
+
+    return ScenarioArchetype(
+        name="Truly Random",
+        debt_exposure_range=rand_range(),
+        fx_exposure_range=rand_range(),
+        commodity_exposure_range=rand_range(5),
+        commodity_types=(
+            random.sample(commodity_keys, num_commodity_types)
+            if num_commodity_types > 0
+            else []
+        ),
+        equity_exposure_range=rand_range(6),
+        generic_instrument_range=rand_range(2),
+        hedging_propensities={
+            "IR": rand_propensity(),
+            "FX": rand_propensity(),
+            "CP": rand_propensity(),
+            "EQ": rand_propensity(),
+            "GEN": rand_propensity(),
+        },
+        policy_coverage=random.choice(["full", "partial", "light", "none"]),
+        comparative_years=random.randint(1, 3), # type: ignore
+        default_currency=random.choice(
+            [c.code for c in all_currencies]
+        ),
+        notional_multiplier=random.choice([1_000, 1_000_000, 1_000_000_000]),
+        prefers_abbreviated_numbers=random.choice([True, False]),
+        prefers_tables=random.choice([True, False]),
+        preferred_negative_format=random.choice([-1, 0, 1, 2]),
+        zero_notional_format=random.choice(["nil", "zero", "amount"]),
+    )
+
+def _get_smart_instrument_description(instruments: List[NotionalInstrument], category: str, summary:bool = False) -> str:
+    """
+    Generates a smart, concatenated description of the instruments used.
+    """
+    if not instruments:
+        return "derivatives"
+
+    # --- NEW: For CP, sometimes use the specific commodity name ---
+    if category == "CP" and random.random() < 0.4: # 40% chance
+        # Get a commodity name from one of the hedged items
+        commodity_name = next(
+            (inst.hedged_item.commodity_type for inst in instruments if inst.hedged_item and isinstance(inst.hedged_item, CommodityHedgedItem)),
+            None
+        )
+        if commodity_name:
+            # --- NEW: Handle multiple commodity types more gracefully ---
+            unique_base_types = sorted(list({f"{i.base_type} {i.suffix}".strip() for i in instruments}))
+            if len(unique_base_types) <= 2:
+                # e.g., "crude oil swaps and contracts"
+                return f"{commodity_name} {', '.join(unique_base_types)}"
+            else:
+                # e.g., "various crude oil hedging instruments"
+                quantifier = random.choice(GENERIC_QUANTIFIERS)
+                descriptor = random.choice(DERIVATIVE_COMPONENTS["no_alias_types"])
+                suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+                plural_suffix = f"{suffix}s" if not suffix.endswith('s') else suffix
+                return " ".join(filter(None, [quantifier, commodity_name, descriptor, plural_suffix]))
+
+    count = len(instruments)
+    unique_types = sorted(list({i.instrument_type for i in instruments}))
+
+    if count == 1:
+        return instruments[0].instrument_type
+    # The same instrument
+    if count >= 2 and len(unique_types) == 1:
+        return f"{unique_types[0]}s"
+    # two instruments
+    if count == 2 and len(unique_types) > 1:
+        return f"{unique_types[0]} and {unique_types[1]}"
+
+    # --- NEW: Check for a common suffix ---
+    # This handles cases like "equity option position" and "equity swap position" -> "equity option and swap positions"
+    unique_suffixes = {i.suffix for i in instruments if i.suffix}
+    if len(unique_suffixes) == 1:
+        common_suffix = list(unique_suffixes)[0]
+        # Get the part of the name *before* the common suffix
+        base_names = []
+        for inst in instruments:
+            # Use rstrip to handle cases where the suffix might not be at the very end
+            # or to avoid stripping parts of the base type.
+            base_name = inst.instrument_type.removesuffix(f" {common_suffix}").strip()
+            base_names.append(base_name)
+        final_base_names = sorted(list(set(base_names)))
+        final_base_str = ', '.join(final_base_names[:len(final_base_names) - 1]) + f" and {final_base_names[-1]}"
+            
+        return f"{final_base_str} {common_suffix}s"
+
+    quantifier = random.choice(GENERIC_QUANTIFIERS)
+    # Check for similarity based on placeholder
+    placeholders = {i.placeholder for i in instruments}
+    if len(placeholders) == 1:
+        placeholder = list(placeholders)[0]
+        # Concatenate base_type + suffix
+        combined_names = []
+        for inst in instruments:
+            # Combine base_type and suffix, but handle cases where one is empty
+            # e.g., "put option" might have base_type "put option" and empty suffix
+            if inst.base_type and inst.suffix and inst.base_type in inst.suffix:
+                combined_names.append(inst.suffix)
+            else:
+                combined_names.append(f"{inst.base_type} {inst.suffix}".strip())
+
+        # --- FIX: Normalize and deduplicate similar suffixes ---
+        def _normalize_suffix(name: str) -> str:
+            # Collapse plurals and normalize spacing/casing for comparison
+            n = name.lower().strip()
+            if n.endswith("s"):
+                n = n[:-1]
+            return n
+
+        # Deduplicate by normalized form, preserving first occurrence
+        seen = set()
+        unique_combined = []
+        for n in sorted(list(set(combined_names))):
+            norm = _normalize_suffix(n)
+            if norm not in seen:
+                seen.add(norm)
+                unique_combined.append(n)
+        if len(unique_combined) <= 3:
+            # "interest-rate swaps, contracts, and agreements"
+            return f"{placeholder} {', '.join(unique_combined[:-1])} and {unique_combined[-1]}"
+
+    # Fallback for 4+ instruments or dissimilar instruments
+    if count >= 4:
+        # Check for a dominant placeholder.
+        placeholder_counts = Counter(i.placeholder for i in instruments)
+        most_common_placeholder, num_most_common = placeholder_counts.most_common(1)[0]
+
+        if num_most_common >= 2 and not summary:
+            # "interest-rate swaps and other interest rate instruments"
+            dominant_instrument_example = next(i.instrument_type for i in instruments if i.placeholder == most_common_placeholder)
+            # --- FIX: Use a random suffix for more variety ---
+            other_suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+            plural_suffix = other_suffix if other_suffix.endswith('s') else f"{other_suffix}s"
+            plural_suffix = plural_suffix.strip().lower()
+            return f"{dominant_instrument_example} and other {plural_suffix}"
+        else:
+            # "a portfolio of derivative instruments"
+            # --- FIX: Use the full category name for a more natural phrase ---
+
+            descriptive_category = CATEGORY_TO_NAME.get(
+                category, random.choice(GENERIC_DESCRIPTORS)
+            )
+            # --- FIX: Use a random suffix for more variety ---
+            # e.g., "a portfolio of interest rate contracts" instead of always "derivative instruments"
+            suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+            plural_suffix = suffix if suffix.endswith('s') else f"{suffix}s"
+            plural_suffix = plural_suffix.strip().lower()
+            return f"{quantifier} {descriptive_category} {plural_suffix}"
+
+    # --- FIX: Dynamically generate the generic description, ensuring category is mentioned ---
+    # This logic handles cases with 2-3 dissimilar instruments or fallbacks.
+
+    # Always prefer the specific category name over a generic descriptor if available.
+    descriptor = CATEGORY_TO_NAME.get(category, random.choice(GENERIC_DESCRIPTORS))
+    suffix = random.choice(DERIVATIVE_COMPONENTS["suffixes"])
+    plural_suffix = suffix if suffix.endswith('s') else f"{suffix}s"
+    plural_suffix = plural_suffix.strip().lower()
+
+    # --- FIX: Remove duplicate words if accidentally repeated ---
+    parts = " ".join(filter(None, [quantifier, descriptor, plural_suffix])).split()
+    cleaned = []
+    for p in parts:
+        if not cleaned or cleaned[-1] != p:
+            cleaned.append(p)
+    return " ".join(cleaned)
+
+
+def _create_instrument_with_history(
+    scenario: GenerationScenario,
+    instrument_class: type,
+    instrument_id: int,
+    base_instrument_args: Dict,
+    symbol: str,
+    is_new: bool,
+    is_past: bool,
+) -> NotionalInstrument:
+    """
+    Creates a single instrument and populates its history (past and optionally future).
+
+    For a single instrument ID, this generates one instrument object containing a
+    `notional_history` dictionary, which maps years to notional amounts.
+    The history can extend back a variable number of years.
+
+    Args:
+        scenario: The GenerationScenario to which instruments will be added.
+        instrument_class: The class of the instrument to create (e.g., IRInstrument).
+        instrument_id: The unique ID for this instrument and its history.
+        base_instrument_args: A dictionary of arguments for the instrument constructor,
+        symbol: The currency symbol or unit to be used for formatting.
+                              including the notional amount.
+        is_new: A flag indicating if the instrument was initiated in the current reporting year.
+        is_past: A flag indicating if the instrument is historical (matured before reporting year).
+
+    Returns:
+        A single NotionalInstrument instance with its history populated.
+    """
+
+    maturity_year = base_instrument_args.get("maturity_year", 0)
+    current_year = scenario.reporting_year
+    current_notional = base_instrument_args.pop("notional_amount")
+    base_instrument_args["maturity_value"] = 0  # Default maturity value
+    start_year = base_instrument_args.get(
+        "start_year", current_year - random.randint(3, 8)
+    )
+
+    # --- FIX: Ensure start_year is always before or same as maturity_year ---
+    # This prevents logical inconsistencies for past/terminated instruments.
+    if start_year > maturity_year:
+        start_year = maturity_year - random.randint(1, 5)
+
+    notional_history = {}
+
+    if not is_past:
+        # Active instrument: must have a value for the current reporting year.
+        notional_history[current_year] = current_notional
+
+        # Only generate prior-year history if the instrument is NOT new.
+        if not is_new:
+            # Generate history from the start_year up to the year before the reporting year.
+            last_notional = current_notional
+            for year in range(current_year - 1, start_year - 1, -1):
+                # Simulate a slightly different notional amount for the previous year.
+                # The change is more pronounced further in the past.
+                last_notional = int(last_notional * random.uniform(0.90, 1.10))
+                notional_history[year] = max(0, last_notional)
+
+        # Active instruments have not matured, so their maturity_value is not yet known.
+        base_instrument_args["maturity_value"] = None
+    else:
+        # Past instrument: history exists only up to reporting_year - 1.
+        # The 'current_notional' is the notional at maturity.
+        base_instrument_args["maturity_value"] = current_notional
+        last_notional = current_notional
+        # Generate history backwards from the maturity year.
+        # The history should only go up to the year *before* the reporting year
+        # if the instrument matures in the current year.
+        end_of_history_year = maturity_year
+        if maturity_year >= current_year:
+            # If it matures in the current year or future (which is an error for a 'past' instrument, but we handle it),
+            # its year-end notional for the reporting year is 0. The history exists only *before* this year.
+            end_of_history_year = current_year - 1
+
+        for year in range(end_of_history_year, start_year - 1, -1):
+            # Simulate a slightly different notional amount for the previous year.
+            last_notional = int(last_notional * random.uniform(0.85, 1.15))
+            notional_history[year] = max(0, last_notional)
+
+        # NEW: Pad with zeros from maturity to current year
+        comparative_years = scenario.archetype.comparative_years
+        if maturity_year >= current_year - comparative_years:
+            for year in range(maturity_year + 1, current_year + 1):
+                notional_history[year] = 0
+
+    # Sort years chronologically
+    notional_history = dict(sorted(notional_history.items()))
+
+    # --- NEW: With a small chance, set a mid-history year to zero ---
+    # This simulates a temporary pause in the instrument's use.
+    # It should not be the start year or the most recent year of its history.
+    if len(notional_history) > 2 and random.random() < GENERATION_PROBABILITIES["instrument_history_has_gap"]:  # 15% chance
+        # Get all years except the first and last
+        eligible_years = sorted(list(notional_history.keys()))[1:-1]
+        if eligible_years:
+            year_to_zero = random.choice(eligible_years)
+            # Ensure we don't zero out the current reporting year for an active instrument
+            if not (not is_past and year_to_zero == scenario.reporting_year):
+                notional_history[year_to_zero] = 0
+
+    # Create the instrument instance
+    instrument = instrument_class(
+        instrument_id=instrument_id,
+        notional_history=notional_history,
+        symbol=symbol,
+        **base_instrument_args,
+    )
+
+    return instrument
+
+
+def _generate_instrument_name(
+    category: str,
+    hedged_item: Optional["HedgedItem"] = None,
+    available_base_types: Optional[List[str]] = None,
+    all_scenario_base_types: Optional[Set[str]] = None,
+    components: Optional[Dict] = None,
+) -> Tuple[str, str, str, str, str, str]:
+    """
+    Dynamically generates a derivative instrument name based on category and context.
+    This replaces the pre-expanded `derivative_keywords` logic.
+
+    Returns:
+        A tuple of (prefix, placeholder, base_type, suffix, full_name, alias).
+    """
+    components = components or DERIVATIVE_COMPONENTS
+    placeholders = components["placeholders"].get(category, ["derivative"])
+    
+    # --- FIX: Use the provided available_base_types from the category pool ---
+    # Fallback to global components only if no specific pool is provided.
+    if not available_base_types:
+        base_types = components["base_types"]
+    else:
+        base_types = available_base_types
+    
+    # --- NEW: Handle special instrument names from CATEGORY_EXTRAS ---
+    # These are added to the available_base_types pool in the ScenarioBuilder.
+    # We need to identify them here to prevent adding another suffix.
+    chosen_base_type = random.choice(base_types)
+    category_extras_flat = [item for sublist in components.get("category_extras", {}).values() for item in sublist]
+    if chosen_base_type in category_extras_flat:
+        # This is a special, pre-defined instrument. Don't add a random suffix.
+        # Instead, split it into a base and suffix for better downstream processing.
+        # e.g., "index future" -> base="index", suffix="future"
+        # e.g., "total return swap" -> base="total return", suffix="swap"
+        parts = chosen_base_type.split()
+        base_type = " ".join(parts[:-1])
+        suffix = parts[-1]
+        full_name = chosen_base_type
+        return "", "", base_type, suffix, full_name, full_name
+        
+    suffixes = components["suffixes"]  # e.g., contract, agreement
+    special_suffixes = components["special_suffixes"]  # e.g., put option
+    special_ratio = 0.10  # configurable
+
+    if (
+        category == "IR" and isinstance(hedged_item, DebtHedgedItem) and hedged_item.benchmark_rate
+    ):
+        # 35% chance to use the specific placeholder if found, otherwise use the generic "interest-rate".
+        placeholder = (
+            hedged_item.benchmark_rate
+            if random.random() < 0.35
+            else random.choice(placeholders)
+        )
+    elif category == "CP" and isinstance(hedged_item, CommodityHedgedItem):
+        # For commodities, we can make the placeholder more specific.
+        generic_placeholder = random.choice(placeholders)
+        if random.random() < 0.85:  # 85% chance to use the specific commodity name
+            # e.g., replace "commodity" in "commodity price" with "crude oil" -> "crude oil price"
+            placeholder = re.sub(r'commodity', hedged_item.commodity_type, generic_placeholder, flags=re.IGNORECASE)
+        else:
+            placeholder = generic_placeholder
+    else:
+        placeholder = random.choice(placeholders)
+
+
+    # --- Assemble the name ---
+    # --- FIX: Ensure special suffixes respect the available_base_types pool ---
+    # Find which special suffixes are allowed in the current scenario's pool.
+    allowed_special_suffixes = [s for s in special_suffixes if s in base_types]
+    use_special = (
+        allowed_special_suffixes
+        and random.random() < special_ratio
+        and category != "GEN"
+    )
+
+    suffix = ""
+    if use_special:
+        # Now, we only choose from the allowed list.
+        base_type = random.choice(allowed_special_suffixes)
+        chosen = base_type
+        full_name = " ".join(filter(None, [placeholder, chosen])).strip()
+    else:
+        base_type = random.choice(base_types)
+        suffix = random.choice(suffixes)
+        full_name = " ".join(filter(None, [placeholder, base_type, suffix])).strip()
+
+    # --- NEW: Context-aware alias generation ---
+    other_base_types = (all_scenario_base_types or set()) - {base_type}
+    alias = _create_contextual_alias(base_type, category, placeholder, suffix, other_base_types)
+
+    # --- Optional Prefix (for swaps, swaptions, rate locks) ---
+    prefix = ""
+    if (
+        any(x in base_type for x in ["swap", "swaption", "lock"]) # type: ignore
+        and random.random() < GENERATION_PROBABILITIES["instrument_has_prefix"]
+    ):
+        prefix = random.choice(components["swap_prefixes"])
+
+    # --- Optional Prefix (global)
+    if not prefix and random.random() < GENERATION_PROBABILITIES["instrument_has_prefix"]:
+        prefix = random.choice(components["global_prefixes"])
+
+    return prefix, placeholder, base_type, suffix, full_name, alias
+
+
+def _create_contextual_alias(
+    base_type: str, category: str, placeholder: str, suffix: str, all_other_base_types: Set[str]
+) -> str:
+    """
+    Creates a context-aware alias for an instrument. If the base type is unique
+    across the scenario, a simple alias is used. Otherwise, a category prefix is added.
+
+    Args:
+        base_type: The base type of the current instrument (e.g., "swap").
+        category: The category of the current instrument (e.g., "IR").
+        placeholder: The placeholder used in the instrument name (e.g., "cross-currency").
+        suffix: The suffix used in the instrument name (e.g., "agreement").
+        all_other_base_types: A set of all base types present in the scenario.
+
+    Returns:
+        A contextually appropriate alias string.
+    """
+    # NEW: Handle special suffixes like "put option" explicitly.
+    # This ensures the full phrase is treated as the base.
+    for special_suffix in DERIVATIVE_COMPONENTS["special_suffixes"]:
+        if special_suffix in base_type:
+            alias_base = special_suffix
+            break
+    else:
+        # Fallback for other types.
+        alias_base = base_type
+
+    is_base_type_unique = base_type not in all_other_base_types
+    no_alias_types = DERIVATIVE_COMPONENTS.get("no_alias_types", [])
+    no_alias_independent = DERIVATIVE_COMPONENTS.get("no_alias_independent", [])
+    is_no_alias_type = any(no_alias_word in base_type for no_alias_word in no_alias_types)
+    is_dependent_type = base_type in DERIVATIVE_COMPONENTS.get("dependent_types", [])
+
+    # --- Logic for types that should not be aliased (e.g., "derivative", "hedge") ---
+    if is_no_alias_type:
+        # For independent no-alias types like "derivative", we might sometimes
+        # return just "interest rate derivative" instead of the full name with a suffix.
+        if base_type in no_alias_independent and random.random() < 0.3:
+            return f"{placeholder} {alias_base}".strip()  # e.g., "IR derivative"
+        # Otherwise, return the full name to avoid ambiguity.
+        return f"{placeholder} {alias_base} {suffix}".strip() # e.g., "IR hedging contract"
+
+    # --- Logic for standard, aliasable types ---
+    if is_base_type_unique:
+        # If the base type is unique in the scenario (e.g., only one "swap"), we can use a shorter alias.
+        if not is_dependent_type:
+            # For standalone types like "swap".
+            # Full name: "interest-rate swap contract"
+            # Possible aliases: "swap contract", "interest-rate swap", or just "swap".
+            if suffix and random.random() < 0.3:
+                return f"{alias_base} {suffix}".strip()
+            if placeholder and random.random() < 0.3:
+                return f"{placeholder} {alias_base}".strip()
+            return alias_base
+        else:
+            # For dependent types like "collar", which need more context.
+            # Full name: "interest-rate collar agreement"
+            # Possible aliases: "collar agreement" or "interest-rate collar".
+            if suffix and random.random() < 0.3:
+                return f"{alias_base} {suffix}".strip()
+            else:
+                return f"{placeholder} {alias_base}".strip()
+    else:
+        # If the base type is NOT unique (e.g., "swap" and "collar" both exist),
+        # return the full name to avoid ambiguity.
+        return f"{placeholder} {base_type} {suffix}".strip()
+
+
+# =============================================================================
+# PHASE 2: NARRATIVE AND JSON GENERATION
+# These functions will take a `GenerationScenario` object and produce the
+# final output: the narrative text and the structured JSON label.
+# =============================================================================
+
+
+def _generate_narrative_policy(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+    """Generates sentences describing the company's hedging policy and risk exposures.""" # noqa
+    sentences = []
+    evidence = [] # This function will now also produce evidence
+
+    if scenario.policy:
+        # --- Always generate a high-level, generic risk exposure sentence first ---
+        # This acts as a standard introductory statement, similar to Item 7A.
+        policy_sentence_obj = PolicySentence(
+            category="GEN", # Always start with a generic context
+            company_name=scenario.company_name,
+        )
+        policy_sentence, policy_evidence = policy_sentence_obj.build()
+        sentences.append(policy_sentence)
+
+        # --- NEW: Generate ExposureEvidence from the generic policy sentence ---
+        # This ensures that even a high-level risk statement contributes to the exposure map.
+        exposure_evidence = ExposureEvidence(
+            category="GEN", status="exposure_mention", details=policy_sentence
+        )
+        evidence.append(exposure_evidence)
+
+        # Determine if there are any active instruments in the reporting year.
+        has_active_derivatives = any(
+            inst.notional_history.get(scenario.reporting_year, 0) > 0
+            for inst in scenario.instruments
+        )
+        instrument_categories_in_year = [inst.category for inst in scenario.instruments if has_active_derivatives]
+
+        # Only add evidence if there are actual instruments. A general policy
+        # statement for a non-user is just context, not evidence of a derivative.
+        if instrument_categories_in_year:
+            evidence.append(policy_evidence)
+
+        # --- Generate standard policy statements ---
+        if scenario.policy.general_policy.does_not_use_for_trading:
+            # Select a random template for the "no trading" policy
+            template = random.choice(hedge_no_trading_templates)
+            sentence = template.format(
+                company=scenario.company_name, verb=random.choice(policy_verbs)
+            )
+            sentences.append(sentence)
+        if scenario.policy.general_policy.counterparty_credit_risk_monitored:
+            counterparty_sentence_obj = CounterpartyRiskSentence(
+                company_name=scenario.company_name,
+                counterparty_details=scenario.policy.general_policy.counterparty_details,
+                has_active_derivatives=has_active_derivatives,
+            )
+            sentence = counterparty_sentence_obj.build()
+            sentences.append(sentence) # No evidence is generated for this policy statement
+    return sentences, evidence
+
+
+def _generate_debt_narrative(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[ExposureEvidence]]:
+    """
+    Generates a dedicated, detailed narrative section about the company's debt.
+    This is separate from the high-level summary in the IR risk section.
+    """
+    paragraphs = []
+    evidence = []
+
+    # Get currency and money unit details for sentence generation
+    currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+    # Get all debt items from the scenario.
+    all_debt_items = [
+        inst.hedged_item
+        for inst in scenario.instruments if isinstance(inst.hedged_item, DebtHedgedItem)
+    ]
+    all_debt_items = list({item.hedged_item_id: item for item in all_debt_items}.values())
+
+    if not all_debt_items:
+        return [], []
+
+    # Add a title for this section.
+    if DEBUG:
+        paragraphs.append("Debt")
+
+    # --- NEW: Decide whether to generate a table or individual paragraphs ---
+    if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_debt_items) <= 2: # More likely to generate paragraphs for fewer items
+        # For each debt item, generate a detailed contextual paragraph.
+        for debt_item in all_debt_items:
+            debt_context_builder = DebtContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year, # type: ignore
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=debt_item,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            debt_paragraph = debt_context_builder.build()
+            if debt_paragraph:
+                paragraphs.append(debt_paragraph)
+                # --- NEW: Create evidence for this exposure ---
+                evidence.append(
+                    ExposureEvidence(category="IR", status="exposure_mention", details=debt_paragraph)
+                )
+    else:
+        # Generate a single table for all debt items
+        debt_context_builder = DebtContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year, # type: ignore
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            hedged_item=all_debt_items, # Pass the whole list
+            prefer_abbreviated=scenario.number_format_preference,
+            currency_symbol=currency_symbol,
+        )
+        debt_paragraph = debt_context_builder.build()
+        if debt_paragraph:
+            paragraphs.append(debt_paragraph)
+            # --- NEW: Create evidence for this exposure ---
+            evidence.append(
+                ExposureEvidence(category="IR", status="exposure_mention", details=debt_paragraph)
+            )
+
+    return paragraphs, evidence
+
+
+def _generate_fx_narrative(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[ExposureEvidence]]:
+    """
+    Generates a dedicated, detailed narrative section about the company's foreign currency exposures.
+    """
+    paragraphs = []
+    evidence = []
+
+    currency_symbol, _, currency_code = _get_currency_and_unit_details(scenario)
+
+    # Get all unique FX hedged items from the scenario's instruments.
+    all_fx_items = list({
+        inst.hedged_item.hedged_item_id: inst.hedged_item
+        for inst in scenario.instruments
+        if isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)
+    }.values())
+
+    if not all_fx_items:
+        return [], []
+
+    if DEBUG:
+        paragraphs.append("Foreign Currency Risk")
+
+    # --- NEW: Decide whether to generate a table or individual paragraphs ---
+    if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_fx_items) <= 2:
+        for fx_item in all_fx_items:
+            fx_context_builder = FXContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year, # type: ignore
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=fx_item,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+                currency_code=currency_code,
+            )
+            fx_paragraph = fx_context_builder.build()
+            if fx_paragraph:
+                paragraphs.append(fx_paragraph)
+                # --- NEW: Create evidence for this exposure ---
+                evidence.append(
+                    ExposureEvidence(category="FX", status="exposure_mention", details=fx_paragraph)
+                )
+    else:
+        fx_context_builder = FXContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year, # type: ignore
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            hedged_item=all_fx_items,
+            prefer_abbreviated=scenario.number_format_preference,
+            currency_symbol=currency_symbol,
+            currency_code=currency_code,
+        )
+        fx_paragraph = fx_context_builder.build()
+        if fx_paragraph:
+            paragraphs.append(fx_paragraph)
+            # --- NEW: Create evidence for this exposure ---
+            evidence.append(
+                ExposureEvidence(category="FX", status="exposure_mention", details=fx_paragraph)
+            )
+
+    return paragraphs, evidence
+
+
+def _generate_cp_narrative(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[ExposureEvidence]]:
+    """
+    Generates a dedicated, detailed narrative section about the company's commodity price exposures.
+    """
+    paragraphs = []
+    evidence = []
+
+    currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+    # Get all unique Commodity hedged items from the scenario's instruments.
+    all_cp_items = list({
+        inst.hedged_item.hedged_item_id: inst.hedged_item
+        for inst in scenario.instruments
+        if isinstance(inst.hedged_item, CommodityHedgedItem)
+    }.values())
+
+    if not all_cp_items:
+        return [], []
+
+    if DEBUG:
+        paragraphs.append("Commodity Price Risk")
+
+    # --- NEW: Decide whether to generate a table or individual paragraphs ---
+    if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_cp_items) <= 2:
+        for cp_item in all_cp_items:
+            cp_context_builder = CPContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year, # type: ignore
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=cp_item,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+                notional_multiplier=scenario.archetype.notional_multiplier,
+            )
+            cp_paragraph = cp_context_builder.build()
+            if cp_paragraph:
+                paragraphs.append(cp_paragraph)
+                # --- NEW: Create evidence for this exposure ---
+                evidence.append(
+                    ExposureEvidence(category="CP", status="exposure_mention", details=cp_paragraph)
+                )
+    else:
+        cp_context_builder = CPContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year, # type: ignore
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            hedged_item=all_cp_items,
+            prefer_abbreviated=scenario.number_format_preference,
+            currency_symbol=currency_symbol,
+            notional_multiplier=scenario.archetype.notional_multiplier,
+        )
+        cp_paragraph = cp_context_builder.build()
+        if cp_paragraph:
+            paragraphs.append(cp_paragraph)
+            # --- NEW: Create evidence for this exposure ---
+            evidence.append(
+                ExposureEvidence(category="CP", status="exposure_mention", details=cp_paragraph)
+            )
+
+    return paragraphs, evidence
+
+
+def _generate_eq_narrative(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[ExposureEvidence]]:
+    """
+    Generates a dedicated, detailed narrative section about the company's equity-related activities.
+    """
+    paragraphs = []
+    evidence = []
+
+    currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+    # Get all unique Equity hedged items from the scenario's instruments.
+    all_eq_items = list({
+        inst.hedged_item.hedged_item_id: inst.hedged_item
+        for inst in scenario.instruments
+        if isinstance(inst.hedged_item, EquityHedgedItem)
+    }.values())
+
+    if not all_eq_items:
+        return [], []
+
+    if DEBUG:
+        paragraphs.append("Equity Risk")
+
+    # --- NEW: Decide whether to generate a table or individual paragraphs ---
+    if random.random() > GENERATION_PROBABILITIES["use_table_for_exposure"] or len(all_eq_items) <= 2:
+        for eq_item in all_eq_items:
+            eq_context_builder = EQContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year, # type: ignore
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=eq_item,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            eq_paragraph = eq_context_builder.build()
+            if eq_paragraph:
+                paragraphs.append(eq_paragraph)
+                # --- NEW: Create evidence for this exposure ---
+                evidence.append(
+                    ExposureEvidence(category="EQ", status="exposure_mention", details=eq_paragraph)
+                )
+    else:
+        eq_context_builder = EQContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year, # type: ignore
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            hedged_item=all_eq_items,
+            prefer_abbreviated=scenario.number_format_preference,
+            currency_symbol=currency_symbol,
+        )
+        eq_paragraph = eq_context_builder.build()
+        if eq_paragraph:
+            paragraphs.append(eq_paragraph)
+            # --- NEW: Create evidence for this exposure ---
+            evidence.append(
+                ExposureEvidence(category="EQ", status="exposure_mention", details=eq_paragraph)
+            )
+
+    return paragraphs, evidence
+
+
+def _generate_category_narrative(
+    category: str,
+    yearly_data: Dict,
+    scenario: GenerationScenario,
+    part: Literal["summary", "details"],
+    mentioned_instrument_types: Optional[Set[str]] = None,
+    allow_random_drops: bool = False,
+    suppress_text_output: bool = False,
+    mentioned_instrument_ids: Optional[Set[int]] = None,
+) -> Tuple[List[str], List[BaseNarrativeEvidence], Optional[str]]:
+    """
+    Generates a narrative section for a single derivative category (e.g., Interest Rate Risk).
+    This includes context, a summary of instruments, and details on changes.
+
+    Args:
+        mentioned_instrument_ids: A set to track specific instrument IDs that have been mentioned.
+        mentioned_instrument_types: A set to track instrument full names that have already been mentioned.
+        part: "summary" to generate policy/mitigation/aggregate, "details" for individual instruments.
+        suppress_text_output: If True, only generate evidence, not sentences.
+    """
+    sentences, evidence, used_name = [], [], None
+    reporting_year, reporting_month, reporting_day = (
+        scenario.reporting_year,
+        scenario.reporting_month,
+        scenario.reporting_day,
+    )
+    current_year_data = yearly_data.get(reporting_year)
+    prev_year_data = yearly_data.get(reporting_year - 1)
+    prev2_year_data = yearly_data.get(reporting_year - 2)
+
+    # Get currency and money unit details for sentence generation
+    currency_symbol, money_unit_word, currency_code = _get_currency_and_unit_details(
+        scenario
+    )
+
+    # --- FIX: Initialize at the top of the function to resolve UnboundLocalError ---
+    active_instruments_were_dropped = False
+
+    # --- Part 1: Generate Policy, Mitigation, and optional Aggregate Summary ---
+    if part == "summary":
+        # 1a. Context Sentence (e.g., "To manage our interest rate risk...")
+        specific_details = SpecificDetails()  # type: ignore
+        location_names = []
+        if current_year_data and current_year_data["instruments"]:
+            instrument_with_hedged_item = next(
+                (inst for inst in current_year_data["instruments"] if inst.hedged_item),
+                None,
+            )
+            if instrument_with_hedged_item:
+                hedged_item = instrument_with_hedged_item.hedged_item
+                if isinstance(hedged_item, CommodityHedgedItem):
+                    specific_details.commodity.append(hedged_item.commodity_type)
+                    specific_details.unit = hedged_item.unit_of_volume
+                elif isinstance(hedged_item, ForeignCurrencyHedgedItem):
+                    locations = [exp.location for exp in hedged_item.exposures]
+                    location_names = list(set(locations))
+                    if location_names:
+                        specific_details.geography = location_names
+                    currencies = [exp.full_name for exp in hedged_item.exposures]
+                    currency_names = list(set(currencies))
+                    if currency_names:
+                        specific_details.currencies = currency_names
+                elif isinstance(hedged_item, DebtHedgedItem):
+                    specific_details.debt_type = hedged_item.debt_type
+                    specific_details.pct = (
+                        hedged_item.fixed_rate_pct or hedged_item.change_rate_pct
+                    )
+                    specific_details.frequency = hedged_item.payment_frequency
+
+        policy_sentence_obj = PolicySentence(
+            category=category,  # type: ignore
+            company_name=scenario.company_name,
+            specific_details=specific_details,
+        )
+        context_sentence, _ = policy_sentence_obj.build()
+        if not suppress_text_output:
+            sentences.append(context_sentence)
+
+        # --- NEW: Add debt context for IR category ---
+        if category == "IR":
+            # Get all debt items from the scenario. This includes both hedged and unhedged debt.
+            all_debt_hedged_items = [
+                inst.hedged_item
+                for inst in scenario.instruments
+                if isinstance(inst.hedged_item, DebtHedgedItem)
+            ]
+
+            # For each debt item, generate a contextual paragraph.
+            # Let's limit it to 1-2 paragraphs to avoid making the text too long.
+            items_to_describe = random.sample(
+                all_debt_hedged_items, k=min(len(all_debt_hedged_items), 2)
+            )
+            debt_context_builder = DebtContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=items_to_describe,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            debt_paragraph = debt_context_builder.build()
+            if debt_paragraph and not suppress_text_output:
+                sentences.append(debt_paragraph)
+
+        # --- NEW: Add FX context for FX category (similar to IR/Debt) ---
+        if category == "FX":
+            all_fx_hedged_items = [
+                inst.hedged_item
+                for inst in scenario.instruments
+                if isinstance(inst.hedged_item, ForeignCurrencyHedgedItem)
+            ]
+            items_to_describe = random.sample(
+                all_fx_hedged_items, k=min(len(all_fx_hedged_items), 1)
+            )  # Describe 1 item
+            fx_context_builder = FXContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=items_to_describe,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+                notional_multiplier=scenario.archetype.notional_multiplier,
+                currency_code=currency_code,
+            )
+            fx_paragraph = fx_context_builder.build()
+            if fx_paragraph and not suppress_text_output:
+                sentences.append(fx_paragraph)
+
+        # --- NEW: Add CP context for CP category ---
+        if category == "CP":
+            all_cp_hedged_items = [
+                inst.hedged_item
+                for inst in scenario.instruments
+                if isinstance(inst.hedged_item, CommodityHedgedItem)
+            ]
+            items_to_describe = random.sample(
+                all_cp_hedged_items, k=min(len(all_cp_hedged_items), 1)
+            )
+            cp_context_builder = CPContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=items_to_describe,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+                notional_multiplier=scenario.archetype.notional_multiplier,
+            )
+            cp_paragraph = cp_context_builder.build()
+            if cp_paragraph and not suppress_text_output:
+                sentences.append(cp_paragraph)
+
+        # --- NEW: Add EQ context for EQ category ---
+        if category == "EQ":
+            all_eq_hedged_items = [
+                inst.hedged_item
+                for inst in scenario.instruments
+                if isinstance(inst.hedged_item, EquityHedgedItem)
+            ]
+            # Describe context for one of the hedged items, if any exist.
+            items_to_describe = random.sample(
+                all_eq_hedged_items, k=min(len(all_eq_hedged_items), 1)
+            )
+
+            # --- FIX: If no specific hedged items, generate a generic context sentence ---
+            eq_context_builder = EQContextSentence(
+                company_name=scenario.company_name,
+                reporting_year=scenario.reporting_year,
+                # --- FIX: Pass correct date components ---
+                reporting_month=scenario.reporting_month,
+                reporting_day=scenario.reporting_day,
+                hedged_item=items_to_describe if items_to_describe else None,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_symbol=currency_symbol,
+            )
+            eq_paragraph = eq_context_builder.build()
+            if eq_paragraph and not suppress_text_output:
+                sentences.append(eq_paragraph)
+
+            # --- FIX: Handle case where there are no EQ instruments but exposure exists ---
+            if not all_eq_hedged_items:
+                eq_context_builder = EQContextSentence(
+                    company_name=scenario.company_name,
+                    reporting_year=scenario.reporting_year,
+                    reporting_month=scenario.reporting_month,
+                    reporting_day=scenario.reporting_day,
+                    hedged_item=None,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    currency_symbol=currency_symbol,
+                )
+                if not suppress_text_output:
+                    sentences.append(eq_context_builder.build())
+
+        # 1b. Mitigation/Purpose Sentence
+        has_active_instruments = bool(
+            current_year_data
+            and current_year_data["instruments"]
+            and sum(
+                inst.notional_history.get(reporting_year, 0) > 0
+                for inst in current_year_data["instruments"]
+            )
+            > 0
+        )  # type: ignore
+        past_prop, current_prop = scenario.archetype.hedging_propensities.get(category, (0.0, 0.0))  # type: ignore
+        has_past_instruments = bool(
+            prev_year_data
+            and prev_year_data["instruments"]
+            and sum(
+                inst.notional_history.get(reporting_year - 1, 0) > 0
+                for inst in prev_year_data["instruments"]
+            )
+            > 0
+        )
+
+        # --- FIX: Only sometimes generate an explicit "no use" statement ---
+        # This reflects that firms don't always state their non-use.
+        is_explicit_non_use = (
+            current_prop < 0 and random.random() < 0.6
+        )  # 60% chance to state non-use
+
+        usage = (
+            "current"
+            if has_active_instruments
+            else (
+                "non_use"  # This will only be chosen if the conditions above are met
+                if is_explicit_non_use
+                else (
+                    "historical"  # If no active instruments now, but there were in the past
+                    if not has_active_instruments and has_past_instruments
+                    else "speculative"
+                )
+            )
+        )
+
+        if has_active_instruments and current_year_data:
+            instrument_type = _get_smart_instrument_description(
+                current_year_data["instruments"], category, random.random() < 0.5
+            )
+        else:
+            # For speculative cases, generate a plausible instrument name instead of just "derivatives"
+            _, _, _, _, name, _ = _generate_instrument_name(category)
+            # 50% chance to make it plural for better sentence flow
+            instrument_type = f"{name}s" if random.random() < 0.5 else name
+
+        mitigation_sentence_obj = MitigationSentence(
+            category=category,  # type: ignore
+            company_name=scenario.company_name,
+            swap_type=instrument_type,
+            has_active_instruments=has_active_instruments,
+            usage_status=usage,
+            year=reporting_year,
+            month=reporting_month,
+            end_day=reporting_day,
+            specific_details=specific_details,
+            is_active_user=has_active_instruments, # Pass whether the user is active
+        )
+        mitigation_sentence, mitigation_evidence = mitigation_sentence_obj.build()
+
+        # --- MODIFIED: Only generate mitigation evidence if sentence is NOT dropped ---
+        if suppress_text_output or (
+            allow_random_drops and random.random() < DROP_PROBABILITIES["mitigation"]
+        ):
+            # If dropping AND no instruments were mentioned, don't generate evidence at all
+            if not has_active_instruments or suppress_text_output:
+                pass  # No evidence generated
+            else:
+                # Has instruments but sentence was dropped - mark as implied
+                mitigation_evidence.is_implied = True
+                evidence.append(mitigation_evidence)
+            DROPPED_SENTENCES.append(
+                f"[MITIGATION_DROP][{category}] {mitigation_sentence}"
+            )
+        else:
+            # Normal case: add both sentence and evidence
+            sentences.append(mitigation_sentence)
+            evidence.append(mitigation_evidence)
+
+        # 1c. Optional Aggregate Summary
+        is_non_use_mitigation = mitigation_evidence.usage_status == "non_use"
+        if (
+            current_year_data
+            and mitigation_evidence.usage_status
+            != "non_use"  # Don't summarize if we just said we don't use them
+            and current_year_data["instruments"]
+            and not is_non_use_mitigation
+            and not suppress_text_output
+            and not active_instruments_were_dropped
+            and random.random() < GENERATION_PROBABILITIES["generate_aggregate_summary"]
+        ):
+            # --- NEW: Logic to choose between summary, comparative, or comparative_no_prior ---
+            current_notional = (
+                current_year_data["total_notional"] if current_year_data else 0
+            )
+            prev_notional = prev_year_data["total_notional"] if prev_year_data else 0
+            prev2_notional = prev2_year_data["total_notional"] if prev2_year_data else 0
+
+            sentence_type_to_use = "summary"  # Default
+            notional_to_report = current_notional
+
+            # --- FIX: Implement comparative sentence logic ---
+            prev_notional_to_report = None
+            prev2_notional_to_report = None
+            prev_year_to_report = None
+            prev2_year_to_report = None
+            swap_type_for_summary = (
+                instrument_type  # Default to the single-year description
+            )
+
+            # --- NEW: Use archetype to determine comparative years ---
+            comparative_years = scenario.archetype.comparative_years
+            use_three_year_comparative = (
+                comparative_years == 3 and prev_notional > 0 and prev2_notional > 0
+            )
+            use_two_year_comparative = comparative_years == 2 and prev_notional > 0
+
+            # Add a random chance to still generate a comparative sentence even if not the default
+            if (
+                not (use_three_year_comparative or use_two_year_comparative)
+                and random.random() < 0.3
+            ):
+                if comparative_years > 1 and prev_notional > 0:
+                    use_two_year_comparative = True
+
+            if use_three_year_comparative:
+                sentence_type_to_use = "comparative"
+                notional_to_report = current_notional
+                prev_notional_to_report = prev_notional
+                prev2_notional_to_report = prev2_notional
+                prev_year_to_report = reporting_year - 1
+                prev2_year_to_report = reporting_year - 2
+                # Generate a combined description for all three years
+                combined_instruments = (
+                    current_year_data.get("instruments", [])  # type: ignore
+                    + prev_year_data.get("instruments", [])  # type: ignore
+                    + prev2_year_data.get("instruments", [])  # type: ignore
+                )  # type: ignore
+                # Remove duplicates by instrument ID
+                unique_instruments = list(
+                    {inst.instrument_id: inst for inst in combined_instruments}.values()
+                )
+                swap_type_for_summary = _get_smart_instrument_description(
+                    unique_instruments, category, True
+                )
+            elif use_two_year_comparative:
+                sentence_type_to_use = "comparative"
+                notional_to_report = current_notional
+                prev_notional_to_report = prev_notional
+                prev_year_to_report = reporting_year - 1
+                # --- FIX: Generate a combined description for the comparative sentence ---
+                # This ensures the description covers instruments from both years.
+                combined_instruments = current_year_data.get(
+                    "instruments", []
+                ) + prev_year_data.get(  # type: ignore
+                    "instruments", []
+                )  # type: ignore
+                # Remove duplicates by instrument ID
+                unique_instruments = list(
+                    {inst.instrument_id: inst for inst in combined_instruments}.values()
+                )
+                swap_type_for_summary = _get_smart_instrument_description(
+                    unique_instruments, category, True
+                )
+            elif current_notional > 0 and prev_notional == 0:
+                sentence_type_to_use = "comparative_no_prior_outstanding"
+                notional_to_report = current_notional
+
+            if notional_to_report > 0:
+                use_fair_value = (
+                    random.random()
+                    < GENERATION_PROBABILITIES["use_fair_value_for_summary"]
+                )
+                value_type_to_use = "fair_value" if use_fair_value else "notional"
+
+                summary_sentence_obj = NotionalSentence(
+                    swap_type=swap_type_for_summary,
+                    year=reporting_year,
+                    notional=notional_to_report,
+                    prev_notional=prev_notional_to_report,
+                    prev2_notional=prev2_notional_to_report,
+                    prev_year=prev_year_to_report,
+                    prev2_year=prev2_year_to_report,
+                    currency_code=currency_code,
+                    currency_symbol=currency_symbol,
+                    zero_notional_format=scenario.archetype.zero_notional_format,
+                    month=reporting_month,
+                    end_day=reporting_day,
+                    notional_multiplier=scenario.archetype.notional_multiplier,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    category=category,  # type: ignore
+                    reporting_year=reporting_year,
+                    value_type=value_type_to_use,
+                    specific_details=specific_details,
+                    sentence_type=sentence_type_to_use,  # type: ignore
+                    is_summary=True,
+                    preferred_negative_format=scenario.archetype.preferred_negative_format,
+                )
+                summary_sentence_text, evidence_obj = summary_sentence_obj.build()
+                summary_sentence_obj.preferred_negative_format = (
+                    scenario.archetype.preferred_negative_format
+                )
+                sentences.append(summary_sentence_text)
+                evidence.append(evidence_obj)
+
+    # --- Part 2: Generate Detailed Individual Instrument Sentences ---
+    elif part == "details":
+        # This will be a list of paragraph strings.
+        paragraphs = []
+        if mentioned_instrument_ids is None:
+            mentioned_instrument_ids = set()
+        if mentioned_instrument_types is None:
+            # This should be passed from the calling function, but as a fallback, initialize it.
+            mentioned_instrument_types = set()
+
+        # --- NEW: Track core instrument components (placeholder, base_type) for better contextual phrasing ---
+        # --- FIX: Use a Counter to track how many times a core type is mentioned ---
+        mentioned_instrument_cores: Counter[Tuple[str, str]] = Counter()
+
+        # --- FIX: Track if active instruments were intentionally dropped ---
+        # --- MODIFIED: Track if we actually generated any evidence ---
+        any_notional_evidence_generated = False
+
+        # --- NEW: Table Generation Logic ---
+        table_generated_for_category = False
+        # If the archetype prefers tables and there are instruments, generate a table instead of individual paragraphs.
+        if (
+            scenario.archetype.prefers_tables
+            and current_year_data
+            and current_year_data["instruments"]
+            and random.random() < 0.7  # 70% chance to generate a table if preferred
+            and random.random() < GENERATION_PROBABILITIES["active_instrument_mention"]
+        ):  # type: ignore
+            table_builder = DerivativeTable(
+                instruments=current_year_data["instruments"],
+                category=CATEGORY_TO_NAME.get(category, ""),
+                yearly_data=yearly_data,
+                reporting_year=reporting_year,
+                reporting_day=reporting_day,
+                reporting_month=reporting_month,
+                currency_symbol=currency_symbol,
+                notional_multiplier=scenario.archetype.notional_multiplier,
+                preferred_negative_format=scenario.archetype.preferred_negative_format,
+                prefer_abbreviated=scenario.number_format_preference,
+                currency_code=currency_code,
+            )
+            # --- MODIFIED: build() now returns remaining instruments ---
+            table_str, table_evidence, remaining_instruments = (
+                table_builder.choose_and_build()
+            )
+            if table_str:
+                # The table string itself is the "paragraph". We also need to generate evidence for the instruments in it.
+                paragraphs.append(table_str)
+                evidence.extend(table_evidence)
+                any_notional_evidence_generated = True
+                # --- NEW: Update the list of instruments to process with the remainder ---
+                table_generated_for_category = True
+                # This allows us to process the rest of the instruments below.
+                current_year_data["instruments"] = remaining_instruments
+
+            # If no table was generated, or if there are remaining instruments,
+            # the code will now continue to the loop below instead of returning.
+
+        if current_year_data and current_year_data["instruments"]:
+            # --- NEW: Randomly decide which active instruments to mention ---
+            # This simulates incomplete disclosure by sometimes omitting an instrument,
+            # but only when `allow_random_drops` is True.
+            instruments_to_mention = current_year_data["instruments"]
+            if allow_random_drops and random.random() < (
+                1 - GENERATION_PROBABILITIES["active_instrument_mention"]
+            ):
+                # Drop a random number of instruments
+                num_to_keep = (
+                    random.randint(0, len(instruments_to_mention) - 1)
+                    if instruments_to_mention
+                    else 0
+                )
+                instruments_to_mention = random.sample(
+                    instruments_to_mention, k=num_to_keep
+                )
+                active_instruments_were_dropped = not instruments_to_mention
+
+            # --- MODIFIED: With a chance, add multiple duplicate instruments to test aliasing and repetition ---
+            if (
+                instruments_to_mention
+                and random.random()
+                < GENERATION_PROBABILITIES["repeat_instrument_mention"]
+            ):
+                # Add 1 to 3 duplicates to test repeated mentions more than twice.
+                num_repeats = random.randint(1, 3)
+                for _ in range(num_repeats):
+                    if not instruments_to_mention:
+                        break  # Safeguard
+                    # Pick a random instrument that is already slated to be mentioned
+                    instrument_to_repeat = random.choice(instruments_to_mention)
+                    # Insert it at a random position in the list
+                    insert_position = random.randint(0, len(instruments_to_mention))
+                    instruments_to_mention.insert(insert_position, instrument_to_repeat)
+
+            for instrument in instruments_to_mention:
+                # --- FIX: Initialize report variables at the top of the loop ---
+                year_to_report = reporting_year
+                notional_to_report = 0
+                sentence_type = "individual"  # Default sentence type
+
+                use_fair_value = random.random() < 0.2
+                # --- FIX: Distinguish between a repeated TYPE and a repeated INSTANCE ---
+                # is_first_repetition is for context ("another swap...")
+                # is_repeated_instance is for aliasing ("the swap...")
+                instrument_core = (instrument.placeholder, instrument.base_type)
+                # --- FIX: Only use "another" on the *first* repetition of a core type ---
+                is_first_repetition = mentioned_instrument_cores[instrument_core] == 1
+                is_repeated_instance = (
+                    instrument.instrument_id in mentioned_instrument_ids
+                )
+
+                value_type = "fair_value" if use_fair_value else "notional"
+                value_to_report = instrument.notional_history.get(reporting_year, 0)
+
+                # --- FIX: Decide whether to use the full name or the alias ---
+                # If we've seen this instrument before, there's a high chance of using its alias.
+                # An alias is only used if this specific instrument INSTANCE has been seen before.
+                use_alias = is_repeated_instance and random.random() < 0.75
+                name_to_use = (
+                    instrument.instrument_alias
+                    if use_alias and instrument.instrument_alias
+                    else instrument.instrument_type
+                )
+
+                # Determine if the instrument is "historical" (existed in a prior year) # type: ignore
+                is_historical = False
+                if prev_year_data:
+                    prev_ids = {i.instrument_id for i in prev_year_data["instruments"]}
+                    if (
+                        instrument.instrument_id in prev_ids
+                        and instrument.instrument_id
+                        not in (current_year_data.get("new_ids", set()))  # type: ignore
+                    ):
+                        is_historical = True
+
+                # --- NEW: Timeline generation for instruments with a long history ---
+                history_length = len(instrument.notional_history)
+                is_long_history_timeline = (
+                    is_historical
+                    and history_length > 1
+                    and random.random()
+                    < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
+                )
+
+                # --- NEW: Use TimelineSentence class for long histories ---
+                if is_long_history_timeline:
+                    timeline_builder = TimelineSentence(
+                        instrument=instrument,
+                        company_name=scenario.company_name,
+                        reporting_year=reporting_year,
+                        currency_symbol=currency_symbol,
+                        preferred_negative_format=scenario.archetype.preferred_negative_format,
+                        currency_code=instrument.currency,
+                        prefer_abbreviated=scenario.number_format_preference,
+                        value_type=value_type,
+                        notional_multiplier=scenario.archetype.notional_multiplier,
+                    )
+                    timeline_paragraph, timeline_evidence = timeline_builder.build()
+
+                    if timeline_paragraph:
+                        paragraphs.append(timeline_paragraph)
+                        evidence.append(timeline_evidence)
+                        any_notional_evidence_generated = True
+                        # Mark as mentioned for all future references
+                        mentioned_instrument_ids.add(instrument.instrument_id)
+                        mentioned_instrument_types.add(instrument.instrument_type)
+
+                    continue  # Skip the normal individual sentence generation for this instrument
+
+                # --- Standard sentence generation (current, historical, or inception) ---
+                else:
+                    # --- FIX: Use the 'new_individual' sentence type for new instruments ---
+                    is_new_instrument = instrument.start_year == reporting_year
+                    if is_new_instrument:
+                        # --- NEW: For new instruments, check if there were none prior to use comparative sentence ---
+                        if (
+                            prev_year_data
+                            and prev_year_data["total_notional"] == 0
+                            and random.random() < 0.4
+                        ):
+                            sentence_type = "comparative_no_prior_outstanding"
+                        else:
+                            sentence_type = "new_individual"
+                    elif is_historical:
+                        # --- NEW: Use a weighted choice system for historical instruments ---
+                        options = ["individual", "historical_individual", "comparative"]
+                        weights = [0.45, 0.35, 0.20]  # Base weights
+
+                        # Adjust weights based on archetype and data availability
+                        if (
+                            scenario.archetype.comparative_years == 3
+                            and instrument.notional_history.get(reporting_year - 2, 0)
+                            > 0
+                        ):
+                            weights[2] += 0.25  # Boost comparative chance
+                        elif (
+                            scenario.archetype.comparative_years == 2
+                            and instrument.notional_history.get(reporting_year - 1, 0)
+                            > 0
+                        ):
+                            weights[2] += 0.15  # Boost comparative chance
+
+                        # Normalize weights to sum to 1
+                        total_weight = sum(weights)
+                        normalized_weights = [w / total_weight for w in weights]
+
+                        sentence_type = random.choices(
+                            options, weights=normalized_weights, k=1
+                        )[0]
+
+                        # If historical_individual is chosen, set up its specific data
+                        if sentence_type == "historical_individual":
+                            # 50% chance to talk about the inception year vs. a random past year
+                            if (
+                                random.random() < 0.5
+                                and instrument.start_year in instrument.notional_history
+                            ):
+                                year_to_report = instrument.start_year
+                                notional_to_report = instrument.notional_history[
+                                    instrument.start_year
+                                ]
+                            else:
+                                past_years = [
+                                    y
+                                    for y in instrument.notional_history.keys()
+                                    if y < reporting_year
+                                ]
+                                if past_years:
+                                    year_to_report = random.choice(past_years)
+                                    notional_to_report = instrument.notional_history[
+                                        year_to_report
+                                    ]
+                                else:
+                                    # Fallback if no past years exist (should be rare for historical)
+                                    year_to_report = reporting_year
+                                    notional_to_report = value_to_report
+                    else:
+                        sentence_type = "individual"
+
+                    # If the sentence type wasn't a special historical case, set defaults
+                    if sentence_type not in ["historical_individual"]:
+                        year_to_report = reporting_year
+                        notional_to_report = value_to_report
+
+                    individual_sentence_obj = NotionalSentence(
+                        swap_type=name_to_use,
+                        year=year_to_report,
+                        notional=notional_to_report,
+                        currency_symbol=instrument.symbol,
+                        currency_code=instrument.currency,
+                        company_name=scenario.company_name,
+                        sentence_type=sentence_type,  # type: ignore
+                        prev_notional=instrument.notional_history.get(reporting_year - 1, 0) if sentence_type == "comparative" else None,  # type: ignore
+                        prev2_notional=instrument.notional_history.get(reporting_year - 2, 0) if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None,  # type: ignore
+                        prev_year=reporting_year - 1 if sentence_type == "comparative" else None,  # type: ignore
+                        prev2_year=reporting_year - 2 if sentence_type == "comparative" and scenario.archetype.comparative_years == 3 else None,  # type: ignore
+                        maturity_year=instrument.maturity_year,
+                        prefer_abbreviated=scenario.number_format_preference,
+                        zero_notional_format=scenario.archetype.zero_notional_format,
+                        category=category,  # type: ignore
+                        reporting_year=reporting_year,
+                        value_type=value_type,
+                        is_repeated_mention=is_first_repetition,  # Pass the check for contextual phrasing
+                        preferred_negative_format=scenario.archetype.preferred_negative_format,
+                        instrument=instrument,  # Pass the full instrument object
+                        currency_symbol2=currency_symbol, # edge cases when commodity uses a unit
+                        notional_multiplier=scenario.archetype.notional_multiplier,
+                    )
+                    individual_sentence_text, evidence_obj = (
+                        individual_sentence_obj.build()
+                    )
+                    evidence_obj.instrument_id = (
+                        instrument.instrument_id  # type: ignore
+                    )
+                    paragraphs.append(individual_sentence_text)
+                    evidence.append(evidence_obj)
+                    any_notional_evidence_generated = True
+                    mentioned_instrument_ids.add(
+                        instrument.instrument_id
+                    )  # Mark instance as mentioned
+                    mentioned_instrument_types.add(
+                        instrument.instrument_type
+                    )  # Mark as mentioned
+                    mentioned_instrument_cores[
+                        instrument_core
+                    ] += 1  # Increment the count for this core
+
+        # Describe terminated instruments by looking at the previous year's data
+        # Describe terminated instruments by checking for zero notional in current year
+        # Describe terminated instruments by looking at the previous year's data
+        # Describe terminated instruments by checking for zero notional in current year
+        if current_year_data and prev_year_data and not active_instruments_were_dropped:
+            # Find instruments that have zero notional this year but had value last year
+            terminated_instruments = [
+                inst
+                for inst in current_year_data["instruments"]
+                if inst.notional_history.get(scenario.reporting_year, 0) == 0
+                and (inst.notional_history.get(scenario.reporting_year - 1, 0) > 0)
+            ]
+
+            # --- NEW: Randomly decide which terminated instruments to mention ---
+            terminated_to_mention = terminated_instruments
+            if allow_random_drops:
+                terminated_to_mention = [
+                    inst
+                    for inst in terminated_instruments
+                    if random.random()
+                    < GENERATION_PROBABILITIES["terminated_instrument_mention"]
+                ]
+
+            for instrument in terminated_to_mention:
+
+                # --- NEW: Give expired hedges a chance to use a timeline for more variety ---
+                history_length = len(instrument.notional_history)
+                use_timeline_for_terminated = (
+                    history_length > 1
+                    and random.random()
+                    < GENERATION_PROBABILITIES["use_timeline_for_long_history"]
+                )
+
+                instrument_core_terminated = (
+                    instrument.placeholder,
+                    instrument.base_type,
+                )
+                is_first_repetition_terminated = (
+                    mentioned_instrument_cores[instrument_core_terminated] == 1
+                )
+                is_repeated_instance_terminated = (
+                    instrument.instrument_id in mentioned_instrument_ids
+                )
+
+                if use_timeline_for_terminated:
+                    timeline_builder = TimelineSentence(
+                        instrument=instrument,
+                        company_name=scenario.company_name,
+                        reporting_year=reporting_year,
+                        currency_symbol=currency_symbol,
+                        preferred_negative_format=scenario.archetype.preferred_negative_format,
+                        currency_code=currency_code,
+                        prefer_abbreviated=scenario.number_format_preference,
+                        notional_multiplier=scenario.archetype.notional_multiplier,
+                        value_type="notional",  # Keep it simple for terminated timelines
+                    )
+                    timeline_paragraph, timeline_evidence = timeline_builder.build()
+                    if timeline_paragraph:
+                        paragraphs.append(timeline_paragraph)
+                        evidence.append(timeline_evidence)
+                        any_notional_evidence_generated = True
+                        mentioned_instrument_ids.add(instrument.instrument_id)
+                        mentioned_instrument_types.add(instrument.instrument_type)
+                        mentioned_instrument_cores[instrument_core_terminated] += 1
+                else:
+                    # --- NEW: Use a weighted choice for describing terminated instruments ---
+                    options = [
+                        "terminated_individual",
+                        "comparative_no_outstanding",
+                        "comparative",
+                    ]
+                    weights = [0.50, 0.35, 0.15]  # Base weights
+
+                    # A 'comparative' sentence is only possible if there are at least two prior years of history.
+                    can_do_comparative = len(instrument.notional_history) >= 2
+                    if not can_do_comparative:
+                        # Remove 'comparative' option and re-normalize weights
+                        options.pop()
+                        weights.pop()
+                        total_weight = sum(weights)
+                        weights = [w / total_weight for w in weights]
+
+                    sentence_type_to_use = random.choices(
+                        options, weights=weights, k=1
+                    )[0]
+
+                    # Set up data based on the chosen sentence type
+                    notional_to_report = 0
+                    if sentence_type_to_use == "terminated_individual":
+                        # The 'notional' is the final value from the prior year.
+                        notional_to_report = (
+                            instrument.maturity_value
+                            or instrument.notional_history.get(reporting_year - 1, 0)
+                        )
+                    elif sentence_type_to_use == "comparative_no_outstanding":
+                        # The 'notional' is the prior year's value, which will be compared against zero.
+                        notional_to_report = instrument.notional_history.get(
+                            reporting_year - 1, 0
+                        )
+                    elif sentence_type_to_use == "comparative":
+                        # The 'notional' is the value from reporting_year - 1.
+                        # The 'prev_notional' will be from reporting_year - 2.
+                        notional_to_report = instrument.notional_history.get(
+                            reporting_year - 1, 0
+                        )
+
+                    use_alias_terminated = (
+                        is_repeated_instance_terminated and random.random() < 0.75
+                    )
+                    name_to_use_terminated = (
+                        instrument.instrument_alias
+                        if use_alias_terminated and instrument.instrument_alias
+                        else instrument.instrument_type
+                    )
+
+                    terminated_instrument_obj = NotionalSentence(
+                        swap_type=name_to_use_terminated,
+                        year=reporting_year,
+                        notional=notional_to_report,
+                        currency_symbol=instrument.symbol,
+                        currency_code=instrument.currency,
+                        company_name=scenario.company_name,
+                        sentence_type=sentence_type_to_use,  # type: ignore
+                        # Pass prior year data only for the 'comparative' type
+                        prev_notional=(
+                            instrument.notional_history.get(reporting_year - 2, 0)
+                            if sentence_type_to_use == "comparative"
+                            else None
+                        ),
+                        prev_year=(
+                            reporting_year - 1
+                            if sentence_type_to_use == "comparative"
+                            else None
+                        ),
+                        prev2_notional=(
+                            instrument.notional_history.get(reporting_year - 3, 0)
+                            if sentence_type_to_use == "comparative"
+                            else None
+                        ),
+                        prev2_year=(
+                            reporting_year - 2
+                            if sentence_type_to_use == "comparative"
+                            else None
+                        ),
+                        maturity_year=instrument.maturity_year,
+                        prefer_abbreviated=scenario.number_format_preference,
+                        zero_notional_format=scenario.archetype.zero_notional_format,
+                        category=category,  # type: ignore
+                        reporting_year=reporting_year,
+                        value_type="notional",
+                        is_repeated_mention=is_first_repetition_terminated,
+                        preferred_negative_format=scenario.archetype.preferred_negative_format,
+                        instrument=instrument,
+                        notional_multiplier=scenario.archetype.notional_multiplier,
+                    )
+                    terminated_instrument_text, evidence_obj = (
+                        terminated_instrument_obj.build()
+                    )
+                    evidence_obj.instrument_id = instrument.instrument_id
+                    paragraphs.append(terminated_instrument_text)
+                    mentioned_instrument_ids.add(instrument.instrument_id)
+                    mentioned_instrument_types.add(instrument.instrument_type)
+                    mentioned_instrument_cores[instrument_core_terminated] += 1
+                    any_notional_evidence_generated = True
+                    evidence.append(evidence_obj)
+
+        # If there are no current instruments, check for a comparative no-outstanding sentence
+        if (
+            not (current_year_data and current_year_data["instruments"])
+            and not table_generated_for_category
+            and prev_year_data
+            and prev_year_data["total_notional"] > 0
+            and not active_instruments_were_dropped
+            and random.random()
+            < GENERATION_PROBABILITIES["terminated_instrument_mention"]
+        ):
+            instrument_type = (
+                prev_year_data["instrument_types"][0]
+                if prev_year_data["instrument_types"]
+                else "derivative instrument"
+            )
+            # Create specific_details for the comparative sentence
+            comparative_no_outstanding_obj = NotionalSentence(
+                swap_type=instrument_type,
+                year=reporting_year,
+                notional=prev_year_data[
+                    "total_notional"
+                ],  # Pass the prior year notional for the template
+                sentence_type="comparative_no_outstanding",  # type: ignore
+                category=category,  # type: ignore
+                reporting_year=reporting_year,
+                preferred_negative_format=scenario.archetype.preferred_negative_format,
+                prefer_abbreviated=scenario.number_format_preference,
+                notional_multiplier=scenario.archetype.notional_multiplier,
+            )
+            no_instrument_text, evidence_obj = comparative_no_outstanding_obj.build()
+            paragraphs.append(no_instrument_text)
+            any_notional_evidence_generated = True
+            evidence.append(evidence_obj)
+
+        # Return the list of paragraphs instead of a flat list of sentences
+        # --- NEW: If no notional evidence was generated but mitigation claimed "current",
+        # remove the mitigation evidence or mark it as uncertain ---
+        if allow_random_drops and not any_notional_evidence_generated:
+            # Find and remove or modify any "current" mitigation evidence for this category
+            evidence = [
+                ev
+                for ev in evidence
+                if not (
+                    isinstance(ev, MitigationEvidence)
+                    and ev.category == category
+                    and ev.usage_status == "current"
+                )
+            ]
+        sentences = paragraphs
+
+    return sentences, evidence, used_name  # type: ignore
+
+
+def _generate_narrative_accounting(
+    scenario: GenerationScenario,
+) -> Tuple[List[str], List[BaseNarrativeEvidence]]:
+    """Generates sentences about accounting treatment and hedge effectiveness."""
+    # --- MODIFIED: This function will now return paragraphs instead of sentences ---
+    all_paragraphs: List[str] = []  # Each string in this list will be a full paragraph
+
+    # --- NEW: Probabilistically drop the entire accounting policy section ---
+    if random.random() < DROP_PROBABILITIES["accounting_policy"]:
+        # NEW: Log that the section was dropped.
+        # Since sentences are generated inside the loop, we can't log them here.
+        # We'll just log a general message.
+        DROPPED_SENTENCES.append("[ACCOUNTING_POLICY_DROP] Entire accounting policy section was dropped.")
+        return [], []
+
+
+    all_evidence: List[BaseNarrativeEvidence] = []  # type: ignore
+    mentioned_policies = set()
+    
+    # --- MODIFIED: Generate accounting policies for each category with a policy, even if no instruments ---
+    if scenario.policy and scenario.policy.category_policies:
+        active_categories = {
+            inst.category
+            for inst in scenario.instruments
+            if inst.notional_history.get(scenario.reporting_year, 0) > 0
+        }
+        # --- NEW: For Policy-Only scenarios, we need to generate policies for categories that *could* have them.
+        policy_categories = {p.category for p in scenario.policy.category_policies}
+
+        policies_to_generate = [
+            p for p in scenario.policy.category_policies if p.category in (active_categories or policy_categories)
+        ]
+
+        # --- FIX: Create a separate paragraph for each category's policies ---
+        is_first_policy_run = True
+        for cat_policy in policies_to_generate:
+            category_sentences = []
+            instruments_in_cat = [i for i in scenario.instruments if i.category == cat_policy.category]
+            if instruments_in_cat:
+                swap_type_desc = _get_smart_instrument_description(instruments_in_cat, cat_policy.category)
+            else: # For policy-only scenarios, generate a plausible name
+                _, _, _, _, name, _ = _generate_instrument_name(cat_policy.category)
+                swap_type_desc = f"{name}s"
+
+            policy_sentence_builder = AccountingPolicySentence(
+                cat_policy=cat_policy,
+                company_name=scenario.company_name,
+                already_mentioned_policies=mentioned_policies,
+                swap_type_override=swap_type_desc,
+                # --- NEW: Pass the flag to control general vs. specific sentences ---
+                generate_specifics_only=not is_first_policy_run
+            )
+            generated_items = policy_sentence_builder.build()
+            for sentence, evidence in generated_items:
+                category_sentences.append(sentence)
+                all_evidence.append(evidence) # type: ignore
+                if isinstance(evidence, PolicyEvidence):
+                    mentioned_policies.add(evidence.policy_type)
+            
+            # Join the sentences for this specific category into a single paragraph
+            if category_sentences:
+                # After the first successful run, all subsequent runs should be specifics-only
+                is_first_policy_run = False
+                all_paragraphs.append(" ".join(s for s in category_sentences))
+
+    return all_paragraphs, all_evidence
+
+
+def _generate_financial_statement_tables(scenario: GenerationScenario) -> List[str]:
+    """
+    With a certain probability, generates a random financial statement table (Balance Sheet,
+    Income Statement, or Cash Flow) to act as realistic "noise" in the document.
+    """
+    paragraphs = []
+    # Add a probability to generate these tables. Let's say 25% chance.
+    if random.random() < GENERATION_PROBABILITIES["financial_statements"]:
+        currency_symbol, _, _ = _get_currency_and_unit_details(scenario)
+
+        # Choose one of the statement types to generate
+        builder_class = random.choice([
+            BalanceSheetTableBuilder,
+            IncomeStatementTableBuilder,
+            CashFlowStatementTableBuilder
+        ])
+
+        builder = builder_class(
+            year=scenario.reporting_year,
+            month=scenario.reporting_month,
+            day=scenario.reporting_day,
+            currency_symbol=currency_symbol,
+            notional_multiplier=scenario.archetype.notional_multiplier,
+            prefer_abbreviated=scenario.archetype.prefers_abbreviated_numbers,
+            preferred_negative_format=scenario.archetype.preferred_negative_format,
+        )
+
+        table_str = builder.build()
+        if table_str:
+            paragraphs.append(table_str)
+
+    return paragraphs
+
+
+def generate_narrative_from_scenario(
+    scenario: GenerationScenario,
+    allow_random_drops: bool = False,
+) -> Tuple[str, List[BaseNarrativeEvidence]]:
+    """
+    Constructs a coherent, multi-paragraph narrative from a scenario object.
+    This function will replace the old `generate_hedge_paragraph`.
+    """
+    # --- NEW: Create lists for logical report sections ---
+    forward_looking_section = []
+    business_section = []
+    item_7a_sections = []
+    financial_statement_notes_section = []
+    financial_statements_section = []
+
+    all_evidence = []
+
+    # =========================================================================
+    # (Unchanged)
+    # AGGREGATION: Summarize instruments by category and year.
+    # =========================================================================
+    aggregated_data: Dict[str, Dict[int, Dict]] = {}
+    for instrument in scenario.instruments:  # type: ignore
+        cat = instrument.category  # type: ignore
+        for year, notional in instrument.notional_history.items():  # type: ignore
+            if cat not in aggregated_data:
+                aggregated_data[cat] = {}
+
+            if year not in aggregated_data[cat]:
+                aggregated_data[cat][year] = {
+                    "total_notional": 0,
+                    "count": 0,
+                    "instrument_types": [],
+                    "instruments": [],
+                }
+
+            aggregated_data[cat][year]["total_notional"] += notional
+            aggregated_data[cat][year]["count"] += 1
+            aggregated_data[cat][year]["instrument_types"].append(instrument.instrument_type)  # type: ignore
+            aggregated_data[cat][year]["instruments"].append(instrument)
+
+    # =========================================================================
+    # NARRATIVE CONSTRUCTION: Build the story section by section.
+    # =========================================================================
+    mentioned_instrument_types: Set[str] = set()  # Tracks full type names
+    mentioned_instrument_ids: Set[int] = set()  # Tracks specific instrument IDs
+
+    # --- NEW: Section 1: Forward-Looking Statements & Company Description ---
+    if random.random() < GENERATION_PROBABILITIES["forward_looking_statement"]:
+        forward_looking_builder = ForwardLookingSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+        )
+        forward_looking_paragraph, forward_looking_evidence = (
+            forward_looking_builder.build()
+        )
+        if forward_looking_paragraph:
+            if DEBUG:
+                forward_looking_section.append("Forward-Looking Statements")
+            forward_looking_section.append(forward_looking_paragraph)
+            all_evidence.append(forward_looking_evidence)
+
+    if random.random() < GENERATION_PROBABILITIES["company_description"]:
+        description_builder = CompanyDescriptionSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+        )
+        description_paragraph, description_evidence = description_builder.build()
+        if description_paragraph:
+            if DEBUG:
+                business_section.append("Business")
+            business_section.append(description_paragraph)
+            all_evidence.append(description_evidence)
+
+    # --- NEW: Section 2: Item 7A - Market Risk Disclosures (High-Level Summary) ---
+    archetype_exposures = scenario.archetype.get_exposure_counts()
+    all_relevant_categories = {
+        "IR": archetype_exposures["debt"] > 0,
+        "FX": archetype_exposures["fx"] > 0,
+        "CP": archetype_exposures["commodity"] > 0,
+        "EQ": archetype_exposures["equity"] > 0,
+        "GEN": archetype_exposures["generic"] > 0,
+    }
+    has_any_risk_to_discuss = any(
+        cat in aggregated_data or all_relevant_categories.get(cat, False)
+        for cat in ["IR", "FX", "CP", "EQ", "GEN"]
+    )
+    if has_any_risk_to_discuss:
+        if DEBUG:
+            item_7a_sections.append(
+                "Item 7A. Quantitative and Qualitative Disclosures About Market Risk"
+            )
+
+    if allow_random_drops and random.random() < DROP_PROBABILITIES["general_policy"]:
+        DROPPED_SENTENCES.append(
+            "[GENERAL_POLICY_DROP] General policy section was dropped."
+        )
+    else:
+        policy_sentences, policy_evidence = _generate_narrative_policy(scenario)
+        if policy_sentences:
+            item_7a_sections.append(" ".join(s for s in policy_sentences if s))
+            all_evidence.extend(policy_evidence)
+
+    category_order = ["IR", "FX", "CP", "EQ", "GEN"]
+    random.shuffle(category_order)
+
+    if allow_random_drops and random.random() < DROP_PROBABILITIES["summary_7a"]:
+        DROPPED_SENTENCES.append(
+            "[7A_SUMMARY_DROP] Entire Item 7A summary section was dropped."
+        )
+        for category in category_order:
+            if category in aggregated_data or all_relevant_categories.get(
+                category, False
+            ):
+                _, summary_evidence, _ = _generate_category_narrative(
+                    category,
+                    aggregated_data.get(category, {}),
+                    scenario,
+                    part="summary",
+                    suppress_text_output=True,  # New flag to only generate evidence
+                )
+                all_evidence.extend(summary_evidence)
+    else:
+        for category in category_order:
+            has_instruments = category in aggregated_data
+            has_exposure = all_relevant_categories.get(category, False)
+
+            if has_instruments or (has_exposure and category != "GEN"):
+                yearly_data_for_cat = aggregated_data.get(category, {})
+                summary_sentences, summary_evidence, _ = _generate_category_narrative(
+                    category,
+                    yearly_data_for_cat,
+                    scenario,
+                    part="summary",
+                    allow_random_drops=allow_random_drops,
+                )
+                item_7a_sections.append(" ".join(s for s in summary_sentences if s))
+                all_evidence.extend(summary_evidence)
+
+    # --- NEW: Section 3: Notes to Financial Statements (Detailed Disclosures) ---
+    has_any_details = any(
+        cat in aggregated_data for cat in ["IR", "FX", "CP", "EQ", "GEN"]
+    )
+    if has_any_details or scenario.accounting_updates:
+        if DEBUG:
+            financial_statement_notes_section.append(
+                "Notes to Consolidated Financial Statements"
+            )
+
+    debt_paragraphs, debt_evidence = _generate_debt_narrative(scenario)
+    if debt_paragraphs:
+        financial_statement_notes_section.extend(debt_paragraphs)
+        all_evidence.extend(debt_evidence)
+
+    fx_paragraphs, fx_evidence = _generate_fx_narrative(scenario)
+    if fx_paragraphs:
+        financial_statement_notes_section.extend(fx_paragraphs)
+        all_evidence.extend(fx_evidence)
+
+    cp_paragraphs, cp_evidence = _generate_cp_narrative(scenario)
+    if cp_paragraphs:
+        financial_statement_notes_section.extend(cp_paragraphs)
+        all_evidence.extend(cp_evidence)
+
+    eq_paragraphs, eq_evidence = _generate_eq_narrative(scenario)
+    if eq_paragraphs:
+        financial_statement_notes_section.extend(eq_paragraphs)
+        all_evidence.extend(eq_evidence)
+
+    if has_any_details:
+        if DEBUG:
+            financial_statement_notes_section.append(
+                "Note X: Derivative Financial Instruments"
+            )
+
+    # Detailed instrument paragraphs
+    for category in category_order:
+        if category in aggregated_data:
+            yearly_data_for_cat = aggregated_data.get(category, {})
+            detail_sentences, detail_evidence, _ = _generate_category_narrative(
+                category,
+                yearly_data_for_cat,
+                scenario,
+                part="details",
+                mentioned_instrument_types=mentioned_instrument_types,
+                mentioned_instrument_ids=mentioned_instrument_ids,
+                allow_random_drops=allow_random_drops,
+            )
+            category_details_paragraph = "\n\n".join(s for s in detail_sentences if s)
+            financial_statement_notes_section.append(category_details_paragraph)
+            all_evidence.extend(detail_evidence)
+
+    # Additional tables (AOCI, Maturity, etc.)
+    if (
+        has_any_details
+        and scenario.archetype.prefers_tables
+        and not allow_random_drops
+        and random.random() < GENERATION_PROBABILITIES["additional_table"]
+    ):
+        currency_symbol, _, currency_code = _get_currency_and_unit_details(scenario)
+        cats_with_instruments = list(aggregated_data.keys())
+        if cats_with_instruments:
+            num_tables_to_gen = random.randint(1, len(cats_with_instruments))
+            cats_for_tables = random.sample(cats_with_instruments, num_tables_to_gen)
+            for category in cats_for_tables:
+                all_instruments_for_cat = [
+                    inst for inst in scenario.instruments if inst.category == category
+                ]
+                table_builder = DerivativeTable(
+                    instruments=all_instruments_for_cat,
+                    category=CATEGORY_TO_NAME.get(category, ""),
+                    yearly_data=aggregated_data.get(category, {}),
+                    reporting_year=scenario.reporting_year,
+                    reporting_day=scenario.reporting_day,
+                    reporting_month=scenario.reporting_month,
+                    currency_symbol=currency_symbol,
+                    notional_multiplier=scenario.archetype.notional_multiplier,
+                    prefer_abbreviated=scenario.number_format_preference,
+                    currency_code=currency_code,
+                    preferred_negative_format=scenario.archetype.preferred_negative_format,
+                )
+                table_str, table_evidence, _ = table_builder.choose_and_build(
+                    additional=True
+                )
+                if table_str:
+                    financial_statement_notes_section.append(table_str)
+                    all_evidence.extend(table_evidence)
+
+    # Accounting policies for derivatives
+    accounting_sentences, accounting_evidence = _generate_narrative_accounting(scenario)
+    if accounting_sentences:
+        accounting_section_paragraph = "\n\n".join(s for s in accounting_sentences if s)
+        financial_statement_notes_section.append(accounting_section_paragraph)
+        all_evidence.extend(accounting_evidence)
+
+        if random.random() < GENERATION_PROBABILITIES["add_legalistic_definition"]:
+            definition_builder = HedgeDefinitionSentence()
+            definition_sentence = definition_builder.build()
+            financial_statement_notes_section.append(definition_sentence)
+
+    # Accounting standard updates
+    if scenario.accounting_updates:
+        if DEBUG:
+            financial_statement_notes_section.append(
+                "Note Y: Recently Issued Accounting Pronouncements"
+            )
+        for update in scenario.accounting_updates:
+            update_builder = AccountingStandardUpdateSentence(
+                company_name=scenario.company_name,
+                update=update,
+                year=scenario.reporting_year,
+                month=scenario.reporting_month,
+                day=scenario.reporting_day,
+            )
+            update_paragraph, update_evidence = update_builder.build()
+            financial_statement_notes_section.append(update_paragraph)
+            all_evidence.extend(update_evidence)
+
+        if random.random() < GENERATION_PROBABILITIES["add_other_pronouncements"]:
+            from defs.template_definitions import (
+                shared_recent_pronouncement_templates,
+                other_standards,
+                other_topics,
+                shared_issuers,
+            )
+
+            pronouncement_template = random.choice(
+                shared_recent_pronouncement_templates
+            )
+            pronouncement_sentence = pronouncement_template.format(
+                standard=random.choice(other_standards),
+                topic=random.choice(other_topics),
+                issuer=random.choice(shared_issuers),
+                company=scenario.company_name,
+                month=random.choice(months),
+                year=scenario.reporting_year,
+            )
+            financial_statement_notes_section.append(pronouncement_sentence)
+
+    # Legal context
+    if random.random() < GENERATION_PROBABILITIES["legal_context"]:
+        legal_context_builder = LegalContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+            currency_symbol=_get_currency_and_unit_details(scenario)[0],
+            currency_code=_get_currency_and_unit_details(scenario)[2],
+            prefer_abbreviated=scenario.number_format_preference,
+        )
+        legal_paragraph, legal_evidence = legal_context_builder.build()
+        if legal_paragraph:
+            if DEBUG:
+                financial_statement_notes_section.append(
+                    "Note Z: Commitments and Contingencies"
+                )
+            financial_statement_notes_section.append(legal_paragraph)
+            all_evidence.append(legal_evidence)
+
+    # Ownership context
+    if random.random() < GENERATION_PROBABILITIES["ownership_context"]:
+        ownership_context_builder = OwnershipContextSentence(
+            company_name=scenario.company_name,
+            reporting_year=scenario.reporting_year,
+            reporting_month=scenario.reporting_month,
+            reporting_day=scenario.reporting_day,
+        )
+        ownership_paragraph, ownership_evidence = ownership_context_builder.build()
+        if ownership_paragraph:
+            if DEBUG:
+                financial_statement_notes_section.append("Note W: Security Ownership")
+            financial_statement_notes_section.append(ownership_paragraph)
+            all_evidence.append(ownership_evidence)
+
+    # --- NEW: Section 4: Financial Statement Tables ---
+    financial_statement_paragraphs = _generate_financial_statement_tables(scenario)
+    if financial_statement_paragraphs:
+        if DEBUG:
+            financial_statements_section.append("Consolidated Financial Statements")
+        financial_statements_section.extend(financial_statement_paragraphs)
+
+    # =========================================================================
+    # FINAL ASSEMBLY: Join sections with newlines for a prettier output.
+    # =========================================================================
+    # --- NEW: Handle Non-Financial Noise Scenarios ---
+    if scenario.unrelated_text:
+        # For these scenarios, the narrative is just the unrelated text.
+        return scenario.unrelated_text.text, []
+
+    narrative_sections = []
+    narrative_sections.extend(s for s in forward_looking_section if s)
+    narrative_sections.extend(s for s in business_section if s)
+    narrative_sections.extend(s for s in financial_statements_section if s)
+    narrative_sections.extend(s for s in item_7a_sections if s)
+    narrative_sections.extend(s for s in financial_statement_notes_section if s)
+
+    narrative = "\n\n".join(narrative_sections)
+    narrative = _cleanup_counter(narrative)
+    narrative = re.sub(r"\n{3,}", "\n\n", narrative)
+
+    full_narrative = (
+        f"{narrative}"
+    )
+
+    # --- (Unchanged) Post-process evidence to remove redundant ExposureEvidence ---
+    final_evidence = []
+    categories_with_instruments = {
+        ev.category
+        for ev in all_evidence
+        if isinstance(ev, (NotionalEvidence, MitigationEvidence))
+    }
+    added_exposure_categories = set()
+
+    for ev in all_evidence:
+        if isinstance(ev, ExposureEvidence):
+            if (
+                ev.category not in categories_with_instruments
+                and ev.category not in added_exposure_categories
+            ):
+                final_evidence.append(ev)
+                added_exposure_categories.add(ev.category)
+        else:
+            final_evidence.append(ev)
+
+    # --- (Unchanged) Post-generation warnings ---
+    warnings = []
+    if "None" in full_narrative:
+        warnings.append("The word 'none' was found.")
+    if re.search(r"[\{\}\[\]]", full_narrative):
+        warnings.append("Leftover template characters like '{}' or '[]' were found.")
+    if warnings:
+        full_narrative += f"\n\n[WARNING: Please review for potential ambiguity or unintended implications. Issues found: {'; '.join(warnings)}]"
+    return full_narrative, final_evidence
+
+
+def _generate_debug_output(scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]) -> str:
+    global DEBUG
+    if not DEBUG:
+        return ""
+    """
+    Generates a formatted string containing debug information about the scenario,
+    including archetype, instruments, and their hedged items (exposures).
+    """
+    debug_lines = ["\n\n--- DEBUG INFO ---"]
+    debug_lines.append(f"Archetype: {scenario.archetype.name}")
+    # --- NEW: Add exposure counts to debug output ---
+    exposure_counts = scenario.archetype.get_exposure_counts()
+    debug_lines.append(f"Exposures: Debt({exposure_counts['debt']}), "
+                       f"FX({exposure_counts['fx']}), "
+                       f"Commodity({exposure_counts['commodity']}), "
+                       f"Equity({exposure_counts['equity']})")
+    debug_lines.append(f"Reporting Year: {scenario.reporting_year}")
+    debug_lines.append(f"Total Instruments: {len(scenario.instruments)}")
+    debug_lines.append("=" * 20)
+
+    # Create a set of all hedged item IDs to identify unhedged exposures
+    hedged_item_ids = {
+        inst.hedged_item.hedged_item_id
+        for inst in scenario.instruments
+        if inst.hedged_item
+    }
+
+    for i, inst in enumerate(scenario.instruments):
+        debug_lines.append(f"\nInstrument {i+1}/{len(scenario.instruments)} (ID: {inst.instrument_id})")
+        debug_lines.append(f"  - Type: {inst.instrument_type}")
+        debug_lines.append(f"  - Category: {inst.category}")
+        debug_lines.append(f"  - Currency: {inst.currency}")
+        debug_lines.append(f"  - Start: {inst.start_month} {inst.start_year}")
+        debug_lines.append(f"  - Maturity: {inst.maturity_year}")
+        debug_lines.append(f"  - Maturity Value: {inst.maturity_value}")
+        debug_lines.append(f"  - Notional History: {inst.notional_history}")
+
+        if inst.hedged_item:
+            hedged_item = inst.hedged_item
+            debug_lines.append("  - Hedged Item (Exposure):")
+            debug_lines.append(f"    - ID: {hedged_item.hedged_item_id}")
+            debug_lines.append(f"    - Type: {type(hedged_item).__name__}")
+            # Convert hedged item to dict for clean printing, excluding the ID which is already shown
+            details = hedged_item.to_dict()
+            if details:
+                details.pop("hedged_item_id", None)
+                debug_lines.append(f"    - Details: {json.dumps(details, indent=4)}")
+        else:
+            debug_lines.append("  - Hedged Item (Exposure): None")
+
+    # --- NEW: Add evidence objects to debug output ---
+    debug_lines.append("\n" + "=" * 20)
+    debug_lines.append(f"\nEvidence Objects ({len(evidence)}):")
+    for i, ev in enumerate(evidence):
+        # Use asdict for a clean, serializable representation
+        evidence_dict = asdict(ev)
+        debug_lines.append(f"  - Evidence {i+1}:")
+        # Pretty-print the dictionary
+        debug_lines.append(f"    {json.dumps(evidence_dict, indent=6)}")
+
+    # --- NEW: Add dropped sentences to debug output ---
+    if DROPPED_SENTENCES:
+        debug_lines.append("\n" + "=" * 20)
+        debug_lines.append(f"\nDropped Sentences/Sections ({len(DROPPED_SENTENCES)}):")
+        for i, dropped in enumerate(DROPPED_SENTENCES):
+            debug_lines.append(f"  {i+1}. {dropped}")
+        DROPPED_SENTENCES.clear() # Clear the list for the next run
+
+    return "\n".join(debug_lines)
+
+
+def _generate_analysis_summary(
+    scenario: GenerationScenario, evidence: List[BaseNarrativeEvidence]
+) -> str:
+    """Dynamically generates a more detailed analysis summary based on the final mitigation map."""
+    final_mitigation_map = generate_json_from_scenario(scenario, evidence, return_mitigation_map_only=True) # type: ignore
+
+    # Group categories by their status
+    current_cats = {
+        cat for cat, status in final_mitigation_map.items() if status == "current"
+    }
+    historical_cats = {
+        cat for cat, status in final_mitigation_map.items() if status == "historical"
+    }
+    policy_only_cats = {
+        cat for cat, status in final_mitigation_map.items() if status == "policy_only"
+    }
+    never_cats = {
+        cat for cat, status in final_mitigation_map.items() if status == "never"
+    }
+
+    summary_parts = []
+
+    # 1. Describe currently active derivatives
+    if current_cats:
+        cat_str = " and ".join(sorted(list(current_cats)))
+        summary_parts.append(f"actively utilizes {cat_str} derivatives")
+
+    # 2. Describe historical use
+    if historical_cats:
+        cat_str = " and ".join(sorted(list(historical_cats)))
+        summary_parts.append(f"has historically used {cat_str} derivatives")
+
+    # 3. Describe policy-only mentions
+    if policy_only_cats:
+        cat_str = " and ".join(sorted(list(policy_only_cats)))
+        summary_parts.append(f"maintains policies for {cat_str} derivatives without evidence of active use")
+
+    # 4. Describe explicit non-use
+    if never_cats:
+        cat_str = " and ".join(sorted(list(never_cats)))
+        summary_parts.append(f"explicitly states it does not use {cat_str} derivatives")
+
+    # Assemble the final sentence
+    if not summary_parts:
+        return "The company does not appear to use or mention derivative instruments for hedging."
+
+    # Join the parts into a cohesive sentence
+    return f"The company's risk management strategy involves the following: {'; '.join(summary_parts)}."
+
+
+def generate_exposure_map(
+    scenario: "GenerationScenario", evidence: List["BaseNarrativeEvidence"]
+) -> Dict[str, bool]:
+    """Generate exposure map based on instruments, context, and mitigation evidence."""
+    exposure_map = {cat: False for cat in DERIVATIVE_CATEGORIES}
+
+    # Set exposure to true if any instrument exists for the category
+    for inst in scenario.instruments:
+        if inst.category in exposure_map:
+            exposure_map[inst.category] = True
+
+    # Set exposure to true if there is explicit ExposureEvidence or MitigationEvidence
+    for ev in evidence:
+        if isinstance(ev, (ExposureEvidence, MitigationEvidence)):
+            if ev.category in exposure_map:
+                exposure_map[ev.category] = True
+
+    return exposure_map
+
+
+def generate_mitigation_map(
+    evidence: List["BaseNarrativeEvidence"],
+    exposure_map: Dict[str, bool],
+    scenario: "GenerationScenario",
+) -> Tuple[Dict[str, str], Dict[str, bool]]:
+    """Generate mitigation map with status: current, historical, never, unknown, none, likely, or policy_only."""
+    mitigation_map = {
+        cat: "unknown" if exposure_map.get(cat) else "none"
+        for cat in DERIVATIVE_CATEGORIES
+    }
+
+    implied_evidence_map = {cat: False for cat in DERIVATIVE_CATEGORIES}
+
+    # Track which categories have actual notional evidence
+    categories_with_notional = {
+        ev.category
+        for ev in evidence
+        if isinstance(ev, NotionalEvidence)
+        and ((ev.notional and ev.notional > 0) or ev.active_override)
+    }
+
+    # Process mitigation evidence
+    for ev in evidence:
+        if isinstance(ev, MitigationEvidence):
+            status = ev.usage_status
+            category = ev.category
+
+            # If it's already marked as policy_only, don't let a "non_use" statement overwrite it.
+            # This happens when a policy is discussed but then a sentence says "we don't currently use..."
+            if mitigation_map.get(category) == "policy_only" and status == "non_use":
+                continue
+
+            if category in mitigation_map:
+                if ev.is_implied and status == "current":
+                    implied_evidence_map[category] = True
+                    if category in categories_with_notional:
+                        mitigation_map[category] = "current"
+                elif ev.is_implied and status == "historical":
+                    implied_evidence_map[category] = True
+                    mitigation_map[category] = "historical"
+                elif not ev.is_implied:
+                    if status == "current":
+                        mitigation_map[category] = "current"
+                    elif status == "historical":
+                        mitigation_map[category] = "historical"
+                    elif status == "non_use":
+                        mitigation_map[category] = "never"
+                    elif status == "speculative":
+                        mitigation_map[category] = "likely"
+
+    return mitigation_map, implied_evidence_map
+
+
+def collect_evidence_strings(
+    evidence: List["BaseNarrativeEvidence"], mitigation_map: Dict[str, str]
+) -> Tuple[List[str], List[str]]:
+    """Collect and organize evidence strings for chain of thought."""
+    other_evidence_strings = []
+    exposure_descriptions = []
+
+    categories_with_instrument_evidence = {
+        e.category
+        for e in evidence
+        if isinstance(
+            e, (NotionalEvidence, MitigationEvidence, AccountingStandardEvidence)
+        )
+    }
+
+    accounting_evidence_list: List["AccountingStandardEvidence"] = []
+    first_mitigation_mention = True
+    for ev in evidence:
+        if isinstance(ev, PolicyEvidence):
+            if mitigation_map.get(ev.category) == "policy_only":
+                reasoning = (
+                    f"The text discusses accounting policies for {ev.category} derivatives "
+                    f"(e.g., '{ev.policy_type}') but does not mention any specific, active "
+                    f"instruments for the reporting period."
+                )
+                if reasoning not in other_evidence_strings:
+                    other_evidence_strings.append(reasoning)
+        elif isinstance(ev, MitigationEvidence):
+            if first_mitigation_mention:
+                other_evidence_strings.append(
+                    "The text mentions the company's policy and mitigation efforts against various market risks. Let's see if that gives a hint on any usage of derivative instruments."
+                )
+                first_mitigation_mention = False
+            other_evidence_strings.append(ev.to_string())
+        elif isinstance(ev, AccountingStandardEvidence):
+            accounting_evidence_list.append(ev)
+
+        elif isinstance(ev, ContextEvidence):
+            if ev.category == "LAW":
+                reasoning = (
+                    "The text discusses legal proceedings, including shareholder derivative lawsuits, "
+                    "which are contextually related to but distinct from derivative financial instruments."
+                )
+                other_evidence_strings.append(reasoning)
+            elif ev.category == "OWN":
+                reasoning = (
+                    "The text mentions security ownership by third parties, which is distinct from "
+                    "the company's use of hedging instruments."
+                )
+                other_evidence_strings.append(reasoning)
+
+        elif isinstance(ev, HedgeFundContextEvidence):
+            other_evidence_strings.append(ev.to_string())
+
+        elif isinstance(ev, ExposureEvidence):
+            if (
+                ev.category not in categories_with_instrument_evidence
+                and ev.category
+                not in {e.category for e in evidence if isinstance(e, ContextEvidence)}
+            ):
+                exposure_descriptions.append(ev.to_string())
+        else:
+            reasoning = ev.to_string()
+            if reasoning:
+                other_evidence_strings.append(reasoning)
+
+    # Process accounting evidence
+    if accounting_evidence_list:
+        standard_status_map: Dict[str, Set[str]] = {}
+        for ev in accounting_evidence_list:
+            if ev.standard_name not in standard_status_map:
+                standard_status_map[ev.standard_name] = set()
+            standard_status_map[ev.standard_name].add(ev.adoption_status)
+
+        summary_parts = []
+        for std_name, statuses in standard_status_map.items():
+            status_str = " and ".join(sorted(list(statuses)))
+            summary_parts.append(f"{status_str.replace('_', ' ')} {std_name}")
+
+        accounting_reasoning = (
+            "The text discusses accounting policies, including "
+            + ", ".join(summary_parts)
+            + ", which provides context but does not confirm derivative usage."
+        )
+        other_evidence_strings.append(accounting_reasoning)
+
+    return other_evidence_strings, exposure_descriptions
+
+def _generate_introduction() -> List[str]:
+    introduction_lines = []
+    # Start with the description of the task
+    introduction_lines.extend(
+        [
+            "The goal is to extract structured evidence of derivative usage and risk management disclosures from financial text and produce a valid JSON summary. "
+            "I will complete this by analyzing the user's input text identify derivative usage by:",
+            "1) Identify the company's risk exposures.",
+            "2) Identify the company's mitigation strategies.",
+            "3) Identify any specific derivative usage by analyzing the text.",
+            "4) Provide a response that is a single, valid JSON object.",
+        ]
+    )
+
+    # Then, state how the model will do so. It must first see if the provided text relates to financial statements
+    introduction_lines.extend(
+        [
+            "To achieve this, I must first determine of the text related to a company's financial statements. "
+            "If it does, I then proceed to analyze the text for derivative usage, if it exists. "
+            "If it doesn't, then I will provide a response that the text appears to be unrelated. "
+        ]
+    )
+     # Next, recall what a derivative is
+    introduction_lines.extend(
+        [
+            "If I recall, a derivative is a financial contract whose value depends on an underlying asset or benchmark, such as interest rates, foreign currencies, equities, or commodities. "
+            "Common derivative types include forwards, futures, options, swaps, and collars, which may or may not be used for hedging or mitigating those specific types of risk. ",
+        ]
+    )
+    introduction_lines.extend(
+        [
+            "To simplify, 'IR' for interest rate, 'FX' for foreign currency, 'CP' for commodities, 'EQ' for equity, and 'GEN' for categories if I cannot determine which derivative type is used from context. ",
+            "I will determine the company's risk exposures. I'll start by assuming no exposure to any category, (i.e. false for IR, FX, CP, EQ, and GEN). "
+            "After identifying exposures, I should find mitigation intent based on linguistic cues such as 'currently uses', 'may use', 'does not intend to use', 'expired', etc. "
+            "I then associate derivative instruments with the most relevant risk type inferred from surrounding context. "
+            "I must remember that liguistic cues can be speculative, so I must consider whether or not these statements result in actual derivative usage. ",
+        ]
+    )
+
+    # Then, explain what it will do to scan for instruments
+    introduction_lines.extend(
+        [
+            "Next, I will review the text to determine if the company currently uses any derivative financial instruments. "
+            "Then, I should filter the text to include only relevant reporting years and exclude instruments with zero notional or expired references. "
+            "If multiple years are present, I prioritize the reportingYear given in the text. "
+            "Finally, I will generate a JSON output conforms to the schema with these keys: 'analysis_summary', 'exposure', 'mitigation', and 'derivatives'. "
+        ]
+    )
+    return introduction_lines
+def _generate_done_sentence(none_found: bool = False) -> List[str]:
+    done = []
+    unique_base_types: List[str] = sorted(list(set(BASE_TYPES)))
+    num_keywords: int = random.randint(3, min(5, len(unique_base_types)))
+    scan_keywords: List[str] = random.sample(unique_base_types, k=num_keywords)
+    keyword_str = (
+        ", ".join([f"'{k}'" for k in scan_keywords[:-1]])
+        + f", or '{scan_keywords[-1]}'"
+        if len(scan_keywords) > 1
+        else f"'{scan_keywords[0]}'"
+    )
+
+    # Acknowledge that it is done
+    done.append(
+        f"---\n"
+        f"I reviewed the text for any explicit mentions of derivative instruments, scanning for "
+        f"keywords like {keyword_str} that refer to derivative usage only."
+    )
+    if none_found:
+        done.append(
+            "No direct references to derivative instruments were found in the text."
+        )
+    else:
+        done.append(
+            "I have found explicit references of derivative instruments. Let me recall what I found."
+        )
+
+    return done
+
+
+def _build_instrument_by_instrument_cot(
+    evidence: List["BaseNarrativeEvidence"], scenario: "GenerationScenario"
+) -> List[str]:
+    """
+    Generates a detailed, step-by-step analysis of each instrument mention,
+    including self-correction for duplicates.
+    """
+    # --- NEW: Create a lookup for the canonical instrument name from the scenario ---
+    # This ensures that when an alias is found, we refer to the original name,
+    # not just the first alias we happened to see.
+    canonical_names: Dict[int, str] = {
+        inst.instrument_id: inst.instrument_type
+        for inst in scenario.instruments
+        if isinstance(inst, NotionalInstrument)
+    }
+
+    cot_lines = []
+    processed_instruments: Dict[int, Tuple[str, int]] = {}  # {instrument_id: (instrument_type, step_number)}
+    mention_counter = 1
+
+    # Filter for only NotionalEvidence that has an amount and instrument ID
+    notional_evidence_list = [
+        ev
+        for ev in evidence
+        if isinstance(ev, NotionalEvidence)
+        and (ev.instrument_id is not None or ev.aggregate)
+    ]
+
+    if not notional_evidence_list:
+        return []
+
+    if not notional_evidence_list:
+        return []
+
+    reporting_year = scenario.reporting_year
+    cot_lines.append("Now, I will perform a detailed instrument-by-instrument review:")
+
+    for ev in notional_evidence_list:
+        # Ensure ev is the correct type for mypy
+        if not isinstance(ev, NotionalEvidence):
+            continue
+
+        line_prefix = f"{mention_counter}) "
+        line_parts = []
+
+        # Basic instrument description
+        line_parts.append(f"'{ev.instrument_type}'")
+        if ev.notional is not None and ev.notional > 0 and ev.notional_str:
+            # Use the pre-formatted notional string for consistency
+            line_parts.append(f"{ev.notional_str.split("and")[0].strip()} > 0 for")
+        elif ev.notional is not None and ev.notional == 0:
+            line_parts.append(f"amount = 0 for")
+        elif ev.active_override:
+            line_parts.append(f"amount not specified but active for")
+        else:
+            line_parts.append(f"amount not specified for")
+
+        if ev.year:
+            line_parts.append(f"year {ev.year}")
+            if ev.year >= reporting_year:
+                line_parts.append(f"(>= {reporting_year}).")
+            else:
+                line_parts.append(f"(< {reporting_year}).")
+
+        # --- NEW: Add contextual reasoning for category assignment ---
+
+        if ev.category == "GEN":
+            line_parts.append(f"it is unclear what the context was referring to, so it will be marked as {ev.category}.")
+        else:
+            line_parts.append(
+                f"Since the surrounding context relates to {CATEGORY_TO_DESCRIPTION.get(ev.category, ev.category)}, category = {ev.category}."
+            )
+
+        # Check for duplicates
+        if ev.instrument_id is not None and ev.instrument_id in processed_instruments:
+            first_mention_type, original_step = processed_instruments[ev.instrument_id]
+            canonical_name = canonical_names.get(ev.instrument_id, first_mention_type)
+            assert ev.instrument_type is not None
+            if canonical_name.lower() == ev.instrument_type.lower():
+                line_parts.append(
+                    f"Wait, this is a duplicate mention of {ev.instrument_type} from step {original_step}."
+                )
+            else:
+                line_parts.append(
+                    f"Wait, this appears to be an alias for the '{canonical_name}' instrument from step {original_step}. I will treat it as a duplicate mention."
+                )
+        elif ev.instrument_id is not None:
+            assert ev.instrument_type is not None
+            processed_instruments[ev.instrument_id] = (ev.instrument_type, mention_counter)
+
+        cot_lines.append(line_prefix + " ".join(line_parts))
+        mention_counter += 1
+
+    return cot_lines
+
+
+def _build_exposure_mitigation_cot() -> List[str]:
+    """
+    Generates COT sentences explaining how the exposure and mitigation maps are determined.
+    """
+    return [
+        "Finally, I will determine the `mitigation` status for each category (IR, FX, CP, EQ, GEN) based on the following rules:",
+        "- 'current' for active instruments in the reporting year.",
+        "- 'historical' for past or terminated instruments.",
+        "- 'policy_only' for policy discussions without specific instruments.",
+        "- 'likely' for speculative mentions.",
+        "- 'never' for explicit statements of non-use.",
+        "- 'unknown' if exposure is mentioned but no mitigation strategy is detailed.",
+    ]
+
+
+def _build_json_construction_plan(
+    scenario: "GenerationScenario",
+    mitigation_map: Dict[str, str],
+    evidence: List["BaseNarrativeEvidence"],
+    derivatives_list: List[Dict[str, Any]],
+    analysis_summary: str,
+) -> List[str]:
+    """
+    Generates the "JSON Construction Plan" section for the Chain of Thought,
+    detailing how the final JSON object will be assembled.
+    """
+
+    def _get_mitigation_reasoning(category: str, status: str) -> str:
+        """Provides a brief explanation for a given mitigation status."""
+        if status == "current":
+            # Check for active notional evidence in the reporting year
+            if any(
+                isinstance(ev, NotionalEvidence)
+                and ev.category == category
+                and ev.year == scenario.reporting_year
+                and (ev.notional is not None and ev.notional > 0 or ev.active_override)
+                for ev in evidence
+            ):
+                return "active instruments were found for the reporting year."
+            return "an active hedging program was mentioned."
+        elif status == "historical":
+            return "only past or terminated instruments were mentioned."
+        elif status == "policy_only":
+            return "hedging policies were discussed, but no specific instruments were identified."
+        elif status == "likely":
+            return "the text was speculative (e.g., 'the company may use...')."
+        elif status == "never":
+            return "the text explicitly stated derivatives are not used for this risk."
+        elif status == "unknown":
+            return "exposure was mentioned, but no clear mitigation strategy was detailed."
+        elif status == "none":
+            return "no exposure to this risk category was identified."
+        return "the status was determined based on the overall context."
+
+    plan_lines = []
+    plan_lines.append("\n**JSON Construction Plan:**")
+
+    # 1. Set Summary Flags (exposure and mitigation)
+    plan_lines.append("1.  **Set Summary Flags:**")
+    plan_lines.append(
+        "    *   `exposure`: Based on identified exposures, set boolean flags for IR, FX, CP, EQ, GEN."
+    )
+    plan_lines.append(
+        "    *   `mitigation`: Set status for each category (IR, FX, CP, EQ, GEN) based on the final mitigation map:"
+    )
+    for category, status in mitigation_map.items():
+        reasoning = _get_mitigation_reasoning(category, status)
+        plan_lines.append(f"        *   `{category}`: '{status}' because {reasoning}")
+
+    # 2. Construct Derivative Objects
+    plan_lines.append("2.  **Construct Derivative Objects:**")
+    if not derivatives_list:
+        plan_lines.append("    *   No active derivative instruments were identified for the reporting year.")
+    else:
+        for i, derivative in enumerate(derivatives_list):
+            plan_lines.append(
+                f"    *   **Object {i+1}:** Create a derivative object for the '{derivative.get('type', 'Unknown')}' instrument."
+            )
+            for key, value in derivative.items():
+                # Format amount and currency for better readability in the plan
+                if key == "amount" and isinstance(
+                    value, (int, float)
+                ):  # For raw JSON value, print directly
+                    plan_lines.append(f"        *   `{key}`: {value}")
+                elif key == "currency" and value:
+                    plan_lines.append(f"        *   `{key}`: \"{value}\"")
+                elif isinstance(value, str):
+                    plan_lines.append(f"        *   `{key}`: \"{value}\"")
+                else:
+                    plan_lines.append(f"        *   `{key}`: {value}")
+
+    # 3. Set Analysis Summary
+    plan_lines.append("3.  **Set Analysis Summary:**")
+    plan_lines.append(f"    *   `analysis_summary`: \"{analysis_summary}\"")
+
+    plan_lines.append("\nI will now generate the complete JSON object based on this plan.")
+
+    return plan_lines
+
+
+def build_chain_of_thought(
+    scenario: "GenerationScenario",
+    evidence: List["BaseNarrativeEvidence"],
+    derivatives_list: List[Dict[str, Any]],
+    mitigation_map: Dict[str, str],
+    other_evidence_strings: List[str],
+    exposure_descriptions: List[str],
+    analysis_summary: str, # NEW: Pass the final analysis summary
+) -> str:
+    """Build the chain of thought reasoning."""
+    cot_summary_lines = []
+
+    cot_summary_lines.extend(_generate_introduction())
+
+
+    chain_of_thought_parts = (
+        cot_summary_lines + ["\nHere is what I have found:", "---"] + other_evidence_strings
+    )
+
+    # Add exposure descriptions
+    if exposure_descriptions:
+        any_specific_instrument_mentioned = any(
+            (isinstance(ev, NotionalEvidence) or isinstance(ev, MitigationEvidence))
+            and ev.category != "GEN"
+            for ev in evidence
+        )
+
+        if (
+            len(exposure_descriptions) > 1
+            and "general market risks" in exposure_descriptions
+            and any_specific_instrument_mentioned
+        ):
+            exposure_descriptions.remove("general market risks")
+
+        joined_descriptions = (
+            ", ".join(exposure_descriptions[:-1]) + " and " + exposure_descriptions[-1]
+            if len(exposure_descriptions) > 1
+            else exposure_descriptions[0]
+        )
+        exposure_sentence = (
+            f"The text also mentions {joined_descriptions}, but does not mention "
+            "specific derivatives used for hedging."
+        )
+        chain_of_thought_parts.append(exposure_sentence)
+
+    # Add instrument mention analysis
+    instrument_mentions: Dict[str, List[int]] = {}
+    for ev in evidence:
+        if (
+            isinstance(ev, NotionalEvidence)
+            and ev.instrument_type
+            and ev.instrument_id is not None
+        ):
+            if ev.instrument_type not in instrument_mentions:
+                instrument_mentions[ev.instrument_type] = []
+            instrument_mentions[ev.instrument_type].append(ev.instrument_id)
+
+    # Acknowledge that it is done
+    chain_of_thought_parts.extend(_generate_done_sentence())
+    
+    # --- NEW: Add the instrument-by-instrument analysis ---
+    instrument_cot_lines = _build_instrument_by_instrument_cot(evidence, scenario)
+    if instrument_cot_lines:
+        chain_of_thought_parts.extend(instrument_cot_lines)
+
+    # Add generic derivative reasoning
+    has_generic_evidence = any(
+        ev.category == "GEN" and ev.status == "current" for ev in evidence
+    )
+
+    if has_generic_evidence:
+        all_seen_types: List[str] = sorted(
+            list(
+                {
+                    ev.instrument_type
+                    for ev in evidence
+                    if (
+                        (
+                            isinstance(ev, NotionalEvidence)
+                            or isinstance(ev, MitigationEvidence)
+                        )
+                        and ev.category != "GEN"
+                        and ev.instrument_type
+                        and "derivative" not in ev.instrument_type
+                        and "instrument" not in ev.instrument_type
+                    )
+                }
+            )
+        )
+
+        display_types: List[str] = []
+        if len(all_seen_types) > 4:
+            seed_instrument: str = random.choice(all_seen_types)
+            seed_words: Set[str] = set(seed_instrument.split())
+            similar_instruments: Set[str] = {seed_instrument}
+
+            for inst_type in all_seen_types:
+                if inst_type != seed_instrument and seed_words.intersection(
+                    inst_type.split()
+                ):
+                    similar_instruments.add(inst_type)
+
+            # Fix: Ensure lower bound is not greater than upper bound
+            upper_bound = min(4, len(similar_instruments))
+            if upper_bound > 0:
+                num_to_show = random.randint(1, upper_bound)
+                display_types = sorted(
+                    list(random.sample(list(similar_instruments), num_to_show))
+                )
+        else:
+            display_types = all_seen_types
+
+        generic_reasoning = (
+            "After reviewing the full text, I found a reference to a derivative that lacks "
+            "sufficient context to determine its specific category"
+        )
+
+        if display_types:
+            generic_reasoning += (
+                f" (unlike other instruments identified, such as {', '.join(display_types)}), "
+                "so it is treated as a generic reference (GEN)."
+            )
+        else:
+            generic_reasoning += ", so it is treated as a generic reference (GEN)."
+
+        chain_of_thought_parts.append(generic_reasoning.strip())
+    
+    # --- NEW: Explain how exposure and mitigation are determined ---
+    chain_of_thought_parts.extend(_build_exposure_mitigation_cot())
+    
+    # Add final filtering step
+    chain_of_thought_parts.append("---")
+    chain_of_thought_parts.append(
+        f"Finally, I will filter the extracted amounts to include only those for the reporting "
+        f"year ({scenario.reporting_year}) with a non-zero value to ensure the final JSON output reflects "
+        "only active positions."
+    )
+
+    # --- NEW: Add the JSON Construction Plan ---
+    json_plan_lines = _build_json_construction_plan(
+        scenario, mitigation_map, evidence, derivatives_list, analysis_summary
+    )
+    if json_plan_lines:
+        chain_of_thought_parts.extend(json_plan_lines)
+
+
+    chain_of_thought = "\n".join(chain_of_thought_parts)
+
+    # Add warnings
+    warnings: List[str] = []
+    if "None" in chain_of_thought:
+        warnings.append("The word 'none' was found.")
+    if re.search(r"[\{\}\[\]]", chain_of_thought):
+        warnings.append("Leftover template characters like '{}' or '[]' were found.")
+    if warnings:
+        chain_of_thought += f"\n\n[WARNING: Chain of thought may be flawed. Issues found: {'; '.join(warnings)}]"
+
+    return chain_of_thought
+
+
+def generate_simple_notional_sentence_scenario() -> GenerationScenario:
+    """
+    Generates a very simple, one-sentence scenario, similar to the old text
+    classification data. This addresses the TODO item for training on smaller text.
+
+    This function now uses the "Simple Notional Sentence" archetype for clarity.
+
+    Returns:
+        A GenerationScenario containing a single instrument and a single sentence.
+    """
+    # 1. Create a basic archetype and scenario shell
+    # Find and copy the dedicated archetype
+    base_archetype = next((arch for arch in SCENARIO_ARCHETYPES if arch.name == "Simple Notional Sentence"), None)
+    if not base_archetype:
+        raise ValueError("Simple Notional Sentence archetype not found.")
+    archetype = copy.deepcopy(base_archetype)
+
+    # Randomly select a category for the single instrument
+    selected_category = random.choice(DERIVATIVE_CATEGORIES)
+    archetype.hedging_propensities[selected_category] = (1.0, 1.0)
+    if selected_category == "IR": archetype.debt_exposure_range = (1,1)
+    elif selected_category == "FX": archetype.fx_exposure_range = (1,1)
+    elif selected_category == "CP": archetype.commodity_exposure_range = (1,1)
+    elif selected_category == "EQ": archetype.equity_exposure_range = (1,1)
+    else: archetype.generic_instrument_range = (1,1)
+
+    # Randomize currency and multiplier for variety
+    archetype.default_currency = random.choice([c.code for c in all_currencies])
+    archetype.notional_multiplier = random.choice([1_000, 1_000_000, 1_000_000_000])
+
+    scenario = GenerationScenario(
+        company_name=random.choice(company_names),
+        reporting_year=random.randint(2018, 2024),
+        archetype=archetype,
+        reporting_day=random.randint(1, 28),
+        reporting_month=random.choice(months),
+        instruments=[], # Start with an empty list
+    )
+
+    # 2. Create a single, simple instrument
+    # This part is simplified as we don't need the full ScenarioBuilder
+    _, _, _, _, name, alias = _generate_instrument_name(selected_category)
+
+    # Determine the correct instrument class based on category
+    instrument_class_map = {
+        "IR": IRInstrument, "FX": FXInstrument, "CP": CPInstrument,
+        "EQ": EQInstrument, "GEN": GenericInstrument
+    }
+    InstrumentClass = instrument_class_map[selected_category]
+
+    instrument = IRInstrument(
+        instrument_id=1,
+        instrument_type=name,
+        instrument_alias=alias,
+        notional_history={scenario.reporting_year: random.randint(10, 200) * archetype.notional_multiplier},
+        start_year=scenario.reporting_year,
+        maturity_year=scenario.reporting_year + random.randint(2, 5),
+        currency="USD",
+        symbol=next((c.symbol for c in all_currencies if c.code == archetype.default_currency), "$"),
+        category=selected_category,
+    )
+    scenario.instruments.append(instrument)
+
+    # 3. Use NotionalSentence to build a single, direct sentence
+    # This ensures the evidence is created correctly for this simple case.
+    # The main `generate_narrative_from_scenario` will then be called on this
+    # simple scenario, which will naturally produce a very short narrative.
+    notional_sentence_builder = NotionalSentence(
+        swap_type=instrument.instrument_type,
+        year=scenario.reporting_year,
+        notional=instrument.notional_history[scenario.reporting_year],
+        category=selected_category,
+        reporting_year=scenario.reporting_year,
+        sentence_type="individual",
+        company_name=scenario.company_name,
+        notional_multiplier=archetype.notional_multiplier,
+    )
+    # The main purpose here is to construct the scenario object.
+    # The narrative and JSON will be generated from this scenario in the main training loop.
+    return scenario
+
+
+def build_noise_only_chain_of_thought(evidence: List["BaseNarrativeEvidence"]) -> str:
+    """Generate chain of thought for scenarios with no derivative evidence."""
+
+    cot_steps: List[str] = []
+    cot_steps.extend(_generate_introduction())
+    context_evidence_by_category: Dict[str, List["BaseNarrativeEvidence"]] = {
+        cat: [] for cat in DERIVATIVE_CATEGORIES
+    }
+    context_evidence_by_category["LAW"] = []
+    context_evidence_by_category["OWN"] = []
+
+    # Group context evidence by category
+    for ev in evidence:
+        if isinstance(ev, (ContextEvidence, ExposureEvidence)):
+            context_evidence_by_category[ev.category].append(ev)
+
+    cot_steps.extend(_generate_done_sentence(none_found=True))
+
+    # Reflect on context
+    for category, cat_evidence_list in context_evidence_by_category.items():
+        if not cat_evidence_list:
+            continue
+
+        first_evidence: "BaseNarrativeEvidence" = cat_evidence_list[0]
+        risk_area: str
+        if isinstance(first_evidence, ContextEvidence):
+            match: Optional[re.Match[str]] = re.search(
+                r"exposure to (.*?)( but|$)", first_evidence.to_string()
+            )
+            risk_area = match.group(1).strip() if match else f"various risk"
+        elif isinstance(first_evidence, ExposureEvidence):
+            risk_area = f"{category} risk"
+        else:
+            risk_area = "other topics"
+
+        cot_steps.append(
+            f"The financial text discusses {risk_area}, which could potentially involve derivatives, "
+            "but no such instruments were identified."
+        )
+
+    if len(cot_steps) == 3:
+        cot_steps.append(
+            "There was no contextual evidence suggesting derivative involvement either."
+        )
+
+    return "\n".join(cot_steps)
+
+
+def generate_composite_training_sample(allow_random_drops: bool = True):
+    """
+    Generates a single training sample by combining two separate scenarios.
+    This is designed to teach the model compositional reasoning.
+
+    1. Creates two distinct scenarios (e.g., one for IR, one for FX).
+    2. Generates the narrative and evidence for each.
+    3. Merges the narratives into a single prompt text.
+    4. Merges the evidence lists.
+    5. Generates a single, unified JSON target from the merged evidence.
+    """
+    # 1. Generate two distinct, simple scenarios
+    #    We can use the simple sentence generator as a base.
+    scenario1 = generate_simple_notional_sentence_scenario()
+    scenario2 = generate_simple_notional_sentence_scenario()
+
+    # Ensure they are for different categories to make the composition meaningful
+    while scenario1.instruments[0].category == scenario2.instruments[0].category:
+        scenario2 = generate_simple_notional_sentence_scenario()
+
+    # 2. Generate narrative and evidence for each part
+    #    Here, we generate a very short narrative for each.
+    narrative1, evidence1 = generate_narrative_from_scenario(scenario1, allow_random_drops=False)
+    narrative2, evidence2 = generate_narrative_from_scenario(scenario2, allow_random_drops=False)
+
+    # 3. Merge the narratives into a single prompt
+    #    We can frame it with section headers, as discussed.
+    category1_name = CATEGORY_TO_NAME.get(scenario1.instruments[0].category, "Risk Analysis")
+    category2_name = CATEGORY_TO_NAME.get(scenario2.instruments[0].category, "Risk Analysis")
+
+    # Clean up the narratives to be more like paragraphs
+    narrative1_clean = re.sub(r'<reportingYear>\d+</reportingYear>', '', narrative1).strip()
+    narrative2_clean = re.sub(r'<reportingYear>\d+</reportingYear>', '', narrative2).strip()
+
+    # This combined text becomes the new prompt for the model
+    composite_narrative = (
+        f"<reportingYear>{scenario1.reporting_year}</reportingYear>\n\n"
+        f"**Section 1: {category1_name}**\n{narrative1_clean}\n\n"
+        f"**Section 2: {category2_name}**\n{narrative2_clean}"
+    )
+
+    # 4. Merge the scenarios and evidence lists
+    #    Create a new composite scenario object to hold the merged information.
+    composite_scenario = scenario1
+    composite_scenario.instruments.extend(scenario2.instruments)
+    
+    # The evidence list is a simple concatenation
+    composite_evidence = evidence1 + evidence2
+
+    # 5. Generate a single, unified JSON target
+    #    The existing `generate_json_from_scenario` function can now be used on the
+    #    composite data to produce a single JSON that covers both scenarios.
+    #    The `build_chain_of_thought` function will naturally handle the combined
+    #    evidence, creating a single, non-redundant reasoning block.
+    target_json = generate_json_from_scenario(composite_scenario, composite_evidence)
+
+    # The `build_chain_of_thought` function will see evidence from both scenarios
+    # and create a single, coherent thought process without repeating the introduction.
+    # For example, it will find IR evidence, then FX evidence, and list them sequentially
+    # in the instrument-by-instrument review.
+
+    return composite_narrative, target_json
+
+
+def build_derivatives_list(
+    evidence: List["BaseNarrativeEvidence"], scenario: "GenerationScenario"
+) -> List[Dict[str, Any]]:
+    """Build the derivatives list from evidence."""
+    instrument_evidence_map: Dict[Tuple[int, str, str], Dict[str, Any]] = {}
+
+    for ev in evidence:
+        if (
+            not isinstance(ev, NotionalEvidence)
+            or ev.instrument_id is None
+            or ev.instrument_type is None
+            or ev.value_type is None
+            or ev.notional is None
+        ):
+            continue
+
+        # Check if this is terminated evidence
+        is_terminated_evidence = (
+            (ev.maturity_value is not None and ev.maturity_value > 0)
+            or (ev.maturity_year and ev.maturity_year < scenario.reporting_year)
+            or (
+                ev.notional == 0
+                and ev.year == scenario.reporting_year
+                and ev.value_type != "notional_exposure"
+            )
+            or ev.sentence_type
+            in [
+                "terminated_individual",
+                "comparative_no_outstanding",
+                "historical_individual",
+            ]
+        )
+
+        if is_terminated_evidence:
+            continue
+
+        instrument_id: int = ev.instrument_id
+        value_type_key: str = ev.value_type
+        instrument_type_key: str = ev.instrument_type
+        unique_key: Tuple[int, str, str] = (
+            instrument_id,
+            instrument_type_key,
+            value_type_key,
+        )
+
+        # Look up the instrument for correct properties
+        instrument_obj: Optional["NotionalInstrument"] = next(
+            (
+                inst
+                for inst in scenario.instruments
+                if inst.instrument_id == instrument_id
+            ),
+            None,
+        )
+
+        # Determine properties
+        inst_type: str
+        category: str
+        currency: Optional[str]
+        if instrument_obj:
+            inst_type = instrument_obj.instrument_type
+            category = instrument_obj.category
+            currency = (
+                instrument_obj.currency
+                if ev.value_type != "notional_exposure"
+                else ev.currency
+            )
+        else:
+            inst_type = ev.instrument_type or "Unknown"
+            category = ev.category
+            currency = ev.currency
+
+        # Create or update entry
+        if (
+            unique_key not in instrument_evidence_map
+            or instrument_evidence_map[unique_key].get("amount") == "unknown"
+        ):
+            instrument_evidence_map[unique_key] = {
+                "type": inst_type.strip(),
+                "category": category,
+                "amount": ev.notional if ev.notional is not None else "unknown",
+                "currency": currency,
+                "value_type": value_type_key.replace("_", " "),
+                "level": "individual",
+            }
+
+    derivatives_list: List[Dict[str, Any]] = list(instrument_evidence_map.values())
+
+    # Add aggregate summaries
+    for ev in evidence:
+        if (
+            isinstance(ev, NotionalEvidence)
+            and ev.aggregate
+            and ((ev.notional is not None and ev.notional > 0) or ev.active_override)
+            and ev.year == scenario.reporting_year
+            and ev.status != "timeline"
+        ):
+            derivatives_list.append(
+                {
+                    "type": ev.instrument_type,
+                    "category": ev.category,
+                    "level": "aggregate",
+                    "amount": ev.notional or "unknown",
+                    "currency": ev.currency,
+                    "value_type": ev.value_type.replace("_", " "),
+                }
+            )
+
+    return derivatives_list
+
+
+def post_process_mitigation_map(
+    mitigation_map: Dict[str, str],
+    implied_evidence_map: Dict[str, bool],
+    derivatives_list: List[Dict[str, Any]],
+) -> Dict[str, str]:
+    """Post-process mitigation map to resolve contradictions."""
+    final_derivative_categories: Set[str] = {d["category"] for d in derivatives_list}
+
+    for category, was_implied in implied_evidence_map.items():
+        if was_implied and category not in final_derivative_categories:
+            if mitigation_map[category] in ["current", "historical"]:
+                mitigation_map[category] = "unknown"
+
+    return mitigation_map
+
+
+def generate_json_from_scenario(
+    scenario: "GenerationScenario",
+    evidence: List["BaseNarrativeEvidence"],
+    return_mitigation_map_only: bool = False,
+) -> Dict[str, Any]:
+    """
+    Generates the target JSON output from the scenario object.
+    The `evidence` from the narrative is used to generate the summary and chain_of_thought.
+    """
+    # Generate exposure map
+    exposure_map = generate_exposure_map(scenario, evidence)
+
+    # Generate mitigation map
+    mitigation_map, implied_evidence_map = generate_mitigation_map(
+        evidence, exposure_map, scenario
+    )
+
+    if return_mitigation_map_only:
+        return mitigation_map
+
+    # Check if this is a noise-only scenario
+    # --- NEW: Check for non-financial noise scenario ---
+    if scenario.unrelated_text:
+        return {
+            "chain_of_thought": ( 
+                "\n".join(_generate_introduction()),
+                "However, I have analyzed the text. The content appears to be unrelated to financial reporting, SEC filings, or derivative instruments. "
+                "Therefore, no financial analysis is applicable."
+            ),
+            "analysis_summary": "The provided text is non-financial and unrelated to derivative disclosures.",
+            "exposure": {cat: False for cat in DERIVATIVE_CATEGORIES},
+            "mitigation": {cat: "none" for cat in DERIVATIVE_CATEGORIES},
+            "derivatives": [],
+        }
+
+    is_noise_only_scenario = not any(
+        isinstance(ev, (NotionalEvidence, MitigationEvidence)) for ev in evidence
+    )
+
+    if is_noise_only_scenario:
+        chain_of_thought = build_noise_only_chain_of_thought(evidence)
+        return {
+            "chain_of_thought": chain_of_thought,
+            "analysis_summary": (
+                "The financial text discusses various topics but does not mention any derivative "
+                "instruments used for hedging."
+            ),
+            "exposure": exposure_map,
+            "mitigation": mitigation_map,
+            "derivatives": [],
+        }
+
+    # Build derivatives list
+    derivatives_list: List[Dict[str, Any]] = build_derivatives_list(evidence, scenario)
+
+    # Post-process mitigation map
+    mitigation_map = post_process_mitigation_map(
+        mitigation_map, implied_evidence_map, derivatives_list
+    )
+
+    # Collect evidence strings
+    other_evidence_strings: List[str]
+    exposure_descriptions: List[str]
+    other_evidence_strings, exposure_descriptions = collect_evidence_strings(
+        evidence, mitigation_map
+    )
+    
+    # Generate analysis summary
+    analysis_summary: str = _generate_analysis_summary(scenario, evidence)
+
+    # Build chain of thought
+    chain_of_thought: str = build_chain_of_thought(
+        scenario,
+        evidence,
+        derivatives_list,
+        mitigation_map,
+        other_evidence_strings,
+        exposure_descriptions,
+        analysis_summary, # Pass the analysis summary
+    )
+
+
+    return {
+        "chain_of_thought": chain_of_thought,
+        "analysis_summary": analysis_summary,
+        "exposure": exposure_map,
+        "mitigation": mitigation_map,
+        "derivatives": derivatives_list,
+    }
+
+# %%
+# =============================================================================
+# MAIN EXECUTION (for standalone testing)
+# =============================================================================
+
+def main():
+    """
+    Generates and prints a single random training sample for debugging purposes.
+    This function is only executed when the script is run directly.
+    """
+    def format_prompt(narrative: str, target_json: Dict[str, Any]) -> str:
+        chain_of_thought = target_json.pop("chain_of_thought", "")
+        rest_of_json_str = json.dumps(target_json, indent=2)
+        return f"{narrative}\n\n<|im_start|>assistant\n<think>\n{chain_of_thought}\n</think>\n{rest_of_json_str}<|im_end|>"
+    print("--- Generating a single random sample for debugging ---")
+
+    # 1. Create the "story" or scenario
+    # Using a random archetype index
+    archetype_index = random.randint(0, len(SCENARIO_ARCHETYPES) - 1)
+    scenario = create_random_scenario(archetype_index=archetype_index)
+
+    # 2. Generate the narrative text and the evidence list from the scenario
+    narrative, evidence = generate_narrative_from_scenario(scenario, allow_random_drops=True)
+
+    # 3. Generate the structured JSON output from the evidence
+    target_json = generate_json_from_scenario(scenario, evidence)
+    if DEBUG:
+        print(_generate_debug_output(scenario, evidence))
+
+    print(format_prompt(narrative, target_json)) 
+
+# =============================================================================
+# PHASE 3: MAIN GENERATION LOOP
+# This will be the new entry point, replacing the old `generate()` function.
+# =============================================================================
+if __name__ == "__main__":
+    main()
+
+
+def generate_training_sample(archetype_index=None, allow_random_drops: bool = True):
+    """
+    Generates a single, complete training sample (narrative + JSON).
+
+    Args:
+        archetype_index: The index of the archetype to use. If None, a random one is chosen.
+        allow_random_drops: If True, simulates incomplete text by randomly dropping sections.
+    """
+    # 1. Create the "story" or scenario.
+    # With a 25% chance, generate a completely random archetype instead of picking from the list.
+    if random.random() < 0.25:
+        # This will call _create_truly_random_archetype()
+        scenario = create_random_scenario(archetype_index=None)
+    else:
+        # Otherwise, pick a random one from the predefined list.
+        scenario = create_random_scenario(archetype_index=archetype_index)
+
+    # 2. Generate the narrative text and the evidence list from the scenario
+    narrative, evidence = generate_narrative_from_scenario(scenario, allow_random_drops=allow_random_drops)
+    # 3. Generate the structured JSON output from the evidence
+    target_json = generate_json_from_scenario(scenario, evidence)
+    return narrative, target_json
+
+
+def generate_dataset(
+    num_samples: int,
+    output_file: str = "./training_data.parquet",
+    noise_percentage: float = 0.25,
+    allow_random_drops: bool = True,
+    debug: bool = False,
+    num_workers: int = mp.cpu_count() or 1, # Default to CPU count or 1 if not detectable
+):
+    """
+    Generates a dataset of training samples and saves it to a Parquet file.
+
+    Args:
+        num_samples: The number of samples to generate.
+        output_file: The path to the output Parquet file.
+        noise_percentage: The percentage of the dataset that should be noise samples.
+        allow_random_drops: Whether to enable probabilistic dropping of narrative sections.
+        debug: If True, includes debug info in the output file.
+    """
+    print(f"Starting dataset generation for {num_samples} samples using {num_workers} threads...")
+    global DEBUG
+    DEBUG = debug # Do not attach headers
+
+    all_training_records = []
+
+    # --- NEW: Separate archetypes into noise and regular pools for balanced generation ---
+    noise_archetypes = [
+        (i, arch) for i, arch in enumerate(SCENARIO_ARCHETYPES) if "Noise" in arch.name
+    ]
+    regular_archetypes = [
+        (i, arch) for i, arch in enumerate(SCENARIO_ARCHETYPES) if "Noise" not in arch.name
+    ]
+
+    if not noise_archetypes:
+        raise ValueError("No 'Noise' archetypes found. Cannot generate noise samples.")
+    if not regular_archetypes:
+        raise ValueError("No regular archetypes found. Cannot generate regular samples.")
+
+    # Use ThreadPoolExecutor for parallel generation
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = []
+        for _ in range(num_samples):
+            # --- Decide whether to generate a noise or regular sample based on the desired percentage ---
+            if random.random() < noise_percentage:
+                # Generate a noise sample
+                archetype_index, _ = random.choice(noise_archetypes)
+            else:
+                # Generate a regular sample
+                archetype_index, _ = random.choice(regular_archetypes)
+
+            # Submit task to the thread pool
+            futures.append(executor.submit(generate_training_sample,
+                                           archetype_index=archetype_index,
+                                           allow_random_drops=allow_random_drops))
+
+        for future in tqdm(futures, desc="Generating Samples"):
+            narrative, target_json = future.result()
+            training_record = narrative
+            all_training_records.append(training_record)
+
+    df = pd.DataFrame(all_training_records)
+    df.to_parquet(output_file, index=False)
+
+    print(f"\nSuccessfully generated {num_samples} samples to {output_file} with {noise_percentage:.0%} noise.")
+# %%
