@@ -142,13 +142,23 @@ def import_classification_results_from_parquet():
     print(f"  -> {len(combined_df):,} unique records remain.")
 
     # Ensure all required columns exist
-    required_cols = ["url", "cik", "year", "found_notional", "status", "duration_s"]
+    required_cols = [
+        "url", "cik", "year", 
+        "found_policy", "found_existence", "found_notional", "found_pnl", 
+        "status", "duration_s", "error_message"
+    ]
     if not all(col in combined_df.columns for col in required_cols):
-        print("  -> ❌ Error: Parquet files are missing required columns.")
+        print("  -> ❌ Error: Parquet files are missing one or more required columns.")
+        print(f"     Expected: {required_cols}")
+        print(f"     Found:    {list(combined_df.columns)}")
         return
 
     # Prepare records for database insertion
     records_to_insert = combined_df[required_cols].to_records(index=False)
+    # Convert numpy.nan to None for SQLite compatibility
+    records_to_insert = [
+        tuple(None if isinstance(v, float) and pd.isna(v) else v for v in rec) for rec in records_to_insert
+    ]
 
     print(f"\n[4/5] Connecting to database '{DB_PATH}'...")
     conn = sqlite3.connect(DB_PATH)
@@ -162,7 +172,9 @@ def import_classification_results_from_parquet():
             for i in range(0, len(records_to_insert), 10000):
                 chunk = records_to_insert[i : i + 10000]
                 cursor.executemany(
-                    f"INSERT OR REPLACE INTO {RESULTS_TABLE} (url, cik, year, found_notional, status, duration_s) VALUES (?, ?, ?, ?, ?, ?)",
+                    f"""INSERT OR REPLACE INTO {RESULTS_TABLE} 
+                       (url, cik, year, found_policy, found_existence, found_notional, found_pnl, status, duration_s, error_message) 
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     chunk,
                 )
                 pbar.update(len(chunk))
@@ -187,7 +199,6 @@ if __name__ == "__main__":
         print("Database Management Menu")
         print("=" * 50)
         print(f"  Database: {DB_PATH}")
-        print("-" * 50)
         print("1. Merge Parquet chunks into database")
         print("2. Query classification_results table")
         print("3. Run Custom SQL Query")
