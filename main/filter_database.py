@@ -1,11 +1,8 @@
 # =============================================================================
-# DATABASE NOISE REDUCTION SCRIPT
+# DATABASE NOISE REDUCTION SCRIPT WITH CATEGORY CLASSIFICATION
 # =============================================================================
-# Filters derivative database using smart regex patterns
-# Creates unified clean_web_data.db with:
-#   - webpage_result: High confidence derivative sentences
-#   - soft_matches: Secondary indicators (hedging, accounting, etc.)
-#   - discarded: Noise and excluded content
+# Filters derivative database using smart regex patterns and classifies by type
+# Creates unified clean_web_data.db with keyword matches for MNLI comparison
 # =============================================================================
 
 import sqlite3
@@ -14,50 +11,37 @@ import re
 from pathlib import Path
 from tqdm import tqdm
 from typing import List, Tuple, Optional
-import pandas as pd
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing as mp
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
+
+def get_worker_count():
+    """Auto-detects CPU cores to set worker count."""
+    cpu_cores = mp.cpu_count()
+    num_workers = max(1, cpu_cores - 1)
+    print(
+        f"🖥️  System Detected: {cpu_cores} CPU cores, setting NUM_WORKERS to {num_workers}"
+    )
+    return num_workers
+
+
+NUM_WORKERS = get_worker_count()
+CHUNK_SIZE = 500  # Number of items to process in each parallel chunk
 SOURCE_DB_PATH = "web_data.db"
 CLEAN_DB_PATH = "clean_web_data.db"
 
-# Keywords to explicitly exclude (noise reducers)
-EXCLUDE_KEYWORDS = [
-    "stock option",
-    "stock award",
-    "restricted stock",
-    "RSU",
-    "employee compensation",
-    "employee stock",
-    "stock-based compensation",
-    "share-based",
-    "compensation expense",
-    "vesting",
-    "exercisable",
-    "stock purchase",
-    "ESPP",
-    "bonus",
-    "salary",
-    "wage",
-    "dividend",
-    "stock split",
-    "stock dividend",
-    "outstanding shares",
-    "share repurchase",
-    "buyback",
-    "warrant",
-    "convertible",
-    "conversion",
-]
-
-# Minimum sentence length to consider
-MIN_SENTENCE_LENGTH = 50
-
 # =============================================================================
-# BASE TYPE DEFINITIONS
+# SHARED COMPONENTS (from regex builder)
 # =============================================================================
+# Compile once at module level
+SENTENCE_SPLIT_PATTERN = re.compile(
+    r"(?<=[.!?])\s+(?=[A-Z])|"  # Period/exclamation/question + whitespace + uppercase
+    r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (extraction artifacts)
+)
 
 # Unambiguous derivative base types (used in gen regex)
 UNAMBIGUOUS_BASE_TYPES = [
@@ -109,7 +93,7 @@ def build_smart_regex(
 def build_ir_regex() -> re.Pattern:
     """Build optimized Interest Rate derivatives regex."""
     core_terms = [
-        "interest[- ]rate",  # Explicit: interest rate
+        "interest[- ]rate",
         "single[- ]currency",
         "Eurodollar",
         "SOFR",
@@ -117,12 +101,16 @@ def build_ir_regex() -> re.Pattern:
         "LIBOR",
         "LIBOR[- ]based",
         "EURIBOR",
-        "(?:treasury|forward|fixed|floating|variable|benchmark)[- ]rate",  # Require qualifier before "rate"
+        "(?:treasury|forward|fixed|floating|variable|benchmark)[- ]rate",
     ]
     specific_phrases = [
         "zero[- ]coupon swap",
         "FRA",
         "treasury lock",
+        "interest rate lock",
+        "interest rate cap",
+        "interest rate floor",
+        "single currency basis swap",
         "basis swap",
     ]
     pattern = build_smart_regex(
@@ -134,16 +122,20 @@ def build_ir_regex() -> re.Pattern:
 def build_fx_regex() -> re.Pattern:
     """Build optimized Foreign Exchange derivatives regex."""
     core_terms = [
-        "exchange",
+        "foreign[- ]exchange",
+        "foreign[- ]currency",
         "currency",
+        "cross[- ]currency",
         "currency[- ]rate",
-        "exchange[- ]rate",
+        "foreign[- ]exchange[- ]rate",
         "FX",
         "forex",
     ]
     specific_phrases = [
         "NDF",
+        "non[- ]deliverable forwards?",
         "deliverable forwards?",
+        "forward foreign exchange",
     ]
     pattern = build_smart_regex(
         core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
@@ -175,6 +167,8 @@ def build_eq_regex() -> re.Pattern:
     specific_phrases = [
         "call options?",
         "put options?",
+        "equity collars?",
+        "equity collar strateg(?:y|ies)",
     ]
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -182,13 +176,11 @@ def build_eq_regex() -> re.Pattern:
 
 def build_strict_gen_regex() -> re.Pattern:
     """Build strict General derivatives regex (high confidence only)."""
-    # Only unambiguous base types with suffixes
     base_with_required_suffixes = [
         f"{base}[- ]{suffix}"
         for base in UNAMBIGUOUS_BASE_TYPES
         for suffix in ALL_SUFFIXES
     ]
-
     specific_phrases = [
         "total[- ]return swaps?",
     ]
@@ -244,8 +236,39 @@ STRICT_REGEX = re.compile(
 )
 SOFT_REGEX = SOFT_GEN_REGEX
 
+# Keywords to explicitly exclude (noise reducers)
+EXCLUDE_KEYWORDS = [
+    "stock option",
+    "stock award",
+    "restricted stock",
+    "RSU",
+    "employee compensation",
+    "employee stock",
+    "stock-based compensation",
+    "share-based",
+    "compensation expense",
+    "vesting",
+    "exercisable",
+    "stock purchase",
+    "ESPP",
+    "bonus",
+    "salary",
+    "wage",
+    "dividend",
+    "stock split",
+    "stock dividend",
+    "outstanding shares",
+    "share repurchase",
+    "buyback",
+    "warrant",
+    "convertible",
+    "conversion",
+]
 
-# Exclude regex
+# Minimum sentence length to consider
+MIN_SENTENCE_LENGTH = 50
+
+
 def build_exclude_regex() -> re.Pattern:
     """Build regex for excluding noise keywords."""
     escaped_keywords = [re.escape(kw) for kw in EXCLUDE_KEYWORDS]
@@ -261,7 +284,7 @@ EXCLUDE_REGEX = build_exclude_regex()
 
 
 def create_clean_db():
-    """Create unified clean database with webpage_result (strict) and metadata tables."""
+    """Create unified clean database with category classification support."""
     conn = sqlite3.connect(CLEAN_DB_PATH)
     c = conn.cursor()
     try:
@@ -277,7 +300,7 @@ def create_clean_db():
         # Metadata for high-confidence matches
         c.execute(
             """
-            CREATE TABLE IF NOT EXISTS report_metadata (
+            CREATE TABLE IF NOT EXISTS report_data (
                 url TEXT PRIMARY KEY,
                 cik INTEGER,
                 year INTEGER,
@@ -285,32 +308,43 @@ def create_clean_db():
             )
             """
         )
-        # Soft matches (same schema with url link)
+        # Derivative type classification (for MNLI comparison)
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS derivative_type_matches (
+                url TEXT PRIMARY KEY,
+                ir_matches TEXT,
+                fx_matches TEXT,
+                cp_matches TEXT,
+                eq_matches TEXT,
+                FOREIGN KEY (url) REFERENCES webpage_result(url)
+            )
+            """
+        )
+        # Soft matches (secondary indicators)
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS soft_matches (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 url TEXT,
-                matches TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                matches TEXT
             )
             """
         )
-        # Discarded/noise (same schema with url link)
+        # Discarded/noise
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS discarded (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 url TEXT,
-                matches TEXT,
-                rejection_reason TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                matches TEXT
             )
             """
         )
         c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
-        c.execute("CREATE INDEX IF NOT EXISTS cik_idx ON report_metadata (cik)")
-        c.execute("CREATE INDEX IF NOT EXISTS year_idx ON report_metadata (year)")
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS type_url_idx ON derivative_type_matches (url)"
+        )
         c.execute("CREATE INDEX IF NOT EXISTS soft_url_idx ON soft_matches (url)")
         c.execute("CREATE INDEX IF NOT EXISTS disc_url_idx ON discarded (url)")
         c.execute("PRAGMA journal_mode=WAL")
@@ -336,24 +370,14 @@ def get_source_data() -> List[Tuple[str, str]]:
         return []
 
 
-def get_report_metadata(url: str) -> Optional[Tuple[int, int]]:
-    """Fetch CIK and year for a URL from source database."""
+def get_all_report_data() -> dict:
+    """Fetch all report data into a dictionary for fast lookups."""
     conn = sqlite3.connect(SOURCE_DB_PATH)
     c = conn.cursor()
-    try:
-        c.execute(
-            """
-            SELECT cik, year FROM report_data 
-            WHERE url = ?
-            """,
-            (url,),
-        )
-        result = c.fetchone()
-        conn.close()
-        return result
-    except Exception:
-        conn.close()
-        return None
+    c.execute("SELECT url, cik, year FROM report_data")
+    report_map = {row[0]: (row[1], row[2]) for row in c.fetchall()}
+    conn.close()
+    return report_map
 
 
 # =============================================================================
@@ -369,7 +393,7 @@ def is_table_content(match: str) -> bool:
 def filter_matches(matches_json: str) -> Tuple[List[str], List[str], List[str], str]:
     """
     Filter matches into strict, soft, and noise categories.
-    Splits paragraphs into sentences and filters at sentence level.
+    Splits paragraphs into sentences before filtering.
 
     Returns:
         (strict_matches, soft_matches, noise_matches, status)
@@ -386,12 +410,6 @@ def filter_matches(matches_json: str) -> Tuple[List[str], List[str], List[str], 
     soft = []
     noise = []
 
-    # Compile sentence split pattern
-    sentence_split_pattern = re.compile(
-        r"(?<=[.!?])\s+(?=[A-Z])|"  # Period/exclamation/question + whitespace + uppercase
-        r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (extraction artifacts)
-    )
-
     for match in matches:
         if not isinstance(match, str):
             noise.append(str(match))
@@ -402,39 +420,30 @@ def filter_matches(matches_json: str) -> Tuple[List[str], List[str], List[str], 
             noise.append(match)
             continue
 
-        # Skip very short content
-        if len(match) < MIN_SENTENCE_LENGTH:
-            noise.append(match)
-            continue
-
-        # Exclude noise keywords
-        if EXCLUDE_REGEX.search(match):
-            noise.append(match)
-            continue
-
         # Split paragraph into sentences
-        sentences = sentence_split_pattern.split(match)
-        sentences = [s.strip() for s in sentences if s.strip()]
-
-        # Filter sentences and categorize
-        paragraph_strict = []
-        paragraph_soft = []
-        paragraph_noise = []
+        sentences = SENTENCE_SPLIT_PATTERN.split(match)
 
         for sentence in sentences:
+            sentence = sentence.strip()
+
+            # Skip empty or very short content
+            if len(sentence) < MIN_SENTENCE_LENGTH:
+                noise.append(sentence)
+                continue
+
+            # Exclude noise keywords
+            if EXCLUDE_REGEX.search(sentence):
+                noise.append(sentence)
+                continue
+
             # Check for strict derivative keywords (priority)
             if STRICT_REGEX.search(sentence):
-                paragraph_strict.append(sentence)
+                strict.append(sentence)
             # Check for soft derivative keywords
             elif SOFT_REGEX.search(sentence):
-                paragraph_soft.append(sentence)
+                soft.append(sentence)
             else:
-                paragraph_noise.append(sentence)
-
-        # Add to appropriate lists
-        strict.extend(paragraph_strict)
-        soft.extend(paragraph_soft)
-        noise.extend(paragraph_noise)
+                noise.append(sentence)
 
     if strict:
         status = "Strict matches found"
@@ -448,6 +457,49 @@ def filter_matches(matches_json: str) -> Tuple[List[str], List[str], List[str], 
     return strict, soft, noise, status
 
 
+def process_item(item: Tuple[str, str]) -> Optional[Tuple]:
+    """
+    Worker function to process a single URL's matches.
+    Classifies sentences by derivative type for MNLI comparison.
+    """
+    url, matches_json = item
+    try:
+        (
+            strict_matches,
+            soft_matches,
+            noise_matches,
+            status,
+        ) = filter_matches(matches_json)
+
+        # Return None if there's nothing to save
+        if not strict_matches and not soft_matches and not noise_matches:
+            return None
+
+        # Classify derivative types if strict matches exist
+        ir_sentences, fx_sentences, cp_sentences, eq_sentences = [], [], [], []
+        if strict_matches:
+            for sentence in strict_matches:
+                # Check specific categories (order matters for priority)
+                if IR_REGEX.search(sentence):
+                    ir_sentences.append(sentence)
+                if FX_REGEX.search(sentence):
+                    fx_sentences.append(sentence)
+                if CP_REGEX.search(sentence):
+                    cp_sentences.append(sentence)
+                if EQ_REGEX.search(sentence):
+                    eq_sentences.append(sentence)
+
+        return (
+            url,
+            strict_matches,
+            soft_matches,
+            noise_matches,
+            (ir_sentences, fx_sentences, cp_sentences, eq_sentences),
+        )
+    except Exception:
+        return None
+
+
 # =============================================================================
 # SAVE FUNCTIONS
 # =============================================================================
@@ -456,7 +508,7 @@ def filter_matches(matches_json: str) -> Tuple[List[str], List[str], List[str], 
 def save_to_clean_db(
     url: str, matches: List[str], cik: Optional[int] = None, year: Optional[int] = None
 ):
-    """Save high-confidence matches to main webpage_result table."""
+    """Save filtered matches to clean database."""
     conn = sqlite3.connect(CLEAN_DB_PATH)
     c = conn.cursor()
     try:
@@ -471,7 +523,7 @@ def save_to_clean_db(
         if cik is not None and year is not None:
             c.execute(
                 """
-                INSERT OR REPLACE INTO report_metadata (url, cik, year) 
+                INSERT OR REPLACE INTO report_data (url, cik, year) 
                 VALUES (?, ?, ?)
                 """,
                 (url, cik, year),
@@ -479,18 +531,44 @@ def save_to_clean_db(
 
         conn.commit()
     except Exception as e:
-        print(f"❌ Error saving to webpage_result: {e}")
+        print(f"❌ Error saving to clean DB: {e}")
     finally:
         conn.close()
 
 
-def save_to_discarded_db(
+def save_derivative_types(
     url: str,
-    strict_matches: List[str],
-    soft_matches: List[str],
-    noise_matches: List[str],
+    ir_matches: List[str],
+    fx_matches: List[str],
+    cp_matches: List[str],
+    eq_matches: List[str],
 ):
-    """Save categorized discarded content to appropriate tables (all in same DB)."""
+    """Save derivative type classifications for MNLI comparison."""
+    conn = sqlite3.connect(CLEAN_DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute(
+            """
+            INSERT OR REPLACE INTO derivative_type_matches (url, ir_matches, fx_matches, cp_matches, eq_matches)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                url,
+                json.dumps(ir_matches),
+                json.dumps(fx_matches),
+                json.dumps(cp_matches),
+                json.dumps(eq_matches),
+            ),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Error saving derivative types: {e}")
+    finally:
+        conn.close()
+
+
+def save_to_discarded_db(url: str, soft_matches: List[str], noise_matches: List[str]):
+    """Save categorized discarded content to appropriate tables."""
     conn = sqlite3.connect(CLEAN_DB_PATH)
     c = conn.cursor()
     try:
@@ -506,15 +584,15 @@ def save_to_discarded_db(
         if noise_matches:
             c.execute(
                 """
-                INSERT INTO discarded (url, matches, rejection_reason) 
-                VALUES (?, ?, ?)
+                INSERT INTO discarded (url, matches)
+                VALUES (?, ?)
                 """,
-                (url, json.dumps(noise_matches), "Did not match strict criteria"),
+                (url, json.dumps(noise_matches)),
             )
 
         conn.commit()
     except Exception as e:
-        print(f"❌ Error saving to discarded tables: {e}")
+        print(f"❌ Error saving to discarded DB: {e}")
     finally:
         conn.close()
 
@@ -525,13 +603,13 @@ def save_to_discarded_db(
 
 
 def process_and_filter_database():
-    """Main function to filter database and create unified clean database."""
+    """Main function to filter database and create classified clean database."""
     print("=" * 80)
-    print("🔧 DATABASE NOISE REDUCTION")
+    print("🔧 DATABASE NOISE REDUCTION WITH CATEGORY CLASSIFICATION")
     print("=" * 80)
 
     # Initialize database
-    print("\n📦 Initializing unified clean database...")
+    print("\n📦 Initializing clean database...")
     create_clean_db()
 
     # Fetch source data
@@ -541,6 +619,10 @@ def process_and_filter_database():
     if not source_data:
         print("❌ No data found in source database")
         return
+
+    print("🧠 Loading report metadata into memory...")
+    report_data_map = get_all_report_data()
+    print(f"  • Loaded metadata for {len(report_data_map)} reports.")
 
     print(f"📊 Found {len(source_data)} URLs to process\n")
 
@@ -552,36 +634,56 @@ def process_and_filter_database():
     urls_soft = 0
     urls_noise = 0
 
-    for url, matches_json in tqdm(source_data, desc="Processing URLs", unit="url"):
-        strict_matches, soft_matches, noise_matches, status = filter_matches(
-            matches_json
-        )
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+        results_iterator = executor.map(process_item, source_data, chunksize=CHUNK_SIZE)
 
-        # Get metadata
-        metadata = get_report_metadata(url)
-        cik = metadata[0] if metadata else None
-        year = metadata[1] if metadata else None
+        for result in tqdm(
+            results_iterator, total=len(source_data), desc="Filtering URLs"
+        ):
+            if result is None:
+                continue
 
-        if strict_matches:
-            save_to_clean_db(url, strict_matches, cik, year)
-            total_kept += len(strict_matches)
-            urls_kept += 1
+            (
+                url,
+                strict_matches,
+                soft_matches,
+                noise_matches,
+                type_matches,
+            ) = result
 
-        # Always save to discarded tables (for tracking soft and noise)
-        save_to_discarded_db(url, strict_matches, soft_matches, noise_matches)
-        total_soft += len(soft_matches)
-        total_noise += len(noise_matches)
+            # Get metadata from the in-memory map
+            metadata = report_data_map.get(url)
+            cik = metadata[0] if metadata else None
+            year = metadata[1] if metadata else None
 
-        if soft_matches:
-            urls_soft += 1
-        if noise_matches:
-            urls_noise += 1
+            # Save strict matches
+            if strict_matches:
+                save_to_clean_db(url, strict_matches, cik, year)
+                total_kept += len(strict_matches)
+                urls_kept += 1
+
+                # Save derivative type classifications
+                ir_matches, fx_matches, cp_matches, eq_matches = type_matches
+                save_derivative_types(
+                    url, ir_matches, fx_matches, cp_matches, eq_matches
+                )
+
+            # Save soft and noise matches
+            if soft_matches or noise_matches:
+                save_to_discarded_db(url, soft_matches, noise_matches)
+
+            if soft_matches:
+                total_soft += len(soft_matches)
+                urls_soft += 1
+            if noise_matches:
+                total_noise += len(noise_matches)
+                urls_noise += 1
 
     # Print summary
     print("\n" + "=" * 80)
     print("✅ FILTERING COMPLETE")
     print("=" * 80)
-    print(f"\n📊 Summary Statistics:")
+    print(f"📊 Summary Statistics:")
     print(f"  • URLs with strict matches: {urls_kept:,}")
     print(f"  • URLs with soft matches: {urls_soft:,}")
     print(f"  • URLs with noise only: {urls_noise:,}")
@@ -600,9 +702,11 @@ def process_and_filter_database():
         print(f"  • Noise: {noise_pct:.1f}%")
 
     print(f"\n💾 Database Output: {CLEAN_DB_PATH}")
-    print(f"  • webpage_result - High confidence matches (with cik/year metadata)")
-    print(f"  • soft_matches - Secondary derivative indicators (linked by url)")
-    print(f"  • discarded - True noise content (linked by url)")
+    print(f"  • webpage_result - High-confidence matches (sentences)")
+    print(f"  • derivative_type_matches - IR/FX/CP/EQ classified sentences (for MNLI)")
+    print(f"  • report_data - CIK/year metadata")
+    print(f"  • soft_matches - Secondary indicators (linked by url)")
+    print(f"  • discarded - Noise and excluded content (linked by url)")
     print("=" * 80)
 
     return {
@@ -664,7 +768,10 @@ if __name__ == "__main__":
     print("\nRunning quality check...")
     check_clean_db_quality(sample_size=5)
 
-    print("\n✨ Done! Your unified clean_web_data.db is ready with:")
-    print("  • webpage_result - High-confidence derivatives")
-    print("  • soft_matches - Secondary indicators (hedging relationships, etc)")
+    print("\n✨ Done! Your clean_web_data.db is ready with:")
+    print("  • webpage_result - High-confidence keyword-matched sentences")
+    print(
+        "  • derivative_type_matches - Classified by IR/FX/CP/EQ (for MNLI validation)"
+    )
+    print("  • soft_matches - Secondary indicators")
     print("  • discarded - Noise and excluded content")
