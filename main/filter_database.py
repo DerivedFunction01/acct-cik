@@ -107,9 +107,6 @@ def build_ir_regex() -> re.Pattern:
         "zero[- ]coupon swap",
         "FRA",
         "treasury lock",
-        "interest rate lock",
-        "interest rate cap",
-        "interest rate floor",
         "single currency basis swap",
         "basis swap",
     ]
@@ -123,19 +120,16 @@ def build_fx_regex() -> re.Pattern:
     """Build optimized Foreign Exchange derivatives regex."""
     core_terms = [
         "foreign[- ]exchange",
-        "foreign[- ]currency",
+        "forward[- ]exchange",
         "currency",
-        "cross[- ]currency",
         "currency[- ]rate",
-        "foreign[- ]exchange[- ]rate",
+        "exchange[- ]rate",
         "FX",
         "forex",
     ]
     specific_phrases = [
         "NDF",
-        "non[- ]deliverable forwards?",
         "deliverable forwards?",
-        "forward foreign exchange",
     ]
     pattern = build_smart_regex(
         core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
@@ -167,8 +161,6 @@ def build_eq_regex() -> re.Pattern:
     specific_phrases = [
         "call options?",
         "put options?",
-        "equity collars?",
-        "equity collar strateg(?:y|ies)",
     ]
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -381,6 +373,24 @@ def get_all_report_data() -> dict:
     conn.close()
     return report_map
 
+
+def get_processed_urls_from_clean_db() -> set:
+    """Fetches all URLs that have already been processed and saved to the clean database."""
+    if not Path(CLEAN_DB_PATH).exists():
+        return set()
+    conn = sqlite3.connect(CLEAN_DB_PATH)
+    c = conn.cursor()
+    try:
+        # The 'webpage_result' table is the main table for strict matches.
+        # If a URL is here, it has been processed.
+        c.execute("SELECT url FROM webpage_result")
+        processed_urls = {row[0] for row in c.fetchall()}
+        return processed_urls
+    except sqlite3.OperationalError:
+        # Table might not exist yet on the very first run
+        return set()
+    finally:
+        conn.close()
 
 # =============================================================================
 # FILTERING FUNCTIONS
@@ -614,19 +624,31 @@ def process_and_filter_database():
     print("\n📦 Initializing clean database...")
     create_clean_db()
 
+    # Get already processed URLs to make the script resumable
+    print(f"🔍 Checking for previously processed URLs in {CLEAN_DB_PATH}...")
+    processed_urls = get_processed_urls_from_clean_db()
+    if processed_urls:
+        print(f"  • Found {len(processed_urls):,} already processed URLs. They will be skipped.")
+
     # Fetch source data
     print(f"📖 Reading from {SOURCE_DB_PATH}...")
     source_data = get_source_data()
 
     if not source_data:
-        print("❌ No data found in source database")
+        print("❌ No data found in source database.")
+        return
+
+    # Filter out already processed URLs
+    unprocessed_data = [item for item in source_data if item[0] not in processed_urls]
+    if not unprocessed_data:
+        print("✅ All URLs have already been processed. Nothing to do.")
         return
 
     print("🧠 Loading report metadata into memory...")
     report_data_map = get_all_report_data()
     print(f"  • Loaded metadata for {len(report_data_map)} reports.")
 
-    print(f"📊 Found {len(source_data)} URLs to process\n")
+    print(f"📊 Found {len(unprocessed_data)} new URLs to process\n")
 
     # Process each URL
     total_kept = 0
@@ -637,10 +659,10 @@ def process_and_filter_database():
     urls_noise = 0
 
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        results_iterator = executor.map(process_item, source_data, chunksize=CHUNK_SIZE)
+        results_iterator = executor.map(process_item, unprocessed_data, chunksize=CHUNK_SIZE)
 
         for result in tqdm(
-            results_iterator, total=len(source_data), desc="Filtering URLs"
+            results_iterator, total=len(unprocessed_data), desc="Filtering URLs"
         ):
             if result is None:
                 continue
