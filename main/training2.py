@@ -187,7 +187,10 @@ def run_training(
 
             return {
                 "text": tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=False
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=False,
+                    enable_thinking=True,
                 )
             }
 
