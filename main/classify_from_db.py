@@ -216,7 +216,7 @@ def save_chunk_to_parquet(all_chunk_results: List[Dict[str, Any]], output_parque
 
     try:
         df = pd.DataFrame(all_chunk_results)
-        df.to_parquet(output_parquet_path, engine="pyarrow", index=False)
+        df.to_parquet(output_parquet_path, index=False)
         return len(df)
     except Exception as e:
         print(f"    ❌ Error saving to Parquet file {output_parquet_path}: {e}")
