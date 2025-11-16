@@ -426,9 +426,7 @@ if __name__ == "__main__":
                         input(f"Enter shard index (0 to {num_shards - 1}): ") or 0
                     )
                     # Ask for the epoch number
-                    num_epochs = int(
-                        input(f"Resume from epoch [default: {shard_index + 1}]: ") or 1
-                    )
+                    num_epochs = shard_index + 1 if input(f"Resume from shard epoch [default: {shard_index + 1}] [y/N]: ").strip().lower() != "y" else num_epochs
                 run_training(
                     profile=config["training_profile"],
                     model_name=base_model_name,
