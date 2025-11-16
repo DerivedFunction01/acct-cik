@@ -1,5 +1,5 @@
-#%%
-# ============================================================================= 
+# %%
+# =============================================================================
 # DATABASE NOISE REDUCTION SCRIPT
 # =============================================================================
 # Filters derivative database to keep only strictly relevant content
@@ -33,7 +33,11 @@ CLEAN_DB_PATH = "clean_web_data.db"
 # =============================================================================
 # SHARED COMPONENTS (from regex builder)
 # =============================================================================
-
+# Compile once at module level
+SENTENCE_SPLIT_PATTERN = re.compile(
+    r"(?<=[.!?])\s+(?=[A-Z])|"  # Period/exclamation/question + whitespace + uppercase
+    r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (extraction artifacts)
+)
 ALL_BASE_TYPES = [
     "swaps?",
     "forwards?",
@@ -402,12 +406,13 @@ def is_table_content(match: str) -> bool:
 def filter_matches(matches_json: str) -> Tuple[List[str], List[str], List[str], str]:
     """
     Filter matches into strict, soft, and noise categories.
+    Splits paragraphs into sentences before filtering.
 
     Returns:
         (strict_matches, soft_matches, noise_matches, status)
-        - strict_matches: High-confidence derivative content
-        - soft_matches: Secondary derivative indicators
-        - noise_matches: Low confidence / excluded content
+        - strict_matches: High-confidence derivative content (individual sentences)
+        - soft_matches: Secondary derivative indicators (individual sentences)
+        - noise_matches: Low confidence / excluded content (individual sentences)
         - status: Why this URL was categorized
     """
     try:
@@ -432,24 +437,30 @@ def filter_matches(matches_json: str) -> Tuple[List[str], List[str], List[str], 
             noise.append(match)
             continue
 
-        # Skip very short content
-        if len(match) < MIN_SENTENCE_LENGTH:
-            noise.append(match)
-            continue
+        # Split paragraph into sentences
+        sentences = SENTENCE_SPLIT_PATTERN.split(match)
 
-        # Exclude noise keywords
-        if EXCLUDE_REGEX.search(match):
-            noise.append(match)
-            continue
+        for sentence in sentences:
+            sentence = sentence.strip()
 
-        # Check for strict derivative keywords (priority)
-        if STRICT_REGEX.search(match):
-            strict.append(match)
-        # Check for soft derivative keywords
-        elif SOFT_REGEX.search(match):
-            soft.append(match)
-        else:
-            noise.append(match)
+            # Skip empty or very short content
+            if len(sentence) < MIN_SENTENCE_LENGTH:
+                noise.append(sentence)
+                continue
+
+            # Exclude noise keywords
+            if EXCLUDE_REGEX.search(sentence):
+                noise.append(sentence)
+                continue
+
+            # Check for strict derivative keywords (priority)
+            if STRICT_REGEX.search(sentence):
+                strict.append(sentence)
+            # Check for soft derivative keywords
+            elif SOFT_REGEX.search(sentence):
+                soft.append(sentence)
+            else:
+                noise.append(sentence)
 
     if strict:
         status = "Strict matches found"
@@ -565,7 +576,6 @@ def save_to_discarded_db(
         print(f"❌ Error saving to discarded DB: {e}")
     finally:
         conn.close()
-
 
 
 # =============================================================================
@@ -734,7 +744,7 @@ def check_clean_db_quality(sample_size: int = 10):
         print(f"❌ Error checking quality: {e}")
         conn.close()
 
-#%%
+# %%
 # =============================================================================
 # MAIN EXECUTION
 # =============================================================================
