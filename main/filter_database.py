@@ -542,7 +542,7 @@ def save_full_result_atomically(
             )
             if cik is not None and year is not None:
                 c.execute(
-                    "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?)",
+                    "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
                     (url, cik, year),
                 )
             # 2. Save derivative type classifications
