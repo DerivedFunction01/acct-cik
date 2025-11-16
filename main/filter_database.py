@@ -517,87 +517,53 @@ def process_item(item: Tuple[str, str]) -> Optional[Tuple]:
 # =============================================================================
 
 
-def save_to_clean_db(
-    url: str, matches: List[str], cik: Optional[int] = None, year: Optional[int] = None
-):
-    """Save filtered matches to clean database."""
-    conn = sqlite3.connect(CLEAN_DB_PATH)
-    c = conn.cursor()
-    try:
-        c.execute(
-            "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
-            (url, json.dumps(matches)),
-        )
-
-        if cik is not None and year is not None:
-            c.execute(
-                """
-                INSERT OR REPLACE INTO report_data (url, cik, year) 
-                VALUES (?, ?, ?)""",
-                (url, cik, year),
-            )
-
-        conn.commit()
-    except Exception as e:
-        print(f"❌ Error saving to clean DB: {e}")
-    finally:
-        conn.close()
-
-
-def save_derivative_types(
+def save_full_result_atomically(
     url: str,
-    ir_matches: List[str],
-    fx_matches: List[str],
-    cp_matches: List[str],
-    eq_matches: List[str],
-):
-    """Save derivative type classifications for MNLI comparison."""
-    conn = sqlite3.connect(CLEAN_DB_PATH)
+    strict_matches: List[str],
+    soft_matches: List[str],
+    noise_matches: List[str],
+    type_matches: Tuple[List[str], List[str], List[str], List[str]],
+    cik: Optional[int],
+    year: Optional[int],
+) -> bool:
+    """
+    Saves the complete processed result for a single URL in a single atomic transaction.
+    """
+    conn = sqlite3.connect(CLEAN_DB_PATH, timeout=10)
     c = conn.cursor()
     try:
-        c.execute(
-            "INSERT OR IGNORE INTO derivative_type_matches (url, ir_matches, fx_matches, cp_matches, eq_matches) VALUES (?, ?, ?, ?, ?)",
-            (
-                url,
-                json.dumps(ir_matches),
-                json.dumps(fx_matches),
-                json.dumps(cp_matches),
-                json.dumps(eq_matches),
-            ),
-        )
-        conn.commit()
-    except Exception as e:
-        print(f"❌ Error saving derivative types: {e}")
-    finally:
-        conn.close()
+        c.execute("BEGIN TRANSACTION")
 
+        # 1. Save strict matches and report data
+        if strict_matches:
+            c.execute(
+                "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
+                (url, json.dumps(strict_matches)),
+            )
+            if cik is not None and year is not None:
+                c.execute(
+                    "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?)",
+                    (url, cik, year),
+                )
+            # 2. Save derivative type classifications
+            ir_matches, fx_matches, cp_matches, eq_matches = type_matches
+            c.execute(
+                "INSERT OR IGNORE INTO derivative_type_matches (url, ir_matches, fx_matches, cp_matches, eq_matches) VALUES (?, ?, ?, ?, ?)",
+                (url, json.dumps(ir_matches), json.dumps(fx_matches), json.dumps(cp_matches), json.dumps(eq_matches)),
+            )
 
-def save_to_discarded_db(url: str, soft_matches: List[str], noise_matches: List[str]):
-    """Save categorized discarded content to appropriate tables."""
-    conn = sqlite3.connect(CLEAN_DB_PATH)
-    c = conn.cursor()
-    try:
+        # 3. Save soft and noise matches
         if soft_matches:
-            c.execute(
-                """
-                INSERT INTO soft_matches (url, matches) 
-                VALUES (?, ?)
-                """,
-                (url, json.dumps(soft_matches)),
-            )
-
+            c.execute("INSERT INTO soft_matches (url, matches) VALUES (?, ?)", (url, json.dumps(soft_matches)))
         if noise_matches:
-            c.execute(
-                """
-                INSERT INTO discarded (url, matches)
-                VALUES (?, ?)
-                """,
-                (url, json.dumps(noise_matches)),
-            )
+            c.execute("INSERT INTO discarded (url, matches) VALUES (?, ?)", (url, json.dumps(noise_matches)))
 
-        conn.commit()
+        c.execute("COMMIT")
+        return True
     except Exception as e:
-        print(f"❌ Error saving to discarded DB: {e}")
+        c.execute("ROLLBACK")
+        print(f"❌ Transaction failed for {url}, rolling back. Error: {e}")
+        return False
     finally:
         conn.close()
 
@@ -673,28 +639,22 @@ def process_and_filter_database():
             cik = metadata[0] if metadata else None
             year = metadata[1] if metadata else None
 
-            # Save strict matches
-            if strict_matches:
-                save_to_clean_db(url, strict_matches, cik, year)
-                total_kept += len(strict_matches)
-                urls_kept += 1
+            # Atomically save all results for this URL
+            success = save_full_result_atomically(
+                url, strict_matches, soft_matches, noise_matches, type_matches, cik, year
+            )
 
-                # Save derivative type classifications
-                ir_matches, fx_matches, cp_matches, eq_matches = type_matches
-                save_derivative_types(
-                    url, ir_matches, fx_matches, cp_matches, eq_matches
-                )
-
-            # Save soft and noise matches
-            if soft_matches or noise_matches:
-                save_to_discarded_db(url, soft_matches, noise_matches)
-
-            if soft_matches:
-                total_soft += len(soft_matches)
-                urls_soft += 1
-            if noise_matches:
-                total_noise += len(noise_matches)
-                urls_noise += 1
+            if success:
+                # Update statistics only on successful save
+                if strict_matches:
+                    urls_kept += 1
+                    total_kept += len(strict_matches)
+                if soft_matches:
+                    urls_soft += 1
+                    total_soft += len(soft_matches)
+                if noise_matches:
+                    urls_noise += 1
+                    total_noise += len(noise_matches)
 
     # Print summary
     print("\n" + "=" * 80)
