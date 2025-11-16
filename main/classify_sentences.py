@@ -57,7 +57,8 @@ CORE_HYPOTHESES = {
 # Define which hypotheses to use for each stage
 STAGE_HYPOTHESES_MAP = {
     "policy": ["H1_Policy"],
-    "position": ["H2_Existence", "H3_Notional", "H4_PnL_Impact"],
+    "notional": ["H3_Notional"],
+    "position": ["H2_Existence", "H4_PnL_Impact"], # H3 is handled by the 'notional' stage
 }
 
 # Mapping from model output index to label
@@ -80,7 +81,7 @@ class ClassificationRequest(BaseModel):
         example="interest rate swaps",
         description="The derivative term to insert into the hypotheses.",
     )
-    stage: Literal["policy", "position"] = Field(
+    stage: Literal["policy", "position", "notional"] = Field(
         ...,
         example="position",
         description="The classification stage to determine which hypotheses to use.",
@@ -121,14 +122,16 @@ async def classify_sentences(request: ClassificationRequest):
     This endpoint implements the tiered classification strategy:
     - **Stage 'policy'**: Checks sentences against the general `H1_Policy` hypothesis.
       This is ideal for sentences without a clear time reference.
-    - **Stage 'position'**: Checks sentences against `H2_Existence`, `H3_Notional`,
-      and `H4_PnL_Impact`. This is for sentences with a year or other time-specific
+    - **Stage 'notional'**: A focused check for `H3_Notional` to efficiently find
+      sentences that disclose notional amounts.
+    - **Stage 'position'**: Checks sentences against `H2_Existence` and
+      `H4_PnL_Impact`. This is for sentences with a year or other time-specific
       markers to confirm active usage.
 
     **Request Body:**
     - `term` (str): The derivative term to inject into the hypothesis (e.g., "interest rate swaps").
     - `stage` (str): Either "policy" or "position".
-    - `sentences` (List[str]): A list of sentences to classify.
+    - `sentences` (List[str]): A list of sentences to classify. 
     - `year` (int, optional): The reporting year for time-specific classification.
 
     **Returns:**
