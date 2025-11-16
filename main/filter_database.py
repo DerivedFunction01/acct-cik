@@ -4,7 +4,7 @@
 # Filters derivative database using smart regex patterns and classifies by type
 # Creates unified clean_web_data.db with keyword matches for MNLI comparison
 # =============================================================================
-
+#%%
 import sqlite3
 import json
 import re
@@ -776,7 +776,7 @@ def check_clean_db_quality(sample_size: int = 10):
 # =============================================================================
 # MAIN EXECUTION
 # =============================================================================
-
+#%%
 if __name__ == "__main__":
     # Run the filtering process
     stats = process_and_filter_database()
@@ -792,3 +792,5 @@ if __name__ == "__main__":
     )
     print("  • soft_matches - Secondary indicators")
     print("  • discarded - Noise and excluded content")
+
+# %%
