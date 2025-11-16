@@ -436,7 +436,7 @@ def classify_sentences_for_stage(
             "year": year,
         }
         try:
-            response = requests.post(CLASSIFY_ENDPOINT, json=payload, timeout=60)
+            response = requests.post(CLASSIFY_ENDPOINT, json=payload, timeout=180)
             response.raise_for_status()
             results = response.json().get("results", [])
 
