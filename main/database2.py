@@ -122,6 +122,46 @@ def save_db_to_drive():
     except Exception as e:
         print(f"❌ An unexpected error occurred while saving to Drive: {e}")
 
+
+def serialize_value(v):
+    """
+    Convert pandas/numpy types to SQLite-compatible types.
+    Handles: NaN, numpy arrays, bytes, and standard types.
+    """
+    # Handle None explicitly
+    if v is None:
+        return None
+
+    # Handle NaN/NaT values
+    if isinstance(v, float) and np.isnan(v):
+        return None
+    if pd.isna(v):
+        return None
+
+    # Handle numpy arrays - convert to JSON string
+    if isinstance(v, np.ndarray):
+        return json.dumps(v.tolist())
+
+    # Handle bytes - decode to UTF-8 string
+    if isinstance(v, bytes):
+        try:
+            return v.decode("utf-8")
+        except UnicodeDecodeError:
+            # Fallback: return hex representation if can't decode
+            return v.hex()
+
+    # Handle numpy scalars (np.bool_, np.int64, etc.)
+    if isinstance(v, np.generic):
+        return v.item()
+
+    # Handle pandas Series or other container types (shouldn't happen but safe)
+    if isinstance(v, (pd.Series, list, dict)):
+        return json.dumps(v.tolist() if isinstance(v, pd.Series) else v)
+
+    # Return as-is for native Python types (str, int, float, bool)
+    return v
+
+
 def import_classification_results_from_parquet():
     """
     Imports data from `classification_results_chunk_*.parquet` files into
@@ -145,9 +185,16 @@ def import_classification_results_from_parquet():
 
     # Ensure all required columns exist
     required_cols = [
-        "url", "cik", "year", 
-        "found_policy", "found_existence", "found_notional", "found_pnl", 
-        "status", "duration_s", "error_message"
+        "url",
+        "cik",
+        "year",
+        "found_policy",
+        "found_existence",
+        "found_notional",
+        "found_pnl",
+        "status",
+        "duration_s",
+        "error_message",
     ]
     if not all(col in combined_df.columns for col in required_cols):
         print("  -> ❌ Error: Parquet files are missing one or more required columns.")
@@ -155,36 +202,53 @@ def import_classification_results_from_parquet():
         print(f"     Found:    {list(combined_df.columns)}")
         return
 
-    def serialize_value(v):
-        """Handle special types for SQLite insertion."""
-        if isinstance(v, float) and pd.isna(v):
-            return None  # Convert NaN to None
-        if isinstance(v, np.ndarray):
-            return json.dumps(v.tolist())  # Serialize numpy array to JSON string
-        if isinstance(v, bytes):
-            try:
-                return int.from_bytes(v, 'little') # Deserialize bytes to integer
-            except (TypeError, ValueError):
-                return v.decode('utf-8', errors='ignore') # Fallback to string
-        return v
+    print("\n[3b/5] Converting data types for SQLite compatibility...")
+    # Columns are already integers from prepare_results_for_parquet()
+    bool_columns = ["found_policy", "found_existence", "found_notional", "found_pnl"]
+    for col in bool_columns:
+        if col in combined_df.columns:
+            # Ensure they're integers (they should be already)
+            combined_df[col] = combined_df[col].fillna(0).astype(int)
+
+    # Ensure numeric columns are properly typed
+    if "cik" in combined_df.columns:
+        combined_df["cik"] = combined_df["cik"].astype("Int64", errors="ignore")
+    if "year" in combined_df.columns:
+        combined_df["year"] = combined_df["year"].astype("Int64", errors="ignore")
+    if "duration_s" in combined_df.columns:
+        combined_df["duration_s"] = combined_df["duration_s"].astype(
+            "float64", errors="ignore"
+        )
+
+    # Ensure string columns are strings
+    for col in ["url", "status", "error_message"]:
+        if col in combined_df.columns:
+            combined_df[col] = combined_df[col].astype("object").fillna("")
 
     # Prepare records for database insertion
     records_to_insert = combined_df[required_cols].to_records(index=False)
 
     # Convert special types (like np.nan, np.ndarray) for SQLite compatibility
-    records_to_insert = [tuple(serialize_value(v) for v in rec) for rec in records_to_insert]
+    print("[4/5] Serializing values for database insertion...")
+    records_to_insert = [
+        tuple(serialize_value(v) for v in rec)
+        for rec in tqdm(
+            records_to_insert, desc="  Serializing", total=len(records_to_insert)
+        )
+    ]
 
-    print(f"\n[4/5] Connecting to database '{DB_PATH}'...")
+    print(f"\n[5/5] Connecting to database '{DB_PATH}'...")
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    print(f"\n[5/5] Inserting {len(records_to_insert):,} records into '{RESULTS_TABLE}'...")
+    print(f"\nInserting {len(records_to_insert):,} records into '{RESULTS_TABLE}'...")
     try:
         # Use tqdm for progress on the database insertion
         with tqdm(total=len(records_to_insert), desc="  Inserting to DB") as pbar:
             # Process in chunks for memory efficiency
-            for i in range(0, len(records_to_insert), 10000):
-                chunk = records_to_insert[i : i + 10000]
+            chunk_size = 10000
+            for i in range(0, len(records_to_insert), chunk_size):
+                chunk = records_to_insert[i : i + chunk_size]
                 cursor.executemany(
                     f"""INSERT OR REPLACE INTO {RESULTS_TABLE} 
                        (url, cik, year, found_policy, found_existence, found_notional, found_pnl, status, duration_s, error_message) 
@@ -194,7 +258,24 @@ def import_classification_results_from_parquet():
                 pbar.update(len(chunk))
 
         conn.commit()
-        print(f"\n✅ Successfully imported/updated {cursor.rowcount} records.")
+        print(f"\n✅ Successfully imported/updated {len(records_to_insert):,} records.")
+
+        # Show summary statistics
+        summary_df = execute_sql(
+            f"""
+            SELECT 
+                COUNT(*) as total_records,
+                SUM(found_policy) as with_policy,
+                SUM(found_notional) as with_notional,
+                SUM(found_existence) as with_existence,
+                SUM(found_pnl) as with_pnl
+            FROM {RESULTS_TABLE}
+        """
+        )
+        if isinstance(summary_df, pd.DataFrame):
+            print("\n📊 Database Summary:")
+            print(summary_df.to_string(index=False))
+
     except sqlite3.Error as e:
         print(f"  -> ❌ A database error occurred during import: {e}")
     finally:
@@ -227,16 +308,38 @@ if __name__ == "__main__":
             try:
                 import_classification_results_from_parquet()
             except Exception as e:
-                print(f"\nAn unexpected error occurred: {e}")
+                print(f"\n❌ An unexpected error occurred: {e}")
+                import traceback
+
+                traceback.print_exc()
 
         elif choice == "2":
             df = execute_sql(f"SELECT * FROM {RESULTS_TABLE}")
             if isinstance(df, pd.DataFrame):
                 last_df = df
+                print(f"\n📊 Showing first 20 of {len(df):,} records:\n")
                 print(df.head(20))
-                print("-" * 30)
-                print("Statistics:")
-                print(df.describe())
+                print("\n" + "-" * 30)
+                print("Summary Statistics:")
+                print(f"  Total records: {len(df):,}")
+                print(
+                    f"  With policy evidence: {df['found_policy'].sum():,} ({df['found_policy'].sum()/len(df)*100:.1f}%)"
+                )
+                print(
+                    f"  With notional amounts: {df['found_notional'].sum():,} ({df['found_notional'].sum()/len(df)*100:.1f}%)"
+                )
+                print(
+                    f"  With position existence: {df['found_existence'].sum():,} ({df['found_existence'].sum()/len(df)*100:.1f}%)"
+                )
+                print(
+                    f"  With P&L impact: {df['found_pnl'].sum():,} ({df['found_pnl'].sum()/len(df)*100:.1f}%)"
+                )
+                print(f"\n  Average processing time: {df['duration_s'].mean():.2f}s")
+                print(
+                    f"  Min/Max processing time: {df['duration_s'].min():.2f}s / {df['duration_s'].max():.2f}s"
+                )
+                print(f"\n  Status breakdown:")
+                print(df["status"].value_counts())
 
         elif choice == "3":
             custom_sql = input("Enter your SQL query: ").strip()

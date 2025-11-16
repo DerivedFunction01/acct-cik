@@ -46,8 +46,12 @@ MAX_WORKERS = 2
 BATCH_SIZE = 32
 
 # Google Drive configuration
-IS_COLAB = Path("./drive/MyDrive/").exists()
 DRIVE_PATH = "./drive/MyDrive/db"
+LOAD_SHELL_CMD = f"cp -f {DRIVE_PATH}/{DB_PATH} ."
+IS_COLAB = Path(DRIVE_PATH).exists()
+
+if IS_COLAB:
+    print("Running in Google Colab environment.")
 
 # Map derivative types from the DB to the 'term' for the model
 DERIVATIVE_TYPE_TO_TERM_MAP = {
@@ -81,10 +85,10 @@ def prepare_results_for_parquet(results: List[Dict[str, Any]]) -> List[Dict[str,
                 "url": r.get("url"),
                 "cik": r.get("cik"),
                 "year": r.get("year"),
-                "found_policy": bool(r.get("found_policy", False)),
-                "found_existence": bool(r.get("found_existence", False)),
-                "found_notional": bool(r.get("found_notional", False)),
-                "found_pnl": bool(r.get("found_pnl", False)),
+                "found_policy": int(r.get("found_policy", 0)),
+                "found_existence": int(r.get("found_existence", 0)),
+                "found_notional": int(r.get("found_notional", 0)),
+                "found_pnl": int(r.get("found_pnl", 0)),
                 "status": str(r.get("status", "unknown")),
                 "duration_s": float(r.get("duration_s", 0.0)),
                 "error_message": (
@@ -197,10 +201,10 @@ def setup_database():
             url TEXT PRIMARY KEY,
             cik INTEGER,
             year INTEGER,
-            found_policy BOOLEAN,
-            found_existence BOOLEAN,
-            found_notional BOOLEAN,
-            found_pnl BOOLEAN,
+            found_policy INTEGER,
+            found_existence INTEGER,
+            found_notional INTEGER,
+            found_pnl INTEGER,
             status TEXT,
             duration_s REAL,
             error_message TEXT
@@ -332,12 +336,12 @@ def process_filing(filing_info: Tuple[str, int, int]) -> Dict[str, Any]:
         "cik": cik,
         "year": year,
         "url": url,
-        "found_policy": False,
-        "found_existence": False,
-        "found_notional": False,
-        "found_pnl": False,
+        "found_policy": 0,
+        "found_existence": 0,
+        "found_notional": 0,
+        "found_pnl": 0,
         "status": "processed",
-        "error_message": None,
+        "error_message": "",
     }
 
     try:
@@ -358,7 +362,7 @@ def process_filing(filing_info: Tuple[str, int, int]) -> Dict[str, Any]:
                 sentences, term, year, "notional"
             )
             if notional_results.get("H3_Notional"):
-                final_result["found_notional"] = True
+                final_result["found_notional"] = 1
                 final_result["status"] = "found_notional_early"
                 final_result["duration_s"] = round(time.time() - start_time, 2)
                 return final_result  # EARLY EXIT
@@ -373,9 +377,9 @@ def process_filing(filing_info: Tuple[str, int, int]) -> Dict[str, Any]:
                 sentences, term, year, "position"
             )
             if position_results.get("H2_Existence"):
-                final_result["found_existence"] = True
+                final_result["found_existence"] = 1
             if position_results.get("H4_PnL_Impact"):
-                final_result["found_pnl"] = True
+                final_result["found_pnl"] = 1
 
         # 4. STAGE 3: Policy Check (run regardless, as it's a different type of evidence)
         for category, term in DERIVATIVE_TYPE_TO_TERM_MAP.items():
@@ -387,7 +391,7 @@ def process_filing(filing_info: Tuple[str, int, int]) -> Dict[str, Any]:
                 sentences, term, year, "policy"
             )
             if policy_results.get("H1_Policy"):
-                final_result["found_policy"] = True
+                final_result["found_policy"] = 1
 
         # 5. Determine final status
         if final_result["found_existence"] or final_result["found_pnl"]:
