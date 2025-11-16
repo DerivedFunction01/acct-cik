@@ -10,6 +10,7 @@
 # 3. Reads, concatenates, and de-duplicates the data from all chunks.
 # 4. Inserts the final, clean data into the `classification_results` table
 #    in the `clean_web_data.db` database.
+# 5. Handles composite primary key (url, category) with array-based findings.
 # =============================================================================
 
 import json
@@ -145,9 +146,11 @@ def serialize_value(v):
     # Handle bytes - decode to UTF-8 string
     if isinstance(v, bytes):
         try:
-            return int.from_bytes(v, 'little', signed=True) # Prefer deserializing to integer
+            return int.from_bytes(
+                v, "little", signed=True
+            )  # Prefer deserializing to integer
         except (TypeError, ValueError, OverflowError):
-            return v.decode('utf-8', errors='ignore') # Fallback to string
+            return v.decode("utf-8", errors="ignore")  # Fallback to string
 
     # Handle numpy scalars (np.bool_, np.int64, etc.)
     if isinstance(v, np.generic):
@@ -164,7 +167,13 @@ def serialize_value(v):
 def import_classification_results_from_parquet():
     """
     Imports data from `classification_results_chunk_*.parquet` files into
-    the `classification_results` table using pandas.to_sql().
+    the `classification_results` table using INSERT OR REPLACE.
+
+    Schema: (url, category, cik, year, found_policy, found_existence,
+             found_notional, found_pnl, status, duration_s, error_message)
+
+    found_* fields store JSON arrays of sentence indices.
+    Composite primary key: (url, category)
     """
     print(f"\n[1/4] Searching for '{PARQUET_PATTERN}' files...")
     parquet_files = _ensure_files_are_local(PARQUET_PATTERN)
@@ -179,7 +188,7 @@ def import_classification_results_from_parquet():
     print(f"  -> Concatenated to {len(combined_df):,} total records.")
 
     print("\n[3/4] Dropping duplicate records (keeping last entry)...")
-    combined_df.drop_duplicates(subset=["url"], keep="last", inplace=True)
+    combined_df.drop_duplicates(subset=["url", "category"], keep="last", inplace=True)
     print(f"  -> {len(combined_df):,} unique records remain.")
 
     # Ensure all required columns exist
@@ -205,13 +214,19 @@ def import_classification_results_from_parquet():
     # Select only required columns and ensure correct order
     combined_df = combined_df[required_cols]
 
+    # Ensure found_* columns are strings (JSON arrays as strings)
+    # If they come as lists from parquet, convert to JSON strings
+    for col in ["found_policy", "found_existence", "found_notional", "found_pnl"]:
+        combined_df[col] = combined_df[col].apply(
+            lambda x: json.dumps(x) if isinstance(x, list) else str(x)
+        )
+
     print("\n[4/4] Inserting records into database...")
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         # Since we want to handle duplicates (update if exists), we use INSERT OR REPLACE
-        # This is more efficient than if_exists='replace' which would drop the whole table
         records = combined_df.values.tolist()
 
         print(f"  Inserting {len(records):,} records (updating duplicates)...")
@@ -221,7 +236,8 @@ def import_classification_results_from_parquet():
                 chunk = records[i : i + chunk_size]
                 cursor.executemany(
                     f"""INSERT OR REPLACE INTO {RESULTS_TABLE}
-                       (url, category, cik, year, found_policy, found_existence, found_notional, found_pnl, status, duration_s, error_message)
+                       (url, category, cik, year, found_policy, found_existence, 
+                        found_notional, found_pnl, status, duration_s, error_message)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     chunk,
                 )
@@ -232,21 +248,20 @@ def import_classification_results_from_parquet():
         print(f"✅ Successfully imported/updated {len(combined_df):,} records.")
 
         # Show summary statistics
-        summary_df = execute_sql(
-            f"""
+        summary_sql = f"""
             SELECT 
                 category,
                 COUNT(*) as total_records,
-                SUM(found_policy) as with_policy,
-                SUM(found_notional) as with_notional,
-                SUM(found_existence) as with_existence,
-                SUM(found_pnl) as with_pnl
+                SUM(CASE WHEN found_policy != '[]' THEN 1 ELSE 0 END) as with_policy,
+                SUM(CASE WHEN found_notional != '[]' THEN 1 ELSE 0 END) as with_notional,
+                SUM(CASE WHEN found_existence != '[]' THEN 1 ELSE 0 END) as with_existence,
+                SUM(CASE WHEN found_pnl != '[]' THEN 1 ELSE 0 END) as with_pnl
             FROM {RESULTS_TABLE}
+            GROUP BY category
         """
-            "GROUP BY category"
-        )
+        summary_df = execute_sql(summary_sql)
         if isinstance(summary_df, pd.DataFrame):
-            print("\n📊 Database Summary:")
+            print("\n📊 Database Summary by Category:")
             print(summary_df.to_string(index=False))
 
     except Exception as e:
@@ -296,24 +311,71 @@ if __name__ == "__main__":
                 print("\n" + "-" * 30)
                 print("Summary Statistics:")
                 print(f"  Total records: {len(df):,}")
+
+                # Count findings (any found_* array not empty means found)
+                with_policy = (df["found_policy"] != "[]").sum()
+                with_notional = (df["found_notional"] != "[]").sum()
+                with_existence = (df["found_existence"] != "[]").sum()
+                with_pnl = (df["found_pnl"] != "[]").sum()
+
                 print(
-                    f"  With policy evidence: {df['found_policy'].sum():,} ({df['found_policy'].sum()/len(df)*100:.1f}%)"
+                    f"  With policy evidence: {with_policy:,} ({with_policy/len(df)*100:.1f}%)"
                 )
                 print(
-                    f"  With notional amounts: {df['found_notional'].sum():,} ({df['found_notional'].sum()/len(df)*100:.1f}%)"
+                    f"  With notional amounts: {with_notional:,} ({with_notional/len(df)*100:.1f}%)"
                 )
                 print(
-                    f"  With position existence: {df['found_existence'].sum():,} ({df['found_existence'].sum()/len(df)*100:.1f}%)"
+                    f"  With position existence: {with_existence:,} ({with_existence/len(df)*100:.1f}%)"
                 )
-                print(
-                    f"  With P&L impact: {df['found_pnl'].sum():,} ({df['found_pnl'].sum()/len(df)*100:.1f}%)"
+                print(f"  With P&L impact: {with_pnl:,} ({with_pnl/len(df)*100:.1f}%)")
+
+                # Show average array lengths for records that have findings
+                def parse_json_array(s):
+                    try:
+                        return (
+                            json.loads(s)
+                            if isinstance(s, str)
+                            else (s if isinstance(s, list) else [])
+                        )
+                    except:
+                        return []
+
+                policy_lengths = df["found_policy"].apply(
+                    lambda x: len(parse_json_array(x))
                 )
+                notional_lengths = df["found_notional"].apply(
+                    lambda x: len(parse_json_array(x))
+                )
+                existence_lengths = df["found_existence"].apply(
+                    lambda x: len(parse_json_array(x))
+                )
+                pnl_lengths = df["found_pnl"].apply(lambda x: len(parse_json_array(x)))
+
+                if (policy_lengths > 0).sum() > 0:
+                    print(
+                        f"  Avg policy matches per finding: {policy_lengths[policy_lengths > 0].mean():.2f}"
+                    )
+                if (notional_lengths > 0).sum() > 0:
+                    print(
+                        f"  Avg notional matches per finding: {notional_lengths[notional_lengths > 0].mean():.2f}"
+                    )
+                if (existence_lengths > 0).sum() > 0:
+                    print(
+                        f"  Avg existence matches per finding: {existence_lengths[existence_lengths > 0].mean():.2f}"
+                    )
+                if (pnl_lengths > 0).sum() > 0:
+                    print(
+                        f"  Avg PnL matches per finding: {pnl_lengths[pnl_lengths > 0].mean():.2f}"
+                    )
+
                 print(f"\n  Average processing time: {df['duration_s'].mean():.2f}s")
                 print(
                     f"  Min/Max processing time: {df['duration_s'].min():.2f}s / {df['duration_s'].max():.2f}s"
                 )
                 print(f"\n  Status breakdown:")
                 print(df["status"].value_counts())
+                print(f"\n  Category breakdown:")
+                print(df["category"].value_counts())
 
         elif choice == "3":
             custom_sql = input("Enter your SQL query: ").strip()

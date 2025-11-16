@@ -12,6 +12,8 @@
 # 4. Mini-chunk processing with periodic saves and stats
 # 5. Multi-machine support via chunking
 # 6. Google Drive backups
+# 7. Category-specific results with (url, category) composite key
+# 8. Array-based findings tracking (stores all matching sentence indices)
 # =============================================================================
 
 import requests
@@ -66,6 +68,14 @@ DERIVATIVE_TYPE_TO_TERM_MAP = {
     "eq_matches": "equity derivative",
 }
 
+# Category short names
+CATEGORY_MAPPING = {
+    "ir_matches": "ir",
+    "fx_matches": "fx",
+    "cp_matches": "cp",
+    "eq_matches": "eq",
+}
+
 # This needs to be in sync with the server's STAGE_HYPOTHESES_MAP
 STAGE_HYPOTHESES_MAP = {
     "policy": ["H1_Policy"],
@@ -94,9 +104,12 @@ def prepare_results_for_parquet(results: List[Dict[str, Any]]) -> List[Dict[str,
     """
     Normalize results to a flat, consistent structure for Parquet storage.
     Ensures all results have the same schema, preventing write errors.
+    Each result now includes:
+    - url, cik, year, category
+    - found_policy, found_existence, found_notional, found_pnl (JSON arrays)
+    - status, duration_s, error_message
     """
     normalized = []
-    categories = ["ir", "fx", "cp", "eq"]
     found_types = ["policy", "existence", "notional", "pnl"]
 
     for r in results:
@@ -104,17 +117,19 @@ def prepare_results_for_parquet(results: List[Dict[str, Any]]) -> List[Dict[str,
             "url": r.get("url"),
             "cik": r.get("cik"),
             "year": r.get("year"),
+            "category": r.get("category"),
             "status": str(r.get("status", "unknown")),
             "duration_s": float(r.get("duration_s", 0.0)),
             "error_message": (
                 str(r.get("error_message")) if r.get("error_message") else None
             ),
         }
-        # Add all the granular 'found' columns
+        # Add the granular 'found' columns (now storing arrays as JSON strings)
         for f_type in found_types:
-            for cat in categories:
-                col_name = f"found_{f_type}_{cat}"
-                record[col_name] = int(r.get(col_name, 0))
+            col_name = f"found_{f_type}"
+            indices_array = r.get(col_name, [])
+            # Store as JSON string in parquet
+            record[col_name] = json.dumps(indices_array)
         normalized.append(record)
     return normalized
 
@@ -163,17 +178,26 @@ def get_already_processed_in_parquet(
     output_parquet_file: str,
 ) -> Tuple[set, List[Dict]]:
     """
-    Check if a parquet checkpoint exists and load already-processed URLs.
-    Returns: (set of processed URLs, list of existing results)
+    Check if a parquet checkpoint exists and load already-processed (url, category) pairs.
+    Returns: (set of (url, category) tuples, list of existing results)
     """
     if not Path(output_parquet_file).exists():
         return set(), []
 
     try:
         df = pd.read_parquet(output_parquet_file)
-        processed_urls = set(df["url"].tolist())
+        # Create composite key of (url, category)
+        processed_pairs = set(zip(df["url"].tolist(), df["category"].tolist()))
+
+        # Parse JSON arrays back to lists
         existing_results = df.to_dict("records")
-        return processed_urls, existing_results
+        for result in existing_results:
+            for f_type in ["policy", "existence", "notional", "pnl"]:
+                col_name = f"found_{f_type}"
+                if col_name in result and isinstance(result[col_name], str):
+                    result[col_name] = json.loads(result[col_name])
+
+        return processed_pairs, existing_results
     except Exception as e:
         print(f"    ⚠️ Could not read parquet checkpoint: {e}")
         return set(), []
@@ -188,35 +212,30 @@ def print_mini_chunk_stats(mini_chunk_results: List[Dict[str, Any]]):
 
     statuses = Counter(r.get("status") for r in mini_chunk_results)
 
-    # Sum up across all categories for summary stats
-    categories = ["ir", "fx", "cp", "eq"]
-    total_notional = sum(
-        r.get(f"found_notional_{cat}", 0)
-        for r in mini_chunk_results
-        for cat in categories
-    )
-    total_policy = sum(
-        r.get(f"found_policy_{cat}", 0)
-        for r in mini_chunk_results
-        for cat in categories
-    )
-    total_existence = sum(
-        r.get(f"found_existence_{cat}", 0)
-        for r in mini_chunk_results
-        for cat in categories
-    )
-    total_pnl = sum(
-        r.get(f"found_pnl_{cat}", 0) for r in mini_chunk_results for cat in categories
-    )
+    # Count findings (any found_* array with len > 0 means it was found)
+    found_types = ["policy", "existence", "notional", "pnl"]
+    findings_count = {f_type: 0 for f_type in found_types}
+    total_matches = {f_type: 0 for f_type in found_types}
+
+    for r in mini_chunk_results:
+        for f_type in found_types:
+            col_name = f"found_{f_type}"
+            indices_array = r.get(col_name, [])
+            if len(indices_array) > 0:
+                findings_count[f_type] += 1
+                total_matches[f_type] += len(indices_array)
 
     avg_duration = sum(r.get("duration_s", 0) for r in mini_chunk_results) / (
         len(mini_chunk_results) or 1
     )
 
-    print(f"    📊 Mini-chunk Stats ({len(mini_chunk_results)} filings):")
+    print(f"    📊 Mini-chunk Stats ({len(mini_chunk_results)} records):")
     print(f"       Status breakdown: {dict(statuses)}")
     print(
-        f"       Findings (total flags) - Notional: {total_notional}, Policy: {total_policy}, Existence: {total_existence}, PnL: {total_pnl}"
+        f"       Findings - Policy: {findings_count['policy']} ({total_matches['policy']} matches), "
+        f"Existence: {findings_count['existence']} ({total_matches['existence']} matches), "
+        f"Notional: {findings_count['notional']} ({total_matches['notional']} matches), "
+        f"PnL: {findings_count['pnl']} ({total_matches['pnl']} matches)"
     )
     print(f"       Avg processing time: {avg_duration:.2f}s")
 
@@ -278,51 +297,55 @@ def setup_database():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # Build the CREATE TABLE statement dynamically
-    categories = ["ir", "fx", "cp", "eq"]
-    found_cols = [f"found_{cat}" for cat in ["policy", "existence", "notional", "pnl"]]
-
+    # Build the CREATE TABLE statement with composite primary key
+    # found_* fields now store JSON arrays of sentence indices
     columns = [
-        "url TEXT PRIMARY KEY",
+        "url TEXT",
         "cik INTEGER",
         "year INTEGER",
+        "category TEXT",
         "status TEXT",
         "duration_s REAL",
         "error_message TEXT",
+        "found_policy TEXT DEFAULT '[]'",
+        "found_existence TEXT DEFAULT '[]'",
+        "found_notional TEXT DEFAULT '[]'",
+        "found_pnl TEXT DEFAULT '[]'",
+        "PRIMARY KEY (url, category)",
     ]
-
-    for col_base in found_cols:
-        for cat in categories:
-            columns.append(f"{col_base}_{cat} INTEGER")
 
     create_sql = f"CREATE TABLE IF NOT EXISTS {RESULTS_TABLE} ({', '.join(columns)})"
     c.execute(create_sql)
     c.execute(f"CREATE INDEX IF NOT EXISTS idx_res_url ON {RESULTS_TABLE} (url)")
+    c.execute(
+        f"CREATE INDEX IF NOT EXISTS idx_res_category ON {RESULTS_TABLE} (category)"
+    )
     conn.commit()
     conn.close()
 
 
 def get_unprocessed_filings(
-    resumed_urls: Optional[set] = None,
+    resumed_pairs: Optional[set] = None,
 ) -> List[Tuple[str, int, int]]:
     """
-    Fetches filings from 'report_data' that are NOT yet in 'classification_results'.
+    Fetches filings from 'report_data' that are NOT yet fully processed in 'classification_results'.
     This makes the script resumable.
+    Returns list of (url, cik, year) tuples.
     """
-    if resumed_urls is None:
-        resumed_urls = set()
+    if resumed_pairs is None:
+        resumed_pairs = set()
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # Get URLs already processed in the main DB table
-    c.execute(f"SELECT url FROM {RESULTS_TABLE}")
-    db_processed_urls = {row[0] for row in c.fetchall()}
+    # Get (url, category) pairs already processed in the main DB table
+    c.execute(f"SELECT url, category FROM {RESULTS_TABLE}")
+    db_processed_pairs = set(c.fetchall())
 
-    # Combine with URLs from a resumed parquet file
-    all_processed_urls = db_processed_urls.union(resumed_urls)
+    # Combine with pairs from a resumed parquet file
+    all_processed_pairs = db_processed_pairs.union(resumed_pairs)
 
-    # Fetch all filings and filter in memory
+    # Fetch all filings from report_data
     query = """
         SELECT rd.url, rd.cik, rd.year
         FROM report_data rd
@@ -331,8 +354,11 @@ def get_unprocessed_filings(
     all_filings = c.fetchall()
     conn.close()
 
-    # Filter out processed filings
-    filings = [f for f in all_filings if f[0] not in all_processed_urls]
+    # Filter: keep filings that haven't been processed for all categories
+    # A filing is "unprocessed" if it's missing any category result
+    processed_urls = {pair[0] for pair in all_processed_pairs}
+    filings = [f for f in all_filings if f[0] not in processed_urls]
+
     return filings
 
 
@@ -369,22 +395,25 @@ def get_sentences_for_filing(url: str) -> Dict[str, List[str]]:
 
 def classify_sentences_for_stage(
     sentences: List[str], term: str, year: int, stage: str
-) -> Dict[str, bool]:
+) -> Dict[str, List[int]]:
     """
     Sends a list of sentences to the classification server and checks for
     'entailment' for the hypotheses associated with that stage.
 
-    Returns: A dictionary mapping hypothesis IDs to a boolean indicating if entailment was found.
+    Returns: A dictionary mapping hypothesis IDs to a list of indices of entailing sentences.
+             Empty list if no entailment was found.
     """
     if not sentences:
         return {}
 
     # Initialize results for all hypotheses in this stage
     hypotheses_in_stage = STAGE_HYPOTHESES_MAP.get(stage, [])
-    stage_results = {hypo_id: False for hypo_id in hypotheses_in_stage}
+    stage_results = {hypo_id: [] for hypo_id in hypotheses_in_stage}
 
-    for i in range(0, len(sentences), BATCH_SIZE):
-        batch = sentences[i : i + BATCH_SIZE]
+    for batch_start in range(0, len(sentences), BATCH_SIZE):
+        batch_end = min(batch_start + BATCH_SIZE, len(sentences))
+        batch = sentences[batch_start:batch_end]
+
         payload = {
             "term": term,
             "stage": stage,
@@ -396,11 +425,12 @@ def classify_sentences_for_stage(
             response.raise_for_status()
             results = response.json().get("results", [])
 
-            for result in results:
+            for local_idx, result in enumerate(results):
+                global_idx = batch_start + local_idx
                 classifications = result.get("classifications", {})
                 for hypo_id in hypotheses_in_stage:
                     if classifications.get(hypo_id) == "entailment":
-                        stage_results[hypo_id] = True
+                        stage_results[hypo_id].append(global_idx)
         except requests.exceptions.RequestException as e:
             print(f"    ❌ API call failed for term '{term}': {e}")
             return {}  # Return empty dict on error
@@ -408,76 +438,66 @@ def classify_sentences_for_stage(
     return stage_results
 
 
-def process_filing(filing_info: Tuple[str, int, int]) -> Dict[str, Any]:
+def process_filing_category(
+    filing_info: Tuple[str, int, int, str, List[str]],
+) -> Dict[str, Any]:
     """
-    Worker function to process a single filing with early-exit logic.
+    Worker function to process a single filing-category pair with array-based findings.
 
-    Returns a result dictionary with findings and metadata.
+    Returns a result dictionary with findings (as arrays of indices) and metadata.
     """
-    url, cik, year = filing_info
+    url, cik, year, db_category, sentences = filing_info
     start_time = time.time()
+    term = DERIVATIVE_TYPE_TO_TERM_MAP[db_category]
+    category_short = CATEGORY_MAPPING[db_category]
 
-    # Initialize result with all granular fields
-    categories = ["ir", "fx", "cp", "eq"]
-    found_types = ["policy", "existence", "notional", "pnl"]
+    # Initialize result with all fields
     final_result: Dict[str, Any] = {
         "cik": cik,
         "year": year,
         "url": url,
+        "category": category_short,
         "status": "processed",
         "error_message": "",
+        "found_policy": [],
+        "found_existence": [],
+        "found_notional": [],
+        "found_pnl": [],
     }
-    for f_type in found_types:
-        for cat in categories:
-            final_result[f"found_{f_type}_{cat}"] = 0
 
     try:
-        # 1. Get all categorized sentences for the filing
-        sentences_by_type = get_sentences_for_filing(url)
-        if not any(sentences_by_type.values()):
+        if not sentences:
             final_result["status"] = "no_sentences"
             final_result["duration_s"] = round(time.time() - start_time, 2)
             return final_result
 
-        # 2. Process all stages for all categories
-        # No more early exit; we want to capture all evidence types
-        for db_category, term in DERIVATIVE_TYPE_TO_TERM_MAP.items():
-            sentences = sentences_by_type.get(db_category, [])
-            cat_short = db_category.split("_")[0]  # 'ir_matches' -> 'ir'
-            if not sentences:
-                continue
+        # Stage 1: Notional
+        notional_results = classify_sentences_for_stage(
+            sentences, term, year, "notional"
+        )
+        if notional_results.get("H3_Notional", []):
+            final_result["found_notional"] = notional_results["H3_Notional"]
 
-            # Stage 1: Notional
-            notional_results = classify_sentences_for_stage(
-                sentences, term, year, "notional"
-            )
-            if notional_results.get("H3_Notional"):
-                final_result[f"found_notional_{cat_short}"] = 1
+        # Stage 2: Position & PnL
+        position_results = classify_sentences_for_stage(
+            sentences, term, year, "position"
+        )
+        if position_results.get("H2_Existence", []):
+            final_result["found_existence"] = position_results["H2_Existence"]
+        if position_results.get("H4_PnL_Impact", []):
+            final_result["found_pnl"] = position_results["H4_PnL_Impact"]
 
-            # Stage 2: Position & PnL
-            position_results = classify_sentences_for_stage(
-                sentences, term, year, "position"
-            )
-            if position_results.get("H2_Existence"):
-                final_result[f"found_existence_{cat_short}"] = 1
-            if position_results.get("H4_PnL_Impact"):
-                final_result[f"found_pnl_{cat_short}"] = 1
+        # Stage 3: Policy
+        policy_results = classify_sentences_for_stage(sentences, term, year, "policy")
+        if policy_results.get("H1_Policy", []):
+            final_result["found_policy"] = policy_results["H1_Policy"]
 
-            # Stage 3: Policy
-            policy_results = classify_sentences_for_stage(
-                sentences, term, year, "policy"
-            )
-            if policy_results.get("H1_Policy"):
-                final_result[f"found_policy_{cat_short}"] = 1
-
-        # 3. Determine final summary status based on any findings
-        if any(final_result.get(f"found_notional_{c}", 0) for c in categories):
+        # Determine final summary status based on any findings
+        if final_result["found_notional"]:
             final_result["status"] = "found_notional"
-        elif any(
-            final_result.get(f"found_existence_{c}", 0) for c in categories
-        ) or any(final_result.get(f"found_pnl_{c}", 0) for c in categories):
+        elif final_result["found_existence"] or final_result["found_pnl"]:
             final_result["status"] = "found_position"
-        elif any(final_result.get(f"found_policy_{c}", 0) for c in categories):
+        elif final_result["found_policy"]:
             final_result["status"] = "found_policy_only"
         else:
             final_result["status"] = "no_evidence_found"
@@ -518,19 +538,19 @@ def run_classification(total_chunks: int, chunk_index: int):
 
     # 2. Set up DB and handle resuming from Parquet file
     setup_database()
-    parquet_processed_urls, existing_results = get_already_processed_in_parquet(
+    parquet_processed_pairs, existing_results = get_already_processed_in_parquet(
         output_parquet_file
     )
 
     if existing_results:
         print(f"🔄 Resuming from existing file: {output_parquet_file}")
-        print(f"   -> Loaded {len(existing_results)} URLs from checkpoint.")
+        print(f"   -> Loaded {len(existing_results)} results from checkpoint.")
         all_chunk_results = existing_results
     else:
         all_chunk_results = []
 
-    # Get filings to process (excluding those already in parquet and DB)
-    filings_to_process = get_unprocessed_filings(resumed_urls=parquet_processed_urls)
+    # Get filings to process
+    filings_to_process = get_unprocessed_filings(resumed_pairs=parquet_processed_pairs)
 
     if not filings_to_process:
         print("✅ No new filings to process. Exiting.")
@@ -558,14 +578,26 @@ def run_classification(total_chunks: int, chunk_index: int):
     results_since_last_save = 0
     start_time = time.time()
 
+    # Build work queue: for each filing, create tasks for each derivative category
+    work_queue = []
+    for url, cik, year in filings_to_process:
+        sentences_by_type = get_sentences_for_filing(url)
+        for db_category, sentences in sentences_by_type.items():
+            if sentences:  # Only add if there are sentences
+                work_queue.append((url, cik, year, db_category, sentences))
+
+    if not work_queue:
+        print("✅ No sentences to process. Exiting.")
+        sys.exit(0)
+
     # Create mini-chunks for better progress tracking and saves
     mini_chunks = [
-        filings_to_process[i : i + SAVE_INTERVAL_FILINGS]
-        for i in range(0, len(filings_to_process), SAVE_INTERVAL_FILINGS)
+        work_queue[i : i + SAVE_INTERVAL_FILINGS]
+        for i in range(0, len(work_queue), SAVE_INTERVAL_FILINGS)
     ]
 
     print(
-        f"\nProcessing {len(filings_to_process)} filings in {len(mini_chunks)} mini-chunks"
+        f"\nProcessing {len(work_queue)} filing-category pairs in {len(mini_chunks)} mini-chunks"
     )
     print("=" * 80)
 
@@ -575,19 +607,19 @@ def run_classification(total_chunks: int, chunk_index: int):
         mini_chunk_start = time.time()
 
         print(
-            f"\n📦 Mini-chunk {mini_chunk_idx}/{len(mini_chunks)} ({len(mini_chunk)} filings)"
+            f"\n📦 Mini-chunk {mini_chunk_idx}/{len(mini_chunks)} ({len(mini_chunk)} pairs)"
         )
 
         # Process this mini-chunk with threading
         try:
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-                future_to_filing = {
-                    executor.submit(process_filing, filing): filing
-                    for filing in mini_chunk
+                future_to_work = {
+                    executor.submit(process_filing_category, work): work
+                    for work in mini_chunk
                 }
 
                 for future in tqdm(
-                    as_completed(future_to_filing),
+                    as_completed(future_to_work),
                     total=len(mini_chunk),
                     desc="   Processing",
                     leave=False,
@@ -598,12 +630,16 @@ def run_classification(total_chunks: int, chunk_index: int):
                             all_chunk_results.append(result)
                             mini_chunk_results.append(result)
                             total_processed += 1
-                            if any(result.get(f"found_notional_{c}") for c in ["ir", "fx", "cp", "eq"]):
+                            # Check if any finding was made (any found_* array with len > 0)
+                            if any(
+                                len(result.get(f"found_{f_type}", [])) > 0
+                                for f_type in ["policy", "existence", "notional", "pnl"]
+                            ):
                                 total_positive += 1
 
                     except Exception as e:
-                        filing_url = future_to_filing[future][0]
-                        print(f"   ❌ Error processing filing {filing_url}: {e}")
+                        work = future_to_work[future]
+                        print(f"   ❌ Error processing {work[0]}: {e}")
 
         except KeyboardInterrupt:
             print("\n🛑 Process interrupted by user. Saving pending results...")
@@ -648,12 +684,12 @@ def run_classification(total_chunks: int, chunk_index: int):
     print("\n" + "=" * 80)
     print("✅ CLASSIFICATION COMPLETE")
     print("=" * 80)
-    print(f"Total filings processed: {total_processed:,}")
-    print(f"Filings with any notional evidence: {total_positive:,}")
+    print(f"Total filing-category pairs processed: {total_processed:,}")
+    print(f"Pairs with any evidence found: {total_positive:,}")
     if total_processed > 0:
-        print(f"Notional rate: {(total_positive / total_processed * 100):.1f}%")
+        print(f"Evidence rate: {(total_positive / total_processed * 100):.1f}%")
         print(f"Total time: {format_time(total_time)}")
-        print(f"Avg time per filing: {(total_time / total_processed):.2f}s")
+        print(f"Avg time per pair: {(total_time / total_processed):.2f}s")
 
     print(f"💾 Results saved to '{output_parquet_file}'")
     if total_chunks > 1:
