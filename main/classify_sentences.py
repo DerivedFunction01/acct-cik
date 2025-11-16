@@ -58,7 +58,7 @@ CORE_HYPOTHESES = {
 STAGE_HYPOTHESES_MAP = {
     "policy": ["H1_Policy"],
     "notional": ["H3_Notional"],
-    "position": ["H2_Existence", "H4_PnL_Impact"], # H3 is handled by the 'notional' stage
+    "position": ["H2_Existence", "H4_PnL_Impact"],
 }
 
 # Mapping from model output index to label
@@ -124,8 +124,8 @@ async def classify_sentences(request: ClassificationRequest):
       This is ideal for sentences without a clear time reference.
     - **Stage 'notional'**: A focused check for `H3_Notional` to efficiently find
       sentences that disclose notional amounts.
-    - **Stage 'position'**: Checks sentences against `H2_Existence` and
-      `H4_PnL_Impact`. This is for sentences with a year or other time-specific
+    - **Stage 'position'**: Checks sentences against `H2_Existence`, `H3_Notional`,
+      and `H4_PnL_Impact`. This is for sentences with a year or other time-specific
       markers to confirm active usage.
 
     **Request Body:**
