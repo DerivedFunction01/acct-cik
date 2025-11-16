@@ -217,13 +217,13 @@ def setup_database():
 
 
 def get_unprocessed_filings(
-    resumed_urls: set = None,
+    resumed_urls: set = set(),
 ) -> List[Tuple[str, int, int]]:
     """
     Fetches filings from 'report_data' that are NOT yet in 'classification_results'.
     This makes the script resumable.
     """
-    if resumed_urls is None:
+    if len(resumed_urls) < 1:
         resumed_urls = set()
 
     conn = sqlite3.connect(DB_PATH)
