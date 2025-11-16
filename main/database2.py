@@ -164,21 +164,21 @@ def serialize_value(v):
 def import_classification_results_from_parquet():
     """
     Imports data from `classification_results_chunk_*.parquet` files into
-    the `classification_results` table.
+    the `classification_results` table using pandas.to_sql().
     """
-    print(f"\n[1/5] Searching for '{PARQUET_PATTERN}' files...")
+    print(f"\n[1/4] Searching for '{PARQUET_PATTERN}' files...")
     parquet_files = _ensure_files_are_local(PARQUET_PATTERN)
 
     if not parquet_files:
         print("  -> ❌ No Parquet chunk files found to import.")
         return
 
-    print(f"\n[2/5] Reading and concatenating {len(parquet_files)} Parquet files...")
+    print(f"\n[2/4] Reading and concatenating {len(parquet_files)} Parquet files...")
     all_dfs = [pd.read_parquet(f) for f in tqdm(parquet_files, desc="  Reading files")]
     combined_df = pd.concat(all_dfs, ignore_index=True)
     print(f"  -> Concatenated to {len(combined_df):,} total records.")
 
-    print("\n[3/5] Dropping duplicate records (keeping last entry)...")
+    print("\n[3/4] Dropping duplicate records (keeping last entry)...")
     combined_df.drop_duplicates(subset=["url"], keep="last", inplace=True)
     print(f"  -> {len(combined_df):,} unique records remain.")
 
@@ -201,53 +201,23 @@ def import_classification_results_from_parquet():
         print(f"     Found:    {list(combined_df.columns)}")
         return
 
-    print("\n[3b/5] Converting data types for SQLite compatibility...")
-    # Columns are already integers from prepare_results_for_parquet()
-    bool_columns = ["found_policy", "found_existence", "found_notional", "found_pnl"]
-    for col in bool_columns:
-        if col in combined_df.columns:
-            # Ensure they're integers (they should be already)
-            combined_df[col] = combined_df[col].fillna(0).astype(int)
+    # Select only required columns and ensure correct order
+    combined_df = combined_df[required_cols]
 
-    # Ensure numeric columns are properly typed
-    if "cik" in combined_df.columns:
-        combined_df["cik"] = combined_df["cik"].astype("Int64", errors="ignore")
-    if "year" in combined_df.columns:
-        combined_df["year"] = combined_df["year"].astype("Int64", errors="ignore")
-    if "duration_s" in combined_df.columns:
-        combined_df["duration_s"] = combined_df["duration_s"].astype(
-            "float64", errors="ignore"
-        )
-
-    # Ensure string columns are strings
-    for col in ["url", "status", "error_message"]:
-        if col in combined_df.columns:
-            combined_df[col] = combined_df[col].astype("object").fillna("")
-
-    # Prepare records for database insertion
-    records_to_insert = combined_df[required_cols].to_records(index=False)
-
-    # # Convert special types (like np.nan, np.ndarray) for SQLite compatibility (not needed)
-    # print("[4/5] Serializing values for database insertion...")
-    # records_to_insert = [
-    #     tuple(serialize_value(v) for v in rec)
-    #     for rec in tqdm(
-    #         records_to_insert, desc="  Serializing", total=len(records_to_insert)
-    #     )
-    # ]
-
-    print(f"\n[5/5] Connecting to database '{DB_PATH}'...")
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    print(f"\nInserting {len(records_to_insert):,} records into '{RESULTS_TABLE}'...")
+    print("\n[4/4] Inserting records into database...")
     try:
-        # Use tqdm for progress on the database insertion
-        with tqdm(total=len(records_to_insert), desc="  Inserting to DB") as pbar:
-            # Process in chunks for memory efficiency
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Since we want to handle duplicates (update if exists), we use INSERT OR REPLACE
+        # This is more efficient than if_exists='replace' which would drop the whole table
+        records = combined_df.values.tolist()
+
+        print(f"  Inserting {len(records):,} records (updating duplicates)...")
+        with tqdm(total=len(records), desc="  Inserting to DB") as pbar:
             chunk_size = 10000
-            for i in range(0, len(records_to_insert), chunk_size):
-                chunk = records_to_insert[i : i + chunk_size]
+            for i in range(0, len(records), chunk_size):
+                chunk = records[i : i + chunk_size]
                 cursor.executemany(
                     f"""INSERT OR REPLACE INTO {RESULTS_TABLE} 
                        (url, cik, year, found_policy, found_existence, found_notional, found_pnl, status, duration_s, error_message) 
@@ -257,7 +227,8 @@ def import_classification_results_from_parquet():
                 pbar.update(len(chunk))
 
         conn.commit()
-        print(f"\n✅ Successfully imported/updated {len(records_to_insert):,} records.")
+
+        print(f"✅ Successfully imported/updated {len(combined_df):,} records.")
 
         # Show summary statistics
         summary_df = execute_sql(
@@ -275,10 +246,11 @@ def import_classification_results_from_parquet():
             print("\n📊 Database Summary:")
             print(summary_df.to_string(index=False))
 
-    except sqlite3.Error as e:
-        print(f"  -> ❌ A database error occurred during import: {e}")
-    finally:
-        conn.close()
+    except Exception as e:
+        print(f"  -> ❌ An error occurred during import: {e}")
+        import traceback
+
+        traceback.print_exc()
 
 
 # =============================================================================
