@@ -182,19 +182,28 @@ def import_classification_results_from_parquet():
     combined_df.drop_duplicates(subset=["url"], keep="last", inplace=True)
     print(f"  -> {len(combined_df):,} unique records remain.")
 
-    # Ensure all required columns exist
-    required_cols = [
-        "url",
-        "cik",
-        "year",
-        "found_policy",
-        "found_existence",
-        "found_notional",
-        "found_pnl",
-        "status",
-        "duration_s",
-        "error_message",
-    ]
+    # Define columns for different derivative categories
+    categories = ["ir", "fx", "cp", "eq"]
+    base_cols = ["url", "cik", "year", "status", "duration_s", "error_message"]
+    found_cols = [f"found_{cat}" for cat in ["policy", "existence", "notional", "pnl"]]
+    
+    # Generate all expected columns with category specifics
+    required_cols = base_cols + [f"{col}_{cat}" for col in found_cols for cat in categories]
+
+    # Check for missing columns and fill with False if they don't exist
+    # This ensures backward compatibility with older parquet files
+    for col in required_cols:
+        if col not in combined_df.columns:
+            print(f"  -> ⚠️ Warning: Column '{col}' not found. Filling with False/0.")
+            if col in base_cols:
+                 # Handle non-boolean columns appropriately
+                if col in ['status', 'error_message']:
+                    combined_df[col] = None
+                else:
+                    combined_df[col] = 0
+            else:
+                combined_df[col] = False
+
     if not all(col in combined_df.columns for col in required_cols):
         print("  -> ❌ Error: Parquet files are missing one or more required columns.")
         print(f"     Expected: {required_cols}")
@@ -215,15 +224,15 @@ def import_classification_results_from_parquet():
 
         print(f"  Inserting {len(records):,} records (updating duplicates)...")
         with tqdm(total=len(records), desc="  Inserting to DB") as pbar:
+            # Prepare the INSERT statement with all the new columns
+            cols_str = ", ".join(required_cols)
+            placeholders = ", ".join(["?"] * len(required_cols))
+            sql_insert = f"INSERT OR REPLACE INTO {RESULTS_TABLE} ({cols_str}) VALUES ({placeholders})"
+
             chunk_size = 10000
             for i in range(0, len(records), chunk_size):
                 chunk = records[i : i + chunk_size]
-                cursor.executemany(
-                    f"""INSERT OR REPLACE INTO {RESULTS_TABLE} 
-                       (url, cik, year, found_policy, found_existence, found_notional, found_pnl, status, duration_s, error_message) 
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    chunk,
-                )
+                cursor.executemany(sql_insert, chunk)
                 pbar.update(len(chunk))
 
         conn.commit()
@@ -235,10 +244,10 @@ def import_classification_results_from_parquet():
             f"""
             SELECT 
                 COUNT(*) as total_records,
-                SUM(found_policy) as with_policy,
-                SUM(found_notional) as with_notional,
-                SUM(found_existence) as with_existence,
-                SUM(found_pnl) as with_pnl
+                SUM(found_policy_ir) + SUM(found_policy_fx) + SUM(found_policy_cp) + SUM(found_policy_eq) as total_policy_flags,
+                SUM(found_existence_ir) + SUM(found_existence_fx) + SUM(found_existence_cp) + SUM(found_existence_eq) as total_existence_flags,
+                SUM(found_notional_ir) + SUM(found_notional_fx) + SUM(found_notional_cp) + SUM(found_notional_eq) as total_notional_flags,
+                SUM(found_pnl_ir) + SUM(found_pnl_fx) + SUM(found_pnl_cp) + SUM(found_pnl_eq) as total_pnl_flags
             FROM {RESULTS_TABLE}
         """
         )
@@ -291,20 +300,20 @@ if __name__ == "__main__":
                 print(f"\n📊 Showing first 20 of {len(df):,} records:\n")
                 print(df.head(20))
                 print("\n" + "-" * 30)
-                print("Summary Statistics:")
+                print("Summary Statistics (based on any category):")
                 print(f"  Total records: {len(df):,}")
-                print(
-                    f"  With policy evidence: {df['found_policy'].sum():,} ({df['found_policy'].sum()/len(df)*100:.1f}%)"
-                )
-                print(
-                    f"  With notional amounts: {df['found_notional'].sum():,} ({df['found_notional'].sum()/len(df)*100:.1f}%)"
-                )
-                print(
-                    f"  With position existence: {df['found_existence'].sum():,} ({df['found_existence'].sum()/len(df)*100:.1f}%)"
-                )
-                print(
-                    f"  With P&L impact: {df['found_pnl'].sum():,} ({df['found_pnl'].sum()/len(df)*100:.1f}%)"
-                )
+                
+                # Calculate summaries for any evidence type
+                policy_any = df[[f'found_policy_{c}' for c in ['ir', 'fx', 'cp', 'eq']]].any(axis=1)
+                notional_any = df[[f'found_notional_{c}' for c in ['ir', 'fx', 'cp', 'eq']]].any(axis=1)
+                existence_any = df[[f'found_existence_{c}' for c in ['ir', 'fx', 'cp', 'eq']]].any(axis=1)
+                pnl_any = df[[f'found_pnl_{c}' for c in ['ir', 'fx', 'cp', 'eq']]].any(axis=1)
+
+                print(f"  With any policy evidence: {policy_any.sum():,} ({policy_any.mean()*100:.1f}%)")
+                print(f"  With any notional amounts: {notional_any.sum():,} ({notional_any.mean()*100:.1f}%)")
+                print(f"  With any position existence: {existence_any.sum():,} ({existence_any.mean()*100:.1f}%)")
+                print(f"  With any P&L impact: {pnl_any.sum():,} ({pnl_any.mean()*100:.1f}%)")
+
                 print(f"\n  Average processing time: {df['duration_s'].mean():.2f}s")
                 print(
                     f"  Min/Max processing time: {df['duration_s'].min():.2f}s / {df['duration_s'].max():.2f}s"
