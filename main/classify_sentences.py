@@ -35,11 +35,16 @@ from typing import List, Dict, Literal
 
 MODEL_NAME = "cross-encoder/nli-deberta-v3-large"
 
+# --- NEW: Device configuration ---
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"⚙️  Using device: {device}")
+
 # Load the model and tokenizer at startup
 print(f"🚀 Loading model: {MODEL_NAME}...")
 try:
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model.to(device)  # Move model to the selected device (GPU or CPU)
     model.eval()  # Set model to evaluation mode
     print("✅ Model loaded successfully.")
 except Exception as e:
@@ -134,6 +139,7 @@ async def get_server_info():
     return {
         "model_name": MODEL_NAME,
         "max_seq_length": tokenizer.model_max_length,
+        "model_on_device": str(model.device),
         "gpu_available": gpu_available,
         **gpu_info,
     }
@@ -205,7 +211,7 @@ async def classify_sentences(request: ClassificationRequest):
                 padding=True,
                 truncation=True,
                 return_tensors="pt",
-            )
+            ).to(device)  # Move input tensors to the same device as the model
             scores = model(**features).logits
             predictions = scores.argmax(dim=1)
     except Exception as e:
