@@ -206,53 +206,21 @@ def get_sentences_for_filing(url: str) -> Dict[str, List[str]]:
     return sentences_by_type
 
 
-def save_results(results_buffer: List[Dict[str, Any]], output_parquet_path: str) -> int:
+def save_chunk_to_parquet(all_chunk_results: List[Dict[str, Any]], output_parquet_path: str) -> int:
     """
-    Saves a batch of results to the SQLite database and a Parquet file.
+    Saves the entire buffer of results for the current chunk to a Parquet file.
+    This serves as a checkpoint.
     """
-    if not results_buffer:
+    if not all_chunk_results:
         return 0  # Return 0 if buffer is empty
 
-    # 1. Save to SQLite database
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    db_data = [
-        (
-            r["url"],
-            r["cik"],
-            r["year"],
-            r.get("found_policy", False),
-            r.get("found_existence", False),
-            r.get("found_notional", False),
-            r.get("found_pnl", False),
-            r["status"],
-            r["duration_s"],
-            r.get("error_message", None),
-        )
-        for r in results_buffer
-    ]
-    c.executemany(
-        f"""INSERT OR REPLACE INTO {RESULTS_TABLE} 
-           (url, cik, year, found_policy, found_existence, found_notional, found_pnl, status, duration_s, error_message) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        db_data,
-    )
-    conn.commit()
-    conn.close()
-
-    saved_count = len(db_data)
-
-    # 2. Append to or create the Parquet file for backup/analysis
-    df = pd.DataFrame(results_buffer)
-    if Path(output_parquet_path).exists():
-        existing_df = pd.read_parquet(output_parquet_path)
-        combined_df = pd.concat([existing_df, df]).drop_duplicates(
-            subset=["url"], keep="last"
-        )
-        combined_df.to_parquet(output_parquet_path, engine="pyarrow", index=False)
-    else:
+    try:
+        df = pd.DataFrame(all_chunk_results)
         df.to_parquet(output_parquet_path, engine="pyarrow", index=False)
-    return saved_count
+        return len(df)
+    except Exception as e:
+        print(f"    ❌ Error saving to Parquet file {output_parquet_path}: {e}")
+        return 0
 
 
 # =============================================================================
@@ -408,11 +376,13 @@ def run_classification(total_chunks: int, chunk_index: int):
     # 2. Set up DB and handle resuming from Parquet file
     setup_database()
     resumed_urls = set()
+    all_chunk_results: List[Dict[str, Any]] = []  # Holds all results for this chunk
     if Path(output_parquet_file).exists():
         try:
             print(f"🔄 Resuming from existing file: {output_parquet_file}")
             resume_df = pd.read_parquet(output_parquet_file)
             resumed_urls = set(resume_df["url"])
+            all_chunk_results = resume_df.to_dict("records")
             print(f"   -> Loaded {len(resumed_urls)} URLs from resume file.")
         except Exception as e:
             print(f"   ⚠️ Could not read resume file, starting fresh. Error: {e}")
@@ -439,7 +409,6 @@ def run_classification(total_chunks: int, chunk_index: int):
         print("✅ No new filings for this chunk to process. Exiting.")
         exit()
 
-    results_buffer: List[Dict[str, Any]] = []
     total_processed = 0
     total_positive = 0
     start_time = time.time()
@@ -462,21 +431,19 @@ def run_classification(total_chunks: int, chunk_index: int):
                 try:
                     result = future.result()  # This is a dict
                     if result:
-                        results_buffer.append(result)
+                        all_chunk_results.append(result)
                         total_processed += 1
                         if result.get("found_notional"):
                             total_positive += 1
 
                         # Periodically save results to disk
-                        if len(results_buffer) >= SAVE_INTERVAL_FILINGS:
+                        if len(all_chunk_results) % SAVE_INTERVAL_FILINGS == 0:
                             print(
-                                f"\n💾 Saving batch of {len(results_buffer)} results to disk..."
+                                f"\n💾 Saving checkpoint with {len(all_chunk_results)} total results to disk..."
                             )
-                            saved_count = save_results(
-                                results_buffer, output_parquet_file
-                            )
-                            print(f"   -> Saved {saved_count} records.")
-                            results_buffer.clear()
+                            saved_count = save_chunk_to_parquet(all_chunk_results, output_parquet_file)
+                            print(f"   -> Saved {saved_count} records to {output_parquet_file}.")
+
                 except Exception as e:
                     filing_url = future_to_filing[future][0]
                     print(f"❌ Error processing filing {filing_url}: {e}")
@@ -485,10 +452,10 @@ def run_classification(total_chunks: int, chunk_index: int):
         print("\n🛑 Process interrupted by user. Saving pending results...")
     finally:
         # 5. Final save for any remaining results
-        if results_buffer:
-            print(f"\n💾 Saving final batch of {len(results_buffer)} results...")
-            saved_count = save_results(results_buffer, output_parquet_file)
-            print(f"   -> Saved {saved_count} records to DB and Parquet.")
+        if all_chunk_results:
+            print(f"\n💾 Saving final results for this chunk...")
+            saved_count = save_chunk_to_parquet(all_chunk_results, output_parquet_file)
+            print(f"   -> Saved {saved_count} total records to {output_parquet_file}.")
 
         # 6. Optional: Backup to Google Drive
         if IS_COLAB and Path(output_parquet_file).exists():
@@ -510,7 +477,6 @@ def run_classification(total_chunks: int, chunk_index: int):
         print(f"Total filings processed in this run: {total_processed}")
         print(f"Filings with positive H3_Notional entailment: {total_positive}")
         print(f"Total time: {time.strftime('%H:%M:%S', time.gmtime(total_time))}")
-        print(f"\n💾 Results saved to table '{RESULTS_TABLE}' in '{DB_PATH}'")
         print(f"💾 Backup results for this chunk saved to '{output_parquet_file}'")
         print("\n✨ Done!")
 
