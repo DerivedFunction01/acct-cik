@@ -20,7 +20,7 @@
 # ---
 #
 # To run the server:
-# uvicorn classification_server:app --host 0.0.0.0 --port 8000
+# uvicorn classification_server:app --host 0.0.0.0 --port 5000
 # =============================================================================
 
 from fastapi import FastAPI, HTTPException
@@ -242,4 +242,4 @@ async def classify_sentences(request: ClassificationRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=5000)
