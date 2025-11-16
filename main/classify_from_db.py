@@ -9,7 +9,9 @@
 # 1. Multi-stage hypothesis classification (Policy, Notional, Position, PnL)
 # 2. Early-exit strategy for maximum efficiency
 # 3. Robust resumable processing with intermediate checkpoints
-# 4. Multi-machine support via chunking
+# 4. Mini-chunk processing with periodic saves and stats
+# 5. Multi-machine support via chunking
+# 6. Google Drive backups
 # =============================================================================
 
 import requests
@@ -19,10 +21,12 @@ import sys
 import argparse
 import pandas as pd
 import time
+import subprocess
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any
 from pathlib import Path
+from collections import Counter
 
 # =============================================================================
 # CONFIGURATION
@@ -47,7 +51,8 @@ BATCH_SIZE = 32
 
 # Google Drive configuration
 DRIVE_PATH = "./drive/MyDrive/db"
-LOAD_SHELL_CMD = f"cp -f {DRIVE_PATH}/{DB_PATH} ."
+DRIVE_SAVE_INTERVAL_SECONDS = 10 * 60  # 10 minutes
+DRIVE_SAVE_INTERVAL_RESULTS = 2000  # Save after N results
 IS_COLAB = Path(DRIVE_PATH).exists()
 
 if IS_COLAB:
@@ -71,6 +76,18 @@ STAGE_HYPOTHESES_MAP = {
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
+
+def format_time(seconds):
+    """Format seconds into human-readable time string."""
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours > 0:
+        return f"{int(hours)}h {int(minutes)}m {int(seconds)}s"
+    elif minutes > 0:
+        return f"{int(minutes)}m {int(seconds)}s"
+    else:
+        return f"{int(seconds)}s"
 
 
 def prepare_results_for_parquet(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -119,6 +136,26 @@ def save_chunk_to_parquet(
         return 0
 
 
+def backup_to_drive(output_parquet_file: str):
+    """
+    Backs up the parquet file to Google Drive if running in Colab.
+    """
+    if not IS_COLAB:
+        return
+
+    try:
+        drive_dest = f"{DRIVE_PATH}/{output_parquet_file}"
+        subprocess.run(
+            f"cp -f {output_parquet_file} {drive_dest}.tmp && mv -f {drive_dest}.tmp {drive_dest}",
+            shell=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        print(f"    ⚠️ Failed to backup to Drive: {e}")
+
+
 def get_already_processed_in_parquet(
     output_parquet_file: str,
 ) -> Tuple[set, List[Dict]]:
@@ -137,6 +174,30 @@ def get_already_processed_in_parquet(
     except Exception as e:
         print(f"    ⚠️ Could not read parquet checkpoint: {e}")
         return set(), []
+
+
+def print_mini_chunk_stats(mini_chunk_results: List[Dict[str, Any]]):
+    """
+    Print statistics for the current mini-chunk.
+    """
+    if not mini_chunk_results:
+        return
+
+    statuses = Counter(r.get("status") for r in mini_chunk_results)
+    found_notional = sum(1 for r in mini_chunk_results if r.get("found_notional"))
+    found_policy = sum(1 for r in mini_chunk_results if r.get("found_policy"))
+    found_existence = sum(1 for r in mini_chunk_results if r.get("found_existence"))
+    found_pnl = sum(1 for r in mini_chunk_results if r.get("found_pnl"))
+    avg_duration = sum(r.get("duration_s", 0) for r in mini_chunk_results) / len(
+        mini_chunk_results
+    )
+
+    print(f"    📊 Mini-chunk Stats ({len(mini_chunk_results)} filings):")
+    print(f"       Status breakdown: {dict(statuses)}")
+    print(
+        f"       Findings - Notional: {found_notional}, Policy: {found_policy}, Existence: {found_existence}, PnL: {found_pnl}"
+    )
+    print(f"       Avg processing time: {avg_duration:.2f}s")
 
 
 def ping_server() -> Tuple[int, int]:
@@ -217,13 +278,13 @@ def setup_database():
 
 
 def get_unprocessed_filings(
-    resumed_urls: set = set(),
+    resumed_urls: Optional[set] = None,
 ) -> List[Tuple[str, int, int]]:
     """
     Fetches filings from 'report_data' that are NOT yet in 'classification_results'.
     This makes the script resumable.
     """
-    if len(resumed_urls) < 1:
+    if resumed_urls is None:
         resumed_urls = set()
 
     conn = sqlite3.connect(DB_PATH)
@@ -415,7 +476,7 @@ def process_filing(filing_info: Tuple[str, int, int]) -> Dict[str, Any]:
 
 
 def run_classification(total_chunks: int, chunk_index: int):
-    """Main classification loop with intermediate checkpointing."""
+    """Main classification loop with mini-chunk processing and stats."""
     print("=" * 80)
     if total_chunks > 1:
         print(
@@ -473,78 +534,110 @@ def run_classification(total_chunks: int, chunk_index: int):
 
     total_processed = 0
     total_positive = 0
+    last_drive_save_time = time.time()
+    results_since_last_save = 0
     start_time = time.time()
 
-    # 4. Process filings in parallel with intermediate checkpoints
-    try:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            future_to_filing = {
-                executor.submit(process_filing, filing): filing
-                for filing in filings_to_process
-            }
+    # Create mini-chunks for better progress tracking and saves
+    mini_chunks = [
+        filings_to_process[i : i + SAVE_INTERVAL_FILINGS]
+        for i in range(0, len(filings_to_process), SAVE_INTERVAL_FILINGS)
+    ]
 
-            progress_bar = tqdm(
-                as_completed(future_to_filing),
-                total=len(filings_to_process),
-                desc="Processing Filings",
-            )
+    print(
+        f"\nProcessing {len(filings_to_process)} filings in {len(mini_chunks)} mini-chunks"
+    )
+    print("=" * 80)
 
-            for future in progress_bar:
-                try:
-                    result = future.result()
-                    if result:
-                        all_chunk_results.append(result)
-                        total_processed += 1
-                        if result.get("found_notional"):
-                            total_positive += 1
+    # 4. Process mini-chunks sequentially
+    for mini_chunk_idx, mini_chunk in enumerate(mini_chunks, 1):
+        mini_chunk_results = []
+        mini_chunk_start = time.time()
 
-                        # Save intermediate checkpoint every N filings
-                        if len(all_chunk_results) % SAVE_INTERVAL_FILINGS == 0:
-                            saved_count = save_chunk_to_parquet(
-                                all_chunk_results, output_parquet_file
-                            )
-                            print(
-                                f"\n💾 Checkpoint saved: {saved_count} total results to {output_parquet_file}"
-                            )
+        print(
+            f"\n📦 Mini-chunk {mini_chunk_idx}/{len(mini_chunks)} ({len(mini_chunk)} filings)"
+        )
 
-                except Exception as e:
-                    filing_url = future_to_filing[future][0]
-                    print(f"❌ Error processing filing {filing_url}: {e}")
+        # Process this mini-chunk with threading
+        try:
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                future_to_filing = {
+                    executor.submit(process_filing, filing): filing
+                    for filing in mini_chunk
+                }
 
-    except KeyboardInterrupt:
-        print("\n🛑 Process interrupted by user. Saving pending results...")
+                for future in tqdm(
+                    as_completed(future_to_filing),
+                    total=len(mini_chunk),
+                    desc="   Processing",
+                    leave=False,
+                ):
+                    try:
+                        result = future.result()
+                        if result:
+                            all_chunk_results.append(result)
+                            mini_chunk_results.append(result)
+                            total_processed += 1
+                            if result.get("found_notional"):
+                                total_positive += 1
 
-    finally:
-        # 5. Final save for any remaining results
-        if all_chunk_results:
-            print(f"\n💾 Saving final results for this chunk...")
+                    except Exception as e:
+                        filing_url = future_to_filing[future][0]
+                        print(f"   ❌ Error processing filing {filing_url}: {e}")
+
+        except KeyboardInterrupt:
+            print("\n🛑 Process interrupted by user. Saving pending results...")
+
+        # Print mini-chunk statistics
+        print_mini_chunk_stats(mini_chunk_results)
+        mini_chunk_time = time.time() - mini_chunk_start
+        print(f"   ⏱️  Mini-chunk time: {format_time(mini_chunk_time)}")
+
+        # Save intermediate checkpoint every N filings
+        if len(all_chunk_results) % SAVE_INTERVAL_FILINGS == 0:
             saved_count = save_chunk_to_parquet(all_chunk_results, output_parquet_file)
-            print(f"   -> Saved {saved_count} total records to {output_parquet_file}.")
+            print(f"   💾 Checkpoint saved: {saved_count} total results")
+            results_since_last_save = 0
 
-        # 6. Optional: Backup to Google Drive
-        if IS_COLAB and Path(output_parquet_file).exists():
-            print(f"\n☁️ Backing up {output_parquet_file} to Google Drive...")
-            import subprocess
+        # Periodic Google Drive backup
+        time_since_last_save = time.time() - last_drive_save_time
+        if IS_COLAB and (
+            time_since_last_save >= DRIVE_SAVE_INTERVAL_SECONDS
+            or results_since_last_save >= DRIVE_SAVE_INTERVAL_RESULTS
+        ):
+            print(f"   ☁️ Backing up to Google Drive...")
+            backup_to_drive(output_parquet_file)
+            last_drive_save_time = time.time()
+            results_since_last_save = 0
 
-            drive_dest = f"{DRIVE_PATH}/{output_parquet_file}"
-            subprocess.run(
-                f"cp -f {output_parquet_file} {drive_dest}.tmp && mv -f {drive_dest}.tmp {drive_dest}",
-                shell=True,
-            )
-            print("  -> Backup complete.")
+        results_since_last_save += len(mini_chunk_results)
 
-        # 7. Print summary
-        total_time = time.time() - start_time
-        print("\n" + "=" * 80)
-        print("✅ CLASSIFICATION COMPLETE")
-        print("=" * 80)
-        print(f"Total filings processed in this run: {total_processed}")
-        print(f"Filings with positive H3_Notional entailment: {total_positive}")
-        print(f"Total time: {time.strftime('%H:%M:%S', time.gmtime(total_time))}")
-        print(f"💾 Results for this chunk saved to '{output_parquet_file}'")
-        if total_chunks > 1:
-            print(f"ℹ️  Remember to merge all chunk files when processing is complete.")
-        print("\n✨ Done!")
+    # 5. Final save for any remaining results
+    if all_chunk_results:
+        print(f"\n💾 Saving final results for this chunk...")
+        saved_count = save_chunk_to_parquet(all_chunk_results, output_parquet_file)
+        print(f"   -> Saved {saved_count} total records to {output_parquet_file}.")
+
+    # 6. Final backup to Google Drive
+    if IS_COLAB and Path(output_parquet_file).exists():
+        print(f"\n☁️ Final backup to Google Drive...")
+        backup_to_drive(output_parquet_file)
+
+    # 7. Print summary
+    total_time = time.time() - start_time
+    print("\n" + "=" * 80)
+    print("✅ CLASSIFICATION COMPLETE")
+    print("=" * 80)
+    print(f"Total filings processed: {total_processed:,}")
+    print(f"Filings with positive H3_Notional entailment: {total_positive:,}")
+    if total_processed > 0:
+        print(f"Notional rate: {(total_positive / total_processed * 100):.1f}%")
+    print(f"Total time: {format_time(total_time)}")
+    print(f"Avg time per filing: {(total_time / total_processed):.2f}s")
+    print(f"💾 Results saved to '{output_parquet_file}'")
+    if total_chunks > 1:
+        print(f"ℹ️  Remember to merge all chunk files when processing is complete.")
+    print("\n✨ Done!")
 
 
 if __name__ == "__main__":
