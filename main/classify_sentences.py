@@ -114,6 +114,37 @@ class ClassificationResponse(BaseModel):
 # API ENDPOINT
 # =============================================================================
 
+@app.get("/info")
+async def get_server_info():
+    """
+    Returns information about the server's configuration, including
+    model details and GPU availability.
+    """
+    if not model or not tokenizer:
+        raise HTTPException(status_code=503, detail="Model is not available.")
+
+    gpu_available = torch.cuda.is_available()
+    gpu_info = {}
+    if gpu_available:
+        gpu_info = {
+            "gpu_name": torch.cuda.get_device_name(0),
+            "total_ram_gb": torch.cuda.get_device_properties(0).total_memory / (1024**3),
+        }
+
+    return {
+        "model_name": MODEL_NAME,
+        "max_seq_length": tokenizer.model_max_length,
+        "gpu_available": gpu_available,
+        **gpu_info,
+    }
+
+
+@app.get("/")
+async def root():
+    """A simple root endpoint to confirm the server is running."""
+    return {"message": "Classification Server is running. Use the /classify or /info endpoints."}
+
+
 @app.post("/classify", response_model=ClassificationResponse)
 async def classify_sentences(request: ClassificationRequest):
     """

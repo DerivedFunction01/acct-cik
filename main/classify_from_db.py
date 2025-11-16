@@ -74,6 +74,34 @@ STAGE_HYPOTHESES_MAP = {
 # DATABASE FUNCTIONS
 # =============================================================================
 
+def ping_server() -> bool:
+    """
+    Pings the classification server's /info endpoint to check for connectivity
+    and prints its configuration.
+    """
+    print(f"Attempting to connect to server at {CLASSIFY_ENDPOINT}...")
+    try:
+        info_url = CLASSIFY_ENDPOINT.replace("/classify", "/info")
+        response = requests.get(info_url, timeout=10)
+        response.raise_for_status()
+        server_info = response.json()
+
+        print("✅ Successfully connected to the classification server.")
+        if server_info.get("gpu_available"):
+            gpu_ram = server_info.get("total_ram_gb", 0)
+            print(
+                f"   -> Server has GPU: {server_info.get('gpu_name')} with {gpu_ram:.2f} GB RAM"
+            )
+        else:
+            print("   -> ⚠️ Server has no GPU.")
+        return True
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Could not connect to server.")
+        print(f"   Error: {e}")
+        print("   Please ensure the classification server is running and accessible.")
+        return False
+
 
 def setup_database():
     """Creates the results table in the database if it doesn't exist."""
@@ -343,6 +371,11 @@ def run_classification(total_chunks: int, chunk_index: int):
     else:
         print("🚀 Starting DB Classification (Standalone Mode)")
     print("=" * 80)
+
+    # Ping the server first to ensure it's available
+    if not ping_server():
+        print("\nExiting due to server connection failure.")
+        exit()
 
     # 1. Define unique output file for this chunk
     output_parquet_file = RESULTS_PARQUET_TEMPLATE.format(chunk_index)
