@@ -145,10 +145,9 @@ def serialize_value(v):
     # Handle bytes - decode to UTF-8 string
     if isinstance(v, bytes):
         try:
-            return v.decode("utf-8")
-        except UnicodeDecodeError:
-            # Fallback: return hex representation if can't decode
-            return v.hex()
+            return int.from_bytes(v, 'little', signed=True) # Prefer deserializing to integer
+        except (TypeError, ValueError, OverflowError):
+            return v.decode('utf-8', errors='ignore') # Fallback to string
 
     # Handle numpy scalars (np.bool_, np.int64, etc.)
     if isinstance(v, np.generic):
