@@ -53,13 +53,10 @@ class PipelineConfigManager:
 
         # Dynamically create global_config from the Config dataclass defaults
         global_config_defaults = {
-            field.name: (
-                field.default
-                if not isinstance(field.default, type(lambda: None))
-                else field.default() if callable(field.default) else None
-            )
+            field.name: field.default
             for field in Config.__dataclass_fields__.values()
-            if field.name not in ["output_dir", "num_workers", "chunk_size"]
+            if field.name
+            in ["db_path", "derivatives_csv", "comparison_excel", "drive_path"]
         }
         # Add output_dir as string
         global_config_defaults["output_dir"] = "./analysis_output"
