@@ -36,7 +36,7 @@ class WorkbookManager:
         if "model_results" in comparison_results:
             df = comparison_results["model_results"].copy()
             # Keep only ir_user, fx_user, cp_user, cik, year
-            df = df[["model_ir_user", "model_fx_user", "model_cp_user", "cik", "year"]]
+            df = df[["model_ir_user", "model_fx_user", "model_cp_user", "cik", "year", "url"]]
             sheets_to_write.append(("Results", df, False))
         if "model_only_results" in comparison_results:
             sheets_to_write.append(("Model_Only_Results", comparison_results["model_only_results"], False))
