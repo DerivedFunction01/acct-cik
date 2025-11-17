@@ -49,6 +49,7 @@ def create_default_config() -> dict:
             "gradient_accumulation": 8,
             "max_seq_length": 32768,
             "load_in_4bit": True,
+            "use_chat_template": True,
         },
         "all_target_modules": [
             "q_proj",
@@ -68,6 +69,21 @@ def create_default_config() -> dict:
         ],
         "datasets": [
             {"name": "DerivedFunction/Finance-50K", "is_hf": True},
+        ],
+        "tasks": [
+            {
+                "task_name": "",
+                "base_model_name": "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
+                "data_path": "DerivedFunction/Finance-50K",
+                "is_hf_dataset": True,
+                "new_model_name": "My-Qwen3-Finetune",
+                "num_epochs": 1,
+                "dataset_num_shards": 1,
+                "dataset_shard_index": 0,
+                "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+                "use_chat_template": True,
+                "resume_from_checkpoint": True,
+            }
         ],
     }
     return config
@@ -118,6 +134,8 @@ def run_training(
     is_hf_dataset: bool = False,
     dataset_shard_index: int = 0,
     dataset_num_shards: int = 1,
+    use_chat_template: bool = True,
+    resume_from_checkpoint: bool = True,
 ) -> None:
     """Main function to run the training process with Unsloth optimization."""
     print(
@@ -194,9 +212,14 @@ def run_training(
                 )
             }
 
-        dataset = dataset.map(
-            format_with_chat_template, remove_columns=dataset.column_names
-        )
+        if use_chat_template:
+            print("Applying chat template to dataset...")
+            dataset = dataset.map(
+                format_with_chat_template, remove_columns=dataset.column_names
+            )
+        else:
+            print("Skipping chat template. Assuming 'text' column is pre-formatted.")
+
         dataset = dataset.train_test_split(test_size=0.1)
         train_dataset = dataset["train"]
         eval_dataset = dataset["test"]
@@ -289,10 +312,7 @@ def run_training(
         print("🚀 Unsloth provides 2-5x faster training and 60% less memory usage!")
 
     try:
-        checkpoint_exists = (
-            input("Resume from checkpoint? [y/N]: ").strip().lower() == "y"
-        )
-        trainer_stats = trainer.train(resume_from_checkpoint=checkpoint_exists)
+        trainer_stats = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     except Exception as e:
         print(f"Training error: {e}. Retrying without checkpoint...")
         trainer_stats = trainer.train()
@@ -342,6 +362,12 @@ def huggingface_auth() -> None:
 # MAIN MENU
 # ============================================================================
 
+# Replace the main menu section with this:
+
+# ============================================================================
+# MAIN MENU
+# ============================================================================
+
 if __name__ == "__main__":
     config = load_config()
     huggingface_auth()
@@ -351,86 +377,57 @@ if __name__ == "__main__":
             print("\n" + "=" * 60)
             print("🚀 Generative Model Training (Unsloth Optimized)")
             print("=" * 60)
-            print("1. Fine-tune a base model")
-            print("2. Hugging Face login")
-            print("3. Edit configuration")
-            print("4. Exit")
+            print("1. Run a pre-configured task")
+            print("2. Exit")
             choice = input("> ").strip()
 
             if choice == "1":
-                print("\n--- Step 1: Select Base Model ---")
-                for i, name in enumerate(config["model_names"], 1):
-                    print(f"  [{i}] {name}")
-                print("  [c] Custom model from Hugging Face")
+                print("\n--- Select a Task to Run ---")
+                if not config.get("tasks"):
+                    print("❌ No tasks found in configuration.")
+                    continue
 
-                model_choice = input("Enter model (e.g., 1, c): ").strip()
-                if model_choice.isdigit() and 0 <= int(model_choice) - 1 < len(
-                    config["model_names"]
+                for i, task in enumerate(config["tasks"], 1):
+                    print(f"  [{i}] {task.get('task_name', f'Task {i}')}")
+
+                task_choice = input("Enter task number: ").strip()
+                if not task_choice.isdigit() or not (
+                    0 <= int(task_choice) - 1 < len(config["tasks"])
                 ):
-                    base_model_name = config["model_names"][int(model_choice) - 1]
-                elif model_choice.lower() == "c":
-                    base_model_name = input("Enter custom model name/path: ").strip()
-                else:
                     print("❌ Invalid choice.")
                     continue
 
-                print("\n--- Step 2: Select Dataset ---")
-                for i, ds in enumerate(config["datasets"], 1):
-                    source = "Hugging Face" if ds["is_hf"] else "Local"
-                    print(f"  [{i}] {ds['name']} ({source})")
-                print("  [c] Custom local dataset (.parquet)")
+                selected_task = config["tasks"][int(task_choice) - 1]
+                base_model_name = selected_task.get("base_model_name")
+                data_path = selected_task.get("data_path")
+                new_model_name = selected_task.get("new_model_name")
 
-                data_choice = input("Enter dataset: ").strip()
-                if data_choice.isdigit() and 0 <= int(data_choice) - 1 < len(
-                    config["datasets"]
-                ):
-                    ds = config["datasets"][int(data_choice) - 1]
-                    data_path, is_hf_dataset = ds["name"], ds["is_hf"]
-                elif data_choice.lower() == "c":
-                    data_path = input("Path to .parquet file: ").strip()
-                    is_hf_dataset = False
-                else:
-                    print("❌ Invalid choice.")
+                if not all([base_model_name, data_path, new_model_name]):
+                    print("❌ Task is missing required fields.")
                     continue
 
-                print("\n--- Step 3: Configure Training ---")
-                num_epochs = int(input("Number of epochs [default: 1]: ") or 1)
-                new_model_name = input("Output model name: ").strip()
-
-                if not new_model_name:
-                    new_model_name = base_model_name.split("/")[-1]
-
-                use_sharding = (
-                    input("Use dataset sharding? [y/N]: ").strip().lower() == "y"
-                )
-                num_shards = 1
-                shard_index = 0
-
-                if use_sharding:
-                    num_shards = int(input("Enter total number of shards: ") or 1)
-                    shard_index = int(
-                        input(f"Enter shard index (0 to {num_shards - 1}): ") or 0
-                    )
-                    # Ask for the epoch number
-                    num_epochs = shard_index + 1 if input(f"Resume from shard epoch [default: {shard_index + 1}] [y/N]: ").strip().lower() != "y" else num_epochs
                 run_training(
                     profile=config["training_profile"],
                     model_name=base_model_name,
                     data_path=data_path,
                     new_model_name=new_model_name,
-                    target_modules=config["all_target_modules"],
-                    num_epochs=num_epochs,
-                    is_hf_dataset=is_hf_dataset,
-                    dataset_num_shards=num_shards,
-                    dataset_shard_index=shard_index,
+                    target_modules=selected_task.get(
+                        "target_modules", config["all_target_modules"]
+                    ),
+                    num_epochs=selected_task.get("num_epochs", 1),
+                    is_hf_dataset=selected_task.get("is_hf_dataset", False),
+                    dataset_num_shards=selected_task.get("dataset_num_shards", 1),
+                    dataset_shard_index=selected_task.get("dataset_shard_index", 0),
+                    use_chat_template=selected_task.get(
+                        "use_chat_template",
+                        config["training_profile"].get("use_chat_template", True),
+                    ),
+                    resume_from_checkpoint=selected_task.get(
+                        "resume_from_checkpoint", True
+                    ),
                 )
 
             elif choice == "2":
-                huggingface_auth()
-            elif choice == "3":
-                print(f"📝 Open {CONFIG_FILE} to edit configuration.")
-                print("Changes will be loaded on next startup.")
-            elif choice == "4":
                 print("👋 Goodbye!")
                 break
             else:
