@@ -97,75 +97,8 @@ class Config:
 
         if self.labels is None:
             self.labels = [
-                "ir",
-                "fx",
-                "cp",
-                "eq",
-                "gen",
-                "ir_use",
-                "fx_use",
-                "cp_use",
-                "eq_use",
-                "gen_use",
-                "curr",
-                "hist",
-                "term",
-                "spec",
-                "warr",
-                "emb",
-                "irr",
             ]
 
-
-# =============================================================================
-# LABEL MAPPING
-# =============================================================================
-
-
-class LabelMapper:
-    """
-    Backward-compatibility shim for LabelMapper.
-    This class now delegates all classification logic to the centralized
-    ClassificationEngine to ensure consistency.
-    """
-
-    def __init__(
-        self,
-        config: Optional[Config] = None,
-    ):
-        print("⚠️  LabelMapper is now using ClassificationEngine internally.")
-        print("    Consider migrating to ClassificationEngine directly for new code.")
-        self.config = config
-        self.engine = ClassificationEngine(config)
-        self.primary_id2label = self.engine.primary_id2label
-        self.primary_label2id = {v: k for k, v in self.primary_id2label.items()}
-
-    def get_primary_labels_with_confidence(
-        self, labels_dict: Dict[str, float]
-    ) -> List[Tuple[str, float, str]]:
-        display_labels = self.engine._get_display_labels(
-            labels_dict, self.engine._get_active_flags(labels_dict)
-        )
-        output = []
-        for label_name, confidence in display_labels:
-            if confidence >= 0.75:
-                tier = "high"
-            elif confidence >= 0.5:
-                tier = "medium"
-            else:
-                tier = "low"
-            output.append((label_name, confidence, tier))
-        return output
-
-    def get_primary_labels(self, labels_dict: Dict[str, float]) -> List[str]:
-        """Returns a prioritized list of primary label names."""
-        sent_class = self.engine.classify_sentence(labels_dict)
-        return [label for label, _ in sent_class.display_labels]
-
-    def get_label_category(self, label_id: int) -> str:
-        """Get category name for a label ID"""
-        label_text = self.primary_id2label.get(label_id, "Unknown")
-        return label_text.split(" (")[0].replace(" ", "_")
 
 
 # =============================================================================
@@ -312,9 +245,8 @@ class PredictionsProcessor:
     Delegates all logic to the centralized ClassificationEngine.
     """
 
-    def __init__(self, config: Optional[Config], label_mapper: Optional[LabelMapper]):
+    def __init__(self, config: Optional[Config]):
         self.config = config
-        self.label_mapper = label_mapper
         print("✅ PredictionsProcessor now using ClassificationEngine")
         self.engine = ClassificationEngine(config)
 
@@ -379,9 +311,8 @@ import inspect
 class BaseAnalyzer:
     """Base class for all analyzers - can be extended in custom modules"""
 
-    def __init__(self, config: Config, label_mapper: Optional[LabelMapper] = None, data_loader: Optional[DataLoader] = None):
+    def __init__(self, config: Config, data_loader: Optional[DataLoader] = None):
         self.config = config
-        self.label_mapper = label_mapper
         self.data_loader = data_loader
 
     @classmethod
@@ -389,14 +320,14 @@ class BaseAnalyzer:
         """
         Inspects the __init__ method to find configurable arguments with default values.
         This allows for dynamic configuration without hardcoding.
-        It automatically skips 'self', 'config', and 'label_mapper'.
+        It automatically skips 'self', 'config'
         """
         args = {}
         try:
             sig = inspect.signature(cls.__init__)
             for param in sig.parameters.values():
                 # We only want parameters with default values that are not the standard ones.
-                if param.name not in ['self', 'config', 'label_mapper'] and param.default is not inspect.Parameter.empty:
+                if param.name not in ['self', 'config'] and param.default is not inspect.Parameter.empty:
                     args[param.name] = param.default
         except (TypeError, ValueError):
             # Fails gracefully if __init__ is not a standard Python function

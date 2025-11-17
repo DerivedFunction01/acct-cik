@@ -1,11 +1,10 @@
 # %%
 from custom_analyzers.analysis import (
+    PredictionsProcessor,
     json,
     BaseAnalyzer,
     Config,
     DataLoader,
-    LabelMapper,
-    PredictionsProcessor,
     pd,
 )
 from custom_analyzers.comparison import ComparisonAnalyzer, WorkbookManager
@@ -89,9 +88,8 @@ class AnalysisPipeline:
 
     def __init__(self, config: Config):
         self.config = config
-        self.label_mapper = LabelMapper(config)
         self.data_loader = DataLoader(config)
-        self.predictions_processor = PredictionsProcessor(config, self.label_mapper)
+        self.predictions_processor = PredictionsProcessor(config)
         self.config_manager = PipelineConfigManager()
 
         # Apply global settings from the config file to the main Config object
@@ -183,7 +181,7 @@ class AnalysisPipeline:
         """Runs the keyword vs. model comparison and saves the workbook."""
         print("\n[Extra] Running Keyword vs. Model Comparison...")
         # This analyzer is now a standalone component with its own run method.
-        comparison_analyzer = ComparisonAnalyzer(self.config, self.label_mapper)
+        comparison_analyzer = ComparisonAnalyzer(self.config)
         comparison_analyzer.run()
 
     def _backup_server_results(self):
@@ -226,7 +224,7 @@ class AnalysisPipeline:
 
         # Get arguments from the config file
         sampler_args = self.config_manager.config_data.get("analyzer_args", {}).get("qualitative_sampler", {})
-        sampler = QualitativeSampler(self.config, self.label_mapper, **sampler_args)
+        sampler = QualitativeSampler(self.config, **sampler_args)
 
         sampler.analyze(data=self._pipeline_data["merged_df"])
 
