@@ -34,7 +34,10 @@ class WorkbookManager:
         if "detailed" in comparison_results:
             sheets_to_write.append(("Detailed", comparison_results["detailed"], False))
         if "model_results" in comparison_results:
-            sheets_to_write.append(("Model_Results", comparison_results["model_results"], False))
+            df = comparison_results["model_results"].copy()
+            # Keep only ir_user, fx_user, cp_user, cik, year
+            df = df[["ir_user", "fx_user", "cp_user", "cik", "year"]]
+            sheets_to_write.append(("Results", df, False))
         if "model_only_results" in comparison_results:
             sheets_to_write.append(("Model_Only_Results", comparison_results["model_only_results"], False))
 
