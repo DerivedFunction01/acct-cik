@@ -857,7 +857,10 @@
                 saveAnnotations();
                 alert('✓ Progress saved to browser storage!');
             });
-            
+            document.querySelector("div.export-panel").addEventListener("click", ()=>{
+                //Hide this when clicked
+                document.querySelector("div.export-panel").style.display = "none"
+            })
             document.getElementById('export-json').addEventListener('click', exportJSON);
             document.getElementById('export-csv').addEventListener('click', exportCSV);
             document.getElementById('clear-all').addEventListener('click', clearAllEdits);
