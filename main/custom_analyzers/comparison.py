@@ -4,7 +4,7 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Optional
 
-from .analysis import BaseAnalyzer, Config, LabelMapper
+from .analysis import BaseAnalyzer, Config
 
 
 # =============================================================================
@@ -34,9 +34,13 @@ class WorkbookManager:
         if "detailed" in comparison_results:
             sheets_to_write.append(("Detailed", comparison_results["detailed"], False))
         if "model_results" in comparison_results:
-            sheets_to_write.append(("Model_Results", comparison_results["model_results"], False))
+            sheets_to_write.append(
+                ("Model_Results", comparison_results["model_results"], False)
+            )
         if "model_only_results" in comparison_results:
-            sheets_to_write.append(("Model_Only_Results", comparison_results["model_only_results"], False))
+            sheets_to_write.append(
+                ("Model_Only_Results", comparison_results["model_only_results"], False)
+            )
 
         for key, df in comparison_results.items():
             if key.startswith("confusion_"):
@@ -45,9 +49,13 @@ class WorkbookManager:
 
         # Use ThreadPoolExecutor for I/O-bound task of writing sheets
         # This is faster than ProcessPoolExecutor for this use case.
-        with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer, ThreadPoolExecutor(max_workers=self.config.num_workers) as executor:
+        with pd.ExcelWriter(
+            output_path, engine="xlsxwriter"
+        ) as writer, ThreadPoolExecutor(
+            max_workers=self.config.num_workers
+        ) as executor:
             # Disable automatic URL conversion for performance
-            writer.book.strings_to_urls = False
+            writer.book.strings_to_urls = False # type: ignore
 
             # Submit all write tasks
             futures = [
@@ -144,9 +152,11 @@ class ComparisonAnalyzer(BaseAnalyzer):
         elif keyword == 0 and model == 1:
             return 1  # False Positive (Model found, keyword missed)
         else:  # keyword == 1 and model == 0
-            return -1 # False Negative (Keyword found, model missed)
+            return -1  # False Negative (Keyword found, model missed)
 
-    def create_detailed_view(self, merged_df: pd.DataFrame, comparisons: Dict) -> pd.DataFrame:
+    def create_detailed_view(
+        self, merged_df: pd.DataFrame, comparisons: Dict
+    ) -> pd.DataFrame:
         """Create a detailed view with classification for each comparison."""
         detailed_df = merged_df.copy()
         print("Vectorizing detailed comparison view...")
@@ -158,7 +168,9 @@ class ComparisonAnalyzer(BaseAnalyzer):
                 (detailed_df[kw_col] == 1) & (detailed_df[model_col] == 0),  # FN
             ]
             agree_choices = [1, -1]
-            detailed_df[f"agree_{name.lower().replace(' ', '_')}"] = np.select(agree_conditions, agree_choices, default=0)
+            detailed_df[f"agree_{name.lower().replace(' ', '_')}"] = np.select(
+                agree_conditions, agree_choices, default=0
+            )
 
             # Vectorized classification
             class_conditions = [
@@ -167,7 +179,9 @@ class ComparisonAnalyzer(BaseAnalyzer):
                 (detailed_df[kw_col] == 0) & (detailed_df[model_col] == 1),  # FP
             ]
             class_choices = ["True Positive", "True Negative", "False Positive"]
-            detailed_df[f"class_{name.lower().replace(' ', '_')}"] = np.select(class_conditions, class_choices, default="False Negative")
+            detailed_df[f"class_{name.lower().replace(' ', '_')}"] = np.select(
+                class_conditions, class_choices, default="False Negative"
+            )
 
         return detailed_df
 
@@ -200,15 +214,24 @@ class ComparisonAnalyzer(BaseAnalyzer):
         summary_data = []
 
         for name, (kw_col, model_col) in comparisons.items():
+            # Skip if columns don't exist
+            if kw_col not in merged_df.columns or model_col not in merged_df.columns:
+                print(f"⚠️  Skipping {name}: Missing column {kw_col} or {model_col}")
+                continue
+
             metrics = self.calculate_metrics(kw_col, model_col, merged_df)
             summary_data.append({"Category": name, **metrics})
 
             confusion = pd.crosstab(
                 merged_df[kw_col].map({0: "Keyword_No", 1: "Keyword_Yes"}),
                 merged_df[model_col].map({0: "Model_No", 1: "Model_Yes"}),
-                rownames=["Keyword"], colnames=["Model"], margins=True,
+                rownames=["Keyword"],
+                colnames=["Model"],
+                margins=True,
             )
-            results[f"confusion_{name.lower().replace(' ', '_').replace('/', '_')}"] = confusion
+            results[f"confusion_{name.lower().replace(' ', '_').replace('/', '_')}"] = (
+                confusion
+            )
 
         results["summary"] = pd.DataFrame(summary_data)
         results["merged_df"] = merged_df
@@ -220,16 +243,17 @@ class ComparisonAnalyzer(BaseAnalyzer):
         detailed_view = self.create_detailed_view(merged_df, comparisons)
         results["detailed"] = detailed_view
 
-        # Create and add the model-only results view
-        model_only_df = detailed_view[
-            (detailed_view["user"] == 0) & (detailed_view["model_user_all"] == 1)
-        ].copy()
-        if not model_only_df.empty:
-            results["model_only_results"] = model_only_df
+        # Create and add the model-only results view (if applicable)
+        if "user" in merged_df.columns and "model_user_all" in merged_df.columns:
+            model_only_df = detailed_view[
+                (detailed_view["user"] == 0) & (detailed_view["model_user_all"] == 1)
+            ].copy()
+            if not model_only_df.empty:
+                results["model_only_results"] = model_only_df
 
         print(f"✅ Comparison analysis complete ({len(merged_df):,} firm-years)")
         return results
-    
+
     def run(self, **kwargs):
         """
         Main execution method. Loads data, runs the comparison, and saves the

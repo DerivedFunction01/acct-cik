@@ -33,9 +33,7 @@ class Config:
     drive_path: str = "./drive/MyDrive/db"
     is_colab: Optional[bool] = None
 
-    # Model settings
-
-    # Multi-label names (from training)
+    # Model settings - kept for compatibility but not used with new system
     labels: Optional[List[str]] = None
 
     # Processing settings
@@ -91,8 +89,7 @@ class Config:
         sentences_path.mkdir(parents=True, exist_ok=True)
 
         if self.labels is None:
-            self.labels = [
-            ]
+            self.labels = []
 
 
 # =============================================================================
@@ -126,33 +123,14 @@ class DataLoader:
                     # Handle non-standard JSON with single quotes
                     return json.loads(value.replace("'", '"'))
                 except (json.JSONDecodeError, AttributeError):
-                    return None
-        return value
-
-    def _flatten_matches(self, matches_dict):
-        """Flatten a dictionary of sentence lists into a single list."""
-        if not isinstance(matches_dict, dict):
-            # Fallback for old format or unexpected data
-            if isinstance(matches_dict, list):
-                return matches_dict
-            return []
-
-        flattened_sentences = []
-        for category_sentences in matches_dict.values():
-            if not isinstance(category_sentences, list):
-                continue
-            for item in category_sentences:
-                if isinstance(item, str):
-                    # Handle old format: list of strings
-                    flattened_sentences.append(item)
-                else:
-                    print(item)
-
-        return flattened_sentences
+                    return []
+        elif isinstance(value, list):
+            return value
+        return []
 
     def load_model_predictions(self) -> pd.DataFrame:
         """
-        Load model predictions from the new 'classification_results' table.
+        Load model predictions from the 'classification_results' table.
         This table contains pre-classified findings for each (url, category) pair.
         """
         query = """
@@ -164,7 +142,10 @@ class DataLoader:
                 cr.found_policy,
                 cr.found_existence,
                 cr.found_notional,
-                cr.found_pnl
+                cr.found_pnl,
+                cr.status,
+                cr.duration_s,
+                cr.error_message
             FROM classification_results cr
             JOIN report_data r ON cr.url = r.url
         """
@@ -177,15 +158,14 @@ class DataLoader:
                 # Check for a common error: table not found
                 if "no such table" in str(e):
                     print("   -> The 'classification_results' table does not exist.")
-                    print("   -> Please run the 'classify_from_db.py' script first to generate it.")
+                    print(
+                        "   -> Please run the 'classify_from_db.py' script first to generate it."
+                    )
                 return pd.DataFrame()
 
         # Parse JSON array columns for the 'found_*' fields
         for col in ["found_policy", "found_existence", "found_notional", "found_pnl"]:
             df[col] = df[col].apply(self._parse_json_column)
-
-        # Remove rows with failed JSON parsing
-        df = df[df["server_response"].notna()].reset_index(drop=True)
 
         return df
 
@@ -204,16 +184,16 @@ class DataLoader:
         return keyword_flags
 
     def load_sentence_data(self, urls: Optional[List[str]] = None) -> pd.DataFrame:
-        """Load sentence-level data from the new derivative_type_matches table."""
+        """Load sentence-level data from the derivative_type_matches table."""
         query = """
             SELECT
                 r.cik,
                 r.year,
-                r.url
+                r.url,
                 dt.ir_matches,
                 dt.fx_matches,
                 dt.cp_matches,
-                dt.eq_matches,
+                dt.eq_matches
             FROM derivative_type_matches dt
             JOIN report_data r ON dt.url = r.url
         """
@@ -224,6 +204,7 @@ class DataLoader:
             placeholders = ", ".join("?" for _ in urls)
             query += f" WHERE dt.url IN ({placeholders})"
             params = tuple(urls)
+
         df = pd.DataFrame()
         with self._get_connection() as conn:
             try:
@@ -231,7 +212,14 @@ class DataLoader:
             except Exception as e:
                 print(f"Error executing query on 'derivative_type_matches': {e}")
                 return pd.DataFrame()
+
+        # Parse JSON columns
+        for col in ["ir_matches", "fx_matches", "cp_matches", "eq_matches"]:
+            if col in df.columns:
+                df[col] = df[col].apply(self._parse_json_column)
+
         return df
+
 
 # =============================================================================
 # MODEL PREDICTIONS PROCESSOR
@@ -244,8 +232,9 @@ class PredictionsProcessor:
     to generate firm-year level flags.
     """
 
-    def __init__(self, config: Config, label_mapper=None):
+    def __init__(self, config: Config):
         self.config = config
+        self.engine = ClassificationEngine(config)
 
     def process_predictions(self, model_df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -262,50 +251,72 @@ class PredictionsProcessor:
         # A "user" is defined as having found evidence for existence, notional, or pnl.
         # The `found_*` columns contain lists of sentence indices. An empty list means no finding.
         model_df["is_user"] = model_df.apply(
-            lambda row: 1 if (
-                len(row.get("found_existence", [])) > 0 or
-                len(row.get("found_notional", [])) > 0 or
-                len(row.get("found_pnl", [])) > 0
-            ) else 0,
-            axis=1
+            lambda row: (
+                1
+                if (
+                    len(row.get("found_existence", [])) > 0
+                    or len(row.get("found_notional", [])) > 0
+                    or len(row.get("found_pnl", [])) > 0
+                )
+                else 0
+            ),
+            axis=1,
         )
 
-        # Create specific user flags for each category (ir, fx, cp)
-        # Pivot the table to get one row per URL and columns for each category's user status.
+        # Create specific user flags for each category (ir, fx, cp, eq)
+        # Pivot the table to get one row per (cik, year, url) with columns for each category
         url_level_flags = model_df.pivot_table(
             index=["cik", "year", "url"],
             columns="category",
             values="is_user",
-            fill_value=0
+            fill_value=0,
         ).reset_index()
 
         # Rename columns to match the expected format (e.g., 'model_ir_user')
-        url_level_flags.rename(columns={
-            "ir": "model_ir_user", "fx": "model_fx_user", "cp": "model_cp_user", "eq": "model_eq_user"
-        }, inplace=True)
+        category_cols = {}
+        for cat in ["ir", "fx", "cp", "eq"]:
+            if cat in url_level_flags.columns:
+                category_cols[cat] = f"model_{cat}_user"
+
+        url_level_flags.rename(columns=category_cols, inplace=True)
+
+        # Create aggregated user flags
+        model_cols = [
+            col for col in url_level_flags.columns if col.startswith("model_")
+        ]
+
+        # model_user = IR or FX or CP (traditional hedges)
+        hedge_cols = [
+            f"model_{cat}_user"
+            for cat in ["ir", "fx", "cp"]
+            if f"model_{cat}_user" in url_level_flags.columns
+        ]
+        if hedge_cols:
+            url_level_flags["model_user"] = url_level_flags[hedge_cols].max(axis=1)
+
+        # model_user_all = any derivative type including equity
+        all_cols = [
+            f"model_{cat}_user"
+            for cat in ["ir", "fx", "cp", "eq"]
+            if f"model_{cat}_user" in url_level_flags.columns
+        ]
+        if all_cols:
+            url_level_flags["model_user_all"] = url_level_flags[all_cols].max(axis=1)
 
         # Aggregate to firm-year level (max across multiple URLs)
-        # If a firm-year has multiple URLs, we need to decide which URL to keep.
-        # A simple approach is to keep the first one encountered for each group.
         agg_cols = [col for col in url_level_flags.columns if col.startswith("model_")]
-        
-        # Group by cik and year, aggregate flags with max(), and keep the first URL.
-        firm_year_agg = url_level_flags.groupby(["cik", "year"]).agg(
-            {**{col: 'max' for col in agg_cols}, 'url': 'first'}
-        ).reset_index()
+
+        # Group by cik and year, aggregate flags with max(), and keep the first URL
+        firm_year_agg = (
+            url_level_flags.groupby(["cik", "year"])
+            .agg({**{col: "max" for col in agg_cols}, "url": "first"})
+            .reset_index()
+        )
 
         print(f"✅ Aggregated to {len(firm_year_agg):,} firm-year observations")
 
         return firm_year_agg
 
-    def _get_firm_year_flags(self, df_group: pd.DataFrame) -> pd.Series:
-        """Helper to aggregate flags for a single firm-year group."""
-        # The max() will correctly propagate the 1 if any report for that year is a user.
-        ir_user = df_group["model_ir_user"].max()
-        fx_user = df_group["model_fx_user"].max()
-        cp_user = df_group["model_cp_user"].max()
-        eq_user = df_group["model_eq_user"].max()
-        return pd.Series([ir_user, fx_user, cp_user, eq_user])
 
 # =============================================================================
 # BASE ANALYZER (Abstract)
@@ -313,6 +324,7 @@ class PredictionsProcessor:
 
 
 import inspect
+
 
 class BaseAnalyzer:
     """Base class for all analyzers - can be extended in custom modules"""
@@ -326,14 +338,17 @@ class BaseAnalyzer:
         """
         Inspects the __init__ method to find configurable arguments with default values.
         This allows for dynamic configuration without hardcoding.
-        It automatically skips 'self', 'config'
+        It automatically skips 'self', 'config', 'data_loader'
         """
         args = {}
         try:
             sig = inspect.signature(cls.__init__)
             for param in sig.parameters.values():
                 # We only want parameters with default values that are not the standard ones.
-                if param.name not in ['self', 'config'] and param.default is not inspect.Parameter.empty:
+                if (
+                    param.name not in ["self", "config", "data_loader"]
+                    and param.default is not inspect.Parameter.empty
+                ):
                     args[param.name] = param.default
         except (TypeError, ValueError):
             # Fails gracefully if __init__ is not a standard Python function
