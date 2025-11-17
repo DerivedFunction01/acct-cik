@@ -301,23 +301,6 @@ def run_training(
     print(f"Training time: {trainer_stats.metrics['train_runtime']:.2f} seconds")
     print(f"Samples/second: {trainer_stats.metrics['train_samples_per_second']:.2f}")
 
-    # --- Saving LoRA Adapters ---
-    print(f"\n--- Saving LoRA Adapters ---")
-    adapter_save_path = f"{new_model_name}_lora"
-    model.save_pretrained(adapter_save_path)
-    tokenizer.save_pretrained(adapter_save_path)
-    print(f"✅ LoRA adapters saved to '{adapter_save_path}'")
-
-    if IS_AUTHENTICATED:
-        push_to_hub = (
-            input("Push LoRA adapter to Hugging Face Hub? [y/N]: ").strip().lower()
-            == "y"
-        )
-        if push_to_hub:
-            print(f"🚀 Pushing to Hugging Face Hub...")
-            model.push_to_hub(adapter_save_path)
-            print("✅ Successfully pushed adapter to Hub.")
-
 
 def huggingface_auth() -> None:
     """Handles Hugging Face authentication."""
