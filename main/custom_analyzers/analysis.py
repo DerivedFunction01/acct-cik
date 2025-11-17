@@ -21,9 +21,8 @@ class Config:
     """Centralized configuration"""
 
     # Database and file paths
-    db_path: str = "web_data.db"
+    db_path: str = "clean_web_data.db"
     derivatives_csv: str = "./derivatives_data.csv"
-    keywords_json: str = "./keywords_find.json"
 
     # Output paths
     output_dir: Path = field(default_factory=lambda: Path("./analysis_output"))
@@ -132,8 +131,6 @@ class LabelMapper:
 
     def __init__(
         self,
-        keywords_json_path: str,
-        multi_labels: Optional[List[str]],
         config: Optional[Config] = None,
     ):
         print("⚠️  LabelMapper is now using ClassificationEngine internally.")

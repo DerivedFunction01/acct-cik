@@ -89,7 +89,7 @@ class AnalysisPipeline:
 
     def __init__(self, config: Config):
         self.config = config
-        self.label_mapper = LabelMapper(config.keywords_json, config.labels, config)
+        self.label_mapper = LabelMapper(config)
         self.data_loader = DataLoader(config)
         self.predictions_processor = PredictionsProcessor(config, self.label_mapper)
         self.config_manager = PipelineConfigManager()
