@@ -69,11 +69,11 @@ ALL_SUFFIXES = [
     "contracts?",
     "instruments?",
     "arrangements?",
-    "assets?",
-    "liabilit(?:y|ies)",
-    "commitments?",
-    "positions?",
-    "strateg(?:ies|y)",
+    # "assets?",
+    # "liabilit(?:y|ies)",
+    # "commitments?",
+    # "positions?",
+    # "strateg(?:ies|y)",
 ]
 
 

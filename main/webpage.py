@@ -168,11 +168,11 @@ def build_smart_regex(
     # Pattern 1: Core term followed by either a base type (swap, option) or a common suffix (contract, instrument).
     # e.g., "interest-rate swap", "currency contract"
     core_pattern = build_alternation(core_terms)
-    
+
     # Combine base types (context_terms)into one group
     follow_terms = context_terms
     follow_pattern = build_alternation(follow_terms)
-    
+
     pattern1 = f"{core_pattern}[- ]{follow_pattern}"
 
     # Pattern 2: Specific, high-confidence phrases.
@@ -187,12 +187,30 @@ def build_smart_regex(
 # SHARED COMPONENTS
 # =============================================================================
 
-ALL_BASE_TYPES = [
-    "swaps?", "forwards?", "futures?", "options?", "caps?", "floors?", "collars?", 
-    "derivatives?", "swaptions?", "locks?", "hedges?", "hedging",
+# Unambiguous derivative base types (used in gen regex)
+UNAMBIGUOUS_BASE_TYPES = [
+    "swaps?",
+    "forwards?",
+    "caps?",
+    "floors?",
+    "collars?",
+    "derivatives?",
+    "swaptions?",
+    "locks?",
 ]
 
-ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?", "arrangements?", "assets?", "liabilit(?:y|ies)", "commitments?", "positions?", "strateg(?:ies|y)"]
+# Ambiguous base types (only safe when prefixed by category)
+AMBIGUOUS_BASE_TYPES = [
+    "futures?",
+    "options?",
+]
+
+# All base types (for category-specific regexes that prefix them)
+ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
+
+ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?", "arrangements?", 
+                #"assets?", "liabilit(?:y|ies)", "commitments?", "positions?", "strateg(?:ies|y)"
+            ]
 
 
 COMMON_COMMODITIES = [
@@ -312,7 +330,7 @@ def build_gen_regex() -> re.Pattern:
     # Create patterns that require both a base type and a suffix, e.g., "swaps agreements"
     # Also include the base types on their own to match standalone terms like "swaps".
     base_with_required_suffixes = [
-        f'{base}[- ]{suffix}' for base in ALL_BASE_TYPES for suffix in ALL_SUFFIXES
+        f'{base}[- ]{suffix}' for base in UNAMBIGUOUS_BASE_TYPES for suffix in ALL_SUFFIXES
     ]
 
     # Specific multi-word phrases that are strong indicators on their own.
