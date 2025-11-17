@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qualitative Review Sample - Annotation Mode</title>
+    <title>Qualitative Review Sample - Enhanced NLI Annotation</title>
     <style>
         :root { --sidebar-width: 350px; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #222; background: #f6f7fb; }
@@ -93,7 +93,12 @@
         }
         .label-tag .remove-label:hover { opacity: 1; color: #dc2626; }
         
-        /* Category colors */
+        /* NLI Relationship Styling */
+        .label-tag.nli-entailment { border: 2px solid #16a34a; }
+        .label-tag.nli-neutral { border: 2px solid #64748b; opacity: 0.7; }
+        .label-tag.nli-contradiction { border: 2px solid #dc2626; text-decoration: line-through; }
+        
+        /* Category colors (base colors) */
         .label-tag.type-ir { background-color: #dbeafe; color: #1e40af; }
         .label-tag.type-fx { background-color: #ccfbf1; color: #115e59; }
         .label-tag.type-cp { background-color: #e9d5ff; color: #6b21a8; }
@@ -126,16 +131,49 @@
             border: 1px solid #cbd5e1;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            padding: 8px;
+            padding: 12px;
             z-index: 100;
-            max-width: 300px;
+            max-width: 400px;
+            min-width: 320px;
         }
         .label-selector.active { display: block; }
+        
+        .label-selector-header { 
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .label-selector-header h4 { margin: 0 0 4px 0; font-size: 0.9em; color: #1e293b; }
+        .label-selector-header p { margin: 0; font-size: 0.75em; color: #64748b; }
+        
+        .nli-relationship-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+        .nli-tab {
+            flex: 1;
+            padding: 6px 8px;
+            background: #f1f5f9;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75em;
+            text-align: center;
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+        .nli-tab:hover { background: #e2e8f0; }
+        .nli-tab.active { background: #3b82f6; color: white; border-color: #2563eb; }
+        .nli-tab.entailment.active { background: #16a34a; border-color: #15803d; }
+        .nli-tab.neutral.active { background: #64748b; border-color: #475569; }
+        .nli-tab.contradiction.active { background: #dc2626; border-color: #b91c1c; }
+        
         .label-selector-grid { 
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 4px;
-            max-height: 300px;
+            max-height: 280px;
             overflow-y: auto;
         }
         .label-option { 
@@ -197,6 +235,23 @@
         .export-panel h4 { margin: 0 0 12px 0; font-size: 0.95em; }
         .export-panel .stats { font-size: 0.85em; color: #64748b; margin-bottom: 12px; }
         .export-panel .btn { width: 100%; margin-bottom: 8px; }
+        
+        /* Legend */
+        .legend {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 0.85em;
+        }
+        .legend h4 { margin: 0 0 8px 0; font-size: 0.9em; color: #1e293b; }
+        .legend-items { display: flex; flex-wrap: wrap; gap: 12px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-box { width: 20px; height: 20px; border-radius: 4px; border: 2px solid; }
+        .legend-box.entailment { border-color: #16a34a; background: #dcfce7; }
+        .legend-box.neutral { border-color: #64748b; background: #f1f5f9; }
+        .legend-box.contradiction { border-color: #dc2626; background: #fee2e2; }
     </style>
 </head>
 <body>
@@ -229,20 +284,38 @@
                 </div>
             </details>
             <hr style="border-color: #334155; margin: 20px 0;">
-            <div id="report-count">Showing {{ num_samples }} reports</div>
+            <div id="report-count">Showing reports</div>
             <div id="report-list"></div>
         </aside>
         
         <main class="main">
             <div class="annotation-banner">
                 <div>
-                    <h3>🎯 Annotation Mode Active</h3>
+                    <h3>🎯 Enhanced NLI Annotation Mode</h3>
                     <div class="annotation-stats">
                         <span id="edit-count">0 edits</span> • 
                         <span id="validation-count">0 validated</span>
                     </div>
                 </div>
                 <button class="btn success" id="save-progress">💾 Save Progress</button>
+            </div>
+            
+            <div class="legend">
+                <h4>NLI Relationship Types</h4>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-box entailment"></div>
+                        <span><strong>Entailment:</strong> Text supports this classification</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-box neutral"></div>
+                        <span><strong>Neutral:</strong> Text doesn't confirm or deny</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-box contradiction"></div>
+                        <span><strong>Contradiction:</strong> Text contradicts this classification</span>
+                    </div>
+                </div>
             </div>
             
             <div class="header">
@@ -272,7 +345,7 @@
 
                 <h3 style="margin-top:18px">Extracted Text with NLI Classifications</h3>
                 <div class="small" style="margin-bottom: 8px; color: #64748b;">
-                    Click labels to remove • Click "+Add Label" to add • Click ✓/✗ to validate
+                    Click labels to remove • Click "+Add Label" to select relationship type • Click ✓/✗ to validate
                 </div>
                 <div id="sentences" class="text-content"></div>
             </div>
@@ -291,12 +364,34 @@
         <button class="btn secondary" id="clear-all">Clear All Edits</button>
     </div>
 
-    <!-- Embedded data -->
-    <script id="reports-data" type="application/json">{{ reports_json | safe }}</script>
-
     <script>
-        // Annotation system with local storage persistence
-        const reportsData = {{ reports_json | safe }};
+        // Mock data for demonstration
+        const reportsData = [
+            {
+                cik: 12345,
+                year: 2023,
+                url: "https://example.com/report1",
+                sentences: [
+                    {
+                        text: "We use interest rate swaps to hedge our variable rate debt with a notional amount of $500 million.",
+                        primary_label: "IR_Notional",
+                        all_primary_labels: ["IR_Notional", "IR_Existence"]
+                    },
+                    {
+                        text: "The company does not engage in speculative derivative trading.",
+                        primary_label: null,
+                        all_primary_labels: []
+                    }
+                ],
+                flags: [
+                    { name: "IR Hedge", keyword: 1, model: "YES" },
+                    { name: "FX Hedge", keyword: 0, model: "NO" },
+                    { name: "CP Hedge", keyword: 0, model: "NO" },
+                    { name: "EQ Derivative", keyword: 0, model: "NO" }
+                ]
+            }
+        ];
+        
         const annotations = loadAnnotations();
         
         // Available labels for selection
@@ -366,7 +461,6 @@
                     if (!reportText.includes(contentFilter)) isVisible = false;
                 }
                 
-                // Check if report has edits/validations
                 const hasEdits = report.sentences.some((s, sIdx) => {
                     const ann = getAnnotation(idx, sIdx);
                     return ann.labels !== null || ann.validation !== null;
@@ -390,67 +484,117 @@
                 `Showing ${document.querySelectorAll('.report-link:not(.hidden)').length} reports`;
         }
         
-        function getLabelClasses(labelStr) {
+        function getLabelClasses(labelStr, nliRelationship = 'entailment') {
             if (!labelStr) return '';
             const parts = labelStr.split('_');
             const category = parts[0].toLowerCase();
             const classType = parts.slice(1).join('_').toLowerCase();
-            return `type-${category} class-${classType}`;
+            return `type-${category} class-${classType} nli-${nliRelationship}`;
         }
         
-        function createLabelTag(label, reportIdx, sentenceIdx, isPrimary = true) {
+        function createLabelTag(label, reportIdx, sentenceIdx, nliRelationship = 'entailment', isPrimary = true) {
             const span = document.createElement('span');
-            span.className = `label-tag ${isPrimary ? 'primary' : ''} ${getLabelClasses(label)}`;
+            span.className = `label-tag ${isPrimary ? 'primary' : ''} ${getLabelClasses(label, nliRelationship)}`;
+            
+            let displayText = label;
+            if (nliRelationship === 'neutral') displayText += ' [?]';
+            if (nliRelationship === 'contradiction') displayText += ' [✗]';
+            
             span.innerHTML = `
-                ${label}
+                ${displayText}
                 <span class="remove-label" data-label="${label}">×</span>
             `;
             
             span.querySelector('.remove-label').addEventListener('click', (e) => {
                 e.stopPropagation();
-                removeLabel(reportIdx, sentenceIdx, label);
+                removeLabel(reportIdx, sentenceIdx, label, nliRelationship);
             });
             
             return span;
         }
         
-        function removeLabel(reportIdx, sentenceIdx, label) {
+        function parseStoredLabel(labelStr) {
+            // Format: "LABEL:RELATIONSHIP" or just "LABEL" (defaults to entailment)
+            if (labelStr.includes(':')) {
+                const [label, relationship] = labelStr.split(':');
+                return { label, relationship };
+            }
+            return { label: labelStr, relationship: 'entailment' };
+        }
+        
+        function formatStoredLabel(label, relationship) {
+            return relationship === 'entailment' ? label : `${label}:${relationship}`;
+        }
+        
+        function removeLabel(reportIdx, sentenceIdx, label, relationship) {
             const sentence = reportsData[reportIdx].sentences[sentenceIdx];
             const ann = getAnnotation(reportIdx, sentenceIdx);
             
-            // Get current labels (either from annotation or original)
             let currentLabels = ann.labels !== null ? ann.labels : 
                                 [sentence.primary_label, ...(sentence.all_primary_labels || [])].filter(Boolean);
             
-            // Remove the label
-            currentLabels = currentLabels.filter(l => l !== label);
+            const storedLabel = formatStoredLabel(label, relationship);
+            currentLabels = currentLabels.filter(l => l !== storedLabel);
             
             setAnnotation(reportIdx, sentenceIdx, { labels: currentLabels });
             renderReport(reportIdx);
         }
         
-        function addLabel(reportIdx, sentenceIdx, label) {
+        function addLabel(reportIdx, sentenceIdx, label, relationship) {
             const sentence = reportsData[reportIdx].sentences[sentenceIdx];
             const ann = getAnnotation(reportIdx, sentenceIdx);
             
-            // Get current labels
             let currentLabels = ann.labels !== null ? ann.labels : 
                                 [sentence.primary_label, ...(sentence.all_primary_labels || [])].filter(Boolean);
             
-            // Add if not already present
-            if (!currentLabels.includes(label)) {
-                currentLabels.push(label);
+            const storedLabel = formatStoredLabel(label, relationship);
+            if (!currentLabels.includes(storedLabel)) {
+                currentLabels.push(storedLabel);
                 setAnnotation(reportIdx, sentenceIdx, { labels: currentLabels });
                 renderReport(reportIdx);
             }
         }
         
         function showLabelSelector(reportIdx, sentenceIdx, buttonEl) {
-            // Remove any existing selector
             document.querySelectorAll('.label-selector').forEach(el => el.remove());
             
             const selector = document.createElement('div');
             selector.className = 'label-selector active';
+            
+            const header = document.createElement('div');
+            header.className = 'label-selector-header';
+            header.innerHTML = `
+                <h4>Select NLI Relationship & Label</h4>
+                <p>Choose how the text relates to the classification</p>
+            `;
+            selector.appendChild(header);
+            
+            let selectedRelationship = 'entailment';
+            
+            const tabs = document.createElement('div');
+            tabs.className = 'nli-relationship-tabs';
+            
+            const relationships = [
+                { value: 'entailment', label: '✓ Entails', class: 'entailment' },
+                { value: 'neutral', label: '? Neutral', class: 'neutral' },
+                { value: 'contradiction', label: '✗ Contradicts', class: 'contradiction' }
+            ];
+            
+            relationships.forEach(rel => {
+                const tab = document.createElement('button');
+                tab.className = `nli-tab ${rel.class}`;
+                if (rel.value === selectedRelationship) tab.classList.add('active');
+                tab.textContent = rel.label;
+                tab.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectedRelationship = rel.value;
+                    tabs.querySelectorAll('.nli-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                });
+                tabs.appendChild(tab);
+            });
+            
+            selector.appendChild(tabs);
             
             const grid = document.createElement('div');
             grid.className = 'label-selector-grid';
@@ -460,7 +604,7 @@
                 option.className = 'label-option';
                 option.textContent = label;
                 option.addEventListener('click', () => {
-                    addLabel(reportIdx, sentenceIdx, label);
+                    addLabel(reportIdx, sentenceIdx, label, selectedRelationship);
                     selector.remove();
                 });
                 grid.appendChild(option);
@@ -469,7 +613,6 @@
             selector.appendChild(grid);
             buttonEl.appendChild(selector);
             
-            // Close on outside click
             setTimeout(() => {
                 document.addEventListener('click', function closeSelector(e) {
                     if (!selector.contains(e.target)) {
@@ -499,7 +642,6 @@
             document.getElementById('report-meta').textContent = r.url;
             document.getElementById('open-url').href = r.url;
             
-            // Flags table
             const flagsTableBody = document.querySelector('#flags-table tbody');
             flagsTableBody.innerHTML = '';
             r.flags.forEach(f => {
@@ -514,7 +656,6 @@
                 flagsTableBody.appendChild(tr);
             });
             
-            // Sentences with editing
             const sentencesEl = document.getElementById('sentences');
             sentencesEl.innerHTML = '';
             
@@ -537,15 +678,14 @@
                 const labelsContainer = document.createElement('div');
                 labelsContainer.className = 'sentence-labels';
                 
-                // Get labels (edited or original)
-                const currentLabels = ann.labels !== null ? ann.labels : 
+                let currentLabels = ann.labels !== null ? ann.labels : 
                                      [s.primary_label, ...(s.all_primary_labels || [])].filter(Boolean);
                 
-                currentLabels.forEach((label, i) => {
-                    labelsContainer.appendChild(createLabelTag(label, idx, sIdx, i === 0));
+                currentLabels.forEach((labelStr, i) => {
+                    const { label, relationship } = parseStoredLabel(labelStr);
+                    labelsContainer.appendChild(createLabelTag(label, idx, sIdx, relationship, i === 0));
                 });
                 
-                // Add label button
                 const addContainer = document.createElement('div');
                 addContainer.className = 'add-label-container';
                 const addBtn = document.createElement('button');
@@ -558,7 +698,6 @@
                 addContainer.appendChild(addBtn);
                 labelsContainer.appendChild(addContainer);
                 
-                // Validation buttons
                 const validationDiv = document.createElement('div');
                 validationDiv.className = 'validation-status';
                 
@@ -592,14 +731,19 @@
                     if (ann.labels !== null || ann.validation !== null) {
                         const originalLabels = [sentence.primary_label, ...(sentence.all_primary_labels || [])].filter(Boolean);
                         
+                        const correctedLabels = (ann.labels || originalLabels).map(labelStr => {
+                            const { label, relationship } = parseStoredLabel(labelStr);
+                            return { label, nli_relationship: relationship };
+                        });
+                        
                         exportData.push({
                             cik: report.cik,
                             year: report.year,
                             url: report.url,
                             sentence_idx: sIdx,
                             sentence_text: sentence.text,
-                            original_labels: originalLabels,
-                            corrected_labels: ann.labels || originalLabels,
+                            original_labels: originalLabels.map(l => parseStoredLabel(l)),
+                            corrected_labels: correctedLabels,
                             validation_status: ann.validation,
                             is_correct: ann.validation === 'correct',
                             needs_retraining: ann.labels !== null
@@ -617,7 +761,7 @@
         }
         
         function exportCSV() {
-            const rows = [['CIK', 'Year', 'URL', 'Sentence_Idx', 'Sentence_Text', 'Original_Labels', 'Corrected_Labels', 'Validation_Status', 'Needs_Retraining']];
+            const rows = [['CIK', 'Year', 'URL', 'Sentence_Idx', 'Sentence_Text', 'Original_Labels', 'Corrected_Labels', 'NLI_Relationships', 'Validation_Status', 'Needs_Retraining']];
             
             reportsData.forEach((report, rIdx) => {
                 report.sentences.forEach((sentence, sIdx) => {
@@ -625,14 +769,25 @@
                     if (ann.labels !== null || ann.validation !== null) {
                         const originalLabels = [sentence.primary_label, ...(sentence.all_primary_labels || [])].filter(Boolean);
                         
+                        const correctedLabels = (ann.labels || originalLabels).map(labelStr => {
+                            const { label, relationship } = parseStoredLabel(labelStr);
+                            return label;
+                        });
+                        
+                        const relationships = (ann.labels || originalLabels).map(labelStr => {
+                            const { label, relationship } = parseStoredLabel(labelStr);
+                            return relationship;
+                        });
+                        
                         rows.push([
                             report.cik,
                             report.year,
                             report.url,
                             sIdx,
                             `"${sentence.text.replace(/"/g, '""')}"`,
-                            `"${originalLabels.join(', ')}"`,
-                            `"${(ann.labels || originalLabels).join(', ')}"`,
+                            `"${originalLabels.map(l => parseStoredLabel(l).label).join(', ')}"`,
+                            `"${correctedLabels.join(', ')}"`,
+                            `"${relationships.join(', ')}"`,
                             ann.validation || 'not_validated',
                             ann.labels !== null ? 'yes' : 'no'
                         ]);
@@ -689,7 +844,6 @@
             };
         }
         
-        // Event listeners
         document.addEventListener('DOMContentLoaded', () => {
             updateStats();
             makeList();
@@ -730,7 +884,6 @@
             document.getElementById('export-csv').addEventListener('click', exportCSV);
             document.getElementById('clear-all').addEventListener('click', clearAllEdits);
             
-            // Auto-save every 30 seconds
             setInterval(saveAnnotations, 30000);
         });
     </script>
