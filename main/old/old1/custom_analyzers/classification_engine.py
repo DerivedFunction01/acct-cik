@@ -451,8 +451,8 @@ class ClassificationEngine:
         
         Returns: (is_user, is_terminated)
         """
-        # User if any current mentions
-        is_user = 1 if current_count > 0 else 0
+        # User if any current mentions more than once
+        is_user = 1 if current_count > 1 else 0
         
         # Terminated if term/curr ratio exceeds threshold
         is_terminated = 0
