@@ -4,7 +4,7 @@
 # Filters derivative database using smart regex patterns and classifies by type
 # Creates unified clean_web_data.db with keyword matches for MNLI comparison
 # =============================================================================
-#%%
+# %%
 import sqlite3
 import json
 import re
@@ -63,7 +63,91 @@ AMBIGUOUS_BASE_TYPES = [
 
 # All base types (for category-specific regexes that prefix them)
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
-ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?"]
+
+ALL_SUFFIXES = [
+    "agreements?",
+    "contracts?",
+    "instruments?",
+    "arrangements?",
+    "assets?",
+    "liabilit(?:y|ies)",
+    "commitments?",
+    "positions?",
+    "strateg(?:ies|y)",
+]
+
+
+COMMON_COMMODITIES = [
+    "agricultural",
+    "aluminum",
+    "asphalt",
+    "base metal",
+    "biodiesel",
+    "biomass",
+    "bitumen",
+    "cement",
+    "chemical",
+    "coal",
+    "cocoa",
+    "coffee",
+    "concrete",
+    "copper",
+    "corn",
+    "cotton",
+    "crude oil",
+    "dairy",
+    "diesel fuel",
+    "electricity",
+    "energy",
+    "ethanol",
+    "feedstock",
+    "fertilizer",
+    "fuel",
+    "gas",
+    "gasoline",
+    "grain",
+    "gravel",
+    "hardwood lumber",
+    "iron",
+    "limestone",
+    "livestock",
+    "log",
+    "lumber",
+    "metal",
+    "mineral",
+    "natural gas",
+    "nitrogen",
+    "paper",
+    "ore",
+    "petrochemical",
+    "petroleum",
+    "phosphate",
+    "plastic",
+    "plywood",
+    "polymer",
+    "potash",
+    "precious metal",
+    "pulp",
+    "raw material",
+    "resin",
+    "rubber",
+    "salt",
+    "sand",
+    "soda ash",
+    "softwood lumber",
+    "soybean",
+    "steel",
+    "sugar",
+    "sulfur",
+    "textile",
+    "timber",
+    "titanium",
+    "uranium",
+    "wood",
+    "wood chip",
+    "wood pellet",
+    "wool",
+]
 
 # =============================================================================
 # REGEX PATTERN BUILDERS
@@ -150,7 +234,7 @@ def build_cp_regex() -> re.Pattern:
         "commodity index options?",
     ]
     pattern = build_smart_regex(
-        core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
+        core_terms, ALL_BASE_TYPES, specific_phrases
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
@@ -736,7 +820,7 @@ def check_clean_db_quality(sample_size: int = 10):
 # =============================================================================
 # MAIN EXECUTION
 # =============================================================================
-#%%
+# %%
 if __name__ == "__main__":
     # Run the filtering process
     stats = process_and_filter_database()
