@@ -27,7 +27,6 @@ class Config:
     # Output paths
     output_dir: Path = field(default_factory=lambda: Path("./analysis_output"))
     comparison_excel: str = "keyword_model_comparison.xlsx"
-    sentences_dir: str = "labeled_sentences"
 
     # Google Colab / Drive settings
     drive_path: str = "./drive/MyDrive/db"
@@ -81,9 +80,6 @@ class Config:
         # Create output directories
         self.output_dir = Path(self.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        sentences_path = self.output_dir / self.sentences_dir
-        sentences_path.mkdir(parents=True, exist_ok=True)
 
 
 # =============================================================================
