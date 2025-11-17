@@ -470,7 +470,7 @@
             return `type-${category} class-${classType} nli-${nliRelationship}`;
         }
         
-        function createLabelTag(label, reportIdx, sentenceIdx, nliRelationship = 'entailment', isPrimary = true) {
+        function createLabelTag(label, reportIdx, sentenceIdx, nliRelationship = 'neutral', isPrimary = true) {
             const span = document.createElement('span');
             span.className = `label-tag ${isPrimary ? 'primary' : ''} ${getLabelClasses(label, nliRelationship)}`;
             
