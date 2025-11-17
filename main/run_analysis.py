@@ -52,7 +52,6 @@ class PipelineConfigManager:
         global_config_defaults = {
             field.name: field.default
             for field in Config.__dataclass_fields__.values()
-            if field.name in ["confidence_threshold", "soft_confidence_threshold", "termination_threshold", "term_curr_ratio", "display_threshold"]
         }
 
         default_config = {
