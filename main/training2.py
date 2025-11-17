@@ -64,6 +64,7 @@ def create_default_config() -> dict:
             "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
             "unsloth/Qwen3-1.7B",
             "unsloth/Qwen3-0.6B",
+            "unsloth/Qwen3-0.6B-Base",
             "unsloth/Qwen3-4B-Thinking-2507",
             "unsloth/Qwen3-4B-unsloth-bnb-4bit",
         ],
@@ -73,10 +74,10 @@ def create_default_config() -> dict:
         "tasks": [
             {
                 "task_name": "",
-                "base_model_name": "unsloth/Qwen3-1.7B-unsloth-bnb-4bit",
-                "data_path": "DerivedFunction/Finance-50K",
+                "base_model_name": "",
+                "data_path": "",
                 "is_hf_dataset": True,
-                "new_model_name": "My-Qwen3-Finetune",
+                "new_model_name": "",
                 "num_epochs": 1,
                 "dataset_num_shards": 1,
                 "dataset_shard_index": 0,
