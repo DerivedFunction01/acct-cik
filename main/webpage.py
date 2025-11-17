@@ -192,8 +192,21 @@ ALL_BASE_TYPES = [
     "derivatives?", "swaptions?", "locks?", "hedges?", "hedging",
 ]
 
-ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?"]
+ALL_SUFFIXES = ["agreements?", "contracts?", "instruments?", "arrangements?", "assets?", "liabilit(?:y|ies)", "commitments?", "positions?", "strateg(?:ies|y)"]
 
+
+COMMON_COMMODITIES = [
+    "agricultural", "aluminum", "asphalt", "base metal", "biodiesel", "biomass",
+    "bitumen", "cement", "chemical", "coal", "cocoa", "coffee", "concrete", "copper", "corn",
+    "cotton", "crude oil", "dairy", "diesel fuel", "electricity", "energy", "ethanol",
+    "feedstock", "fertilizer", "fuel", "gas", "gasoline", "grain", "gravel",
+    "hardwood lumber", "iron", "limestone", "livestock", "log", "lumber", "metal",
+    "mineral", "natural gas", "nitrogen", "paper", "ore", "petrochemical", "petroleum",
+    "phosphate", "plastic", "plywood", "polymer", "potash", "precious metal", "pulp",
+    "raw material", "resin", "rubber", "salt", "sand", "soda ash", "softwood lumber",
+    "soybean", "steel", "sugar", "sulfur", "textile", "timber", "titanium", "uranium",
+    "wood", "wood chip", "wood pellet", "wool",
+]
 # =============================================================================
 # CATEGORY-SPECIFIC CONFIGURATIONS
 # =============================================================================
@@ -254,7 +267,7 @@ def build_cp_regex() -> re.Pattern:
     """Build optimized Commodity Price derivatives regex."""
 
     # Define base commodities and modifiers separately for cleaner logic
-    base_commodities = ["commodity"]
+    base_commodities = ["commodity"] + COMMON_COMMODITIES
     modifiers = ["[- ]price", "[- ]related", "[- ]based", "[- ]linked"]
 
     # Programmatically create variations like "commodity price", "crude oil price", etc.
@@ -271,8 +284,8 @@ def build_cp_regex() -> re.Pattern:
         "commodity index",
     ]
     
-    # Use ALL_SUFFIXES to catch "commodity contract/instrument" etc.
-    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases)
+    # Use BASE_TYPES to not catch "natural gas assets" etc.
+    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
     return re.compile(r'\b' + pattern + r'\b', re.IGNORECASE)
 
 
