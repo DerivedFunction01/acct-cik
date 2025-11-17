@@ -1,126 +1,227 @@
+"""
+Qualitative Sampler Analyzer
+=============================
+Generates an interactive HTML viewer and JSON output for qualitative review.
+"""
+
 import pandas as pd
 import json
-from .analysis import Config, DataLoader, BaseAnalyzer
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pathlib import Path
+from .analysis import BaseAnalyzer, Config, DataLoader
+
 
 class QualitativeSampler(BaseAnalyzer):
     """
     Creates a static HTML page with a random sample of reports for qualitative review.
-    Displays reconstructed text, keyword flags, and model flags.
+    Displays reconstructed text with NLI classifications, keyword flags, and model flags.
     """
 
     def __init__(
         self,
         config: Config,
+        data_loader: Optional[DataLoader] = None,
         sample_size: int = 100,
         random_state: int = 42,
-        only_terminated: bool = False,
+        only_with_findings: bool = False,
     ):
-        super().__init__(config)
-        self.data_loader = DataLoader(config)
+        """
+        Args:
+            config: Pipeline configuration
+            data_loader: DataLoader instance (will create if not provided)
+            sample_size: Number of reports to sample
+            random_state: Random seed for reproducible sampling
+            only_with_findings: If True, only sample from reports with model findings
+        """
+        super().__init__(config, data_loader)
         self.sample_size = sample_size
         self.random_state = random_state
+        self.only_with_findings = only_with_findings
+
+        # Output paths
         self.output_filename = self.config.output_dir / "qualitative_review_sample.html"
-        self.sampled_urls_csv = self.config.output_dir / "qualitative_review_sampled_urls.csv"
-        self.json_output_filename = self.config.output_dir / "qualitative_review_sample.json"
+        self.sampled_urls_csv = (
+            self.config.output_dir / "qualitative_review_sampled_urls.csv"
+        )
+        self.json_output_filename = (
+            self.config.output_dir / "qualitative_review_sample.json"
+        )
         self.template_path = Path(__file__).parent / "qualitative_sampler_template.html"
+
+        # Initialize data loader if not provided
+        if self.data_loader is None:
+            self.data_loader = DataLoader(config)
 
     def _get_sentence_data(self, url: str, year: int) -> List[Dict[str, Any]]:
         """
-        Fetches sentences and their corresponding model predictions from the DB.
+        Fetches sentences and their NLI classifications from the DB.
 
         Returns:
-            A list of dictionaries, where each dict contains 'text' and 'labels'.
+            A list of dictionaries with 'text', 'labels', and 'primary_label'.
         """
+        import sqlite3
+
         with self.data_loader._get_connection() as conn:
             cursor = conn.cursor()
+
+            # Get sentences from derivative_type_matches
             cursor.execute(
                 """
-                SELECT wr.matches, sr.server_response
-                FROM webpage_result wr
-                JOIN server_result sr ON wr.url = sr.url
-                WHERE wr.url = ?
+                SELECT ir_matches, fx_matches, cp_matches, eq_matches
+                FROM derivative_type_matches
+                WHERE url = ?
                 """,
                 (url,),
             )
-            row = cursor.fetchone()
+            sentence_row = cursor.fetchone()
 
-        if not row or not row[0] or not row[1]:
-            return [{"text": "No text or prediction data found in database.", "labels": []}]
+            # Get classifications from classification_results
+            cursor.execute(
+                """
+                SELECT category, found_policy, found_existence, found_notional, found_pnl
+                FROM classification_results
+                WHERE url = ?
+                """,
+                (url,),
+            )
+            classification_rows = cursor.fetchall()
+
+        if not sentence_row:
+            return [
+                {
+                    "text": "No sentence data found in database.",
+                    "labels": [],
+                    "primary_label": None,
+                }
+            ]
 
         try:
-            sentences = json.loads(row[0])
-            predictions = json.loads(row[1])
+            # Parse sentence arrays
+            all_sentences = []
+            categories = ["ir", "fx", "cp", "eq"]
+            category_map = {}  # Maps sentence index to category
 
-            if not isinstance(sentences, list):
-                return [{"text": "Sentences data is not in a list format.", "labels": []}]
+            for i, cat in enumerate(categories):
+                sentences_json = sentence_row[i]
+                if sentences_json:
+                    sentences = (
+                        json.loads(sentences_json)
+                        if isinstance(sentences_json, str)
+                        else sentences_json
+                    )
+                    if isinstance(sentences, list):
+                        for sent in sentences:
+                            idx = len(all_sentences)
+                            all_sentences.append(sent)
+                            category_map[idx] = cat
 
+            # Build classification map
+            classifications_by_category = {}
+            for row in classification_rows:
+                cat, policy, existence, notional, pnl = row
+
+                # Parse JSON arrays
+                def parse_array(val):
+                    if isinstance(val, str):
+                        return json.loads(val) if val else []
+                    return val if isinstance(val, list) else []
+
+                classifications_by_category[cat] = {
+                    "policy": set(parse_array(policy)),
+                    "existence": set(parse_array(existence)),
+                    "notional": set(parse_array(notional)),
+                    "pnl": set(parse_array(pnl)),
+                }
+
+            # Build sentence data with classifications
             sentence_data = []
-            for i, text in enumerate(sentences):
-                pred_labels: List[str] = []
+            for idx, text in enumerate(all_sentences):
+                cat = category_map.get(idx, "unknown")
+                classif = classifications_by_category.get(cat, {})
+
+                labels = []
                 primary_label = None
-                all_primary_labels: List[str] = []
 
-                if i < len(predictions):
-                    prediction_item = predictions[i]
+                # Check which classifications apply to this sentence
+                # Note: idx here is global, but we need the index within the category
+                # We'll use a simplified approach assuming sentences are in order
 
-                    # Resolve a numeric label->score vector from several shapes
-                    pred_vector = {}
-                    if isinstance(prediction_item, dict):
-                        if "pred_vector" in prediction_item and isinstance(prediction_item.get("pred_vector"), dict):
-                            pred_vector = prediction_item.get("pred_vector", {})
-                        elif all(isinstance(v, (int, float)) for v in prediction_item.values()):
-                            pred_vector = prediction_item
-                        elif "primary_labels" in prediction_item and isinstance(prediction_item.get("primary_labels"), list):
-                            # If only a list of primary labels is provided, use that as all_primary_labels
-                            all_primary_labels = [str(l) for l in prediction_item.get("primary_labels", [])]
+                has_policy = idx in classif.get("policy", set())
+                has_existence = idx in classif.get("existence", set())
+                has_notional = idx in classif.get("notional", set())
+                has_pnl = idx in classif.get("pnl", set())
 
-                    elif isinstance(prediction_item, int):
-                        # Legacy single integer label id
-                        if self.label_mapper and getattr(self.label_mapper, "primary_id2label", None) is not None:
-                            label_name = self.label_mapper.primary_id2label.get(prediction_item)
-                            if label_name:
-                                all_primary_labels = [label_name]
+                # Determine primary label (highest priority classification)
+                if has_notional:
+                    primary_label = f"{cat.upper()}_Notional"
+                    labels.append(f"{cat.upper()}_Notional")
+                elif has_pnl:
+                    primary_label = f"{cat.upper()}_PnL"
+                    labels.append(f"{cat.upper()}_PnL")
+                elif has_existence:
+                    primary_label = f"{cat.upper()}_Existence"
+                    labels.append(f"{cat.upper()}_Existence")
+                elif has_policy:
+                    primary_label = f"{cat.upper()}_Policy"
+                    labels.append(f"{cat.upper()}_Policy")
 
-                    # If we have a numeric pred_vector, compute labels and primary labels using LabelMapper when available
-                    if pred_vector:
-                        # Create a list of 'label (score)' for those above threshold
-                        for label, score in pred_vector.items():
-                            try:
-                                if float(score) >= self.config.display_threshold:
-                                    pred_labels.append(f"{label} ({float(score):.2f})")
-                            except Exception:
-                                continue
+                # Add additional labels for display
+                if has_policy and primary_label != f"{cat.upper()}_Policy":
+                    labels.append(f"{cat.upper()}_Policy")
+                if has_existence and primary_label != f"{cat.upper()}_Existence":
+                    labels.append(f"{cat.upper()}_Existence")
+                if has_pnl and primary_label != f"{cat.upper()}_PnL":
+                    labels.append(f"{cat.upper()}_PnL")
 
-                        # Use label_mapper to derive primary labels ordering if available
-                        if self.label_mapper:
-                            # LabelMapper expects a mapping label->score
-                            try:
-                                primary_list = self.label_mapper.get_primary_labels(pred_vector) or []
-                                all_primary_labels = primary_list
-                                primary_label = primary_list[0] if primary_list else None
-                            except Exception:
-                                # Fallback: leave primary_label as None
-                                pass
-
-                sentence_data.append({
-                    "text": text,
-                    "labels": pred_labels,
-                    "primary_label": primary_label,
-                    "all_primary_labels": all_primary_labels,
-                })
+                sentence_data.append(
+                    {
+                        "text": text,
+                        "labels": labels,
+                        "primary_label": primary_label,
+                        "all_primary_labels": labels,  # For compatibility with template
+                    }
+                )
 
             return sentence_data
 
         except (json.JSONDecodeError, TypeError, IndexError) as e:
-            return [{"text": f"Error processing sentence data: {e}", "labels": []}]
+            return [
+                {
+                    "text": f"Error processing sentence data: {e}",
+                    "labels": [],
+                    "primary_label": None,
+                }
+            ]
+
+    def _get_sampling_pool(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Determine which reports to sample from based on configuration.
+        """
+        if self.only_with_findings:
+            print("   -> Filtering for reports with model findings...")
+            # Reports with any model user flags
+            finding_mask = (
+                (data.get("model_ir_user", 0) == 1)
+                | (data.get("model_fx_user", 0) == 1)
+                | (data.get("model_cp_user", 0) == 1)
+                | (data.get("model_eq_user", 0) == 1)
+            )
+            pool = data[finding_mask].copy()
+
+            if pool.empty:
+                print("   ⚠️  No reports with findings found. Using all reports.")
+                return data
+
+            print(f"   -> Found {len(pool)} reports with findings to sample from.")
+            # conver the pool to a dataframe
+            return pd.DataFrame(pool)
+        else:
+            return data
 
     def analyze(self, data: pd.DataFrame, **kwargs) -> dict:
         """
         Main analysis method.
-        It now samples from all available reports in `server_result` and then
-        merges flags from the pre-aggregated `data` DataFrame.
+        Samples reports and generates interactive HTML viewer and JSON output.
 
         Args:
             data (pd.DataFrame): Merged DataFrame containing both keyword and model flags.
@@ -131,123 +232,111 @@ class QualitativeSampler(BaseAnalyzer):
             print("   ❌ 'url' column not found in input data. Skipping.")
             return {}
 
-        # If 'only_terminated' is set, the sampling pool should be just the terminated reports.
-        if self.only_terminated:
-            print("   -> Filtering for terminated reports to create the sampling pool...")
-            terminated_mask = (data['model_ir_terminated'] == 1) | \
-                              (data['model_fx_terminated'] == 1) | \
-                              (data['model_cp_terminated'] == 1)
+        # Get sampling pool
+        sampling_pool = self._get_sampling_pool(data)
 
-            # The sampling pool is now the subset of reports that are terminated.
-            sampling_pool_df = data[terminated_mask].copy()
-
-            if sampling_pool_df.empty:
-                print("   ⚠️  No terminated reports found to sample from. Aborting qualitative sampler.")
-                return {}
-
-            print(f"   -> Found {len(sampling_pool_df)} terminated reports to sample from.")
-            sample_df = sampling_pool_df.sample(n=min(self.sample_size, len(sampling_pool_df)), random_state=self.random_state)
-            final_sample_df = sample_df # The sample is already merged with flag data.
-
-        # Fetch all available reports from the database to use as the sampling pool
-        print("   -> Fetching all available reports from server_result for sampling...")
-        with self.data_loader._get_connection() as conn:
-            all_reports_df = pd.read_sql_query(
-                """
-                SELECT r.cik, r.year, r.url
-                FROM server_result s
-                JOIN report_data r ON s.url = r.url
-                """,
-                conn
+        # Check for existing sample file
+        if self.sampled_urls_csv.exists():
+            print(
+                f"   -> Found existing sample file: {self.sampled_urls_csv}. Reusing URLs."
             )
-        print(f"   -> Found {len(all_reports_df)} total reports available for sampling.")
+            try:
+                sampled_keys_df = pd.read_csv(self.sampled_urls_csv)
+                sample_df = pd.merge(
+                    sampling_pool,
+                    sampled_keys_df[["cik", "year"]],
+                    on=["cik", "year"],
+                    how="inner",
+                )
+                if len(sample_df) != len(sampled_keys_df):
+                    print(
+                        f"   ⚠️  Warning: Found {len(sample_df)} of {len(sampled_keys_df)} saved reports."
+                    )
+            except Exception as e:
+                print(f"   ❌ Error reading sample file: {e}. Generating new sample.")
+                sample_df = sampling_pool.sample(
+                    n=min(self.sample_size, len(sampling_pool)),
+                    random_state=self.random_state,
+                )
+                sample_df[["cik", "year", "url"]].to_csv(
+                    self.sampled_urls_csv, index=False
+                )
+                print(f"   -> Saved new sample to {self.sampled_urls_csv}")
+        else:
+            print("   -> No existing sample file found. Generating new sample.")
+            sample_df = sampling_pool.sample(
+                n=min(self.sample_size, len(sampling_pool)),
+                random_state=self.random_state,
+            )
+            sample_df[["cik", "year", "url"]].to_csv(self.sampled_urls_csv, index=False)
+            print(f"   -> Saved new sample to {self.sampled_urls_csv}")
 
-        if not self.only_terminated:
-            # Check if a file with sampled URLs already exists.
-            if self.sampled_urls_csv.exists():
-                print(f"   -> Found existing sample file: {self.sampled_urls_csv}. Reusing URLs.")
-                try:
-                    sampled_keys_df = pd.read_csv(self.sampled_urls_csv)
-                    # Use an inner merge to select only the rows from the full report list that match the saved sample.
-                    sample_df = pd.merge(all_reports_df, sampled_keys_df[['cik', 'year']], on=['cik', 'year'], how='inner')
-                    if len(sample_df) != len(sampled_keys_df):
-                        print(f"   ⚠️  Warning: Mismatch between sampled URLs file and available data. Found {len(sample_df)} of {len(sampled_keys_df)} reports.")
-                except Exception as e:
-                    print(f"   ❌ Error reading sample file: {e}. Generating a new random sample.")
-                    sample_df = all_reports_df.sample(n=min(self.sample_size, len(all_reports_df)), random_state=self.random_state)
-                    # Save the new sample's keys for future runs
-                    sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
-                    print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
-            else:
-                print("   -> No existing sample file found. Generating a new random sample.")
-                sample_df = all_reports_df.sample(n=min(self.sample_size, len(all_reports_df)), random_state=self.random_state)
-                # Save the new sample's keys for future runs
-                sample_df[['cik', 'year', 'url']].to_csv(self.sampled_urls_csv, index=False)
-                print(f"   -> Saved new random sample to {self.sampled_urls_csv}")
-            # Now, merge the sampled data with the pre-aggregated flags.
-            final_sample_df = pd.merge(sample_df, data, on=['cik', 'year', 'url'], how='left').fillna(0)
-
+        # Build report data
         reports_data = []
-        for _, row in final_sample_df.iterrows():
-            def get_flag_status(use_flag, term_flag):
-                # This logic now reads the pre-calculated flags from analysis.py
-                if term_flag:
-                    return "TERMINATED"
-                elif use_flag:
-                    return "YES"
-                else:
-                    return "NO"
+        for _, row in sample_df.iterrows():
 
-            def get_ratio_str(current_count, terminated_count):
-                if current_count > 0:
-                    return f"{(terminated_count / current_count):.2f}"
-                elif terminated_count > 0:
-                    return "Inf"
-                return "N/A"
+            def get_flag_status(use_flag):
+                return "YES" if use_flag else "NO"
 
             report = {
-                "cik": row["cik"],
-                "year": row["year"],
+                "cik": int(row["cik"]),
+                "year": int(row["year"]),
                 "url": row["url"],
                 "sentences": self._get_sentence_data(row["url"], row["year"]),
-                # Pass the terminated flags to the report data for the JSON generation later
-                "model_ir_terminated": row.get("model_ir_terminated", 0),
-                "model_fx_terminated": row.get("model_fx_terminated", 0),
-                "model_cp_terminated": row.get("model_cp_terminated", 0),
                 "flags": [
                     {
                         "name": "IR Hedge",
-                        "keyword": row.get("ir_user", 0),
-                        "model": get_flag_status(row.get("model_ir_user", 0), row.get("model_ir_terminated", 0)),
-                        "hist_count": int(row.get("model_ir_hist_count", 0)),
-                        "current_count": int(row.get("model_ir_current_count", 0)),
-                        "terminated_count": int(row.get("model_ir_terminated_count", 0)),
-                        "ratio": get_ratio_str(row.get("model_ir_current_count", 0), row.get("model_ir_terminated_count", 0)),
+                        "keyword": int(row.get("ir_user", 0)),
+                        "model": get_flag_status(row.get("model_ir_user", 0)),
+                        "hist_count": 0,  # Placeholder - no longer used
+                        "current_count": 0,
+                        "terminated_count": 0,
+                        "ratio": "N/A",
                     },
                     {
                         "name": "FX Hedge",
-                        "keyword": row.get("fx_user", 0),
-                        "model": get_flag_status(row.get("model_fx_user", 0), row.get("model_fx_terminated", 0)),
-                        "hist_count": int(row.get("model_fx_hist_count", 0)),
-                        "current_count": int(row.get("model_fx_current_count", 0)),
-                        "terminated_count": int(row.get("model_fx_terminated_count", 0)),
-                        "ratio": get_ratio_str(row.get("model_fx_current_count", 0), row.get("model_fx_terminated_count", 0)),
+                        "keyword": int(row.get("fx_user", 0)),
+                        "model": get_flag_status(row.get("model_fx_user", 0)),
+                        "hist_count": 0,
+                        "current_count": 0,
+                        "terminated_count": 0,
+                        "ratio": "N/A",
                     },
                     {
                         "name": "CP Hedge",
-                        "keyword": row.get("cp_user", 0),
-                        "model": get_flag_status(row.get("model_cp_user", 0), row.get("model_cp_terminated", 0)),
-                        "hist_count": int(row.get("model_cp_hist_count", 0)),
-                        "current_count": int(row.get("model_cp_current_count", 0)),
-                        "terminated_count": int(row.get("model_cp_terminated_count", 0)),
-                        "ratio": get_ratio_str(row.get("model_cp_current_count", 0), row.get("model_cp_terminated_count", 0)),
+                        "keyword": int(row.get("cp_user", 0)),
+                        "model": get_flag_status(row.get("model_cp_user", 0)),
+                        "hist_count": 0,
+                        "current_count": 0,
+                        "terminated_count": 0,
+                        "ratio": "N/A",
+                    },
+                    {
+                        "name": "EQ Derivative",
+                        "keyword": 0,  # No keyword equivalent
+                        "model": get_flag_status(row.get("model_eq_user", 0)),
+                        "hist_count": 0,
+                        "current_count": 0,
+                        "terminated_count": 0,
+                        "ratio": "N/A",
                     },
                 ],
             }
             reports_data.append(report)
 
-        # Render the HTML
-        # Using Jinja2 for safer and cleaner template rendering
+        # Generate HTML
+        self._generate_html(reports_data)
+
+        # Generate JSON
+        self._generate_json(reports_data)
+
+        print(f"   ✅ Qualitative sample saved to: {self.output_filename}")
+        print(f"   ✅ JSON data saved to: {self.json_output_filename}")
+
+        return {}
+
+    def _generate_html(self, reports_data: List[Dict]):
+        """Generate interactive HTML viewer."""
         from jinja2 import Template
         import os
 
@@ -256,60 +345,66 @@ class QualitativeSampler(BaseAnalyzer):
                 template = Template(f.read())
         except FileNotFoundError:
             print(f"   ❌ Error: Template file not found at {self.template_path}")
-            return {}
+            return
 
-        # Define temporary and final paths
-        temp_html_path = self.output_filename.with_suffix('.html.tmp')
-        temp_csv_path = self.sampled_urls_csv.with_suffix('.csv.tmp')
+        # Get all unique labels for filter UI
+        all_labels = set()
+        for report in reports_data:
+            for sentence in report.get("sentences", []):
+                if sentence.get("primary_label"):
+                    all_labels.add(sentence["primary_label"])
+        all_labels = sorted(list(all_labels))
 
-        # Get all primary labels for the filter UI
-        all_labels = []
-        if self.label_mapper and self.label_mapper.primary_id2label:
-            all_labels = sorted(list(self.label_mapper.primary_id2label.values()))
-
-        # Pass reports as JSON to embed into the SPA template
+        # Render template
         reports_json = json.dumps(reports_data, ensure_ascii=False)
-        html_content = template.render(reports=reports_data, num_samples=len(reports_data), reports_json=reports_json, all_labels=all_labels)
+        html_content = template.render(
+            reports=reports_data,
+            num_samples=len(reports_data),
+            reports_json=reports_json,
+            all_labels=all_labels,
+        )
 
-        # Save the HTML file to a temporary location
+        # Save atomically
+        temp_html_path = self.output_filename.with_suffix(".html.tmp")
         with open(temp_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
-        # --- Create and save the JSON output for the AI agent ---
+        try:
+            os.rename(temp_html_path, self.output_filename)
+        except:
+            os.replace(temp_html_path, self.output_filename)
+
+    def _generate_json(self, reports_data: List[Dict]):
+        """Generate JSON output for AI agent analysis."""
+        import os
+
         agent_reports_data = []
         for report in reports_data:
-            # The AI needs the raw text and the model's flags for comparison.
             extracted_text = [s.get("text", "") for s in report.get("sentences", [])]
-            # The 'model' value is already the correct string ('YES', 'NO', 'TERMINATED')
-            # from when reports_data was created. We can use it directly.
+
             model_flags = {
                 "IR": report["flags"][0]["model"],
                 "FX": report["flags"][1]["model"],
                 "CP": report["flags"][2]["model"],
+                "EQ": report["flags"][3]["model"],
             }
 
-            agent_reports_data.append({
-                "cik": report["cik"],
-                "year": report["year"],
-                "url": report["url"],
-                "model_flags": model_flags,
-                "extracted_text": extracted_text
-            })
+            agent_reports_data.append(
+                {
+                    "cik": report["cik"],
+                    "year": report["year"],
+                    "url": report["url"],
+                    "model_flags": model_flags,
+                    "extracted_text": extracted_text,
+                }
+            )
 
-        temp_json_path = self.json_output_filename.with_suffix('.json.tmp')
+        # Save atomically
+        temp_json_path = self.json_output_filename.with_suffix(".json.tmp")
         with open(temp_json_path, "w", encoding="utf-8") as f:
             json.dump(agent_reports_data, f, indent=2, ensure_ascii=False)
 
-        # Atomically rename the temporary file to the final destination
         try:
-            os.rename(temp_html_path, self.output_filename)
             os.rename(temp_json_path, self.json_output_filename)
-        except: # Try replaceing
-            os.replace(temp_html_path, self.output_filename)
+        except:
             os.replace(temp_json_path, self.json_output_filename)
-
-        print(f"   ✅ Qualitative sample saved to: {self.output_filename}")
-        print(f"   ✅ JSON data saved to: {self.json_output_filename}")
-
-        # This analyzer doesn't produce a DataFrame, so return an empty dict
-        return {}
