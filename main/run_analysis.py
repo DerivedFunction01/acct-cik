@@ -30,6 +30,7 @@ class RunOptions:
 # CONFIGURATION MANAGER (NEW)
 # =============================================================================
 
+
 class PipelineConfigManager:
     """Handles loading and saving of the pipeline_config.json file."""
 
@@ -44,15 +45,24 @@ class PipelineConfigManager:
         # Dynamically get arguments from each analyzer class
         analyzer_classes = {
             "qualitative_sampler": QualitativeSampler,
+            # Add other custom analyzers here
         }
-        analyzer_args = {name: cls.get_configurable_args() for name, cls in analyzer_classes.items()}
+        analyzer_args = {
+            name: cls.get_configurable_args() for name, cls in analyzer_classes.items()
+        }
 
         # Dynamically create global_config from the Config dataclass defaults
-        # This makes Config the single source of truth for default values.
         global_config_defaults = {
-            field.name: field.default
+            field.name: (
+                field.default
+                if not isinstance(field.default, type(lambda: None))
+                else field.default() if callable(field.default) else None
+            )
             for field in Config.__dataclass_fields__.values()
+            if field.name not in ["output_dir"]  # Skip Path objects
         }
+        # Add output_dir as string
+        global_config_defaults["output_dir"] = "./analysis_output"
 
         default_config = {
             "run_options": asdict(RunOptions()),
@@ -66,7 +76,7 @@ class PipelineConfigManager:
         """Loads the configuration from the JSON file."""
         if not self.config_path.exists():
             return self._create_default_config()
-        
+
         with open(self.config_path, "r") as f:
             return json.load(f)
 
