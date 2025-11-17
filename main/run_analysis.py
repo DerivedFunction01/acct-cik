@@ -1,0 +1,316 @@
+# %%
+from custom_analyzers.analysis import (
+    json,
+    BaseAnalyzer,
+    Config,
+    DataLoader,
+    LabelMapper,
+    PredictionsProcessor,
+    pd,
+)
+from custom_analyzers.comparison import ComparisonAnalyzer, WorkbookManager
+from custom_analyzers.qualitative_sampler import QualitativeSampler
+from typing import Dict
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+
+
+@dataclass
+class RunOptions:
+    """Configuration for which pipeline steps to execute."""
+
+    run_comparison: bool = False
+    run_qualitative_sampler: bool = False
+    backup_server_results: bool = False
+
+# =============================================================================
+# CONFIGURATION MANAGER (NEW)
+# =============================================================================
+
+class PipelineConfigManager:
+    """Handles loading and saving of the pipeline_config.json file."""
+
+    def __init__(self, config_path="pipeline_config.json"):
+        self.config_path = Path(config_path)
+        self.config_data = self._load_config()
+
+    def _create_default_config(self):
+        """Creates a default configuration file if one doesn't exist."""
+        print(f"-> No config file found. Creating default '{self.config_path}'...")
+
+        # Dynamically get arguments from each analyzer class
+        analyzer_classes = {
+            "qualitative_sampler": QualitativeSampler,
+        }
+        analyzer_args = {name: cls.get_configurable_args() for name, cls in analyzer_classes.items()}
+
+        # Dynamically create global_config from the Config dataclass defaults
+        # This makes Config the single source of truth for default values.
+        global_config_defaults = {
+            field.name: field.default
+            for field in Config.__dataclass_fields__.values()
+            if field.name in ["confidence_threshold", "soft_confidence_threshold", "termination_threshold", "term_curr_ratio", "display_threshold"]
+        }
+
+        default_config = {
+            "run_options": asdict(RunOptions()),
+            "analyzer_args": analyzer_args,
+            "global_config": global_config_defaults,
+        }
+        self.save_config(default_config)
+        return default_config
+
+    def _load_config(self):
+        """Loads the configuration from the JSON file."""
+        if not self.config_path.exists():
+            return self._create_default_config()
+        
+        with open(self.config_path, "r") as f:
+            return json.load(f)
+
+    def save_config(self, config_data=None):
+        """Saves the current configuration to the JSON file."""
+        data_to_save = config_data if config_data is not None else self.config_data
+        with open(self.config_path, "w") as f:
+            json.dump(data_to_save, f, indent=2)
+        print(f"   ✅ Configuration saved to '{self.config_path}'")
+
+
+# =============================================================================
+# ANALYSIS PIPELINE
+# =============================================================================
+
+class AnalysisPipeline:
+    """Main analysis pipeline orchestrator"""
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.label_mapper = LabelMapper(config.keywords_json, config.labels, config)
+        self.data_loader = DataLoader(config)
+        self.predictions_processor = PredictionsProcessor(config, self.label_mapper)
+        self.config_manager = PipelineConfigManager()
+
+        # Apply global settings from the config file to the main Config object
+        global_settings = self.config_manager.config_data.get("global_config", {})
+        for key, value in global_settings.items():
+            if hasattr(self.config, key):
+                setattr(self.config, key, value)
+
+
+        # Registry for custom analyzers
+        self.custom_analyzers: Dict[str, BaseAnalyzer] = {}
+        self.custom_results: Dict[str, Dict[str, pd.DataFrame]] = {}
+
+        # Map run options to pipeline methods for modular execution
+        self._step_map = {
+            # Fast analysis goes first
+            "run_qualitative_sampler": self._run_qualitative_sampler,
+            "backup_server_results": self._backup_server_results,
+            # Then slower ones
+            "run_comparison": self._run_comparison_analysis,
+            "run_custom_analyzers": self._run_custom_analyzers,
+        }
+
+        # Store data that needs to be passed between steps
+        self._pipeline_data = {}
+        self._data_loaded = False
+
+
+    def register_analyzer(self, name: str, analyzer: BaseAnalyzer):
+        """Register a custom analyzer to run in the pipeline"""
+        self.custom_analyzers[name] = analyzer
+        print(f"✓ Registered custom analyzer: {name}")
+
+    def run(self):
+        """Execute full analysis pipeline based on the provided run options."""
+        print("=" * 70)
+        print("MODULAR CLASSIFICATION ANALYSIS PIPELINE")
+        print("=" * 70)
+
+        options = self.config_manager.config_data.get("run_options", {})
+
+        if not self._data_loaded:
+            print(
+                "⚠️ Data not loaded. Please run `pipeline.load_and_process_data()` first."
+            )
+            return
+
+        # Execute optional steps based on RunOptions
+        for step_name, step_func in self._step_map.items():
+            if options.get(step_name, False):
+                try:
+                    step_func()
+                except Exception as e:
+                    print(f"     ❌ Error running step '{step_name}': {e}")
+
+        self._print_summary()
+
+    def load_and_process_data(self):
+        """
+        Core data loading and processing step.
+        Now: loads model predictions and aggregates them.
+        No longer: loads all sentence data (uses streaming instead).
+        """
+        if self._data_loaded:
+            print("ℹ️ Data has already been loaded. Skipping.")
+            return
+
+        print("\n[1/3] Loading model predictions...")
+        model_df = self.data_loader.load_model_predictions()
+
+        print("\n[2/3] Processing predictions to firm-year level...")
+        model_agg = self.predictions_processor.process_predictions(model_df)
+
+        print("\n[3/3] Loading keyword data for comparison...")
+        keyword_df = self.data_loader.load_keyword_data()
+
+        # Store data for other steps
+        self._pipeline_data["keyword_df"] = keyword_df
+        self._pipeline_data["model_agg_df"] = model_agg
+        self._pipeline_data["original_model_agg_df"] = model_agg.copy()
+        self._data_loaded = True
+
+        print(f"✅ Data loading complete")
+        print(f"   - Model predictions: {len(model_df):,} records")
+        print(f"   - Aggregated to firm-year: {len(model_agg):,} records")
+        print(f"   - Keyword comparisons: {len(keyword_df):,} records")
+
+    def _run_comparison_analysis(self):
+        """Runs the keyword vs. model comparison and saves the workbook."""
+        print("\n[Extra] Running Keyword vs. Model Comparison...")
+        # This analyzer is now a standalone component with its own run method.
+        comparison_analyzer = ComparisonAnalyzer(self.config, self.label_mapper)
+        comparison_analyzer.run()
+
+    def _backup_server_results(self):
+        """Backs up the entire server_result table to an Excel file."""
+        print("\n[Extra] Backing up server_result table...")
+        try:
+            # The existing data loader can fetch all model predictions, which is what we need.
+            server_results_df = self.data_loader.load_model_predictions()
+            output_path = self.config.output_dir / "server_results_backup.xlsx"
+            temp_output_path = output_path.with_suffix('.xlsx.tmp')
+
+            with pd.ExcelWriter(temp_output_path, engine="xlsxwriter") as writer:
+                # Disable automatic URL conversion to prevent Excel's hyperlink limit error.
+                writer.book.strings_to_urls = False # pyright: ignore[reportAttributeAccessIssue]
+                server_results_df.to_excel(writer, index=False)
+
+            # Atomically rename the temporary file to the final destination
+            import os
+            try:
+                os.rename(temp_output_path, output_path)
+            except: # Try replaceing
+                os.replace(temp_output_path, output_path)
+            print(f"   ✅ Server results backed up to: {output_path}")
+        except Exception as e:
+            print(f"     ❌ Error during server results backup: {e}")
+
+    def _run_qualitative_sampler(self):
+        """Runs the qualitative review sampler."""
+        print("\n[Extra] Running Qualitative Review Sampler...")
+        # This analyzer needs the merged comparison data to show both flags.
+        # We'll create it here if it doesn't exist.
+        if "merged_df" not in self._pipeline_data:
+            print("   -> Merging keyword and model data for sampler...")
+            keyword_df = self._pipeline_data["keyword_df"]
+            model_agg_df = self._pipeline_data["model_agg_df"]
+            merged_df = pd.merge(
+                keyword_df, model_agg_df, on=["cik", "year"], how="outer"
+            ).fillna(0)
+            self._pipeline_data["merged_df"] = merged_df
+
+        # Get arguments from the config file
+        sampler_args = self.config_manager.config_data.get("analyzer_args", {}).get("qualitative_sampler", {})
+        sampler = QualitativeSampler(self.config, self.label_mapper, **sampler_args)
+
+        sampler.analyze(data=self._pipeline_data["merged_df"])
+
+    def _run_custom_analyzers(self):
+        """Execute all registered custom analyzers."""
+        print("\n[Extra] Running custom analyzers...")
+        for name, analyzer in self.custom_analyzers.items():
+            print(f"  -> Running '{name}'...")
+            # Custom analyzers are expected to have a `run` method if they are to be
+            # executed independently in this pipeline.
+            if "model_agg_df" not in self._pipeline_data:
+                print(
+                    f"     ❌ Skipping '{name}': Required data 'model_agg_df' not found."
+                )
+                continue
+
+            try:
+                results = analyzer.analyze(data=self._pipeline_data["model_agg_df"])
+                self.custom_results[name] = results
+                print(f"     ✓ '{name}' completed successfully.")
+            except Exception as e:
+                print(f"     ❌ Error running '{name}': {e}")
+
+    def _print_summary(self):
+        """Prints a final summary of the pipeline execution."""
+        print("\n" + "=" * 70)
+        print("ANALYSIS COMPLETE!")
+        if self.custom_results:
+            print("\nCustom Analysis Results:")
+            for name, results in self.custom_results.items():
+                print(f"  - {name}: Generated {len(results)} result table(s).")
+        print(f"Results saved to: {self.config.output_dir}")
+        print("=" * 70)
+
+
+# %%
+# =============================================================================
+# ENTRY POINT
+# =============================================================================
+if __name__ == "__main__":
+    # Initialize configuration
+    config = Config()
+
+    # Initialize the pipeline
+    pipeline = AnalysisPipeline(config)
+
+    # --- Step 1: Load and process data once ---
+    pipeline.load_and_process_data()
+
+    # %%
+    # --- Step 2: Run the analysis with specific options ---
+    # You can now re-run this cell with different options without reloading data.
+
+    # %%
+    # Interactive environment menu to load the run_options, run pipeline, or exit
+    while True:
+        # Reload config at the start of each loop to catch manual edits
+        pipeline.config_manager.config_data = pipeline.config_manager._load_config()
+        run_options = pipeline.config_manager.config_data.get("run_options", {})
+
+        print("\n" + "=" * 70)
+        print("Current Run Options:")
+        for key, value in run_options.items():
+            status = "✅ Enabled" if value else "❌ Disabled"
+            print(f"  - {key:<25}: {status}")
+        print("=" * 70)
+
+        print("\nSelect an action:")
+        print("  1. Run pipeline with current options")
+        print("  2. Reload options from pipeline_config.json")
+        print("  3. Exit")
+        choice = input("Enter your choice (1-3): ") or "1"
+
+        if choice == "1":
+            pipeline.run()
+        elif choice == "2":
+            # The config is already reloaded at the top of the loop.
+            # This choice just forces the loop to reiterate and display the new config.
+            print("\nConfiguration reloaded from 'pipeline_config.json'.")
+            continue
+        elif choice == "3":
+            print("Exiting analysis pipeline.")
+            break
+        else:
+            print("Invalid choice. Please enter 1, 2, or 3.")        
+
+# %%
