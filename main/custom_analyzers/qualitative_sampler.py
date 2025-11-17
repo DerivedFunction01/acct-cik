@@ -375,6 +375,10 @@ class QualitativeSampler(BaseAnalyzer):
         temp_json_path = self.json_output_filename.with_suffix('.json.tmp')
         with open(temp_json_path, "w", encoding="utf-8") as f:
             json.dump(agent_reports_data, f, indent=2, ensure_ascii=False)
+        try:
+            os.rename(temp_json_path, self.json_output_filename)
+        except:
+            os.replace(temp_json_path, self.json_output_filename)
 
     def _generate_finetuning_guide(self, reports_data: List[Dict]):
         """Generate a guide for using exported annotations for fine-tuning."""
