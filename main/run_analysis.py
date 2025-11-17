@@ -58,8 +58,6 @@ class PipelineConfigManager:
             if field.name
             in ["db_path", "derivatives_csv", "comparison_excel", "drive_path"]
         }
-        # Add output_dir as string
-        global_config_defaults["output_dir"] = Path("./analysis_output")
 
         default_config = {
             "run_options": asdict(RunOptions()),
