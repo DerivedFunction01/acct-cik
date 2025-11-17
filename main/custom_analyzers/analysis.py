@@ -33,9 +33,6 @@ class Config:
     drive_path: str = "./drive/MyDrive/db"
     is_colab: Optional[bool] = None
 
-    # Model settings - kept for compatibility but not used with new system
-    labels: Optional[List[str]] = None
-
     # Processing settings
     num_workers: int = field(default_factory=mp.cpu_count)
     chunk_size: int = 1000
@@ -87,9 +84,6 @@ class Config:
 
         sentences_path = self.output_dir / self.sentences_dir
         sentences_path.mkdir(parents=True, exist_ok=True)
-
-        if self.labels is None:
-            self.labels = []
 
 
 # =============================================================================

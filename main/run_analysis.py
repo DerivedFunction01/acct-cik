@@ -59,7 +59,7 @@ class PipelineConfigManager:
                 else field.default() if callable(field.default) else None
             )
             for field in Config.__dataclass_fields__.values()
-            if field.name not in ["output_dir"]  # Skip Path objects
+            if field.name not in ["output_dir", "num_workers", "chunk_size"]
         }
         # Add output_dir as string
         global_config_defaults["output_dir"] = "./analysis_output"
