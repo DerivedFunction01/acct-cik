@@ -364,34 +364,12 @@
         <button class="btn secondary" id="clear-all">Clear All Edits</button>
     </div>
 
+    <!-- Embedded data -->
+    <script id="reports-data" type="application/json">{{ reports_json | safe }}</script>
+
     <script>
-        // Mock data for demonstration
-        const reportsData = [
-            {
-                cik: 12345,
-                year: 2023,
-                url: "https://example.com/report1",
-                sentences: [
-                    {
-                        text: "We use interest rate swaps to hedge our variable rate debt with a notional amount of $500 million.",
-                        primary_label: "IR_Notional",
-                        all_primary_labels: ["IR_Notional", "IR_Existence"]
-                    },
-                    {
-                        text: "The company does not engage in speculative derivative trading.",
-                        primary_label: null,
-                        all_primary_labels: []
-                    }
-                ],
-                flags: [
-                    { name: "IR Hedge", keyword: 1, model: "YES" },
-                    { name: "FX Hedge", keyword: 0, model: "NO" },
-                    { name: "CP Hedge", keyword: 0, model: "NO" },
-                    { name: "EQ Derivative", keyword: 0, model: "NO" }
-                ]
-            }
-        ];
-        
+        // Annotation system with local storage persistence
+        const reportsData = {{ reports_json | safe }};
         const annotations = loadAnnotations();
         
         // Available labels for selection
