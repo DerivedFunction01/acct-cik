@@ -34,11 +34,6 @@ class Config:
     is_colab: Optional[bool] = None
 
     # Model settings
-    confidence_threshold: float = 0.65
-    soft_confidence_threshold: float = 0.50
-    termination_threshold: float = 0.80
-    term_curr_ratio: float = 1.0 # More mentions of termination than current means terminated
-    display_threshold: float = 0.30 # For display purposes
 
     # Multi-label names (from training)
     labels: Optional[List[str]] = None
@@ -100,7 +95,6 @@ class Config:
             ]
 
 
-
 # =============================================================================
 # DATA LOADER
 # =============================================================================
@@ -157,22 +151,38 @@ class DataLoader:
         return flattened_sentences
 
     def load_model_predictions(self) -> pd.DataFrame:
-        """Load model predictions from database"""
+        """
+        Load model predictions from the new 'classification_results' table.
+        This table contains pre-classified findings for each (url, category) pair.
+        """
         query = """
             SELECT
                 r.cik,
                 r.year,
-                s.url,
-                s.server_response
-            FROM server_result s
-            JOIN report_data r ON s.url = r.url
+                cr.url,
+                cr.category,
+                cr.found_policy,
+                cr.found_existence,
+                cr.found_notional,
+                cr.found_pnl
+            FROM classification_results cr
+            JOIN report_data r ON cr.url = r.url
         """
 
         with self._get_connection() as conn:
-            df = pd.read_sql(query, conn)
+            try:
+                df = pd.read_sql(query, conn)
+            except Exception as e:
+                print(f"Error executing query on 'classification_results': {e}")
+                # Check for a common error: table not found
+                if "no such table" in str(e):
+                    print("   -> The 'classification_results' table does not exist.")
+                    print("   -> Please run the 'classify_from_db.py' script first to generate it.")
+                return pd.DataFrame()
 
-        # Parse JSON server response
-        df["server_response"] = df["server_response"].apply(self._parse_json_column)
+        # Parse JSON array columns for the 'found_*' fields
+        for col in ["found_policy", "found_existence", "found_notional", "found_pnl"]:
+            df[col] = df[col].apply(self._parse_json_column)
 
         # Remove rows with failed JSON parsing
         df = df[df["server_response"].notna()].reset_index(drop=True)
@@ -194,45 +204,34 @@ class DataLoader:
         return keyword_flags
 
     def load_sentence_data(self, urls: Optional[List[str]] = None) -> pd.DataFrame:
-        """Load sentence-level data with matches"""
+        """Load sentence-level data from the new derivative_type_matches table."""
         query = """
             SELECT
                 r.cik,
                 r.year,
-                w.url,
-                w.matches,
-                s.server_response
-            FROM webpage_result w
-            JOIN report_data r ON w.url = r.url
-            JOIN server_result s ON w.url = s.url
+                r.url
+                dt.ir_matches,
+                dt.fx_matches,
+                dt.cp_matches,
+                dt.eq_matches,
+            FROM derivative_type_matches dt
+            JOIN report_data r ON dt.url = r.url
         """
         params = ()
 
         if urls:
             # Create placeholders for the URLs to prevent SQL injection
             placeholders = ", ".join("?" for _ in urls)
-            query += f" WHERE w.url IN ({placeholders})"
+            query += f" WHERE dt.url IN ({placeholders})"
             params = tuple(urls)
-
+        df = pd.DataFrame()
         with self._get_connection() as conn:
             try:
                 df = pd.read_sql(query, conn, params=params)
             except Exception as e:
-                print(f"Error executing query: {e}")
+                print(f"Error executing query on 'derivative_type_matches': {e}")
                 return pd.DataFrame()
-
-        # Parse JSON columns
-        df["matches"] = df["matches"].apply(self._parse_json_column)
-        df["matches"] = df["matches"].apply(self._flatten_matches)
-        df["server_response"] = df["server_response"].apply(self._parse_json_column)
-
-        # Remove rows with failed JSON parsing
-        df = df[(df["matches"].notna()) & (df["server_response"].notna())].reset_index(
-            drop=True
-        )
-
         return df
-
 
 # =============================================================================
 # MODEL PREDICTIONS PROCESSOR
@@ -241,58 +240,57 @@ class DataLoader:
 
 class PredictionsProcessor:
     """
-    Backward-compatibility shim for PredictionsProcessor.
-    Delegates all logic to the centralized ClassificationEngine.
+    Processes the pre-classified data from the 'classification_results' table
+    to generate firm-year level flags.
     """
 
-    def __init__(self, config: Optional[Config]):
+    def __init__(self, config: Config, label_mapper=None):
         self.config = config
-        print("✅ PredictionsProcessor now using ClassificationEngine")
-        self.engine = ClassificationEngine(config)
 
     def process_predictions(self, model_df: pd.DataFrame) -> pd.DataFrame:
-        """Aggregate model predictions to firm-year level"""
-        print(f"Processing {len(model_df):,} model predictions...")
+        """
+        Aggregate model predictions from the new DB format to firm-year level.
+        The input `model_df` comes from `load_model_predictions` and contains
+        one row per (url, category) with `found_*` columns.
+        """
+        print(f"Processing {len(model_df):,} pre-classified records...")
 
-        results = []
-        skipped_count = 0
+        if model_df.empty:
+            print("   ⚠️  Input DataFrame is empty. Cannot process predictions.")
+            return pd.DataFrame()
 
-        for _, row in tqdm(
-            model_df.iterrows(), total=len(model_df), desc="Aggregating predictions"
-        ):
-            predictions = row["server_response"]
+        # A "user" is defined as having found evidence for existence, notional, or pnl.
+        # The `found_*` columns contain lists of sentence indices. An empty list means no finding.
+        model_df["is_user"] = model_df.apply(
+            lambda row: 1 if (
+                len(row.get("found_existence", [])) > 0 or
+                len(row.get("found_notional", [])) > 0 or
+                len(row.get("found_pnl", [])) > 0
+            ) else 0,
+            axis=1
+        )
 
-            if not predictions or not isinstance(predictions, list):
-                skipped_count += 1
-                continue
+        # Create specific user flags for each category (ir, fx, cp)
+        # Pivot the table to get one row per URL and columns for each category's user status.
+        url_level_flags = model_df.pivot_table(
+            index=["cik", "year", "url"],
+            columns="category",
+            values="is_user",
+            fill_value=0
+        ).reset_index()
 
-            # Use the new engine for classification
-            sentence_classes = [self.engine.classify_sentence(p) for p in predictions]
-            firm_year_class = self.engine.aggregate_to_firm_year(sentence_classes)
-
-            results.append(
-                {
-                    "cik": row["cik"],
-                    "year": row["year"],
-                    "url": row["url"],
-                    **firm_year_class.to_dict(),
-                }
-            )
-
-        if skipped_count > 0:
-            print(
-                f"⚠️  Skipped {skipped_count} reports with empty or invalid predictions"
-            )
-
-        agg_df = pd.DataFrame(results)
+        # Rename columns to match the expected format (e.g., 'model_ir_user')
+        url_level_flags.rename(columns={
+            "ir": "model_ir_user", "fx": "model_fx_user", "cp": "model_cp_user", "eq": "model_eq_user"
+        }, inplace=True)
 
         # Aggregate to firm-year level (max across multiple URLs)
         # If a firm-year has multiple URLs, we need to decide which URL to keep.
         # A simple approach is to keep the first one encountered for each group.
-        agg_cols = [col for col in agg_df.columns if col.startswith("model_")]
+        agg_cols = [col for col in url_level_flags.columns if col.startswith("model_")]
         
         # Group by cik and year, aggregate flags with max(), and keep the first URL.
-        firm_year_agg = agg_df.groupby(["cik", "year"]).agg(
+        firm_year_agg = url_level_flags.groupby(["cik", "year"]).agg(
             {**{col: 'max' for col in agg_cols}, 'url': 'first'}
         ).reset_index()
 
@@ -300,6 +298,14 @@ class PredictionsProcessor:
 
         return firm_year_agg
 
+    def _get_firm_year_flags(self, df_group: pd.DataFrame) -> pd.Series:
+        """Helper to aggregate flags for a single firm-year group."""
+        # The max() will correctly propagate the 1 if any report for that year is a user.
+        ir_user = df_group["model_ir_user"].max()
+        fx_user = df_group["model_fx_user"].max()
+        cp_user = df_group["model_cp_user"].max()
+        eq_user = df_group["model_eq_user"].max()
+        return pd.Series([ir_user, fx_user, cp_user, eq_user])
 
 # =============================================================================
 # BASE ANALYZER (Abstract)

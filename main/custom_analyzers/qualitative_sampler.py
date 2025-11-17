@@ -1,6 +1,6 @@
 import pandas as pd
 import json
-from .analysis import Config, LabelMapper, DataLoader, BaseAnalyzer
+from .analysis import Config, DataLoader, BaseAnalyzer
 from typing import List, Dict, Any
 from pathlib import Path
 
@@ -13,17 +13,15 @@ class QualitativeSampler(BaseAnalyzer):
     def __init__(
         self,
         config: Config,
-        label_mapper: LabelMapper,
         sample_size: int = 100,
         random_state: int = 42,
         only_terminated: bool = False,
     ):
-        super().__init__(config, label_mapper)
+        super().__init__(config)
         self.data_loader = DataLoader(config)
         self.sample_size = sample_size
         self.random_state = random_state
         self.output_filename = self.config.output_dir / "qualitative_review_sample.html"
-        self.only_terminated = only_terminated
         self.sampled_urls_csv = self.config.output_dir / "qualitative_review_sampled_urls.csv"
         self.json_output_filename = self.config.output_dir / "qualitative_review_sample.json"
         self.template_path = Path(__file__).parent / "qualitative_sampler_template.html"
@@ -52,15 +50,11 @@ class QualitativeSampler(BaseAnalyzer):
             return [{"text": "No text or prediction data found in database.", "labels": []}]
 
         try:
-            matches_dict = json.loads(row[0])
+            sentences = json.loads(row[0])
             predictions = json.loads(row[1])
 
-            if isinstance(matches_dict, dict):
-                sentences = [s for sentences_list in matches_dict.values() for s in sentences_list]
-            elif isinstance(matches_dict, list):
-                sentences = matches_dict
-            else:
-                return [{"text": "Matches data is not in a recognized format.", "labels": []}]
+            if not isinstance(sentences, list):
+                return [{"text": "Sentences data is not in a list format.", "labels": []}]
 
             sentence_data = []
             for i, text in enumerate(sentences):

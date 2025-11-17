@@ -242,7 +242,7 @@ class ComparisonAnalyzer(BaseAnalyzer):
         from .analysis import DataLoader, PredictionsProcessor
 
         data_loader = DataLoader(self.config)
-        predictions_processor = PredictionsProcessor(self.config, self.label_mapper)
+        predictions_processor = PredictionsProcessor(self.config)
 
         print("  -> Loading keyword and model data...")
         keyword_df = data_loader.load_keyword_data()
