@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Optional
+import os
 
 from .analysis import BaseAnalyzer, Config
 
@@ -25,6 +26,7 @@ class WorkbookManager:
     def write_comparison_workbook(self, comparison_results: Dict[str, pd.DataFrame]):
         """Write comparison results to Excel workbook"""
         output_path = self.config.output_dir / self.config.comparison_excel
+        temp_output_path = output_path.with_suffix('.xlsx.tmp')
         print(f"\nWriting comparison workbook to {output_path}...")
 
         # Define sheets to be written
@@ -50,7 +52,7 @@ class WorkbookManager:
         # Use ThreadPoolExecutor for I/O-bound task of writing sheets
         # This is faster than ProcessPoolExecutor for this use case.
         with pd.ExcelWriter(
-            output_path, engine="xlsxwriter"
+            temp_output_path, engine="xlsxwriter"
         ) as writer, ThreadPoolExecutor(
             max_workers=self.config.num_workers
         ) as executor:
@@ -69,6 +71,12 @@ class WorkbookManager:
                     future.result()  # Raise exceptions if any occurred
                 except Exception as e:
                     print(f"Error writing a sheet: {e}")
+
+        # Atomically move the temporary file to the final destination
+        try:
+            os.rename(temp_output_path, output_path)
+        except OSError:
+            os.replace(temp_output_path, output_path)
 
         print(f"✅ Comparison workbook saved successfully")
 
