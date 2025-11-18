@@ -180,7 +180,9 @@ def run_training(
     # --- Set custom chat template if provided ---
     if chat_template_jinja:
         print("Applying custom Jinja chat template...")
-        tokenizer.chat_template = chat_template_jinja
+        # Read the chat template from file
+        with open(chat_template_jinja, "r", encoding="utf-8") as f:
+            tokenizer.chat_template = f.read()
 
     # --- Load and preprocess data ---
     print("\n--- Loading and Preprocessing Data ---")
