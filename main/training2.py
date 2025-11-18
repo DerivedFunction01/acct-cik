@@ -278,7 +278,7 @@ def run_training(
         save_strategy="steps",
         save_steps=eval_steps,
         save_total_limit=2,
-        load_best_model_at_end=True,
+        load_best_model_at_end=True if evaulate else False,
         eval_strategy="steps" if evaulate else "no",
         eval_steps=eval_steps if evaulate else None,
         push_to_hub=IS_AUTHENTICATED,
