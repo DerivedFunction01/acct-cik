@@ -85,6 +85,7 @@ def create_default_config() -> dict:
                 "resume_from_checkpoint": True,
                 "evaluate": True,
                 "chat_template_jinja": None,
+                "thinking": True,
             }
         ],
     }
@@ -140,6 +141,7 @@ def run_training(
     resume_from_checkpoint: bool = True,
     evaulate: bool = True,
     chat_template_jinja: str | None = None,
+    thinking: bool = True,
 ) -> None:
     """Main function to run the training process with Unsloth optimization."""
     print(
@@ -217,7 +219,7 @@ def run_training(
                     messages,
                     tokenize=False,
                     add_generation_prompt=False,
-                    enable_thinking=True,
+                    enable_thinking=thinking,
                 )
             }
 
@@ -387,7 +389,8 @@ if __name__ == "__main__":
             print("🚀 Generative Model Training (Unsloth Optimized)")
             print("=" * 60)
             print("1. Run a pre-configured task")
-            print("2. Exit")
+            print("2. Reload configuration")
+            print("3. Exit")
             choice = input("> ").strip()
 
             if choice == "1":
@@ -437,9 +440,11 @@ if __name__ == "__main__":
                         "chat_template_jinja", None
                     ),
                     evaulate=selected_task.get("evaluate", True),
+                    thinking=selected_task.get("thinking", True),
                 )
-
             elif choice == "2":
+                config = load_config()
+            elif choice == "3":
                 print("👋 Goodbye!")
                 break
             else:
