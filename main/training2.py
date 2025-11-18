@@ -83,6 +83,7 @@ def create_default_config() -> dict:
                 "target_modules": [],
                 "use_chat_template": True,
                 "resume_from_checkpoint": True,
+                "evaluate": True,
             }
         ],
     }
@@ -136,6 +137,7 @@ def run_training(
     dataset_num_shards: int = 1,
     use_chat_template: bool = True,
     resume_from_checkpoint: bool = True,
+    evaulate: bool = True,
 ) -> None:
     """Main function to run the training process with Unsloth optimization."""
     print(
@@ -277,8 +279,8 @@ def run_training(
         save_steps=eval_steps,
         save_total_limit=2,
         load_best_model_at_end=True,
-        eval_strategy="steps",
-        eval_steps=eval_steps,
+        eval_strategy="steps" if evaulate else "no",
+        eval_steps=eval_steps if evaulate else None,
         push_to_hub=IS_AUTHENTICATED,
         report_to="tensorboard",
     )
@@ -424,6 +426,7 @@ if __name__ == "__main__":
                     resume_from_checkpoint=selected_task.get(
                         "resume_from_checkpoint", True
                     ),
+                    evaulate=selected_task.get("evaluate", True),
                 )
 
             elif choice == "2":
