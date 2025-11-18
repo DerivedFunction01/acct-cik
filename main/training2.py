@@ -84,6 +84,7 @@ def create_default_config() -> dict:
                 "use_chat_template": True,
                 "resume_from_checkpoint": True,
                 "evaluate": True,
+                "chat_template_jinja": None,
             }
         ],
     }
@@ -138,6 +139,7 @@ def run_training(
     use_chat_template: bool = True,
     resume_from_checkpoint: bool = True,
     evaulate: bool = True,
+    chat_template_jinja: str | None = None,
 ) -> None:
     """Main function to run the training process with Unsloth optimization."""
     print(
@@ -172,6 +174,11 @@ def run_training(
     except Exception as e:
         print(f"❌ FAILED TO LOAD MODEL: {e}")
         return
+
+    # --- Set custom chat template if provided ---
+    if chat_template_jinja:
+        print("Applying custom Jinja chat template...")
+        tokenizer.chat_template = chat_template_jinja
 
     # --- Load and preprocess data ---
     print("\n--- Loading and Preprocessing Data ---")
@@ -425,6 +432,9 @@ if __name__ == "__main__":
                     ),
                     resume_from_checkpoint=selected_task.get(
                         "resume_from_checkpoint", True
+                    ),
+                    chat_template_jinja=selected_task.get(
+                        "chat_template_jinja", None
                     ),
                     evaulate=selected_task.get("evaluate", True),
                 )
