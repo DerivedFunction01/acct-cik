@@ -49,7 +49,6 @@ def create_default_config() -> dict:
             "gradient_accumulation": 8,
             "max_seq_length": 32768,
             "load_in_4bit": True,
-            "use_chat_template": True,
         },
         "all_target_modules": [
             "q_proj",
@@ -81,7 +80,7 @@ def create_default_config() -> dict:
                 "num_epochs": 1,
                 "dataset_num_shards": 1,
                 "dataset_shard_index": 0,
-                "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+                "target_modules": [],
                 "use_chat_template": True,
                 "resume_from_checkpoint": True,
             }
@@ -420,8 +419,7 @@ if __name__ == "__main__":
                     dataset_num_shards=selected_task.get("dataset_num_shards", 1),
                     dataset_shard_index=selected_task.get("dataset_shard_index", 0),
                     use_chat_template=selected_task.get(
-                        "use_chat_template",
-                        config["training_profile"].get("use_chat_template", True),
+                        "use_chat_template",True,
                     ),
                     resume_from_checkpoint=selected_task.get(
                         "resume_from_checkpoint", True
