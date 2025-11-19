@@ -120,7 +120,16 @@ if USE_UNSLOTH:
         load_in_4bit=load_in_4bit,
     )
     FastLanguageModel.for_inference(model)
+
+    # CRITICAL: Set left padding for decoder-only models
+    tokenizer.padding_side = "left"
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
     print("✅ Unsloth model loaded and set to inference mode.")
+    print(
+        f"⚙️  Padding side: {tokenizer.padding_side}, Pad token: {tokenizer.pad_token}"
+    )
 else:
     quantization_config = None
     if load_in_4bit:
@@ -132,13 +141,17 @@ else:
         device_map="auto",
     )
     model.eval()
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, padding_side="left")
-    print("✅ Standard transformers model loaded.")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 
-# Set pad token if not set
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = tokenizer.eos_token
-    print(f"⚙️  Set pad_token to eos_token: {tokenizer.eos_token}")
+    # Set pad token and padding side for decoder-only models
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
+
+    print("✅ Standard transformers model loaded.")
+    print(
+        f"⚙️  Padding side: {tokenizer.padding_side}, Pad token: {tokenizer.pad_token}"
+    )
 
 print(f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}")
 
@@ -193,9 +206,10 @@ def batch_summarize(
             start_idx = batch_idx * BATCH_SIZE
             end_idx = min(start_idx + BATCH_SIZE, len(texts))
             batch_texts = texts[start_idx:end_idx]
+            actual_batch_size = len(batch_texts)
 
             print(
-                f"  Batch {batch_idx + 1}/{num_batches} ({len(batch_texts)} texts)... ",
+                f"  Batch {batch_idx + 1}/{num_batches} ({actual_batch_size} texts)... ",
                 end="",
                 flush=True,
             )
@@ -252,19 +266,28 @@ def batch_summarize(
             input_length = inputs["input_ids"].shape[1]
 
             # --- Generate summaries for entire batch in parallel ---
-            with torch.no_grad():
-                outputs = model.generate(
-                    input_ids=inputs["input_ids"],
-                    attention_mask=inputs["attention_mask"],
-                    pad_token_id=tokenizer.pad_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                    temperature=gen_params.get("temperature", 0.7),
-                    top_p=gen_params.get("top_p", 0.9),
-                    top_k=gen_params.get("top_k", 20),
-                    repetition_penalty=gen_params.get("repetition_penalty", 1.1),
-                    max_new_tokens=gen_params.get("max_new_tokens", 512),
-                    do_sample=True,  # Enable sampling for temperature/top_p
+            # Suppress the Unsloth resize warning (it's cosmetic and doesn't affect output)
+            import warnings
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message=".*An output with one or more elements was resized.*",
                 )
+
+                with torch.no_grad():
+                    outputs = model.generate(
+                        input_ids=inputs["input_ids"],
+                        attention_mask=inputs["attention_mask"],
+                        pad_token_id=tokenizer.pad_token_id,
+                        eos_token_id=tokenizer.eos_token_id,
+                        temperature=gen_params.get("temperature", 0.7),
+                        top_p=gen_params.get("top_p", 0.9),
+                        top_k=gen_params.get("top_k", 20),
+                        repetition_penalty=gen_params.get("repetition_penalty", 1.1),
+                        max_new_tokens=gen_params.get("max_new_tokens", 512),
+                        do_sample=True,  # Enable sampling for temperature/top_p
+                    )
 
             # --- Decode only the generated tokens (skip input tokens) ---
             batch_summaries = tokenizer.batch_decode(
@@ -274,7 +297,7 @@ def batch_summarize(
             )
 
             summaries.extend(batch_summaries)
-            print(f"✅ ({len(batch_texts)} texts processed)")
+            print(f"✅ ({actual_batch_size} texts processed)")
 
         print(
             f"✅ Batch summarization complete: {len(summaries)} summaries generated\n"
