@@ -27,6 +27,7 @@ REPORT_CSV_PATH = "./report_data.csv"
 SERVER_BASE_URL = "http://127.0.0.1:5001"
 DEBUG = False
 CHUNK_SIZE = 20  # Reports per chunk (outer loop)
+TEXT_SIZE = 8192 # How long the text should be
 SERVER_BATCH_SIZE = 8  # Should match server's BATCH_SIZE
 MIN_CHUNKS_PER_CALL = 8  # Minimum chunks to send (to utilize server batch)
 MAX_CHUNKS_PER_CALL = 64  # Maximum chunks per call (to avoid long waits)
@@ -45,7 +46,8 @@ def get_system_config():
     """Auto-detects client and server capabilities to set configuration."""
     cpu_cores = mp.cpu_count()
     client_ram_gb = psutil.virtual_memory().total / (1024**3)
-
+    batch_size = SERVER_BATCH_SIZE
+    text_size = TEXT_SIZE
     print(f"🖥️  Client System: {cpu_cores} CPU cores, {client_ram_gb:.2f} GB RAM")
 
     try:
@@ -61,6 +63,10 @@ def get_system_config():
             )
         else:
             print("⚠️  Server has no GPU")
+        if server_info.max_seq_length:
+            text_size = server_info.max_seq_length // 6
+        if server_info.batch_size:
+            batch_size = server_info.batch_size
     except requests.exceptions.RequestException as e:
         print(f"❌ Could not connect to server at {SERVER_BASE_URL}.")
         print(f"   Error: {e}")
@@ -77,10 +83,9 @@ def get_system_config():
     print(
         f"⚙️  Configuration: CHUNK_SIZE={adjusted_chunk_size}"
     )
-    return adjusted_chunk_size
+    return adjusted_chunk_size, batch_size, text_size
 
-
-CHUNK_SIZE = get_system_config()
+CHUNK_SIZE, SERVER_BATCH_SIZE, TEXT_SIZE = get_system_config()
 
 if IS_COLAB:
     print("Running in Google Colab environment")
