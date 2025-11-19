@@ -121,11 +121,6 @@ if USE_UNSLOTH:
     )
     FastLanguageModel.for_inference(model)
 
-    # CRITICAL: Set left padding for decoder-only models
-    tokenizer.padding_side = "left"
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
     print("✅ Unsloth model loaded and set to inference mode.")
     print(
         f"⚙️  Padding side: {tokenizer.padding_side}, Pad token: {tokenizer.pad_token}"
@@ -142,11 +137,6 @@ else:
     )
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-
-    # Set pad token and padding side for decoder-only models
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
 
     print("✅ Standard transformers model loaded.")
     print(
@@ -260,6 +250,7 @@ def batch_summarize(
                 truncation=True,
                 max_length=MAX_INPUT_LENGTH,
                 return_attention_mask=True,
+                padding_side="left",  # ← THIS IS THE CRITICAL LINE
             )
 
             inputs = inputs.to(device)
@@ -298,6 +289,9 @@ def batch_summarize(
 
             summaries.extend(batch_summaries)
             print(f"✅ ({actual_batch_size} texts processed)")
+            # Write it to a file
+            with open("server.log", "a") as f:
+                f.write("\n".join(batch_summaries) + "\n\n")
 
         print(
             f"✅ Batch summarization complete: {len(summaries)} summaries generated\n"
