@@ -65,11 +65,12 @@ def get_system_config():
             )
         else:
             print("⚠️  Server has no GPU")
-        if server_info.max_seq_length:
-            text_size = server_info.max_seq_length // 8
-            max_size = server_info.max_seq_length // 6
-        if server_info.batch_size:
-            batch_size = server_info.batch_size
+        if server_info.get("max_seq_length"):
+            length = server_info.get("max_seq_length")
+            text_size = length // 8
+            max_size = length // 6
+        if server_info.get("batch_size"):
+            batch_size = server_info.get("batch_size")
     except requests.exceptions.RequestException as e:
         print(f"❌ Could not connect to server at {SERVER_BASE_URL}.")
         print(f"   Error: {e}")
