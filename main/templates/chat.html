@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generative Model WebUI</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; background-color: #f4f4f9; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 900px; margin: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 95vh; }
+        header { padding: 20px; border-bottom: 1px solid #eee; }
+        h1 { margin: 0; font-size: 1.5em; }
+        .chat-window { flex-grow: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        .message { padding: 15px; border-radius: 8px; line-height: 1.5; max-width: 85%; }
+        .user-message { background-color: #e1f5fe; align-self: flex-end; }
+        .model-response { background-color: #f1f8e9; align-self: flex-start; white-space: pre-wrap; font-family: monospace; }
+        .input-area { border-top: 1px solid #eee; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .input-row { display: flex; gap: 10px; }
+        textarea { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-size: 1em; }
+        button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; }
+        #send-btn { background-color: #4CAF50; color: white; }
+        #sample-btn { background-color: #03A9F4; color: white; }
+        #stop-btn { background-color: #f44336; color: white; display: none; }
+        #send-btn:disabled { background-color: #aaa; }
+        .thinking {
+            display: inline-block;
+            animation: thinking-anim 1.5s infinite;
+        }
+        @keyframes thinking-anim {
+            0%, 100% { content: 'Thinking.'; }
+            33% { content: 'Thinking..'; }
+            66% { content: 'Thinking...'; }
+        }
+        .controls { display: flex; align-items: center; gap: 15px; font-size: 0.9em; color: #555; }
+        .controls input { margin-right: 5px; }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header><h1>Model Interaction UI</h1></header>
+        <div class="chat-window" id="chat-window">
+            <div class="message model-response">Hello! Enter a prompt below or use the sample button to get started.</div>
+        </div>
+        <div class="input-area">
+            <div class="input-row">
+                <textarea id="prompt-input" rows="3" placeholder="Enter your prompt here..."></textarea>
+                <button id="send-btn">Send</button>
+                <button id="sample-btn">Sample Prompt</button>
+                <button id="stop-btn">Stop</button>
+            </div>
+            <div class="controls">
+                <label><input type="checkbox" id="thinking-toggle" checked> Show thinking</label>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const promptInput = document.getElementById('prompt-input');
+        const sendBtn = document.getElementById('send-btn');
+        const sampleBtn = document.getElementById('sample-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const chatWindow = document.getElementById('chat-window');
+        const thinkingToggle = document.getElementById('thinking-toggle');
+
+        let abortController = new AbortController();
+
+        async function sendPrompt() {
+            const prompt = promptInput.value.trim();
+            if (!prompt) return;
+
+            // Reset abort controller for the new request
+            abortController = new AbortController();
+
+            // UI updates for generation start
+            sendBtn.disabled = true;
+            sampleBtn.disabled = true;
+            stopBtn.style.display = 'inline-block';
+            sendBtn.style.display = 'none';
+            promptInput.value = '';
+            promptInput.disabled = true;
+
+            // Display user message
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.className = 'message user-message';
+            userMessageDiv.textContent = prompt;
+            chatWindow.appendChild(userMessageDiv);
+
+            // Create model response container
+            const modelResponseDiv = document.createElement('div');
+            modelResponseDiv.className = 'message model-response';
+            modelResponseDiv.textContent = 'Thinking...';
+            chatWindow.appendChild(modelResponseDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+
+            try {
+                const response = await fetch('{{ model_server_url }}/generate-stream', {
+                    method: 'POST',
+                    signal: abortController.signal, // Link the abort controller
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt, enable_thinking: thinkingToggle.checked })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = '';
+                modelResponseDiv.textContent = ''; // Clear "Thinking..."
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    fullResponse += chunk; // Append the raw chunk
+                    modelResponseDiv.textContent = fullResponse; // Display the raw streaming text
+                    chatWindow.scrollTop = chatWindow.scrollHeight;
+                }
+
+                // --- NEW: Parse and pretty-print the final JSON response ---
+                // This logic runs only after the stream has successfully completed.
+                try {
+                    // The fullResponse might contain the <think> block. We need to parse it out.
+                    const thinkMatch = fullResponse.match(/<think>([\s\S]*?)<\/think>/);
+                    const thinkingContent = thinkMatch ? thinkMatch[1].trim() : null;
+                    const jsonContent = fullResponse.replace(/<think>[\s\S]*?<\/think>\s*/, '').trim();
+
+                    const parsedJson = JSON.parse(jsonContent);
+                    let finalDisplay = JSON.stringify(parsedJson, null, 2);
+
+                    if (thinkingContent && thinkingToggle.checked) {
+                        finalDisplay = `THINKING:\n${thinkingContent}\n\nANSWER:\n${finalDisplay}`;
+                    }
+                    modelResponseDiv.textContent = finalDisplay;
+                    // Add model response to conversation history
+                    conversationHistory.push({ role: 'assistant', content: fullResponse }); // Store raw response for re-sending
+                } catch (e) {
+                    // If JSON parsing fails, the raw text is already displayed.
+                    console.error("Final JSON parsing failed:", e);
+                    conversationHistory.push({ role: 'assistant', content: fullResponse }); // Store raw response
+                }
+
+            } catch (error) {
+                // Handle abort and other errors
+                modelResponseDiv.textContent = (error.name === 'AbortError') ? 'Generation stopped.' : `Error: ${error.message}`;
+                console.error('Fetch error:', error);
+                // If error, do not add to conversation history as it's not a valid turn
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+                stopBtn.style.display = 'none';
+                sendBtn.style.display = 'inline-block';
+                promptInput.disabled = false;
+                systemPromptInput.disabled = false; // Re-enable system prompt
+            }
+        }
+
+        function stopGeneration() {
+            abortController.abort(); // This will trigger the catch block in sendPrompt
+            sendBtn.disabled = false;
+            sampleBtn.disabled = false;
+            stopBtn.style.display = 'none';
+            sendBtn.style.display = 'inline-block';
+            promptInput.disabled = false;
+            systemPromptInput.disabled = false; // Re-enable system prompt
+        }
+
+        sendBtn.addEventListener('click', sendPrompt);
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendPrompt();
+            }
+        });
+
+        stopBtn.addEventListener('click', stopGeneration);
+
+        sampleBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/get-sample-prompt');
+                const data = await response.json();
+                if (data.prompt) {
+                    promptInput.value = data.prompt;
+                } else {
+                    alert(data.error || 'Could not fetch sample prompt.');
+                }
+            } catch (error) {
+                alert('Failed to connect to the WebUI server to get a sample.');
+            }
+        });
+    </script>
+</body>
+</html>
