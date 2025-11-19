@@ -248,31 +248,37 @@ def get_text_chunks_for_report(url: str) -> List[str]:
         if result and result[0]:
             matches = json.loads(result[0])
             if isinstance(matches, list) and matches:
-                new_matches = []
+                # Filter out any non-string or empty items first
+                processed_chunks = [str(chunk).strip() for chunk in matches if isinstance(chunk, str) and str(chunk).strip()]
+                if not processed_chunks:
+                    return []
+
+                merged_chunks = []
                 buffer = ""
 
-                for chunk in matches:
-                    if not isinstance(chunk, str):
-                        continue  # skip non-string entries
-
-                    # Check if appending would exceed MAX_SIZE
-                    if buffer and len(buffer) + len(chunk) > MAX_SIZE:
-                        # Flush current buffer before adding new chunk
-                        new_matches.append(buffer.strip())
+                for chunk in processed_chunks:
+                    # If adding the next chunk would exceed the max size,
+                    # finalize the current buffer and start a new one.
+                    if buffer and len(buffer) + 1 + len(chunk) > MAX_SIZE:
+                        merged_chunks.append(buffer)
                         buffer = ""
 
-                    buffer += (" " + chunk).strip()
+                    # Add the chunk to the buffer, with a space if buffer is not empty.
+                    if buffer:
+                        buffer += " " + chunk
+                    else:
+                        buffer = chunk
 
-                    # Flush if buffer is at least TEXT_SIZE
+                    # If the buffer is now "full" enough, finalize it.
                     if len(buffer) >= TEXT_SIZE:
-                        new_matches.append(buffer.strip())
+                        merged_chunks.append(buffer)
                         buffer = ""
 
-                # Add any leftover buffer
+                # Don't forget to add the last buffer if it has content
                 if buffer:
-                    new_matches.append(buffer.strip())
+                    merged_chunks.append(buffer)
 
-                return new_matches
+                return merged_chunks
     except (json.JSONDecodeError, TypeError, sqlite3.Error) as e:
         debug_print(f"⚠️ Could not process chunks for {url}: {e}")
     finally:
