@@ -290,8 +290,16 @@ def batch_summarize(
             summaries.extend(batch_summaries)
             print(f"✅ ({actual_batch_size} texts processed)")
             # Write it to a file
-            with open("server.log", "a") as f:
-                f.write("\n".join(batch_summaries) + "\n\n")
+            # Write original + summary pairs to log
+            with open("server.log", "a", encoding="utf-8") as f:
+                for original, summary in zip(batch_texts, batch_summaries):
+                    f.write("=== ITEM START ===\n")
+                    f.write("ORIGINAL:\n")
+                    f.write(original.strip() + "\n\n")
+                    f.write("SUMMARY:\n")
+                    f.write(summary.strip() + "\n")
+                    f.write("=== ITEM END ===\n\n")
+
 
         print(
             f"✅ Batch summarization complete: {len(summaries)} summaries generated\n"
