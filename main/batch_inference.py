@@ -250,6 +250,8 @@ def batch_summarize(
 
             summaries.extend(batch_summaries)
             print(f"✅ ({len(batch_texts)} texts processed in parallel)")
+            for summary in batch_summaries:
+                print(summary)
 
         print(
             f"✅ Batch summarization complete: {len(summaries)} summaries generated\n"

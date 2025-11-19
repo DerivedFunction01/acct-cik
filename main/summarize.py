@@ -27,6 +27,9 @@ REPORT_CSV_PATH = "./report_data.csv"
 SERVER_BASE_URL = "http://127.0.0.1:5001"
 DEBUG = False
 CHUNK_SIZE = 20  # Reports per chunk (outer loop)
+SERVER_BATCH_SIZE = 8  # Should match server's BATCH_SIZE
+MIN_CHUNKS_PER_CALL = 8  # Minimum chunks to send (to utilize server batch)
+MAX_CHUNKS_PER_CALL = 64  # Maximum chunks per call (to avoid long waits)
 
 # =============================================================================
 # COLAB CONFIGURATION
@@ -319,9 +322,13 @@ def batch_summarize_texts(text_chunks: List[str]) -> Tuple[List[str], str]:
 
 def process_report_batch(reports_batch: List) -> List[Tuple[str, List[str]]]:
     """
-    Process a batch of reports.
-    For each report: fetch its text chunks, send to server, return summaries.
-    Processes chunks on-demand to avoid loading all into memory.
+    Process a batch of reports with smart chunk accumulation.
+
+    Strategy:
+    - Accumulate chunks from multiple reports until we hit MIN_CHUNKS_PER_CALL
+    - Don't exceed MAX_CHUNKS_PER_CALL to keep response times reasonable
+    - Send accumulated chunks in a single server call
+    - Track boundaries to split results back to individual reports
 
     Args:
         reports_batch: List of report namedtuples with (url, cik, year)
@@ -331,29 +338,95 @@ def process_report_batch(reports_batch: List) -> List[Tuple[str, List[str]]]:
     """
     batch_results = []
 
-    for report in tqdm(reports_batch, desc="  Processing reports", leave=False):
-        url = report.url
-
-        # Fetch chunks for this report only (lazy loading)
-        text_chunks = get_text_chunks_for_report(url)
-
-        if not text_chunks:
-            debug_print(f"⚠️  No text chunks for {url}")
-            continue
-
-        # Send to server
-        summaries, error = batch_summarize_texts(text_chunks)
-
-        if error:
-            print(f"  ⚠️  Error processing {url}: {error}")
-            continue
-
-        if len(summaries) == len(text_chunks):
-            batch_results.append((url, summaries))
+    # Step 1: Fetch all reports and their chunks
+    reports_with_chunks = []
+    for report in reports_batch:
+        text_chunks = get_text_chunks_for_report(report.url)
+        if text_chunks:
+            reports_with_chunks.append((report, text_chunks))
         else:
-            print(
-                f"  ⚠️  Summary count mismatch for {url}. Expected {len(text_chunks)}, got {len(summaries)}."
-            )
+            # No chunks - add empty result immediately
+            debug_print(f"⚠️  No text chunks for {report.url}, storing empty array")
+            batch_results.append((report.url, []))
+
+    if not reports_with_chunks:
+        return batch_results
+
+    # Step 2: Accumulate chunks intelligently
+    accumulated_chunks = []
+    accumulated_reports = []  # Track (url, start_idx, end_idx)
+
+    for report, chunks in tqdm(
+        reports_with_chunks, desc="  Processing reports", leave=False
+    ):
+        num_chunks = len(chunks)
+
+        # Case 1: Single report has too many chunks - send it alone
+        if num_chunks >= MAX_CHUNKS_PER_CALL:
+            # First, flush any accumulated chunks
+            if accumulated_chunks:
+                summaries, error = batch_summarize_texts(accumulated_chunks)
+                if not error and len(summaries) == len(accumulated_chunks):
+                    for url, start_idx, end_idx in accumulated_reports:
+                        batch_results.append((url, summaries[start_idx:end_idx]))
+                else:
+                    print(f"  ⚠️  Error processing accumulated batch: {error}")
+
+                # Reset accumulator
+                accumulated_chunks = []
+                accumulated_reports = []
+
+            # Send this large report alone
+            summaries, error = batch_summarize_texts(chunks)
+            if not error and len(summaries) == num_chunks:
+                batch_results.append((report.url, summaries))
+            else:
+                print(f"  ⚠️  Error processing large report {report.url}: {error}")
+            continue
+
+        # Case 2: Adding this report would exceed MAX_CHUNKS_PER_CALL - flush first
+        if (
+            accumulated_chunks
+            and len(accumulated_chunks) + num_chunks > MAX_CHUNKS_PER_CALL
+        ):
+            summaries, error = batch_summarize_texts(accumulated_chunks)
+            if not error and len(summaries) == len(accumulated_chunks):
+                for url, start_idx, end_idx in accumulated_reports:
+                    batch_results.append((url, summaries[start_idx:end_idx]))
+            else:
+                print(f"  ⚠️  Error processing accumulated batch: {error}")
+
+            # Reset accumulator
+            accumulated_chunks = []
+            accumulated_reports = []
+
+        # Case 3: Accumulate this report
+        start_idx = len(accumulated_chunks)
+        accumulated_chunks.extend(chunks)
+        end_idx = len(accumulated_chunks)
+        accumulated_reports.append((report.url, start_idx, end_idx))
+
+        # Case 4: If we've reached minimum threshold, consider sending
+        if len(accumulated_chunks) >= MIN_CHUNKS_PER_CALL:
+            summaries, error = batch_summarize_texts(accumulated_chunks)
+            if not error and len(summaries) == len(accumulated_chunks):
+                for url, start_idx, end_idx in accumulated_reports:
+                    batch_results.append((url, summaries[start_idx:end_idx]))
+            else:
+                print(f"  ⚠️  Error processing accumulated batch: {error}")
+
+            # Reset accumulator
+            accumulated_chunks = []
+            accumulated_reports = []
+
+    # Step 3: Send any remaining accumulated chunks
+    if accumulated_chunks:
+        summaries, error = batch_summarize_texts(accumulated_chunks)
+        if not error and len(summaries) == len(accumulated_chunks):
+            for url, start_idx, end_idx in accumulated_reports:
+                batch_results.append((url, summaries[start_idx:end_idx]))
+        else:
+            print(f"  ⚠️  Error processing final accumulated batch: {error}")
 
     return batch_results
 
