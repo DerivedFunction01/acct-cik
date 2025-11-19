@@ -41,13 +41,14 @@ app.add_middleware(
 MODEL_PATH = "DerivedFunction/Qwen3-0.6B-mk-deriv-summarize"
 MAX_SEQ_LENGTH = 8192
 BATCH_SIZE = 8  # Number of texts to process in parallel per forward pass
+MAX_INPUT_LENGTH = 6144  # Leave room for generation (8192 - 2048)
 
 GENERATION_PARAMS = {
     "temperature": 0.7,
     "top_p": 0.9,
     "top_k": 20,
     "repetition_penalty": 1.1,
-    "max_new_tokens": 1028,
+    "max_new_tokens": 512,  # Reduced from 1028 to be safer
 }
 
 # Default system prompt for summarization
@@ -131,20 +132,30 @@ else:
         device_map="auto",
     )
     model.eval()
-    tokenizer = AutoTokenizer.from_pretrained(
-        MODEL_PATH, padding_side="left"
-    )
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, padding_side="left")
     print("✅ Standard transformers model loaded.")
+
+# Set pad token if not set
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+    print(f"⚙️  Set pad_token to eos_token: {tokenizer.eos_token}")
 
 print(f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}")
 
+
 def batch_summarize(
-    texts: List[str], user_params: Optional[dict] = None, system_prompt: Optional[str] = None
+    texts: List[str],
+    user_params: Optional[dict] = None,
+    system_prompt: Optional[str] = None,
 ) -> tuple[List[str], str, int]:
     """
-    Perform true batched inference on multiple texts.
+    Perform true batched inference on multiple texts with proper handling.
 
-    All texts are processed in parallel within each batch for maximum efficiency.
+    Key fixes:
+    - Validates input lengths before processing
+    - Uses attention masks properly
+    - Only decodes new tokens (not input)
+    - Handles variable-length inputs correctly
 
     Args:
         texts: List of text chunks to summarize
@@ -212,59 +223,80 @@ def batch_summarize(
                     print(f"❌ Error formatting prompt: {e}")
                     return [], f"Prompt formatting error: {e}", batch_idx
 
-            # --- Tokenize the entire batch at once ---
+            # --- Tokenize each prompt individually first to check lengths ---
+            individual_lengths = []
+            for prompt in formatted_prompts:
+                tokens = tokenizer.encode(prompt, add_special_tokens=False)
+                individual_lengths.append(len(tokens))
+
+            max_length_in_batch = max(individual_lengths)
+
+            # Check if any input is too long
+            if max_length_in_batch > MAX_INPUT_LENGTH:
+                print(
+                    f"\n⚠️  Warning: Input too long ({max_length_in_batch} tokens > {MAX_INPUT_LENGTH} max)"
+                )
+                print(f"     Truncating inputs in this batch...")
+
+            # --- Tokenize the entire batch at once with proper settings ---
             inputs = tokenizer(
                 formatted_prompts,
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
-                max_length=MAX_SEQ_LENGTH,
+                max_length=MAX_INPUT_LENGTH,
+                return_attention_mask=True,
             )
 
-            token_count = inputs["input_ids"].shape[1]
-            if token_count > MAX_SEQ_LENGTH:
-                return (
-                    [],
-                    f"Input too long: {token_count} tokens > {MAX_SEQ_LENGTH} max",
-                    batch_idx,
-                )
-
             inputs = inputs.to(device)
+            input_length = inputs["input_ids"].shape[1]
 
             # --- Generate summaries for entire batch in parallel ---
             with torch.no_grad():
                 outputs = model.generate(
-                    **inputs,
-                    pad_token_id=tokenizer.eos_token_id,
+                    input_ids=inputs["input_ids"],
+                    attention_mask=inputs["attention_mask"],
+                    pad_token_id=tokenizer.pad_token_id,
                     eos_token_id=tokenizer.eos_token_id,
-                    **{k: v for k, v in gen_params.items() if k != "max_new_tokens"},
+                    temperature=gen_params.get("temperature", 0.7),
+                    top_p=gen_params.get("top_p", 0.9),
+                    top_k=gen_params.get("top_k", 20),
+                    repetition_penalty=gen_params.get("repetition_penalty", 1.1),
                     max_new_tokens=gen_params.get("max_new_tokens", 512),
+                    do_sample=True,  # Enable sampling for temperature/top_p
                 )
 
             # --- Decode only the generated tokens (skip input tokens) ---
-            input_length = inputs["input_ids"].shape[1]
             batch_summaries = tokenizer.batch_decode(
                 outputs[:, input_length:],
                 skip_special_tokens=True,
+                clean_up_tokenization_spaces=True,
             )
 
             summaries.extend(batch_summaries)
-            print(f"✅ ({len(batch_texts)} texts processed in parallel)")
-            for summary in batch_summaries:
-                print(summary)
+            print(f"✅ ({len(batch_texts)} texts processed)")
 
         print(
             f"✅ Batch summarization complete: {len(summaries)} summaries generated\n"
         )
         return summaries, "", num_batches
 
+    except torch.cuda.OutOfMemoryError:
+        print(f"❌ GPU Out of Memory error")
+        return [], "GPU Out of Memory - try reducing batch size or input length", 0
     except Exception as e:
         print(f"❌ Summarization error: {e}")
+        import traceback
+
+        traceback.print_exc()
         return [], f"Summarization failed: {str(e)}", 0
 
     finally:
         with busy_lock:
             is_busy = False
+        # Clear CUDA cache after each request
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 @app.post("/batch-summarize", response_model=SummarizationResponse)
@@ -366,4 +398,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=5001)
