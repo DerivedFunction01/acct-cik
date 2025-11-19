@@ -25,3 +25,4 @@ unsloth_compiled_cache/
 Qwen*/
 analysis_output/
 model/
+merge*.py
