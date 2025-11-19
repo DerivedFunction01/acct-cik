@@ -215,14 +215,14 @@ def run_training(
             )
             assistant_content = f"{think_block}{assistant_msg}"
             messages.append({"role": "assistant", "content": assistant_content})
-
+            text = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=False,
+                enable_thinking=thinking,
+            )
             return {
-                "text": tokenizer.apply_chat_template(
-                    messages,
-                    tokenize=False,
-                    add_generation_prompt=False,
-                    enable_thinking=thinking,
-                )
+                "text": text
             }
 
         if use_chat_template:
