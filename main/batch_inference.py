@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/Qwen3-0.6B-Base-mk-deriv-summarize"
+MODEL_PATH = "DerivedFunction/Qwen3-0.6B-mk-deriv-summarize"
 MAX_SEQ_LENGTH = 8192
 BATCH_SIZE = 8  # Number of texts to process in parallel per forward pass
 
@@ -131,13 +131,15 @@ else:
         device_map="auto",
     )
     model.eval()
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+    tokenizer = AutoTokenizer.from_pretrained(
+        MODEL_PATH, padding_side="left"
+    )
     print("✅ Standard transformers model loaded.")
 
 print(f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}")
 
 def batch_summarize(
-    texts: List[str], user_params: dict = None, system_prompt: str = None
+    texts: List[str], user_params: Optional[dict] = None, system_prompt: Optional[str] = None
 ) -> tuple[List[str], str, int]:
     """
     Perform true batched inference on multiple texts.
