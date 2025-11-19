@@ -27,7 +27,6 @@ REPORT_CSV_PATH = "./report_data.csv"
 SERVER_BASE_URL = "http://127.0.0.1:5001"
 DEBUG = False
 CHUNK_SIZE = 20  # Reports per chunk (outer loop)
-SERVER_BATCH_SIZE = 64  # Texts sent to server per request (inner loop)
 
 # =============================================================================
 # COLAB CONFIGURATION
@@ -52,9 +51,6 @@ def get_system_config():
         response.raise_for_status()
         server_info = response.json()
 
-        batch_size = server_info.get("batch_size", SERVER_BATCH_SIZE)
-        print(f"✅ Server batch size: {batch_size}")
-
         if server_info.get("gpu_available"):
             gpu_ram = server_info.get("total_ram_gb", 0)
             print(
@@ -65,7 +61,6 @@ def get_system_config():
     except requests.exceptions.RequestException as e:
         print(f"❌ Could not connect to server at {SERVER_BASE_URL}.")
         print(f"   Error: {e}")
-        batch_size = SERVER_BATCH_SIZE
 
     # Adjust CHUNK_SIZE based on client RAM
     if client_ram_gb > 32:
@@ -77,12 +72,12 @@ def get_system_config():
 
     adjusted_chunk_size = max(10, int(CHUNK_SIZE * chunk_multiplier))
     print(
-        f"⚙️  Configuration: CHUNK_SIZE={adjusted_chunk_size}, SERVER_BATCH_SIZE={batch_size}"
+        f"⚙️  Configuration: CHUNK_SIZE={adjusted_chunk_size}"
     )
-    return adjusted_chunk_size, batch_size
+    return adjusted_chunk_size
 
 
-CHUNK_SIZE, SERVER_BATCH_SIZE = get_system_config()
+CHUNK_SIZE = get_system_config()
 
 if IS_COLAB:
     print("Running in Google Colab environment")
@@ -274,7 +269,6 @@ def fetch_report_data(valid=True):
 def batch_summarize_texts(text_chunks: List[str]) -> Tuple[List[str], str]:
     """
     Sends text chunks to the server in batches.
-    Handles memory efficiently by processing in SERVER_BATCH_SIZE chunks.
 
     Args:
         text_chunks: List of text strings to summarize
@@ -287,43 +281,32 @@ def batch_summarize_texts(text_chunks: List[str]) -> Tuple[List[str], str]:
 
     headers = {"Content-Type": "application/json"}
     all_summaries = []
-    num_sub_batches = (len(text_chunks) + SERVER_BATCH_SIZE - 1) // SERVER_BATCH_SIZE
 
-    print(
-        f"📤 Sending {len(text_chunks)} texts in {num_sub_batches} sub-batches... ",
-        flush=True,
-    )
+    payload = {"texts": text_chunks}
 
-    for batch_idx in range(num_sub_batches):
-        start_idx = batch_idx * SERVER_BATCH_SIZE
-        end_idx = min(start_idx + SERVER_BATCH_SIZE, len(text_chunks))
-        batch_texts = text_chunks[start_idx:end_idx]
+    try:
+        summarize_url = f"{SERVER_BASE_URL}/batch-summarize"
+        response = requests.post(
+            summarize_url, headers=headers, json=payload, timeout=600
+        )
+        response.raise_for_status()
 
-        payload = {"texts": batch_texts}
+        result = response.json()
 
-        try:
-            summarize_url = f"{SERVER_BASE_URL}/batch-summarize"
-            response = requests.post(
-                summarize_url, headers=headers, json=payload, timeout=600
-            )
-            response.raise_for_status()
+        if result.get("success"):
+            summaries = result.get("summaries", [])
+            all_summaries.extend(summaries)
+            print(f"✅", end="", flush=True)
+        else:
+            error_msg = result.get("error", "Unknown error from server")
+            return [], f"Server Error: {error_msg}"
 
-            result = response.json()
-
-            if result.get("success"):
-                summaries = result.get("summaries", [])
-                all_summaries.extend(summaries)
-                print(f"✅", end="", flush=True)
-            else:
-                error_msg = result.get("error", "Unknown error from server")
-                return [], f"Server Error (batch {batch_idx}): {error_msg}"
-
-        except requests.exceptions.Timeout:
-            return [], f"Timeout on batch {batch_idx} after 600s"
-        except requests.exceptions.RequestException as e:
-            return [], f"Network error on batch {batch_idx}: {str(e)}"
-        except Exception as e:
-            return [], f"Unexpected error on batch {batch_idx}: {str(e)}"
+    except requests.exceptions.Timeout:
+        return [], f"Timeout after 600s"
+    except requests.exceptions.RequestException as e:
+        return [], f"Network error: {str(e)}"
+    except Exception as e:
+        return [], f"Unexpected error: {str(e)}"
 
     print(" ✅")
     return all_summaries, ""
