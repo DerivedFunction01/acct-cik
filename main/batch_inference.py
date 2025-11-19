@@ -1,151 +1,346 @@
-# =============================================================================
-# BATCH SUMMARIZATION INFERENCE SCRIPT
-# =============================================================================
-# This script is optimized for high-throughput batch inference using a
-# finetuned generative model, particularly with Unsloth for speed.
-#
-# Workflow:
-# 1. Loads a finetuned model (e.g., your Qwen 0.6B model).
-# 2. Reads a Parquet or CSV file containing the text to be summarized.
-# 3. Tokenizes the input texts in batches.
-# 4. Generates summaries for the entire batch at once on the GPU.
-# 5. Decodes the summaries and adds them to the results.
-# 6. Saves the final DataFrame with summaries to a new file.
-#
-# Example Usage:
-# python batch_inference.py \
-#   --model_path "your-hf-username/Qwen-0.6B-finance-summarize" \
-#   --input_file "data_to_summarize.parquet" \
-#   --output_file "summaries_output.parquet" \
-#   --text_column "article_text" \
-#   --batch_size 16
-# =============================================================================
-
-import torch
-import pandas as pd
-from tqdm import tqdm
-import argparse
-from pathlib import Path
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
+import json
+import multiprocessing as mp
+import os
+from threading import Lock
+import time
 
 try:
+    import unsloth
     from unsloth import FastLanguageModel
+
     USE_UNSLOTH = True
-    print("✅ Unsloth found. Using Unsloth for optimized inference.")
+    print("✅ Unsloth found. Using Unsloth for model loading.")
 except ImportError:
-    from transformers import AutoModelForCausalLM, AutoTokenizer
     USE_UNSLOTH = False
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
     print("⚠️ Unsloth not found. Falling back to standard Hugging Face transformers.")
 
+import torch
 
-def load_data(input_file: Path) -> pd.DataFrame:
-    """Loads data from Parquet or CSV file."""
-    if input_file.suffix == ".parquet":
-        return pd.read_parquet(input_file)
-    elif input_file.suffix == ".csv":
-        return pd.read_csv(input_file)
+app = FastAPI(
+    title="Batch Summarization Server",
+    description="Batched inference for efficient summarization"
+)
+
+# --- CORS Configuration ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- CONFIGURATION ---
+MODEL_PATH = "DerivedFunction/Qwen3-0.6B-Base-mk-deriv-summarize"
+MAX_SEQ_LENGTH = 8192
+BATCH_SIZE = 8  # Adjust based on your GPU VRAM
+
+GENERATION_PARAMS = {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 20,
+    "repetition_penalty": 1.1,
+    "max_new_tokens": 1028,  # Summaries should be concise
+}
+
+
+# Default system prompt for summarization
+SYSTEM_PROMPT = """Produce a concise 2-4 sentence summary of the financial text.
+Focus on whether derivatives are used, what risks they hedge, the instruments involved,
+and whether usage is active, terminated, non-use, potential, or policy/accounting treatement.
+State the dollar amounts and year if present.
+Do not add information not present in the text."""
+
+# --- BUSY STATE TRACKING ---
+busy_lock = Lock()
+is_busy = False
+
+
+# --- Pydantic Models ---
+class SummarizationRequest(BaseModel):
+    texts: List[str]
+    params: Optional[Dict[str, Any]] = None
+    system_prompt: Optional[str] = None
+
+
+class SummarizationResponse(BaseModel):
+    summaries: List[str]
+    success: bool
+    error: Optional[str] = None
+    processing_time: float
+    batch_size: int
+
+
+class InfoResponse(BaseModel):
+    device: str
+    max_seq_length: int
+    batch_size: int
+    gpu_available: bool
+    gpu_name: Optional[str] = None
+    total_ram_gb: Optional[float] = None
+    load_in_4bit: Optional[bool] = None
+    cpu_cores: Optional[int] = None
+
+
+class StatusResponse(BaseModel):
+    status: str  # "idle" or "busy"
+    message: str
+
+
+# --- Dynamic Hardware Detection ---
+def get_hardware_config():
+    """Detects GPU and sets configuration for model loading and batching."""
+    if torch.cuda.is_available():
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        print(f"✅ GPU detected with {vram_gb:.2f} GB VRAM.")
+        load_in_4bit = vram_gb < 20
+        return torch.device("cuda"), True, load_in_4bit
     else:
-        raise ValueError(f"Unsupported file type: {input_file.suffix}")
+        print("⚠️ No GPU detected. Running on CPU.")
+        return torch.device("cpu"), False, False
 
 
-def run_batch_inference(args):
-    """Main function to run the batch inference process."""
+device, is_gpu, load_in_4bit = get_hardware_config()
 
-    # 1. Setup Device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"⚙️  Using device: {device}")
+# --- Load model ---
+print(f"Loading model from {MODEL_PATH}...")
+if USE_UNSLOTH:
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=MODEL_PATH,
+        max_seq_length=MAX_SEQ_LENGTH,
+        dtype=None,
+        load_in_4bit=load_in_4bit,
+    )
+    FastLanguageModel.for_inference(model)
+    print("✅ Unsloth model loaded and set to inference mode.")
+else:
+    quantization_config = None
+    if load_in_4bit:
+        quantization_config = BitsAndBytesConfig(load_in_4bit=True)
 
-    # 2. Load Model and Tokenizer
-    print(f"🚀 Loading model: {args.model_path}")
-    if USE_UNSLOTH:
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=args.model_path,
-            max_seq_length=args.max_seq_length,
-            load_in_4bit=args.load_in_4bit,
-            dtype=None, # Let unsloth decide
-        )
-        FastLanguageModel.for_inference(model)
-    else:
-        model = AutoModelForCausalLM.from_pretrained(args.model_path)
-        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-        model.to(device)
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_PATH,
+        quantization_config=quantization_config,
+        device_map="auto",
+    )
+    model.eval()
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+    print("✅ Standard transformers model loaded.")
 
-    # Set tokenizer padding settings
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
+print(f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}")
 
-    # 3. Load Data
-    print(f"📄 Loading data from: {args.input_file}")
-    df = load_data(args.input_file)
-    if args.text_column not in df.columns:
-        raise ValueError(f"Text column '{args.text_column}' not found in the input file.")
+
+def batch_summarize(texts: List[str], user_params: dict = None, system_prompt: str = None) -> tuple[List[str], str]:
+    """
+    Perform batched inference on multiple texts and return summaries.
     
-    # Ensure the text column is string type and handle missing values
-    texts_to_summarize = df[args.text_column].astype(str).fillna('').tolist()
-    print(f"   -> Found {len(texts_to_summarize):,} texts to summarize.")
+    Args:
+        texts: List of text chunks to summarize
+        user_params: Optional generation parameters override
+        system_prompt: Optional system prompt override
+        
+    Returns:
+        Tuple of (summaries list, error message or empty string)
+    """
+    global is_busy
+    
+    if not texts or len(texts) == 0:
+        return [], "No texts provided"
+    
+    try:
+        with busy_lock:
+            is_busy = True
+        
+        # Use provided or default system prompt
+        sys_prompt = system_prompt or SYSTEM_PROMPT
+        
+        # Merge generation parameters
+        gen_params = GENERATION_PARAMS.copy()
+        if user_params:
+            gen_params.update(user_params)
+        
+        summaries = []
+        num_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
+        
+        print(f"\n📦 Starting batch summarization: {len(texts)} texts in {num_batches} batches")
+        
+        for batch_idx in range(num_batches):
+            start_idx = batch_idx * BATCH_SIZE
+            end_idx = min(start_idx + BATCH_SIZE, len(texts))
+            batch_texts = texts[start_idx:end_idx]
+            
+            print(f"  Batch {batch_idx + 1}/{num_batches} ({len(batch_texts)} texts)... ", end="", flush=True)
+            
+            # Build messages for each text in the batch
+            batch_messages = []
+            for text in batch_texts:
+                messages = [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": text}
+                ]
+                batch_messages.append(messages)
+            
+            # Format prompts using chat template
+            formatted_prompts = []
+            for messages in batch_messages:
+                try:
+                    formatted_prompt = tokenizer.apply_chat_template(
+                        messages,
+                        tokenize=False,
+                        add_generation_prompt=True,
+                    )
+                    formatted_prompts.append(formatted_prompt)
+                except Exception as e:
+                    print(f"❌ Error formatting prompt: {e}")
+                    return [], f"Prompt formatting error: {e}"
+            
+            # Tokenize batch
+            inputs = tokenizer(
+                formatted_prompts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=MAX_SEQ_LENGTH
+            )
+            
+            token_count = inputs["input_ids"].shape[1]
+            if token_count > MAX_SEQ_LENGTH:
+                return [], f"Input too long: {token_count} tokens > {MAX_SEQ_LENGTH} max"
+            
+            inputs = inputs.to(device)
+            
+            # Generate summaries for batch
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    pad_token_id=tokenizer.eos_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
+                    **{k: v for k, v in gen_params.items() if k != 'max_new_tokens'},
+                    max_new_tokens=gen_params.get('max_new_tokens', 256),
+                )
+            
+            # Decode outputs
+            batch_summaries = tokenizer.batch_decode(
+                outputs[:, inputs["input_ids"].shape[1]:],
+                skip_special_tokens=True
+            )
+            
+            summaries.extend(batch_summaries)
+            print(f"✅")
+        
+        return summaries, ""
+        
+    except Exception as e:
+        print(f"❌ Summarization error: {e}")
+        return [], f"Summarization failed: {str(e)}"
+    
+    finally:
+        with busy_lock:
+            is_busy = False
 
-    # 4. Batch Inference
-    summaries = []
-    # Use tqdm to create a progress bar
-    for i in tqdm(range(0, len(texts_to_summarize), args.batch_size), desc="Summarizing Batches"):
-        batch_texts = texts_to_summarize[i:i + args.batch_size]
 
-        # Apply chat template to each item in the batch
-        # This is a common format for instruction-tuned models.
-        prompts = [
-            tokenizer.apply_chat_template([{"role": "user", "content": text}], tokenize=False, add_generation_prompt=True)
-            for text in batch_texts
-        ]
+@app.post("/batch-summarize", response_model=SummarizationResponse)
+async def batch_summarize_endpoint(request: SummarizationRequest):
+    """
+    Endpoint for batch summarization.
+    
+    Accepts an array of texts and returns an array of summaries.
+    """
+    try:
+        if not request.texts:
+            raise HTTPException(status_code=400, detail="Missing 'texts' array")
+        
+        start_time = time.time()
+        
+        summaries, error = batch_summarize(
+            request.texts,
+            user_params=request.params,
+            system_prompt=request.system_prompt
+        )
+        
+        processing_time = time.time() - start_time
+        
+        if error:
+            raise HTTPException(status_code=500, detail=error)
+        
+        return SummarizationResponse(
+            summaries=summaries,
+            success=True,
+            processing_time=processing_time,
+            batch_size=len(request.texts)
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR in batch summarize endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-        # Tokenize the batch of prompts
-        inputs = tokenizer(
-            prompts,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=args.max_seq_length,
-        ).to(device)
 
-        # Generate summaries for the whole batch
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=args.max_new_tokens,
-                eos_token_id=tokenizer.eos_token_id,
-                pad_token_id=tokenizer.eos_token_id,
-                do_sample=True,
-                temperature=0.6,
-                top_p=0.9,
+@app.get("/status", response_model=StatusResponse)
+async def status_endpoint():
+    """
+    Check if this process is busy or idle.
+    """
+    with busy_lock:
+        if is_busy:
+            return StatusResponse(
+                status="busy",
+                message="This process is currently generating. Request queued or try another server.",
+            )
+        else:
+            return StatusResponse(
+                status="idle",
+                message="This process is ready to accept requests."
             )
 
-        # Decode the generated text, skipping special tokens
-        # We need to slice the output to only decode the newly generated tokens
-        output_only = outputs[:, inputs['input_ids'].shape[1]:]
-        batch_summaries = tokenizer.batch_decode(output_only, skip_special_tokens=True)
-        summaries.extend(batch_summaries)
 
-    # 5. Save Results
-    df["summary"] = summaries
-    print(f"\n💾 Saving results to: {args.output_file}")
-    if args.output_file.suffix == ".parquet":
-        df.to_parquet(args.output_file, index=False)
-    elif args.output_file.suffix == ".csv":
-        df.to_csv(args.output_file, index=False)
+@app.get("/info", response_model=InfoResponse)
+async def info_endpoint():
+    """Endpoint for server info and hardware details."""
+    info_dict = {
+        "device": str(device),
+        "max_seq_length": MAX_SEQ_LENGTH,
+        "batch_size": BATCH_SIZE,
+        "gpu_available": is_gpu,
+    }
 
-    print("\n✨ Batch summarization complete!")
-    print(df[["summary"]].head())
+    if is_gpu:
+        prop = torch.cuda.get_device_properties(0)
+        info_dict.update(
+            {
+                "gpu_name": torch.cuda.get_device_name(0),
+                "total_ram_gb": round(prop.total_memory / (1024**3), 2),
+                "load_in_4bit": load_in_4bit,
+            }
+        )
+    else:
+        info_dict["cpu_cores"] = mp.cpu_count()
+
+    return InfoResponse(**info_dict)
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with API documentation link."""
+    return {
+        "message": "Batch Summarization Server",
+        "docs": "/docs",
+        "endpoints": {
+            "batch-summarize": "POST /batch-summarize - Batch summarization of text chunks",
+            "status": "GET /status - Check if process is busy or idle",
+            "info": "GET /info - Server info and hardware details",
+        },
+    }
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fast Batch Summarization Inference")
-    parser.add_argument("--model_path", type=str, required=True, help="Path to the finetuned model on Hugging Face Hub or locally.")
-    parser.add_argument("--input_file", type=Path, required=True, help="Path to the input Parquet or CSV file.")
-    parser.add_argument("--output_file", type=Path, required=True, help="Path to save the output file with summaries.")
-    parser.add_argument("--text_column", type=str, default="text", help="The name of the column containing the text to summarize.")
-    parser.add_argument("--batch_size", type=int, default=8, help="Number of texts to process in a single batch.")
-    parser.add_argument("--max_seq_length", type=int, default=4096, help="Maximum sequence length for the model.")
-    parser.add_argument("--max_new_tokens", type=int, default=512, help="Maximum number of new tokens to generate for the summary.")
-    parser.add_argument("--load_in_4bit", action="store_true", help="Load the model in 4-bit for lower memory usage.")
-
-    args = parser.parse_args()
-
-    run_batch_inference(args)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5001)
