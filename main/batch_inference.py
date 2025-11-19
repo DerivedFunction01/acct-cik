@@ -25,7 +25,7 @@ import torch
 
 app = FastAPI(
     title="Batch Summarization Server",
-    description="Batched inference for efficient summarization"
+    description="Batched inference for efficient summarization",
 )
 
 # --- CORS Configuration ---
@@ -40,16 +40,15 @@ app.add_middleware(
 # --- CONFIGURATION ---
 MODEL_PATH = "DerivedFunction/Qwen3-0.6B-Base-mk-deriv-summarize"
 MAX_SEQ_LENGTH = 8192
-BATCH_SIZE = 8  # Adjust based on your GPU VRAM
+BATCH_SIZE = 8  # Number of texts to process in parallel per forward pass
 
 GENERATION_PARAMS = {
     "temperature": 0.7,
     "top_p": 0.9,
     "top_k": 20,
     "repetition_penalty": 1.1,
-    "max_new_tokens": 1028,  # Summaries should be concise
+    "max_new_tokens": 1028,
 }
-
 
 # Default system prompt for summarization
 SYSTEM_PROMPT = """Produce a concise 2-4 sentence summary of the financial text.
@@ -76,6 +75,7 @@ class SummarizationResponse(BaseModel):
     error: Optional[str] = None
     processing_time: float
     batch_size: int
+    num_batches: int
 
 
 class InfoResponse(BaseModel):
@@ -136,58 +136,67 @@ else:
 
 print(f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}")
 
-
-def batch_summarize(texts: List[str], user_params: dict = None, system_prompt: str = None) -> tuple[List[str], str]:
+def batch_summarize(
+    texts: List[str], user_params: dict = None, system_prompt: str = None
+) -> tuple[List[str], str, int]:
     """
-    Perform batched inference on multiple texts and return summaries.
-    
+    Perform true batched inference on multiple texts.
+
+    All texts are processed in parallel within each batch for maximum efficiency.
+
     Args:
         texts: List of text chunks to summarize
         user_params: Optional generation parameters override
         system_prompt: Optional system prompt override
-        
+
     Returns:
-        Tuple of (summaries list, error message or empty string)
+        Tuple of (summaries list, error message or empty string, num_batches)
     """
     global is_busy
-    
+
     if not texts or len(texts) == 0:
-        return [], "No texts provided"
-    
+        return [], "No texts provided", 0
+
     try:
         with busy_lock:
             is_busy = True
-        
+
         # Use provided or default system prompt
         sys_prompt = system_prompt or SYSTEM_PROMPT
-        
+
         # Merge generation parameters
         gen_params = GENERATION_PARAMS.copy()
         if user_params:
             gen_params.update(user_params)
-        
+
         summaries = []
         num_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
-        
-        print(f"\n📦 Starting batch summarization: {len(texts)} texts in {num_batches} batches")
-        
+
+        print(
+            f"\n📦 Starting batch summarization: {len(texts)} texts in {num_batches} batches"
+        )
+
         for batch_idx in range(num_batches):
             start_idx = batch_idx * BATCH_SIZE
             end_idx = min(start_idx + BATCH_SIZE, len(texts))
             batch_texts = texts[start_idx:end_idx]
-            
-            print(f"  Batch {batch_idx + 1}/{num_batches} ({len(batch_texts)} texts)... ", end="", flush=True)
-            
-            # Build messages for each text in the batch
+
+            print(
+                f"  Batch {batch_idx + 1}/{num_batches} ({len(batch_texts)} texts)... ",
+                end="",
+                flush=True,
+            )
+
+            # --- Build messages for all texts in this batch ---
             batch_messages = []
             for text in batch_texts:
                 messages = [
                     {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": text}
+                    {"role": "user", "content": text},
                 ]
                 batch_messages.append(messages)
-            
-            # Format prompts using chat template
+
+            # --- Format all prompts using chat template ---
             formatted_prompts = []
             for messages in batch_messages:
                 try:
@@ -199,48 +208,56 @@ def batch_summarize(texts: List[str], user_params: dict = None, system_prompt: s
                     formatted_prompts.append(formatted_prompt)
                 except Exception as e:
                     print(f"❌ Error formatting prompt: {e}")
-                    return [], f"Prompt formatting error: {e}"
-            
-            # Tokenize batch
+                    return [], f"Prompt formatting error: {e}", batch_idx
+
+            # --- Tokenize the entire batch at once ---
             inputs = tokenizer(
                 formatted_prompts,
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
-                max_length=MAX_SEQ_LENGTH
+                max_length=MAX_SEQ_LENGTH,
             )
-            
+
             token_count = inputs["input_ids"].shape[1]
             if token_count > MAX_SEQ_LENGTH:
-                return [], f"Input too long: {token_count} tokens > {MAX_SEQ_LENGTH} max"
-            
+                return (
+                    [],
+                    f"Input too long: {token_count} tokens > {MAX_SEQ_LENGTH} max",
+                    batch_idx,
+                )
+
             inputs = inputs.to(device)
-            
-            # Generate summaries for batch
+
+            # --- Generate summaries for entire batch in parallel ---
             with torch.no_grad():
                 outputs = model.generate(
                     **inputs,
                     pad_token_id=tokenizer.eos_token_id,
                     eos_token_id=tokenizer.eos_token_id,
-                    **{k: v for k, v in gen_params.items() if k != 'max_new_tokens'},
-                    max_new_tokens=gen_params.get('max_new_tokens', 256),
+                    **{k: v for k, v in gen_params.items() if k != "max_new_tokens"},
+                    max_new_tokens=gen_params.get("max_new_tokens", 512),
                 )
-            
-            # Decode outputs
+
+            # --- Decode only the generated tokens (skip input tokens) ---
+            input_length = inputs["input_ids"].shape[1]
             batch_summaries = tokenizer.batch_decode(
-                outputs[:, inputs["input_ids"].shape[1]:],
-                skip_special_tokens=True
+                outputs[:, input_length:],
+                skip_special_tokens=True,
             )
-            
+
             summaries.extend(batch_summaries)
-            print(f"✅")
-        
-        return summaries, ""
-        
+            print(f"✅ ({len(batch_texts)} texts processed in parallel)")
+
+        print(
+            f"✅ Batch summarization complete: {len(summaries)} summaries generated\n"
+        )
+        return summaries, "", num_batches
+
     except Exception as e:
         print(f"❌ Summarization error: {e}")
-        return [], f"Summarization failed: {str(e)}"
-    
+        return [], f"Summarization failed: {str(e)}", 0
+
     finally:
         with busy_lock:
             is_busy = False
@@ -250,33 +267,35 @@ def batch_summarize(texts: List[str], user_params: dict = None, system_prompt: s
 async def batch_summarize_endpoint(request: SummarizationRequest):
     """
     Endpoint for batch summarization.
-    
+
     Accepts an array of texts and returns an array of summaries.
+    All texts are processed in parallel batches for efficiency.
     """
     try:
         if not request.texts:
             raise HTTPException(status_code=400, detail="Missing 'texts' array")
-        
+
         start_time = time.time()
-        
-        summaries, error = batch_summarize(
+
+        summaries, error, num_batches = batch_summarize(
             request.texts,
             user_params=request.params,
-            system_prompt=request.system_prompt
+            system_prompt=request.system_prompt,
         )
-        
+
         processing_time = time.time() - start_time
-        
+
         if error:
             raise HTTPException(status_code=500, detail=error)
-        
+
         return SummarizationResponse(
             summaries=summaries,
             success=True,
             processing_time=processing_time,
-            batch_size=len(request.texts)
+            batch_size=len(request.texts),
+            num_batches=num_batches,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -298,7 +317,7 @@ async def status_endpoint():
         else:
             return StatusResponse(
                 status="idle",
-                message="This process is ready to accept requests."
+                message="This process is ready to accept requests.",
             )
 
 
