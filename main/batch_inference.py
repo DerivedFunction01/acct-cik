@@ -49,7 +49,7 @@ GENERATION_PARAMS = {
     "top_k": 20,
     "repetition_penalty": 1.15,
     "max_new_tokens": 4096,
-    "length_penalty": 0.95,
+    "length_penalty": 1.0,
 }
 
 # Default system prompt for summarization
