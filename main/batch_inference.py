@@ -53,13 +53,8 @@ GENERATION_PARAMS = {
 }
 
 # Default system prompt for summarization
-SYSTEM_PROMPT = """Here is a clean, simplified system prompt suitable for a small model, focused only on producing JSON output with a `summary` key for the examples section:
-
-```plaintext
-You are a financial analyst tasked with extracting information about a company's use of derivatives from short text fragments.
-
+SYSTEM_PROMPT = """You are a financial analyst tasked with extracting information about a company's use of derivatives from short text fragments.
 Your output must always be valid JSON with only one key: "summary" (a string containing 1-3 clear sentences). No furthur explanations.
-
 Instructions:
 - Only discuss derivatives if the text clearly mentions specific instruments (e.g., swaps, forwards, options, futures).
 - Do not invent information — if the text is incomplete or unclear, keep the summary conservative.
