@@ -178,6 +178,7 @@ else:
 
 print(f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}")
 
+
 # ──────────────────────────────────────────────────────────────
 # CONFIGURABLE: How aggressive do you want to pack the GPU?
 # ──────────────────────────────────────────────────────────────
@@ -195,8 +196,6 @@ TIER_MULTIPLIER = 1.3  # ← EDIT THIS
 # 1.0 = very strict (almost no padding, lower GPU utilization)
 # 1.3 = excellent balance (recommended for 24GB+ GPUs)
 # 1.6 = aggressive (max throughput, slight padding)
-
-
 def is_valid_output(output: str) -> tuple[bool, str]:
     """
     Validate that output contains:
@@ -218,7 +217,7 @@ def is_valid_output(output: str) -> tuple[bool, str]:
         return False, "Invalid <think> tag structure"
 
     think_content = output[think_start + 7 : think_end].strip()
-    if len(think_content) < 50:  # Minimum thought content
+    if len(think_content) < 50:
         return False, "Insufficient thinking content (too short)"
 
     # Extract JSON after </think>
@@ -239,99 +238,8 @@ def is_valid_output(output: str) -> tuple[bool, str]:
         return False, f"Invalid JSON: {str(e)}"
 
 
-from typing import List, Optional, Tuple, Dict, Any
-import torch
-import traceback
-from threading import Lock
-
-# Assuming these globals are defined elsewhere
-# busy_lock: Lock
-# is_busy: bool
-# tokenizer, model, device
-# SYSTEM_PROMPT, GENERATION_PARAMS, MAX_INPUT_LENGTH
-# TIER_MULTIPLIER
-
-
-def batch_summarize(
-    texts: List[str],
-    user_params: Optional[Dict[str, Any]] = None,
-    system_prompt: Optional[str] = None,
-    max_retries: int = 2,
-) -> Tuple[List[str], str, int]:
-    """
-    Perform tiered batch summarization with validation and automatic retries.
-
-    Returns:
-        Tuple containing:
-        - List of summaries (in original order)
-        - Error message (empty if successful)
-        - Number of batches processed
-    """
-    global is_busy, TIER_MULTIPLIER
-
-    if not texts:
-        return [], "No texts provided", 0
-
-    try:
-        with busy_lock:
-            is_busy = True
-
-        sys_prompt = system_prompt or SYSTEM_PROMPT
-        gen_params = GENERATION_PARAMS.copy()
-        if user_params:
-            gen_params.update(user_params)
-
-        # Step 1: Prepare and measure prompts
-        items = _prepare_items(texts, sys_prompt)
-        if not items:
-            return [], "No valid inputs after prompt construction", 0
-
-        # Step 2–3: Tiered batching
-        batches = _create_tiered_batches(items, TIER_MULTIPLIER)
-        _log_batch_statistics(batches, len(texts))
-
-        # Step 4: Process batches
-        summaries = [""] * len(texts)
-        failed_items = _process_batches(batches, summaries, gen_params, texts)
-
-        # Step 5: Retry failed items
-        if failed_items and max_retries > 0:
-            failed_items = _retry_failed_items(
-                failed_items, sys_prompt, gen_params, max_retries
-            )
-
-        # Mark permanent failures
-        for item in failed_items:
-            idx = item["idx"]
-            summaries[idx] = f"[ERROR] {item['error']}"
-
-        valid_count = sum(1 for s in summaries if s and not s.startswith("[ERROR]"))
-        print(f"\nSuccess: {valid_count} / {len(summaries)} summaries valid.")
-        return summaries, "", len(batches)
-
-    except torch.cuda.OutOfMemoryError as e:
-        return (
-            [],
-            f"OOM — consider lowering TIER_MULTIPLIER (current: {TIER_MULTIPLIER:.1f})",
-            0,
-        )
-    except Exception as e:
-        traceback.print_exc()
-        return [], f"Inference failed: {str(e)}", 0
-    finally:
-        with busy_lock:
-            is_busy = False
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-
-# ————————————————————————————————
-# Helper functions
-# ————————————————————————————————
-
-
-def _prepare_items(texts: List[str], system_prompt: str) -> List[Dict]:
-    """Build prompts and measure token lengths."""
+def build_items(texts: List[str], system_prompt: str) -> List[dict]:
+    """Build items with prompts and token lengths."""
     items = []
     for idx, text in enumerate(texts):
         messages = [
@@ -343,21 +251,24 @@ def _prepare_items(texts: List[str], system_prompt: str) -> List[Dict]:
         )
         length = len(tokenizer.encode(prompt, add_special_tokens=False))
         items.append({"idx": idx, "text": text, "prompt": prompt, "length": length})
+
     return items
 
 
-def _create_tiered_batches(
-    items: List[Dict], tier_multiplier: float
-) -> List[List[Dict]]:
-    """Group items into tiers based on prompt length (longest first)."""
-    items.sort(key=lambda x: x["length"], reverse=True)
+def create_tiered_batches(
+    items: List[dict], tier_multiplier: float
+) -> List[List[dict]]:
+    """Group items into tiers based on length similarity."""
+    if not items:
+        return []
+
+    items_sorted = sorted(items, key=lambda x: x["length"], reverse=True)
     batches = []
     current_batch = []
+    tier_max = items_sorted[0]["length"]
 
-    tier_max = items[0]["length"] if items else 0
-
-    for item in items:
-        if current_batch and item["length"] >= tier_max / tier_multiplier:
+    for item in items_sorted:
+        if item["length"] >= tier_max / tier_multiplier and current_batch:
             current_batch.append(item)
         else:
             if current_batch:
@@ -371,195 +282,295 @@ def _create_tiered_batches(
     return batches
 
 
-def _log_batch_statistics(batches: List[List[Dict]], total_texts: int):
-    print(f"\nTiered batching: tier boundary = {TIER_MULTIPLIER:.1f}x")
-    print(f"Packed {total_texts} texts → {len(batches)} tier(s):")
-    for i, batch in enumerate(batches):
-        lengths = [it["length"] for it in batch]
-        max_len, min_len = max(lengths), min(lengths)
+def log_batch_info(batches: List[List[dict]]) -> None:
+    """Print batch statistics."""
+    print(f"Packed {sum(len(b) for b in batches)} texts → {len(batches)} tier(s):")
+    for i, b in enumerate(batches):
+        lengths = [x["length"] for x in b]
+        max_len = max(lengths)
+        min_len = min(lengths)
         total_tokens = sum(lengths)
-        avg_tokens = total_tokens / len(batch)
-        padding_ratio = max_len / avg_tokens if avg_tokens > 0 else 0
+        padding_ratio = max_len / (total_tokens / len(b)) if len(b) > 0 else 0
         print(
-            f"  Tier {i+1}: {len(batch)} items, "
+            f"  Tier {i+1}: {len(b)} items, "
             f"size range: {min_len:,}–{max_len:,} tokens, "
             f"total: {total_tokens:,}, padding: {padding_ratio:.2f}x"
         )
 
 
-def _process_batches(
-    batches: List[List[Dict]],
-    summaries: List[str],
-    gen_params: Dict[str, Any],
-    original_texts: List[str],
-) -> List[Dict]:
-    """Generate summaries for all batches and return list of failed items."""
-    failed_items = []
+def generate_batch(
+    batch: List[dict],
+    gen_params: dict,
+    batch_idx: int,
+    device: torch.device,
+) -> tuple[List[str], List[int]]:
+    """Generate summaries for a single batch."""
+    prompts = [item["prompt"] for item in batch]
+    indices = [item["idx"] for item in batch]
 
-    for batch_idx, batch in enumerate(batches):
-        prompts = [item["prompt"] for item in batch]
-        indices = [item["idx"] for item in batch]
-
-        print(
-            f"  → Generating tier {batch_idx+1} ({len(prompts)} texts)... ",
-            end="",
-            flush=True,
-        )
-
-        inputs = tokenizer(
-            prompts,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=MAX_INPUT_LENGTH,
-            return_attention_mask=True,
-            padding_side="left",
-        ).to(device)
-
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                pad_token_id=tokenizer.eos_token_id,
-                eos_token_id=tokenizer.eos_token_id,
-                max_new_tokens=gen_params["max_new_tokens"],
-                temperature=gen_params["temperature"],
-                top_p=gen_params["top_p"],
-                top_k=gen_params["top_k"],
-                repetition_penalty=gen_params["repetition_penalty"],
-                do_sample=True,
-            )
-
-        generated_texts = tokenizer.batch_decode(
-            outputs[:, inputs["input_ids"].shape[1] :],
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=True,
-        )
-
-        invalid_count = 0
-        for idx, text, item in zip(indices, generated_texts, batch):
-            is_valid, error = is_valid_output(text.strip())
-            if is_valid:
-                summaries[idx] = text.strip()
-                _log_success(item["original_texts"][idx], text.strip())
-            else:
-                invalid_count += 1
-                failed_items.append(
-                    {"item": item, "idx": idx, "error": error, "retry_count": 0}
-                )
-
-        print(f"Done ({invalid_count} invalid)")
-
-    return failed_items
-
-
-def _retry_failed_items(
-    failed_items: List[Dict],
-    base_system_prompt: str,
-    gen_params: Dict[str, Any],
-    max_retries: int,
-) -> List[Dict]:
-    """Retry generation for invalid outputs with stricter prompt."""
-    print(f"\n⚠️  Retrying {len(failed_items)} invalid output(s)...")
-
-    retry_system_prompt = (
-        base_system_prompt
-        + "\n\nIMPORTANT: You MUST output your reasoning inside <think>...</think> tags, "
-        "then output ONLY valid JSON."
+    print(
+        f"  → Generating tier {batch_idx+1} ({len(prompts)} texts)... ",
+        end="",
+        flush=True,
     )
 
-    still_failed = failed_items[:]
+    inputs = tokenizer(
+        prompts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=MAX_INPUT_LENGTH,
+        return_attention_mask=True,
+        padding_side="left",
+    ).to(device)
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            max_new_tokens=gen_params["max_new_tokens"],
+            temperature=gen_params["temperature"],
+            top_p=gen_params["top_p"],
+            top_k=gen_params["top_k"],
+            repetition_penalty=gen_params["repetition_penalty"],
+            do_sample=True,
+        )
+
+    generated = tokenizer.batch_decode(
+        outputs[:, inputs["input_ids"].shape[1] :],
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=True,
+    )
+
+    return generated, indices
+
+
+def validate_and_track_results(
+    generated: List[str],
+    indices: List[int],
+    batch: List[dict],
+    all_summaries: List[str],
+    texts: List[str],
+) -> tuple[int, List[dict]]:
+    """Validate outputs and track invalid ones for retry."""
+    invalid_count = 0
+    retry_items = []
+
+    for idx, summary, item in zip(indices, generated, batch):
+        is_valid, error = is_valid_output(summary)
+        if is_valid:
+            all_summaries[idx] = summary.strip()
+        else:
+            invalid_count += 1
+            retry_items.append(
+                {"item": item, "idx": idx, "error": error, "retry_count": 0}
+            )
+
+    # Log valid outputs immediately
+    with open("server.log", "a", encoding="utf-8") as f:
+        for idx, summary in zip(indices, generated):
+            if all_summaries[idx] and not all_summaries[idx].startswith("[ERROR]"):
+                f.write("=== ITEM START ===\n")
+                f.write("USER TEXT:\n" + texts[idx].strip() + "\n\n")
+                f.write("ASSISTANT RESPONSE:\n" + summary.strip() + "\n")
+                f.write("=== ITEM END ===\n\n")
+
+    return invalid_count, retry_items
+
+
+def retry_single_item(
+    retry_data: dict,
+    system_prompt: str,
+    gen_params: dict,
+    device: torch.device,
+    attempt: int,
+    max_retries: int,
+) -> tuple[bool, str, str]:
+    """Retry a single invalid item and return (success, output, error_msg)."""
+    item = retry_data["item"]
+    idx = retry_data["idx"]
+    error = retry_data["error"]
+
+    print(
+        f"  Retry {attempt+1}/{max_retries} for item {idx} (error: {error})... ",
+        end="",
+        flush=True,
+    )
+
+    retry_system_prompt = (
+        system_prompt
+        + "\n\nIMPORTANT: You MUST output your reasoning inside <think>...</think> tags, then output ONLY valid JSON."
+    )
+
+    messages = [
+        {"role": "system", "content": retry_system_prompt},
+        {"role": "user", "content": item["text"]},
+    ]
+    prompt = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+
+    inputs = tokenizer(
+        [prompt],
+        return_tensors="pt",
+        padding=True,
+        max_length=MAX_INPUT_LENGTH,
+    ).to(device)
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            max_new_tokens=gen_params["max_new_tokens"],
+            temperature=gen_params["temperature"] * 0.9,
+            top_p=gen_params["top_p"],
+            top_k=gen_params["top_k"],
+            repetition_penalty=gen_params["repetition_penalty"],
+            do_sample=True,
+        )
+
+    generated = tokenizer.batch_decode(
+        outputs[:, inputs["input_ids"].shape[1] :],
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=True,
+    )[0].strip()
+
+    is_valid, new_error = is_valid_output(generated)
+    return is_valid, generated, new_error
+
+
+def retry_invalid_items(
+    retry_items: List[dict],
+    system_prompt: str,
+    gen_params: dict,
+    all_summaries: List[str],
+    texts: List[str],
+    device: torch.device,
+    max_retries: int = 2,
+) -> None:
+    """Retry all invalid items and update all_summaries."""
+    if not retry_items:
+        return
+
+    print(f"\n⚠️  Retrying {len(retry_items)} invalid output(s)...")
 
     for attempt in range(max_retries):
-        if not still_failed:
-            break
+        still_invalid = []
 
-        next_round = []
-        for data in still_failed:
-            item = data["item"]
-            idx = data["idx"]
-            error = data["error"]
-
-            print(
-                f"  Retry {attempt+1}/{max_retries} for item {idx} (error: {error})... ",
-                end="",
-                flush=True,
+        for retry_data in retry_items:
+            is_valid, generated, new_error = retry_single_item(
+                retry_data, system_prompt, gen_params, device, attempt, max_retries
             )
 
-            messages = [
-                {"role": "system", "content": retry_system_prompt},
-                {"role": "user", "content": item["text"]},
-            ]
-            prompt = tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
-
-            inputs = tokenizer(
-                [prompt],
-                return_tensors="pt",
-                padding=True,
-                max_length=MAX_INPUT_LENGTH,
-                padding_side="left",
-            ).to(device)
-
-            with torch.no_grad():
-                output = model.generate(
-                    **inputs,
-                    pad_token_id=tokenizer.eos_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                    max_new_tokens=gen_params["max_new_tokens"],
-                    temperature=gen_params["temperature"] * 0.9,
-                    top_p=gen_params["top_p"],
-                    top_k=gen_params["top_k"],
-                    repetition_penalty=gen_params["repetition_penalty"],
-                    do_sample=True,
-                )
-
-            generated = tokenizer.decode(
-                output[0, inputs["input_ids"].shape[1] :],
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=True,
-            ).strip()
-
-            is_valid, new_error = is_valid_output(generated)
+            idx = retry_data["idx"]
             if is_valid:
-                summaries[idx] = generated
+                all_summaries[idx] = generated
                 print("✅ Valid")
-                _log_retry_success(item["text"], generated)
+
+                # Log retry success
+                with open("server.log", "a", encoding="utf-8") as f:
+                    f.write("=== RETRY SUCCESS ===\n")
+                    f.write(
+                        "USER TEXT:\n" + retry_data["item"]["text"].strip() + "\n\n"
+                    )
+                    f.write("ASSISTANT RESPONSE:\n" + generated + "\n")
+                    f.write("=== RETRY SUCCESS END ===\n\n")
             else:
                 print(f"❌ Still invalid: {new_error}")
-                data["error"] = new_error
-                data["retry_count"] = attempt + 1
-                next_round.append(data)
+                retry_data["error"] = new_error
+                retry_data["retry_count"] = attempt + 1
+                still_invalid.append(retry_data)
 
-        still_failed = next_round
+        retry_items = still_invalid
+        if not retry_items:
+            break
 
-    # Log permanent failures
-    if still_failed:
-        print(f"\n❌ {len(still_failed)} items failed all retries.")
+    # Log final failures
+    if retry_items:
+        print(f"\n❌ {len(retry_items)} items failed all retries:")
         with open("server.log", "a", encoding="utf-8") as f:
-            for data in still_failed:
-                f.write(f"=== FINAL FAILURE (idx {data['idx']}) ===\n")
-                f.write(f"Error: {data['error']}\n")
-                f.write("USER TEXT:\n" + data["item"]["text"].strip() + "\n")
+            for retry_data in retry_items:
+                idx = retry_data["idx"]
+                error_msg = retry_data["error"]
+                all_summaries[idx] = f"[ERROR] {error_msg}"
+                f.write(f"=== FINAL FAILURE (idx {idx}) ===\n")
+                f.write(f"Error: {error_msg}\n")
+                f.write("USER TEXT:\n" + retry_data["item"]["text"].strip() + "\n")
                 f.write("=== FINAL FAILURE END ===\n\n")
 
-    return still_failed
 
+def batch_summarize(
+    texts: List[str],
+    user_params: Optional[dict] = None,
+    system_prompt: Optional[str] = None,
+    max_retries: int = 2,
+) -> tuple[List[str], str, int]:
+    global is_busy, TIER_MULTIPLIER
+    if not texts:
+        return [], "No texts provided", 0
 
-def _log_success(user_text: str, summary: str):
-    with open("server.log", "a", encoding="utf-8") as f:
-        f.write("=== ITEM START ===\n")
-        f.write("USER TEXT:\n" + user_text.strip() + "\n\n")
-        f.write("ASSISTANT RESPONSE:\n" + summary.strip() + "\n")
-        f.write("=== ITEM END ===\n\n")
+    try:
+        with busy_lock:
+            is_busy = True
 
+        sys_prompt = system_prompt or SYSTEM_PROMPT
+        gen_params = GENERATION_PARAMS.copy()
+        if user_params:
+            gen_params.update(user_params)
 
-def _log_retry_success(user_text: str, summary: str):
-    with open("server.log", "a", encoding="utf-8") as f:
-        f.write("=== RETRY SUCCESS ===\n")
-        f.write("USER TEXT:\n" + user_text.strip() + "\n\n")
-        f.write("ASSISTANT RESPONSE:\n" + summary + "\n")
-        f.write("=== RETRY SUCCESS END ===\n\n")
+        print(f"\nTiered batching: tier boundary = {TIER_MULTIPLIER:.1f}x")
+
+        # Build items
+        items = build_items(texts, sys_prompt)
+        if not items:
+            return [], "No valid inputs", 0
+
+        # Create tiers
+        batches = create_tiered_batches(items, TIER_MULTIPLIER)
+        log_batch_info(batches)
+
+        num_batches = len(batches)
+        all_summaries = [""] * len(texts)
+        all_retry_items = []
+
+        # Process batches
+        for batch_idx, batch in enumerate(batches):
+            generated, indices = generate_batch(batch, gen_params, batch_idx, device)
+            invalid_count, retry_items = validate_and_track_results(
+                generated, indices, batch, all_summaries, texts
+            )
+            print(f"Done ({invalid_count} invalid)")
+            all_retry_items.extend(retry_items)
+
+        # Retry invalid outputs
+        retry_invalid_items(
+            all_retry_items,
+            sys_prompt,
+            gen_params,
+            all_summaries,
+            texts,
+            device,
+            max_retries,
+        )
+
+        valid_count = sum(1 for s in all_summaries if s)
+        print(f"\nSuccess: {valid_count} / {len(all_summaries)} summaries valid.")
+        return all_summaries, "", num_batches
+
+    except torch.cuda.OutOfMemoryError:
+        return [], f"OOM — reduce TIER_MULTIPLIER (currently {TIER_MULTIPLIER})", 0
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return [], f"Inference failed: {e}", 0
+    finally:
+        with busy_lock:
+            is_busy = False
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 @app.post("/batch-summarize", response_model=SummarizationResponse)
