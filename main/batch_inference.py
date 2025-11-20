@@ -53,12 +53,27 @@ GENERATION_PARAMS = {
 }
 
 # Default system prompt for summarization
-SYSTEM_PROMPT = """Produce a concise 2-4 sentence summary of the provided financial text.
-Your summary must focus on:
-1. Whether derivatives are used, and their usage status (active, historical, terminated, potential, non-use, or policy).
-2. The specific instruments involved and the risks they hedge.
-3. Any dollar amounts and years mentioned in the text.
-Do not add information that is not present in the text."""
+SYSTEM_PROMPT = """You are summarizing text (1-4 sentences). The text may be incomplete or fragmented.
+
+1. Summarize the text (finance-related or not).
+2. If the text relates to derivatives and hedging, include relevant details such as types of derivatives used, purposes of hedging, and any significant figures mentioned. Else, skip this step.
+    - Whether the company uses derivatives and the primary purpose (hedging or otherwise).
+    - The specific risks mentioned (interest rate, foreign currency, commodity, etc.).
+    - The instruments mentioned (swaps, forwards, options, etc.).
+    - Whether usage (a year will be given as reference and is not part of the provided text) is:
+        - active (explicit mention)
+        - implied active (not enough information to confirm active use)
+        - historical
+        - terminated
+        - potential ("may use", "periodically", "from time to time", "in the future").
+        - non uses
+        - Any significant notional amounts or maturities if stated.
+RULES:
+- Do not invent information. Only use what appears in the text. Give numerical figures if either year or amounts are present.
+- Keep the output as a single paragraph with no bullet points.
+- Do not spend too much time thinking over incomplete information.
+- Output enough detail to capture the essence of the text without being overly verbose.
+- No need to mention why the text is not related to derivatives and hedging.""
 
 # --- BUSY STATE TRACKING ---
 busy_lock = Lock()
