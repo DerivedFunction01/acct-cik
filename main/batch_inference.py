@@ -215,11 +215,7 @@ def batch_summarize(
         if user_params:
             gen_params.update(user_params)
 
-        
-        MAX_PADDING_FACTOR = TIER_MULTIPLIER
-        # ───────────────────────────────────────────────────────────────────
-
-        print(f"\nHybrid batching: max padding factor = {MAX_PADDING_FACTOR:.1f}x")
+        print(f"\nTiered batching: tier boundary = {TIER_MULTIPLIER:.1f}x")
 
         # Step 1: Build prompts + measure lengths
         items = []
@@ -240,37 +236,40 @@ def batch_summarize(
         # Step 2: Sort by length descending
         items.sort(key=lambda x: x["length"], reverse=True)
 
-        # Step 3: Hybrid tiered + greedy packing
+        # Step 3: Tiered batching — group sequences with similar sizes
         batches = []
+        current_batch = []
+        tier_max = items[0]["length"] if items else 0
+
         for item in items:
-            placed = False
-            # Try to place in existing batch where it won't cause extreme padding
-            for batch in batches:
-                batch_max_len = max(x["length"] for x in batch)
-                new_max_len = max(batch_max_len, item["length"])
-                total_tokens = sum(x["length"] for x in batch) + item["length"]
+            # Check if this item fits in current tier (within TIER_MULTIPLIER of tier_max)
+            if item["length"] >= tier_max / TIER_MULTIPLIER and current_batch:
+                # Fits in current tier
+                current_batch.append(item)
+            else:
+                # Doesn't fit — start new tier
+                if current_batch:
+                    batches.append(current_batch)
+                current_batch = [item]
+                tier_max = item["length"]
 
-                # Rule: don't allow new sequence to increase batch length by > TIER_MULTIPLIER
-                if (
-                    new_max_len <= batch_max_len * MAX_PADDING_FACTOR
-                    and total_tokens <= MAX_MODEL_LENGTH
-                ):
-                    batch.append(item)
-                    placed = True
-                    break
-
-            if not placed:
-                batches.append([item])
+        if current_batch:
+            batches.append(current_batch)
 
         num_batches = len(batches)
         all_summaries = [""] * len(texts)
 
-        print(f"Packed {len(texts)} texts → {num_batches} hybrid batch(es):")
+        print(f"Packed {len(texts)} texts → {num_batches} tier(s):")
         for i, b in enumerate(batches):
             lengths = [x["length"] for x in b]
+            max_len = max(lengths)
+            min_len = min(lengths)
+            total_tokens = sum(lengths)
+            padding_ratio = max_len / (total_tokens / len(b)) if len(b) > 0 else 0
             print(
-                f"  Batch {i+1}: {len(b)} items, "
-                f"tokens: {sum(lengths):,} (max: {max(lengths):,}, padding ratio: {max(lengths)/sum(lengths)*len(b):.2f}x)"
+                f"  Tier {i+1}: {len(b)} items, "
+                f"size range: {min_len:,}–{max_len:,} tokens, "
+                f"total: {total_tokens:,}, padding: {padding_ratio:.2f}x"
             )
 
         # Step 4: Generate
@@ -278,7 +277,11 @@ def batch_summarize(
             prompts = [item["prompt"] for item in batch]
             indices = [item["idx"] for item in batch]
 
-            print(f"  → Generating {len(prompts)} texts... ", end="", flush=True)
+            print(
+                f"  → Generating tier {batch_idx+1} ({len(prompts)} texts)... ",
+                end="",
+                flush=True,
+            )
 
             inputs = tokenizer(
                 prompts,
@@ -337,6 +340,7 @@ def batch_summarize(
             is_busy = False
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+
 
 @app.post("/batch-summarize", response_model=SummarizationResponse)
 async def batch_summarize_endpoint(request: SummarizationRequest):
