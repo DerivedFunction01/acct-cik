@@ -315,11 +315,17 @@ def batch_summarize(
             for orig_idx, summary in zip(batch_indices, generated_texts):
                 all_summaries[orig_idx] = summary.strip()
 
-            # Optional: log to file
+            # Minimal logging: only user text + assistant response
             with open("server.log", "a", encoding="utf-8") as f:
-                for text, summary in zip(batch_prompts, generated_texts):
-                    f.write("=== BATCH ITEM ===\nORIGINAL:\n")
-                    f.write(text + "\n\nSUMMARY:\n" + summary.strip() + "\n\n")
+                for item, summary in zip(batch, generated_texts):
+                    user_text = item["text"].strip()  # This is your original chunk
+                    clean_summary = summary.strip()
+                    f.write("=== ITEM START ===\n")
+                    f.write("USER TEXT:\n")
+                    f.write(user_text + "\n\n")
+                    f.write("ASSISTANT RESPONSE:\n")
+                    f.write(clean_summary + "\n")
+                    f.write("=== ITEM END ===\n\n")
 
             print("Done")
 
