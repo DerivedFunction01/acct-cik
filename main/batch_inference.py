@@ -54,7 +54,7 @@ GENERATION_PARAMS = {
 # Default system prompt for summarization
 SYSTEM_PROMPT = """Produce a concise 2-4 sentence summary of the provided financial text.
 Your summary must focus on:
-1. Whether derivatives are used, and their usage status (active, terminated, potential, non-use, or policy).
+1. Whether derivatives are used, and their usage status (active, historical, terminated, potential, non-use, or policy).
 2. The specific instruments involved and the risks they hedge.
 3. Any dollar amounts and years mentioned in the text.
 Do not add information that is not present in the text."""
