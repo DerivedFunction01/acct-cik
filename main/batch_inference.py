@@ -63,11 +63,15 @@ Text will be fragmented, keep it simple and don't invent anything if text appear
     - **Hedged Risk**: (e.g., Interest Rate, Foreign Exchange, Commodity, Equity, other/unknown)
     - **Notional Amount**: (e.g., $5.5 million)
     - **Year**: (e.g., 2003)
-If the text doesn't seem to refer to derivatives or hedging activities, then respond briefly "No derivative information".
+If the text doesn't seem to refer to derivatives or hedging activities, then respond briefly.
 Example:
 Reference year (2003): We are exposed to various currency exchange rate risks, especially to our operations in China, Germany, and Russia. From time to time, we may use forward contracts to hedge against this risk... <more text> We setlled our forward contracts in 2002, resulting in a loss of $5.5 million.
 As of December 2003, we have an interest rate swap with a notional value of $20M... <more text>
 Summary: The company maintains an active interest rate swap with a $20 million notional amount as of December 2003 and may periodically use forward contracts to hedge foreign currency exchange rate risks, particularly related to operations in China, Germany, and Russia. All prior forward contracts were settled in 2002, resulting in a realized loss of $5.5 million.
+
+Example 2:
+Reference year (2001): Accounts recievable increased from $1.5M to $2.5M in 2001. Our Cost of Good sold primarily relates to how well our firm reduce operational expenses.
+Summary: Since the text is clearly not related to derivatives, no derivative information is provided.
 """
 
 # --- BUSY STATE TRACKING ---
