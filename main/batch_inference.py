@@ -286,6 +286,7 @@ def batch_summarize(
                 truncation=True,
                 max_length=MAX_INPUT_LENGTH,
                 return_attention_mask=True,
+                padding_side="left",
             ).to(device)
 
             with torch.no_grad():
