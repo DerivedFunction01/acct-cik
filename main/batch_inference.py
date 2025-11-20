@@ -49,6 +49,7 @@ GENERATION_PARAMS = {
     "top_k": 20,
     "repetition_penalty": 1.15,
     "max_new_tokens": 4096,
+    "length_penalty": 0.95,
 }
 
 # Default system prompt for summarization
@@ -277,6 +278,7 @@ def batch_summarize(
                         top_p=gen_params.get("top_p", 0.9),
                         top_k=gen_params.get("top_k", 20),
                         repetition_penalty=gen_params.get("repetition_penalty", 1.1),
+                        length_penalty=gen_params.get("length_penalty", 1.0),
                         max_new_tokens=gen_params.get("max_new_tokens", 512),
                         do_sample=True,  # Enable sampling for temperature/top_p
                     )

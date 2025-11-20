@@ -46,6 +46,7 @@ THINKING_PARAMS = {
     "top_k": 20,
     "min_p": 0.0,
     "repetition_penalty": 1.15,
+    "length_penalty": 0.95,
 }
 
 NON_THINKING_PARAMS = {
@@ -54,6 +55,7 @@ NON_THINKING_PARAMS = {
     "top_k": 20,
     "min_p": 0.0,
     "repetition_penalty": 1.15,
+    "length_penalty": 0.95,
 }
 
 SYS_PROMPT_FILE = "sys_prompt_regular.md"
