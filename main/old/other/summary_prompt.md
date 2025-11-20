@@ -1,4 +1,4 @@
-You are summarizing text (2-4 sentences). The text may be incomplete or fragmented.
+You are summarizing text (1-4 sentences). The text may be incomplete or fragmented.
 
 1. Summarize the text (finance-related or not).
 2. If the text relates to derivatives and hedging, include relevant details such as types of derivatives used, purposes of hedging, and any significant figures mentioned. Else, skip this step.
@@ -10,11 +10,12 @@ You are summarizing text (2-4 sentences). The text may be incomplete or fragment
         - implied active (not enough information to confirm active use)
         - historical
         - terminated
-        - potential ("may use", "periodically", "from time to time", "in the future").
+        - potential (""may use"", ""periodically"", ""from time to time"", ""in the future"").
         - non use
         - Any significant notional amounts or maturities if stated.
 RULES:
 - Do not invent information. Only use what appears in the text. Give numerical figures if either year or amounts are present.
 - Keep the output as a single paragraph with no bullet points.
-- Each text is treated independently. Do not spend too much time thinking over incomplete information.
+- Do not spend too much time thinking over incomplete information.
 - Output enough detail to capture the essence of the text without being overly verbose.
+- No need to mention why the text is not related to derivatives and hedging. 
