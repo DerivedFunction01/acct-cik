@@ -10,8 +10,8 @@ You are summarizing text (1-4 sentences). The text may be incomplete or fragment
         - implied active (not enough information to confirm active use)
         - historical
         - terminated
-        - potential (""may use"", ""periodically"", ""from time to time"", ""in the future"").
-        - non use
+        - potential ("may use", "periodically", "from time to time", "in the future").
+        - non uses
         - Any significant notional amounts or maturities if stated.
 RULES:
 - Do not invent information. Only use what appears in the text. Give numerical figures if either year or amounts are present.
