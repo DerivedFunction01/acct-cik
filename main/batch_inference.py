@@ -342,7 +342,7 @@ def generate_batch(
         skip_special_tokens=True,
         clean_up_tokenization_spaces=True,
     )
-
+    clear_cuda()
     return generated, indices
 
 
@@ -416,6 +416,7 @@ def retry_single_item(
         return_tensors="pt",
         padding=True,
         max_length=MAX_INPUT_LENGTH,
+        padding_side="left"
     ).to(device)
 
     with torch.no_grad():
@@ -436,9 +437,8 @@ def retry_single_item(
         skip_special_tokens=True,
         clean_up_tokenization_spaces=True,
     )[0].strip()
-    # clear cache
-    torch.cuda.empty_cache()
-    torch.cuda.reset_peak_memory_stats()
+    
+    clear_cuda()  
 
     is_valid, new_error = is_valid_output(generated)
     return is_valid, generated, new_error
@@ -572,8 +572,12 @@ def batch_summarize(
     finally:
         with busy_lock:
             is_busy = False
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        clear_cuda()
+
+def clear_cuda():
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        
 
 
 @app.post("/batch-summarize", response_model=SummarizationResponse)
