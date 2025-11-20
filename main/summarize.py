@@ -256,7 +256,7 @@ def get_text_chunks_for_report(url: str, year: int) -> List[str]:
 
                 merged_chunks = []
                 buffer = ""
-                year_prefix = f"Reference Year ({year}):\n<text>"
+                year_prefix = f"Reference Year ({year}):\n<begin-of-text>\n\n"
 
                 for chunk in processed_chunks:
                     # If adding the next chunk would exceed the max size,
@@ -267,7 +267,7 @@ def get_text_chunks_for_report(url: str, year: int) -> List[str]:
 
                     # Add the chunk to the buffer, with a space if buffer is not empty.
                     if buffer:
-                        buffer += " " + chunk
+                        buffer += "\n" + chunk
                     else:
                         buffer = chunk
 
@@ -280,7 +280,7 @@ def get_text_chunks_for_report(url: str, year: int) -> List[str]:
                 if buffer:
                     merged_chunks.append(buffer)
 
-                return [year_prefix + chunk + "</text>" for chunk in merged_chunks]
+                return [year_prefix + chunk + "\n\n<end-of-text>" for chunk in merged_chunks]
     except (json.JSONDecodeError, TypeError, sqlite3.Error) as e:
         debug_print(f"⚠️ Could not process chunks for {url}: {e}")
     finally:
