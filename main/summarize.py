@@ -256,7 +256,7 @@ def get_text_chunks_for_report(url: str, year: int) -> List[str]:
 
                 merged_chunks = []
                 buffer = ""
-                year_prefix = f"Text({year}): "
+                year_prefix = f"Reference Year ({year}): "
 
                 for chunk in processed_chunks:
                     # If adding the next chunk would exceed the max size,

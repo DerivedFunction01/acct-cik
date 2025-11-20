@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivative"
+MODEL_PATH = "DerivedFunction/Qwen3-1.7B-finance"
 MAX_SEQ_LENGTH = 8192
 BATCH_SIZE = 4  # Number of texts to process in parallel per forward pass
 MAX_INPUT_LENGTH = 6144  # Leave room for generation (8192 - 2048)
@@ -53,27 +53,17 @@ GENERATION_PARAMS = {
 }
 
 # Default system prompt for summarization
-SYSTEM_PROMPT = """You are summarizing text (1-4 sentences). The text may be incomplete or fragmented.
-
-1. Summarize the text (finance-related or not).
-2. If the text relates to derivatives and hedging, include relevant details such as types of derivatives used, purposes of hedging, and any significant figures mentioned. Else, skip this step.
-    - Whether the company uses derivatives and the primary purpose (hedging or otherwise).
-    - The specific risks mentioned (interest rate, foreign currency, commodity, etc.).
-    - The instruments mentioned (swaps, forwards, options, etc.).
-    - Whether usage (a year will be given as reference and is not part of the provided text) is:
-        - active (explicit mention)
-        - implied active (not enough information to confirm active use)
-        - historical
-        - terminated
-        - potential ("may use", "periodically", "from time to time", "in the future").
-        - non uses
-        - Any significant notional amounts or maturities if stated.
-RULES:
-- Do not invent information. Only use what appears in the text. Give numerical figures if either year or amounts are present.
-- Keep the output as a single paragraph with no bullet points.
-- Do not spend too much time thinking over incomplete information.
-- Output enough detail to capture the essence of the text without being overly verbose.
-- No need to mention why the text is not related to derivatives and hedging."""
+SYSTEM_PROMPT = """You are a financial analyst. Your task is to extract key information about derivative usage from the provided text.
+Analyze the text and provide a structured summary with the following fields. If a field is not mentioned, state "Not Mentioned". 
+Text will be fragmented, keep it simple and don't invent anything if text appears to be cut off. Use the provided year for reference.
+## Expected output
+- **Derivatives Used**: (Yes/No/Not Mentioned)
+    - **Usage Status**: (e.g., Active, Terminated, Potential (may use, from time to time, peridodically, in the future, etc.), Policy/Standard)
+    - **Instruments**: (e.g., Interest Rate Swaps, FX Forwards, Options, Not Mentioned)
+    - **Hedged Risk**: (e.g., Interest Rate, Foreign Exchange, Commodity, Not Mentioned)
+    - **Notional Amount**: (e.g., $5.5 million, Not Mentioned)
+    - **Year**: (e.g., 2003, Not Mentioned)
+- **Summary**: (A brief, 1-2 sentence summary of the activity)"""
 
 # --- BUSY STATE TRACKING ---
 busy_lock = Lock()
@@ -231,7 +221,7 @@ def batch_summarize(
                 all_batches.append(tier[i : i + BATCH_SIZE])
 
         num_batches = len(all_batches)
-        all_summaries = [None] * len(texts)  # Pre-allocate list for results
+        all_summaries = [""] * len(texts)  # Pre-allocate list for results
 
         print(
             f"\n📦 Starting batch summarization: {len(texts)} texts in {num_batches} batches (grouped by length tiers)"
@@ -324,7 +314,7 @@ def batch_summarize(
                         repetition_penalty=gen_params.get("repetition_penalty", 1.1),
                         length_penalty=gen_params.get("length_penalty", 1.0),
                         max_new_tokens=gen_params.get("max_new_tokens", 512),
-                        do_sample=True,  # Enable sampling for temperature/top_p
+                        # do_sample=True,  # Enable sampling for temperature/top_p
                     )
 
             # --- Decode only the generated tokens (skip input tokens) ---
