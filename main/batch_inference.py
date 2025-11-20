@@ -436,6 +436,9 @@ def retry_single_item(
         skip_special_tokens=True,
         clean_up_tokenization_spaces=True,
     )[0].strip()
+    # clear cache
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
 
     is_valid, new_error = is_valid_output(generated)
     return is_valid, generated, new_error
