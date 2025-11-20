@@ -30,7 +30,7 @@ CHUNK_SIZE = 20  # Reports per chunk (outer loop)
 TEXT_SIZE = 8192 # How long the text should be
 MAX_SIZE = 8192
 SERVER_BATCH_SIZE = 8  # Should match server's BATCH_SIZE
-MIN_CHUNKS_PER_CALL = 8  # Minimum chunks to send (to utilize server batch)
+MIN_CHUNKS_PER_CALL = 32  # Minimum chunks to send (to utilize server batch)
 MAX_CHUNKS_PER_CALL = 64  # Maximum chunks per call (to avoid long waits)
 
 # =============================================================================
@@ -375,7 +375,7 @@ def batch_summarize_texts(text_chunks: List[str]) -> Tuple[List[str], str]:
     try:
         summarize_url = f"{SERVER_BASE_URL}/batch-summarize"
         response = requests.post(
-            summarize_url, headers=headers, json=payload, timeout=600
+            summarize_url, headers=headers, json=payload, timeout=60 * 10 # 10 minutes
         )
         response.raise_for_status()
 
