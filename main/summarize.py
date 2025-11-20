@@ -67,10 +67,13 @@ def get_system_config():
             print("⚠️  Server has no GPU")
         if server_info.get("max_seq_length"):
             length = server_info.get("max_seq_length") # in tokens, so roughly 4 chars per token
-            text_size = length * 4// 8
-            max_size = length * 4 // 6
+            text_size = length * 4 // 10
+            max_size = length * 4 // 8
         if server_info.get("batch_size"):
             batch_size = server_info.get("batch_size")
+        print(
+            f"Merged text -> min_length: {text_size} chars, max_length: {max_size} chars"
+        )
     except requests.exceptions.RequestException as e:
         print(f"❌ Could not connect to server at {SERVER_BASE_URL}.")
         print(f"   Error: {e}")
