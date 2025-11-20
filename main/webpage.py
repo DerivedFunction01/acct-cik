@@ -798,8 +798,8 @@ def filter_by_keywords(content: str) -> list[str]:
                 continue
 
             if COMBINED_REGEX.search(para) and not IGNORE_REGEX.search(para):
-                # Check if paragraph ends without a period
-                if not para.endswith('.'):
+                # Check if paragraph ends without a period and is not a table ending
+                if not para.endswith('.') and not para.endswith(">"):
                     if i + 1 < len(paragraphs):
                         next_para = paragraphs[i + 1].strip()
                         # Skip short next paragraphs (likely headers or cut-offs)
