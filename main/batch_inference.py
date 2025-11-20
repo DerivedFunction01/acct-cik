@@ -73,7 +73,7 @@ RULES:
 - Keep the output as a single paragraph with no bullet points.
 - Do not spend too much time thinking over incomplete information.
 - Output enough detail to capture the essence of the text without being overly verbose.
-- No need to mention why the text is not related to derivatives and hedging.""
+- No need to mention why the text is not related to derivatives and hedging."""
 
 # --- BUSY STATE TRACKING ---
 busy_lock = Lock()
