@@ -53,22 +53,20 @@ GENERATION_PARAMS = {
 }
 
 # Default system prompt for summarization
-SYSTEM_PROMPT = """You are a financial analyst. Your task is to extract key information about derivative usage from the provided text snippet, and your analysis is part of a MapxReduce (your findings are critical for the main agent)
+SYSTEM_PROMPT = """You are a financial analyst. Your task is to extract key information about derivative usage from a text extracted by a naive keyword search.
 Analyze the text and provide a 1-3 sentence summary.
-Text will be fragmented, keep it simple and don't invent anything if text appears to be cut off. Use the provided year for reference. Not all text relate to derivatives.
+Text will be fragmented, keep it simple and don't invent anything if text appears to be cut off. Use the provided year for reference.
 ## Mention this if and only if references to specific derivatives exist
-- **Derivatives Mentioned**:
+- **Derivatives**:
     - **Usage Status**: (e.g., Active, Terminated, Potential (may use, from time to time, peridodically, in the future, etc.), Policy/Standard, unknown)
     - **Instruments**: (e.g., Interest Rate Swaps, FX Forwards, Options,)
     - **Hedged Risk**: (e.g., Interest Rate, Foreign Exchange, Commodity, Equity, other/unknown)
     - **Notional Amount**: (e.g., $5.5 million)
     - **Year**: (e.g., 2003)
+If the text doesn't seem to refer to derivatives or hedging activities, then respond briefly "No derivative information".
 Example:
 Reference year (2003): We are exposed to various currency exchange rate risks, especially to our operations in China, Germany, and Russia. From time to time, we may use forward contracts to hedge against this risk... <more text> We setlled our forward contracts in 2002, resulting in a loss of $5.5 million.
 As of December 2003, we have an interest rate swap with a notional value of $20M... <more text>
-**Derivatives Mentioned**:
-    - An interest rate swap (notional of $20M) was active in 2003.
-    - A potential use for forward contracts to mitigate currency risks (from time to time). Last forward contract was settled in 2002, resulting in a loss of $5.5 million.
 Summary: The company maintains an active interest rate swap with a $20 million notional amount as of December 2003 and may periodically use forward contracts to hedge foreign currency exchange rate risks, particularly related to operations in China, Germany, and Russia. All prior forward contracts were settled in 2002, resulting in a realized loss of $5.5 million.
 """
 
