@@ -232,12 +232,13 @@ def save_stage1_summaries(url: str, summaries: List[str]):
     finally:
         conn.close()
 
-def get_text_chunks_for_report(url: str) -> List[str]:
+def get_text_chunks_for_report(url: str, year: int) -> List[str]:
     global TEXT_SIZE  # Minimum size threshold for chunks
     global MAX_SIZE  # Maximum size cap for chunks
     """
     Fetch text chunks for a single report from the database.
     Returns empty list if no chunks found.
+    Prepends the year to each chunk for temporal context.
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -255,6 +256,7 @@ def get_text_chunks_for_report(url: str) -> List[str]:
 
                 merged_chunks = []
                 buffer = ""
+                year_prefix = f"Text({year}): "
 
                 for chunk in processed_chunks:
                     # If adding the next chunk would exceed the max size,
@@ -278,7 +280,7 @@ def get_text_chunks_for_report(url: str) -> List[str]:
                 if buffer:
                     merged_chunks.append(buffer)
 
-                return merged_chunks
+                return [year_prefix + chunk for chunk in merged_chunks]
     except (json.JSONDecodeError, TypeError, sqlite3.Error) as e:
         debug_print(f"⚠️ Could not process chunks for {url}: {e}")
     finally:
@@ -380,7 +382,7 @@ def process_report_batch(reports_batch: List) -> List[Tuple[str, List[str]]]:
     # Step 1: Fetch all reports and their chunks
     reports_with_chunks = []
     for report in reports_batch:
-        text_chunks = get_text_chunks_for_report(report.url)
+        text_chunks = get_text_chunks_for_report(report.url, report.year)
         if text_chunks:
             reports_with_chunks.append((report, text_chunks))
         else:
