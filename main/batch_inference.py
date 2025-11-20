@@ -189,17 +189,19 @@ TOKEN_BUDGET_MULTIPLIER = 8  # ← EDIT THIS ONE NUMBER
 #  16.0  → aggressive, great for A100 80GB
 #  20.0+ → only with very small models or 4-bit + flash-attn-v2
 # ──────────────────────────────────────────────────────────────
+TIER_MULTIPLIER = 1.3  # ← EDIT THIS
+# ─── CONFIG: Single knob to control padding vs packing trade-off ───
+# 1.0 = very strict (almost no padding, lower GPU utilization)
+# 1.3 = excellent balance (recommended for 24GB+ GPUs)
+# 1.6 = aggressive (max throughput, slight padding)
+
 
 def batch_summarize(
     texts: List[str],
     user_params: Optional[dict] = None,
     system_prompt: Optional[str] = None,
 ) -> tuple[List[str], str, int]:
-    """
-    High-throughput batched inference with dynamic packing.
-    Maximizes GPU utilization regardless of input length distribution.
-    """
-    global is_busy, TOKEN_BUDGET_MULTIPLIER
+    global is_busy, TIER_MULTIPLIER, TOKEN_BUDGET_MULTIPLIER
     if not texts:
         return [], "No texts provided", 0
 
@@ -211,14 +213,14 @@ def batch_summarize(
         gen_params = GENERATION_PARAMS.copy()
         if user_params:
             gen_params.update(user_params)
-        MAX_TOKENS_PER_BATCH = int(MAX_INPUT_LENGTH * TOKEN_BUDGET_MULTIPLIER)
 
-        print(
-            f"\nStarting dynamic batching — token budget per batch: {MAX_TOKENS_PER_BATCH:,} "
-            f"({TOKEN_BUDGET_MULTIPLIER}× max input length)"
-        )
+        
+        MAX_PADDING_FACTOR = TIER_MULTIPLIER
+        # ───────────────────────────────────────────────────────────────────
 
-        # Step 1: Build full prompts and measure exact token length
+        print(f"\nHybrid batching: max padding factor = {MAX_PADDING_FACTOR:.1f}x")
+
+        # Step 1: Build prompts + measure lengths
         items = []
         for idx, text in enumerate(texts):
             messages = [
@@ -226,127 +228,113 @@ def batch_summarize(
                 {"role": "user", "content": text},
             ]
             prompt = tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
+                messages, tokenize=False, add_generation_prompt=True
             )
-            input_ids = tokenizer.encode(prompt, add_special_tokens=False)
-            items.append(
-                {
-                    "idx": idx,
-                    "text": text,
-                    "prompt": prompt,
-                    "length": len(input_ids),
-                }
-            )
+            length = len(tokenizer.encode(prompt, add_special_tokens=False))
+            items.append({"idx": idx, "text": text, "prompt": prompt, "length": length})
 
-        # Step 2: Sort longest → shortest (greedy bin packing)
+        if not items:
+            return [], "No valid inputs", 0
+
+        # Step 2: Sort by length descending
         items.sort(key=lambda x: x["length"], reverse=True)
 
-        # Step 3: Pack into batches (first-fit decreasing)
+        # Step 3: Hybrid tiered + greedy packing
         batches = []
         for item in items:
             placed = False
+            # Try to place in existing batch where it won't cause extreme padding
             for batch in batches:
+                batch_max_len = max(x["length"] for x in batch)
+                new_max_len = max(batch_max_len, item["length"])
+                total_tokens = sum(x["length"] for x in batch) + item["length"]
+
+                # Rule: don't allow new sequence to increase batch length by > TIER_MULTIPLIER
                 if (
-                    sum(x["length"] for x in batch) + item["length"]
-                    <= MAX_TOKENS_PER_BATCH
+                    new_max_len <= batch_max_len * MAX_PADDING_FACTOR
+                    and total_tokens <= MAX_INPUT_LENGTH * 16
                 ):
                     batch.append(item)
                     placed = True
                     break
+
             if not placed:
                 batches.append([item])
 
         num_batches = len(batches)
         all_summaries = [""] * len(texts)
 
-        print(f"Packed {len(texts)} texts → {num_batches} batch(es):")
+        print(f"Packed {len(texts)} texts → {num_batches} hybrid batch(es):")
         for i, b in enumerate(batches):
-            total_tokens = sum(x["length"] for x in b)
-            print(f"  Batch {i+1}: {len(b)} items, {total_tokens:,} prompt tokens")
-
-        # ──────────────────────────────────────────────────────────────
-        # Step 4: Process each packed batch
-        # ──────────────────────────────────────────────────────────────
-        for batch_idx, batch in enumerate(batches):
-            batch_prompts = [item["prompt"] for item in batch]
-            batch_indices = [item["idx"] for item in batch]
-
+            lengths = [x["length"] for x in b]
             print(
-                f"  → Generating batch {batch_idx + 1}/{num_batches} ({len(batch_prompts)} texts)... ",
-                end="",
-                flush=True,
+                f"  Batch {i+1}: {len(b)} items, "
+                f"tokens: {sum(lengths):,} (max: {max(lengths):,}, padding ratio: {max(lengths)/sum(lengths)*len(b):.2f}x)"
             )
 
+        # Step 4: Generate
+        for batch_idx, batch in enumerate(batches):
+            prompts = [item["prompt"] for item in batch]
+            indices = [item["idx"] for item in batch]
+
+            print(f"  → Generating {len(prompts)} texts... ", end="", flush=True)
+
             inputs = tokenizer(
-                batch_prompts,
+                prompts,
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
                 max_length=MAX_INPUT_LENGTH,
                 return_attention_mask=True,
-                padding_side="left"
             ).to(device)
 
-            input_length = inputs["input_ids"].shape[1]
-
             with torch.no_grad():
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    outputs = model.generate(
-                        **inputs,
-                        pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
-                        eos_token_id=tokenizer.eos_token_id,
-                        max_new_tokens=gen_params["max_new_tokens"],
-                        temperature=gen_params["temperature"],
-                        top_p=gen_params["top_p"],
-                        top_k=gen_params["top_k"],
-                        repetition_penalty=gen_params["repetition_penalty"],
-                        do_sample=True,
-                    )
+                outputs = model.generate(
+                    **inputs,
+                    pad_token_id=tokenizer.eos_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
+                    max_new_tokens=gen_params["max_new_tokens"],
+                    temperature=gen_params["temperature"],
+                    top_p=gen_params["top_p"],
+                    top_k=gen_params["top_k"],
+                    repetition_penalty=gen_params["repetition_penalty"],
+                    do_sample=True,
+                )
 
-            generated_texts = tokenizer.batch_decode(
-                outputs[:, input_length:],
+            generated = tokenizer.batch_decode(
+                outputs[:, inputs["input_ids"].shape[1] :],
                 skip_special_tokens=True,
                 clean_up_tokenization_spaces=True,
             )
 
-            for orig_idx, summary in zip(batch_indices, generated_texts):
-                all_summaries[orig_idx] = summary.strip()
+            for idx, summary in zip(indices, generated):
+                all_summaries[idx] = summary.strip()
 
-            # Minimal logging: only user text + assistant response
+            # Minimal clean logging
             with open("server.log", "a", encoding="utf-8") as f:
-                for item, summary in zip(batch, generated_texts):
-                    user_text = item["text"].strip()  # This is your original chunk
-                    clean_summary = summary.strip()
+                for item, gen in zip(batch, generated):
                     f.write("=== ITEM START ===\n")
-                    f.write("USER TEXT:\n")
-                    f.write(user_text + "\n\n")
-                    f.write("ASSISTANT RESPONSE:\n")
-                    f.write(clean_summary + "\n")
+                    f.write("USER TEXT:\n" + item["text"].strip() + "\n\n")
+                    f.write("ASSISTANT RESPONSE:\n" + gen.strip() + "\n")
                     f.write("=== ITEM END ===\n\n")
 
             print("Done")
 
-        print(f"\nAll {len(all_summaries)} summaries generated successfully.")
+        print(f"\nSuccess: All {len(all_summaries)} summaries generated.")
         return all_summaries, "", num_batches
 
     except torch.cuda.OutOfMemoryError:
-        error_msg = f"OOM with multiplier {TOKEN_BUDGET_MULTIPLIER}. Reduce TOKEN_BUDGET_MULTIPLIER and retry."
-        print(f"Error: {error_msg}")
-        return [], error_msg, 0
+        return [], f"OOM — reduce TIER_MULTIPLIER (currently {TIER_MULTIPLIER})", 0
     except Exception as e:
         import traceback
 
         traceback.print_exc()
-        return [], f"Inference failed: {str(e)}", 0
+        return [], f"Inference failed: {e}", 0
     finally:
         with busy_lock:
             is_busy = False
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()    
-
+            torch.cuda.empty_cache()
 
 @app.post("/batch-summarize", response_model=SummarizationResponse)
 async def batch_summarize_endpoint(request: SummarizationRequest):
