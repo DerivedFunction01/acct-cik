@@ -197,12 +197,55 @@ TIER_MULTIPLIER = 1.3  # ← EDIT THIS
 # 1.6 = aggressive (max throughput, slight padding)
 
 
+def is_valid_output(output: str) -> tuple[bool, str]:
+    """
+    Validate that output contains:
+    1. <think>...</think> tags with substantial content
+    2. Valid JSON with 'summary' key
+
+    Returns: (is_valid, error_message)
+    """
+    output = output.strip()
+
+    # Check for think tags
+    if "<think>" not in output or "</think>" not in output:
+        return False, "Missing <think>...</think> tags"
+
+    think_start = output.find("<think>")
+    think_end = output.find("</think>")
+
+    if think_start >= think_end:
+        return False, "Invalid <think> tag structure"
+
+    think_content = output[think_start + 7 : think_end].strip()
+    if len(think_content) < 50:  # Minimum thought content
+        return False, "Insufficient thinking content (too short)"
+
+    # Extract JSON after </think>
+    json_part = output[think_end + 8 :].strip()
+
+    if not json_part:
+        return False, "No JSON output after </think>"
+
+    # Try to parse JSON
+    try:
+        parsed = json.loads(json_part)
+        if "summary" not in parsed:
+            return False, "JSON missing 'summary' key"
+        if not isinstance(parsed["summary"], str) or len(parsed["summary"]) < 10:
+            return False, "Summary is empty or too short"
+        return True, ""
+    except json.JSONDecodeError as e:
+        return False, f"Invalid JSON: {str(e)}"
+
+
 def batch_summarize(
     texts: List[str],
     user_params: Optional[dict] = None,
     system_prompt: Optional[str] = None,
+    max_retries: int = 2,
 ) -> tuple[List[str], str, int]:
-    global is_busy, TIER_MULTIPLIER, TOKEN_BUDGET_MULTIPLIER
+    global is_busy, TIER_MULTIPLIER
     if not texts:
         return [], "No texts provided", 0
 
@@ -236,18 +279,15 @@ def batch_summarize(
         # Step 2: Sort by length descending
         items.sort(key=lambda x: x["length"], reverse=True)
 
-        # Step 3: Tiered batching — group sequences with similar sizes
+        # Step 3: Tiered batching
         batches = []
         current_batch = []
         tier_max = items[0]["length"] if items else 0
 
         for item in items:
-            # Check if this item fits in current tier (within TIER_MULTIPLIER of tier_max)
             if item["length"] >= tier_max / TIER_MULTIPLIER and current_batch:
-                # Fits in current tier
                 current_batch.append(item)
             else:
-                # Doesn't fit — start new tier
                 if current_batch:
                     batches.append(current_batch)
                 current_batch = [item]
@@ -258,6 +298,7 @@ def batch_summarize(
 
         num_batches = len(batches)
         all_summaries = [""] * len(texts)
+        retry_items = []  # Track items that need retry
 
         print(f"Packed {len(texts)} texts → {num_batches} tier(s):")
         for i, b in enumerate(batches):
@@ -272,7 +313,7 @@ def batch_summarize(
                 f"total: {total_tokens:,}, padding: {padding_ratio:.2f}x"
             )
 
-        # Step 4: Generate
+        # Step 4: Generate with validation
         for batch_idx, batch in enumerate(batches):
             prompts = [item["prompt"] for item in batch]
             indices = [item["idx"] for item in batch]
@@ -312,20 +353,128 @@ def batch_summarize(
                 clean_up_tokenization_spaces=True,
             )
 
-            for idx, summary in zip(indices, generated):
-                all_summaries[idx] = summary.strip()
+            # Validate outputs
+            invalid_count = 0
+            for idx, summary, item in zip(indices, generated, batch):
+                is_valid, error = is_valid_output(summary)
+                if is_valid:
+                    all_summaries[idx] = summary.strip()
+                else:
+                    invalid_count += 1
+                    retry_items.append(
+                        {"item": item, "idx": idx, "error": error, "retry_count": 0}
+                    )
 
-            # Minimal clean logging
+            print(f"Done ({invalid_count} invalid)")
+
+            # Log valid outputs
             with open("server.log", "a", encoding="utf-8") as f:
-                for item, gen in zip(batch, generated):
-                    f.write("=== ITEM START ===\n")
-                    f.write("USER TEXT:\n" + item["text"].strip() + "\n\n")
-                    f.write("ASSISTANT RESPONSE:\n" + gen.strip() + "\n")
-                    f.write("=== ITEM END ===\n\n")
+                for idx, summary in zip(indices, generated):
+                    if all_summaries[idx]:  # Only log valid ones
+                        f.write("=== ITEM START ===\n")
+                        f.write("USER TEXT:\n" + texts[idx].strip() + "\n\n")
+                        f.write("ASSISTANT RESPONSE:\n" + summary.strip() + "\n")
+                        f.write("=== ITEM END ===\n\n")
 
-            print("Done")
+        # Step 5: Retry invalid outputs
+        if retry_items:
+            print(f"\n⚠️  Retrying {len(retry_items)} invalid output(s)...")
 
-        print(f"\nSuccess: All {len(all_summaries)} summaries generated.")
+            retry_system_prompt = (
+                sys_prompt
+                + "\n\nIMPORTANT: You MUST output your reasoning inside <think>...</think> tags, then output ONLY valid JSON."
+            )
+
+            for attempt in range(max_retries):
+                still_invalid = []
+
+                for retry_data in retry_items:
+                    item = retry_data["item"]
+                    idx = retry_data["idx"]
+                    error = retry_data["error"]
+
+                    print(
+                        f"  Retry {attempt+1}/{max_retries} for item {idx} (error: {error})... ",
+                        end="",
+                        flush=True,
+                    )
+
+                    messages = [
+                        {"role": "system", "content": retry_system_prompt},
+                        {"role": "user", "content": item["text"]},
+                    ]
+                    prompt = tokenizer.apply_chat_template(
+                        messages, tokenize=False, add_generation_prompt=True
+                    )
+
+                    inputs = tokenizer(
+                        [prompt],
+                        return_tensors="pt",
+                        padding=True,
+                        max_length=MAX_INPUT_LENGTH,
+                        padding_side="left",
+                    ).to(device)
+
+                    with torch.no_grad():
+                        outputs = model.generate(
+                            **inputs,
+                            pad_token_id=tokenizer.eos_token_id,
+                            eos_token_id=tokenizer.eos_token_id,
+                            max_new_tokens=gen_params["max_new_tokens"],
+                            temperature=gen_params["temperature"]
+                            * 0.9,  # Slightly lower temp for retry
+                            top_p=gen_params["top_p"],
+                            top_k=gen_params["top_k"],
+                            repetition_penalty=gen_params["repetition_penalty"],
+                            do_sample=True,
+                        )
+
+                    generated = tokenizer.batch_decode(
+                        outputs[:, inputs["input_ids"].shape[1] :],
+                        skip_special_tokens=True,
+                        clean_up_tokenization_spaces=True,
+                    )[0].strip()
+
+                    is_valid, new_error = is_valid_output(generated)
+                    if is_valid:
+                        all_summaries[idx] = generated
+                        print("✅ Valid")
+
+                        # Log retry success
+                        with open("server.log", "a", encoding="utf-8") as f:
+                            f.write("=== RETRY SUCCESS ===\n")
+                            f.write("USER TEXT:\n" + item["text"].strip() + "\n\n")
+                            f.write("ASSISTANT RESPONSE:\n" + generated + "\n")
+                            f.write("=== RETRY SUCCESS END ===\n\n")
+                    else:
+                        print(f"❌ Still invalid: {new_error}")
+                        retry_data["error"] = new_error
+                        retry_data["retry_count"] = attempt + 1
+                        still_invalid.append(retry_data)
+
+                retry_items = still_invalid
+                if not retry_items:
+                    break
+
+            # Log final failures and populate with error message
+            if retry_items:
+                print(f"\n❌ {len(retry_items)} items failed all retries:")
+                with open("server.log", "a", encoding="utf-8") as f:
+                    for retry_data in retry_items:
+                        idx = retry_data["idx"]
+                        error_msg = retry_data["error"]
+                        # Set summary to explicit error message for filtering
+                        all_summaries[idx] = f"[ERROR] {error_msg}"
+                        f.write(f"=== FINAL FAILURE (idx {idx}) ===\n")
+                        f.write(f"Error: {error_msg}\n")
+                        f.write(
+                            "USER TEXT:\n" + retry_data["item"]["text"].strip() + "\n"
+                        )
+                        f.write("=== FINAL FAILURE END ===\n\n")
+
+        print(
+            f"\nSuccess: {sum(1 for s in all_summaries if s)} / {len(all_summaries)} summaries valid."
+        )
         return all_summaries, "", num_batches
 
     except torch.cuda.OutOfMemoryError:
@@ -340,7 +489,6 @@ def batch_summarize(
             is_busy = False
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-
 
 @app.post("/batch-summarize", response_model=SummarizationResponse)
 async def batch_summarize_endpoint(request: SummarizationRequest):
