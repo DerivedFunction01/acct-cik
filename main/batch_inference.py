@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/Qwen3-1.7B-finance"
+MODEL_PATH = "DerivedFunction/Qwen3-1.7B-derivative"
 MAX_SEQ_LENGTH = 8192
 BATCH_SIZE = 4  # Number of texts to process in parallel per forward pass
 MAX_INPUT_LENGTH = 6144  # Leave room for generation (8192 - 2048)

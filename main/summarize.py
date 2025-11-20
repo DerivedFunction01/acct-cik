@@ -66,9 +66,9 @@ def get_system_config():
         else:
             print("⚠️  Server has no GPU")
         if server_info.get("max_seq_length"):
-            length = server_info.get("max_seq_length")
-            text_size = length // 8
-            max_size = length // 6
+            length = server_info.get("max_seq_length") # in tokens, so roughly 4 chars per token
+            text_size = length * 4// 8
+            max_size = length * 4 // 6
         if server_info.get("batch_size"):
             batch_size = server_info.get("batch_size")
     except requests.exceptions.RequestException as e:
