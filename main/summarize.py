@@ -30,8 +30,8 @@ CHUNK_SIZE = 20  # Reports per chunk (outer loop)
 TEXT_SIZE = 8192 # How long the text should be
 MAX_SIZE = 8192
 SERVER_BATCH_SIZE = 8  # Should match server's BATCH_SIZE
-MIN_CHUNKS_PER_CALL = 32  # Minimum chunks to send (to utilize server batch)
-MAX_CHUNKS_PER_CALL = 64  # Maximum chunks per call (to avoid long waits)
+MIN_CHUNKS_PER_CALL = 64  # Minimum chunks to send (to utilize server batch)
+MAX_CHUNKS_PER_CALL = 128  # Maximum chunks per call (to avoid long waits)
 
 # =============================================================================
 # COLAB CONFIGURATION
