@@ -235,61 +235,102 @@ def save_stage1_summaries(url: str, summaries: List[str]):
     finally:
         conn.close()
 
+# def get_text_chunks_for_report(url: str, year: int) -> List[str]:
+#     global TEXT_SIZE  # Minimum size threshold for chunks
+#     global MAX_SIZE  # Maximum size cap for chunks
+#     """
+#     Fetch text chunks for a single report from the database.
+#     Returns empty list if no chunks found.
+#     Prepends the year to each chunk for temporal context.
+#     """
+#     conn = sqlite3.connect(DB_PATH)
+#     c = conn.cursor()
+#     try:
+#         c.execute("SELECT matches FROM webpage_result WHERE url=?", (url,))
+#         result = c.fetchone()
+
+#         if result and result[0]:
+#             matches = json.loads(result[0])
+#             if isinstance(matches, list) and matches:
+#                 # Filter out any non-string or empty items first
+#                 processed_chunks = [str(chunk).strip() for chunk in matches if isinstance(chunk, str) and str(chunk).strip()]
+#                 if not processed_chunks:
+#                     return []
+
+#                 merged_chunks = []
+#                 buffer = ""
+#                 year_prefix = f"Reference Year ({year}):\n<begin-of-text>\n\n"
+
+#                 for chunk in processed_chunks:
+#                     # If adding the next chunk would exceed the max size,
+#                     # finalize the current buffer and start a new one.
+#                     if buffer and len(buffer) + 1 + len(chunk) > MAX_SIZE:
+#                         merged_chunks.append(buffer)
+#                         buffer = ""
+
+#                     # Add the chunk to the buffer, with a space if buffer is not empty.
+#                     if buffer:
+#                         buffer += "\n" + chunk
+#                     else:
+#                         buffer = chunk
+
+#                     # If the buffer is now "full" enough, finalize it.
+#                     if len(buffer) >= TEXT_SIZE:
+#                         merged_chunks.append(buffer)
+#                         buffer = ""
+
+#                 # Don't forget to add the last buffer if it has content
+#                 if buffer:
+#                     merged_chunks.append(buffer)
+
+#                 return [year_prefix + chunk + "\n\n<end-of-text>" for chunk in merged_chunks]
+#     except (json.JSONDecodeError, TypeError, sqlite3.Error) as e:
+#         debug_print(f"⚠️ Could not process chunks for {url}: {e}")
+#     finally:
+#         conn.close()
+#     return []
+
 def get_text_chunks_for_report(url: str, year: int) -> List[str]:
-    global TEXT_SIZE  # Minimum size threshold for chunks
-    global MAX_SIZE  # Maximum size cap for chunks
     """
-    Fetch text chunks for a single report from the database.
-    Returns empty list if no chunks found.
-    Prepends the year to each chunk for temporal context.
+    Fetch individual text chunks for a report without any merging.
+    Every entry in the 'matches' JSON array becomes its own separate chunk.
+    Returns an empty list if nothing is found or on error.
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+
     try:
-        c.execute("SELECT matches FROM webpage_result WHERE url=?", (url,))
-        result = c.fetchone()
+        c.execute("SELECT matches FROM webpage_result WHERE url = ?", (url,))
+        row = c.fetchone()
 
-        if result and result[0]:
-            matches = json.loads(result[0])
-            if isinstance(matches, list) and matches:
-                # Filter out any non-string or empty items first
-                processed_chunks = [str(chunk).strip() for chunk in matches if isinstance(chunk, str) and str(chunk).strip()]
-                if not processed_chunks:
-                    return []
+        if not row or not row[0]:
+            return []
 
-                merged_chunks = []
-                buffer = ""
-                year_prefix = f"Reference Year ({year}):\n<begin-of-text>\n\n"
+        matches = json.loads(row[0])
 
-                for chunk in processed_chunks:
-                    # If adding the next chunk would exceed the max size,
-                    # finalize the current buffer and start a new one.
-                    if buffer and len(buffer) + 1 + len(chunk) > MAX_SIZE:
-                        merged_chunks.append(buffer)
-                        buffer = ""
+        if not isinstance(matches, list):
+            return []
 
-                    # Add the chunk to the buffer, with a space if buffer is not empty.
-                    if buffer:
-                        buffer += "\n" + chunk
-                    else:
-                        buffer = chunk
+        # One chunk per original match → no merging whatsoever
+        chunks = []
+        prefix = f"Reference Year ({year}):\n<begin-of-text>\n\n"
+        suffix = "\n\n<end-of-text>"
 
-                    # If the buffer is now "full" enough, finalize it.
-                    if len(buffer) >= TEXT_SIZE:
-                        merged_chunks.append(buffer)
-                        buffer = ""
+        for item in matches:
+            if not isinstance(item, str):
+                continue
+            text = item.strip()
+            if not text:
+                continue
+            chunks.append(prefix + text + suffix)
 
-                # Don't forget to add the last buffer if it has content
-                if buffer:
-                    merged_chunks.append(buffer)
+        return chunks
 
-                return [year_prefix + chunk + "\n\n<end-of-text>" for chunk in merged_chunks]
-    except (json.JSONDecodeError, TypeError, sqlite3.Error) as e:
-        debug_print(f"⚠️ Could not process chunks for {url}: {e}")
+    except (json.JSONDecodeError, sqlite3.Error) as e:
+        debug_print(f"Warning: Failed to load chunks for {url}: {e}")
+        return []
     finally:
         conn.close()
-    return []
-
 
 def fetch_report_data(valid=True):
     try:
