@@ -43,6 +43,7 @@ MODEL_PATH = "DerivedFunction/Qwen3-1.7B-finance"
 MAX_SEQ_LENGTH = 8192
 BATCH_SIZE = 4  # Number of texts to process in parallel per forward pass
 MAX_INPUT_LENGTH = 6144  # Leave room for generation (8192 - 2048)
+MAX_MODEL_LENGTH = MAX_SEQ_LENGTH * 4
 
 GENERATION_PARAMS = {
     "temperature": 0.6,
@@ -252,7 +253,7 @@ def batch_summarize(
                 # Rule: don't allow new sequence to increase batch length by > TIER_MULTIPLIER
                 if (
                     new_max_len <= batch_max_len * MAX_PADDING_FACTOR
-                    and total_tokens <= MAX_INPUT_LENGTH * 16
+                    and total_tokens <= MAX_MODEL_LENGTH
                 ):
                     batch.append(item)
                     placed = True
