@@ -202,21 +202,50 @@ def batch_summarize(
         if user_params:
             gen_params.update(user_params)
 
-        summaries = []
-        num_batches = (len(texts) + BATCH_SIZE - 1) // BATCH_SIZE
+        # --- Tier-based batching to minimize padding ---
+        # 1. Store original index and length for each text
+        indexed_texts = [
+            {"original_index": i, "text": text, "length": len(text)}
+            for i, text in enumerate(texts)
+        ]
+
+        # 2. Define length-based tiers
+        tier_boundaries = [256, 512, 1024, 4096, 8192, MAX_INPUT_LENGTH]
+        tiers = [[] for _ in range(len(tier_boundaries))]
+
+        for item in indexed_texts:
+            length = item["length"]
+            for i, boundary in enumerate(tier_boundaries):
+                if length <= boundary:
+                    tiers[i].append(item)
+                    break
+
+        # 3. Create batches within each tier
+        all_batches = []
+        for tier in tiers:
+            if not tier:
+                continue
+            # Sort within the tier for extra optimization
+            tier.sort(key=lambda x: x["length"])
+            for i in range(0, len(tier), BATCH_SIZE):
+                all_batches.append(tier[i : i + BATCH_SIZE])
+
+        num_batches = len(all_batches)
+        all_summaries = [None] * len(texts)  # Pre-allocate list for results
 
         print(
-            f"\n📦 Starting batch summarization: {len(texts)} texts in {num_batches} batches"
+            f"\n📦 Starting batch summarization: {len(texts)} texts in {num_batches} batches (grouped by length tiers)"
         )
 
-        for batch_idx in range(num_batches):
-            start_idx = batch_idx * BATCH_SIZE
-            end_idx = min(start_idx + BATCH_SIZE, len(texts))
-            batch_texts = texts[start_idx:end_idx]
+        for batch_idx, batch in enumerate(all_batches):
+            # Extract texts and original indices for this batch
+            batch_texts = [item["text"] for item in batch]
+            batch_indices = [item["original_index"] for item in batch]
             actual_batch_size = len(batch_texts)
+            avg_len = sum(item["length"] for item in batch) // actual_batch_size
 
             print(
-                f"  Batch {batch_idx + 1}/{num_batches} ({actual_batch_size} texts)... ",
+                f"  Batch {batch_idx + 1}/{num_batches} ({actual_batch_size} texts, avg len: {avg_len})... ",
                 end="",
                 flush=True,
             )
@@ -305,7 +334,10 @@ def batch_summarize(
                 clean_up_tokenization_spaces=True,
             )
 
-            summaries.extend(batch_summaries)
+            # Place summaries back in the correct positions using original indices
+            for original_idx, summary in zip(batch_indices, batch_summaries):
+                all_summaries[original_idx] = summary
+
             print(f"✅ ({actual_batch_size} texts processed)")
             # Write it to a file
             # Write original + summary pairs to log
@@ -318,11 +350,10 @@ def batch_summarize(
                     f.write(summary.strip() + "\n")
                     f.write("=== ITEM END ===\n\n")
 
-
         print(
-            f"✅ Batch summarization complete: {len(summaries)} summaries generated\n"
+            f"✅ Batch summarization complete: {len(all_summaries)} summaries generated\n"
         )
-        return summaries, "", num_batches
+        return all_summaries, "", num_batches
 
     except torch.cuda.OutOfMemoryError:
         print(f"❌ GPU Out of Memory error")
