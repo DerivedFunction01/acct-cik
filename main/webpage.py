@@ -43,7 +43,7 @@ DEBUG = False
 ALL_FIRMS_DATA = "derivatives_data.csv"
 REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
-
+MERGE_LEN = 500
 
 SEC_RATE = 8 # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
@@ -804,7 +804,7 @@ def filter_by_keywords(content: str) -> list[str]:
                         if next_para and len(next_para) >= 30:
                             # Also check if the next paragraph itself is a derivative paragraph
                             # to avoid merging unrelated content.
-                            if not IGNORE_REGEX.search(next_para) and not COMBINED_REGEX.search(next_para):
+                            if not IGNORE_REGEX.search(next_para) and not COMBINED_REGEX.search(next_para) and len(next_para) < MERGE_LEN:
                                 # Merge with next paragraph
                                 para = para + " " + next_para
                                 i += 1  # Skip next paragraph since it's merged
