@@ -53,7 +53,7 @@ GENERATION_PARAMS = {
 }
 
 # Default system prompt for summarization
-SYSTEM_PROMPT = """You are a financial analyst. Your task is to extract key information about derivative usage from the provided text.
+SYSTEM_PROMPT = """You are a financial analyst. Your task is to extract key information about derivative usage from the provided text snippet, and your analysis is part of a MapxReduce (your findings are critical for the main agent)
 Analyze the text and provide a 1-3 sentence summary.
 Text will be fragmented, keep it simple and don't invent anything if text appears to be cut off. Use the provided year for reference. Not all text relate to derivatives.
 ## Mention this if and only if references to specific derivatives exist
