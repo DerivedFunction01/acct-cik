@@ -182,7 +182,7 @@ print(f"USE_UNSLOTH = {USE_UNSLOTH}, 4-bit = {load_in_4bit}")
 # ──────────────────────────────────────────────────────────────
 # BASE = MAX_INPUT_LENGTH (e.g. 6144)
 # Multiplier → total prompt tokens allowed per forward pass
-TOKEN_BUDGET_MULTIPLIER = 4  # ← EDIT THIS ONE NUMBER
+TOKEN_BUDGET_MULTIPLIER = 8  # ← EDIT THIS ONE NUMBER
 # Examples:
 #   8.0  → safe, works on 16GB GPUs
 #  12.0  → excellent for RTX 4090 / A40 (24GB)
