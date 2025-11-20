@@ -60,7 +60,7 @@ Instructions:
 - Do not invent information — if the text is incomplete or unclear, keep the summary conservative.
 - Use the provided reference year when relevant.
 - If the text has no clear reference to derivatives or hedging with financial instruments, state briefly that no derivative usage is mentioned.
-
+- Beware of confusing terms: not all "options" are derivatives, some relate to equity compensation or other financial contracts.
 <example>
 <input>
 Reference year: 2003
