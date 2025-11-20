@@ -38,23 +38,23 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION ---
-MODEL_PATH = "DerivedFunction/Qwen3-0.6B-mk-deriv-summarize"
+MODEL_PATH = "DerivedFunction/Qwen3-1.7B-finance"
 MAX_SEQ_LENGTH = 8192
-BATCH_SIZE = 8  # Number of texts to process in parallel per forward pass
+BATCH_SIZE = 4  # Number of texts to process in parallel per forward pass
 MAX_INPUT_LENGTH = 6144  # Leave room for generation (8192 - 2048)
 
 GENERATION_PARAMS = {
-    "temperature": 0.7,
-    "top_p": 0.9,
+    "temperature": 0.6,
+    "top_p": 0.95,
     "top_k": 20,
     "repetition_penalty": 1.1,
-    "max_new_tokens": 512,  # Reduced from 1028 to be safer
+    "max_new_tokens": 4096,
 }
 
 # Default system prompt for summarization
 SYSTEM_PROMPT = """Produce a concise 2-4 sentence summary of the financial text.
 Focus on whether derivatives are used, what risks they hedge, the instruments involved,
-and whether usage is active, terminated, non-use, potential, or policy/accounting treatement.
+and whether usage is active, terminated, non-use, potential ("may use", "from time to time", "periodically"), or policy/accounting treatement.
 State the dollar amounts and year if present.
 Do not add information not present in the text."""
 
