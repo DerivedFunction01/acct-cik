@@ -47,16 +47,17 @@ GENERATION_PARAMS = {
     "temperature": 0.6,
     "top_p": 0.95,
     "top_k": 20,
-    "repetition_penalty": 1.1,
+    "repetition_penalty": 1.15,
     "max_new_tokens": 4096,
 }
 
 # Default system prompt for summarization
-SYSTEM_PROMPT = """Produce a concise 2-4 sentence summary of the financial text.
-Focus on whether derivatives are used, what risks they hedge, the instruments involved,
-and whether usage is active, terminated, non-use, potential ("may use", "from time to time", "periodically"), or policy/accounting treatement.
-State the dollar amounts and year if present.
-Do not add information not present in the text."""
+SYSTEM_PROMPT = """Produce a concise 2-4 sentence summary of the provided financial text.
+Your summary must focus on:
+1. Whether derivatives are used, and their usage status (active, terminated, potential, non-use, or policy).
+2. The specific instruments involved and the risks they hedge.
+3. Any dollar amounts and years mentioned in the text.
+Do not add information that is not present in the text."""
 
 # --- BUSY STATE TRACKING ---
 busy_lock = Lock()
