@@ -48,7 +48,7 @@ GENERATION_PARAMS = {
     "top_p": 0.95,
     "top_k": 20,
     "repetition_penalty": 1.15,
-    "max_new_tokens": 4096,
+    "max_new_tokens": 2048,
     "length_penalty": 1.0,
 }
 
