@@ -1,4 +1,5 @@
-# =============================================================================
+
+
 # DATABASE NOISE REDUCTION SCRIPT WITH CATEGORY CLASSIFICATION
 # =============================================================================
 # Filters derivative database using smart regex patterns and classifies by type
@@ -12,7 +13,7 @@ import re
 from pathlib import Path
 from tqdm import tqdm
 from typing import List, Tuple, Optional
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 import time
 
@@ -34,6 +35,7 @@ def get_worker_count():
 NUM_WORKERS = get_worker_count()
 BATCH_SIZE = 1000  # Optimal batch size for SQLite transactions
 FLUSH_INTERVAL = 5.0  # Seconds — fallback flush if batch not full
+CHUNK_SIZE = 50  # Larger chunks reduce task submission overhead — tune this
 SOURCE_DB_PATH = "web_data.db"
 CLEAN_DB_PATH = "clean_web_data.db"
 
@@ -204,7 +206,6 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     "Credit Enhancement and Other Support",
     "Regulation AB",
     "regulat",
-    "amendment",
 ]
 
 # Minimum sentence length to consider
@@ -221,6 +222,12 @@ def build_exclude_regex(keywords: List[str]) -> re.Pattern:
 EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
 EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
 EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS)
+
+# Combined exclusion regex (tested first - very fast)
+COMBINED_EXCLUDE_REGEX = re.compile(
+    f"({EXCLUDE_REGEX_EQUITY_COMP.pattern})|({EXCLUDE_REGEX_LEGAL_LITIGATION.pattern})|({EXCLUDE_REGEX_ACCOUNTING_STD.pattern})",
+    re.IGNORECASE,
+)
 
 # =============================================================================
 # REGEX PATTERN BUILDERS
@@ -302,7 +309,7 @@ def build_cp_regex() -> re.Pattern:
     ]
     core_terms.append("fixed[- ]commodity")
     specific_phrases = [
-        "commodity index",
+        "commodity index"
     ]
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -569,6 +576,7 @@ def filter_matches(
     """
     Filter matches to reduce the paragraph length.
     Returns (filtered_paragraphs, discarded_list) where discarded_list is (url, sentence, reason).
+    If strict matches are empty, falls back to soft matches.
     """
     try:
         matches = json.loads(matches_json)
@@ -588,6 +596,7 @@ def filter_matches(
         for idx, sentence in enumerate(sentences):
             sentence = sentence.strip()
 
+            # CHEAP CHECKS FIRST
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 discarded.append((url, sentence, "too_short"))
                 continue
@@ -597,6 +606,7 @@ def filter_matches(
                 discarded.append((url, sentence, exclusion_category))
                 continue
 
+            # EXPENSIVE CHECK LAST (only if cheap checks pass)
             if not STRICT_REGEX.search(sentence):
                 discarded.append((url, sentence, "no_match"))
                 continue
@@ -636,7 +646,88 @@ def filter_matches(
     # Final check: if the only match is extremely short, reject it
     if len(new_paragraphs) == 1 and len(new_paragraphs[0].strip()) < 50:
         discarded.append((url, new_paragraphs[0], "too_short"))
-        return [], discarded
+        new_paragraphs = []
+
+    # Fallback: if strict matches are empty, try soft regex
+    if not new_paragraphs:
+        new_paragraphs, soft_discarded = filter_matches_soft(matches_json, url)
+        discarded.extend(soft_discarded)
+
+    return new_paragraphs, discarded
+
+
+def filter_matches_soft(
+    matches_json: str, url: str = ""
+) -> Tuple[List[str], List[Tuple[str, str, str]]]:
+    """
+    Secondary filter using soft regex for sentences that failed strict filter.
+    Only called if strict filtering produced no results.
+    Returns (soft_paragraphs, discarded_list).
+    """
+    try:
+        matches = json.loads(matches_json)
+    except (json.JSONDecodeError, TypeError):
+        return [], []
+
+    if not isinstance(matches, list):
+        return [], []
+
+    new_paragraphs = []
+    discarded = []
+    used = set()
+
+    for match in matches:
+        sentences = SENTENCE_SPLIT_PATTERN.split(match)
+
+        for idx, sentence in enumerate(sentences):
+            sentence = sentence.strip()
+
+            # CHEAP CHECKS FIRST
+            if len(sentence) < MIN_SENTENCE_LENGTH:
+                discarded.append((url, sentence, "too_short"))
+                continue
+
+            exclusion_category = check_exclusion_category(sentence)
+            if exclusion_category:
+                discarded.append((url, sentence, exclusion_category))
+                continue
+
+            # TRY SOFT REGEX (more lenient)
+            if not SOFT_REGEX.search(sentence):
+                discarded.append((url, sentence, "no_soft_match"))
+                continue
+
+            # Check if any of the context indices are already used
+            context_indices = {idx - 1, idx, idx + 1}
+            if context_indices & used:
+                continue
+
+            paragraph_parts = []
+
+            # Add previous sentence if valid
+            if idx > 0:
+                prev = sentences[idx - 1].strip()
+                if len(prev) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(
+                    prev
+                ):
+                    paragraph_parts.append(prev)
+
+            # Add current sentence
+            paragraph_parts.append(sentence)
+
+            # Add next sentence if valid
+            if idx + 1 < len(sentences):
+                nxt = sentences[idx + 1].strip()
+                if len(nxt) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(
+                    nxt
+                ):
+                    paragraph_parts.append(nxt)
+
+            # Mark indices as used
+            used.update(context_indices)
+
+            # Join into a paragraph
+            new_paragraphs.append(" ".join(paragraph_parts))
 
     return new_paragraphs, discarded
 
@@ -717,17 +808,17 @@ def process_and_filter_database():
     last_flush = time.time()
 
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        # Submit all tasks
-        futures = [
-            executor.submit(process_item_buffered, item, report_data_map)
-            for item in unprocessed_data
-        ]
+        # Use map() with chunksize for better task batching
+        results_iter = executor.map(
+            process_item_buffered,
+            unprocessed_data,
+            [report_data_map] * len(unprocessed_data),
+            chunksize=CHUNK_SIZE,
+        )
 
-        # Process results as they complete
-        for future in tqdm(
-            as_completed(futures), total=len(futures), desc="Filtering URLs"
+        for result in tqdm(
+            results_iter, total=len(unprocessed_data), desc="Filtering URLs"
         ):
-            result = future.result()
             if result is None:
                 continue
 
