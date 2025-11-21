@@ -418,6 +418,11 @@ def create_clean_db():
             )
             """
         )
+        c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
+        c.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.IntegrityError as e:
+        print(f"⚠️  Error creating clean database: {e}")
+    finally:
         # Initialize discard_stats with the three categories
         c.execute(
             "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
@@ -439,12 +444,6 @@ def create_clean_db():
             "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
             ("no_match", 0),
         )
-
-        c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
-        c.execute("PRAGMA journal_mode=WAL")
-    except sqlite3.IntegrityError as e:
-        print(f"⚠️  Error creating clean database: {e}")
-    finally:
         conn.commit()
         conn.close()
 
