@@ -143,9 +143,9 @@ def generate_nginx_config(gpu_weight: int, cpu_weight: int, cpu_enabled: bool):
     if cpu_enabled and cpu_weight > 0:
         upstream = f"""
         server 127.0.0.1:{GPU_SERVER_PORT} weight={gpu_weight} max_fails=3 fail_timeout=30s;
-        server 127.0.0.1:{CPU_SERVER_PORT} weight={cpu_weight} backup;  # True fallback
+        server 127.0.0.1:{CPU_SERVER_PORT} weight={cpu_weight} backup;
         """
-        print(f"Nginx: GPU primary (weight={gpu_weight}), CPU as backup")
+        print(f"Nginx: GPU primary (weight={gpu_weight}), CPU backup")
     else:
         upstream = f"""
         server 127.0.0.1:{GPU_SERVER_PORT};
@@ -161,7 +161,13 @@ events {{
 
 http {{
     access_log {access_log};
-    error_log {error_log};
+    error_log  {error_log};
+
+    map $binary_remote_addr $limit_key {{
+        default $binary_remote_addr;
+        ""      "";
+    }}
+    limit_conn_zone $limit_key zone=addr:10m;
 
     upstream model_servers {{{upstream}
     }}
