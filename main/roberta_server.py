@@ -74,7 +74,7 @@ def predict_batch(texts):
         texts, padding=True, truncation=True, max_length=512, return_tensors="pt"
     )
     inputs = {k: v.to(device) for k, v in inputs.items()}
-    print(f"Received {len(texts)} texts for prediction")
+    # print(f"Received {len(texts)} texts for prediction")
     with torch.no_grad():
         outputs = model(**inputs)
         logits = outputs.logits
