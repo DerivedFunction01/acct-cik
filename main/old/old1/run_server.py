@@ -250,7 +250,7 @@ def start_servers(args):
         if args.gpu_workers is not None
         else calculate_gpu_workers(gpu_ram_gb)
     )
-    gpu_threads_per_worker = max(4, min(12, 64 // gpu_workers))
+    gpu_threads_per_worker = 4
 
     # CPU server: only if explicitly requested
     start_cpu_server = args.cpu
