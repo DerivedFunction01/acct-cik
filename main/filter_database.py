@@ -3,7 +3,7 @@
 # =============================================================================
 # Filters derivative database using smart regex patterns and classifies by type
 # Creates unified clean_web_data.db with keyword matches for MNLI comparison
-# Tracks discard reasons with categorized exclusion patterns
+# Uses ProcessPoolExecutor + buffered batch writes for optimal performance
 # =============================================================================
 # %%
 import sqlite3
@@ -12,8 +12,9 @@ import re
 from pathlib import Path
 from tqdm import tqdm
 from typing import List, Tuple, Optional
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
+import time
 
 # =============================================================================
 # CONFIGURATION
@@ -31,9 +32,14 @@ def get_worker_count():
 
 
 NUM_WORKERS = get_worker_count()
-CHUNK_SIZE = 500  # Number of items to process in each parallel chunk
+BATCH_SIZE = 1000  # Optimal batch size for SQLite transactions
+FLUSH_INTERVAL = 5.0  # Seconds — fallback flush if batch not full
 SOURCE_DB_PATH = "web_data.db"
 CLEAN_DB_PATH = "clean_web_data.db"
+
+# In-memory buffers (protected by main process only)
+result_buffer = []  # List of (url, matches, cik, year)
+discard_buffer = []  # List of (url, sentence, reason)
 
 # =============================================================================
 # SHARED COMPONENTS (from regex builder)
@@ -76,7 +82,6 @@ ALL_SUFFIXES = [
     "positions?",
     "strateg(?:ies|y)",
 ]
-
 
 COMMON_COMMODITIES = [
     "agricultural",
@@ -178,18 +183,15 @@ EQUITY_COMP_KEYWORDS = [
     "buyback",
     "warrant",
     "hedge fund",
-    "officer",
-    "director",
 ]
 
 # Section 2: Legal/Litigation
 LEGAL_LITIGATION_KEYWORDS = [
     "lawsuit",
     "civil action",
+    "officer",
+    "director",
     "convicted",
-    "litigation",
-    "defend",
-    "court",
 ]
 
 # Section 3: Accounting Standards
@@ -409,41 +411,27 @@ def create_clean_db():
             )
             """
         )
-        # Discard tracking table - tracks what was filtered out and why
+        # Discard tracking table - stores discarded sentences for review
         c.execute(
             """
-            CREATE TABLE IF NOT EXISTS discard_stats (
-                discard_reason TEXT PRIMARY KEY,
-                count INTEGER DEFAULT 0
+            CREATE TABLE IF NOT EXISTS discarded_sentences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT,
+                sentence TEXT,
+                discard_reason TEXT,
+                FOREIGN KEY (url) REFERENCES webpage_result(url)
             )
             """
         )
+
         c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
+        c.execute(
+            "CREATE INDEX IF NOT EXISTS discard_reason_idx ON discarded_sentences (discard_reason)"
+        )
         c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError as e:
         print(f"⚠️  Error creating clean database: {e}")
     finally:
-        # Initialize discard_stats with the three categories
-        c.execute(
-            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
-            ("equity_compensation", 0),
-        )
-        c.execute(
-            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
-            ("legal_litigation", 0),
-        )
-        c.execute(
-            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
-            ("accounting_standards", 0),
-        )
-        c.execute(
-            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
-            ("too_short", 0),
-        )
-        c.execute(
-            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
-            ("no_match", 0),
-        )
         conn.commit()
         conn.close()
 
@@ -480,30 +468,78 @@ def get_processed_urls_from_clean_db() -> set:
     conn = sqlite3.connect(CLEAN_DB_PATH)
     c = conn.cursor()
     try:
-        # The 'webpage_result' table is the main table for matches.
-        # If a URL is here, it has been processed.
         c.execute("SELECT url FROM webpage_result")
         processed_urls = {row[0] for row in c.fetchall()}
         return processed_urls
     except sqlite3.OperationalError:
-        # Table might not exist yet on the very first run
         return set()
     finally:
         conn.close()
 
 
-def increment_discard_stat(reason: str):
-    """Increment the count for a specific discard reason."""
-    conn = sqlite3.connect(CLEAN_DB_PATH)
+def flush_buffers(force: bool = False) -> bool:
+    """
+    Flush accumulated results and discards to database in batches.
+    Only runs if batch is full or force=True.
+    """
+    global result_buffer, discard_buffer
+
+    if (
+        not force
+        and len(result_buffer) < BATCH_SIZE
+        and len(discard_buffer) < BATCH_SIZE * 10
+    ):
+        return False
+
+    conn = sqlite3.connect(CLEAN_DB_PATH, timeout=60)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA cache_size = -64000")
+    conn.execute("PRAGMA temp_store = MEMORY")
     c = conn.cursor()
+
     try:
-        c.execute(
-            "UPDATE discard_stats SET count = count + 1 WHERE discard_reason = ?",
-            (reason,),
-        )
+        c.execute("BEGIN TRANSACTION")
+
+        # 1. Flush main results
+        if result_buffer:
+            c.executemany(
+                """
+                INSERT OR IGNORE INTO webpage_result (url, matches) 
+                VALUES (?, ?)
+                """,
+                [(url, json.dumps(matches)) for url, matches, _, _ in result_buffer],
+            )
+            c.executemany(
+                """
+                INSERT OR IGNORE INTO report_data (url, cik, year) 
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (url, cik, year)
+                    for url, matches, cik, year in result_buffer
+                    if cik is not None
+                ],
+            )
+            result_buffer.clear()
+
+        # 2. Flush discarded sentences
+        if discard_buffer:
+            c.executemany(
+                """
+                INSERT INTO discarded_sentences (url, sentence, discard_reason)
+                VALUES (?, ?, ?)
+                """,
+                discard_buffer,
+            )
+            discard_buffer.clear()
+
         conn.commit()
+        return True
     except Exception as e:
-        print(f"⚠️  Error incrementing discard stat for {reason}: {e}")
+        conn.rollback()
+        print(f"❌ Batch flush failed: {e}")
+        raise
     finally:
         conn.close()
 
@@ -511,11 +547,6 @@ def increment_discard_stat(reason: str):
 # =============================================================================
 # FILTERING FUNCTIONS
 # =============================================================================
-
-
-def is_table_content(match: str) -> bool:
-    """Detect if match is table content (starts with | or contains table markers)."""
-    return match.strip().startswith("|") or "<table" in match.lower()
 
 
 def check_exclusion_category(sentence: str) -> Optional[str]:
@@ -532,22 +563,23 @@ def check_exclusion_category(sentence: str) -> Optional[str]:
     return None
 
 
-def filter_matches(matches_json: str) -> Tuple[List[str], str]:
+def filter_matches(
+    matches_json: str, url: str = ""
+) -> Tuple[List[str], List[Tuple[str, str, str]]]:
     """
     Filter matches to reduce the paragraph length.
-
-    Returns:
-        (new_simple_paragraphs, status)
+    Returns (filtered_paragraphs, discarded_list) where discarded_list is (url, sentence, reason).
     """
     try:
         matches = json.loads(matches_json)
     except (json.JSONDecodeError, TypeError):
-        return [], "Invalid JSON"
+        return [], []
 
     if not isinstance(matches, list):
-        return [], "Not a list"
+        return [], []
 
     new_paragraphs = []
+    discarded = []
     used = set()
 
     for match in matches:
@@ -557,16 +589,16 @@ def filter_matches(matches_json: str) -> Tuple[List[str], str]:
             sentence = sentence.strip()
 
             if len(sentence) < MIN_SENTENCE_LENGTH:
-                increment_discard_stat("too_short")
+                discarded.append((url, sentence, "too_short"))
                 continue
 
             exclusion_category = check_exclusion_category(sentence)
             if exclusion_category:
-                increment_discard_stat(exclusion_category)
+                discarded.append((url, sentence, exclusion_category))
                 continue
 
             if not STRICT_REGEX.search(sentence):
-                increment_discard_stat("no_match")
+                discarded.append((url, sentence, "no_match"))
                 continue
 
             # Check if any of the context indices are already used
@@ -601,101 +633,38 @@ def filter_matches(matches_json: str) -> Tuple[List[str], str]:
             # Join into a paragraph
             new_paragraphs.append(" ".join(paragraph_parts))
 
-    # Final check: if the only match is extremely short, we can reject it
+    # Final check: if the only match is extremely short, reject it
     if len(new_paragraphs) == 1 and len(new_paragraphs[0].strip()) < 50:
-        increment_discard_stat("too_short")
-        return [], "Filtered"
+        discarded.append((url, new_paragraphs[0], "too_short"))
+        return [], discarded
 
-    return new_paragraphs, "Filtered"
+    return new_paragraphs, discarded
 
 
-def process_item(item: Tuple[str, str]) -> Optional[Tuple]:
+# =============================================================================
+# WORKER FUNCTION (NO DB ACCESS)
+# =============================================================================
+
+
+def process_item_buffered(
+    item: Tuple[str, str], report_data_map: dict
+) -> Optional[Tuple]:
     """
     Worker function to process a single URL's matches.
-    Classifies sentences by derivative type for MNLI comparison.
+    Returns data instead of writing to database.
     """
     url, matches_json = item
     try:
-        (
-            strict_matches,
-            status,
-        ) = filter_matches(matches_json)
+        strict_matches, discarded = filter_matches(matches_json, url)
 
-        # Return None if there's nothing to save
         if not strict_matches:
             return None
-        return (
-            url,
-            strict_matches,
-        )
+
+        # Get metadata from the passed-in map
+        cik, year = report_data_map.get(url, (None, None))
+        return (url, strict_matches, cik, year, discarded)
     except Exception:
         return None
-
-
-# =============================================================================
-# SAVE FUNCTIONS
-# =============================================================================
-
-
-def save_full_result_atomically(
-    url: str,
-    strict_matches: List[str],
-    cik: Optional[int],
-    year: Optional[int],
-) -> bool:
-    """
-    Saves the complete processed result for a single URL in a single atomic transaction.
-    """
-    conn = sqlite3.connect(CLEAN_DB_PATH, timeout=10)
-    c = conn.cursor()
-    try:
-        c.execute("BEGIN TRANSACTION")
-
-        # 1. Save strict matches and report data
-        if strict_matches:
-            c.execute(
-                "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
-                (url, json.dumps(strict_matches)),
-            )
-            if cik is not None and year is not None:
-                c.execute(
-                    "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-                    (url, cik, year),
-                )
-        c.execute("COMMIT")
-        return True
-    except Exception as e:
-        c.execute("ROLLBACK")
-        print(f"❌ Transaction failed for {url}, rolling back. Error: {e}")
-        return False
-    finally:
-        conn.close()
-
-
-def print_discard_stats():
-    """Print discard statistics from the database."""
-    conn = sqlite3.connect(CLEAN_DB_PATH)
-    c = conn.cursor()
-    try:
-        c.execute("SELECT discard_reason, count FROM discard_stats ORDER BY count DESC")
-        stats = c.fetchall()
-
-        print("\n" + "=" * 80)
-        print("📊 DISCARD STATISTICS")
-        print("=" * 80)
-
-        total_discarded = sum(count for _, count in stats)
-
-        for reason, count in stats:
-            reason_display = reason.replace("_", " ").title()
-            print(f"  • {reason_display}: {count:,}")
-
-        print(f"\n  Total Discarded: {total_discarded:,}")
-        print("=" * 80 + "\n")
-    except Exception as e:
-        print(f"⚠️  Error reading discard stats: {e}")
-    finally:
-        conn.close()
 
 
 # =============================================================================
@@ -704,16 +673,16 @@ def print_discard_stats():
 
 
 def process_and_filter_database():
-    """Main function to filter database and create classified clean database."""
+    """Main function to filter database with buffered batch writes."""
     print("=" * 80)
-    print("🔧 DATABASE NOISE REDUCTION WITH CATEGORY CLASSIFICATION")
+    print("🔧 DATABASE NOISE REDUCTION WITH BATCHED BUFFERED WRITES")
     print("=" * 80)
 
     # Initialize database
     print("\n📦 Initializing clean database...")
     create_clean_db()
 
-    # Get already processed URLs to make the script resumable
+    # Get already processed URLs
     print(f"🔍 Checking for previously processed URLs in {CLEAN_DB_PATH}...")
     processed_urls = get_processed_urls_from_clean_db()
     if processed_urls:
@@ -733,7 +702,6 @@ def process_and_filter_database():
     unprocessed_data = [item for item in source_data if item[0] not in processed_urls]
     if not unprocessed_data:
         print("✅ All URLs have already been processed. Nothing to do.")
-        print_discard_stats()
         return
 
     print("🧠 Loading report metadata into memory...")
@@ -742,31 +710,73 @@ def process_and_filter_database():
 
     print(f"📊 Found {len(unprocessed_data)} new URLs to process\n")
 
-    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        results_iterator = executor.map(
-            process_item, unprocessed_data, chunksize=CHUNK_SIZE
-        )
+    global result_buffer, discard_buffer
+    result_buffer = []
+    discard_buffer = []
 
-        for result in tqdm(
-            results_iterator, total=len(unprocessed_data), desc="Filtering URLs"
+    last_flush = time.time()
+
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+        # Submit all tasks
+        futures = [
+            executor.submit(process_item_buffered, item, report_data_map)
+            for item in unprocessed_data
+        ]
+
+        # Process results as they complete
+        for future in tqdm(
+            as_completed(futures), total=len(futures), desc="Filtering URLs"
         ):
+            result = future.result()
             if result is None:
                 continue
 
-            (
-                url,
-                strict_matches,
-            ) = result
-            # Get metadata from the in-memory map
-            metadata = report_data_map.get(url)
-            cik = metadata[0] if metadata else None
-            year = metadata[1] if metadata else None
+            url, matches, cik, year, discarded = result
+            result_buffer.append((url, matches, cik, year))
+            discard_buffer.extend(discarded)
 
-            # Atomically save all results for this URL
-            save_full_result_atomically(url, strict_matches, cik, year)
+            # Periodic flush
+            if len(result_buffer) >= BATCH_SIZE or (
+                time.time() - last_flush > FLUSH_INTERVAL
+            ):
+                flush_buffers()
+                last_flush = time.time()
 
-    # Print final statistics
-    print_discard_stats()
+    # Final flush
+    if result_buffer or discard_buffer:
+        print("\n💾 Final buffer flush...")
+        flush_buffers(force=True)
+
+    print_discard_summary()
+
+
+def print_discard_summary():
+    """Print summary of discarded sentences by category."""
+    conn = sqlite3.connect(CLEAN_DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT discard_reason, COUNT(*) as count FROM discarded_sentences GROUP BY discard_reason ORDER BY count DESC"
+        )
+        stats = c.fetchall()
+
+        print("\n" + "=" * 80)
+        print("📊 DISCARDED SENTENCES SUMMARY")
+        print("=" * 80)
+
+        total_discarded = sum(count for _, count in stats)
+
+        for reason, count in stats:
+            reason_display = reason.replace("_", " ").title()
+            print(f"  • {reason_display}: {count:,}")
+
+        print(f"\n  Total Discarded: {total_discarded:,}")
+        print(f"  View details in 'discarded_sentences' table")
+        print("=" * 80 + "\n")
+    except Exception as e:
+        print(f"⚠️  Error reading discard summary: {e}")
+    finally:
+        conn.close()
 
 
 # =============================================================================
