@@ -121,3 +121,8 @@ def health():
 if __name__ == "__main__":
     print(f"Server starting on {device} with {len(labels)} classes")
     app.run(host="0.0.0.0", port=5000, threaded=True)
+# GPU (recommended)
+# DEVICE_TYPE=gpu gunicorn --workers 1 --threads 8 --timeout 120 roberta_server:app --bind 0.0.0.0:5001
+
+# CPU-only fallback
+# DEVICE_TYPE=cpu gunicorn --workers 1 --threads 12 --timeout 120 roberta_server:app --bind 0.0.0.0:5002
