@@ -1,0 +1,137 @@
+# server_roberta.py
+# Production inference server for SINGLE-LABEL RoBERTa (domain-adapted or fine-tuned)
+
+from flask import Flask, request, jsonify
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+import multiprocessing as mp
+import os
+import json
+from pathlib import Path
+
+app = Flask(__name__)
+
+# ==================== CONFIG ====================
+# Change this to your model path (local or Hugging Face Hub)
+MODEL_PATH = "DerivedFunction/derivative-filter"  # ← your trained model folder
+# OR use HF Hub: "your-username/roberta-finance-classifier"
+
+# Optional: override device via env var (useful for CPU-only deployments)
+DEVICE_TYPE = os.environ.get("DEVICE_TYPE", "gpu").lower()
+device = torch.device(
+    "cpu" if DEVICE_TYPE == "cpu" else ("cuda" if torch.cuda.is_available() else "cpu")
+)
+
+# ==================== LOAD MODEL & LABELS ====================
+print(f"Loading model from: {MODEL_PATH}")
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
+
+# Load label mapping (saved during training)
+label_mapping_path = Path(MODEL_PATH) / "label_mapping.json"
+if label_mapping_path.exists():
+    with open(label_mapping_path) as f:
+        mapping = json.load(f)
+    id2label = mapping.get(
+        "id2label", {int(k): v for k, v in mapping.get("id2label", {}).items()}
+    )
+    label2id = mapping.get("label2id", {v: int(k) for k, v in id2label.items()})
+else:
+    # Fallback: use model.config
+    id2label = model.config.id2label
+    label2id = model.config.label2id
+
+labels = [id2label[i] for i in range(len(id2label))]
+print(f"Loaded {len(labels)} labels: {labels}")
+
+model.to(device)
+model.eval()
+
+
+# ==================== PREDICTION FUNCTION ====================
+def predict_batch(texts, top_k=3):
+    inputs = tokenizer(
+        texts, padding=True, truncation=True, max_length=512, return_tensors="pt"
+    )
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        outputs = model(**inputs)
+        logits = outputs.logits
+        probabilities = torch.softmax(logits, dim=-1)  # ← softmax for single-label
+
+    results = []
+    for probs in probabilities:
+        probs = probs.cpu().numpy()
+        top_indices = probs.argsort()[-top_k:][::-1]
+        pred = {
+            "predicted_label": id2label[int(top_indices[0])],
+            "confidence": round(float(probs[top_indices[0]]), 4),
+            "all_probabilities": {
+                id2label[i]: round(float(p), 4) for i, p in enumerate(probs)
+            },
+        }
+        if top_k > 1:
+            pred["top_k"] = [
+                {"label": id2label[int(idx)], "confidence": round(float(probs[idx]), 4)}
+                for idx in top_indices
+            ]
+        results.append(pred)
+
+    return {"predictions": results}
+
+
+# ==================== ROUTES ====================
+@app.route("/predict", methods=["POST"])
+def predict():
+    data = request.get_json()
+    if not data or "texts" not in data or not isinstance(data["texts"], list):
+        return (
+            jsonify({"error": "Request must contain 'texts' as a list of strings"}),
+            400,
+        )
+
+    texts = data["texts"]
+    if not all(isinstance(t, str) for t in texts):
+        return jsonify({"error": "All items in 'texts' must be strings"}), 400
+
+    top_k = int(data.get("top_k", 3))
+    result = predict_batch(texts, top_k=top_k)
+    return jsonify(result)
+
+
+@app.route("/info", methods=["GET"])
+def info():
+    info = {
+        "model": MODEL_PATH,
+        "task": "single-label-classification",
+        "labels": labels,
+        "device": str(device),
+        "gpu_available": torch.cuda.is_available(),
+    }
+    if torch.cuda.is_available():
+        info.update(
+            {
+                "gpu_name": torch.cuda.get_device_name(0),
+                "gpu_memory_gb": round(
+                    torch.cuda.get_device_properties(0).total_memory / 1e9, 2
+                ),
+            }
+        )
+    else:
+        info["cpu_cores"] = mp.cpu_count()
+
+    return jsonify(info)
+
+
+@app.route("/", methods=["GET"])
+def health():
+    return jsonify(
+        {"status": "ok", "message": "RoBERTa single-label server is running"}
+    )
+
+
+# ==================== RUN ====================
+if __name__ == "__main__":
+    print(f"Server starting on {device} with {len(labels)} classes")
+    app.run(host="0.0.0.0", port=5000, threaded=True)
