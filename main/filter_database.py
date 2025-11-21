@@ -260,6 +260,7 @@ def build_strict_gen_regex() -> re.Pattern:
     specific_phrases = [
         "total[- ]return swaps?",
         "notional (?:amounts?|values?|principals?)",
+        "designated as (?:a )?hedges?",
     ]
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -268,7 +269,6 @@ def build_strict_gen_regex() -> re.Pattern:
 def build_soft_gen_regex() -> re.Pattern:
     """Build soft General derivatives regex (secondary indicators)."""
     specific_phrases = [
-        "designated as (?:a )?hedges?",
         "(?:instruments?|contracts?) are designated",
         "hedge of the net investment",
         "net investment hedges?",
