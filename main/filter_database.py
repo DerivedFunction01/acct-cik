@@ -1,5 +1,3 @@
-
-
 # DATABASE NOISE REDUCTION SCRIPT WITH CATEGORY CLASSIFICATION
 # =============================================================================
 # Filters derivative database using smart regex patterns and classifies by type
@@ -574,9 +572,8 @@ def filter_matches(
     matches_json: str, url: str = ""
 ) -> Tuple[List[str], List[Tuple[str, str, str]]]:
     """
-    Filter matches to reduce the paragraph length.
-    Returns (filtered_paragraphs, discarded_list) where discarded_list is (url, sentence, reason).
-    If strict matches are empty, falls back to soft matches.
+    Main filter: strict first, then soft fallback — but NEVER re-use the same sentence.
+    Returns (filtered_paragraphs, discarded_list)
     """
     try:
         matches = json.loads(matches_json)
@@ -586,150 +583,132 @@ def filter_matches(
     if not isinstance(matches, list):
         return [], []
 
-    new_paragraphs = []
-    discarded = []
-    used = set()
+    final_paragraphs = []
+    all_discarded = []
 
+    # Process each original match block independently
     for match in matches:
-        sentences = SENTENCE_SPLIT_PATTERN.split(match)
+        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
+        used_indices = set()  # Track used sentence indices in THIS block only
 
-        for idx, sentence in enumerate(sentences):
-            sentence = sentence.strip()
+        # === PHASE 1: Strict matching (high precision) ===
+        strict_paragraphs, strict_discarded, strict_used = _process_block_strict(
+            sentences, used_indices.copy(), url
+        )
+        final_paragraphs.extend(strict_paragraphs)
+        all_discarded.extend(strict_discarded)
+        used_indices.update(strict_used)
 
-            # CHEAP CHECKS FIRST
-            if len(sentence) < MIN_SENTENCE_LENGTH:
-                discarded.append((url, sentence, "too_short"))
-                continue
+        # === PHASE 2: Soft fallback only on unused sentences ===
+        if (
+            len(strict_paragraphs) < len(sentences) // 3
+        ):  # heuristic: too few strict hits
+            soft_paragraphs, soft_discarded, soft_used = _process_block_soft(
+                sentences, used_indices, url  # pass current used set
+            )
+            final_paragraphs.extend(soft_paragraphs)
+            all_discarded.extend(soft_discarded)
+            used_indices.update(soft_used)
 
-            exclusion_category = check_exclusion_category(sentence)
-            if exclusion_category:
-                discarded.append((url, sentence, exclusion_category))
-                continue
-
-            # EXPENSIVE CHECK LAST (only if cheap checks pass)
-            if not STRICT_REGEX.search(sentence):
-                discarded.append((url, sentence, "no_match"))
-                continue
-
-            # Check if any of the context indices are already used
-            context_indices = {idx - 1, idx, idx + 1}
-            if context_indices & used:
-                continue
-
-            paragraph_parts = []
-
-            # Add previous sentence if valid
-            if idx > 0:
-                prev = sentences[idx - 1].strip()
-                if len(prev) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(
-                    prev
-                ):
-                    paragraph_parts.append(prev)
-
-            # Add current sentence
-            paragraph_parts.append(sentence)
-
-            # Add next sentence if valid
-            if idx + 1 < len(sentences):
-                nxt = sentences[idx + 1].strip()
-                if len(nxt) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(
-                    nxt
-                ):
-                    paragraph_parts.append(nxt)
-
-            # Mark indices as used
-            used.update(context_indices)
-
-            # Join into a paragraph
-            new_paragraphs.append(" ".join(paragraph_parts))
-
-    # Final check: if the only match is extremely short, reject it
-    if len(new_paragraphs) == 1 and len(new_paragraphs[0].strip()) < 50:
-        discarded.append((url, new_paragraphs[0], "too_short"))
-        new_paragraphs = []
-
-    # Fallback: if strict matches are empty, try soft regex
-    if not new_paragraphs:
-        new_paragraphs, soft_discarded = filter_matches_soft(matches_json, url)
-        discarded.extend(soft_discarded)
-
-    return new_paragraphs, discarded
+    return final_paragraphs, all_discarded
 
 
-def filter_matches_soft(
-    matches_json: str, url: str = ""
-) -> Tuple[List[str], List[Tuple[str, str, str]]]:
-    """
-    Secondary filter using soft regex for sentences that failed strict filter.
-    Only called if strict filtering produced no results.
-    Returns (soft_paragraphs, discarded_list).
-    """
-    try:
-        matches = json.loads(matches_json)
-    except (json.JSONDecodeError, TypeError):
-        return [], []
-
-    if not isinstance(matches, list):
-        return [], []
-
-    new_paragraphs = []
+def _process_block_strict(
+    sentences: List[str], used_indices: set, url: str
+) -> Tuple[List[str], List[Tuple[str, str, str]], set]:
+    """Internal: strict pass on one block."""
+    paragraphs = []
     discarded = []
-    used = set()
+    newly_used = set()
 
-    for match in matches:
-        sentences = SENTENCE_SPLIT_PATTERN.split(match)
+    for idx, sentence in enumerate(sentences):
+        if idx in used_indices:
+            continue
 
-        for idx, sentence in enumerate(sentences):
-            sentence = sentence.strip()
+        if len(sentence) < MIN_SENTENCE_LENGTH:
+            discarded.append((url, sentence, "too_short"))
+            continue
 
-            # CHEAP CHECKS FIRST
-            if len(sentence) < MIN_SENTENCE_LENGTH:
-                discarded.append((url, sentence, "too_short"))
-                continue
+        if check_exclusion_category(sentence):
+            reason = check_exclusion_category(sentence)
+            discarded.append((url, sentence, reason))
+            continue
 
-            exclusion_category = check_exclusion_category(sentence)
-            if exclusion_category:
-                discarded.append((url, sentence, exclusion_category))
-                continue
+        if not STRICT_REGEX.search(sentence):
+            discarded.append((url, sentence, "no_strict_match"))
+            continue
 
-            # TRY SOFT REGEX (more lenient)
-            if not SOFT_REGEX.search(sentence):
-                discarded.append((url, sentence, "no_soft_match"))
-                continue
+        # Build paragraph from current + optional prev/next (if not used)
+        parts = []
+        context_indices = {idx}
 
-            # Check if any of the context indices are already used
-            context_indices = {idx - 1, idx, idx + 1}
-            if context_indices & used:
-                continue
+        if idx > 0 and (idx - 1) not in used_indices:
+            prev = sentences[idx - 1]
+            if len(prev) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(prev):
+                parts.append(prev)
+                context_indices.add(idx - 1)
 
-            paragraph_parts = []
+        parts.append(sentence)
 
-            # Add previous sentence if valid
-            if idx > 0:
-                prev = sentences[idx - 1].strip()
-                if len(prev) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(
-                    prev
-                ):
-                    paragraph_parts.append(prev)
+        if idx + 1 < len(sentences) and (idx + 1) not in used_indices:
+            nxt = sentences[idx + 1]
+            if len(nxt) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(nxt):
+                parts.append(nxt)
+                context_indices.add(idx + 1)
 
-            # Add current sentence
-            paragraph_parts.append(sentence)
+        paragraphs.append(" ".join(parts))
+        newly_used.update(context_indices)
 
-            # Add next sentence if valid
-            if idx + 1 < len(sentences):
-                nxt = sentences[idx + 1].strip()
-                if len(nxt) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(
-                    nxt
-                ):
-                    paragraph_parts.append(nxt)
+    return paragraphs, discarded, newly_used
 
-            # Mark indices as used
-            used.update(context_indices)
 
-            # Join into a paragraph
-            new_paragraphs.append(" ".join(paragraph_parts))
+def _process_block_soft(
+    sentences: List[str], used_indices: set, url: str
+) -> Tuple[List[str], List[Tuple[str, str, str]], set]:
+    """Internal: soft pass — only on sentences NOT used in strict phase."""
+    paragraphs = []
+    discarded = []
+    newly_used = set()
 
-    return new_paragraphs, discarded
+    for idx, sentence in enumerate(sentences):
+        if idx in used_indices:
+            continue  # Already used in strict → skip forever
+
+        if len(sentence) < MIN_SENTENCE_LENGTH:
+            discarded.append((url, sentence, "too_short_soft"))
+            continue
+
+        if check_exclusion_category(sentence):
+            reason = check_exclusion_category(sentence)
+            discarded.append((url, sentence, reason))
+            continue
+
+        if not SOFT_REGEX.search(sentence):
+            discarded.append((url, sentence, "no_soft_match"))
+            continue
+
+        # Same context logic as strict
+        parts = []
+        context_indices = {idx}
+
+        if idx > 0 and (idx - 1) not in used_indices:
+            prev = sentences[idx - 1]
+            if len(prev) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(prev):
+                parts.append(prev)
+                context_indices.add(idx - 1)
+
+        parts.append(sentence)
+
+        if idx + 1 < len(sentences) and (idx + 1) not in used_indices:
+            nxt = sentences[idx + 1]
+            if len(nxt) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(nxt):
+                parts.append(nxt)
+                context_indices.add(idx + 1)
+
+        paragraphs.append(" ".join(parts))
+        newly_used.update(context_indices)
+
+    return paragraphs, discarded, newly_used
 
 
 # =============================================================================
