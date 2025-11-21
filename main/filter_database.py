@@ -337,6 +337,10 @@ def build_strict_gen_regex() -> re.Pattern:
         "total[- ]return swaps?",
         "notional (?:amounts?|values?|principals?)",
         "designated as (?:a )?hedges?",
+        "hedge of the net investment",
+        "net investment hedges?",
+        "cash flow hedges?",
+        "fair value hedges?",
     ]
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -346,10 +350,6 @@ def build_soft_gen_regex() -> re.Pattern:
     """Build soft General derivatives regex (secondary indicators)."""
     specific_phrases = [
         "(?:instruments?|contracts?) are designated",
-        "hedge of the net investment",
-        "net investment hedges?",
-        "cash flow hedges?",
-        "fair value hedges?",
         "ineffective portion",
         "hedging relationship",
         "hedge accounting",
@@ -566,6 +566,9 @@ def check_exclusion_category(sentence: str) -> Optional[str]:
     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(sentence):
         return "legal_litigation"
     if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence):
+        # Trick one: we need to make sure no other are matches
+        if not STRICT_REGEX.search(sentence):
+            return "accounting_standards"
         return "accounting_standards"
     return None
 
