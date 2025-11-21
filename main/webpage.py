@@ -368,7 +368,7 @@ GEN_REGEX = build_gen_regex()
 COMBINED_REGEX = re.compile(r'|'.join([IR_REGEX.pattern, FX_REGEX.pattern, CP_REGEX.pattern, EQ_REGEX.pattern, GEN_REGEX.pattern]), re.IGNORECASE)
 
 # --- NEW: Regex for matching only base derivative types, intended for use within tables ---. Remove the question mark
-TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation([base.rstrip("?") for base in ALL_BASE_TYPES] + ["derivative"]) + r'\b', re.IGNORECASE)
+TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation([base.rstrip("?") for base in UNAMBIGUOUS_BASE_TYPES]) + r'\b', re.IGNORECASE)
 
 EQUITY_COMP_KEYWORDS = [
     "stock (?:options?|awards?|splits?|dividends?|purchases?)",
@@ -384,11 +384,13 @@ EQUITY_COMP_KEYWORDS = [
     "salary",
     "wage",
     "dividend",
-    "outstanding shares",
+    "shares",
     "share repurchase",
     "buyback",
     "warrant",
     "hedge fund",
+    "pension",
+    "renewal",
 ]
 
 # Section 2: Legal/Litigation
@@ -816,7 +818,7 @@ def filter_by_keywords(content: str) -> list[str]:
 
         # Handle tables
         if "<table" in lower_part and not IGNORE_REGEX.search(part):
-            if COMBINED_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part):
+            if COMBINED_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part) and not IGNORE_REGEX.search(part):
                 if lower_part not in seen:
                     filtered.append(part)
                     seen.add(lower_part)
