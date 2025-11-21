@@ -8,7 +8,10 @@ import multiprocessing as mp
 import os
 import json
 from pathlib import Path
+import logging
 
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # ==================== CONFIG ====================
@@ -75,16 +78,20 @@ def predict_batch(texts):
     )
     inputs = {k: v.to(device) for k, v in inputs.items()}
     # print(f"Received {len(texts)} texts for prediction")
-    with torch.no_grad():
-        outputs = model(**inputs)
-        logits = outputs.logits
-        probabilities = torch.softmax(logits, dim=-1)
+    try:
+        with torch.no_grad():
+            outputs = model(**inputs)
+            logits = outputs.logits
+            probabilities = torch.softmax(logits, dim=-1)
 
-    results = []
-    for probs in probabilities:
-        probs = probs.cpu().numpy()
-        pred = {id2label[i]: round(float(p), 4) for i, p in enumerate(probs)}
-        results.append(pred)
+        results = []
+        for probs in probabilities:
+            probs = probs.cpu().numpy()
+            pred = {id2label[i]: round(float(p), 4) for i, p in enumerate(probs)}
+            results.append(pred)
+    except Exception as e:
+        log.error(f"Error during prediction: {e}")
+        return {"predictions": [{"error": str(e)} for _ in texts]}
 
     return {"predictions": results}
 
@@ -111,6 +118,7 @@ def predict():
             batch_result = predict_batch(batch_texts)
             all_predictions.extend(batch_result.get("predictions", []))
         except Exception as e:
+            log.error(f"Error processing batch: {e}")
             # If a batch fails, return an error for the whole request
             return jsonify({"error": f"Error processing batch: {e}"}), 500
 
