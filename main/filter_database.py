@@ -259,6 +259,7 @@ def build_strict_gen_regex() -> re.Pattern:
     ]
     specific_phrases = [
         "total[- ]return swaps?",
+        "notional (?:amounts?|values?|principals?)",
     ]
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -280,7 +281,6 @@ def build_soft_gen_regex() -> re.Pattern:
         "derivative expense",
         "derivative financial instruments?",
         "embedded derivatives?",
-        "notional (?:amounts?|values?|principals?)",
         "derivative (?:assets?|liabilities|gains?|losses?|positions?|contracts?|instruments?)",
         "(?:gain|loss) on derivatives?",
         "over[- ]the[- ]counter derivatives?",
