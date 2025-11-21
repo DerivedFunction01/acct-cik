@@ -49,7 +49,7 @@ model.eval()
 
 
 # ==================== PREDICTION FUNCTION ====================
-def predict_batch(texts, top_k=3):
+def predict_batch(texts):
     inputs = tokenizer(
         texts, padding=True, truncation=True, max_length=512, return_tensors="pt"
     )
@@ -58,24 +58,12 @@ def predict_batch(texts, top_k=3):
     with torch.no_grad():
         outputs = model(**inputs)
         logits = outputs.logits
-        probabilities = torch.softmax(logits, dim=-1)  # ← softmax for single-label
+        probabilities = torch.softmax(logits, dim=-1)
 
     results = []
     for probs in probabilities:
         probs = probs.cpu().numpy()
-        top_indices = probs.argsort()[-top_k:][::-1]
-        pred = {
-            "predicted_label": id2label[int(top_indices[0])],
-            "confidence": round(float(probs[top_indices[0]]), 4),
-            "all_probabilities": {
-                id2label[i]: round(float(p), 4) for i, p in enumerate(probs)
-            },
-        }
-        if top_k > 1:
-            pred["top_k"] = [
-                {"label": id2label[int(idx)], "confidence": round(float(probs[idx]), 4)}
-                for idx in top_indices
-            ]
+        pred = {id2label[i]: round(float(p), 4) for i, p in enumerate(probs)}
         results.append(pred)
 
     return {"predictions": results}
@@ -94,9 +82,7 @@ def predict():
     texts = data["texts"]
     if not all(isinstance(t, str) for t in texts):
         return jsonify({"error": "All items in 'texts' must be strings"}), 400
-
-    top_k = int(data.get("top_k", 3))
-    result = predict_batch(texts, top_k=top_k)
+    result = predict_batch(texts)
     return jsonify(result)
 
 
