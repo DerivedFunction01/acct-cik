@@ -3,6 +3,7 @@
 # =============================================================================
 # Filters derivative database using smart regex patterns and classifies by type
 # Creates unified clean_web_data.db with keyword matches for MNLI comparison
+# Tracks discard reasons with categorized exclusion patterns
 # =============================================================================
 # %%
 import sqlite3
@@ -150,6 +151,76 @@ COMMON_COMMODITIES = [
 ]
 
 # =============================================================================
+# CATEGORIZED EXCLUSION PATTERNS
+# =============================================================================
+
+# Section 1: Employee Equity Compensation
+EQUITY_COMP_KEYWORDS = [
+    "stock option",
+    "stock award",
+    "restricted stock",
+    "RSU",
+    "compensation",
+    "employee",
+    "share-based",
+    "vesting",
+    "exercisable",
+    "stock purchase",
+    "ESPP",
+    "bonus",
+    "salary",
+    "wage",
+    "dividend",
+    "stock split",
+    "stock dividend",
+    "outstanding shares",
+    "share repurchase",
+    "buyback",
+    "warrant",
+    "hedge fund",
+    "officer",
+    "director",
+]
+
+# Section 2: Legal/Litigation
+LEGAL_LITIGATION_KEYWORDS = [
+    "lawsuit",
+    "civil action",
+    "convicted",
+    "litigation",
+    "defend",
+    "court",
+]
+
+# Section 3: Accounting Standards
+ACCOUNTING_STANDARDS_KEYWORDS = [
+    "fasb",
+    "sfas",
+    "s.f.a.s",
+    "asc 815",
+    "a.s.c 815",
+    "Credit Enhancement and Other Support",
+    "Regulation AB",
+    "regulat",
+    "amendment",
+]
+
+# Minimum sentence length to consider
+MIN_SENTENCE_LENGTH = 50
+
+
+def build_exclude_regex(keywords: List[str]) -> re.Pattern:
+    """Build regex for excluding noise keywords."""
+    escaped_keywords = [re.escape(kw) for kw in keywords]
+    pattern = "|".join(escaped_keywords)
+    return re.compile(pattern, re.IGNORECASE)
+
+
+EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
+EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
+EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS)
+
+# =============================================================================
 # REGEX PATTERN BUILDERS
 # =============================================================================
 
@@ -191,7 +262,6 @@ def build_ir_regex() -> re.Pattern:
         "zero[- ]coupon swap",
         "FRA",
         "treasury lock",
-        "single currency basis swap",
         "basis swap",
     ]
     pattern = build_smart_regex(
@@ -230,12 +300,9 @@ def build_cp_regex() -> re.Pattern:
     ]
     core_terms.append("fixed[- ]commodity")
     specific_phrases = [
-        "commodity index swaps?",
-        "commodity index options?",
+        "commodity index",
     ]
-    pattern = build_smart_regex(
-        core_terms, ALL_BASE_TYPES, specific_phrases
-    )
+    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
@@ -312,62 +379,13 @@ STRICT_REGEX = re.compile(
 )
 SOFT_REGEX = SOFT_GEN_REGEX
 
-# Keywords to explicitly exclude (noise reducers)
-EXCLUDE_KEYWORDS = [
-    "stock option",
-    "stock award",
-    "restricted stock",
-    "RSU",
-    "employee compensation",
-    "employee stock",
-    "stock-based compensation",
-    "share-based",
-    "compensation expense",
-    "vesting",
-    "exercisable",
-    "stock purchase",
-    "ESPP",
-    "bonus",
-    "salary",
-    "wage",
-    "dividend",
-    "stock split",
-    "stock dividend",
-    "outstanding shares",
-    "share repurchase",
-    "buyback",
-    "warrant",
-    "convertible",
-    "conversion",
-    "hedge fund",
-    "lawsuit",
-    "fasb",
-    "sfas",
-    "s.f.a.s",
-    "asc 815",
-    "a.s.c 815"
-]
-
-# Minimum sentence length to consider
-MIN_SENTENCE_LENGTH = 50
-
-
-def build_exclude_regex() -> re.Pattern:
-    """Build regex for excluding noise keywords."""
-    escaped_keywords = [re.escape(kw) for kw in EXCLUDE_KEYWORDS]
-    pattern = "|".join(escaped_keywords)
-    return re.compile(pattern, re.IGNORECASE)
-
-
-EXCLUDE_REGEX = build_exclude_regex()
-
 # =============================================================================
 # DATABASE FUNCTIONS
 # =============================================================================
 
 
 def create_clean_db():
-    """Create unified clean database with category classification support."""
+    """Create unified clean database with category classification support and discard tracking."""
     conn = sqlite3.connect(CLEAN_DB_PATH)
     c = conn.cursor()
     try:
@@ -391,6 +409,37 @@ def create_clean_db():
             )
             """
         )
+        # Discard tracking table - tracks what was filtered out and why
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS discard_stats (
+                discard_reason TEXT PRIMARY KEY,
+                count INTEGER DEFAULT 0
+            )
+            """
+        )
+        # Initialize discard_stats with the three categories
+        c.execute(
+            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
+            ("equity_compensation", 0),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
+            ("legal_litigation", 0),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
+            ("accounting_standards", 0),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
+            ("too_short", 0),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO discard_stats (discard_reason, count) VALUES (?, ?)",
+            ("no_match", 0),
+        )
+
         c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
         c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError as e:
@@ -443,6 +492,23 @@ def get_processed_urls_from_clean_db() -> set:
     finally:
         conn.close()
 
+
+def increment_discard_stat(reason: str):
+    """Increment the count for a specific discard reason."""
+    conn = sqlite3.connect(CLEAN_DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute(
+            "UPDATE discard_stats SET count = count + 1 WHERE discard_reason = ?",
+            (reason,),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"⚠️  Error incrementing discard stat for {reason}: {e}")
+    finally:
+        conn.close()
+
+
 # =============================================================================
 # FILTERING FUNCTIONS
 # =============================================================================
@@ -451,6 +517,20 @@ def get_processed_urls_from_clean_db() -> set:
 def is_table_content(match: str) -> bool:
     """Detect if match is table content (starts with | or contains table markers)."""
     return match.strip().startswith("|") or "<table" in match.lower()
+
+
+def check_exclusion_category(sentence: str) -> Optional[str]:
+    """
+    Check if sentence matches any exclusion category.
+    Returns the category name if it matches, None otherwise.
+    """
+    if EXCLUDE_REGEX_EQUITY_COMP.search(sentence):
+        return "equity_compensation"
+    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(sentence):
+        return "legal_litigation"
+    if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence):
+        return "accounting_standards"
+    return None
 
 
 def filter_matches(matches_json: str) -> Tuple[List[str], str]:
@@ -478,10 +558,16 @@ def filter_matches(matches_json: str) -> Tuple[List[str], str]:
             sentence = sentence.strip()
 
             if len(sentence) < MIN_SENTENCE_LENGTH:
+                increment_discard_stat("too_short")
                 continue
-            if EXCLUDE_REGEX.search(sentence):
+
+            exclusion_category = check_exclusion_category(sentence)
+            if exclusion_category:
+                increment_discard_stat(exclusion_category)
                 continue
+
             if not STRICT_REGEX.search(sentence):
+                increment_discard_stat("no_match")
                 continue
 
             # Check if any of the context indices are already used
@@ -494,7 +580,9 @@ def filter_matches(matches_json: str) -> Tuple[List[str], str]:
             # Add previous sentence if valid
             if idx > 0:
                 prev = sentences[idx - 1].strip()
-                if len(prev) >= MIN_SENTENCE_LENGTH and not EXCLUDE_REGEX.search(prev):
+                if len(prev) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(
+                    prev
+                ):
                     paragraph_parts.append(prev)
 
             # Add current sentence
@@ -503,7 +591,9 @@ def filter_matches(matches_json: str) -> Tuple[List[str], str]:
             # Add next sentence if valid
             if idx + 1 < len(sentences):
                 nxt = sentences[idx + 1].strip()
-                if len(nxt) >= MIN_SENTENCE_LENGTH and not EXCLUDE_REGEX.search(nxt):
+                if len(nxt) >= MIN_SENTENCE_LENGTH and not check_exclusion_category(
+                    nxt
+                ):
                     paragraph_parts.append(nxt)
 
             # Mark indices as used
@@ -511,12 +601,12 @@ def filter_matches(matches_json: str) -> Tuple[List[str], str]:
 
             # Join into a paragraph
             new_paragraphs.append(" ".join(paragraph_parts))
-            
+
     # Final check: if the only match is extremely short, we can reject it
     if len(new_paragraphs) == 1 and len(new_paragraphs[0].strip()) < 50:
-        with open("rejected.csv", "a") as f:
-            f.write(new_paragraphs[0] + "\n")
+        increment_discard_stat("too_short")
         return [], "Filtered"
+
     return new_paragraphs, "Filtered"
 
 
@@ -538,7 +628,6 @@ def process_item(item: Tuple[str, str]) -> Optional[Tuple]:
         return (
             url,
             strict_matches,
-
         )
     except Exception:
         return None
@@ -584,6 +673,32 @@ def save_full_result_atomically(
         conn.close()
 
 
+def print_discard_stats():
+    """Print discard statistics from the database."""
+    conn = sqlite3.connect(CLEAN_DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("SELECT discard_reason, count FROM discard_stats ORDER BY count DESC")
+        stats = c.fetchall()
+
+        print("\n" + "=" * 80)
+        print("📊 DISCARD STATISTICS")
+        print("=" * 80)
+
+        total_discarded = sum(count for _, count in stats)
+
+        for reason, count in stats:
+            reason_display = reason.replace("_", " ").title()
+            print(f"  • {reason_display}: {count:,}")
+
+        print(f"\n  Total Discarded: {total_discarded:,}")
+        print("=" * 80 + "\n")
+    except Exception as e:
+        print(f"⚠️  Error reading discard stats: {e}")
+    finally:
+        conn.close()
+
+
 # =============================================================================
 # MAIN PROCESSING FUNCTION
 # =============================================================================
@@ -603,7 +718,9 @@ def process_and_filter_database():
     print(f"🔍 Checking for previously processed URLs in {CLEAN_DB_PATH}...")
     processed_urls = get_processed_urls_from_clean_db()
     if processed_urls:
-        print(f"  • Found {len(processed_urls):,} already processed URLs. They will be skipped.")
+        print(
+            f"  • Found {len(processed_urls):,} already processed URLs. They will be skipped."
+        )
 
     # Fetch source data
     print(f"📖 Reading from {SOURCE_DB_PATH}...")
@@ -617,6 +734,7 @@ def process_and_filter_database():
     unprocessed_data = [item for item in source_data if item[0] not in processed_urls]
     if not unprocessed_data:
         print("✅ All URLs have already been processed. Nothing to do.")
+        print_discard_stats()
         return
 
     print("🧠 Loading report metadata into memory...")
@@ -626,7 +744,9 @@ def process_and_filter_database():
     print(f"📊 Found {len(unprocessed_data)} new URLs to process\n")
 
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        results_iterator = executor.map(process_item, unprocessed_data, chunksize=CHUNK_SIZE)
+        results_iterator = executor.map(
+            process_item, unprocessed_data, chunksize=CHUNK_SIZE
+        )
 
         for result in tqdm(
             results_iterator, total=len(unprocessed_data), desc="Filtering URLs"
@@ -644,9 +764,10 @@ def process_and_filter_database():
             year = metadata[1] if metadata else None
 
             # Atomically save all results for this URL
-            save_full_result_atomically(
-                url, strict_matches, cik, year
-            )
+            save_full_result_atomically(url, strict_matches, cik, year)
+
+    # Print final statistics
+    print_discard_stats()
 
 
 # =============================================================================
