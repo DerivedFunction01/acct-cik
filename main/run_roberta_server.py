@@ -385,7 +385,7 @@ def calculate_server_weights(gpu_ram_gb: float, cpu_cores: int, ram_gb: float):
         gpu_weight = 30
 
         # Disable CPU server entirely if GPU is overwhelmingly faster
-        start_cpu_server = not (gpu_speedup > 12 and cpu_cores < 12)
+        start_cpu_server = not (gpu_speedup > 12 or cpu_cores < 12)
 
         strategy = (
             "GPU-primary + light CPU backup"
