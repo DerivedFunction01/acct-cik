@@ -341,6 +341,11 @@ EXCLUDE_KEYWORDS = [
     "conversion",
     "hedge fund",
     "lawsuit",
+    "fasb",
+    "sfas",
+    "s.f.a.s",
+    "asc 815",
+    "a.s.c 815"
 ]
 
 # Minimum sentence length to consider
@@ -506,7 +511,12 @@ def filter_matches(matches_json: str) -> Tuple[List[str], str]:
 
             # Join into a paragraph
             new_paragraphs.append(" ".join(paragraph_parts))
-
+            
+    # Final check: if the only match is extremely short, we can reject it
+    if len(new_paragraphs) == 1 and len(new_paragraphs[0].strip()) < 50:
+        with open("rejected.csv", "a") as f:
+            f.write(new_paragraphs[0] + "\n")
+        return [], "Filtered"
     return new_paragraphs, "Filtered"
 
 
