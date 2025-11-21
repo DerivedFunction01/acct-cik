@@ -22,6 +22,22 @@ device = torch.device(
     "cpu" if DEVICE_TYPE == "cpu" else ("cuda" if torch.cuda.is_available() else "cpu")
 )
 
+# ==================== DYNAMIC BATCH SIZE ====================
+def get_dynamic_batch_size():
+    """Determines a safe batch size based on available GPU VRAM."""
+    if not torch.cuda.is_available():
+        return 32  # A safe default for CPU
+
+    vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+    
+    if vram_gb >= 20:  # e.g., A100, RTX 4090/3090
+        return 256
+    elif vram_gb >= 14:  # e.g., V100, T4
+        return 128
+    elif vram_gb >= 8:   # e.g., RTX 3070, 2080
+        return 64
+    return 32 # For GPUs with < 8GB VRAM
+
 # ==================== LOAD MODEL & LABELS ====================
 print(f"Loading model from: {MODEL_PATH}")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
@@ -47,6 +63,9 @@ print(f"Loaded {len(labels)} labels: {labels}")
 model.to(device)
 model.eval()
 
+MAX_BATCH_SIZE = get_dynamic_batch_size()
+print(f"Using device: {device}. Max batch size set to: {MAX_BATCH_SIZE}")
+
 
 # ==================== PREDICTION FUNCTION ====================
 def predict_batch(texts):
@@ -55,7 +74,7 @@ def predict_batch(texts):
         texts, padding=True, truncation=True, max_length=512, return_tensors="pt"
     )
     inputs = {k: v.to(device) for k, v in inputs.items()}
-    print(f"Received {len(texts)} texts for prediction, total ({inputs['input_ids'].shape[1]} tokens)")
+    print(f"Received {len(texts)} texts for prediction")
     with torch.no_grad():
         outputs = model(**inputs)
         logits = outputs.logits
@@ -83,8 +102,19 @@ def predict():
     texts = data["texts"]
     if not all(isinstance(t, str) for t in texts):
         return jsonify({"error": "All items in 'texts' must be strings"}), 400
-    result = predict_batch(texts)
-    return jsonify(result)
+
+    # Process the texts in batches to avoid GPU OOM errors
+    all_predictions = []
+    for i in range(0, len(texts), MAX_BATCH_SIZE):
+        batch_texts = texts[i : i + MAX_BATCH_SIZE]
+        try:
+            batch_result = predict_batch(batch_texts)
+            all_predictions.extend(batch_result.get("predictions", []))
+        except Exception as e:
+            # If a batch fails, return an error for the whole request
+            return jsonify({"error": f"Error processing batch: {e}"}), 500
+
+    return jsonify({"predictions": all_predictions})
 
 
 @app.route("/info", methods=["GET"])
@@ -95,6 +125,7 @@ def info():
         "labels": labels,
         "device": str(device),
         "gpu_available": torch.cuda.is_available(),
+        "max_batch_size": MAX_BATCH_SIZE,
     }
     if torch.cuda.is_available():
         info.update(
