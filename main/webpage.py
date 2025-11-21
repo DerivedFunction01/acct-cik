@@ -43,7 +43,7 @@ DEBUG = False
 ALL_FIRMS_DATA = "derivatives_data.csv"
 REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
-MERGE_LEN = 500
+MAX_LEN = 1000
 
 SEC_RATE = 8 # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
@@ -134,6 +134,7 @@ TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNOREC
 
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r'(?<!\n)\n(?!\n)')
+SPACE_PATTERN = re.compile(r'\s+')
 # %%
 # =============================================================================
 # SMART REGEX BUILDER - Generates optimized patterns from keyword lists
@@ -236,19 +237,12 @@ def build_ir_regex() -> re.Pattern:
         "interest[- ]rate",
         "single[- ]currency",
         "Eurodollar",
-        "SOFR",
-        "SONIA",
-        "LIBOR",
-        "LIBOR[- ]based",
-        "EURIBOR",
         "(?:treasury|forward|fixed|floating|variable|benchmark)[- ]rate",
     ]
 
     specific_phrases = [
         "zero[- ]coupon swap",
-        "FRA",
         "treasury lock",
-        "single currency basis swap",
         "basis swap",
     ]
 
@@ -375,7 +369,43 @@ COMBINED_REGEX = re.compile(r'|'.join([IR_REGEX.pattern, FX_REGEX.pattern, CP_RE
 
 # --- NEW: Regex for matching only base derivative types, intended for use within tables ---. Remove the question mark
 TABLE_BASE_TYPES_REGEX = re.compile(r'\b' + build_alternation([base.rstrip("?") for base in ALL_BASE_TYPES] + ["derivative"]) + r'\b', re.IGNORECASE)
-IGNORE_REGEX = re.compile(r'|'.join([r"stock option", r"share", r"exercis", r"bonus", r"compensation", r"salary", r"\.{3,}", r"dividend", r"award"]),  re.IGNORECASE)
+
+EQUITY_COMP_KEYWORDS = [
+    "stock (?:options?|awards?|splits?|dividends?|purchases?)",
+    "restricted stock",
+    "RSU",
+    "compensation",
+    "employee",
+    "share[- ]based",
+    "vesting",
+    "exercisable",
+    "ESPP",
+    "bonus",
+    "salary",
+    "wage",
+    "dividend",
+    "outstanding shares",
+    "share repurchase",
+    "buyback",
+    "warrant",
+    "hedge fund",
+]
+
+# Section 2: Legal/Litigation
+LEGAL_LITIGATION_KEYWORDS = [
+    "lawsuit",
+    "litigation",
+    "arbitration",
+    "(?:civil|legal|administrative|criminal) action",
+    "officer",
+    "director",
+    "convicted",
+    "judgement",
+    "violated",
+]
+
+IGNORE_WORDS = EQUITY_COMP_KEYWORDS + LEGAL_LITIGATION_KEYWORDS
+IGNORE_REGEX = re.compile(r'|'.join(IGNORE_WORDS),  re.IGNORECASE)
 
 # %%
 # =============================================================================
@@ -667,6 +697,10 @@ def extract_content(data: str, asHTML=True) -> str:
                 pre_tag = soup.new_tag("pre")
                 pre_tag.string = table_text
                 table.replace_with(pre_tag)
+            else: # to short of a table means that we convert it to paragraphs
+                for tr in table.find_all("tr"):
+                    for td in tr.find_all(["td", "th"]):
+                        td.string = td.get_text(strip=True)
 
         # Use html2text to convert remaining HTML to text
         # This handles complex nested structures without recursion issues
@@ -793,20 +827,23 @@ def filter_by_keywords(content: str) -> list[str]:
         i = 0
         while i < len(paragraphs):
             para = paragraphs[i].strip()
+            # Try to clean up whitespace
+            para = SPACE_PATTERN.sub(" ", para).strip() if para else ""
             if not para or len(para) < 30:  # Skip very short paragraphs
                 i += 1
                 continue
-
             if COMBINED_REGEX.search(para) and not IGNORE_REGEX.search(para):
                 # Check if paragraph ends without a period and is not a table ending
                 if not para.endswith('.') and not para.endswith(">"):
                     if i + 1 < len(paragraphs):
                         next_para = paragraphs[i + 1].strip()
+                        # Try to clean up whitespace
+                        next_para = SPACE_PATTERN.sub(" ", next_para).strip() if next_para else ""
                         # Skip short next paragraphs (likely headers or cut-offs)
                         if next_para and len(next_para) >= 30:
                             # Also check if the next paragraph itself is a derivative paragraph
                             # to avoid merging unrelated content.
-                            if not IGNORE_REGEX.search(next_para) and not COMBINED_REGEX.search(next_para) and len(next_para) < MERGE_LEN:
+                            if not IGNORE_REGEX.search(next_para) and not COMBINED_REGEX.search(next_para) and len(next_para) + len(para) < MAX_LEN:
                                 # Merge with next paragraph
                                 para = para + " " + next_para
                                 i += 1  # Skip next paragraph since it's merged
