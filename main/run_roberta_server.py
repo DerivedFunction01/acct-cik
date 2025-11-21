@@ -23,6 +23,8 @@ PID_FILE = "server-roberta.pid"
 NGINX_CONF_FILE = "nginx-roberta.conf"
 SERVER_SCRIPT = "roberta_server:app"  # Changed to use the new generative model server
 CACHE_FILE = ".server_cache-roberta.json"
+CACHE_FILE_LATENCY = ".latency_cache-roberta.json"
+CACHE_DURATION = 60 * 60 * 24 * 7  # 7 days
 
 # Gunicorn settings
 GUNICORN_TIMEOUT = 120
@@ -43,7 +45,7 @@ def load_cache():
 
         # Check if cache is less than 24 hours old
         cache_age = time.time() - cache.get("timestamp", 0)
-        if cache_age < 60 * 60 * 24:  # 12 hours in seconds
+        if cache_age < CACHE_DURATION:  # 12 hours in seconds
             return cache
     except (json.JSONDecodeError, IOError):
         pass
@@ -240,116 +242,170 @@ def get_gpu_ram():
     return gpu_ram
 
 
-def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
+# =============================================================================
+# IMPROVED: Latency-based weight calculation with caching
+# =============================================================================
+
+
+def measure_and_cache_latency():
     """
-    Calculate optimal GPU and CPU server weights based on hardware.
-    Returns (gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server)
+    Measures single-request latency on GPU and CPU once, caches result for 7 days.
+    Returns (gpu_latency_ms, cpu_latency_ms, speedup_gpu_over_cpu)
     """
-    # Base configuration
-    gpu_weight = 1
-    cpu_weight = 1
-    gpu_threads = 2
-    cpu_threads = 1
-    start_cpu_server = True
 
-    # === GPU Configuration ===
+    # Load from cache if recent
+    if os.path.exists(CACHE_FILE_LATENCY):
+        try:
+            with open(CACHE_FILE_LATENCY, "r") as f:
+                cache = json.load(f)
+            if time.time() - cache.get("timestamp", 0) < CACHE_DURATION:
+                g = cache["gpu_latency_ms"]
+                c = cache["cpu_latency_ms"]
+                print(
+                    f"Using cached latency → GPU: {g:.1f}ms | CPU: {c:.1f}ms | "
+                    f"Speedup: {c/g:.1f}×"
+                )
+                return g, c, c / g
+        except Exception:
+            pass
+
+    print("Measuring inference latency on GPU and CPU (this takes ~10–20 seconds)...")
+
+    try:
+        import torch
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        from roberta_server import MODEL_PATH
+
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+        model_class = AutoModelForSequenceClassification
+
+        # Representative input (~128 tokens)
+        text = "This is a sample input text for latency measurement. " * 6
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+
+        def measure(model, device_str):
+            if device_str == "cuda":
+                model = model.cuda()
+                inputs_dev = {k: v.cuda() for k, v in inputs.items()}
+            else:
+                model = model.cpu()
+                inputs_dev = {k: v.cpu() for k, v in inputs.items()}
+
+            model.eval()
+            with torch.no_grad():
+                # Warmup
+                for _ in range(3):
+                    _ = model(**inputs_dev)
+                if device_str == "cuda":
+                    torch.cuda.synchronize()
+
+                start = time.time()
+                for _ in range(10):  # Average over 10 runs
+                    _ = model(**inputs_dev)
+                if device_str == "cuda":
+                    torch.cuda.synchronize()
+                elapsed = time.time() - start
+            return (elapsed / 10) * 1000  # ms per inference
+
+        gpu_lat = float("inf")
+        if torch.cuda.is_available():
+            model_gpu = model_class.from_pretrained(
+                MODEL_PATH
+            ).half()  # Use FP16 if possible
+            gpu_lat = measure(model_gpu, "cuda")
+            del model_gpu
+            torch.cuda.empty_cache()
+
+        model_cpu = model_class.from_pretrained(MODEL_PATH)
+        cpu_lat = measure(model_cpu, "cpu")
+        del model_cpu
+
+        speedup = cpu_lat / gpu_lat if gpu_lat < 10000 else 999
+
+        print(
+            f"Measured → GPU: {gpu_lat:.1f}ms | CPU: {cpu_lat:.1f}ms | "
+            f"GPU Speedup: {speedup:.1f}×"
+        )
+
+        # Save to cache
+        cache_data = {
+            "timestamp": time.time(),
+            "gpu_latency_ms": gpu_lat,
+            "cpu_latency_ms": cpu_lat,
+            "gpu_name": (
+                torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
+            ),
+        }
+        try:
+            with open(CACHE_FILE_LATENCY, "w") as f:
+                json.dump(cache_data, f)
+        except Exception:
+            pass
+
+        return gpu_lat, cpu_lat, speedup
+
+    except Exception as e:
+        print(f"Latency measurement failed ({e}). Using safe defaults.")
+        return 45.0, 380.0, 8.4  # Typical RTX 4090 vs 16-core CPU values
+
+
+def calculate_server_weights(gpu_ram_gb: float, cpu_cores: int, ram_gb: float):
+    """
+    New latency-based weight calculator.
+    Replaces your old heuristic table entirely.
+    """
+    gpu_lat_ms, cpu_lat_ms, gpu_speedup = measure_and_cache_latency()
+
+    # === Thread selection (conservative & safe) ===
+    if gpu_ram_gb >= 24:
+        gpu_threads = 14
+    elif gpu_ram_gb >= 16:
+        gpu_threads = 12
+    elif gpu_ram_gb >= 10:
+        gpu_threads = 8
+    elif gpu_ram_gb >= 6:
+        gpu_threads = 6
+    else:
+        gpu_threads = 4
+
+    cpu_threads = max(2, min(8, cpu_cores // 3))  # Avoid hyper-threading overload
+
+    # === Weight calculation based on real throughput ===
     if gpu_ram_gb > 0:
-        # GPU threads based on VRAM
-        if gpu_ram_gb >= 40:  # A100 (40GB/80GB)
-            gpu_threads = 16
-            gpu_weight = 20
-        elif gpu_ram_gb >= 24:  # A100 24GB, RTX 4090/3090
-            gpu_threads = 12
-            gpu_weight = 16
-        elif gpu_ram_gb >= 16:  # V100, RTX 4080, A10
-            gpu_threads = 10
-            gpu_weight = 12
-        elif gpu_ram_gb >= 12:  # RTX 3080 Ti, T4 (16GB)
-            gpu_threads = 8
-            gpu_weight = 10
-        elif gpu_ram_gb >= 8:  # RTX 3070, 4060 Ti
-            gpu_threads = 6
-            gpu_weight = 8
-        elif gpu_ram_gb >= 6:  # RTX 3060
-            gpu_threads = 4
-            gpu_weight = 6
-        else:  # Low-end GPU
-            gpu_threads = 2
-            gpu_weight = 4
+        # Estimated requests per second per thread
+        gpu_rps_per_thread = 1000.0 / gpu_lat_ms
+        cpu_rps_per_thread = 1000.0 / cpu_lat_ms
 
-        # If a GPU is present, always set the CPU weight to a low value.
-        # This makes the CPU a backup/overflow server rather than a primary worker.
-        cpu_weight = 1
-        print("   Strategy: GPU detected. Setting CPU weight to 1 (backup mode).")
+        total_gpu_rps = gpu_rps_per_thread * gpu_threads
+        total_cpu_rps = cpu_rps_per_thread * cpu_threads
 
-    # === CPU Configuration ===
-    # CPU threads based on core count
-    if cpu_cores >= 80:  # TPU or high-core server (treat as very powerful)
-        cpu_threads = 16
-        cpu_weight = 12
-    elif cpu_cores >= 32:  # High-end server/workstation
-        cpu_threads = 8
-        cpu_weight = 8
-    elif cpu_cores >= 16:  # Mid-high workstation
-        cpu_threads = 6
-        cpu_weight = 6
-    elif cpu_cores >= 12:  # Gaming PC / Colab standard
-        cpu_threads = 4
-        cpu_weight = 4
-    elif cpu_cores >= 8:  # Standard desktop
-        cpu_threads = 3
-        cpu_weight = 3
-    elif cpu_cores >= 4:  # Entry-level
-        cpu_threads = 2
-        cpu_weight = 2
-    else:  # Very low-end (2 cores)
-        cpu_threads = 1
-        cpu_weight = 1
+        # Use ratio with a floor and ceiling
+        ratio = total_cpu_rps / total_gpu_rps
+        cpu_weight = max(1, min(10, int(20 * ratio)))  # CPU almost never gets >10
+        gpu_weight = 30
 
-    # === Adjust weights based on RAM ===
-    # If RAM is limited, reduce CPU weight to avoid OOM
-    if ram_gb < 8:
-        cpu_weight = max(1, cpu_weight // 2)
-        cpu_threads = max(1, cpu_threads // 2)
-    elif ram_gb < 16:
-        cpu_weight = max(1, int(cpu_weight * 0.75))
+        # Disable CPU server entirely if GPU is overwhelmingly faster
+        start_cpu_server = not (gpu_speedup > 12 and cpu_cores < 12)
 
-    # === Decide whether to start CPU server ===
-    # Scenarios where CPU server should be disabled:
-    # 1. Very powerful GPU + weak CPU/RAM (let GPU handle everything)
-    # 2. Very limited resources overall
-
-    if gpu_ram_gb > 0:
-        # CPU has little cores (~2)
-        if cpu_cores <= 2:
-            start_cpu_server = False
-            print("   Strategy: Poor CPU/RAM → GPU-only mode")
-        # High-end GPU with low-end CPU
-        elif gpu_ram_gb >= 4 and (cpu_cores <= 4 or ram_gb < 12):
-            start_cpu_server = False
-            print("   Strategy: GPU-focused + limited CPU/RAM → GPU-only mode")
-
-        # Gaming PC scenario: strong GPU + strong CPU
-        elif gpu_ram_gb >= 6 and cpu_cores >= 16 and ram_gb >= 24:
-            # Balance the load more evenly for powerful systems
-            gpu_weight = min(gpu_weight, cpu_weight + 8)
-            print("   Strategy: Balanced high-end system → GPU leads, CPU assists")
-
-        # Colab-like scenario: Good GPU, decent CPU
-        elif gpu_ram_gb >= 12 and cpu_cores >= 8:
-            print("   Strategy: Cloud GPU instance → GPU primary, CPU backup")
-
-        # Low-end GPU with many cores (e.g., TPU environment)
-        elif cpu_cores >= 80:
-            # Treat TPU-like environments as CPU-focused
-            cpu_weight = max(cpu_weight, gpu_weight)
-            print("   Strategy: TPU/High-core environment → Balanced distribution")
+        strategy = (
+            "GPU-primary + light CPU backup"
+            if start_cpu_server
+            else "GPU-only (CPU too slow or weak)"
+        )
 
     else:
-        # No GPU - CPU only
-        print("   Strategy: CPU-only mode")
-        start_cpu_server = True
         gpu_weight = 0
+        gpu_threads = 0
+        cpu_weight = 25
+        cpu_threads = min(12, cpu_cores // 2)
+        start_cpu_server = True
+        strategy = "CPU-only mode"
+
+    print(
+        f"Configuration → GPU weight={gpu_weight}, CPU weight={cpu_weight} | "
+        f"GPU threads={gpu_threads}, CPU threads={cpu_threads} | "
+        f"CPU server: {'Yes' if start_cpu_server else 'No'} ({strategy})"
+    )
 
     return gpu_weight, cpu_weight, gpu_threads, cpu_threads, start_cpu_server
 
