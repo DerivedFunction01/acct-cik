@@ -204,6 +204,8 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     "Credit Enhancement and Other Support",
     "Regulation AB",
     "regulat",
+    "adoption",
+    "amendment",
 ]
 
 # Minimum sentence length to consider
