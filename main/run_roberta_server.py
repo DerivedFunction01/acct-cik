@@ -445,6 +445,8 @@ http {{
     access_log {access_log_path};
     error_log {error_log_path};
 
+    limit_conn_zone $binary_remote_addr zone=addr:10m;
+
     upstream model_servers {{
         {upstream_block}
     }}
@@ -460,20 +462,14 @@ http {{
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
 
-            # Failover logic: if a server fails, try the next one.
-            # This is crucial for redirecting from a failed CPU server to the GPU server.
-            # non_idempotent allows POST requests to be retried on the next server.
             proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504 non_idempotent;
 
-            proxy_connect_timeout {GUNICORN_TIMEOUT};
-            proxy_send_timeout {GUNICORN_TIMEOUT};
-            proxy_read_timeout {GUNICORN_TIMEOUT};
+            proxy_connect_timeout {GUNICORN_TIMEOUT}s;
+            proxy_send_timeout {GUNICORN_TIMEOUT}s;
+            proxy_read_timeout {GUNICORN_TIMEOUT}s;
         }}
 
-        # Limit the number of simultaneous connections to prevent overwhelming the backend.
-        # This helps queue requests instead of dropping them.
-        limit_conn $binary_remote_addr zone=addr:10m;
-        limit_conn addr 20; # Allow up to 20 concurrent connections from a single IP
+        limit_conn addr 20;
     }}
 }}
 """
