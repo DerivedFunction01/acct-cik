@@ -50,11 +50,12 @@ model.eval()
 
 # ==================== PREDICTION FUNCTION ====================
 def predict_batch(texts):
+
     inputs = tokenizer(
         texts, padding=True, truncation=True, max_length=512, return_tensors="pt"
     )
     inputs = {k: v.to(device) for k, v in inputs.items()}
-
+    print(f"Received {len(texts)} texts for prediction, total ({inputs['input_ids'].shape[1]} tokens)")
     with torch.no_grad():
         outputs = model(**inputs)
         logits = outputs.logits
