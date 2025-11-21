@@ -330,9 +330,9 @@ def calculate_server_weights(gpu_ram_gb, cpu_cores, ram_gb):
             print("   Strategy: GPU-focused + limited CPU/RAM → GPU-only mode")
 
         # Gaming PC scenario: strong GPU + strong CPU
-        elif gpu_ram_gb >= 8 and cpu_cores >= 16 and ram_gb >= 24:
+        elif gpu_ram_gb >= 6 and cpu_cores >= 16 and ram_gb >= 24:
             # Balance the load more evenly for powerful systems
-            gpu_weight = min(gpu_weight, cpu_weight + 4)
+            gpu_weight = min(gpu_weight, cpu_weight + 8)
             print("   Strategy: Balanced high-end system → GPU leads, CPU assists")
 
         # Colab-like scenario: Good GPU, decent CPU
@@ -416,7 +416,7 @@ http {{
 
         # Limit the number of simultaneous connections to prevent overwhelming the backend.
         # This helps queue requests instead of dropping them.
-        limit_conn_zone $binary_remote_addr zone=addr:10m;
+        limit_conn $binary_remote_addr zone=addr:10m;
         limit_conn addr 20; # Allow up to 20 concurrent connections from a single IP
     }}
 }}
