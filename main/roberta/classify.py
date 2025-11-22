@@ -352,10 +352,7 @@ def process_report_fully(report):
     server_predictions = []
 
     if matches:
-        matches_with_year = [
-            f"<reportYear>{report.year}</reportYear> {s}" for s in matches
-        ]
-        server_predictions = get_result_from_server(matches_with_year)
+        server_predictions = get_result_from_server(matches)
     else:
         server_predictions = []
 
