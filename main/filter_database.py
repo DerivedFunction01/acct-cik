@@ -21,28 +21,16 @@ try:
         ALL_REGEX,
         SENTENCE_SPLIT_PATTERN,
         MIN_SENTENCE_LENGTH,
-        EQUITY_COMP_KEYWORDS,
-        LEGAL_LITIGATION_KEYWORDS,
-        ACCOUNTING_STANDARDS_KEYWORDS,
-        EXCLUDE_REGEX_EQUITY_COMP,
-        EXCLUDE_REGEX_LEGAL_LITIGATION,
-        EXCLUDE_REGEX_ACCOUNTING_STD,
-        COMBINED_EXCLUDE_REGEX,
         TRADING_STATEMENTS_REGEX,
+        cleanup_fragment,
     )
 except Exception:
     from .derivative_regex import (
         ALL_REGEX,
         SENTENCE_SPLIT_PATTERN,
         MIN_SENTENCE_LENGTH,
-        EQUITY_COMP_KEYWORDS,
-        LEGAL_LITIGATION_KEYWORDS,
-        ACCOUNTING_STANDARDS_KEYWORDS,
-        EXCLUDE_REGEX_EQUITY_COMP,
-        EXCLUDE_REGEX_LEGAL_LITIGATION,
-        EXCLUDE_REGEX_ACCOUNTING_STD,
-        COMBINED_EXCLUDE_REGEX,
         TRADING_STATEMENTS_REGEX,
+        cleanup_fragment,
     )
 
 # =============================================================================
@@ -307,8 +295,21 @@ def filter_matches(
                 all_discarded.append((url, sentence, "too_short"))
                 continue
             if TRADING_STATEMENTS_REGEX.search(sentence):
-                all_discarded.append((url, sentence, "trading_statements"))
-                continue
+                # Capture the exact text that will be deleted
+                deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
+
+                # Log it to your discard list with a clear reason
+                all_discarded.append((url, deleted_text.strip(), "trading_denial_boilerplate"))
+
+                # Now surgically remove it
+                sentence = TRADING_STATEMENTS_REGEX.sub("", sentence)
+
+                # Optional: clean up punctuation/whitespace (highly recommended)
+
+                sentence = cleanup_fragment(sentence)
+                # If the entire sentence was a denial, skip adding a paragraph
+                if not sentence:
+                    continue  # whole sentence gone → nothing to add
             if not ALL_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue

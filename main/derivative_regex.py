@@ -539,6 +539,29 @@ COMBINED_REGEX = re.compile(
 
 # Regex to find years between 1980-2049, followed by a word boundary character
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20[0-4]\d)(?=[);,.\s])")
+# ──────────────────────────────────────────────────────────────
+# Pre-compiled cleanup regexes (put at module level, once)
+# ──────────────────────────────────────────────────────────────
+_CLEAN_LEADING_JUNK = re.compile(r"^[\s.;,]+")
+_CLEAN_TRAILING_JUNK = re.compile(r"[\s.;,]+$")
+_CLEAN_SPACE_COMMA = re.compile(r"\s+,")
+_CLEAN_COMMA_SPACE = re.compile(r",\s+")
+_CLEAN_SPACE_SEMICOLON = re.compile(r"\s+;")
+
+
+def cleanup_fragment(sentence: str) -> str:
+    """
+    Clean up punctuation mess after surgically removing trading-denial clauses.
+    This turns: ", but we hedge." → "but we hedge."
+                "We only use swaps to manage risk ;" → "We only use swaps to manage risk"
+    """
+    sentence = _CLEAN_SPACE_COMMA.sub(",", sentence)
+    sentence = _CLEAN_COMMA_SPACE.sub(", ", sentence)
+    sentence = _CLEAN_SPACE_SEMICOLON.sub(";", sentence)
+    sentence = _CLEAN_LEADING_JUNK.sub("", sentence)
+    sentence = _CLEAN_TRAILING_JUNK.sub("", sentence)
+    sentence = sentence.strip()
+    return sentence if len(sentence) > 10 else "" # too short we don't return anything
 
 __all__ = [
     "SENTENCE_SPLIT_PATTERN",
@@ -568,4 +591,5 @@ __all__ = [
     "IGNORE_REGEX",
     "TABLE_BASE_TYPES_REGEX",
     "YEAR_REGEX",
+    "cleanup_fragment",
 ]
