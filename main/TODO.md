@@ -24,7 +24,7 @@ This document outlines the development roadmap for building a classified dataset
 
 - [x] **4. Implement Noise Filtering Script**
   - **Status:** Done.
-  - **Task:** Create a new Python script that uses the fine-tuned noise classification model (from Step 3) to process `web_data.db`. Using `classify.py` for classification and `filter_database.py` to split up text chunks into manageable 3-sentence paragraphs.
+  - **Task:** Create a new Python script that uses the fine-tuned noise classification model (from Step 3) to process `web_data.db`. Using `classify.py` for classification and `filter_database.py` to split up text chunks into manageable 3-sentence paragraphs into `prepared_data.db`.
   - **Workflow:**
     0. Prepare the database by splitting long paragraphs into smaller chunks (3 sentences each) using `filter_database.py`. Delete all trading statements that are not relevant.
     1. Read paragraphs from the `webpage_result` table.
@@ -37,24 +37,24 @@ This document outlines the development roadmap for building a classified dataset
   - **Task:** Run the script, this will take time, so I am going to skip this step and assume it works for now.
   - **Workflow:**
     1. Run the noise filtering script on the existing `web_data.db`.
-    2. Merge the results into the database for further processing.
+    2. Merge the results into the database for further processing into `hedge_data.db`.
 
-- [ ] **4.5 Implement Discarding Script**
-  - **Status:** To-Do.
-  - **Task:** Create a new Python script that takes the results from step 4 to process `web_data.db`. 
+- [x] **4.5 Implement Discarding Script**
+  - **Status:** Done
+  - **Task:** Create a new Python script that takes the results from step 4 to process `prepared_data.db`. 
   - **Workflow:**
     1. Read paragraphs from the `webpage_result` table.
     2. Retrieve the classification results from the `server_result` table.
     3. Combine the results to identify and retain only the sentences classified as relevant (`hedge`). Use a special regex to identify sentences that contain derivative keywords to ensure no relevant information is lost in case of false negatives.
     4. Discard false positives.
-    5. Store the cleaned, relevant-only paragraphs in a new database (e.g., `clean_web_data.db`).
+    5. Store the cleaned, relevant-only paragraphs in a new database (e.g., `hedge_data.db`).
 
 ## Phase 3: Controlled Deletion & Final Dataset Assembly
 
 - [ ] **5. Remove Historical References**
   - **Status:** To-Do.
   - **Task:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. This ensures only current year or undated mentions remain, which is essential for the "active any use in current year" use case.
-  - **Output:** A filtered database containing only current or undated mentions of derivatives. 
+  - **Output:** A filtered database containing only current or undated mentions of derivatives into `current_data.db`.
 
 - [ ] **6. Fine-Tune RoBERTa for High-Level Classification**
   - **Status:** To-Do.
@@ -76,11 +76,11 @@ This document outlines the development roadmap for building a classified dataset
     2. **Delete AOCI-Only Mentions:** Remove sentences that only mention AOCI, as these are not indicative of active use.
     3. **Delete Denial Statements:** Remove sentences that explicitly state the company does not use derivatives.
     4. **Delete Potential use but not confirmed:** Remove sentences that indicate potential future use without confirmation of current use.
-  - **Output:** The final, analysis-ready database (`final_web_data.db`) containing only current, relevant, and categorized derivative mentions.
+  - **Output:** The final, analysis-ready database (`active_data.db`) containing only current, relevant, and categorized derivative mentions.
 
 
 - [ ] **8. Aggregation & Analysis**
   - **Status:** To-Do.
   - **Task:** Aggregate the cleaned and classified data to generate insights on active derivative users.
   - **Analysis Goals:**
-    - With controlled deletion, detect if there is still any mentions of active use classified from Step 5. If none exist, then it meant that controlled deletion deleted all previous years mentions, leaving only current year/non year mentions.
+    - With controlled deletion, detect if there is still any mentions of active use classified from Step 5. If none exist, then it meant that controlled deletion deleted all previous years mentions, leaving only current year/non year mentions. Create a script that returns a list of companies with active derivative use per category in the current year.
