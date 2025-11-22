@@ -26,6 +26,7 @@ This document outlines the development roadmap for building a classified dataset
   - **Status:** Done.
   - **Task:** Create a new Python script that uses the fine-tuned noise classification model (from Step 3) to process `web_data.db`. Using `classify.py` for classification and `filter_database.py` to split up text chunks into manageable 3-sentence paragraphs.
   - **Workflow:**
+    0. Prepare the database by splitting long paragraphs into smaller chunks (3 sentences each) using `filter_database.py`. Delete all trading statements that are not relevant.
     1. Read paragraphs from the `webpage_result` table.
     2. For each paragraph send it to the model.
     3. Classify each sentence within the paragraph as `hedge` or other false positive categories (`std`, `law`, `cmp`,  etc.).
@@ -53,9 +54,10 @@ This document outlines the development roadmap for building a classified dataset
   - **Task:** Fine-tune a separate RoBERTa model (or the same one, depending on strategy) to perform multi-label or multi-class classification on the *relevant* sentences.
   - **Classification Schema:**
     - **Category:** `interest_rate`, `foreign_exchange`, `commodity`, `equity`, `generic_other`.
-    - **Usage Indicator (Optional but Recommended):** `active_use` vs. `passive_mention`. This is the core of the "active user" goal. It doesn't matter which year this occured, a controlled deletion script with delete prior years will be implemented later.
+    - **Usage Indicator (Optional but Recommended):** `active_use` vs. `passive_mention` vs `denial`. This is the core of the "active user" goal. It doesn't matter which year this occured, a controlled deletion script with delete prior years will be implemented later.
         - `active_use`: Sentences indicating current or recent usage of derivatives for hedging or trading purposes.
         - `passive_mention`: Passive statements such as PnL impact, accounting treatment.
+        - `denial`: Explicit statements denying the use of derivatives or none at all.
   - **Goal:** Retain high-level metadata about each sentence before the final deletion stage. The output should be structured data, not just text.
 
 ## Phase 3: Controlled Deletion & Final Dataset Assembly
