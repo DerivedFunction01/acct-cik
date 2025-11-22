@@ -21,7 +21,7 @@ CPU_SERVER_PORT = 5002
 
 PID_FILE = "server-roberta.pid"
 NGINX_CONF_FILE = "nginx-roberta.conf"
-SERVER_SCRIPT = "roberta_server:app"  # Adjust if your module name differs
+SERVER_SCRIPT = "server:app"  # Adjust if your module name differs
 CACHE_FILE = ".server_cache-roberta.json"
 CACHE_DURATION = 60 * 60 * 24 * 7  # 7 days
 
@@ -67,7 +67,7 @@ def pre_download_model():
     print("Checking for model availability (first run may take time)...")
     try:
         from transformers import AutoTokenizer, AutoModelForSequenceClassification
-        from roberta_server import MODEL_PATH
+        from server import MODEL_PATH
 
         AutoTokenizer.from_pretrained(MODEL_PATH)
         AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
@@ -319,7 +319,7 @@ def stop_servers():
     subprocess.run(
         f"nginx -s stop -c {os.path.abspath(NGINX_CONF_FILE)}", shell=True, check=False
     )
-    subprocess.run("pkill -f 'gunicorn.*roberta_server'", shell=True, check=False)
+    subprocess.run("pkill -f 'gunicorn.*server'", shell=True, check=False)
     if os.path.exists(PID_FILE):
         try:
             os.remove(PID_FILE)
