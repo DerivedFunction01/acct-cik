@@ -57,7 +57,8 @@ This document outlines the development roadmap for building a classified dataset
     - **Usage Indicator (Optional but Recommended):** `active_use` vs. `passive_mention` vs `denial`. This is the core of the "active user" goal. It doesn't matter which year this occured, a controlled deletion script with delete prior years will be implemented later.
         - `active_use`: Sentences indicating current or recent usage of derivatives for hedging or trading purposes.
         - `passive_mention`: Passive statements such as PnL impact, accounting treatment.
-        - `denial`: Explicit statements denying the use of derivatives or none at all.
+        - `denial`: Explicit statements denying the use of derivatives or none at all. Should work since we deleted all trading statements before.
+  - **Training Data:** Requires a labeled dataset of relevant sentences categorized by derivative type and usage
   - **Goal:** Retain high-level metadata about each sentence before the final deletion stage. The output should be structured data, not just text.
 
 ## Phase 3: Controlled Deletion & Final Dataset Assembly
