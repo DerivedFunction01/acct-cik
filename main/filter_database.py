@@ -19,6 +19,12 @@ import time
 try:
     from derivative_regex import (
         ALL_REGEX,
+        IR_REGEX,
+        FX_REGEX,
+        CP_REGEX,
+        EQ_REGEX,
+        STRICT_GEN_REGEX,
+        SOFT_GEN_REGEX,
         SENTENCE_SPLIT_PATTERN,
         MIN_SENTENCE_LENGTH,
         TRADING_STATEMENTS_REGEX,
@@ -28,6 +34,12 @@ try:
 except Exception:
     from .derivative_regex import (
         ALL_REGEX,
+        IR_REGEX,
+        FX_REGEX,
+        CP_REGEX,
+        EQ_REGEX,
+        STRICT_GEN_REGEX,
+        SOFT_GEN_REGEX,
         SENTENCE_SPLIT_PATTERN,
         MIN_SENTENCE_LENGTH,
         TRADING_STATEMENTS_REGEX,
@@ -259,6 +271,42 @@ def flush_buffers(force: bool = False) -> bool:
 # =============================================================================
 # FILTERING FUNCTIONS
 # =============================================================================
+# Add to derivative_regex.py or filter_database.py
+
+
+def get_sentence_categories(sentence: str) -> set:
+    """Returns the set of derivative categories matched in a sentence."""
+    cats = set()
+
+    if IR_REGEX.search(sentence):
+        cats.add("ir")
+    if FX_REGEX.search(sentence):
+        cats.add("fx")
+    if CP_REGEX.search(sentence):
+        cats.add("cp")
+    if EQ_REGEX.search(sentence):
+        cats.add("eq")
+
+    # Generic is allowed to mix with specific categories
+    if STRICT_GEN_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
+        if not cats:  # Only tag as generic if no specific match
+            cats.add("gen")
+
+    return cats if cats else {"other"}
+
+
+def sentences_compatible(sent1_cats: set, sent2_cats: set) -> bool:
+    """Check if two sentences can be in the same paragraph."""
+    # Remove 'gen' and 'other' for comparison (they're wildcards)
+    specific1 = sent1_cats - {"gen", "other"}
+    specific2 = sent2_cats - {"gen", "other"}
+
+    # If either has no specific category, they're compatible
+    if not specific1 or not specific2:
+        return True
+
+    # Otherwise, they must share at least one specific category
+    return bool(specific1 & specific2)
 
 
 # def check_exclusion_category(sentence: str) -> Optional[str]:
@@ -282,8 +330,8 @@ def filter_matches(
     matches_json: str, url: str = ""
 ) -> Tuple[List[str], List[Tuple[str, str, str]]]:
     """
-    Main filter: strict first, then soft fallback — but NEVER re-use the same sentence.
-    Returns (filtered_paragraphs, discarded_list)
+    Main filter with CATEGORY BOUNDARY ENFORCEMENT.
+    Each paragraph will contain only one specific derivative category.
     """
     try:
         matches = json.loads(matches_json)
@@ -294,79 +342,80 @@ def filter_matches(
         return [], []
 
     final_paragraphs = []
-    all_discarded = [] # should be empty, roberta will perform it
+    all_discarded = []
 
-    # Process each original match block independently
     for match in matches:
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
-        used_indices = set()  # Track used sentence indices in THIS block only
-        # We can use Roberta to filter our the system, instead of relying on regex
+        used_indices = set()
+
         for idx, sentence in enumerate(sentences):
             if idx in used_indices:
-                continue  # Already used in strict → skip forever
+                continue
+
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 all_discarded.append((url, sentence, "too_short"))
                 continue
+
+            # Handle trading denials
             if TRADING_STATEMENTS_REGEX.search(sentence):
-                # Capture the exact text that will be deleted
-                deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
-                # Capture the instrument name (ignore generics,such as "derivative instruments")
+                deleted_text = " ".join(
+                    m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence)
+                )
                 matches = CATEOGRY_REGEX.findall(sentence)
                 instrument = matches[0] if matches else ""
-                # Log it to your discard list with a clear reason
                 all_discarded.append((url, deleted_text.strip(), "trading_statements"))
 
-                # Now surgically remove it
                 sentence = TRADING_STATEMENTS_REGEX.sub("", sentence)
-
-                # Optional: clean up punctuation/whitespace (highly recommended)
-
                 sentence = cleanup_fragment(sentence)
-                # If the entire sentence was a denial, skip adding a paragraph
+
                 if not sentence:
-                    continue  # whole sentence gone → nothing to add
+                    continue
                 else:
-                    # Append the instrument name before the sentence so we don't lose the meaning for the remaing fragment.
                     sentence = instrument + " " + sentence if instrument else sentence
+
+            # Must have derivative keywords
             if not ALL_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue
-            # No need to check any exclusion category, but we still need to create mini paragraphs, with derivative keywords
+
+            # === NEW: Category-aware paragraph construction ===
+            core_categories = get_sentence_categories(sentence)
+
             parts = []
             context_indices = {idx}
+
+            # Check PREVIOUS sentence for compatibility
             if idx > 0 and (idx - 1) not in used_indices:
                 prev = sentences[idx - 1]
                 if len(prev) >= MIN_SENTENCE_LENGTH:
-                    parts.append(prev)
-                    context_indices.add(idx - 1)
+                    prev_cats = get_sentence_categories(prev)
+
+                    # Only add if categories are compatible
+                    if sentences_compatible(core_categories, prev_cats):
+                        parts.append(prev)
+                        context_indices.add(idx - 1)
+                    else:
+                        # Discard incompatible context
+                        all_discarded.append((url, prev, "category_mismatch_context"))
+
             parts.append(sentence)
 
+            # Check NEXT sentence for compatibility
             if idx + 1 < len(sentences) and (idx + 1) not in used_indices:
                 nxt = sentences[idx + 1]
                 if len(nxt) >= MIN_SENTENCE_LENGTH:
-                    parts.append(nxt)
-                    context_indices.add(idx + 1)
+                    nxt_cats = get_sentence_categories(nxt)
+
+                    # Only add if categories are compatible
+                    if sentences_compatible(core_categories, nxt_cats):
+                        parts.append(nxt)
+                        context_indices.add(idx + 1)
+                    else:
+                        # Discard incompatible context
+                        all_discarded.append((url, nxt, "category_mismatch_context"))
+
             final_paragraphs.append(" ".join(parts))
             used_indices.update(context_indices)
-
-        # # === PHASE 1: Strict matching (high precision) ===
-        # strict_paragraphs, strict_discarded, strict_used = _process_block_strict(
-        #     sentences, used_indices.copy(), url
-        # )
-        # final_paragraphs.extend(strict_paragraphs)
-        # all_discarded.extend(strict_discarded)
-        # used_indices.update(strict_used)
-
-        # # === PHASE 2: Soft fallback only on unused sentences ===
-        # if (
-        #     len(strict_paragraphs) < len(sentences) // 3
-        # ):  # heuristic: too few strict hits
-        #     soft_paragraphs, soft_discarded, soft_used = _process_block_soft(
-        #         sentences, used_indices, url  # pass current used set
-        #     )
-        #     final_paragraphs.extend(soft_paragraphs)
-        #     all_discarded.extend(soft_discarded)
-        #     used_indices.update(soft_used)
 
     return final_paragraphs, all_discarded
 
