@@ -54,7 +54,7 @@ This document outlines the development roadmap for building a classified dataset
 - [ ] **5. Remove Historical References**
   - **Status:** To-Do.
   - **Task:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. This ensures only current year or undated mentions remain, which is essential for the "active any use in current year" use case.
-  - **Output:** A filtered database containing only current or undated mentions of derivatives. Since we already determined the category, we can keep that metadata to determine active users. Note: peform a loose regex filter again to ensure no sentences without derivative keywords remain, or else we might have sentences that are only context.
+  - **Output:** A filtered database containing only current or undated mentions of derivatives. 
 
 - [ ] **6. Fine-Tune RoBERTa for High-Level Classification**
   - **Status:** To-Do.
