@@ -439,7 +439,16 @@ def create_clean_db():
                 url TEXT,
                 sentence TEXT,
                 discard_reason TEXT,
-                FOREIGN KEY (url) REFERENCES webpage_result(url)
+                FOREIGN KEY (url) REFERENCES webpage_result(url),
+                FOREIGN KEY (discard_reason) REFERENCES discard_reasons(reason)
+            )
+            """
+        )
+        # Discard reasons: no_match, too_short, trading_statement
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS discard_reasons (
+                reason TEXT PRIMARY KEY
             )
             """
         )
@@ -452,6 +461,18 @@ def create_clean_db():
     except sqlite3.IntegrityError as e:
         print(f"⚠️  Error creating clean database: {e}")
     finally:
+        try:
+            reasons = [
+                "no_match",
+                "too_short",
+                "trading_statements",
+            ]
+            c.executemany(
+                "INSERT OR IGNORE INTO discard_reasons (reason) VALUES (?)",
+                [(reason,) for reason in reasons],
+            )
+        except sqlite3.IntegrityError as e:
+            print(f"⚠️  Error inserting discard reasons: {e}")
         conn.commit()
         conn.close()
 
@@ -569,21 +590,21 @@ def flush_buffers(force: bool = False) -> bool:
 # =============================================================================
 
 
-def check_exclusion_category(sentence: str) -> Optional[str]:
-    """
-    Check if sentence matches any exclusion category.
-    Returns the category name if it matches, None otherwise.
-    """
-    if EXCLUDE_REGEX_EQUITY_COMP.search(sentence):
-        return "equity_compensation"
-    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(sentence):
-        return "legal_litigation"
-    if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence):
-        # Trick one: we need to make sure no other are matches
-        if not STRICT_REGEX.search(sentence):
-            return "accounting_standards"
-        return "accounting_standards"
-    return None
+# def check_exclusion_category(sentence: str) -> Optional[str]:
+#     """
+#     Check if sentence matches any exclusion category.
+#     Returns the category name if it matches, None otherwise.
+#     """
+#     if EXCLUDE_REGEX_EQUITY_COMP.search(sentence):
+#         return "equity_compensation"
+#     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(sentence):
+#         return "legal_litigation"
+#     if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence):
+#         # Trick one: we need to make sure no other are matches
+#         if not STRICT_REGEX.search(sentence):
+#             return "accounting_standards"
+#         return "accounting_standards"
+#     return None
 
 
 def filter_matches(
@@ -613,8 +634,13 @@ def filter_matches(
             if idx in used_indices:
                 continue  # Already used in strict → skip forever
             if len(sentence) < MIN_SENTENCE_LENGTH:
+                all_discarded.append((url, sentence, "too_short"))
                 continue
-            if not ALL_REGEX.search(sentence) or TRADING_STATEMENTS_REGEX.search(sentence):
+            if TRADING_STATEMENTS_REGEX.search(sentence):
+                all_discarded.append((url, sentence, "trading_statements"))
+                continue
+            if not ALL_REGEX.search(sentence):
+                all_discarded.append((url, sentence, "no_match"))
                 continue
             # No need to check any exclusion category, but we still need to create mini paragraphs, with derivative keywords
             parts = []
