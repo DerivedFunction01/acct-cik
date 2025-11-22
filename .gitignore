@@ -26,3 +26,4 @@ Qwen*/
 analysis_output/
 model/
 merge*.py
+*.log
