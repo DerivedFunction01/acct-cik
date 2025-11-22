@@ -229,6 +229,17 @@ COMBINED_EXCLUDE_REGEX = re.compile(
     re.IGNORECASE,
 )
 
+TRADING_STATEMENTS_REGEX = re.compile(
+    r"(?i)\bwe\s+(do\s+not|are\s+not)\s+(use|enter\s+into|engage\s+in|hold).*?"
+    r"(trading|speculative|speculation)\b"
+    r".*?\b(purposes?|activities?)\b"
+    r"|(?i)\bderivative\s+(instruments?|contracts?)\s+are\s+not\s+(used|entered\s+into)\s+for\s+(trading|speculative)"
+    r"|(?i)\bnot\s+(used|entered\s+into)\s+for\s+(trading|speculative)\s+purposes?"
+    r"|(?i)\bwe\s+do\s+not\s+speculate"
+    r"|(?i)\bfor\s+hedging\s+(or|and)\s+risk\s+management\s+(only|purposes?)\b",
+    re.IGNORECASE,
+)
+
 # =============================================================================
 # REGEX PATTERN BUILDERS
 # =============================================================================
@@ -603,7 +614,7 @@ def filter_matches(
                 continue  # Already used in strict → skip forever
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 continue
-            if not ALL_REGEX.search(sentence):
+            if not ALL_REGEX.search(sentence) or TRADING_STATEMENTS_REGEX.search(sentence):
                 continue
             # No need to check any exclusion category, but we still need to create mini paragraphs, with derivative keywords
             parts = []
