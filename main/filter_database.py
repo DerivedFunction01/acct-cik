@@ -299,7 +299,7 @@ def filter_matches(
                 deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
 
                 # Log it to your discard list with a clear reason
-                all_discarded.append((url, deleted_text.strip(), "trading_denial_boilerplate"))
+                all_discarded.append((url, deleted_text.strip(), "trading_statements"))
 
                 # Now surgically remove it
                 sentence = TRADING_STATEMENTS_REGEX.sub("", sentence)
