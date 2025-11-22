@@ -246,16 +246,24 @@ IR_REGEX = build_ir_regex()
 FX_REGEX = build_fx_regex()
 CP_REGEX = build_cp_regex()
 EQ_REGEX = build_eq_regex()
-STRICT_GEN_REGEX = build_strict_gen_regex()
-SOFT_GEN_REGEX = build_soft_gen_regex()
-
-STRICT_REGEX = re.compile(
+CATEOGRY_REGEX = re.compile(
     r"|".join(
         [
             IR_REGEX.pattern,
             FX_REGEX.pattern,
             CP_REGEX.pattern,
             EQ_REGEX.pattern,
+        ]
+    ),
+    re.IGNORECASE,
+)
+STRICT_GEN_REGEX = build_strict_gen_regex()
+SOFT_GEN_REGEX = build_soft_gen_regex()
+
+STRICT_REGEX = re.compile(
+    r"|".join(
+        [
+            CATEOGRY_REGEX.pattern,
             STRICT_GEN_REGEX.pattern,
         ]
     ),
