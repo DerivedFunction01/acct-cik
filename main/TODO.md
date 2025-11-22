@@ -70,10 +70,12 @@ This document outlines the development roadmap for building a classified dataset
 - [ ] **7. Final Controlled Deletion & Cleanup**
   - **Status:** To-Do.
   - **Task:** Perform final filtering steps on the classified data:
-    1. **Remove Non-Essential Context:** Discard sentences kept only for context that do not contain primary derivative keywords.
+    1. **Remove Non-Essential Context:** Discard sentences kept only for context that do not contain primary derivative keywords, which may include PnL impact statements or accounting treatment without active usage context.
     2. **Delete AOCI-Only Mentions:** Remove sentences that only mention AOCI, as these are not indicative of active use.
     3. **Delete Denial Statements:** Remove sentences that explicitly state the company does not use derivatives.
+    4. **Delete Potential use but not confirmed:** Remove sentences that indicate potential future use without confirmation of current use.
   - **Output:** The final, analysis-ready database (`final_web_data.db`) containing only current, relevant, and categorized derivative mentions.
+
 
 - [ ] **8. Aggregation & Analysis**
   - **Status:** To-Do.
