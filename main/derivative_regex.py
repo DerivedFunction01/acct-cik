@@ -4,6 +4,35 @@ from typing import List
 # =============================================================================
 # SHARED COMPONENTS (moved from filter_database.py)
 # =============================================================================
+# In derivative_regex.py (add to your existing patterns)
+# Comparison verbs phrases
+comparison_phrases = [
+    "compared to",
+    "versus",
+    "as against",
+    "in comparison with",
+    "whereas",
+    "compared with",
+    "relative to",
+    "in contrast to",
+    "as opposed to",
+    "vis-à-vis",
+    "when compared with",
+    "in comparison with",
+]
+
+verb_list = [
+    "hold",
+    "utilize",
+    "maintain",
+    "have",
+    "use",
+    "employ",
+    "carry",
+    "possess",
+    "be a party to",
+]
+
 SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<=[.!?])\s+(?=[A-Z])|"  # Period/exclamation/question + whitespace + uppercase
     r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (extraction artifacts)
@@ -327,7 +356,6 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     "amendment",
 ]
 
-
 def build_exclude_regex(keywords: list) -> re.Pattern:
     """Build regex for excluding noise keywords."""
     escaped_keywords = [re.escape(kw) for kw in keywords]
@@ -344,30 +372,69 @@ COMBINED_EXCLUDE_REGEX = re.compile(
     f"({EXCLUDE_REGEX_EQUITY_COMP.pattern})|({EXCLUDE_REGEX_LEGAL_LITIGATION.pattern})|({EXCLUDE_REGEX_ACCOUNTING_STD.pattern})",
     re.IGNORECASE,
 )
+SUBJECTS = [
+    # Simple pronouns
+    r"we",
+    r"us",
+    # Generic entity terms
+    r"(?:the\s+)?(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
+    r"(?:our\s+)(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
+    # Management references
+    r"(?:the\s+)?(?:our\s+)?management",
+    # LLC / LP / GP structures
+    r"(?:the\s+|our\s+)?(?:llc|l\.l\.c\.|lp|l\.p\.|gp|g\.p\.)",
+    # Partnership (general/limited)
+    r"(?:the\s+|our\s+)?(?:general\s+partner|limited\s+partner|partnership)",
+    # Corporate forms
+    r"(?:the\s+|our\s+)?(?:corporation|corp\.|co\.|inc\.|incorporated)",
+    # Parent entity references
+    r"(?:the\s+|our\s+)?(?:parent(?:\s+company)?)",
+    # Subsidiary references
+    r"(?:the\s+|our\s+)?(?:wholly[-\s]+owned\s+)?(?:subsidiary|subsidiaries)",
+]
+SUBJ = build_alternation(SUBJECTS)
+# ============================================================================
+# TIME-RELATED PATTERNS (Reusable)
+# ============================================================================
 
+TIME_UNITS = [
+    r"year",
+    r"period",
+    r"quarter",
+    r"month",
+]
 
+TIME_MODIFIERS = [
+    r"prior",
+    r"previous",
+    r"preceding",
+    r"earlier",
+    r"last",
+    r"past",
+    r"comparable",
+    r"corresponding",
+    r"historical",
+]
+
+CURRENT_TIME_INDICATORS = [
+    r"current",
+    r"present",
+    r"ongoing",
+    r"existing",
+    r"outstanding",
+    r"open",
+    r"active",
+]
+
+# Build alternations once
+TIME_UNIT_PATTERN = build_alternation(TIME_UNITS)
+TIME_MODIFIER_PATTERN = build_alternation(TIME_MODIFIERS)
+CURRENT_TIME_PATTERN = build_alternation(CURRENT_TIME_INDICATORS)
+COMPARISON_PATTERN = build_alternation(comparison_phrases)
+VERB_PATTERN = build_alternation(verb_list)
 def build_trading_denial_pattern() -> re.Pattern:
     """Build regex pattern for detecting trading denial statements to remove/mask them."""
-    SUBJECTS = [
-        # Simple pronouns
-        r"we",
-        r"us",
-        # Generic entity terms
-        r"(?:the\s+)?(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
-        r"(?:our\s+)(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
-        # Management references
-        r"(?:the\s+)?(?:our\s+)?management",
-        # LLC / LP / GP structures
-        r"(?:the\s+|our\s+)?(?:llc|l\.l\.c\.|lp|l\.p\.|gp|g\.p\.)",
-        # Partnership (general/limited)
-        r"(?:the\s+|our\s+)?(?:general\s+partner|limited\s+partner|partnership)",
-        # Corporate forms
-        r"(?:the\s+|our\s+)?(?:corporation|corp\.|co\.|inc\.|incorporated)",
-        # Parent entity references
-        r"(?:the\s+|our\s+)?(?:parent(?:\s+company)?)",
-        # Subsidiary references
-        r"(?:the\s+|our\s+)?(?:wholly[-\s]+owned\s+)?(?:subsidiary|subsidiaries)",
-    ]
+    
 
     NEGATORS = [
         r"do\s+not",
@@ -420,7 +487,7 @@ def build_trading_denial_pattern() -> re.Pattern:
         r"transactions?",
     ]
 
-    SUBJ = build_alternation(SUBJECTS)
+    
     NEG = build_alternation(NEGATORS)
     ACT = build_alternation(ACTIONS)
     TRAD = build_alternation(TRADING_WORDS)
@@ -477,7 +544,67 @@ def build_trading_denial_pattern() -> re.Pattern:
     )
     return re.compile(pattern, re.IGNORECASE)
 
+
 TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
+
+def build_prior_statement_pattern() -> re.Pattern:
+    """
+    Build regex pattern for detecting prior period statements to remove them.
+    Works after you have already stripped numerical years.
+    Deletes ONLY the historical fragment — preserves everything after
+    but/however/currently/we use/etc.
+    Example:
+      "In prior year we used swaps, but currently we use forwards"
+       └────DELETE THIS─────────┘  └────KEEP THIS────────────┘
+    """
+
+    # Prepositions that introduce time references
+    PREPOSITIONS = [
+        r"in",
+        r"during",
+        r"for",
+        r"as\s+of",
+        r"at",
+        r"from",
+        r"throughout",
+        r"over",
+    ]
+
+    PRIOR_TERMS = [
+        rf"(?:{TIME_MODIFIER_PATTERN})\s+(?:fiscal\s+)?(?:{TIME_UNIT_PATTERN})s?",
+        r"same\s+period\s+last\s+year",
+        r"year\s+ago",
+        r"months?\s+ago",
+        r"quarters?\s+ago",
+        r"prior\s+to",
+    ]
+
+    PREP = build_alternation(PREPOSITIONS)
+    PRIOR = build_alternation(PRIOR_TERMS)
+    SUBJ = build_alternation(SUBJECTS)  # Already available
+    # Strong boundary — stop deletion exactly when a current-period statement begins
+    BOUNDARY = rf"""
+        (?=                                       
+            \s*[,;:.]\s*                        
+            | \s+(?:but|however|whereas|although|though|while|yet)\b
+            | \s+(?:currently|now|today|presently|at\s+present)\b
+            | \s+this\s+(?:year|period|quarter)\b
+            | \s+during\s+the\s+(?:current\s+)?(?:year|period)\b
+            | \s+as\s+of\s+(?:year[- ]end)\b
+            | \s+(?:{SUBJ})\s+{VERB_PATTERN}\b           
+            | $                                   
+        )
+    """
+
+    # Core patterns for prior-period references
+    pattern1 = rf"(?:\b(?:{SUBJ})\s+)?(?:{PREP})\s+(?:{PRIOR})\b[^,.;]*?"
+    pattern2 = rf"\b(?:{PREP})\s+(?:{PRIOR})\b[^,.;]*?"
+    pattern3 = rf"\b(?:{COMPARISON_PATTERN})\s+to\s+(?:{PRIOR})[^,.;]*?"
+
+    full_pattern = f"({pattern1}|{pattern2}|{pattern3}){BOUNDARY}"
+
+    return re.compile(full_pattern, re.IGNORECASE | re.VERBOSE)
+
 # =============================================================================
 # EXCLUSION PATTERNS (from webpage.py)
 # =============================================================================
