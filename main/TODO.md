@@ -62,9 +62,9 @@ This document outlines the development roadmap for building a classified dataset
 
 - [ ] **6. Implement Controlled Deletion Script**
   - **Status:** To-Do.
-  - **Task:** Create a script that performs the final filtering steps on the classified data from Phase 2. This logic is partially implemented in `filter_year_database.py` and should be adapted.
+  - **Task:** Create a script that performs the final filtering steps on the classified data from Phase 2. This logic is partially implemented in `controlled_deletion.py` and should be adapted.
   - **Deletion Logic:**
-    1. **Remove Historical Data:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. The `filter_year_database.py` script provides a strong template for this.
+    1. **Remove Historical Data:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. The `controlled_deletion.py` script provides a strong template for this.
     2. **Remove Non-Essential Context:** After classification, sentences that were kept for context but do not contain primary derivative keywords can be discarded. The high-level classifications from Step 5 make this possible without losing key information.
     3. **Delete AOCI-Only Mentions:** Not required and not indicative of active use.
     4. **Delete Denial Statements:** Sentences that explicitly state the company does not use derivatives.
