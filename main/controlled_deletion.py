@@ -46,12 +46,11 @@ NUM_WORKERS = get_worker_count()
 BATCH_SIZE = 1000
 SOURCE_DB_PATH = "web_data.db"
 FINAL_DB_PATH = "final_web_data.db"
+try:
+    from derivative_regex import SENTENCE_SPLIT_PATTERN, YEAR_REGEX
+except Exception:
+    from .derivative_regex import SENTENCE_SPLIT_PATTERN, YEAR_REGEX
 
-# Regex to find years between 1980-2049, followed by a word boundary character
-YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20[0-4]\d)(?=[);,.\s])")
-
-# Sentence splitting pattern from the previous script
-SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+(?=[A-Z])|" r"(?<=[a-z])(?=[A-Z])")
 
 # =============================================================================
 # DATABASE FUNCTIONS
