@@ -22,6 +22,7 @@ try:
         SENTENCE_SPLIT_PATTERN,
         MIN_SENTENCE_LENGTH,
         TRADING_STATEMENTS_REGEX,
+        CATEOGRY_REGEX,
         cleanup_fragment,
     )
 except Exception:
@@ -30,6 +31,7 @@ except Exception:
         SENTENCE_SPLIT_PATTERN,
         MIN_SENTENCE_LENGTH,
         TRADING_STATEMENTS_REGEX,
+        CATEOGRY_REGEX,
         cleanup_fragment,
     )
 
@@ -297,7 +299,8 @@ def filter_matches(
             if TRADING_STATEMENTS_REGEX.search(sentence):
                 # Capture the exact text that will be deleted
                 deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
-
+                # Capture the instrument name (ignore generics,such as "derivative instruments")
+                instrument = CATEOGRY_REGEX.findall(sentence)[0]
                 # Log it to your discard list with a clear reason
                 all_discarded.append((url, deleted_text.strip(), "trading_statements"))
 
@@ -310,6 +313,9 @@ def filter_matches(
                 # If the entire sentence was a denial, skip adding a paragraph
                 if not sentence:
                     continue  # whole sentence gone → nothing to add
+                else:
+                    # Append the instrument name before the sentence so we don't lose the meaning for the remaing fragment.
+                    sentence = instrument + " " + sentence if instrument else sentence
             if not ALL_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue
