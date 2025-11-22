@@ -49,24 +49,24 @@ This document outlines the development roadmap for building a classified dataset
     4. Discard false positives.
     5. Store the cleaned, relevant-only paragraphs in a new database (e.g., `clean_web_data.db`).
 
-- [ ] **5. Fine-Tune RoBERTa for High-Level Classification**
-  - **Status:** To-Do.
-  - **Task:** Fine-tune a separate RoBERTa model (or the same one, depending on strategy) to perform multi-label or multi-class classification on the *relevant* sentences.
-  - **Classification Schema:**
-    - **Category:** `interest_rate`, `foreign_exchange`, `commodity`, `equity`, `generic_other`.
-    - **Usage Indicator (Optional but Recommended):** `active_use` vs. `passive_mention` vs `denial`. This is the core of the "active user" goal. It doesn't matter which year this occured, a controlled deletion script with delete prior years will be implemented later.
-        - `active_use`: Sentences indicating current or recent usage of derivatives for hedging or trading purposes.
-        - `passive_mention`: Passive statements such as PnL impact, accounting treatment.
-        - `denial`: Explicit statements denying the use of derivatives or none at all. Should work since we deleted all trading statements before.
-  - **Training Data:** Requires a labeled dataset of relevant sentences categorized by derivative type and usage
-  - **Goal:** Retain high-level metadata about each sentence before the final deletion stage. The output should be structured data, not just text.
-
 ## Phase 3: Controlled Deletion & Final Dataset Assembly
 
-- [ ] **6. Remove Historical References**
+- [ ] **5. Remove Historical References**
   - **Status:** To-Do.
   - **Task:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. This ensures only current year or undated mentions remain, which is essential for the "active any use in current year" use case.
   - **Output:** A filtered database containing only current or undated mentions of derivatives. Since we already determined the category, we can keep that metadata to determine active users. Note: peform a loose regex filter again to ensure no sentences without derivative keywords remain, or else we might have sentences that are only context.
+
+- [ ] **6. Fine-Tune RoBERTa for High-Level Classification**
+  - **Status:** To-Do.
+  - **Task:** Fine-tune a separate RoBERTa model (or the same one, depending on strategy) to perform multi-label or multi-class classification on the *relevant* sentences. Reason: the current regex will not be able to capture all forms of derivative instruments and usage contexts.
+  - **Classification Schema:**
+    - **Category:** `interest_rate`, `foreign_exchange`, `commodity`, `equity`, `generic_other`.
+    - **Usage Indicator (Optional but Recommended):** `active_use` vs. `passive_mention` vs `denial`. This is the core of the "active user" goal. We should have deleted all trading statements, so `denial` should be straightforward. Also, since we are supposed to be left with only current year mentions, `active_use` should be easier to identify.
+        - `active_use`: Sentences indicating current or recent usage of derivatives for hedging or trading purposes.
+        - `passive_mention`: Passive statements such as PnL impact, accounting treatment.
+        - `denial`: Explicit statements denying the use of derivatives or none at all. 
+  - **Training Data:** Requires a labeled dataset of relevant sentences categorized by derivative type and usage
+  - **Goal:** Retain high-level metadata about each sentence before the final deletion stage. The output should be structured data, not just text.
 
 - [ ] **7. Final Controlled Deletion & Cleanup**
   - **Status:** To-Do.
