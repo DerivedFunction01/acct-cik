@@ -21,7 +21,7 @@ CPU_SERVER_PORT = 5002
 
 PID_FILE = "server-bert.pid"
 NGINX_CONF_FILE = "nginx-bert.conf"
-SERVER_SCRIPT = "bert_server:app"  # Adjust if your module name differs
+SERVER_SCRIPT = "server:app"  # Adjust if your module name differs
 CACHE_FILE = ".server_cache-bert.json"
 CACHE_DURATION = 60 * 60 * 24 * 7  # 7 days
 
@@ -225,6 +225,24 @@ def is_windows():
     return platform.system() == "Windows"
 
 
+def check_waitress():
+    """Checks if waitress is installed, which is needed for Windows."""
+    if shutil.which("waitress-serve") is not None:
+        return True
+    print("⚠️  'waitress-serve' command not found.")
+    install_prompt = (
+        input(
+            "   It's needed for Windows support. Install it now? (pip install waitress) [y/N]: "
+        )
+        .lower()
+        .strip()
+    )
+    if install_prompt == "y":
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "waitress"])
+        return shutil.which("waitress-serve") is not None
+    return False
+
+
 # =============================================================================484
 # MAIN FUNCTIONS
 # =============================================================================
@@ -232,9 +250,37 @@ def is_windows():
 
 def start_servers(args):
     if is_windows():
-        print("Windows detected – not supported in this multi-worker version.")
-        print("Use the original script with waitress for Windows.")
-        return
+        print("ℹ️  Windows detected. Using 'waitress' server instead of Gunicorn/Nginx.")
+        if not check_waitress():
+            print("❌ Cannot start server on Windows without 'waitress'.")
+            return
+
+        model_available = pre_download_model()
+        gpu_ram_gb = get_gpu_ram()
+        save_cache(model_available, gpu_ram_gb)
+
+        server_env = os.environ.copy()
+        if gpu_ram_gb > 0:
+            print(f"🚀 Starting server in GPU mode on http://127.0.0.1:{NGINX_PORT}")
+            server_env["DEVICE_TYPE"] = "gpu"
+        else:
+            print(f"🚀 Starting server in CPU mode on http://127.0.0.1:{NGINX_PORT}")
+            server_env["DEVICE_TYPE"] = "cpu"
+
+        # Use waitress-serve on Windows. It runs in the foreground.
+        waitress_cmd = (
+            f"waitress-serve --host 127.0.0.1 --port {NGINX_PORT} {SERVER_SCRIPT}"
+        )
+        print("   To stop the server, press Ctrl+C in this window.")
+        try:
+            subprocess.run(waitress_cmd.split(), env=server_env)
+        except KeyboardInterrupt:
+            print("\n✅ Server stopped by user.")
+        except FileNotFoundError:
+            print("❌ 'waitress-serve' not found. Please run 'pip install waitress'.")
+        except Exception as e:
+            print(f"❌ An error occurred while running the server: {e}")
+        return  # End of Windows-specific logic
 
     if not check_nginx() or not check_gunicorn():
         return
@@ -319,7 +365,7 @@ def stop_servers():
     subprocess.run(
         f"nginx -s stop -c {os.path.abspath(NGINX_CONF_FILE)}", shell=True, check=False
     )
-    subprocess.run("pkill -f 'gunicorn.*bert_server'", shell=True, check=False)
+    subprocess.run("pkill -f 'gunicorn.*server'", shell=True, check=False)
     if os.path.exists(PID_FILE):
         try:
             os.remove(PID_FILE)
