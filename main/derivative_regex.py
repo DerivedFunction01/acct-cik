@@ -22,17 +22,23 @@ comparison_phrases = [
 ]
 
 verb_list = [
-    "hold",
-    "utilize",
-    "maintain",
-    "have",
-    "use",
-    "employ",
-    "carry",
-    "possess",
-    "be a party to",
+    r"hold(?:s|ing|ed)?",  # hold, holds, holding, held → we approximate with "holded" for simplicity in some contexts, but strictly "held" needs separate handling if required
+    r"utiliz(?:e|es|ing|ed)",  # utilize, utilizes, utilizing, utilized
+    r"maintain(?:s|ing|ed)?",  # maintain, maintains, maintaining, maintained
+    r"hav(?:e|es|ing|ed)",  # have, has, having, had → note: "had" is irregular
+    r"had",
+    r"us(?:e|es|ing|ed)",  # use, uses, using, used
+    r"employ(?:s|ing|ed)?",  # employ, employs, employing, employed
+    r"carr(?:y|ies|ying|ied)",  # carry, carries, carrying, carried
+    r"possess(?:es|ing|ed)?",  # possess, possesses, possessing, possessed
+    r"be a party to",  # fixed phrase – left as-is (will need word boundaries in final regex)
+    r"execut(?:e|es|ing|ed)",  # execute, executes, executing, executed
+    r"hedg(?:e|es|ing|ed)?",  # hedge, hedges, hedging, hedged
+    r"manag(?:e|es|ing|ed)",  # manage, manages, managing, managed
+    r"mitigat(?:e|es|ing|ed)",  # mitigate, mitigates, mitigating, mitigated
+    r"seek(?:s|ing)?\s+to",  # seek to, seeks to, seeking to (note the required "to")
+    r"appl(?:y|ies|ying|ied)",  # apply, applies, applying, applied
 ]
-
 SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<=[.!?])\s+(?=[A-Z])|"  # Period/exclamation/question + whitespace + uppercase
     r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (extraction artifacts)
@@ -471,7 +477,7 @@ def build_trading_denial_pattern() -> re.Pattern:
         r"maintain(?:ed|s)?",
     ]
 
-    OBJ = STRICT_REGEX.pattern
+    OBJ = STRICT_REGEX.pattern # Not needed, we already had caught them in intial filtering
 
     TRADING_WORDS = [
         r"trading",
@@ -588,8 +594,8 @@ def build_prior_statement_pattern() -> re.Pattern:
             \s*[,;:.]\s*                        
             | \s+(?:but|however|whereas|although|though|while|yet)\b
             | \s+(?:currently|now|today|presently|at\s+present)\b
-            | \s+this\s+(?:year|period|quarter)\b
-            | \s+during\s+the\s+(?:current\s+)?(?:year|period)\b
+            | \s+this\s+(?:{TIME_UNIT_PATTERN})\b
+            | \s+during\s+the\s+(?:current\s+)?(?:{TIME_UNIT_PATTERN})\b
             | \s+as\s+of\s+(?:year[- ]end)\b
             | \s+(?:{SUBJ})\s+{VERB_PATTERN}\b           
             | $                                   
@@ -604,7 +610,7 @@ def build_prior_statement_pattern() -> re.Pattern:
     full_pattern = f"({pattern1}|{pattern2}|{pattern3}){BOUNDARY}"
 
     return re.compile(full_pattern, re.IGNORECASE | re.VERBOSE)
-
+PRIOR_PATTERN = build_prior_statement_pattern()
 # =============================================================================
 # EXCLUSION PATTERNS (from webpage.py)
 # =============================================================================
@@ -727,4 +733,5 @@ __all__ = [
     "TABLE_BASE_TYPES_REGEX",
     "YEAR_REGEX",
     "cleanup_fragment",
+    "PRIOR_PATTERN"
 ]
