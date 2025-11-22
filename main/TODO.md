@@ -63,6 +63,7 @@ This document outlines the development roadmap for building a classified dataset
     - **Category:** `interest_rate`, `foreign_exchange`, `commodity`, `equity`, `generic_other`.
     - **Usage Indicator (Optional but Recommended):** `active_use` vs. `passive_mention` vs `denial`. This is the core of the "active user" goal. We should have deleted all trading statements, so `denial` should be straightforward. Also, since we are supposed to be left with only current year mentions, `active_use` should be easier to identify.
         - `active_use`: Sentences indicating current or recent usage of derivatives for hedging or trading purposes.
+        - `termination`: Sentences indicating the cessation of derivative use. Critical to identify companies that have stopped using derivatives for current year analysis, since they are not active year-end users, but had some derivative use in the reporting year.
         - `passive_mention`: Passive statements such as PnL impact, accounting treatment.
         - `denial`: Explicit statements denying the use of derivatives or none at all. 
   - **Training Data:** Requires a labeled dataset of relevant sentences categorized by derivative type and usage
