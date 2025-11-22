@@ -410,31 +410,35 @@ TIME_UNITS = [
     r"month",
 ]
 
-TIME_MODIFIERS = [
-    r"prior",
-    r"previous",
-    r"preceding",
-    r"earlier",
-    r"last",
-    r"past",
-    r"comparable",
-    r"corresponding",
-    r"historical",
+PAST_TIME_INDICATORS = [
+    r"prior",  # prior, priors rarely used → no inflection needed
+    r"previous",  # previous(ly)? rarely plural
+    r"preced(?:e|es|ed|ing)",
+    r"earlier",  # earlier/earliest already covered as comparative
+    r"last",  # last/lasts/lasting → but usually adjective; add if needed
+    r"past",  # past/pasts rarely plural in this context
+    r"comparable",  # comparable/comparably
+    r"correspond(?:s|ed|ing)",  # corresponding is very common
+    r"historical",  # historical/historically
+    r"former",  # very common synonym for past periods
+    r"before",  # e.g., "before the reporting date"
+    r"earlier\s+(?:in|during|as\s+of)",  # common collocations
 ]
 
 CURRENT_TIME_INDICATORS = [
-    r"current",
-    r"present",
+    r"present(?:ly)?",
+    r"current(?:ly)?",
+    r"now",
+    r"today",
+    r"as\s+of\s+(?:the\s+date|today|current\s+period)",
+    r"at\s+present",
     r"ongoing",
     r"existing",
-    r"outstanding",
-    r"open",
-    r"active",
 ]
 
 # Build alternations once
 TIME_UNIT_PATTERN = build_alternation(TIME_UNITS)
-TIME_MODIFIER_PATTERN = build_alternation(TIME_MODIFIERS)
+PAST_TIME_PATTERN = build_alternation(PAST_TIME_INDICATORS)
 CURRENT_TIME_PATTERN = build_alternation(CURRENT_TIME_INDICATORS)
 COMPARISON_PATTERN = build_alternation(comparison_phrases)
 VERB_PATTERN = build_alternation(verb_list)
@@ -577,7 +581,7 @@ def build_prior_statement_pattern() -> re.Pattern:
     ]
 
     PRIOR_TERMS = [
-        rf"(?:{TIME_MODIFIER_PATTERN})\s+(?:fiscal\s+)?(?:{TIME_UNIT_PATTERN})s?",
+        rf"(?:{PAST_TIME_PATTERN})\s+(?:fiscal\s+)?(?:{TIME_UNIT_PATTERN})s?",
         r"same\s+period\s+last\s+year",
         r"year\s+ago",
         r"months?\s+ago",
@@ -593,7 +597,7 @@ def build_prior_statement_pattern() -> re.Pattern:
         (?=                                       
             \s*[,;:.]\s*                        
             | \s+(?:but|however|whereas|although|though|while|yet)\b
-            | \s+(?:currently|now|today|presently|at\s+present)\b
+            | \s+(?:{CURRENT_TIME_PATTERN})\b
             | \s+this\s+(?:{TIME_UNIT_PATTERN})\b
             | \s+during\s+the\s+(?:current\s+)?(?:{TIME_UNIT_PATTERN})\b
             | \s+as\s+of\s+(?:year[- ]end)\b
