@@ -21,7 +21,7 @@ import sys
 # CONFIGURATION
 # =============================================================================
 
-DB_PATH = "web_data.db"
+DB_PATH = "prepared_data.db"  # Change from "web_data.db"
 REPORT_CSV_PATH = "./report_data.csv"
 SERVER_BASE_URL = "http://127.0.0.1:5000"
 DEBUG = False

@@ -91,6 +91,16 @@ def create_clean_db():
             )
             """
         )
+        # Server result table: Roberta's results
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS server_result (
+                url TEXT PRIMARY KEY,
+                server_response TEXT,
+                FOREIGN KEY (url) REFERENCES webpage_result(url)
+            )
+        """
+        )
         # Discard tracking table - stores discarded sentences for review
         c.execute(
             """
@@ -117,6 +127,7 @@ def create_clean_db():
         c.execute(
             "CREATE INDEX IF NOT EXISTS discard_reason_idx ON discarded_sentences (discard_reason)"
         )
+        c.execute("CREATE INDEX IF NOT EXISTS server_url_idx ON server_result (url)")
         c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError as e:
         print(f"⚠️  Error creating clean database: {e}")

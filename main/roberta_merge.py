@@ -41,7 +41,7 @@ def create_clean_db():
     conn = sqlite3.connect(CLEAN_DB_PATH)
     c = conn.cursor()
     c.execute(
-        """CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, matches TEXT)"""
+        """CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, matches TEXT, categories_processed INTEGER DEFAULT 0)"""
     )
     c.execute(
         """CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER)"""
