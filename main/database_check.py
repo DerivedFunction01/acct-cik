@@ -194,8 +194,5 @@ if __name__ == "__main__":
     import sys
 
     workers = int(sys.argv[1]) if len(sys.argv) > 1 else None
-
-    populate_categories_array("prepared_data.db", workers)
-    populate_categories_array("hedge_data.db", workers)
-    populate_categories_array("current_data.db", workers)
-    populate_categories_array("active_data.db", workers)
+    database = input("Enter database name: ").strip().split(".db")[0]
+    populate_categories_array(f"{database}.db", num_workers=workers)
