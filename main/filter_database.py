@@ -15,6 +15,36 @@ from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 import time
 
+# Import all derivative regexes
+try:
+    from derivative_regex import (
+        ALL_REGEX,
+        SENTENCE_SPLIT_PATTERN,
+        MIN_SENTENCE_LENGTH,
+        EQUITY_COMP_KEYWORDS,
+        LEGAL_LITIGATION_KEYWORDS,
+        ACCOUNTING_STANDARDS_KEYWORDS,
+        EXCLUDE_REGEX_EQUITY_COMP,
+        EXCLUDE_REGEX_LEGAL_LITIGATION,
+        EXCLUDE_REGEX_ACCOUNTING_STD,
+        COMBINED_EXCLUDE_REGEX,
+        TRADING_STATEMENTS_REGEX,
+    )
+except Exception:
+    from .derivative_regex import (
+        ALL_REGEX,
+        SENTENCE_SPLIT_PATTERN,
+        MIN_SENTENCE_LENGTH,
+        EQUITY_COMP_KEYWORDS,
+        LEGAL_LITIGATION_KEYWORDS,
+        ACCOUNTING_STANDARDS_KEYWORDS,
+        EXCLUDE_REGEX_EQUITY_COMP,
+        EXCLUDE_REGEX_LEGAL_LITIGATION,
+        EXCLUDE_REGEX_ACCOUNTING_STD,
+        COMBINED_EXCLUDE_REGEX,
+        TRADING_STATEMENTS_REGEX,
+    )
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -40,366 +70,6 @@ CLEAN_DB_PATH = "clean_web_data.db"
 # In-memory buffers (protected by main process only)
 result_buffer = []  # List of (url, matches, cik, year)
 discard_buffer = []  # List of (url, sentence, reason)
-
-# =============================================================================
-# SHARED COMPONENTS (from regex builder)
-# =============================================================================
-# Compile once at module level
-SENTENCE_SPLIT_PATTERN = re.compile(
-    r"(?<=[.!?])\s+(?=[A-Z])|"  # Period/exclamation/question + whitespace + uppercase
-    r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (extraction artifacts)
-)
-
-# Unambiguous derivative base types (used in gen regex)
-UNAMBIGUOUS_BASE_TYPES = [
-    "swaps?",
-    "forwards?",
-    "caps?",
-    "floors?",
-    "collars?",
-    "derivatives?",
-    "swaptions?",
-    "locks?",
-]
-
-# Ambiguous base types (only safe when prefixed by category)
-AMBIGUOUS_BASE_TYPES = [
-    "futures?",
-    "options?",
-]
-
-# All base types (for category-specific regexes that prefix them)
-ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
-
-ALL_SUFFIXES = [
-    "agreements?",
-    "contracts?",
-    "instruments?",
-    "arrangements?",
-    "assets?",
-    "liabilit(?:y|ies)",
-    "commitments?",
-    "positions?",
-    "strateg(?:ies|y)",
-]
-
-COMMON_COMMODITIES = [
-    "agricultural",
-    "aluminum",
-    "asphalt",
-    "base metal",
-    "biodiesel",
-    "biomass",
-    "bitumen",
-    "cement",
-    "chemical",
-    "coal",
-    "cocoa",
-    "coffee",
-    "concrete",
-    "copper",
-    "corn",
-    "cotton",
-    "crude oil",
-    "dairy",
-    "diesel fuel",
-    "electricity",
-    "energy",
-    "ethanol",
-    "feedstock",
-    "fertilizer",
-    "fuel",
-    "gas",
-    "gasoline",
-    "grain",
-    "gravel",
-    "hardwood lumber",
-    "iron",
-    "limestone",
-    "livestock",
-    "log",
-    "lumber",
-    "metal",
-    "mineral",
-    "natural gas",
-    "nitrogen",
-    "paper",
-    "ore",
-    "petrochemical",
-    "petroleum",
-    "phosphate",
-    "plastic",
-    "plywood",
-    "polymer",
-    "potash",
-    "precious metal",
-    "pulp",
-    "raw material",
-    "resin",
-    "rubber",
-    "salt",
-    "sand",
-    "soda ash",
-    "softwood lumber",
-    "soybean",
-    "steel",
-    "sugar",
-    "sulfur",
-    "textile",
-    "timber",
-    "titanium",
-    "uranium",
-    "wood",
-    "wood chip",
-    "wood pellet",
-    "wool",
-]
-
-# =============================================================================
-# CATEGORIZED EXCLUSION PATTERNS
-# =============================================================================
-
-# Section 1: Employee Equity Compensation
-EQUITY_COMP_KEYWORDS = [
-    "stock option",
-    "stock award",
-    "restricted stock",
-    "RSU",
-    "compensation",
-    "employee",
-    "share-based",
-    "vesting",
-    "exercisable",
-    "stock purchase",
-    "ESPP",
-    "bonus",
-    "salary",
-    "wage",
-    "dividend",
-    "stock split",
-    "stock dividend",
-    "outstanding shares",
-    "share repurchase",
-    "buyback",
-    "warrant",
-    "hedge fund",
-]
-
-# Section 2: Legal/Litigation
-LEGAL_LITIGATION_KEYWORDS = [
-    "lawsuit",
-    "civil action",
-    "officer",
-    "director",
-    "convicted",
-]
-
-# Section 3: Accounting Standards
-ACCOUNTING_STANDARDS_KEYWORDS = [
-    "fasb",
-    "sfas",
-    "s.f.a.s",
-    "asc 815",
-    "a.s.c 815",
-    "Credit Enhancement and Other Support",
-    "Regulation AB",
-    "regulat",
-    "adoption",
-    "amendment",
-]
-
-# Minimum sentence length to consider
-MIN_SENTENCE_LENGTH = 50
-
-
-def build_exclude_regex(keywords: List[str]) -> re.Pattern:
-    """Build regex for excluding noise keywords."""
-    escaped_keywords = [re.escape(kw) for kw in keywords]
-    pattern = "|".join(escaped_keywords)
-    return re.compile(pattern, re.IGNORECASE)
-
-
-EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
-EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
-EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS)
-
-# Combined exclusion regex (tested first - very fast)
-COMBINED_EXCLUDE_REGEX = re.compile(
-    f"({EXCLUDE_REGEX_EQUITY_COMP.pattern})|({EXCLUDE_REGEX_LEGAL_LITIGATION.pattern})|({EXCLUDE_REGEX_ACCOUNTING_STD.pattern})",
-    re.IGNORECASE,
-)
-
-TRADING_STATEMENTS_REGEX = re.compile(
-    r"(?i)\bwe\s+(do\s+not|are\s+not)\s+(use|enter\s+into|engage\s+in|hold).*?"
-    r"(trading|speculative|speculation)\b"
-    r".*?\b(purposes?|activities?)\b"
-    r"|(?i)\bderivative\s+(instruments?|contracts?)\s+are\s+not\s+(used|entered\s+into)\s+for\s+(trading|speculative)"
-    r"|(?i)\bnot\s+(used|entered\s+into)\s+for\s+(trading|speculative)\s+purposes?"
-    r"|(?i)\bwe\s+do\s+not\s+speculate"
-    r"|(?i)\bfor\s+hedging\s+(or|and)\s+risk\s+management\s+(only|purposes?)\b",
-    re.IGNORECASE,
-)
-
-# =============================================================================
-# REGEX PATTERN BUILDERS
-# =============================================================================
-
-
-def build_alternation(items: List[str]) -> str:
-    """Build optimized alternation pattern from list of items."""
-    if not items:
-        return ""
-    if len(items) == 1:
-        return items[0]
-    return f'(?:{"|".join(items)})'
-
-
-def build_smart_regex(
-    core_terms: List[str], context_terms: List[str], specific_phrases: List[str]
-) -> str:
-    """Build regex combining core terms with context and specific phrases."""
-    core_pattern = build_alternation(core_terms)
-    follow_pattern = build_alternation(context_terms)
-    pattern1 = f"{core_pattern}[- ]{follow_pattern}"
-    pattern2 = build_alternation(specific_phrases)
-    return build_alternation([pattern1, pattern2])
-
-
-def build_ir_regex() -> re.Pattern:
-    """Build optimized Interest Rate derivatives regex."""
-    core_terms = [
-        "interest[- ]rate",
-        "single[- ]currency",
-        "Eurodollar",
-        "SOFR",
-        "SONIA",
-        "LIBOR",
-        "LIBOR[- ]based",
-        "EURIBOR",
-        "(?:treasury|forward|fixed|floating|variable|benchmark)[- ]rate",
-    ]
-    specific_phrases = [
-        "zero[- ]coupon swap",
-        "FRA",
-        "treasury lock",
-        "basis swap",
-    ]
-    pattern = build_smart_regex(
-        core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
-    )
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
-
-def build_fx_regex() -> re.Pattern:
-    """Build optimized Foreign Exchange derivatives regex."""
-    core_terms = [
-        "foreign[- ]exchange",
-        "forward[- ]exchange",
-        "currency",
-        "currency[- ]rate",
-        "exchange[- ]rate",
-        "FX",
-        "forex",
-    ]
-    specific_phrases = [
-        "NDF",
-        "deliverable forwards?",
-    ]
-    pattern = build_smart_regex(
-        core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
-    )
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
-
-def build_cp_regex() -> re.Pattern:
-    """Build optimized Commodity Price derivatives regex."""
-    base_commodities = ["commodity"]
-    modifiers = ["[- ]price", "[- ]related", "[- ]based", "[- ]linked"]
-    core_terms = [c for c in base_commodities] + [
-        f"{c}{mod}" for c in base_commodities for mod in modifiers
-    ]
-    core_terms.append("fixed[- ]commodity")
-    specific_phrases = [
-        "commodity index"
-    ]
-    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
-
-def build_eq_regex() -> re.Pattern:
-    """Build optimized Equity derivatives regex."""
-    core_terms = ["equity", "equity[- ]related"]
-    specific_phrases = [
-        "call options?",
-        "put options?",
-    ]
-    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
-
-def build_strict_gen_regex() -> re.Pattern:
-    """Build strict General derivatives regex (high confidence only)."""
-    base_with_required_suffixes = [
-        f"{base}[- ]{suffix}"
-        for base in UNAMBIGUOUS_BASE_TYPES
-        for suffix in ALL_SUFFIXES
-    ]
-    specific_phrases = [
-        "total[- ]return swaps?",
-        "notional (?:amounts?|values?|principals?)",
-        "designated as (?:a )?hedges?",
-        "hedge of the net investment",
-        "net investment hedges?",
-        "cash flow hedges?",
-        "fair value hedges?",
-    ]
-    pattern = build_alternation(base_with_required_suffixes + specific_phrases)
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
-
-def build_soft_gen_regex() -> re.Pattern:
-    """Build soft General derivatives regex (secondary indicators)."""
-    specific_phrases = [
-        "(?:instruments?|contracts?) are designated",
-        "ineffective portion",
-        "hedging relationship",
-        "hedge accounting",
-        "change in fair value of derivatives?",
-        "derivative expense",
-        "derivative financial instruments?",
-        "embedded derivatives?",
-        "derivative (?:assets?|liabilities|gains?|losses?|positions?|contracts?|instruments?)",
-        "(?:gain|loss) on derivatives?",
-        "over[- ]the[- ]counter derivatives?",
-    ]
-    pattern = build_alternation(specific_phrases)
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
-
-# Build all regex patterns
-IR_REGEX = build_ir_regex()
-FX_REGEX = build_fx_regex()
-CP_REGEX = build_cp_regex()
-EQ_REGEX = build_eq_regex()
-STRICT_GEN_REGEX = build_strict_gen_regex()
-SOFT_GEN_REGEX = build_soft_gen_regex()
-
-# Combined regexes
-STRICT_REGEX = re.compile(
-    r"|".join(
-        [
-            IR_REGEX.pattern,
-            FX_REGEX.pattern,
-            CP_REGEX.pattern,
-            EQ_REGEX.pattern,
-            STRICT_GEN_REGEX.pattern,
-        ]
-    ),
-    re.IGNORECASE,
-)
-SOFT_REGEX = SOFT_GEN_REGEX
-ALL_REGEX = re.compile(
-    r"|".join([STRICT_REGEX.pattern, SOFT_REGEX.pattern]), re.IGNORECASE)
 
 # =============================================================================
 # DATABASE FUNCTIONS
