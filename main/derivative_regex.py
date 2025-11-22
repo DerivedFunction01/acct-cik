@@ -337,17 +337,95 @@ COMBINED_EXCLUDE_REGEX = re.compile(
     re.IGNORECASE,
 )
 
-TRADING_STATEMENTS_REGEX = re.compile(
-    r"(?i)\bwe\s+(do\s+not|are\s+not)\s+(use|enter\s+into|engage\s+in|hold).*?"
-    r"(trading|speculative|speculation)\b"
-    r".*?\b(purposes?|activities?)\b"
-    r"|(?i)\bderivative\s+(instruments?|contracts?)\s+are\s+not\s+(used|entered\s+into)\s+for\s+(trading|speculative)"
-    r"|(?i)\bnot\s+(used|entered\s+into)\s+for\s+(trading|speculative)\s+purposes?"
-    r"|(?i)\bwe\s+do\s+not\s+speculate"
-    r"|(?i)\bfor\s+hedging\s+(or|and)\s+risk\s+management\s+(only|purposes?)\b",
-    re.IGNORECASE,
-)
+def build_trading_denial_pattern() -> re.Pattern:
+    """Build regex pattern for detecting trading denial statements."""
+    SUBJECTS = [
+        # Simple pronouns
+        r"we",
+        r"us",
+        # Generic entity terms
+        r"(?:the\s+)?(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
+        r"(?:our\s+)(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
+        # Management references
+        r"management",
+        r"the\s+management",
+        r"our\s+management",
+        # LLC / LP / GP structures
+        r"(?:the\s+)?(?:llc|l\.l\.c\.|lp|l\.p\.|gp|g\.p\.)",
+        r"(?:our\s+)?(?:llc|l\.l\.c\.|lp|l\.p\.|gp|g\.p\.)",
+        # Partnership (general/limited)
+        r"(?:the\s+)?(?:general\s+partner|limited\s+partner|partnership)",
+        r"(?:our\s+)?(?:general\s+partner|limited\s+partner|partnership)",
+        # Corporate forms
+        r"(?:the\s+)?(?:corporation|corp\.|co\.|inc\.|incorporated)",
+        r"(?:our\s+)?(?:corporation|corp\.|co\.|inc\.|incorporated)",
+        # Parent entity references
+        r"(?:the\s+)?(?:parent\s+company|parent)",
+        r"(?:our\s+)?(?:parent\s+company|parent)",
+        # Subsidiary references (NEW SECTION)
+        r"(?:the\s+)?(?:subsidiary|subsidiaries)",
+        r"(?:our\s+)?(?:subsidiary|subsidiaries)",
+        # Also common phrase:
+        r"(?:the\s+)?(?:wholly[-\s]+owned\s+subsidiary)",
+        r"(?:our\s+)?(?:wholly[-\s]+owned\s+subsidiary)",
+    ]
 
+    NEGATORS = [
+        r"do\s+not",
+        r"are\s+not",
+        r"not",
+    ]
+
+    ACTIONS = [
+        r"use",
+        r"used",
+        r"enter\s+into",
+        r"entered\s+into",
+        r"engage\s+in",
+        r"hold",
+    ]
+
+    # Use STRICT_REGEX pattern for derivative keywords
+    OBJ = STRICT_REGEX.pattern
+
+    TRADING_WORDS = [
+        r"trading",
+        r"speculative",
+        r"speculation",
+    ]
+
+    PURPOSE_WORDS = [
+        r"purposes?",
+        r"activities?",
+    ]
+
+    SUBJ = build_alternation(SUBJECTS)
+    NEG = build_alternation(NEGATORS)
+    ACT = build_alternation(ACTIONS)
+    TRAD = build_alternation(TRADING_WORDS)
+    PURP = build_alternation(PURPOSE_WORDS)
+
+    CLAUSE_1 = (
+        rf"\b(?:{SUBJ})\s+(?:{NEG})\s+(?:{ACT})\s+(?:{OBJ})\s+"
+        rf"(?:for\s+)?(?:{TRAD})\s+(?:{PURP})\b"
+    )
+
+    CLAUSE_2 = rf"\b(?:{OBJ})\s+are\s+(?:{NEG})\s+(?:{ACT})\s+" rf"(?:for\s+)?(?:{TRAD})\b"
+    CLAUSE_3 = rf"\bnot\s+(?:{ACT})\s+(?:for\s+)?(?:{TRAD})\s+purposes?\b"
+    CLAUSE_4 = rf"\b(?:{SUBJ})\s+do\s+not\s+speculate\b"
+    CLAUSE_5 = r"\bfor\s+hedging\s+(?:or|and)\s+risk\s+management\s+(?:only|purposes?)\b"
+
+    pattern = build_alternation(
+        [
+            CLAUSE_1,
+            CLAUSE_2,
+            CLAUSE_3,
+            CLAUSE_4,
+            CLAUSE_5,
+        ]
+    )
+    return re.compile(pattern, re.IGNORECASE)
+TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 # =============================================================================
 # EXCLUSION PATTERNS (from webpage.py)
 # =============================================================================
