@@ -62,16 +62,20 @@ This document outlines the development roadmap for building a classified dataset
 
 ## Phase 3: Controlled Deletion & Final Dataset Assembly
 
-- [ ] **6. Implement Controlled Deletion Script**
+- [ ] **6. Remove Historical References**
   - **Status:** To-Do.
-  - **Task:** Create a script that performs the final filtering steps on the classified data from Phase 2. This logic is partially implemented in `controlled_deletion.py` and should be adapted.
-  - **Deletion Logic:**
-    1. **Remove Historical Data:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. The `controlled_deletion.py` script provides a strong template for this.
-    2. **Remove Non-Essential Context:** After classification, sentences that were kept for context but do not contain primary derivative keywords can be discarded. The high-level classifications from Step 5 make this possible without losing key information.
-    3. **Delete AOCI-Only Mentions:** Not required and not indicative of active use.
-    4. **Delete Denial Statements:** Sentences that explicitly state the company does not use derivatives.
+  - **Task:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. This ensures only current year or undated mentions remain, which is essential for the "active any use in current year" use case.
+  - **Output:** A filtered database containing only current or undated mentions of derivatives. Since we already determined the category, we can keep that metadata to determine active users. Note: peform a regex filter again to ensure no sentences without derivative keywords remain, or else we might have sentences that are only context.
+
+- [ ] **7. Final Controlled Deletion & Cleanup**
+  - **Status:** To-Do.
+  - **Task:** Perform final filtering steps on the classified data:
+    1. **Remove Non-Essential Context:** Discard sentences kept only for context that do not contain primary derivative keywords.
+    2. **Delete AOCI-Only Mentions:** Remove sentences that only mention AOCI, as these are not indicative of active use.
+    3. **Delete Denial Statements:** Remove sentences that explicitly state the company does not use derivatives.
   - **Output:** The final, analysis-ready database (`final_web_data.db`) containing only current, relevant, and categorized derivative mentions.
-- [ ] **7. Aggregation & Analysis**
+
+- [ ] **8. Aggregation & Analysis**
   - **Status:** To-Do.
   - **Task:** Aggregate the cleaned and classified data to generate insights on active derivative users.
   - **Analysis Goals:**
