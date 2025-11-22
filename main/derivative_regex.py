@@ -208,6 +208,8 @@ def build_fx_regex() -> re.Pattern:
     specific_phrases = [
         "NDF",
         "deliverable forwards?",
+        "hedge of the net investment",
+        "net investment hedges?",
     ]
     pattern = build_smart_regex(
         core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
@@ -246,11 +248,9 @@ def build_strict_gen_regex() -> re.Pattern:
     specific_phrases = [
         "total[- ]return swaps?",
         "notional (?:amounts?|values?|principals?)",
-        "designated as (?:a )?hedges?",
-        "hedge of the net investment",
-        "net investment hedges?",
         "cash flow hedges?",
         "fair value hedges?",
+        "embedded derivatives?",
     ]
     pattern = build_alternation(base_with_required_suffixes + specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -264,8 +264,8 @@ def build_soft_gen_regex() -> re.Pattern:
         "hedge accounting",
         "change in fair value of derivatives?",
         "derivative expense",
+        "designated as (?:a )?hedges?",
         "derivative financial instruments?",
-        "embedded derivatives?",
         "derivative (?:assets?|liabilities|gains?|losses?|positions?|contracts?|instruments?)",
         "(?:gain|loss) on derivatives?",
         "over[- ]the[- ]counter derivatives?",
@@ -281,6 +281,7 @@ IR_REGEX = build_ir_regex()
 FX_REGEX = build_fx_regex()
 CP_REGEX = build_cp_regex()
 EQ_REGEX = build_eq_regex()
+STRICT_GEN_REGEX = build_strict_gen_regex()
 CATEOGRY_REGEX = re.compile(
     r"|".join(
         [
@@ -292,7 +293,7 @@ CATEOGRY_REGEX = re.compile(
     ),
     re.IGNORECASE,
 )
-STRICT_GEN_REGEX = build_strict_gen_regex()
+
 SOFT_GEN_REGEX = build_soft_gen_regex()
 
 STRICT_REGEX = re.compile(

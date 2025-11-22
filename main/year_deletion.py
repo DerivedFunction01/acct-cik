@@ -47,13 +47,21 @@ BATCH_SIZE = 1000
 SOURCE_DB_PATH = "web_data.db"
 FINAL_DB_PATH = "final_web_data.db"
 try:
-    from derivative_regex import SENTENCE_SPLIT_PATTERN, YEAR_REGEX, PRIOR_PATTERN, CATEOGRY_REGEX,cleanup_fragment
+    from derivative_regex import (
+        SENTENCE_SPLIT_PATTERN,
+        YEAR_REGEX,
+        PRIOR_PATTERN,
+        CATEOGRY_REGEX,
+        STRICT_GEN_REGEX,
+        cleanup_fragment,
+    )
 except Exception:
     from .derivative_regex import (
         SENTENCE_SPLIT_PATTERN,
         YEAR_REGEX,
         PRIOR_PATTERN,
         CATEOGRY_REGEX,
+        STRICT_GEN_REGEX,
         cleanup_fragment
     )
 
@@ -102,6 +110,7 @@ def setup_final_db():
         "past_year",
         "prior_pattern_no_year",
         "empty_after_cleanup",
+        "no_instrument"
     ]
     c.executemany(
         "INSERT OR IGNORE INTO discard_reasons (reason) VALUES (?)",
@@ -258,7 +267,12 @@ def filter_item_by_year(
             sentences_to_keep.append(original_sentence)
 
         if sentences_to_keep:
-            final_paragraphs.append(" ".join(sentences_to_keep))
+            paragraph = " ".join(sentences_to_keep)
+            # Make sure we still have some instrument mentions
+            if CATEOGRY_REGEX.search(paragraph) or STRICT_GEN_REGEX.search(paragraph):
+                final_paragraphs.append(paragraph)
+            else:
+                all_discarded.append((url, paragraph, "no_instrument_mentions"))
 
     if final_paragraphs:
         return (url, final_paragraphs, cik, reporting_year, all_discarded)
