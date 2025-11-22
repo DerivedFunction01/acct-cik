@@ -47,9 +47,15 @@ BATCH_SIZE = 1000
 SOURCE_DB_PATH = "web_data.db"
 FINAL_DB_PATH = "final_web_data.db"
 try:
-    from derivative_regex import SENTENCE_SPLIT_PATTERN, YEAR_REGEX
+    from derivative_regex import SENTENCE_SPLIT_PATTERN, YEAR_REGEX, PRIOR_PATTERN, CATEOGRY_REGEX,cleanup_fragment
 except Exception:
-    from .derivative_regex import SENTENCE_SPLIT_PATTERN, YEAR_REGEX
+    from .derivative_regex import (
+        SENTENCE_SPLIT_PATTERN,
+        YEAR_REGEX,
+        PRIOR_PATTERN,
+        CATEOGRY_REGEX,
+        cleanup_fragment
+    )
 
 
 # =============================================================================
@@ -58,22 +64,59 @@ except Exception:
 
 
 def setup_final_db():
-    """Creates the final database with the required schema."""
+    """Creates the final database with the required schema including discard tracking."""
     if Path(FINAL_DB_PATH).exists():
         Path(FINAL_DB_PATH).unlink()
         print(f"🗑️  Deleted existing '{FINAL_DB_PATH}' to start fresh.")
 
     conn = sqlite3.connect(FINAL_DB_PATH)
     c = conn.cursor()
-    # Create tables to mirror the source structure
+
+    # Existing tables
     c.execute("CREATE TABLE webpage_result (url TEXT PRIMARY KEY, matches TEXT)")
     c.execute(
         "CREATE TABLE report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER)"
     )
+
+    # === NEW: Discard tracking tables ===
+    c.execute(
+        """
+        CREATE TABLE discarded_sentences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT,
+            sentence TEXT,
+            discard_reason TEXT
+        )
+    """
+    )
+    c.execute(
+        """
+        CREATE TABLE discard_reasons (
+            reason TEXT PRIMARY KEY
+        )
+    """
+    )
+
+    # Pre-populate known reasons
+    reasons = [
+        "past_year",
+        "prior_pattern_no_year",
+        "empty_after_cleanup",
+    ]
+    c.executemany(
+        "INSERT OR IGNORE INTO discard_reasons (reason) VALUES (?)",
+        [(r,) for r in reasons],
+    )
+
+    c.execute("CREATE INDEX IF NOT EXISTS idx_discard_url ON discarded_sentences (url)")
+    c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_discard_reason ON discarded_sentences (discard_reason)"
+    )
+
     c.execute("PRAGMA journal_mode=WAL;")
     conn.commit()
     conn.close()
-    print(f"✅ Created new database: '{FINAL_DB_PATH}'")
+    print(f"✅ Created new database: '{FINAL_DB_PATH}' with discard tracking")
 
 
 def get_source_data() -> Tuple[List[Tuple[str, str]], Dict[str, Tuple[int, int]]]:
@@ -101,23 +144,44 @@ def write_batch_to_db(batch: List[Tuple]):
 
     conn = sqlite3.connect(FINAL_DB_PATH, timeout=30)
     c = conn.cursor()
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA journal_mode = WAL")
+
     try:
         c.execute("BEGIN TRANSACTION")
+
+        # 1. Main filtered results
         c.executemany(
             "INSERT INTO webpage_result (url, matches) VALUES (?, ?)",
-            [(url, json.dumps(matches)) for url, matches, cik, year in batch],
+            [
+                (url, json.dumps(matches))
+                for url, matches, cik, year, discarded in batch
+            ],
         )
         c.executemany(
             "INSERT INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-            [(url, cik, year) for url, matches, cik, year in batch],
+            [(url, cik, year) for url, matches, cik, year, discarded in batch],
         )
+
+        # 2. Discarded sentences (flattened from all items in batch)
+        discarded_rows = []
+        for url, matches, cik, year, discarded_list in batch:
+            for disc_url, sentence, reason in discarded_list:
+                discarded_rows.append((disc_url, sentence, reason))
+
+        if discarded_rows:
+            c.executemany(
+                "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
+                discarded_rows,
+            )
+
         conn.commit()
     except Exception as e:
         print(f"Batch write failed: {e}")
         conn.rollback()
+        raise
     finally:
         conn.close()
-
 
 # =============================================================================
 # WORKER FUNCTION
@@ -126,17 +190,13 @@ def write_batch_to_db(batch: List[Tuple]):
 
 def filter_item_by_year(
     item: Tuple[str, str], metadata_map: Dict[str, Tuple[int, int]]
-) -> Optional[Tuple[str, List[str], int, int]]:
-    """
-    Worker function to process a single filing's paragraphs.
-    """
+) -> Optional[Tuple[str, List[str], int, int, List[Tuple[str, str, str]]]]:
     url, matches_json = item
     metadata = metadata_map.get(url)
     if not metadata:
         return None
     cik, reporting_year = metadata
 
-    # Skip if we don't have a reporting year for this URL
     if reporting_year is None:
         return None
 
@@ -148,44 +208,63 @@ def filter_item_by_year(
         return None
 
     final_paragraphs = []
+    all_discarded: List[Tuple[str, str, str]] = []  # (url, sentence, reason)
+
     for para in paragraphs:
-        sentences = SENTENCE_SPLIT_PATTERN.split(para)
+        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para) if s.strip()]
         sentences_to_keep = []
 
         for sentence in sentences:
-            sentence = sentence.strip()
-            if not sentence:
-                continue
+            original_sentence = sentence
+            extracted_years = [int(y) for y in YEAR_REGEX.findall(sentence) if y]
 
-            extracted_years = [int(y) for y in YEAR_REGEX.findall(sentence)]
-
-            # Rule: Keep sentence if no year is found
+            # Case 1: No year mentioned
             if not extracted_years:
+                # Check for "prior year/period" boilerplate
+                if PRIOR_PATTERN.search(sentence):
+                    deleted_text = " ".join(
+                        m.group(0) for m in PRIOR_PATTERN.finditer(sentence)
+                    )
+                    all_discarded.append(
+                        (url, deleted_text.strip(), "prior_pattern_no_year")
+                    )
+
+                    sentence = PRIOR_PATTERN.sub("", sentence)
+                    sentence = cleanup_fragment(sentence)
+
+                    if not sentence.strip():
+                        all_discarded.append(
+                            (url, original_sentence, "empty_after_cleanup")
+                        )
+                        continue  # completely removed
+
+                # If still no content → discard entire original sentence
+                if not sentence.strip():
+                    all_discarded.append(
+                        (url, original_sentence, "empty_after_cleanup")
+                    )
+                    continue
+
                 sentences_to_keep.append(sentence)
                 continue
 
-            # Rule: Keep sentence if its max year is at least the reporting year
+            # Case 2: Years present → discard if all are in the past
             max_extracted_year = max(extracted_years)
-            if max_extracted_year >= reporting_year:
-                sentences_to_keep.append(sentence)
+            if max_extracted_year < reporting_year:
+                all_discarded.append((url, original_sentence, "past_year"))
+                continue  # discard
 
-        # Only add the paragraph back if it still has content
+            # Otherwise keep the original sentence
+            sentences_to_keep.append(original_sentence)
+
         if sentences_to_keep:
             final_paragraphs.append(" ".join(sentences_to_keep))
 
     if final_paragraphs:
-        # We need CIK and Year for the new report_data table
-        # This is a bit inefficient but necessary. A join in the initial query
-        # would be better if the DB structure allowed it easily.
-        # For now, we just pass it through.
-        return (
-            url,
-            final_paragraphs,
-            cik,
-            reporting_year,
-        )
+        return (url, final_paragraphs, cik, reporting_year, all_discarded)
 
-    return None
+    # If nothing survived, still record that everything was discarded
+    return (url, [], cik, reporting_year, all_discarded) if all_discarded else None
 
 
 # =============================================================================
