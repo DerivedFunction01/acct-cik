@@ -187,7 +187,7 @@ def build_cp_regex() -> re.Pattern:
         f"{c}{mod}" for c in base_commodities for mod in modifiers
     ]
     core_terms.append("fixed[- ]commodity")
-    specific_phrases = ["commodity index"]
+    specific_phrases = ["commodity index", "weather derivatives?", ]
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
