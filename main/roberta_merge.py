@@ -18,8 +18,8 @@ from typing import Tuple, List, Optional, Dict, Any
 # --------------------------------------------------------------------------- #
 # CONFIGURATION
 # --------------------------------------------------------------------------- #
-SOURCE_DB_PATH = "web_data.db"
-CLEAN_DB_PATH = "clean_web_data.db"
+SOURCE_DB_PATH = "prepared_data.db"
+CLEAN_DB_PATH = "hedge_data.db"
 
 RELEVANT_LABELS = {"hedge"}  # ← change if your model uses different name
 CONFIDENCE_THRESHOLD = 0.70

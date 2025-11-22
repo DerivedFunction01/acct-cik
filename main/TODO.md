@@ -5,6 +5,7 @@ This document outlines the development roadmap for building a classified dataset
 ## Phase 1: Data Extraction & Pre-training (Completed)
 
 - [x] **1. Extract Raw Text from SEC Filings**
+
   - **Status:** Done.
   - **Implementation:** The `webpage.py` script successfully fetches SEC filings, parses them, and uses a `COMBINED_REGEX` to extract relevant paragraphs and tables containing derivative-related keywords.
   - **Output:** A raw text database (`web_data.db`) containing potential derivative mentions.
@@ -16,23 +17,25 @@ This document outlines the development roadmap for building a classified dataset
 
 ## Phase 2: Fine-Tuning for Classification & Filtering
 
-- [X] **3. Fine-Tune RoBERTa for Noise Classification**
+- [x] **3. Fine-Tune RoBERTa for Noise Classification**
+
   - **Status:** Done.
   - **Task:** Fine-tune the domain-adapted RoBERTa model for a binary text classification task: Filtering out false positives, such as accounting standard s updates, legal/litigation, equity compensation, and definitions.
   - **Training Data:** Requires a labeled dataset of sentences, distinguishing between true derivative discussions and noise (e.g., employee stock options, legal boilerplate, forward-looking statements). Done via simple regex filtering in the database for candidate sentences, with automated labeling based on keyword presence.
     - **Output:** A fine-tuned RoBERTa model capable of classifying sentences as `std` (accounting standards noise) vs. `hedge` (true derivative discussion).
 
 - [x] **4. Implement Noise Filtering Script**
+
   - **Status:** Done.
   - **Task:** Create a new Python script that uses the fine-tuned noise classification model (from Step 3) to process `web_data.db`. Using `classify.py` for classification and `filter_database.py` to split up text chunks into manageable 3-sentence paragraphs into `prepared_data.db`.
-  - **Workflow:**
-    0. Prepare the database by splitting long paragraphs into smaller chunks (3 sentences each) using `filter_database.py`. Delete all trading statements that are not relevant.
+  - **Workflow:** 0. Prepare the database by splitting long paragraphs into smaller chunks (3 sentences each) using `filter_database.py`. Delete all trading statements that are not relevant.
     1. Read paragraphs from the `webpage_result` table.
     2. For each paragraph send it to the model.
-    3. Classify each sentence within the paragraph as `hedge` or other false positive categories (`std`, `law`, `cmp`,  etc.).
+    3. Classify each sentence within the paragraph as `hedge` or other false positive categories (`std`, `law`, `cmp`, etc.).
     4. Store the model results back into the database `server_result`, marking sentences for retention or deletion.
 
 - [] **4. Start using the Noise Filtering Script**
+
   - **Status:** To-Do.
   - **Task:** Run the script, this will take time, so I am going to skip this step and assume it works for now.
   - **Workflow:**
@@ -41,7 +44,7 @@ This document outlines the development roadmap for building a classified dataset
 
 - [x] **4.5 Implement Discarding Script**
   - **Status:** Done
-  - **Task:** Create a new Python script that takes the results from step 4 to process `prepared_data.db`. 
+  - **Task:** Create a new Python script that takes the results from step 4 to process `prepared_data.db`.
   - **Workflow:**
     1. Read paragraphs from the `webpage_result` table.
     2. Retrieve the classification results from the `server_result` table.
@@ -52,24 +55,27 @@ This document outlines the development roadmap for building a classified dataset
 ## Phase 3: Controlled Deletion & Final Dataset Assembly
 
 - [ ] **5. Remove Historical References**
+
   - **Status:** To-Do.
   - **Task:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. This ensures only current year or undated mentions remain, which is essential for the "active any use in current year" use case.
   - **Output:** A filtered database containing only current or undated mentions of derivatives into `current_data.db`.
 
 - [ ] **6. Fine-Tune RoBERTa for High-Level Classification**
+
   - **Status:** To-Do.
-  - **Task:** Fine-tune a separate RoBERTa model (or the same one, depending on strategy) to perform multi-label or multi-class classification on the *relevant* sentences. Reason: the current regex will not be able to capture all forms of derivative instruments and usage contexts.
+  - **Task:** Fine-tune a separate RoBERTa model (or the same one, depending on strategy) to perform multi-label or multi-class classification on the _relevant_ sentences. Reason: the current regex will not be able to capture all forms of derivative instruments and usage contexts.
   - **Classification Schema:**
     - **Category:** `interest_rate`, `foreign_exchange`, `commodity`, `equity`, `generic_other`.
     - **Usage Indicator (Optional but Recommended):** `active_use` vs. `passive_mention` vs `denial`. This is the core of the "active user" goal. We should have deleted all trading statements, so `denial` should be straightforward. Also, since we are supposed to be left with only current year mentions, `active_use` should be easier to identify.
-        - `active_use`: Sentences indicating current or recent usage of derivatives for hedging or trading purposes.
-        - `termination`: Sentences indicating the cessation of derivative use. Critical to identify companies that have stopped using derivatives for current year analysis, since they are not active year-end users, but had some derivative use in the reporting year.
-        - `passive_mention`: Passive statements such as PnL impact, accounting treatment.
-        - `denial`: Explicit statements denying the use of derivatives or none at all. 
+      - `active_use`: Sentences indicating current or recent usage of derivatives for hedging or trading purposes.
+      - `termination`: Sentences indicating the cessation of derivative use. Critical to identify companies that have stopped using derivatives for current year analysis, since they are not active year-end users, but had some derivative use in the reporting year.
+      - `passive_mention`: Passive statements such as PnL impact, accounting treatment.
+      - `denial`: Explicit statements denying the use of derivatives or none at all.
   - **Training Data:** Requires a labeled dataset of relevant sentences categorized by derivative type and usage
   - **Goal:** Retain high-level metadata about each sentence before the final deletion stage. The output should be structured data, not just text.
 
 - [ ] **7. Final Controlled Deletion & Cleanup**
+
   - **Status:** To-Do.
   - **Task:** Perform final filtering steps on the classified data:
     1. **Remove Non-Essential Context:** Discard sentences kept only for context that do not contain primary derivative keywords, which may include PnL impact statements or accounting treatment without active usage context.
@@ -78,9 +84,16 @@ This document outlines the development roadmap for building a classified dataset
     4. **Delete Potential use but not confirmed:** Remove sentences that indicate potential future use without confirmation of current use.
   - **Output:** The final, analysis-ready database (`active_data.db`) containing only current, relevant, and categorized derivative mentions.
 
-
 - [ ] **8. Aggregation & Analysis**
   - **Status:** To-Do.
   - **Task:** Aggregate the cleaned and classified data to generate insights on active derivative users.
   - **Analysis Goals:**
     - With controlled deletion, detect if there is still any mentions of active use classified from Step 5. If none exist, then it meant that controlled deletion deleted all previous years mentions, leaving only current year/non year mentions. Create a script that returns a list of companies with active derivative use per category in the current year.
+
+| Stage                                       | Database File      | Produced By                   |
+| ------------------------------------------- | ------------------ | ----------------------------- |
+| Raw extraction                              | `web_data.db`      | `webpage.py`                  |
+| Prepared 3-sentence chunks + regex cleaning | `prepared_data.db` | `filter_database.py`          |
+| After RoBERTa noise filtering               | `hedge_data.db`    | `roberta_merge.py`            |
+| After past-year deletion                    | `current_data.db`  | `year_deletion.py`            |
+| Final active-user dataset                   | `active_data.db`   | Final cleanup script (Step 7) |

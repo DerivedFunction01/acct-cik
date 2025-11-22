@@ -55,7 +55,7 @@ BATCH_SIZE = 1000  # Optimal batch size for SQLite transactions
 FLUSH_INTERVAL = 5.0  # Seconds — fallback flush if batch not full
 CHUNK_SIZE = 50  # Larger chunks reduce task submission overhead — tune this
 SOURCE_DB_PATH = "web_data.db"
-CLEAN_DB_PATH = "clean_web_data.db"
+CLEAN_DB_PATH = "prepared_data.db"
 
 # In-memory buffers (protected by main process only)
 result_buffer = []  # List of (url, matches, cik, year)

@@ -44,8 +44,8 @@ def get_worker_count():
 
 NUM_WORKERS = get_worker_count()
 BATCH_SIZE = 1000
-SOURCE_DB_PATH = "web_data.db"
-FINAL_DB_PATH = "final_web_data.db"
+SOURCE_DB_PATH = "hedge_data.db"
+FINAL_DB_PATH = "current_data.db"
 try:
     from derivative_regex import (
         SENTENCE_SPLIT_PATTERN,
