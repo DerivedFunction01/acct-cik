@@ -684,7 +684,7 @@ COMBINED_REGEX = re.compile(
 )
 
 # Regex to find years between 1980-2049, followed by a word boundary character
-YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20[0-4]\d)(?=[);,.\s])")
+YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20[0-4]\d)\b")
 # ──────────────────────────────────────────────────────────────
 # Pre-compiled cleanup regexes (put at module level, once)
 # ──────────────────────────────────────────────────────────────
