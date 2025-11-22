@@ -1,6 +1,5 @@
-# populate_categories_parallel.py
-# Fast, resumable, parallel category tagging with ProcessPoolExecutor
-# Skips URLs that already have categories for the given stage
+# populate_categories_array.py
+# Identical style to all your other scripts — uses JSON array in matches column
 
 import sqlite3
 import json
@@ -21,7 +20,7 @@ from derivative_regex import (
 )
 
 # ——————————————————————————————————————————————————————————————
-# Regex setup (same as before)
+# Regex setup
 # ——————————————————————————————————————————————————————————————
 IR_REGEX = build_ir_regex()
 FX_REGEX = build_fx_regex()
@@ -39,11 +38,11 @@ REGEX_TO_CAT = [
     (GEN_SOFT, "gen"),
 ]
 
-BATCH_SIZE = 1000
+
 # ——————————————————————————————————————————————————————————————
-# Worker function — pure, no DB access
+# Worker: returns enriched sentences as list of dicts
 # ——————————————————————————————————————————————————————————————
-def process_url_batch(batch):
+def enrich_sentences(batch):
     results = []
     for url, matches_json in batch:
         try:
@@ -53,123 +52,150 @@ def process_url_batch(batch):
         except json.JSONDecodeError:
             continue
 
+        enriched = []
         for sent in sentences:
             sent = sent.strip()
             if not sent:
                 continue
-            found = False
+
+            cats = set()
             for regex, cat in REGEX_TO_CAT:
                 if regex.search(sent):
-                    results.append((url, sent, cat, "regex"))
-                    found = True
-                    break
-            if not found:
-                results.append((url, sent, "other", "regex"))
+                    cats.add(cat)
+
+            if not cats:
+                cats.add("other")  # fallback
+
+            enriched.append(
+                {
+                    "sentence": sent,
+                    "categories": sorted(
+                        list(cats)
+                    ),  # e.g. ["ir"], ["fx","gen"], ["other"]
+                }
+            )
+
+        if enriched:
+            results.append(
+                (url, json.dumps(enriched, ensure_ascii=False, separators=(",", ":")))
+            )
     return results
 
 
 # ——————————————————————————————————————————————————————————————
-# Main function — now parallel + resumable
+# Batch writer (same pattern as your other scripts)
 # ——————————————————————————————————————————————————————————————
-def populate_category_table_parallel(
-    db_path: str, stage_name: str, num_workers: Optional[int] = None
-):
+def write_batch(db_path: str, batch_data: list):
+    if not batch_data:
+        return
+    conn = sqlite3.connect(db_path, timeout=60)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    cur = conn.cursor()
+    cur.executemany(
+        """
+        UPDATE webpage_result 
+        SET matches = ? 
+        WHERE url = ?
+    """,
+        [(json_str, url) for url, json_str in batch_data],
+    )
+    conn.commit()
+    conn.close()
+
+
+# ——————————————————————————————————————————————————————————————
+# Main function — fully parallel + resumable
+# ——————————————————————————————————————————————————————————————
+def populate_categories_array(db_path: str, num_workers: Optional[int] = None):
     db = Path(db_path)
     if not db.exists():
         print(f"Skipping {db.name} — not found")
         return
 
-    print(f"Populating category_result in {db.name} (stage = {stage_name}) ...")
-    conn = sqlite3.connect(db, timeout=60)
+    print(f"Enriching matches with categories in {db.name} ...")
+    conn = sqlite3.connect(db)
     cur = conn.cursor()
 
-    # Create table + indexes
-    cur.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS category_result (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT NOT NULL,
-            sentence TEXT NOT NULL,
-            category TEXT NOT NULL CHECK(category IN ('ir','fx','cp','eq','gen','other')),
-            source TEXT NOT NULL DEFAULT 'regex',
-            stage TEXT NOT NULL,
-            added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(url) REFERENCES webpage_result(url) ON DELETE CASCADE
-        );
-        CREATE INDEX IF NOT EXISTS idx_category_url_stage ON category_result(url, stage);
-    """
-    )
-    conn.commit()
+    # Add column if missing (idempotent)
+    try:
+        cur.execute(
+            "ALTER TABLE webpage_result ADD COLUMN categories_processed INTEGER DEFAULT 0"
+        )
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column exists
 
-    # ——— Find URLs that are NOT yet processed for this stage ———
+    # Only process URLs not yet enriched
     cur.execute(
         """
-        SELECT wr.url, wr.matches
-        FROM webpage_result wr
-        LEFT JOIN category_result cr ON wr.url = cr.url AND cr.stage = ?
-        WHERE wr.matches IS NOT NULL AND cr.url IS NULL
-    """,
-        (stage_name,),
+        SELECT url, matches 
+        FROM webpage_result 
+        WHERE matches IS NOT NULL 
+          AND (categories_processed IS NULL OR categories_processed = 0)
+    """
     )
     rows = cur.fetchall()
     conn.close()
 
     if not rows:
-        print(f"All URLs already processed for stage '{stage_name}' in {db.name}")
+        print(f"All URLs already enriched in {db.name}")
         return
 
-    total_urls = len(rows)
-    print(f"Found {total_urls:,} URLs needing category tagging")
+    print(f"Found {len(rows):,} URLs to enrich")
 
-    # ——— Parallel processing ———
     num_workers = num_workers or max(1, mp.cpu_count() - 1)
-    batch_size = 100  # good balance
-
+    batch_size = 100
     batches = [rows[i : i + batch_size] for i in range(0, len(rows), batch_size)]
-    all_inserts = []
+
+    buffer = []
+    buffer_size = 5000
 
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        futures = [executor.submit(process_url_batch, batch) for batch in batches]
+        futures = [executor.submit(enrich_sentences, batch) for batch in batches]
 
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Tagging"):
-            all_inserts.extend(future.result())
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Enriching"):
+            results = future.result()
+            for url, enriched_json in results:
+                buffer.append((enriched_json, url))
 
-            # Batch write every N rows
-            if len(all_inserts) >= BATCH_SIZE:
-                _write_batch(db_path, all_inserts, stage_name)
-                all_inserts.clear()
+            if len(buffer) >= buffer_size:
+                write_batch(db_path, buffer)
+                # Mark as processed
+                conn = sqlite3.connect(db_path)
+                cur = conn.cursor()
+                cur.executemany(
+                    "UPDATE webpage_result SET categories_processed = 1 WHERE url = ?",
+                    [(url,) for _, url in buffer],
+                )
+                conn.commit()
+                conn.close()
+                buffer.clear()
 
-    # Final write
-    if all_inserts:
-        _write_batch(db_path, all_inserts, stage_name)
+    # Final flush
+    if buffer:
+        write_batch(db_path, buffer)
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.executemany(
+            "UPDATE webpage_result SET categories_processed = 1 WHERE url = ?",
+            [(url,) for _, url in buffer],
+        )
+        conn.commit()
+        conn.close()
 
-    print(f"Completed {db.name} → {total_urls:,} URLs processed\n")
-
-
-def _write_batch(db_path: str, rows: list, stage_name: str):
-    conn = sqlite3.connect(db_path, timeout=60)
-    cur = conn.cursor()
-    cur.executemany(
-        """
-        INSERT INTO category_result (url, sentence, category, source, stage)
-        VALUES (?, ?, ?, ?, ?)
-    """,
-        [(url, sent, cat, src, stage_name) for url, sent, cat, src in rows],
-    )
-    conn.commit()
-    conn.close()
+    print(f"Completed {db.name} — matches now contain 'categories' array\n")
 
 
 # ——————————————————————————————————
-# Run on all databases — safe & resumable
+# Run on all your databases
 # ——————————————————————————————————
 if __name__ == "__main__":
     import sys
 
-    # Optional: pass number of workers via CLI
     workers = int(sys.argv[1]) if len(sys.argv) > 1 else None
 
-    populate_category_table_parallel("prepared_data.db", "prepared", workers)
-    populate_category_table_parallel("hedge_data.db", "hedge", workers)
-    populate_category_table_parallel("current_data.db", "current", workers)
-    populate_category_table_parallel("active_data.db", "active", workers)
+    populate_categories_array("prepared_data.db", workers)
+    populate_categories_array("hedge_data.db", workers)
+    populate_categories_array("current_data.db", workers)
+    populate_categories_array("active_data.db", workers)
