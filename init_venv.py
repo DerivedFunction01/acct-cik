@@ -47,6 +47,9 @@ CLASSIFICATION_PACKAGES = [
     "pydantic",
     "gunicorn",
     "transformers",  # For the cross-encoder model
+    "flask",
+    "flask_cors",
+    "waitress",
 ]
 
 # Packages for Unsloth fine-tuning (platform-dependent)
