@@ -300,7 +300,8 @@ def filter_matches(
                 # Capture the exact text that will be deleted
                 deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
                 # Capture the instrument name (ignore generics,such as "derivative instruments")
-                instrument = CATEOGRY_REGEX.findall(sentence)[0]
+                matches = CATEOGRY_REGEX.findall(sentence)
+                instrument = matches[0] if matches else ""
                 # Log it to your discard list with a clear reason
                 all_discarded.append((url, deleted_text.strip(), "trading_statements"))
 
