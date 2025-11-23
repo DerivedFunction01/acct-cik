@@ -1,147 +1,119 @@
+# year_deletion.py
 # =============================================================================
-# POST-CLASSIFICATION PAST-YEAR DELETION SCRIPT
+# PHASE 3: PAST-YEAR DELETION & CATEGORY SYNC
 # =============================================================================
-# This script performs a second-stage filtering on the database after an initial
-# classification. It is designed to remove sentences that primarily reference
-# historical data, focusing the dataset on indicators of current derivative use.
+# Filters sentences based on historical context while maintaining
+# strict alignment between 'matches' (text) and 'categories' (labels).
 #
 # Workflow:
-# 1. Reads 3-sentence paragraphs from the `web_data.db` database.
-# 2. Fetches the corresponding reporting year for each filing.
-# 3. For each paragraph, it splits it into individual sentences.
-# 4. It extracts all years from each sentence.
-# 5. A sentence is DISCARDED if the latest year mentioned in it is less
-#    than the filing's reporting year.
-# 6. Sentences with no year mentioned are KEPT by default.
-# 7. The remaining, relevant sentences are re-assembled and saved to a new
-#    `final_web_data.db`.
+# 1. Reads parallel arrays (matches, categories) from `hedge_data.db`.
+# 2. Splits paragraphs into atomic sentences.
+# 3. Discards ONLY the sentences where max(year) < reporting_year.
+# 4. Re-assembles surviving sentences into the paragraph.
+# 5. Saves the synchronized results to `current_data.db`.
 # =============================================================================
-# %%
+
 import sqlite3
 import json
-import re
-from pathlib import Path
-from tqdm import tqdm
-from typing import List, Tuple, Optional, Dict
-from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 import time
+from pathlib import Path
+from tqdm import tqdm
+from typing import List, Tuple, Optional, Dict, Any
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-
-def get_worker_count():
-    """Auto-detects CPU cores to set worker count."""
-    cpu_cores = mp.cpu_count()
-    num_workers = max(1, cpu_cores - 1)
-    print(
-        f"🖥️  System Detected: {cpu_cores} CPU cores, setting NUM_WORKERS to {num_workers}"
-    )
-    return num_workers
-
-
-NUM_WORKERS = get_worker_count()
+NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 1000
 SOURCE_DB_PATH = "hedge_data.db"
 FINAL_DB_PATH = "current_data.db"
-try:
-    from derivative_regex import (
-        SENTENCE_SPLIT_PATTERN,
-        YEAR_REGEX,
-        PRIOR_PATTERN,
-        CATEGORY_REGEX,
-        STRICT_GEN_REGEX,
-        cleanup_fragment,
-    )
-except Exception:
-    from .derivative_regex import (
-        SENTENCE_SPLIT_PATTERN,
-        YEAR_REGEX,
-        PRIOR_PATTERN,
-        CATEGORY_REGEX,
-        STRICT_GEN_REGEX,
-        cleanup_fragment
-    )
+
+from derivative_regex import (
+    YEAR_REGEX,
+    PRIOR_PATTERN,
+    SENTENCE_SPLIT_PATTERN,  # Ensure this is imported
+    cleanup_fragment,
+)
 
 
 # =============================================================================
-# DATABASE FUNCTIONS
+# DATABASE SETUP
 # =============================================================================
 
 
 def setup_final_db():
-    """Creates the final database with the required schema including discard tracking."""
+    """Creates the final database with parallel category storage."""
     if Path(FINAL_DB_PATH).exists():
         Path(FINAL_DB_PATH).unlink()
-        print(f"🗑️  Deleted existing '{FINAL_DB_PATH}' to start fresh.")
 
     conn = sqlite3.connect(FINAL_DB_PATH)
     c = conn.cursor()
 
-    # Existing tables
-    c.execute("CREATE TABLE webpage_result (url TEXT PRIMARY KEY, matches TEXT)")
+    # 1. Text Data
+    c.execute(
+        """CREATE TABLE webpage_result (
+            url TEXT PRIMARY KEY, 
+            matches TEXT -- JSON array of filtered sentences
+        )"""
+    )
+
+    # 2. Category Data (Parallel Array)
+    c.execute(
+        """CREATE TABLE category (
+            url TEXT PRIMARY KEY,
+            categories TEXT, -- JSON array of filtered categories
+            FOREIGN KEY (url) REFERENCES webpage_result(url)
+        )"""
+    )
+
+    # 3. Metadata
     c.execute(
         "CREATE TABLE report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER)"
     )
 
-    # === NEW: Discard tracking tables ===
+    # 4. Discard Tracking
     c.execute(
-        """
-        CREATE TABLE discarded_sentences (
+        """CREATE TABLE discarded_sentences (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             url TEXT,
             sentence TEXT,
             discard_reason TEXT
-        )
-    """
-    )
-    c.execute(
-        """
-        CREATE TABLE discard_reasons (
-            reason TEXT PRIMARY KEY
-        )
-    """
+        )"""
     )
 
-    # Pre-populate known reasons
-    reasons = [
-        "past_year",
-        "prior_pattern_no_year",
-        "empty_after_cleanup",
-        "no_instrument"
-    ]
-    c.executemany(
-        "INSERT OR IGNORE INTO discard_reasons (reason) VALUES (?)",
-        [(r,) for r in reasons],
-    )
-
-    c.execute("CREATE INDEX IF NOT EXISTS idx_discard_url ON discarded_sentences (url)")
-    c.execute(
-        "CREATE INDEX IF NOT EXISTS idx_discard_reason ON discarded_sentences (discard_reason)"
-    )
-
+    c.execute("CREATE INDEX IF NOT EXISTS idx_url ON webpage_result (url)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_cat_url ON category (url)")
     c.execute("PRAGMA journal_mode=WAL;")
     conn.commit()
     conn.close()
-    print(f"✅ Created new database: '{FINAL_DB_PATH}' with discard tracking")
+    print(f"✅ Created '{FINAL_DB_PATH}' with category tracking.")
 
 
-def get_source_data() -> Tuple[List[Tuple[str, str]], Dict[str, Tuple[int, int]]]:
-    """Fetches all webpage results and a map of URL to reporting year."""
+def get_source_data() -> Tuple[List[Tuple], Dict[str, Tuple[int, int]]]:
+    """
+    Fetches matches AND categories from the source DB.
+    """
     conn = sqlite3.connect(SOURCE_DB_PATH)
     c = conn.cursor()
 
-    print("📖 Reading webpage results from source DB...")
-    c.execute("SELECT url, matches FROM webpage_result WHERE url IS NOT NULL")
+    print("📖 Reading data from source DB...")
+    # Left join to be safe
+    c.execute(
+        """
+        SELECT wr.url, wr.matches, c.categories 
+        FROM webpage_result wr
+        LEFT JOIN category c ON wr.url = c.url
+        WHERE wr.matches IS NOT NULL
+        """
+    )
     webpage_data = c.fetchall()
 
     print("🧠 Mapping URLs to reporting years...")
-    c.execute(
-        "SELECT url, year FROM report_data WHERE url IS NOT NULL AND year IS NOT NULL"
-    )
-    metadata_map = {row[0]: (row[1], row[2]) for row in c.fetchall()}  # (cik, year)
+    c.execute("SELECT url, cik, year FROM report_data WHERE year IS NOT NULL")
+    metadata_map = {row[0]: (row[1], row[2]) for row in c.fetchall()}
 
     conn.close()
     return webpage_data, metadata_map
@@ -151,32 +123,32 @@ def write_batch_to_db(batch: List[Tuple]):
     if not batch:
         return
 
-    conn = sqlite3.connect(FINAL_DB_PATH, timeout=30)
-    c = conn.cursor()
+    conn = sqlite3.connect(FINAL_DB_PATH, timeout=60)
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA journal_mode = WAL")
+    c = conn.cursor()
 
     try:
         c.execute("BEGIN TRANSACTION")
 
-        # 1. Main filtered results
+        webpage_rows = [(b[0], b[1]) for b in batch]
+        category_rows = [(b[0], b[2]) for b in batch]
+        report_rows = [(b[0], b[3], b[4]) for b in batch]
+
         c.executemany(
-            "INSERT INTO webpage_result (url, matches) VALUES (?, ?)",
-            [
-                (url, json.dumps(matches))
-                for url, matches, cik, year, discarded in batch
-            ],
+            "INSERT INTO webpage_result (url, matches) VALUES (?, ?)", webpage_rows
         )
         c.executemany(
-            "INSERT INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-            [(url, cik, year) for url, matches, cik, year, discarded in batch],
+            "INSERT INTO category (url, categories) VALUES (?, ?)", category_rows
+        )
+        c.executemany(
+            "INSERT INTO report_data (url, cik, year) VALUES (?, ?, ?)", report_rows
         )
 
-        # 2. Discarded sentences (flattened from all items in batch)
         discarded_rows = []
-        for url, matches, cik, year, discarded_list in batch:
-            for disc_url, sentence, reason in discarded_list:
-                discarded_rows.append((disc_url, sentence, reason))
+        for b in batch:
+            for d in b[5]:
+                discarded_rows.append(d)
 
         if discarded_rows:
             c.executemany(
@@ -188,144 +160,143 @@ def write_batch_to_db(batch: List[Tuple]):
     except Exception as e:
         print(f"Batch write failed: {e}")
         conn.rollback()
-        raise
     finally:
         conn.close()
 
+
 # =============================================================================
-# WORKER FUNCTION
+# FILTERING LOGIC
 # =============================================================================
 
 
 def filter_item_by_year(
-    item: Tuple[str, str], metadata_map: Dict[str, Tuple[int, int]]
-) -> Optional[Tuple[str, List[str], int, int, List[Tuple[str, str, str]]]]:
-    url, matches_json = item
+    item: Tuple[str, str, str], metadata_map: Dict[str, Tuple[int, int]]
+) -> Optional[Tuple]:
+    """
+    Filters sub-sentences within paragraphs based on years.
+    """
+    url, matches_json, categories_json = item
+
     metadata = metadata_map.get(url)
     if not metadata:
         return None
     cik, reporting_year = metadata
 
-    if reporting_year is None:
-        return None
-
     try:
         paragraphs = json.loads(matches_json)
-        if not isinstance(paragraphs, list):
-            return None
+        categories = json.loads(categories_json) if categories_json else []
     except (json.JSONDecodeError, TypeError):
         return None
 
+    if not paragraphs:
+        return None
+
+    if not categories or len(categories) != len(paragraphs):
+        categories = ["unknown"] * len(paragraphs)
+
     final_paragraphs = []
-    all_discarded: List[Tuple[str, str, str]] = []  # (url, sentence, reason)
+    final_categories = []
+    discards = []
 
-    for para in paragraphs:
-        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para) if s.strip()]
-        sentences_to_keep = []
+    # Iterate over the Paragraphs (Chunks)
+    for paragraph, category in zip(paragraphs, categories):
 
-        for sentence in sentences:
+        # 1. Split Paragraph into Atomic Sentences
+        # The regex splits, but we need to ensure we don't get empty strings
+        atomic_sentences = [
+            s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
+        ]
+
+        kept_atomic_sentences = []
+
+        for sentence in atomic_sentences:
             original_sentence = sentence
+
+            # 2. Check Logic Per Sentence
+            has_prior_pattern = bool(PRIOR_PATTERN.search(sentence))
             extracted_years = [int(y) for y in YEAR_REGEX.findall(sentence) if y]
 
-            # Case 1: No year mentioned
+            # Case A: No year mentioned
             if not extracted_years:
-                # Check for "prior year/period" boilerplate
-                if PRIOR_PATTERN.search(sentence):
-                    deleted_text = " ".join(
-                        m.group(0) for m in PRIOR_PATTERN.finditer(sentence)
-                    )
-                    all_discarded.append(
-                        (url, deleted_text.strip(), "prior_pattern_no_year")
-                    )
-
-                    sentence = PRIOR_PATTERN.sub("", sentence)
-                    sentence = cleanup_fragment(sentence)
-
-                    if not sentence.strip():
-                        all_discarded.append(
-                            (url, original_sentence, "empty_after_cleanup")
-                        )
-                        continue  # completely removed
-
-                # If still no content → discard entire original sentence
-                if not sentence.strip():
-                    all_discarded.append(
-                        (url, original_sentence, "empty_after_cleanup")
-                    )
+                if has_prior_pattern:
+                    discards.append((url, original_sentence, "prior_pattern_explicit"))
                     continue
 
-                sentences_to_keep.append(sentence)
+                # Keep valid sentences without years
+                kept_atomic_sentences.append(sentence)
                 continue
 
-            # Case 2: Years present → discard if all are in the past
-            max_extracted_year = max(extracted_years)
-            if max_extracted_year < reporting_year:
-                all_discarded.append((url, original_sentence, "past_year"))
-                continue  # discard
+            # Case B: Years present -> check against reporting year
+            max_year = max(extracted_years)
 
-            # Otherwise keep the original sentence
-            sentences_to_keep.append(original_sentence)
-
-        if sentences_to_keep:
-            paragraph = " ".join(sentences_to_keep)
-            # Make sure we still have some instrument mentions
-            if CATEGORY_REGEX.search(paragraph) or STRICT_GEN_REGEX.search(paragraph):
-                final_paragraphs.append(paragraph)
+            if max_year < reporting_year:
+                discards.append((url, original_sentence, f"past_year_{max_year}"))
             else:
-                all_discarded.append((url, paragraph, "no_instrument_mentions"))
+                # Current or future year -> Keep
+                kept_atomic_sentences.append(sentence)
+
+        # 3. Re-assemble Paragraph
+        if kept_atomic_sentences:
+            new_paragraph = ". ".join(kept_atomic_sentences) + ". "
+            final_paragraphs.append(new_paragraph)
+            final_categories.append(category)
+        else:
+            # If the entire paragraph was made of old sentences, it's fully dropped
+            # The category is effectively dropped here too
+            pass
 
     if final_paragraphs:
-        return (url, final_paragraphs, cik, reporting_year, all_discarded)
+        return (
+            url,
+            json.dumps(final_paragraphs),
+            json.dumps(final_categories),
+            cik,
+            reporting_year,
+            discards,
+        )
 
-    # If nothing survived, still record that everything was discarded
-    return (url, [], cik, reporting_year, all_discarded) if all_discarded else None
+    return (url, "[]", "[]", cik, reporting_year, discards) if discards else None
 
 
 # =============================================================================
-# MAIN EXECUTION
+# MAIN
 # =============================================================================
 
 if __name__ == "__main__":
-    print("=" * 80)
-    print("🚀 Starting Stage 2 Filtering: Past-Year Deletion")
-    print("=" * 80)
+    print("=" * 90)
+    print("PHASE 3: PAST-YEAR DELETION & CATEGORY SYNC")
+    print("=" * 90)
 
     setup_final_db()
-    webpage_data, year_map = get_source_data()
+    webpage_data, metadata_map = get_source_data()
 
     if not webpage_data:
-        print("❌ No data found in source database. Exiting.")
+        print("❌ No data found in source database.")
     else:
-        print(f"Found {len(webpage_data):,} records to process.")
+        print(f"Found {len(webpage_data):,} records. Processing...")
 
-        processed_results = []
         with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-            # Create a list of arguments for the worker function
-            webpage_data, metadata_map = get_source_data()
+            futures = [
+                executor.submit(filter_item_by_year, item, metadata_map)
+                for item in webpage_data
+            ]
 
-            # In executor loop:
-            # tasks = [(item, metadata_map) for item in webpage_data]
-            # results_iter = executor.map(filter_item_by_year, *zip(*tasks))
-            results_iter = executor.map(
-                lambda item: filter_item_by_year(item, metadata_map), webpage_data
-            )
             batch = []
-            for result in tqdm(
-                results_iter, total=len(webpage_data), desc="Filtering by Year"
+            for future in tqdm(
+                as_completed(futures), total=len(futures), desc="Filtering"
             ):
-                if result:
-                    batch.append(result)
-                    if len(batch) >= BATCH_SIZE:
-                        write_batch_to_db(batch)
-                        batch = []
+                result = future.result()
+                if not result:
+                    continue
 
-            # Write any remaining items in the last batch
+                if result[1] != "[]":
+                    batch.append(result)
+
+                if len(batch) >= BATCH_SIZE:
+                    write_batch_to_db(batch)
+                    batch = []
+
             if batch:
                 write_batch_to_db(batch)
 
-    print("\n" + "=" * 80)
-    print("🎉 Filtering complete!")
-    print(f"✅ Final, cleaned data has been saved to '{FINAL_DB_PATH}'.")
-    print("=" * 80)
-
-# %%
+    print("\n✅ Done. Final data in:", FINAL_DB_PATH)
