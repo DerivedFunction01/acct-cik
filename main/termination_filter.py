@@ -1,18 +1,23 @@
 # final_cleanup.py
 # =============================================================================
-# PHASE 5: YEAR-END ACTIVE USER ISOLATION
+# PHASE 5: YEAR-END ACTIVE USER ISOLATION (SINGLE DB OUTPUT)
 # =============================================================================
-# Distinguishes between "Active Year-End Users" and "Terminated Users".
-# Now tracks discarded termination clauses in the database.
+# Refines the dataset by moving "termination" clauses to the discard table.
+#
+# Architecture:
+# - Input: active_data.db (Contains all mentions of use during the year)
+# - Output: final_active_data.db
 #
 # Logic:
-# 1. Reads from `active_data.db` (which contains ALL active usage during year).
-# 2. Deletes any sentence matching TERMINATION_REGEX ("expired", "matured").
-# 3. Checks what remains:
-#    - If sentences remain -> User is Active Year-End (Partial termination or full active).
-#      * Deleted termination sentences are logged to `discarded_sentences`
-#    - If NO sentences remain -> User was Active During Year, but Terminated Year-End.
-#      * Entire record moved to `terminated_during_year.db`
+# 1. Splits paragraphs into atomic sentences.
+# 2. If a sentence matches TERMINATION_REGEX ("expired", "matured", "settled"):
+#    - Move it to the `discarded_sentences` table (Reason: "termination_clause").
+# 3. If a sentence describes active use:
+#    - Keep it in the `webpage_result` (matches) table.
+#
+# Result Interpretation:
+# - Company with Matches != []: Active Year-End User.
+# - Company with Matches == [] AND Discards > 0: Active During Year, Terminated Year-End.
 # =============================================================================
 
 import sqlite3
@@ -30,8 +35,7 @@ from typing import List, Tuple, Dict, Any
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 1000
 SOURCE_DB_PATH = "active_data.db"
-ACTIVE_YEAR_END_DB = "active_year_end.db"
-TERMINATED_DB = "terminated_during_year.db"
+FINAL_DB_PATH = "final_active_data.db"
 
 try:
     from derivative_regex import SENTENCE_SPLIT_PATTERN, TERMINATION_REGEX
@@ -43,44 +47,44 @@ except ImportError:
 # =============================================================================
 
 
-def setup_dbs():
-    for db_path in [ACTIVE_YEAR_END_DB, TERMINATED_DB]:
-        if Path(db_path).exists():
-            Path(db_path).unlink()
+def setup_db():
+    if Path(FINAL_DB_PATH).exists():
+        Path(FINAL_DB_PATH).unlink()
 
-        conn = sqlite3.connect(db_path)
-        c = conn.cursor()
+    conn = sqlite3.connect(FINAL_DB_PATH)
+    c = conn.cursor()
 
-        # Main Data Tables
-        c.execute("CREATE TABLE webpage_result (url TEXT PRIMARY KEY, matches TEXT)")
-        c.execute(
-            """
-            CREATE TABLE category (
-                url TEXT PRIMARY KEY, 
-                categories TEXT, 
-                FOREIGN KEY(url) REFERENCES webpage_result(url)
-            )
+    # Main Data Tables
+    c.execute("CREATE TABLE webpage_result (url TEXT PRIMARY KEY, matches TEXT)")
+    c.execute(
         """
+        CREATE TABLE category (
+            url TEXT PRIMARY KEY, 
+            categories TEXT, 
+            FOREIGN KEY(url) REFERENCES webpage_result(url)
         )
-        c.execute(
-            "CREATE TABLE report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER)"
-        )
+    """
+    )
+    c.execute(
+        "CREATE TABLE report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER)"
+    )
 
-        # Discard Tracking Table (Consistent with pipeline)
-        c.execute(
-            """
-            CREATE TABLE discarded_sentences (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                url TEXT, 
-                sentence TEXT, 
-                discard_reason TEXT
-            )
+    # Discard Tracking Table
+    c.execute(
         """
+        CREATE TABLE discarded_sentences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT, 
+            sentence TEXT, 
+            discard_reason TEXT
         )
+    """
+    )
 
-        c.execute("PRAGMA journal_mode=WAL;")
-        conn.commit()
-        conn.close()
+    c.execute("CREATE INDEX IF NOT EXISTS idx_url ON webpage_result (url)")
+    c.execute("PRAGMA journal_mode=WAL;")
+    conn.commit()
+    conn.close()
 
 
 def get_source_data():
@@ -99,10 +103,10 @@ def get_source_data():
     return data
 
 
-def write_batch(batch, db_path):
+def write_batch(batch):
     if not batch:
         return
-    conn = sqlite3.connect(db_path, timeout=60)
+    conn = sqlite3.connect(FINAL_DB_PATH, timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     c = conn.cursor()
     try:
@@ -131,7 +135,7 @@ def write_batch(batch, db_path):
 
         conn.commit()
     except Exception as e:
-        print(f"Write error on {db_path}: {e}")
+        print(f"Write error: {e}")
         conn.rollback()
     finally:
         conn.close()
@@ -157,19 +161,13 @@ def process_company(item):
 
     # 1. Sentence-Level Filtering
     for paragraph, category in zip(paragraphs, categories):
-        # ADD THIS BLOCK:
-        if "<TABLE>" in paragraph.upper():
-            # Keep table as-is without processing
-            final_paragraphs.append(paragraph)  # Special 'table' category
-            final_categories.append("table")
-            continue
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
         kept_atomic = []
 
         for sent in atomic_sentences:
-            # If sentence describes termination, DELETE it from Active set
+            # If sentence describes termination, MOVE to discard table
             if TERMINATION_REGEX.search(sent):
                 discards.append((url, sent, "termination_clause"))
                 continue
@@ -179,23 +177,15 @@ def process_company(item):
             final_paragraphs.append(" ".join(kept_atomic))
             final_categories.append(category)
 
-    # 2. Classification & Packaging
-    # If ANY sentences remain -> Active Year End
-    if final_paragraphs:
-        return "ACTIVE", (
-            url,
-            json.dumps(final_paragraphs),
-            json.dumps(final_categories),
-            cik,
-            year,
-            discards,  # Log the partial termination sentences here
-        )
-
-    # If NO sentences remain (but input wasn't empty) -> Terminated During Year
-    # For the terminated DB, we usually keep the original text as proof of why they are there.
-    # We pass an empty list for discards because we aren't "discarding" them from the Terminated DB;
-    # they ARE the content of the Terminated DB.
-    return "TERMINATED", (url, matches_json, cats_json, cik, year, [])
+    # 2. Return Result (Even if empty matches, we save the metadata + discards)
+    return (
+        url,
+        json.dumps(final_paragraphs),  # Might be "[]" if user is fully terminated
+        json.dumps(final_categories),
+        cik,
+        year,
+        discards,
+    )
 
 
 # =============================================================================
@@ -204,39 +194,36 @@ def process_company(item):
 
 if __name__ == "__main__":
     print("=" * 90)
-    print("PHASE 5: SEPARATING YEAR-END ACTIVE vs. TERMINATED")
+    print("PHASE 5: FINAL CLEANUP (Termination Isolation)")
     print("=" * 90)
 
-    setup_dbs()
+    setup_db()
     data = get_source_data()
 
-    active_batch = []
-    terminated_batch = []
+    if not data:
+        print("❌ No data found in source database.")
+    else:
+        print(f"Processing {len(data):,} records...")
 
-    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        results = executor.map(process_company, data)
+        batch = []
+        with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+            results = executor.map(process_company, data)
 
-        for status, result in tqdm(results, total=len(data)):
-            if not result:
-                continue
+            for result in tqdm(results, total=len(data)):
+                if not result:
+                    continue
 
-            if status == "ACTIVE":
-                active_batch.append(result)
-            else:
-                terminated_batch.append(result)
+                batch.append(result)
 
-            if len(active_batch) >= BATCH_SIZE:
-                write_batch(active_batch, ACTIVE_YEAR_END_DB)
-                active_batch = []
+                if len(batch) >= BATCH_SIZE:
+                    write_batch(batch)
+                    batch = []
 
-            if len(terminated_batch) >= BATCH_SIZE:
-                write_batch(terminated_batch, TERMINATED_DB)
-                terminated_batch = []
-
-    # Final flush
-    write_batch(active_batch, ACTIVE_YEAR_END_DB)
-    write_batch(terminated_batch, TERMINATED_DB)
+        if batch:
+            write_batch(batch)
 
     print("\n✅ Done.")
-    print(f"Active Year-End Users saved to: {ACTIVE_YEAR_END_DB}")
-    print(f"Terminated Users saved to: {TERMINATED_DB}")
+    print(f"Final Processed Data saved to: {FINAL_DB_PATH}")
+    print(
+        "You can now run comparison scripts on the 'matches' vs 'discarded_sentences' tables."
+    )
