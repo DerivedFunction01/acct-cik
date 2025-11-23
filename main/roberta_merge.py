@@ -94,33 +94,57 @@ def get_already_merged_urls() -> set:
     return urls
 
 
+# def fetch_all_reports() -> List[Tuple[int, int, str, str, str, str]]:
+#     """
+#     Returns list of (cik, year, url, matches_json, categories_json, server_response_json)
+#     """
+#     conn = sqlite3.connect(SOURCE_DB_PATH)
+#     cur = conn.cursor()
+
+#     # Join with the Category table to get the parallel array
+#     try:
+#         cur.execute(
+#             """
+#             SELECT rd.cik, rd.year, wr.url, wr.matches, cat.categories, sr.server_response
+#             FROM webpage_result wr
+#             JOIN report_data rd ON wr.url = rd.url
+#             JOIN server_result sr ON sr.url = wr.url
+#             LEFT JOIN category cat ON wr.url = cat.url
+#             WHERE sr.server_response IS NOT NULL
+#             """
+#         )
+#         rows = cur.fetchall()
+#     except sqlite3.OperationalError as e:
+#         print(f"Database error (schema mismatch?): {e}")
+#         rows = []
+
+
+#     conn.close()
+#     return rows
+
 def fetch_all_reports() -> List[Tuple[int, int, str, str, str, str]]:
     """
-    Returns list of (cik, year, url, matches_json, categories_json, server_response_json)
+    Returns list of (cik, year, url, matches_json, categories_json, dummy_server_json)
     """
     conn = sqlite3.connect(SOURCE_DB_PATH)
     cur = conn.cursor()
 
-    # Join with the Category table to get the parallel array
     try:
         cur.execute(
             """
-            SELECT rd.cik, rd.year, wr.url, wr.matches, cat.categories, sr.server_response
+            SELECT rd.cik, rd.year, wr.url, wr.matches, cat.categories, NULL as server_response
             FROM webpage_result wr
             JOIN report_data rd ON wr.url = rd.url
-            JOIN server_result sr ON sr.url = wr.url
             LEFT JOIN category cat ON wr.url = cat.url
-            WHERE sr.server_response IS NOT NULL
             """
         )
         rows = cur.fetchall()
     except sqlite3.OperationalError as e:
-        print(f"Database error (schema mismatch?): {e}")
+        print(f"Database error: {e}")
         rows = []
 
     conn.close()
     return rows
-
 
 # --------------------------------------------------------------------------- #
 # CORE PROCESSING (runs in worker processes)
@@ -135,76 +159,115 @@ def build_discard_reason(pred: dict, best_label: str, best_score: float) -> str:
     return f"label={best_label}|score={best_score:.4f}|below_threshold"
 
 
+# def process_single_report(
+#     item: Tuple[int, int, str, str, str, str], merged_urls: set
+# ) -> Optional[tuple]:
+#     """
+#     Filters sentences based on RoBERTa predictions while maintaining
+#     category alignment.
+#     """
+#     cik, year, url, matches_json, categories_json, server_json = item
+
+#     if url in merged_urls:
+#         return None
+
+#     try:
+#         sentences = json.loads(matches_json) if matches_json else []
+#         predictions = json.loads(server_json) if server_json else []
+#         categories = json.loads(categories_json) if categories_json else []
+#     except json.JSONDecodeError:
+#         return (url, None, None, cik, year, [(url, "", "error_json_parse")])
+
+#     # 1. Validation: Ensure array lengths align
+#     # Categories might be missing (empty list) if the source DB is old, handle gracefully
+#     if not categories:
+#         categories = ["unknown"] * len(sentences)
+
+#     if len(predictions) != len(sentences):
+#         reason = f"mismatch|preds={len(predictions)}|sents={len(sentences)}"
+#         discards = [(url, s, reason) for s in sentences]
+#         return (url, None, None, cik, year, discards)
+
+#     if len(categories) != len(sentences):
+#         # Fallback if category sync broke previously, though filter_database prevents this
+#         reason = f"mismatch|cats={len(categories)}|sents={len(sentences)}"
+#         discards = [(url, s, reason) for s in sentences]
+#         return (url, None, None, cik, year, discards)
+
+#     kept_sentences = []
+#     kept_categories = []
+#     discarded = []
+
+#     # 2. Iterate strictly in parallel
+#     for sent, cat, pred in zip(sentences, categories, predictions):
+#         if not isinstance(pred, dict) or not pred:
+#             discarded.append((url, sent, "error_empty_pred"))
+#             continue
+
+#         label = max(pred.items(), key=lambda x: x[1])[0]
+#         score = pred[label]
+
+#         if "<TABLE>" in sent.upper(): # skip this
+#             kept_sentences.append(sent)
+#             kept_categories.append("table")
+#         # 3. Filtering Logic
+#         if label in RELEVANT_LABELS and score >= CONFIDENCE_THRESHOLD:
+#             kept_sentences.append(sent)
+#             kept_categories.append(cat)
+#         else:
+#             reason = build_discard_reason(pred, label, score)
+#             discarded.append((url, sent, reason))
+
+#     if not kept_sentences:
+#         return (url, None, None, cik, year, discarded)
+
+#     # 4. Return parallel arrays
+#     return (
+#         url,
+#         json.dumps(kept_sentences),
+#         json.dumps(kept_categories),
+#         cik,
+#         year,
+#         discarded,
+#     )
+
+
 def process_single_report(
     item: Tuple[int, int, str, str, str, str], merged_urls: set
 ) -> Optional[tuple]:
     """
-    Filters sentences based on RoBERTa predictions while maintaining
-    category alignment.
+    Pass-through: Copy all sentences without RoBERTa filtering.
     """
-    cik, year, url, matches_json, categories_json, server_json = item
+    cik, year, url, matches_json, categories_json, _ = item  # Ignore server_json
 
     if url in merged_urls:
         return None
 
     try:
         sentences = json.loads(matches_json) if matches_json else []
-        predictions = json.loads(server_json) if server_json else []
         categories = json.loads(categories_json) if categories_json else []
     except json.JSONDecodeError:
-        return (url, None, None, cik, year, [(url, "", "error_json_parse")])
+        return (url, None, None, cik, year, [])
 
-    # 1. Validation: Ensure array lengths align
-    # Categories might be missing (empty list) if the source DB is old, handle gracefully
+    # Handle missing categories
     if not categories:
         categories = ["unknown"] * len(sentences)
 
-    if len(predictions) != len(sentences):
-        reason = f"mismatch|preds={len(predictions)}|sents={len(sentences)}"
-        discards = [(url, s, reason) for s in sentences]
-        return (url, None, None, cik, year, discards)
-
+    # Validate alignment
     if len(categories) != len(sentences):
-        # Fallback if category sync broke previously, though filter_database prevents this
-        reason = f"mismatch|cats={len(categories)}|sents={len(sentences)}"
-        discards = [(url, s, reason) for s in sentences]
-        return (url, None, None, cik, year, discards)
+        return (url, None, None, cik, year, [])
 
-    kept_sentences = []
-    kept_categories = []
-    discarded = []
+    if not sentences:
+        return (url, None, None, cik, year, [])
 
-    # 2. Iterate strictly in parallel
-    for sent, cat, pred in zip(sentences, categories, predictions):
-        if not isinstance(pred, dict) or not pred:
-            discarded.append((url, sent, "error_empty_pred"))
-            continue
-
-        label = max(pred.items(), key=lambda x: x[1])[0]
-        score = pred[label]
-
-        if "<TABLE>" in sent.upper(): # skip this
-            kept_sentences.append(sent)
-            kept_categories.append("table")
-        # 3. Filtering Logic
-        if label in RELEVANT_LABELS and score >= CONFIDENCE_THRESHOLD:
-            kept_sentences.append(sent)
-            kept_categories.append(cat)
-        else:
-            reason = build_discard_reason(pred, label, score)
-            discarded.append((url, sent, reason))
-
-    if not kept_sentences:
-        return (url, None, None, cik, year, discarded)
-
-    # 4. Return parallel arrays
+    # PASS-THROUGH: Keep everything as-is
     return (
         url,
-        json.dumps(kept_sentences),
-        json.dumps(kept_categories),
+        matches_json,  # Keep original
+        categories_json,  # Keep original
         cik,
         year,
-        discarded,
+        [],  # No discards
     )
 
 
