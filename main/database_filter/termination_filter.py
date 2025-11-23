@@ -36,7 +36,24 @@ BATCH_SIZE = 1000
 SOURCE_DB_PATH = "active_data.db"
 FINAL_DB_PATH = "active_data2.db"
 
-from derivative_regex import SENTENCE_SPLIT_PATTERN, TERMINATION_REGEX, check_for_instrument, validate_instrument_retention
+from derivative_regex import (
+    SENTENCE_SPLIT_PATTERN,
+    TERMINATION_REGEX,
+    ACTIVE_STATE_REGEX,
+    ACTIVE_INDICATORS,
+    check_for_instrument,
+    validate_instrument_retention,
+    build_alternation,
+)
+import re
+
+# Create a "Salvation" regex - words that indicate something survives the termination
+# Combining ACTIVE_STATE ("outstanding") with explicit "New" indicators
+SALVATION_TERMS = [r"new", r"current", r"replace", r"remain"]
+SALVATION_PATTERN = build_alternation(SALVATION_TERMS + ACTIVE_INDICATORS)
+SALVATION_REGEX = re.compile(
+    rf"(?:{ACTIVE_STATE_REGEX.pattern}|{SALVATION_PATTERN})", re.IGNORECASE
+)
 
 # =============================================================================
 # DB SETUP
@@ -155,34 +172,53 @@ def process_company(item):
     final_categories = []
     discards = []
 
-    # 1. Sentence-Level Filtering
     for paragraph, category in zip(paragraphs, categories):
-        if "<TABLE>" in paragraph: # pass the table
+        if "<TABLE>" in paragraph:
             final_paragraphs.append(paragraph)
             final_categories.append(category)
+            continue
+
+        # --- STEP 1: PARAGRAPH LEVEL CHECK ---
+        has_termination = bool(TERMINATION_REGEX.search(paragraph))
+
+        # If termination exists, check if there is "Salvation" (evidence of remaining position)
+        # We assume if they say "expired", the whole block is dead UNLESS they explicitly say "outstanding/new/remain"
+        if has_termination:
+            has_salvation = bool(SALVATION_REGEX.search(paragraph))
+
+            if not has_salvation:
+                # NUCLEAR OPTION: The whole paragraph describes a dead instrument.
+                # Discard the whole thing to prevent "We entered" from surviving alone.
+                discards.append((url, paragraph, "termination_entire_block_removed"))
+                continue
+
+            # If has_salvation is True, we proceed to sentence-level filtering (Churn scenario)
+
+        # --- STEP 2: SENTENCE LEVEL FILTERING ---
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
         kept_atomic = []
 
         for sent in atomic_sentences:
-            # If sentence describes termination, MOVE to discard table
+            # If sentence explicitly describes termination, remove it
+            # (Even in a "Churn" paragraph, we don't want the specific "it expired" sentence)
             if TERMINATION_REGEX.search(sent):
                 discards.append((url, sent, "termination_clause"))
                 continue
+
             kept_atomic.append(sent)
 
         if kept_atomic:
             final_paragraphs.append(" ".join(kept_atomic))
             final_categories.append(category)
-    # 4. Final Validation Helper
+
+    # Final Validation (as before)
     final_paragraphs, final_categories, validation_discards = (
         validate_instrument_retention(
             final_paragraphs, final_categories, url, strict=False
         )
     )
-
-    # Add validation discards to your main discard pile
     discards.extend(validation_discards)
 
     if final_paragraphs:
