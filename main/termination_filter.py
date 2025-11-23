@@ -35,7 +35,7 @@ from typing import List, Tuple, Dict, Any
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 1000
 SOURCE_DB_PATH = "active_data.db"
-FINAL_DB_PATH = "final_active_data.db"
+FINAL_DB_PATH = "active_data2.db"
 
 try:
     from derivative_regex import SENTENCE_SPLIT_PATTERN, TERMINATION_REGEX
