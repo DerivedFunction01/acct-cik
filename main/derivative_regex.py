@@ -746,51 +746,40 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"\bshareholder\s+(?:lawsuit|litigation|suit)\b",
 ]
 # Section 3: Accounting Standards
+# === FASB ISSUANCE & ADOPTION ONLY ===
 ACCOUNTING_STANDARDS_KEYWORDS = [
-    # === Adoption / Future Application ===
-    r"will\s+(?:adopt|begin\s+to\s+apply|implement|transition\s+to)",
-    r"expect(?:s|ed)?\s+to\s+adopt",
+    # Issuance announcements (the boilerplate you want to remove)
+    r"FASB\s+(?:issued|has\s+issued|released|published)",
+    r"(?:SFAS|FAS|ASU|ASC)\s+(?:No\.\s+)?\d+(?:-\d+)*\s+(?:was|is)\s+issued",
+    r"issued.*(?:SFAS|FAS|ASU|Statement)\s+(?:No\.\s+)?\d+",
+    r"in\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}.*(?:issued|released)",
+    # Adoption language (future application)
+    r"will\s+adopt",
     r"plan(?:s|ned)?\s+to\s+adopt",
-    r"intends?\s+to\s+adopt",
+    r"expect(?:s|ed)?\s+to\s+adopt",
     r"required?\s+to\s+adopt",
-    r"adopt(?:ing|ed)?\s+(?:the\s+new\s+|this\s+)?(?:guidance|standard|amendment|ASU|Update)",
-    r"elect(?:s|ed)?\s+to\s+(?:early\s+)?adopt",
-    r"early\s+adopt(?:ed|ing)?",
-    # === FASB / Standard Issuance ===
-    r"FASB\s+(?:issued|has\s+issued|released)",
-    r"ASU\s+20\d{2}-\d{2}",
-    r"Accounting\s+Standards\s+Update",
-    r"Financial\s+Accounting\s+Standards\s+Board\s+(?:issued|FASB)",
-    r"new\s+accounting\s+(?:standard|guidance|pronouncement)",
-    r"generally accepted accounting principles",
-    r"accordance with GAAP",    
-    # === Impact Assessment / Evaluation ===
-    r"evaluat(?:ing|ed|e|es|ion)\s+(?:of the|the)\s+(?:impact|effect|adoption)",
-    r"assess(?:ing|ed|es)\s+the\s+(?:impact|effect|potential\s+impact)",
+    r"adopt(?:ing|ed)?\s+(?:the\s+)?(?:new\s+)?(?:guidance|standard|amendment|ASU|Statement)",
+    r"early\s+adopt(?:ed|ing|ion)?",
+    r"upon\s+adoption\s+of",
+    r"prior\s+to\s+adoption",
+    # Evaluation of future standards
+    r"evaluat(?:ing|ed|e|es)\s+(?:the\s+)?(?:impact|effect)\s+of.*(?:adoption|standard|guidance)",
+    r"assess(?:ing|ed|es)\s+the\s+(?:impact|effect)\s+of.*(?:new|upcoming|proposed)\s+(?:standard|guidance)",
+    r"currently\s+(?:evaluating|assessing)\s+(?:the\s+)?(?:impact|effect)",
     r"continu(?:ing|es)\s+to\s+evaluate",
-    r"currently\s+(?:evaluating|assessing|analyzing)",
-    r"expect(?:s|ed)?\s+that\s+the\s+adoption\s+(?:will|is\s+not\s+expected\s+to)",
-    # === Definition / Scope Clarification ===
-    r"meet\s+the\s+definition\s+of\s+a\s+derivative",
-    r"do\s+not\s+meet\s+the\s+definition\s+of\s+a\s+derivative",
-    r"scope\s+exception\s+(?:under|in|to)",
-    r"qualif(?:y|ies)\s+for\s+the\s+scope\s+exception",
-    r"not\s+qualify\s+for\s+hedge\s+accounting",
-    r"do\s+not\s+qualify\s+as\s+(?:a\s+)?hedge",
-    # === Effective Date References ===
-    r"effective\s+for\s+(?:fiscal\s+years|annual\s+periods)",
-    r"effective\s+(?:beginning|for)\s+(?:after|in)",
-    r"effective\s+immediately",
-    # === Disclosure / Presentation Changes ===
-    r"clarifies\s+the\s+accounting",
-    r"amends?\s+the\s+(?:presentation|disclosure|guidance)",
-    r"provides\s+an?\s+accounting\s+alternative",
-    r"establishes?\s+accounting\s+and\s+reporting\s+standards",
-    r"no\s+material\s+impact\s+(?:on|to)",
-    r"not\s+expected\s+to\s+have\s+a\s+material\s+effect",
-    # === Documentation ===
-    r"documentation require(?:s|d)",
+    # Effective date language (future application)
+    r"effective\s+for\s+(?:fiscal\s+years|annual\s+periods)\s+beginning",
+    r"effective\s+(?:in|for|after)\s+(?:fiscal\s+)?(?:year\s+)?\d{4}",
+    r"becomes\s+effective",
+    r"will\s+be\s+effective",
+    # Impact assessment (only future standards)
+    r"(?:not\s+)?expected\s+to\s+have\s+a\s+material\s+(?:impact|effect).*(?:adoption|effective)",
+    r"no\s+material\s+impact.*(?:upon|from)\s+adoption",
+    # Standard descriptions (only in issuance context)
+    r"establishes?\s+accounting\s+and\s+reporting\s+standards\s+(?:for|requiring)",
+    r"(?:this|the)\s+(?:statement|standard|guidance|amendment)\s+(?:addresses|clarifies|amends)",
 ]
+
 
 def build_exclude_regex(keywords: list) -> re.Pattern:
     """Build regex for excluding noise keywords."""
