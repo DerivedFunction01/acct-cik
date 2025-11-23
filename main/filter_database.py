@@ -100,7 +100,7 @@ discard_buffer = []  # List of (url, sentence, reason)
 
 
 def create_clean_db():
-    """Create unified clean database with category classification support and discard tracking."""
+    """Create unified clean database with parallel category tracking."""
     conn = sqlite3.connect(CLEAN_DB_PATH)
     c = conn.cursor()
     try:
@@ -109,20 +109,23 @@ def create_clean_db():
             """
             CREATE TABLE IF NOT EXISTS webpage_result (
                 url TEXT PRIMARY KEY,
-                matches TEXT
+                matches TEXT NOT NULL  -- JSON array of paragraph texts
             )
             """
         )
-        # Category data for each sentence in matches
+
+        # CRITICAL: Category array synchronized with matches array
+        # categories[i] corresponds to matches[i]
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS category (
                 url TEXT PRIMARY KEY,
-                category TEXT,
+                categories TEXT NOT NULL,  -- JSON array of category labels ['ir', 'fx', 'gen', ...]
                 FOREIGN KEY (url) REFERENCES webpage_result(url)
             )
             """
         )
+
         # Metadata for high-confidence matches
         c.execute(
             """
@@ -134,6 +137,7 @@ def create_clean_db():
             )
             """
         )
+
         # Server result table: Roberta's results
         c.execute(
             """
@@ -144,6 +148,7 @@ def create_clean_db():
             )
         """
         )
+
         # Discard tracking table - stores discarded sentences for review
         c.execute(
             """
@@ -157,6 +162,7 @@ def create_clean_db():
             )
             """
         )
+
         # Discard reasons: no_match, too_short, trading_statement
         c.execute(
             """
@@ -171,7 +177,7 @@ def create_clean_db():
             "CREATE INDEX IF NOT EXISTS discard_reason_idx ON discarded_sentences (discard_reason)"
         )
         c.execute("CREATE INDEX IF NOT EXISTS server_url_idx ON server_result (url)")
-        c.execute("CREATE INDEX IF NOT EXISTS cat_url_idx ON cat_result (url)")
+        c.execute("CREATE INDEX IF NOT EXISTS cat_url_idx ON category (url)")
         c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError as e:
         print(f"⚠️  Error creating clean database: {e}")
@@ -243,7 +249,7 @@ def get_processed_urls_from_clean_db() -> set:
 def flush_buffers(force: bool = False) -> bool:
     """
     Flush accumulated results and discards to database in batches.
-    Only runs if batch is full or force=True.
+    Ensures matches and categories arrays are synchronized.
     """
     global result_buffer, discard_buffer
 
@@ -264,26 +270,37 @@ def flush_buffers(force: bool = False) -> bool:
     try:
         c.execute("BEGIN TRANSACTION")
 
-        # 1. Flush main results
+        # 1. Flush main results with parallel category arrays
         if result_buffer:
-            c.executemany(
-                """
-                INSERT OR IGNORE INTO webpage_result (url, matches) 
-                VALUES (?, ?)
-                """,
-                [(url, json.dumps(matches)) for url, matches, _, _ in result_buffer],
-            )
-            c.executemany(
-                """
-                INSERT OR IGNORE INTO report_data (url, cik, year) 
-                VALUES (?, ?, ?)
-                """,
-                [
-                    (url, cik, year)
-                    for url, matches, cik, year in result_buffer
-                    if cik is not None
-                ],
-            )
+            # result_buffer contains: (url, [(text, category), ...], cik, year)
+
+            for url, paragraph_tuples, cik, year in result_buffer:
+                # Separate texts and categories into parallel arrays
+                texts = [text for text, cat in paragraph_tuples]
+                categories = [cat for text, cat in paragraph_tuples]
+
+                # Verify array synchronization
+                assert len(texts) == len(categories), f"Array mismatch for {url}"
+
+                # Insert matches
+                c.execute(
+                    "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
+                    (url, json.dumps(texts)),
+                )
+
+                # Insert parallel categories array
+                c.execute(
+                    "INSERT OR IGNORE INTO category (url, categories) VALUES (?, ?)",
+                    (url, json.dumps(categories)),
+                )
+
+                # Insert metadata if available
+                if cik is not None:
+                    c.execute(
+                        "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
+                        (url, cik, year),
+                    )
+
             result_buffer.clear()
 
         # 2. Flush discarded sentences
@@ -306,11 +323,6 @@ def flush_buffers(force: bool = False) -> bool:
     finally:
         conn.close()
 
-
-# =============================================================================
-# FILTERING FUNCTIONS
-# =============================================================================
-# Add to derivative_regex.py or filter_database.py
 
 # =============================================================================
 # CATEGORY DETECTION & VALIDATION
@@ -526,6 +538,8 @@ def filter_matches_with_disambiguation(
     This handles cases like:
         "We use interest rate swaps. These instruments with a notional value of XX are used hedge our debt."
         └─ Sentence 1: ir (direct) ─┘  └─ Sentence 2: ir (lookback) ─┘
+
+    CRITICAL: Returns parallel arrays where matches[i] corresponds to categories[i]
     """
     try:
         matches = json.loads(matches_json)
@@ -535,7 +549,7 @@ def filter_matches_with_disambiguation(
     if not isinstance(matches, list):
         return [], []
 
-    final_paragraphs = []
+    final_paragraphs = []  # List of (paragraph_text, category_label)
     all_discarded = []
 
     # Track ALL sentences across ALL paragraphs (for cross-paragraph lookback)
@@ -567,40 +581,214 @@ def filter_matches_with_disambiguation(
                 continue
 
             # ═══════════════════════════════════════════════════════════
-            # NOISE REDUCTION (trading statements, AOCI, PnL-only)
+            # NOISE REDUCTION: Trading denial clause removal
             # ═══════════════════════════════════════════════════════════
+
             if TRADING_STATEMENTS_REGEX.search(sentence):
                 deleted_text = " ".join(
                     m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence)
                 )
                 all_discarded.append((url, deleted_text.strip(), "trading_statements"))
+
+                # Remove the trading denial clause
                 sentence = TRADING_STATEMENTS_REGEX.sub("", sentence)
                 sentence = cleanup_fragment(sentence)
+
+                # PRIORITY 1: Check remaining fragment for category
+                remaining_cats = (
+                    get_sentence_categories(sentence) if sentence else set()
+                )
+                remaining_specific_cats = remaining_cats - {"gen", "other"}
+
+                # PRIORITY 2: Check deleted clause for category
+                deleted_cats = get_sentence_categories(deleted_text)
+                deleted_specific_cats = deleted_cats - {"gen", "other"}
+
+                # Use remaining fragment category if available (higher priority)
+                if remaining_specific_cats:
+                    detected_cat = list(remaining_specific_cats)[0]
+                    instrument_match = ALL_REGEX.search(sentence)
+                    detected_instrument = (
+                        instrument_match.group(0) if instrument_match else None
+                    )
+
+                    paragraph_category_history.append(
+                        (idx, detected_cat, detected_instrument)
+                    )
+                    global_sentence_history.append(
+                        (
+                            para_idx,
+                            idx,
+                            detected_cat,
+                            detected_instrument,
+                            f"[TRADING-REMAINING] {sentence[:80]}",
+                        )
+                    )
+
+                # Fall back to deleted clause category if remaining is generic
+                elif deleted_specific_cats:
+                    detected_cat = list(deleted_specific_cats)[0]
+                    instrument_match = ALL_REGEX.search(deleted_text)
+                    detected_instrument = (
+                        instrument_match.group(0) if instrument_match else None
+                    )
+
+                    paragraph_category_history.append(
+                        (idx, detected_cat, detected_instrument)
+                    )
+                    global_sentence_history.append(
+                        (
+                            para_idx,
+                            idx,
+                            detected_cat,
+                            detected_instrument,
+                            f"[TRADING-DELETED] {deleted_text[:80]}",
+                        )
+                    )
+
                 if not sentence:
                     continue
 
+            # ═══════════════════════════════════════════════════════════
+            # NOISE REDUCTION: AOCI-only clause removal
+            # ═══════════════════════════════════════════════════════════
+
             if NON_POSITION_INDICATORS.search(sentence):
+                # EXTRACT CATEGORY BEFORE DISCARDING for history tracking
+                aoci_cats = get_sentence_categories(sentence)
+                aoci_specific_cats = aoci_cats - {"gen", "other"}
+
+                if aoci_specific_cats:
+                    detected_cat = list(aoci_specific_cats)[0]
+                    instrument_match = ALL_REGEX.search(sentence)
+                    detected_instrument = (
+                        instrument_match.group(0) if instrument_match else None
+                    )
+
+                    # Add to history - this tells us what derivative type the document discusses
+                    paragraph_category_history.append(
+                        (idx, detected_cat, detected_instrument)
+                    )
+                    global_sentence_history.append(
+                        (
+                            para_idx,
+                            idx,
+                            detected_cat,
+                            detected_instrument,
+                            f"[AOCI] {sentence[:80]}",
+                        )
+                    )
+
+                # AOCI statements don't indicate positions → discard entirely
                 all_discarded.append((url, sentence, "aoci_or_pnl_only"))
                 continue
 
+            # ═══════════════════════════════════════════════════════════
+            # NOISE REDUCTION: PnL-only clause removal (with instrument detection)
+            # ═══════════════════════════════════════════════════════════
+
             if PNL_ONLY_NO_POSITION.search(sentence):
+                # Check if there's an instrument name (strong signal to keep)
                 has_instrument = bool(ALL_REGEX.search(sentence))
+
+                # Check if there's position context
                 has_position_context = bool(
                     POSITION_CONTEXT_INDICATORS.search(sentence)
                 )
 
                 if has_instrument or has_position_context:
+                    # Compound sentence or has instrument: surgically remove PnL part
                     deleted_text = " ".join(
                         m.group(0) for m in PNL_ONLY_NO_POSITION.finditer(sentence)
                     )
                     all_discarded.append(
                         (url, deleted_text.strip(), "pnl_only_removed")
                     )
+
+                    # Remove PnL clause
                     sentence = PNL_ONLY_NO_POSITION.sub("", sentence)
                     sentence = cleanup_fragment(sentence)
+
+                    # PRIORITY 1: Check remaining fragment for category
+                    remaining_cats = (
+                        get_sentence_categories(sentence) if sentence else set()
+                    )
+                    remaining_specific_cats = remaining_cats - {"gen", "other"}
+
+                    # PRIORITY 2: Check deleted PnL clause for category
+                    pnl_cats = get_sentence_categories(deleted_text)
+                    pnl_specific_cats = pnl_cats - {"gen", "other"}
+
+                    # Use remaining fragment category if available (higher priority)
+                    if remaining_specific_cats:
+                        detected_cat = list(remaining_specific_cats)[0]
+                        instrument_match = ALL_REGEX.search(sentence)
+                        detected_instrument = (
+                            instrument_match.group(0) if instrument_match else None
+                        )
+
+                        paragraph_category_history.append(
+                            (idx, detected_cat, detected_instrument)
+                        )
+                        global_sentence_history.append(
+                            (
+                                para_idx,
+                                idx,
+                                detected_cat,
+                                detected_instrument,
+                                f"[PNL-REMAINING] {sentence[:80]}",
+                            )
+                        )
+
+                    # Fall back to deleted clause category
+                    elif pnl_specific_cats:
+                        detected_cat = list(pnl_specific_cats)[0]
+                        instrument_match = ALL_REGEX.search(deleted_text)
+                        detected_instrument = (
+                            instrument_match.group(0) if instrument_match else None
+                        )
+
+                        paragraph_category_history.append(
+                            (idx, detected_cat, detected_instrument)
+                        )
+                        global_sentence_history.append(
+                            (
+                                para_idx,
+                                idx,
+                                detected_cat,
+                                detected_instrument,
+                                f"[PNL-DELETED] {deleted_text[:80]}",
+                            )
+                        )
+
                     if not sentence:
                         continue
                 else:
+                    # Pure PnL with no instrument → but still check for category signal
+                    pnl_cats = get_sentence_categories(sentence)
+                    pnl_specific_cats = pnl_cats - {"gen", "other"}
+
+                    if pnl_specific_cats:
+                        detected_cat = list(pnl_specific_cats)[0]
+                        instrument_match = ALL_REGEX.search(sentence)
+                        detected_instrument = (
+                            instrument_match.group(0) if instrument_match else None
+                        )
+
+                        # Track even though discarding
+                        paragraph_category_history.append(
+                            (idx, detected_cat, detected_instrument)
+                        )
+                        global_sentence_history.append(
+                            (
+                                para_idx,
+                                idx,
+                                detected_cat,
+                                detected_instrument,
+                                f"[PNL ONLY] {sentence[:80]}",
+                            )
+                        )
+
                     all_discarded.append((url, sentence, "pnl_only_no_position"))
                     continue
 
@@ -695,7 +883,7 @@ def filter_matches_with_disambiguation(
                 final_paragraphs.append((" ".join(parts), primary))
                 used_indices.update(context_indices)
 
-                # Update both histories
+                # Update histories AFTER successful classification
                 paragraph_category_history.append((idx, primary, current_instrument))
                 global_sentence_history.append(
                     (para_idx, idx, primary, current_instrument, sentence[:100])
