@@ -1430,6 +1430,27 @@ def build_termination_regex() -> re.Pattern:
     """Matches: "expired", "matured", "unwound" """
     return re.compile(rf"\b{build_alternation(TERMINATION_VERBS)}\b", re.IGNORECASE)
 
+def check_for_instrument(sentence: str, strict: bool = False) -> bool:
+    """
+    Determines if the instrument name is still present in the paragraph/sentence.
+
+    Args:
+        sentence: The text to scan.
+        strict: If True, only returns True for specific instrument names (swaps, options)
+                or explicit categories (interest rate, foreign exchange).
+                Ignores loose terms like "contracts", "agreements", "instruments".
+    """
+    # High-confidence matches (Category specific + Specific Instruments like 'Swap agreement')
+    if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
+        return True
+
+    # Loose matches (Generic terms like 'Contracts', 'Agreements', "swaps")
+    # Only checked if strict mode is OFF
+    if not strict and LOOSE_GEN_REGEX.search(sentence):
+        return True
+
+    return False
+
 
 # --------------------------------------------------------------------------- #
 # 3. COMPILED REGEX EXPORTS
