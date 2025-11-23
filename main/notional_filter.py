@@ -175,6 +175,9 @@ def process_company(item):
     discards = []
 
     for paragraph, category in zip(paragraphs, categories):
+        if "<TABLE>" in paragraph: # pass the table
+            final_paragraphs.append(paragraph)
+            final_categories.append(category)
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]

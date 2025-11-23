@@ -205,7 +205,7 @@ def filter_item_by_year(
         if "<TABLE>" in paragraph.upper():
             # Keep table as-is without processing
             final_paragraphs.append(paragraph)  # Special 'table' category
-            final_categories.append("table")
+            final_categories.append(category)
             continue
 
         # 1. Split Paragraph into Atomic Sentences

@@ -168,7 +168,7 @@ def process_item(item):
         if "<TABLE>" in paragraph.upper():
             # Keep table as-is without processing
             final_paragraphs.append(paragraph)  # Special 'table' category
-            final_categories.append("table")
+            final_categories.append(category)
             continue
         # Atomic split for precision
         atomic_sentences = [
