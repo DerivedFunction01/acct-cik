@@ -563,9 +563,9 @@ def filter_matches_with_disambiguation(
             # Keep table as-is without processing
             final_paragraphs.append((match, 'table'))  # Special 'table' category
             continue
-        if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
-            all_discarded.append((url, match, "adoption"))
-            continue
+        # if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
+        #     all_discarded.append((url, match, "adoption"))
+        #     continue
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
             all_discarded.append((url, match, "legal"))
             continue
