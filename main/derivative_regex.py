@@ -782,7 +782,9 @@ def build_exclude_regex(keywords: list) -> re.Pattern:
 
 EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
 EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
-EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS)
+EXCLUDE_REGEX_ACCOUNTING_STD = re.compile(
+    r"|".join(ACCOUNTING_STANDARDS_KEYWORDS), re.IGNORECASE
+)
 
 # Combined exclusion regex (tested first - very fast)
 COMBINED_EXCLUDE_REGEX = re.compile(
