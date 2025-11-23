@@ -157,6 +157,12 @@ def process_company(item):
 
     # 1. Sentence-Level Filtering
     for paragraph, category in zip(paragraphs, categories):
+        # ADD THIS BLOCK:
+        if "<TABLE>" in paragraph.upper():
+            # Keep table as-is without processing
+            final_paragraphs.append(paragraph)  # Special 'table' category
+            final_categories.append("table")
+            continue
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
