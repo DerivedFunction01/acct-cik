@@ -923,6 +923,40 @@ COMBINED_REGEX = re.compile(
 
 # Regex to find years between 1980-2049, followed by a word boundary character
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20[0-4]\d)\b")
+
+PNL_ONLY_NO_POSITION = re.compile(
+    rf"""
+    (?:
+        (?:realized|unrealized)\s+(?:gain|loss)|
+        mark(?:\s+to)?[- ]market|
+        (?:gain|loss)\s+on\s+derivative|
+        change\s+in\s+fair\s+value|
+        ineffective\s+portion|
+        hedge\s+ineffectiveness|
+        reclassifi(?:ed|cation).*earnings|
+        net\s+(?:gain|loss)\s+on
+    )
+    (?!.*(?:
+        {VERB_PATTERN}|
+        position|outstanding|active|open|notional|
+        fair\s+value\s+(?:asset|liabilit)|
+        derivative.*(?:asset|liabilit)|designated|hedging\s+relationship
+    ))
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+# Position context: verbs + structural indicators
+POSITION_CONTEXT_INDICATORS = re.compile(
+    rf"""
+    (?:
+        {VERB_PATTERN}|
+        position|outstanding|notional|
+        fair\s+value.*(?:asset|liabilit)|
+        designated
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 # ──────────────────────────────────────────────────────────────
 # Pre-compiled cleanup regexes (put at module level, once)
 # ──────────────────────────────────────────────────────────────
@@ -984,4 +1018,5 @@ __all__ = [
     "HEDGING_CONTEXT_REGEX",
     "CATEGORY_CONTEXT_MAP",
     "NON_POSITION_INDICATORS",
+    "PNL_ONLY_NO_POSITION",
 ]

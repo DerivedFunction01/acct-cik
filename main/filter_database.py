@@ -60,7 +60,8 @@ from derivative_regex import (
     FX_CONTEXT_REGEX,
     CP_CONTEXT_REGEX,
     EQ_CONTEXT_REGEX,
-    NON_POSITION_INDICATORS
+    NON_POSITION_INDICATORS,
+    PNL_ONLY_NO_POSITION,
 )
 
 # =============================================================================
@@ -166,7 +167,12 @@ def create_clean_db():
                 "too_short",
                 "trading_statements",
                 "aoci",
-            ] + [f"disambiguation_excision_failed_{cat}" for cat in CATEGORY_CONTEXT_MAP.keys()]
+                "pnl_only_no_position",
+                "pnl_only_removed",
+            ] + [
+                f"disambiguation_excision_failed_{cat}"
+                for cat in CATEGORY_CONTEXT_MAP.keys()
+            ]
             c.executemany(
                 "INSERT OR IGNORE INTO discard_reasons (reason) VALUES (?)",
                 [(reason,) for reason in reasons],
@@ -543,13 +549,56 @@ def filter_matches_with_disambiguation(
                     sentence = instrument + " " + sentence if instrument else sentence
 
             # ═══════════════════════════════════════════════════════════
-            # NOISE REDUCTION: AOCI clause removal
+            # NOISE REDUCTION: AOCI-only clause removal
             # ═══════════════════════════════════════════════════════════
+
             if NON_POSITION_INDICATORS.search(sentence):
-                # AOCI/PnL statements don't indicate positions → discard entirely
+                # AOCI statements don't indicate positions → discard entirely
                 all_discarded.append((url, sentence, "aoci_or_pnl_only"))
                 continue
 
+            # ═══════════════════════════════════════════════════════════
+            # NOISE REDUCTION: PnL-only clause removal (with instrument detection)
+            # ═══════════════════════════════════════════════════════════
+
+            if PNL_ONLY_NO_POSITION.search(sentence):
+                # Check if there's an instrument name (strong signal to keep)
+                has_instrument = bool(ALL_REGEX.search(sentence))
+
+                # Check if there's position context
+                has_position_context = bool(
+                    re.search(
+                        r"position|held|outstanding|notional|fair\s+value.*(?:asset|liabilit)|designated|use|employ|manage",
+                        sentence,
+                        re.IGNORECASE,
+                    )
+                )
+
+                if has_instrument or has_position_context:
+                    # Compound sentence or has instrument: surgically remove PnL part
+                    deleted_text = " ".join(
+                        m.group(0) for m in PNL_ONLY_NO_POSITION.finditer(sentence)
+                    )
+                    all_discarded.append(
+                        (url, deleted_text.strip(), "pnl_only_removed")
+                    )
+
+                    sentence = PNL_ONLY_NO_POSITION.sub("", sentence)
+                    sentence = cleanup_fragment(sentence)
+
+                    if not sentence:
+                        continue
+                    else:
+                        # Preserve instrument context if available
+                        matches_found = CATEOGRY_REGEX.findall(sentence)
+                        instrument = matches_found[0] if matches_found else ""
+                        sentence = (
+                            instrument + " " + sentence if instrument else sentence
+                        )
+                else:
+                    # Pure PnL with no instrument → discard entirely
+                    all_discarded.append((url, sentence, "pnl_only_no_position"))
+                    continue
             if not ALL_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue
