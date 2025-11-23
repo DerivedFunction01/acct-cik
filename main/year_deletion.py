@@ -244,7 +244,7 @@ def filter_item_by_year(
 
         # 3. Re-assemble Paragraph
         if kept_atomic_sentences:
-            new_paragraph = ". ".join(kept_atomic_sentences) + ". "
+            new_paragraph = " ".join(kept_atomic_sentences)
             final_paragraphs.append(new_paragraph)
             final_categories.append(category)
         else:
