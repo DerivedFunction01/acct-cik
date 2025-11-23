@@ -73,6 +73,8 @@ UNAMBIGUOUS_BASE_TYPES = [
     "derivatives?",
     "swaptions?",
     "locks?",
+    "hedges?",
+    "hedging",
 ]
 
 AMBIGUOUS_BASE_TYPES = [
