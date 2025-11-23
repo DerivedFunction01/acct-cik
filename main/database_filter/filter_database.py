@@ -579,7 +579,8 @@ def filter_matches_with_disambiguation(
                 else:
                     text.append(sentence)
             discarded_text = " ".join(discard)
-            all_discarded.append((url, discarded_text, "adoption"))
+            if discarded_text.strip():
+                all_discarded.append((url, discarded_text, "adoption"))
             match = " ".join(text)
             if not match.strip():
                 continue
@@ -597,7 +598,8 @@ def filter_matches_with_disambiguation(
                 else:
                     discard.append(sentence)
             discarded_text = " ".join(discard)
-            all_discarded.append((url, discarded_text, "comp"))
+            if discarded_text.strip():
+                all_discarded.append((url, discarded_text, "comp"))
             match = " ".join(text)
             if not match.strip():
                 continue
