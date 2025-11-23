@@ -45,16 +45,18 @@ import sqlite3
 from derivative_regex import (
     ALL_REGEX,
     DEFINITION_INDICATORS,
+    GEN_REGEX,
     IR_REGEX,
     FX_REGEX,
     CP_REGEX,
     EQ_REGEX,
+    POSITION_CONTEXT_INDICATORS,
     STRICT_GEN_REGEX,
     SOFT_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
     TRADING_STATEMENTS_REGEX,
-    CATEOGRY_REGEX,
+    CATEGORY_REGEX,
     cleanup_fragment,
     CATEGORY_CONTEXT_MAP,
     IR_CONTEXT_REGEX,
@@ -528,11 +530,11 @@ def filter_matches_with_disambiguation(
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 all_discarded.append((url, sentence, "too_short"))
                 continue
-            
+
             # ═══════════════════════════════════════════════════════════
             # DEFINITION REMOVAL (before any context incorporation)
             # ═══════════════════════════════════════════════════════════
-            
+
             if DEFINITION_INDICATORS.search(sentence):
                 all_discarded.append((url, sentence, "definition_boilerplate"))
                 used_indices.add(idx)  # Mark as processed to prevent context reuse
@@ -546,7 +548,7 @@ def filter_matches_with_disambiguation(
                 deleted_text = " ".join(
                     m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence)
                 )
-                matches_found = CATEOGRY_REGEX.findall(sentence)
+                matches_found = CATEGORY_REGEX.findall(sentence)
                 instrument = matches_found[0] if matches_found else ""
                 all_discarded.append((url, deleted_text.strip(), "trading_statements"))
 
@@ -577,13 +579,7 @@ def filter_matches_with_disambiguation(
                 has_instrument = bool(ALL_REGEX.search(sentence))
 
                 # Check if there's position context
-                has_position_context = bool(
-                    re.search(
-                        r"position|held|outstanding|notional|fair\s+value.*(?:asset|liabilit)|designated|use|employ|manage",
-                        sentence,
-                        re.IGNORECASE,
-                    )
-                )
+                has_position_context = bool(POSITION_CONTEXT_INDICATORS.search(sentence))
 
                 if has_instrument or has_position_context:
                     # Compound sentence or has instrument: surgically remove PnL part
@@ -601,7 +597,7 @@ def filter_matches_with_disambiguation(
                         continue
                     else:
                         # Preserve instrument context if available
-                        matches_found = CATEOGRY_REGEX.findall(sentence)
+                        matches_found = CATEGORY_REGEX.findall(sentence)
                         instrument = matches_found[0] if matches_found else ""
                         sentence = (
                             instrument + " " + sentence if instrument else sentence

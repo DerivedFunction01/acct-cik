@@ -51,7 +51,7 @@ try:
         SENTENCE_SPLIT_PATTERN,
         YEAR_REGEX,
         PRIOR_PATTERN,
-        CATEOGRY_REGEX,
+        CATEGORY_REGEX,
         STRICT_GEN_REGEX,
         cleanup_fragment,
     )
@@ -60,7 +60,7 @@ except Exception:
         SENTENCE_SPLIT_PATTERN,
         YEAR_REGEX,
         PRIOR_PATTERN,
-        CATEOGRY_REGEX,
+        CATEGORY_REGEX,
         STRICT_GEN_REGEX,
         cleanup_fragment
     )
@@ -269,7 +269,7 @@ def filter_item_by_year(
         if sentences_to_keep:
             paragraph = " ".join(sentences_to_keep)
             # Make sure we still have some instrument mentions
-            if CATEOGRY_REGEX.search(paragraph) or STRICT_GEN_REGEX.search(paragraph):
+            if CATEGORY_REGEX.search(paragraph) or STRICT_GEN_REGEX.search(paragraph):
                 final_paragraphs.append(paragraph)
             else:
                 all_discarded.append((url, paragraph, "no_instrument_mentions"))

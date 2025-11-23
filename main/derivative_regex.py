@@ -240,21 +240,59 @@ def build_eq_regex() -> re.Pattern:
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
-def build_strict_gen_regex() -> re.Pattern:
-    base_with_required_suffixes = [
-        f"{base}[- ]{suffix}"
-        for base in UNAMBIGUOUS_BASE_TYPES
-        for suffix in ALL_SUFFIXES
+def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
+    """
+    Returns a tuple:
+        (INSTRUMENT_REGEX, NOTIONAL_REGEX)
+
+    INSTRUMENT_REGEX  → captures pure derivative instrument names (strict)
+    NOTIONAL_REGEX    → captures notional amount/principal/value phrases
+    Both use named groups for convenient extraction.
+    """
+    # ── 1. Strict instrument names (require a recognised base + suffix) ──
+    base_strict = UNAMBIGUOUS_BASE_TYPES  # swaps?, forwards?, caps?, …
+    suffix_strict = ALL_SUFFIXES  # agreements?, contracts?, instruments?, …
+
+    instrument_parts = [
+        f"{base}[- ]{suffix}" for base in base_strict for suffix in suffix_strict
     ]
-    specific_phrases = [
+
+    instrument_specific = [
         "total[- ]return swaps?",
-        "notional (?:amounts?|values?|principals?)",
         "cash flow hedges?",
         "fair value hedges?",
         "embedded derivatives?",
     ]
-    pattern = build_alternation(base_with_required_suffixes + specific_phrases)
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+
+    instrument_pattern = build_alternation(instrument_parts + instrument_specific)
+
+    INSTRUMENT_REGEX = re.compile(
+        rf"\b(?P<instrument>{instrument_pattern})\b", re.IGNORECASE
+    )
+
+    # ── 2. Notional phrases (very high precision, no overlap with instruments) ──
+    notional_variants = [
+        r"notional\s+(?:amounts?|values?|principals?)\b",
+        r"notional\s+(?:amount|value|principal)\s+(?:thereof|outstanding)?\b",
+        r"(?:aggregate|total)\s+notional\s+(?:amount|value|principal)\b",
+        r"notional\s+(?:of\s+)?(?:[\d,]+(?:\.\d+)?\s*(?:million|billion|trillion)?|approximately?\s*[\d,]+)",
+    ]
+
+    NOTIONAL_REGEX = re.compile(
+        rf"\b(?P<notional>(?:{'|'.join(notional_variants)}))\b", re.IGNORECASE
+    )
+
+    return INSTRUMENT_REGEX, NOTIONAL_REGEX
+
+
+# Re-build the strict generic pair at import time
+GEN_REGEX, STRICT_NOTIONAL_REGEX = build_strict_gen_regex()
+
+# Optional: a combined strict regex that still catches *either* (for legacy code)
+STRICT_GEN_REGEX = re.compile(
+    rf"\b(?:{GEN_REGEX.pattern}|{STRICT_NOTIONAL_REGEX.pattern})\b",
+    re.IGNORECASE,
+)
 
 
 def build_soft_gen_regex() -> re.Pattern:
@@ -282,8 +320,8 @@ IR_REGEX = build_ir_regex()
 FX_REGEX = build_fx_regex()
 CP_REGEX = build_cp_regex()
 EQ_REGEX = build_eq_regex()
-STRICT_GEN_REGEX = build_strict_gen_regex()
-CATEOGRY_REGEX = re.compile(
+
+CATEGORY_REGEX = re.compile(
     r"|".join(
         [
             IR_REGEX.pattern,
@@ -300,7 +338,7 @@ SOFT_GEN_REGEX = build_soft_gen_regex()
 STRICT_REGEX = re.compile(
     r"|".join(
         [
-            CATEOGRY_REGEX.pattern,
+            CATEGORY_REGEX.pattern,
             STRICT_GEN_REGEX.pattern,
         ]
     ),
@@ -803,12 +841,12 @@ TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 def build_definition_regex() -> re.Pattern:
     """
     Builds a comprehensive definition detection regex using:
-    - CATEOGRY_REGEX: all derivative instruments
+    - CATEGORY_REGEX: all derivative instruments
     - SUBJ: company/subject references
     - VERB_PATTERN: negative check (definitions shouldn't have action verbs)
     """
 
-    instr = f"(?:{CATEOGRY_REGEX.pattern})"
+    instr = f"(?:{CATEGORY_REGEX.pattern})"
     subject = SUBJ
 
     # Negative lookahead: don't match if sentence contains action verbs
@@ -1058,4 +1096,5 @@ __all__ = [
     "NON_POSITION_INDICATORS",
     "PNL_ONLY_NO_POSITION",
     "DEFINITION_INDICATORS",
+    "GEN_REGEX"
 ]
