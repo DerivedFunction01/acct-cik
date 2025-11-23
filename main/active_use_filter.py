@@ -38,7 +38,8 @@ from derivative_regex import (
     NEGATIVE_INTENT_REGEX,
     ABSENCE_REGEX,
     DID_NOT_HOLD_REGEX,
-    check_for_instrument
+    check_for_instrument,
+    validate_instrument_retention
 )
 
 # =============================================================================
@@ -209,27 +210,15 @@ def process_item(item):
             final_paragraphs.append(" ".join(kept_sentences))
             final_categories.append(category)
 
-    # -------------------------------------------------------------------------
-    # FINAL SAFETY CHECK: Ensure instrument name survived cleaning
-    # -------------------------------------------------------------------------
-    # Filter out sentences where the cleaning process accidentally stripped
-    # the actual instrument name (e.g., reducing "We use swaps to hedge" -> "We use to hedge")
+    # 4. Final Validation Helper
+    final_paragraphs, final_categories, validation_discards = (
+        validate_instrument_retention(
+            final_paragraphs, final_categories, url, strict=False
+        )
+    )
 
-    validated_paragraphs = []
-
-    # Assuming final_paragraphs is a list of (text, category) tuples based on your Phase 2 script
-    # If it is just a list of strings, remove the unpacking.
-    for item in final_paragraphs:
-        # Handle both tuple (text, cat) and string formats dynamically
-        text = item[0] if isinstance(item, tuple) else item
-
-        # strict=False: Allows "contracts", "instruments", "derivatives" (Broader)
-        # strict=True:  Requires "ir swaps", "forward contract", "call options" (Stricter)
-        if check_for_instrument(text, strict=False):
-            validated_paragraphs.append(item)
-        else:
-            # Log it as a specific discard reason so you can debug regex over-pruning
-            discards.append((url, text, "lost_instrument_reference"))
+    # Add validation discards to your main discard pile
+    discards.extend(validation_discards)
 
     if final_paragraphs:
         return (
@@ -241,7 +230,6 @@ def process_item(item):
             discards,
         )
 
-    # Return discards even if file is empty now to track what happened
     return (url, "[]", "[]", cik, year, discards) if discards else None
 
 

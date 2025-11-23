@@ -34,8 +34,10 @@ FINAL_DB_PATH = "current_data.db"
 from derivative_regex import (
     YEAR_REGEX,
     PRIOR_PATTERN,
-    SENTENCE_SPLIT_PATTERN,  # Ensure this is imported
+    SENTENCE_SPLIT_PATTERN,
+    check_for_instrument,  # Ensure this is imported
     cleanup_fragment,
+    validate_instrument_retention,
 )
 
 
@@ -174,6 +176,7 @@ def filter_item_by_year(
 ) -> Optional[Tuple]:
     """
     Filters sub-sentences within paragraphs based on years.
+    Performs surgical deletion of 'Prior Period' clauses.
     """
     url, matches_json, categories_json = item
 
@@ -201,15 +204,13 @@ def filter_item_by_year(
     # Iterate over the Paragraphs (Chunks)
     for paragraph, category in zip(paragraphs, categories):
 
-        # ADD THIS BLOCK:
+        # 1. Table Check: Keep tables as-is
         if "<TABLE>" in paragraph.upper():
-            # Keep table as-is without processing
-            final_paragraphs.append(paragraph)  # Special 'table' category
+            final_paragraphs.append(paragraph)
             final_categories.append(category)
             continue
 
-        # 1. Split Paragraph into Atomic Sentences
-        # The regex splits, but we need to ensure we don't get empty strings
+        # 2. Split Paragraph into Atomic Sentences
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
@@ -218,22 +219,44 @@ def filter_item_by_year(
 
         for sentence in atomic_sentences:
             original_sentence = sentence
-
-            # 2. Check Logic Per Sentence
-            has_prior_pattern = bool(PRIOR_PATTERN.search(sentence))
             extracted_years = [int(y) for y in YEAR_REGEX.findall(sentence) if y]
 
-            # Case A: No year mentioned
+            # -------------------------------------------------------
+            # CASE A: No explicit year mentioned
+            # -------------------------------------------------------
             if not extracted_years:
-                if has_prior_pattern:
-                    discards.append((url, original_sentence, "prior_pattern_explicit"))
-                    continue
+                # SURGICAL DELETION LOGIC
+                # Instead of discarding the whole sentence, we check if we can
+                # remove just the "Prior Year" clause.
+                if PRIOR_PATTERN.search(sentence):
+                    # Remove the historical clause
+                    cleaned_sentence = PRIOR_PATTERN.sub(" ", sentence)
+                    cleaned_sentence = cleanup_fragment(cleaned_sentence)
 
-                # Keep valid sentences without years
+                    # Log what we removed (optional, for auditing)
+                    removed_text = original_sentence.replace(
+                        cleaned_sentence, ""
+                    ).strip()
+                    if removed_text:
+                        discards.append((url, removed_text, "surgical_prior_removal"))
+
+                    # If nothing meaningful remains, discard the whole thing
+                    if not cleaned_sentence or len(cleaned_sentence) < 10:
+                        discards.append(
+                            (url, original_sentence, "empty_after_surgical_clean")
+                        )
+                        continue
+
+                    # If content remains (e.g. "but currently we use swaps"), use it
+                    sentence = cleaned_sentence
+
+                # Keep the (potentially cleaned) sentence
                 kept_atomic_sentences.append(sentence)
                 continue
 
-            # Case B: Years present -> check against reporting year
+            # -------------------------------------------------------
+            # CASE B: Years present -> check against reporting year
+            # -------------------------------------------------------
             max_year = max(extracted_years)
 
             if max_year < reporting_year:
@@ -248,9 +271,17 @@ def filter_item_by_year(
             final_paragraphs.append(new_paragraph)
             final_categories.append(category)
         else:
-            # If the entire paragraph was made of old sentences, it's fully dropped
-            # The category is effectively dropped here too
             pass
+
+    # 4. Final Validation Helper
+    final_paragraphs, final_categories, validation_discards = (
+        validate_instrument_retention(
+            final_paragraphs, final_categories, url, strict=False
+        )
+    )
+
+    # Add validation discards to your main discard pile
+    discards.extend(validation_discards)
 
     if final_paragraphs:
         return (

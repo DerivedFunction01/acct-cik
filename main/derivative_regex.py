@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import re
-from typing import List
+from typing import List, Tuple
 
 # =============================================================================
 # SHARED COMPONENTS (moved from filter_database.py)
@@ -1452,6 +1452,32 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     return False
 
 
+def validate_instrument_retention(
+    paragraphs: List[str], categories: List[str], url: str, strict: bool = False
+) -> Tuple[List[str], List[str], List[Tuple[str, str, str]]]:
+    """
+    Final safety check to ensure cleaning didn't strip the instrument name.
+    Iterates parallel arrays and filters them in sync.
+
+    Returns:
+        (kept_paragraphs, kept_categories, list_of_discards)
+    """
+    validated_paragraphs = []
+    validated_categories = []
+    discards = []
+
+    for text, cat in zip(paragraphs, categories):
+        # Strict=False allows "contracts", "instruments" (Broader)
+        # Strict=True requires "swaps", "options" (Stricter)
+        if check_for_instrument(text, strict=strict):
+            validated_paragraphs.append(text)
+            validated_categories.append(cat)
+        else:
+            discards.append((url, text, "lost_instrument_reference"))
+
+    return validated_paragraphs, validated_categories, discards
+
+
 # --------------------------------------------------------------------------- #
 # 3. COMPILED REGEX EXPORTS
 # --------------------------------------------------------------------------- #
@@ -1513,4 +1539,5 @@ __all__ = [
     "STRONG_VERB_PATTERN",
     "WEAK_VERB_PATTERN",
     "ACTIVE_STATE_REGEX",
+    "validate_instrument_retention",
 ]

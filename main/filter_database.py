@@ -1030,7 +1030,7 @@ def filter_matches_with_disambiguation(
         else:
             # Log it as a specific discard reason so you can debug regex over-pruning
             all_discarded.append((url, text, "lost_instrument_reference"))
-
+    final_paragraphs = validated_paragraphs
     return final_paragraphs, all_discarded
 
 

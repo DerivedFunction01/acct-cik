@@ -38,6 +38,7 @@ from derivative_regex import (
     STRONG_VERB_PATTERN,
     build_alternation, 
     ACTIVE_STATE_REGEX,
+    validate_instrument_retention,
 )
 # =============================================================================
 # VERIFICATION REGEXES
@@ -119,16 +120,25 @@ def process_company(item):
         if kept_atomic:
             final_paragraphs.append(" ".join(kept_atomic))
             final_categories.append(category)
-
-    return (
-        url,
-        json.dumps(final_paragraphs),
-        json.dumps(final_categories),
-        cik,
-        year,
-        discards,
+    # 4. Final Validation Helper
+    final_paragraphs, final_categories, validation_discards = (
+        validate_instrument_retention(
+            final_paragraphs, final_categories, url, strict=False
+        )
     )
 
+    # Add validation discards to your main discard pile
+    discards.extend(validation_discards)
+
+    if final_paragraphs:
+        return (
+            url,
+            json.dumps(final_paragraphs),
+            json.dumps(final_categories),
+            cik,
+            year,
+            discards,
+        )
 
 # =============================================================================
 # DB HELPERS

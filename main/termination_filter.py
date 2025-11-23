@@ -27,7 +27,6 @@ from pathlib import Path
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
 from typing import List, Tuple, Dict, Any
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -37,10 +36,7 @@ BATCH_SIZE = 1000
 SOURCE_DB_PATH = "active_data.db"
 FINAL_DB_PATH = "active_data2.db"
 
-try:
-    from derivative_regex import SENTENCE_SPLIT_PATTERN, TERMINATION_REGEX
-except ImportError:
-    raise ImportError("Missing derivative_regex.py or TERMINATION_REGEX.")
+from derivative_regex import SENTENCE_SPLIT_PATTERN, TERMINATION_REGEX, check_for_instrument, validate_instrument_retention
 
 # =============================================================================
 # DB SETUP
@@ -179,17 +175,27 @@ def process_company(item):
         if kept_atomic:
             final_paragraphs.append(" ".join(kept_atomic))
             final_categories.append(category)
-
-    # 2. Return Result (Even if empty matches, we save the metadata + discards)
-    return (
-        url,
-        json.dumps(final_paragraphs),  # Might be "[]" if user is fully terminated
-        json.dumps(final_categories),
-        cik,
-        year,
-        discards,
+    # 4. Final Validation Helper
+    final_paragraphs, final_categories, validation_discards = (
+        validate_instrument_retention(
+            final_paragraphs, final_categories, url, strict=False
+        )
     )
 
+    # Add validation discards to your main discard pile
+    discards.extend(validation_discards)
+
+    if final_paragraphs:
+        return (
+            url,
+            json.dumps(final_paragraphs),
+            json.dumps(final_categories),
+            cik,
+            year,
+            discards,
+        )
+
+    return (url, "[]", "[]", cik, year, discards) if discards else None
 
 # =============================================================================
 # MAIN

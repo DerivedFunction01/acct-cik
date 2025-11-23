@@ -33,7 +33,7 @@ BATCH_SIZE = 1000
 SOURCE_DB_PATH = "active_data2.db"
 FINAL_DB_PATH = "active_nonzero_data.db"
 
-from derivative_regex import IMMATERIAL_PATTERN, SENTENCE_SPLIT_PATTERN, CURRENCY_SYMBOL_PATTERN, YEAR_REGEX
+from derivative_regex import IMMATERIAL_PATTERN, SENTENCE_SPLIT_PATTERN, CURRENCY_SYMBOL_PATTERN, YEAR_REGEX, check_for_instrument, validate_instrument_retention
 
 
 # =============================================================================
@@ -194,15 +194,27 @@ def process_company(item):
         if kept_atomic:
             final_paragraphs.append(" ".join(kept_atomic))
             final_categories.append(category)
-
-    return (
-        url,
-        json.dumps(final_paragraphs),
-        json.dumps(final_categories),
-        cik,
-        year,
-        discards,
+    # 4. Final Validation Helper
+    final_paragraphs, final_categories, validation_discards = (
+        validate_instrument_retention(
+            final_paragraphs, final_categories, url, strict=False
+        )
     )
+
+    # Add validation discards to your main discard pile
+    discards.extend(validation_discards)
+
+    if final_paragraphs:
+        return (
+            url,
+            json.dumps(final_paragraphs),
+            json.dumps(final_categories),
+            cik,
+            year,
+            discards,
+        )
+
+    return (url, "[]", "[]", cik, year, discards) if discards else None
 
 
 # =============================================================================
