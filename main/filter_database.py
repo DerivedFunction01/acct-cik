@@ -58,6 +58,7 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
     TRADING_STATEMENTS_REGEX,
+    check_for_instrument,
     cleanup_fragment,
     CATEGORY_CONTEXT_MAP,
     IR_CONTEXT_REGEX,
@@ -192,6 +193,7 @@ def create_clean_db():
                 "pnl_only_removed",
                 "definition_boilerplate",
                 "adoption",
+                "lost_instrument_reference",
             ] + [
                 f"disambiguation_excision_failed_{cat}"
                 for cat in CATEGORY_CONTEXT_MAP.keys()
@@ -599,7 +601,7 @@ def filter_matches_with_disambiguation(
             match = " ".join(text)
             if not match.strip():
                 continue
-        
+
         # Begin construction
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()
@@ -1007,6 +1009,27 @@ def filter_matches_with_disambiguation(
                     )
 
                 used_indices.add(idx)
+    # -------------------------------------------------------------------------
+    # FINAL SAFETY CHECK: Ensure instrument name survived cleaning
+    # -------------------------------------------------------------------------
+    # Filter out sentences where the cleaning process accidentally stripped
+    # the actual instrument name (e.g., reducing "We use swaps to hedge" -> "We use to hedge")
+
+    validated_paragraphs = []
+
+    # Assuming final_paragraphs is a list of (text, category) tuples based on your Phase 2 script
+    # If it is just a list of strings, remove the unpacking.
+    for item in final_paragraphs:
+        # Handle both tuple (text, cat) and string formats dynamically
+        text = item[0] if isinstance(item, tuple) else item
+
+        # strict=False: Allows "contracts", "instruments", "derivatives" (Broader)
+        # strict=True:  Requires "ir swaps", "forward contract", "call options" (Stricter)
+        if check_for_instrument(text, strict=False):
+            validated_paragraphs.append(item)
+        else:
+            # Log it as a specific discard reason so you can debug regex over-pruning
+            all_discarded.append((url, text, "lost_instrument_reference"))
 
     return final_paragraphs, all_discarded
 
