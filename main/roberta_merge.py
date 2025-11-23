@@ -252,6 +252,7 @@ def process_single_report(
     # Handle missing categories
     if not categories:
         categories = ["unknown"] * len(sentences)
+        categories_json = json.dumps(categories)  # Update the JSON!
 
     # Validate alignment
     if len(categories) != len(sentences):

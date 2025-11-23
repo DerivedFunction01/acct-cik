@@ -711,21 +711,40 @@ EQUITY_COMP_KEYWORDS = [
 ]
 
 # Section 2: Legal/Litigation
+# === More specific legal/litigation patterns ===
 LEGAL_LITIGATION_KEYWORDS = [
-    "lawsuit",
-    "litigation",
-    "arbitration",
-    "(?:civil|legal|administrative|criminal) action",
-    "officer",
-    "director",
-    "convicted",
-    "judgement",
-    "violated",
-    "plea",
-    "plaintiff",
-    "defendent",
+    # Core litigation terms
+    r"\blawsuit\b",
+    r"\blitigation\b",
+    r"\barbitration\s+(?:proceeding|hearing|case)\b",
+    r"\blegal\s+(?:action|proceeding|case|dispute)\b",
+    # Types of legal actions (use full context)
+    r"\bcivil\s+(?:action|suit|case|proceeding)\b",
+    r"\bcriminal\s+(?:action|case|proceeding|charges?)\b",
+    r"\badministrative\s+(?:action|proceeding|hearing)\b",
+    # Parties in litigation (must be in litigation context)
+    r"\b(?:named\s+as\s+)?(?:a\s+)?(?:plaintiff|defendant|respondent|claimant)\b",
+    r"\b(?:co-)?defendants?\s+(?:in|include|are)\b",
+    # Convictions and violations
+    r"\bconvicted\s+of\b",
+    r"\bpled\s+guilty\b",
+    r"\bplea\s+(?:agreement|bargain|deal)\b",
+    r"\bviolated\s+(?:securities|federal|state)\b",
+    r"\balleges?\s+(?:that|violations?)\b",
+    r"\bcharges?\s+(?:filed|brought|pending)\b",
+    # Court proceedings
+    r"\bcourt\s+(?:case|proceeding|order|judgment|ruling)\b",
+    r"\bjudgme?nt\s+(?:against|in\s+favor|rendered)\b",  # Fixed typo
+    r"\bsettlement\s+(?:agreement|reached|of)\b",
+    # Officers/Directors in legal context (more specific)
+    r"\b(?:former\s+)?(?:officer|director)s?\s+(?:was|were|are)\s+(?:charged|indicted|convicted|sued)\b",
+    r"\bagainst\s+(?:former\s+)?(?:officer|director)s?\b",
+    r"\b(?:officer|director)s?\s+(?:and|or)\s+(?:officer|director)s?\s+(?:were\s+)?(?:named|charged|sued)\b",
+    # Securities litigation specific
+    r"\bsecurities\s+(?:fraud|litigation|class\s+action)\b",
+    r"\bclass\s+action\s+lawsuit\b",
+    r"\bshareholder\s+(?:lawsuit|litigation|suit)\b",
 ]
-
 # Section 3: Accounting Standards
 ACCOUNTING_STANDARDS_KEYWORDS = [
     # === Adoption / Future Application ===
@@ -781,7 +800,9 @@ def build_exclude_regex(keywords: list) -> re.Pattern:
 
 
 EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
-EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
+EXCLUDE_REGEX_LEGAL_LITIGATION = re.compile(
+    r"|".join(LEGAL_LITIGATION_KEYWORDS), re.IGNORECASE
+)
 EXCLUDE_REGEX_ACCOUNTING_STD = re.compile(
     r"|".join(ACCOUNTING_STANDARDS_KEYWORDS), re.IGNORECASE
 )
