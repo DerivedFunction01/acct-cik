@@ -30,7 +30,7 @@ from typing import List, Tuple, Dict, Optional
 
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 1000
-SOURCE_DB_PATH = "final_active_data.db"
+SOURCE_DB_PATH = "active_data2.db"
 FINAL_DB_PATH = "active_nonzero_data.db"
 
 from derivative_regex import IMMATERIAL_PATTERN, SENTENCE_SPLIT_PATTERN, CURRENCY_SYMBOL_PATTERN, YEAR_REGEX

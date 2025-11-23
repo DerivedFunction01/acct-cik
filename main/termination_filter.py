@@ -6,7 +6,7 @@
 #
 # Architecture:
 # - Input: active_data.db (Contains all mentions of use during the year)
-# - Output: final_active_data.db
+# - Output: active_data2.db
 #
 # Logic:
 # 1. Splits paragraphs into atomic sentences.
@@ -161,6 +161,9 @@ def process_company(item):
 
     # 1. Sentence-Level Filtering
     for paragraph, category in zip(paragraphs, categories):
+        if "<TABLE>" in paragraph: # pass the table
+            final_paragraphs.append(paragraph)
+            final_categories.append(category)
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
