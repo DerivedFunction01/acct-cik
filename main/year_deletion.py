@@ -304,9 +304,11 @@ if __name__ == "__main__":
             webpage_data, metadata_map = get_source_data()
 
             # In executor loop:
-            tasks = [(item, metadata_map) for item in webpage_data]
-            results_iter = executor.map(filter_item_by_year, *zip(*tasks))
-
+            # tasks = [(item, metadata_map) for item in webpage_data]
+            # results_iter = executor.map(filter_item_by_year, *zip(*tasks))
+            results_iter = executor.map(
+                lambda item: filter_item_by_year(item, metadata_map), webpage_data
+            )
             batch = []
             for result in tqdm(
                 results_iter, total=len(webpage_data), desc="Filtering by Year"
