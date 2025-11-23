@@ -29,9 +29,7 @@ Example Transformation:
       (Removed: foreign currency instruments and FX-specific context)
 """
 
-import re
 import json
-import re
 from pathlib import Path
 from tqdm import tqdm
 from typing import List, Tuple, Optional, Set
@@ -45,7 +43,6 @@ import sqlite3
 from derivative_regex import (
     ALL_REGEX,
     DEFINITION_INDICATORS,
-    GEN_REGEX,
     IR_REGEX,
     FX_REGEX,
     CP_REGEX,
@@ -57,7 +54,6 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
     TRADING_STATEMENTS_REGEX,
-    CATEGORY_REGEX,
     cleanup_fragment,
     CATEGORY_CONTEXT_MAP,
     IR_CONTEXT_REGEX,
