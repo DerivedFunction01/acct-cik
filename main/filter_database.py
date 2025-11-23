@@ -30,6 +30,7 @@ try:
         TRADING_STATEMENTS_REGEX,
         CATEOGRY_REGEX,
         cleanup_fragment,
+        CATEGORY_CONTEXT_MAP
     )
 except Exception:
     from .derivative_regex import (
@@ -45,6 +46,7 @@ except Exception:
         TRADING_STATEMENTS_REGEX,
         CATEOGRY_REGEX,
         cleanup_fragment,
+        CATEGORY_CONTEXT_MAP,
     )
 
 # =============================================================================
@@ -273,41 +275,113 @@ def flush_buffers(force: bool = False) -> bool:
 # =============================================================================
 # Add to derivative_regex.py or filter_database.py
 
+# =============================================================================
+# CATEGORY DETECTION & VALIDATION
+# =============================================================================
 
-def get_sentence_categories(sentence: str) -> set:
-    """Returns the set of derivative categories matched in a sentence."""
-    cats = set()
 
+def get_sentence_categories(sentence: str, context_sentences: Optional[List[str]] = None) -> set:
+    """
+    Returns derivative categories with smart disambiguation.
+
+    Strategy:
+    1. Find all matching categories in the sentence
+    2. If ambiguous, use context to break ties
+    3. Prefer specific over generic
+    4. Use match count + context strength as tiebreaker
+    """
+    if context_sentences is None:
+        context_sentences = []
+
+    full_text = (
+        sentence
+        if not context_sentences
+        else sentence + " " + " ".join(context_sentences)
+    )
+
+    # Score each category: instrument matches + context matches
+    scores = {
+        "ir": 0,
+        "fx": 0,
+        "cp": 0,
+        "eq": 0,
+        "gen": 0,
+    }
+
+    # Phase 1: Score based on instrument keyword matches
     if IR_REGEX.search(sentence):
-        cats.add("ir")
+        scores["ir"] += (
+            len(IR_REGEX.findall(sentence)) * 10
+        )  # Weight instrument matches heavily
+
     if FX_REGEX.search(sentence):
-        cats.add("fx")
+        scores["fx"] += len(FX_REGEX.findall(sentence)) * 10
+
     if CP_REGEX.search(sentence):
-        cats.add("cp")
+        scores["cp"] += len(CP_REGEX.findall(sentence)) * 10
+
     if EQ_REGEX.search(sentence):
-        cats.add("eq")
+        scores["eq"] += len(EQ_REGEX.findall(sentence)) * 10
 
-    # Generic is allowed to mix with specific categories
     if STRICT_GEN_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
-        if not cats:  # Only tag as generic if no specific match
-            cats.add("gen")
+        scores["gen"] += 5  # Generic gets lower weight
 
-    return cats if cats else {"other"}
+    # Phase 2: Add context support scores (lighter weight)
+    if context_sentences:
+        for cat in ["ir", "fx", "cp", "eq"]:
+            context_regex = CATEGORY_CONTEXT_MAP.get(cat)
+            if context_regex and context_regex.search(full_text):
+                scores[cat] += len(context_regex.findall(full_text))
+
+    # Filter out zero scores
+    matches = {cat: score for cat, score in scores.items() if score > 0}
+
+    if not matches:
+        return {"other"}
+
+    # Get highest score
+    max_score = max(matches.values())
+
+    # Return all categories with the max score
+    # (Usually just one, but could be tied)
+    top_cats = {cat for cat, score in matches.items() if score == max_score}
+
+    # Prefer specific over generic
+    specific = top_cats - {"gen"}
+    if specific:
+        return specific
+
+    return top_cats
 
 
-def sentences_compatible(sent1_cats: set, sent2_cats: set) -> bool:
-    """Check if two sentences can be in the same paragraph."""
-    # Remove 'gen' and 'other' for comparison (they're wildcards)
-    specific1 = sent1_cats - {"gen", "other"}
-    specific2 = sent2_cats - {"gen", "other"}
+def get_primary_category(categories: set) -> str:
+    """Get the primary category, preferring specific over generic."""
+    specific = categories - {"gen", "other"}
+    if specific:
+        # If multiple specific categories, pick first (or add priority logic)
+        priority = ["ir", "fx", "cp", "eq"]
+        for cat in priority:
+            if cat in specific:
+                return cat
+        return list(specific)[0]
+    return "gen" if "gen" in categories else "other"
 
-    # If either has no specific category, they're compatible
-    if not specific1 or not specific2:
-        return True
 
-    # Otherwise, they must share at least one specific category
-    return bool(specific1 & specific2)
+def is_category_compatible(primary: str, context_cats: set) -> bool:
+    """Check if context is compatible with primary category (prevents IR + FX mixing)."""
+    if not context_cats or context_cats == {"other"}:
+        return True  # No category = generic context, always OK
 
+    if "gen" in context_cats and len(context_cats) == 1:
+        return True  # Pure generic = always OK
+
+    # Check for conflicts (IR + FX, etc.)
+    context_specific = context_cats - {"gen", "other"}
+    if context_specific:
+        # Context must match primary, or primary must be generic
+        return primary in context_specific or primary == "gen"
+
+    return True
 
 # def check_exclusion_category(sentence: str) -> Optional[str]:
 #     """
@@ -331,7 +405,12 @@ def filter_matches(
 ) -> Tuple[List[str], List[Tuple[str, str, str]]]:
     """
     Main filter with CATEGORY BOUNDARY ENFORCEMENT.
-    Each paragraph will contain only one specific derivative category.
+
+    Strategy:
+    1. Build 3-sentence paragraphs with derivative keywords
+    2. Enforce single-category per paragraph (prevent IR + FX mixing)
+    3. Remove trading denials (obvious noise)
+    4. Let classifier handle nuanced false positives (legal, accounting, etc.)
     """
     try:
         matches = json.loads(matches_json)
@@ -356,13 +435,14 @@ def filter_matches(
                 all_discarded.append((url, sentence, "too_short"))
                 continue
 
-            # Handle trading denials
+            # Handle trading denials - surgically remove the denial clause
             if TRADING_STATEMENTS_REGEX.search(sentence):
                 deleted_text = " ".join(
                     m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence)
                 )
-                matches = CATEOGRY_REGEX.findall(sentence)
-                instrument = matches[0] if matches else ""
+                # Capture instrument name before deletion
+                matches_found = CATEOGRY_REGEX.findall(sentence)
+                instrument = matches_found[0] if matches_found else ""
                 all_discarded.append((url, deleted_text.strip(), "trading_statements"))
 
                 sentence = TRADING_STATEMENTS_REGEX.sub("", sentence)
@@ -371,48 +451,49 @@ def filter_matches(
                 if not sentence:
                     continue
                 else:
+                    # Prepend instrument name to preserve context
                     sentence = instrument + " " + sentence if instrument else sentence
 
-            # Must have derivative keywords
             if not ALL_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue
 
             # === NEW: Category-aware paragraph construction ===
             core_categories = get_sentence_categories(sentence)
+            primary_category = get_primary_category(core_categories)
 
             parts = []
             context_indices = {idx}
 
-            # Check PREVIOUS sentence for compatibility
+            # Check PREVIOUS sentence for category compatibility
             if idx > 0 and (idx - 1) not in used_indices:
                 prev = sentences[idx - 1]
                 if len(prev) >= MIN_SENTENCE_LENGTH:
                     prev_cats = get_sentence_categories(prev)
 
                     # Only add if categories are compatible
-                    if sentences_compatible(core_categories, prev_cats):
+                    if is_category_compatible(primary_category, prev_cats):
                         parts.append(prev)
                         context_indices.add(idx - 1)
                     else:
-                        # Discard incompatible context
-                        all_discarded.append((url, prev, "category_mismatch_context"))
+                        # Discard incompatible context to prevent category mixing
+                        all_discarded.append((url, prev, "category_mismatch"))
 
             parts.append(sentence)
 
-            # Check NEXT sentence for compatibility
+            # Check NEXT sentence for category compatibility
             if idx + 1 < len(sentences) and (idx + 1) not in used_indices:
                 nxt = sentences[idx + 1]
                 if len(nxt) >= MIN_SENTENCE_LENGTH:
                     nxt_cats = get_sentence_categories(nxt)
 
                     # Only add if categories are compatible
-                    if sentences_compatible(core_categories, nxt_cats):
+                    if is_category_compatible(primary_category, nxt_cats):
                         parts.append(nxt)
                         context_indices.add(idx + 1)
                     else:
                         # Discard incompatible context
-                        all_discarded.append((url, nxt, "category_mismatch_context"))
+                        all_discarded.append((url, nxt, "category_mismatch"))
 
             final_paragraphs.append(" ".join(parts))
             used_indices.update(context_indices)
