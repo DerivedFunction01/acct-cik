@@ -1055,6 +1055,215 @@ def cleanup_fragment(sentence: str) -> str:
     sentence = sentence.strip()
     return sentence if len(sentence) > 10 else "" # too short we don't return anything
 
+# ... existing code ...
+# =============================================================================
+# LINGUISTIC INTENT & FILTERING PATTERNS
+# =============================================================================
+
+# --------------------------------------------------------------------------- #
+# 1. HELPER LISTS
+# --------------------------------------------------------------------------- #
+
+# Transaction verbs (Action)
+_TRANSACTION_VERBS = [r"enter", r"engage", r"transact"]
+_TRANSACTION_PATTERN = build_alternation(_TRANSACTION_VERBS)
+
+# Combined intent verbs: standard (hold, use, hedge) + transaction (enter, engage)
+INTENT_VERB_PATTERN = build_alternation([VERB_PATTERN, _TRANSACTION_PATTERN])
+
+# Speculative / Uncertain Timing Phrases
+SPECULATIVE_PHRASES = [
+    r"from\s+time\s+to\s+time",
+    r"periodically",
+    r"occasionally",
+    r"in\s+the\s+future",
+    r"upon\s+occurrence",
+]
+
+# Potential / Hypothetical Modals & Phrases
+POTENTIAL_INDICATORS = [
+    r"may",
+    r"might",
+    r"could",
+    r"seek\s+to",
+    r"intend\s+to",
+    r"plans?\s+to",
+    # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
+    r"expect\s+to\s+(?!continue)",
+]
+
+# Negative Intent Components
+NEGATIVE_AUXILIARY = [r"do", r"does", r"did", r"will"]
+NEGATIVE_INTENT_VERBS = [r"seek", r"intend", r"plan", r"expect"]
+
+# Absence Indicators
+ABSENCE_INDICATORS = [r"no", r"none"]
+
+# Absence/Termination Nouns (Abstract concepts not covered by instrument regexes)
+_ABSENCE_NOUNS = [
+    r"outstanding",  # "no such outstanding"
+    r"positions?",
+    r"exposures?",
+    r"obligations?",
+    r"hedge",  # "no such hedge" (generic)
+    r"activity",  # "no derivative activity"
+    r"involvement",  # "no involvement with derivatives"
+    r"holdings?",  # "no holdings"
+]
+
+# Termination Verbs
+TERMINATION_VERBS = [
+    r"expired",
+    r"matured",
+    r"settled",
+    r"terminated",
+    r"ceased",
+    r"closed",
+    r"unwound",
+]
+
+# Active / Timing Indicators (New)
+ACTIVE_INDICATORS = [
+    "currently",
+    "actively",
+    "presently",
+    "ongoingly",
+    "continually",
+    "regularly",
+    "at the moment",
+    "as of now",
+    "now",
+]
+
+# State Descriptors (New)
+ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open"]
+
+# Materiality (New)
+IMMATERIAL = [
+    "immaterial",
+    "not significant",
+    "limited",
+    "not material",
+    "negligible",
+    "minimal",
+    "insignificant",
+    "not substantial",
+    "minor",
+    "trivial",
+    "inconsequential",
+    "zero",
+]
+
+MATERIAL = [
+    "material",
+    "significant",
+    "substantial",
+]
+
+# Build Patterns
+ACTIVE_PATTERN = build_alternation(ACTIVE_INDICATORS)
+ACTIVE_STATE_PATTERN = build_alternation(ACTIVE_STATE_DESCRIPTORS)
+IMMATERIAL_PATTERN = build_alternation(IMMATERIAL)
+MATERIAL_PATTERN = build_alternation(MATERIAL)
+
+# --------------------------------------------------------------------------- #
+# 2. REGEX BUILDER FUNCTIONS
+# --------------------------------------------------------------------------- #
+
+
+def build_potential_regex() -> re.Pattern:
+    """
+    Matches: "may enter", "might use", "expect to hedge"
+    Relaxed middle group catches: "may [occasionally] use", "may [typically] enter"
+    """
+    return re.compile(
+        rf"\b{build_alternation(POTENTIAL_INDICATORS)}\s+"
+        r"(?:\w+\s+){0,3}"
+        rf"({INTENT_VERB_PATTERN})\b",
+        re.IGNORECASE,
+    )
+
+
+def build_vague_timing_regex() -> re.Pattern:
+    """Matches: "from time to time", "in the future" """
+    return re.compile(rf"\b{build_alternation(SPECULATIVE_PHRASES)}\b", re.IGNORECASE)
+
+
+def build_negative_intent_regex() -> re.Pattern:
+    """
+    Matches: "does not intend to", "will not seek to", "has no plans to"
+    Incorporates ACTIVE_PATTERN to catch: "does not [currently] intend to"
+    """
+    _neg_aux = build_alternation(NEGATIVE_AUXILIARY)
+    _neg_verb = build_alternation(NEGATIVE_INTENT_VERBS)
+
+    _neg_pattern_standard = (
+        rf"\b{_neg_aux}\s+not\s+(?:{ACTIVE_PATTERN}\s+)?{_neg_verb}\s+to"
+    )
+    _neg_pattern_plans = r"\bhas\s+no\s+plans\s+to"
+
+    return re.compile(
+        rf"(?:{_neg_pattern_standard}|{_neg_pattern_plans})\b", re.IGNORECASE
+    )
+
+
+def build_absence_regex() -> re.Pattern:
+    """
+    Matches: "no interest rate swaps", "no such outstanding positions"
+    Uses master object pattern + state/materiality fillers
+    """
+    # Create master object pattern
+    _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+
+    # Fillers: "such", "any", plus our new Material/State patterns
+    # Matches: "no [material] [outstanding] swaps"
+    _fillers = (
+        r"(?:such\s+|any\s+|" rf"{MATERIAL_PATTERN}\s+|" rf"{ACTIVE_STATE_PATTERN}\s+)*"
+    )
+
+    return re.compile(
+        rf"\b{build_alternation(ABSENCE_INDICATORS)}\s+"  # No/None
+        rf"{_fillers}"  # Optional fillers
+        rf"{_instrument_object}\b",  # The Object
+        re.IGNORECASE,
+    )
+
+
+def build_did_not_hold_regex() -> re.Pattern:
+    """
+    Matches: "did not hold [swaps]", "does not enter into [derivatives]"
+    Expanded start anchor to (did|does|do|will)
+    """
+    _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+
+    _fillers = (
+        r"(?:such\s+|any\s+|" rf"{MATERIAL_PATTERN}\s+|" rf"{ACTIVE_STATE_PATTERN}\s+)*"
+    )
+
+    return re.compile(
+        rf"\b(?:did|does|do|will)\s+not\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+"
+        rf"{_fillers}"
+        rf"{_instrument_object}\b",
+        re.IGNORECASE,
+    )
+
+
+def build_termination_regex() -> re.Pattern:
+    """Matches: "expired", "matured", "unwound" """
+    return re.compile(rf"\b{build_alternation(TERMINATION_VERBS)}\b", re.IGNORECASE)
+
+
+# --------------------------------------------------------------------------- #
+# 3. COMPILED REGEX EXPORTS
+# --------------------------------------------------------------------------- #
+
+POTENTIAL_REGEX = build_potential_regex()
+VAGUE_TIMING_REGEX = build_vague_timing_regex()
+NEGATIVE_INTENT_REGEX = build_negative_intent_regex()
+ABSENCE_REGEX = build_absence_regex()
+DID_NOT_HOLD_REGEX = build_did_not_hold_regex()
+TERMINATION_REGEX = build_termination_regex()
+
 __all__ = [
     "SENTENCE_SPLIT_PATTERN",
     "MIN_SENTENCE_LENGTH",
@@ -1093,5 +1302,11 @@ __all__ = [
     "NON_POSITION_INDICATORS",
     "PNL_ONLY_NO_POSITION",
     "DEFINITION_INDICATORS",
-    "GEN_REGEX"
+    "GEN_REGEX",
+    "POTENTIAL_REGEX",
+    "VAGUE_TIMING_REGEX",
+    "NEGATIVE_INTENT_REGEX",
+    "ABSENCE_REGEX",
+    "DID_NOT_HOLD_REGEX",
+    "TERMINATION_REGEX",
 ]
