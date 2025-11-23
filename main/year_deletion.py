@@ -201,6 +201,13 @@ def filter_item_by_year(
     # Iterate over the Paragraphs (Chunks)
     for paragraph, category in zip(paragraphs, categories):
 
+        # ADD THIS BLOCK:
+        if "<TABLE>" in paragraph.upper():
+            # Keep table as-is without processing
+            final_paragraphs.append(paragraph)  # Special 'table' category
+            final_categories.append("table")
+            continue
+
         # 1. Split Paragraph into Atomic Sentences
         # The regex splits, but we need to ensure we don't get empty strings
         atomic_sentences = [

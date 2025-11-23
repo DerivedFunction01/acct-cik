@@ -554,6 +554,11 @@ def filter_matches_with_disambiguation(
     )  # List of (para_idx, sent_idx, category, instrument, sentence_text)
 
     for para_idx, match in enumerate(matches):
+        # ADD THIS BLOCK:
+        if '<TABLE>' in match.upper():
+            # Keep table as-is without processing
+            final_paragraphs.append((match, 'table'))  # Special 'table' category
+            continue
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()
 

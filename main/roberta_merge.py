@@ -183,6 +183,9 @@ def process_single_report(
         label = max(pred.items(), key=lambda x: x[1])[0]
         score = pred[label]
 
+        if "<TABLE>" in sent.upper(): # skip this
+            kept_sentences.append(sent)
+            kept_categories.append("table")
         # 3. Filtering Logic
         if label in RELEVANT_LABELS and score >= CONFIDENCE_THRESHOLD:
             kept_sentences.append(sent)
