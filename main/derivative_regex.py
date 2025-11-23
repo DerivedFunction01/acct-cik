@@ -610,10 +610,17 @@ EQUITY_COMP_KEYWORDS = [
 # Section 2: Legal/Litigation
 LEGAL_LITIGATION_KEYWORDS = [
     "lawsuit",
-    "civil action",
+    "litigation",
+    "arbitration",
+    "(?:civil|legal|administrative|criminal) action",
     "officer",
     "director",
     "convicted",
+    "judgement",
+    "violated",
+    "plea",
+    "plaintiff",
+    "defendent",
 ]
 
 # Section 3: Accounting Standards
