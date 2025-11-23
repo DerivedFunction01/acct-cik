@@ -177,6 +177,7 @@ def build_ir_regex() -> re.Pattern:
         "interest[- ]rate",
         "single[- ]currency",
         "Eurodollar",
+        "dollar",
         "SOFR",
         "SONIA",
         "LIBOR",
@@ -706,7 +707,6 @@ EQUITY_COMP_KEYWORDS = [
     "outstanding shares",
     "share repurchase",
     "buyback",
-    "warrant",
     "hedge fund",
 ]
 
@@ -778,6 +778,7 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     # Standard descriptions (only in issuance context)
     r"establishes?\s+accounting\s+and\s+reporting\s+standards\s+(?:for|requiring)",
     r"(?:this|the)\s+(?:statement|standard|guidance|amendment)\s+(?:addresses|clarifies|amends)",
+    r"Accounting for Derivative Instruments and Hedging Activities",
 ]
 
 

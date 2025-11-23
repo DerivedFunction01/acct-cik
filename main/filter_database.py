@@ -42,6 +42,7 @@ import sqlite3
 
 from derivative_regex import (
     ALL_REGEX,
+    CATEGORY_REGEX,
     DEFINITION_INDICATORS,
     EXCLUDE_REGEX_ACCOUNTING_STD,
     EXCLUDE_REGEX_EQUITY_COMP,
@@ -563,15 +564,37 @@ def filter_matches_with_disambiguation(
             # Keep table as-is without processing
             final_paragraphs.append((match, 'table'))  # Special 'table' category
             continue
-        # if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
-        #     all_discarded.append((url, match, "adoption"))
-        #     continue
-        if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
+        if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
+            # Try to salvage the paragraph by stepping through sentence by sentence, and then try to reconstruct it
+            sentences = SENTENCE_SPLIT_PATTERN.split(match)
+            text = []
+            discard = []
+            for sentence in sentences:
+                if EXCLUDE_REGEX_ACCOUNTING_STD.search(
+                    sentence
+                ) and not CATEGORY_REGEX.search(sentence): # Skip "derivative instruments but keep ir swaps"
+                    discard.append(sentence)
+                else:
+                    text.append(sentence)
+            discarded_text = " ".join(discard)
+            all_discarded.append((url, discarded_text, "adoption"))
+            match = " ".join(text)
+        if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match): # If the text is all about legal problems, then there is no point salvaging "cp options" if it was part of the legal case
             all_discarded.append((url, match, "legal"))
             continue
-        if EXCLUDE_REGEX_EQUITY_COMP.search(match):
+        if EXCLUDE_REGEX_EQUITY_COMP.search(match): 
+            # Try to salvage the paragraph by stepping through for derivative mentions
+            sentences = SENTENCE_SPLIT_PATTERN.split(match)
+            text = []
+            discard = []
+            for sentence in sentences:
+                if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence): # Any equity derivative
+                    text.append(sentence)
+                else:
+                    discard.append(sentence)
+            discarded_text = " ".join(discard)
             all_discarded.append((url, match, "comp"))
-            continue
+            match = " ".join(text)
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()
 
