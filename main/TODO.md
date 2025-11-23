@@ -28,7 +28,7 @@ This document outlines the development roadmap for building a classified dataset
 
   - **Status:** Done.
   - **Task:** Create a new Python script that uses the fine-tuned noise classification model (from Step 3) to process `web_data.db`. Using `classify.py` for classification and `filter_database.py` to split up text chunks into manageable 3-sentence paragraphs into `prepared_data.db`.
-  - **Workflow:** 0. Prepare the database by splitting long paragraphs into smaller chunks (3 sentences each) using `filter_database.py`. Delete all trading statements that are not relevant.
+  - **Workflow:** 0. Prepare the database by splitting long paragraphs into smaller chunks (3 sentences each) using `filter_database.py`. Delete all trading statements and non position that are not relevant.
     1. Read paragraphs from the `webpage_result` table.
     2. For each paragraph send it to the model.
     3. Classify each sentence within the paragraph as `hedge` or other false positive categories (`std`, `law`, `cmp`, etc.).
@@ -79,9 +79,8 @@ This document outlines the development roadmap for building a classified dataset
   - **Status:** To-Do.
   - **Task:** Perform final filtering steps on the classified data:
     1. **Remove Non-Essential Context:** Discard sentences kept only for context that do not contain primary derivative keywords, which may include PnL impact statements or accounting treatment without active usage context.
-    2. **Delete AOCI-Only Mentions:** Remove sentences that only mention AOCI, as these are not indicative of active use.
-    3. **Delete Denial Statements:** Remove sentences that explicitly state the company does not use derivatives.
-    4. **Delete Potential use but not confirmed:** Remove sentences that indicate potential future use without confirmation of current use.
+    2. **Delete Denial Statements:** Remove sentences that explicitly state the company does not use derivatives.
+    3. **Delete Potential use but not confirmed:** Remove sentences that indicate potential future use without confirmation of current use.
   - **Output:** The final, analysis-ready database (`active_data.db`) containing only current, relevant, and categorized derivative mentions.
 
 - [ ] **8. Aggregation & Analysis**
