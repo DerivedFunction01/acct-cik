@@ -662,7 +662,19 @@ CURRENT_TIME_INDICATORS = [
     r"ongoing",
     r"existing",
 ]
-
+NON_POSITION_INDICATORS = re.compile(
+    r"""
+    (?:
+        (?:accumulated\s+)?other\s+comprehensive\s+(?:income|loss)|
+        (?:AOCI|OCI)\b|
+        (?:reclassified?|reclassifi).*(?:AOCI|OCI|comprehensive)|
+        deferred\s+(?:tax\s+)?(?:gain|loss)|
+        realized\s+(?:gain|loss)|
+        unrealized\s+(?:gain|loss)
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 # Build alternations once
 TIME_UNIT_PATTERN = build_alternation(TIME_UNITS)
 PAST_TIME_PATTERN = build_alternation(PAST_TIME_INDICATORS)
@@ -971,5 +983,5 @@ __all__ = [
     "EQ_CONTEXT_REGEX",
     "HEDGING_CONTEXT_REGEX",
     "CATEGORY_CONTEXT_MAP",
-
+    "NON_POSITION_INDICATORS",
 ]

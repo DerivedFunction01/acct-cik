@@ -60,6 +60,7 @@ from derivative_regex import (
     FX_CONTEXT_REGEX,
     CP_CONTEXT_REGEX,
     EQ_CONTEXT_REGEX,
+    NON_POSITION_INDICATORS
 )
 
 # =============================================================================
@@ -164,6 +165,7 @@ def create_clean_db():
                 "no_match",
                 "too_short",
                 "trading_statements",
+                "aoci",
             ] + [f"disambiguation_excision_failed_{cat}" for cat in CATEGORY_CONTEXT_MAP.keys()]
             c.executemany(
                 "INSERT OR IGNORE INTO discard_reasons (reason) VALUES (?)",
@@ -539,6 +541,14 @@ def filter_matches_with_disambiguation(
                 else:
                     # Preserve instrument context for downstream processing
                     sentence = instrument + " " + sentence if instrument else sentence
+
+            # ═══════════════════════════════════════════════════════════
+            # NOISE REDUCTION: AOCI clause removal
+            # ═══════════════════════════════════════════════════════════
+            if NON_POSITION_INDICATORS.search(sentence):
+                # AOCI/PnL statements don't indicate positions → discard entirely
+                all_discarded.append((url, sentence, "aoci_or_pnl_only"))
+                continue
 
             if not ALL_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
