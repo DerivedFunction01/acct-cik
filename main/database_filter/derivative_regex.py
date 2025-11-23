@@ -954,7 +954,6 @@ def build_trading_denial_pattern() -> re.Pattern:
         r"transactions?",
     ]
 
-    
     NEG = build_alternation(NEGATORS)
     ACT = build_alternation(ACTIONS)
     TRAD = build_alternation(TRADING_WORDS)
@@ -963,13 +962,13 @@ def build_trading_denial_pattern() -> re.Pattern:
     # Clause 1: Subject + negator + action + [anything] + trading purpose
     CLAUSE_1 = (
         rf"\b(?:{SUBJ})\s+(?:{NEG})\s+(?:{ACT})\s+"
-        rf"(?:any\s+|such\s+)?\S+(?:\s+\S+){{0,3}}\s+"  # Captures 1-4 words for the object
+        rf"(?:any\s+|such\s+)?\S+(?:\s+\S+){{0,7}}\s+"  # Captures  words for the object (longest: derivative financial instruments and other derivative financial instruments)
         rf"(?:for\s+)?(?:on\s+a\s+)?(?:{TRAD})\s+(?:{PURP})?\b"
     )
 
     # Clause 2: [Anything] + negator + action + trading
     CLAUSE_2 = (
-        rf"\b(?:any\s+|such\s+|these\s+|the\s+)?\S+(?:\s+\S+){{0,3}}\s+"  # Captures 1-4 words
+        rf"\b(?:any\s+|such\s+|these\s+|the\s+)?\S+(?:\s+\S+){{0,7}}\s+"  # Captures  words
         rf"(?:{NEG})\s+(?:be\s+)?(?:{ACT})\s+"
         rf"(?:for\s+)?(?:on\s+a\s+)?(?:{TRAD})(?:\s+(?:{PURP}))?\b"
     )
@@ -977,7 +976,7 @@ def build_trading_denial_pattern() -> re.Pattern:
     # Clause 3: Short negative form
     CLAUSE_3 = (
         rf"\b(?:{NEG})\s+(?:be\s+)?(?:{ACT})\s+"
-        rf"(?:(?:any\s+|such\s+)?\S+(?:\s+\S+){{0,3}}\s+)?"  # Optional object
+        rf"(?:(?:any\s+|such\s+)?\S+(?:\s+\S+){{0,7}}\s+)?"  # Optional object
         rf"(?:for\s+)?(?:on\s+a\s+)?(?:{TRAD})(?:\s+(?:{PURP}))?\b"
     )
 
@@ -986,7 +985,7 @@ def build_trading_denial_pattern() -> re.Pattern:
 
     # Clause 5: "None of [anything]..."
     CLAUSE_5 = (
-        rf"\bnone\s+of\s+(?:the\s+|our\s+)?\S+(?:\s+\S+){{0,3}}\s+"
+        rf"\bnone\s+of\s+(?:the\s+|our\s+)?\S+(?:\s+\S+){{0,7}}\s+"
         rf"(?:are|is|were|was)\s+(?:{ACT})\s+"
         rf"(?:for\s+)?(?:{TRAD})(?:\s+(?:{PURP}))?\b"
     )
@@ -1356,7 +1355,7 @@ def build_potential_regex() -> re.Pattern:
     """
     return re.compile(
         rf"\b{build_alternation(POTENTIAL_INDICATORS)}\s+"
-        r"(?:\w+\s+){0,3}"
+        r"(?:\w+\s+){0,7}"
         rf"({INTENT_VERB_PATTERN})\b",
         re.IGNORECASE,
     )
