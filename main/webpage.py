@@ -454,18 +454,113 @@ def extract_content(data: str, asHTML=True) -> str:
                     col_count = max(col_count, len(row))
             except Exception as e:
                 debug_print(f"⚠️  Table extraction failed: {e}")
-             # Only convert if there is at least one row and two cols
+
+            # Only convert if there is at least one row and two cols
             if len(rows) > 1 and col_count > 1:
-                converter = HTMLTableConverter(grid=rows, title=title)
-                generic_table = converter.to_generic_table()
-                table_text = generic_table.build()
-                pre_tag = soup.new_tag("pre")
-                pre_tag.string = table_text
-                table.replace_with(pre_tag)
-            else: # to short of a table means that we convert it to paragraphs
+                # ===== GREEDY APPROACH: Assume table format UNLESS strong evidence otherwise =====
+                # We ONLY convert to paragraphs if we have STRONG signals of text container
+
+                convert_to_paragraphs = False
+
+                # Signal 1: Check for extremely long cells (>500 chars = definitely paragraph text)
+                for row in rows:
+                    for cell in row:
+                        if len(cell) > 500:  # Very high threshold
+                            convert_to_paragraphs = True
+                            debug_print(
+                                f"⚠️  Found cell with {len(cell)} chars - converting to paragraphs"
+                            )
+                            break
+                    if convert_to_paragraphs:
+                        break
+
+                # Signal 2: Check if we have multiple complete sentences in most cells
+                if not convert_to_paragraphs:
+                    cells_with_multiple_sentences = 0
+                    total_cells = 0
+
+                    for row in rows:
+                        for cell in row:
+                            if cell:
+                                total_cells += 1
+                                # Count sentence endings (. ! ?) followed by capital letter
+                                sentence_endings = len(
+                                    re.findall(r"[.!?]\s+[A-Z]", cell)
+                                )
+                                if sentence_endings >= 3:  # 3+ sentences in one cell
+                                    cells_with_multiple_sentences += 1
+
+                    # If >50% of cells have multiple sentences, it's paragraph text
+                    if (
+                        total_cells > 0
+                        and (cells_with_multiple_sentences / total_cells) > 0.5
+                    ):
+                        convert_to_paragraphs = True
+                        debug_print(
+                            f"⚠️  {cells_with_multiple_sentences}/{total_cells} cells have 3+ sentences - converting to paragraphs"
+                        )
+
+                # Signal 3: Check for very high average text density across ALL cells
+                if not convert_to_paragraphs:
+                    total_text_length = 0
+                    cell_count = 0
+
+                    for row in rows:
+                        for cell in row:
+                            if cell:  # Only count non-empty cells
+                                cell_count += 1
+                                total_text_length += len(cell)
+
+                    avg_cell_length = (
+                        total_text_length / cell_count if cell_count > 0 else 0
+                    )
+
+                    # Very high threshold - only convert if average is >200 chars per cell
+                    if avg_cell_length > 200:
+                        convert_to_paragraphs = True
+                        debug_print(
+                            f"⚠️  Average cell length {avg_cell_length:.1f} chars - converting to paragraphs"
+                        )
+
+                # Signal 4: Single column tables with long text are likely just formatted text
+                if not convert_to_paragraphs and col_count == 1:
+                    total_text = sum(len(cell) for row in rows for cell in row)
+                    if total_text > 1000:  # Single column with lots of text
+                        convert_to_paragraphs = True
+                        debug_print(
+                            f"⚠️  Single column table with {total_text} chars - converting to paragraphs"
+                        )
+
+                # Execute conversion decision
+                if convert_to_paragraphs:
+                    # Convert table to paragraphs
+                    for tr in table.find_all("tr"):
+                        for td in tr.find_all(["td", "th"]):
+                            cell_text = td.get_text(strip=True)
+                            if cell_text and len(cell_text) > 20:
+                                p_tag = soup.new_tag("p")
+                                p_tag.string = cell_text
+                                td.replace_with(p_tag)
+                    # Replace the entire table with its contents
+                    table.unwrap()
+                else:
+                    # GREEDY: Convert to formatted table (default behavior)
+                    converter = HTMLTableConverter(grid=rows, title=title)
+                    generic_table = converter.to_generic_table()
+                    table_text = generic_table.build()
+                    pre_tag = soup.new_tag("pre")
+                    pre_tag.string = table_text
+                    table.replace_with(pre_tag)
+            else:
+                # Too short of a table means we convert it to paragraphs
                 for tr in table.find_all("tr"):
                     for td in tr.find_all(["td", "th"]):
-                        td.string = td.get_text(strip=True)
+                        cell_text = td.get_text(strip=True)
+                        if cell_text:
+                            p_tag = soup.new_tag("p")
+                            p_tag.string = cell_text
+                            td.replace_with(p_tag)
+                table.unwrap()
 
         # Use html2text to convert remaining HTML to text
         # This handles complex nested structures without recursion issues
