@@ -461,10 +461,12 @@ all_currencies = (
     + americas_currencies
     + other_currencies
 )
-def build_fx_context_terms_advanced() -> List[str]:
-    """Generate comprehensive FX context terms with advanced patterns."""
+def build_currency_patterns() -> List[str]:
+    """
+    Generates regex patterns derived specifically from the Currency class objects.
+    Includes codes, adjectives, locations, and specific denominating phrases.
+    """
     terms = []
-
     for currency in all_currencies:
         # Basic terms
         terms.append(currency.code)
@@ -496,8 +498,37 @@ def build_fx_context_terms_advanced() -> List[str]:
                 r"[A-Z]{3}" + r"[/]" + code,  # EUR/USD, JPY/GBP
             ]
         )
+    return terms
 
-    # Generic FX terms
+
+def build_currency_symbol_pattern() -> str:
+    """
+    Generates a comprehensive regex OR-string for all currency symbols and ISO codes.
+    Used for quantitative analysis to detect amounts like "$100", "100 USD", "€50".
+    Sorts by length descending to ensure multi-char symbols (e.g. 'US$') match before single ones ('$').
+    """
+    symbols = set()
+    codes = set()
+
+    for currency in all_currencies:
+        if currency.symbol:
+            symbols.add(re.escape(currency.symbol))
+        if currency.code:
+            codes.add(re.escape(currency.code))
+
+    # Combine and sort by length desc (critical for regex precedence)
+    all_identifiers = sorted(symbols | codes, key=len, reverse=True)
+
+    return "(?:" + "|".join(all_identifiers) + ")"
+
+
+def build_fx_context_terms_advanced() -> List[str]:
+    """Generate comprehensive FX context terms combining currency-specific and generic patterns."""
+
+    # 1. Get patterns dynamically generated from Currency objects
+    currency_specific_terms = build_currency_patterns()
+
+    # 2. Define static generic FX terms
     generic_fx_terms = [
         r"international",
         r"foreign",
@@ -520,8 +551,9 @@ def build_fx_context_terms_advanced() -> List[str]:
         r"transactional\s+(?:exposure|risk)",
     ]
 
-    return terms + generic_fx_terms
+    return currency_specific_terms + generic_fx_terms
 
+CURRENCY_SYMBOL_PATTERN = build_currency_symbol_pattern()
 # Generic hedging context (required for generic matches)
 HEDGING_CONTEXT_TERMS = [
     r"hedge(?:s|d|ing)?",
@@ -1420,4 +1452,5 @@ __all__ = [
     "ABSENCE_REGEX",
     "DID_NOT_HOLD_REGEX",
     "TERMINATION_REGEX",
+    "CURRENCY_SYMBOL_PATTERN"
 ]
