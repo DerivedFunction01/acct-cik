@@ -579,6 +579,8 @@ def filter_matches_with_disambiguation(
             discarded_text = " ".join(discard)
             all_discarded.append((url, discarded_text, "adoption"))
             match = " ".join(text)
+            if not match.strip():
+                continue
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match): # If the text is all about legal problems, then there is no point salvaging "cp options" if it was part of the legal case
             all_discarded.append((url, match, "legal"))
             continue
@@ -593,8 +595,12 @@ def filter_matches_with_disambiguation(
                 else:
                     discard.append(sentence)
             discarded_text = " ".join(discard)
-            all_discarded.append((url, match, "comp"))
+            all_discarded.append((url, discarded_text, "comp"))
             match = " ".join(text)
+            if not match.strip():
+                continue
+        
+        # Begin construction
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()
 
