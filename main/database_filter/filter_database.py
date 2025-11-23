@@ -631,70 +631,97 @@ def filter_matches_with_disambiguation(
             # NOISE REDUCTION: Trading denial clause removal
             # ═══════════════════════════════════════════════════════════
 
+            # if TRADING_STATEMENTS_REGEX.search(sentence):
+            #     deleted_text = " ".join(
+            #         m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence)
+            #     )
+            #     all_discarded.append((url, deleted_text.strip(), "trading_statements"))
+
+            #     # Remove the trading denial clause
+            #     sentence = TRADING_STATEMENTS_REGEX.sub("", sentence)
+            #     sentence = cleanup_fragment(sentence)
+
+            #     # PRIORITY 1: Check remaining fragment for category
+            #     remaining_cats = (
+            #         get_sentence_categories(sentence) if sentence else set()
+            #     )
+            #     remaining_specific_cats = remaining_cats - {"gen", "other"}
+
+            #     # PRIORITY 2: Check deleted clause for category
+            #     deleted_cats = get_sentence_categories(deleted_text)
+            #     deleted_specific_cats = deleted_cats - {"gen", "other"}
+
+            #     # Use remaining fragment category if available (higher priority)
+            #     if remaining_specific_cats:
+            #         detected_cat = list(remaining_specific_cats)[0]
+            #         instrument_match = ALL_REGEX.search(sentence)
+            #         detected_instrument = (
+            #             instrument_match.group(0) if instrument_match else None
+            #         )
+
+            #         paragraph_category_history.append(
+            #             (idx, detected_cat, detected_instrument)
+            #         )
+            #         global_sentence_history.append(
+            #             (
+            #                 para_idx,
+            #                 idx,
+            #                 detected_cat,
+            #                 detected_instrument,
+            #                 f"[TRADING-REMAINING] {sentence[:80]}",
+            #             )
+            #         )
+
+            #     # Fall back to deleted clause category if remaining is generic
+            #     elif deleted_specific_cats:
+            #         detected_cat = list(deleted_specific_cats)[0]
+            #         instrument_match = ALL_REGEX.search(deleted_text)
+            #         detected_instrument = (
+            #             instrument_match.group(0) if instrument_match else None
+            #         )
+
+            #         paragraph_category_history.append(
+            #             (idx, detected_cat, detected_instrument)
+            #         )
+            #         global_sentence_history.append(
+            #             (
+            #                 para_idx,
+            #                 idx,
+            #                 detected_cat,
+            #                 detected_instrument,
+            #                 f"[TRADING-DELETED] {deleted_text[:80]}",
+            #             )
+            #         )
+
+            #     if not sentence:
+            #         continue
             if TRADING_STATEMENTS_REGEX.search(sentence):
-                deleted_text = " ".join(
-                    m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence)
-                )
-                all_discarded.append((url, deleted_text.strip(), "trading_statements"))
-
-                # Remove the trading denial clause
-                sentence = TRADING_STATEMENTS_REGEX.sub("", sentence)
-                sentence = cleanup_fragment(sentence)
-
-                # PRIORITY 1: Check remaining fragment for category
-                remaining_cats = (
-                    get_sentence_categories(sentence) if sentence else set()
-                )
-                remaining_specific_cats = remaining_cats - {"gen", "other"}
-
-                # PRIORITY 2: Check deleted clause for category
+                # 1. Capture what we are about to delete (for history tracking)
+                deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
+                
+                # 2. Extract Category Signal from the denial (Valuable for Context!)
+                # We want to know this paragraph is about "IR" or "FX", even if we delete the sentence.
                 deleted_cats = get_sentence_categories(deleted_text)
                 deleted_specific_cats = deleted_cats - {"gen", "other"}
 
-                # Use remaining fragment category if available (higher priority)
-                if remaining_specific_cats:
-                    detected_cat = list(remaining_specific_cats)[0]
-                    instrument_match = ALL_REGEX.search(sentence)
-                    detected_instrument = (
-                        instrument_match.group(0) if instrument_match else None
-                    )
-
-                    paragraph_category_history.append(
-                        (idx, detected_cat, detected_instrument)
-                    )
-                    global_sentence_history.append(
-                        (
-                            para_idx,
-                            idx,
-                            detected_cat,
-                            detected_instrument,
-                            f"[TRADING-REMAINING] {sentence[:80]}",
-                        )
-                    )
-
-                # Fall back to deleted clause category if remaining is generic
-                elif deleted_specific_cats:
+                if deleted_specific_cats:
                     detected_cat = list(deleted_specific_cats)[0]
                     instrument_match = ALL_REGEX.search(deleted_text)
-                    detected_instrument = (
-                        instrument_match.group(0) if instrument_match else None
-                    )
+                    detected_instrument = instrument_match.group(0) if instrument_match else None
 
-                    paragraph_category_history.append(
-                        (idx, detected_cat, detected_instrument)
-                    )
-                    global_sentence_history.append(
-                        (
-                            para_idx,
-                            idx,
-                            detected_cat,
-                            detected_instrument,
-                            f"[TRADING-DELETED] {deleted_text[:80]}",
-                        )
-                    )
+                    # Update the History Buffers (Critical for "Lookback" logic)
+                    paragraph_category_history.append((idx, detected_cat, detected_instrument))
+                    global_sentence_history.append((
+                        para_idx, idx, detected_cat, detected_instrument, 
+                        f"[TRADING-DELETED-CONTEXT] {deleted_text[:80]}"
+                    ))
 
-                if not sentence:
-                    continue
+                # 3. THE CHANGE: Unconditionally Discard the Text
+                # Do not attempt to salvage "remaining_cats". The risk of "We [do not] use" -> "We use" is too high.
+                all_discarded.append((url, sentence, "trading_statements_full_delete"))
+                
+                # Skip to next sentence
+                continue
 
             # ═══════════════════════════════════════════════════════════
             # NOISE REDUCTION: AOCI-only clause removal
