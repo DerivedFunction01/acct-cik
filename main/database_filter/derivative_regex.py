@@ -756,7 +756,6 @@ LEGAL_LITIGATION_KEYWORDS = [
     # Court proceedings
     r"\bcourt\s+(?:case|proceeding|order|judgment|ruling)\b",
     r"\bjudgme?nt\s+(?:against|in\s+favor|rendered)\b",  # Fixed typo
-    r"\bsettlement\s+(?:agreement|reached|of)\b",
     # Officers/Directors in legal context (more specific)
     r"\b(?:former\s+)?(?:officer|director)s?\s+(?:was|were|are)\s+(?:charged|indicted|convicted|sued)\b",
     r"\bagainst\s+(?:former\s+)?(?:officer|director)s?\b",
