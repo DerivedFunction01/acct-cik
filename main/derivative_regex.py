@@ -22,24 +22,43 @@ comparison_phrases = [
     "in comparison with",
 ]
 
-verb_list = [
-    r"hold(?:s|ing|ed)?",  # hold, holds, holding, held → we approximate with "holded" for simplicity in some contexts, but strictly "held" needs separate handling if required
-    r"utiliz(?:e|es|ing|ed)",  # utilize, utilizes, utilizing, utilized
-    r"maintain(?:s|ing|ed)?",  # maintain, maintains, maintaining, maintained
-    r"hav(?:e|es|ing|ed)",  # have, has, having, had → note: "had" is irregular
-    r"had",
-    r"us(?:e|es|ing|ed)",  # use, uses, using, used
-    r"employ(?:s|ing|ed)?",  # employ, employs, employing, employed
-    r"carr(?:y|ies|ying|ied)",  # carry, carries, carrying, carried
-    r"possess(?:es|ing|ed)?",  # possess, possesses, possessing, possessed
-    r"be a party to",  # fixed phrase – left as-is (will need word boundaries in final regex)
-    r"execut(?:e|es|ing|ed)",  # execute, executes, executing, executed
-    r"hedg(?:e|es|ing|ed)?",  # hedge, hedges, hedging, hedged
-    r"manag(?:e|es|ing|ed)",  # manage, manages, managing, managed
-    r"mitigat(?:e|es|ing|ed)",  # mitigate, mitigates, mitigating, mitigated
-    r"seek(?:s|ing)?\s+to",  # seek to, seeks to, seeking to (note the required "to")
-    r"appl(?:y|ies|ying|ied)",  # apply, applies, applying, applied
+
+# STRONG: Unambiguous indicators of active usage or transaction
+STRONG_ACTION_VERBS = [
+    # Transactional (The "Smoking Gun")
+    r"enter(?:s|ed|ing)?\s+into",
+    r"engag(?:e|es|ed|ing)\s+in",
+    r"transact(?:s|ed|ing)?",
+    r"execut(?:e|es|ed|ing)",
+    
+    # Direct Usage
+    r"use(?:s|d|ing)?",
+    r"utiliz(?:e|es|ed|ing)",
+    r"employ(?:s|ed|ing)?",
+    
+    # Possession / Holding
+    r"hold(?:s|ing)?", 
+    r"held",
+    r"maintain(?:s|ed|ing)?",
+    r"possess(?:e|es|ed|ing)?",
+    
+    # Active Management
+    r"hedg(?:e|es|ed|ing)", 
+    r"manag(?:e|es|ed|ing)",
+    r"mitigat(?:e|es|ed|ing)",
+    r"offset(?:s|ting)?",
 ]
+
+# WEAK / PASSIVE: Legal or Accounting states that *imply* existence
+# We include these because "carrying at fair value" implies you have it.
+PASSIVE_STATE_VERBS = [
+    r"appl(?:y|ies|ied|ying)",   # "We apply hedge accounting"
+    r"carr(?:y|ies|ied|ying)",   # "Carries at fair value"
+    r"designat(?:e|es|ed|ing)",  # "Designated as a hedge"
+    r"be\s+a\s+party\s+to",      # "Is a party to interest rate swaps"
+    r"remained?\s+outstanding",
+]
+
 SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<=[.!?])\s+(?=[A-Z])|"  # Period/exclamation/question + whitespace + uppercase
     r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (extraction artifacts)
@@ -877,10 +896,12 @@ TIME_UNIT_PATTERN = build_alternation(TIME_UNITS)
 PAST_TIME_PATTERN = build_alternation(PAST_TIME_INDICATORS)
 CURRENT_TIME_PATTERN = build_alternation(CURRENT_TIME_INDICATORS)
 COMPARISON_PATTERN = build_alternation(comparison_phrases)
-VERB_PATTERN = build_alternation(verb_list)
+STRONG_VERB_PATTERN = build_alternation(STRONG_ACTION_VERBS)
+WEAK_VERB_PATTERN = build_alternation(PASSIVE_STATE_VERBS)
+VERB_PATTERN = "|".join([STRONG_VERB_PATTERN, WEAK_VERB_PATTERN])
+VERB_REGEX = re.compile(rf"\b(?:{VERB_PATTERN})\b", re.IGNORECASE)
 def build_trading_denial_pattern() -> re.Pattern:
     """Build regex pattern for detecting trading denial statements to remove/mask them."""
-    
 
     NEGATORS = [
         r"do\s+not",
@@ -1465,5 +1486,8 @@ __all__ = [
     "ABSENCE_REGEX",
     "DID_NOT_HOLD_REGEX",
     "TERMINATION_REGEX",
-    "CURRENCY_SYMBOL_PATTERN"
+    "CURRENCY_SYMBOL_PATTERN",
+    "VERB_REGEX",
+    "STRONG_VERB_PATTERN",
+    "WEAK_VERB_PATTERN"
 ]
