@@ -11,88 +11,87 @@ This document outlines the development roadmap for building a classified dataset
   - **Output:** A raw text database (`web_data.db`) containing potential derivative mentions.
 
 - [x] **2. Domain-Adaptive Pre-Training (DAPT)**
+  - **Status:** Skipped - Regex-based approach sufficient.
+  - **Rationale:** Advanced regex patterns with context-aware filtering provide adequate precision without requiring ML model training.
+
+## Phase 2: Regex-Based Filtering & Classification
+
+- [x] **3. Filter and Classify with Regex**
+
   - **Status:** Done.
-  - **Implementation:** A RoBERTa model was pre-trained on general SEC filing snippets to adapt it to financial and legal language. The `create_hf_dataset.py` script is used to generate the training corpus from the extracted text.
-  - **Goal:** Improve model performance on downstream tasks by familiarizing it with the specific domain.
-
-## Phase 2: Fine-Tuning for Classification & Filtering
-
-- [x] **3. Fine-Tune RoBERTa for Noise Classification**
-
-  - **Status:** Done.
-  - **Task:** Fine-tune the domain-adapted RoBERTa model for a binary text classification task: Filtering out false positives, such as accounting standard s updates, legal/litigation, equity compensation, and definitions.
-  - **Training Data:** Requires a labeled dataset of sentences, distinguishing between true derivative discussions and noise (e.g., employee stock options, legal boilerplate, forward-looking statements). Done via simple regex filtering in the database for candidate sentences, with automated labeling based on keyword presence.
-    - **Output:** A fine-tuned RoBERTa model capable of classifying sentences as `std` (accounting standards noise) vs. `hedge` (true derivative discussion).
+  - **Task:** Create a Python script that uses advanced regex patterns to process `web_data.db` and classify derivative mentions.
+  - **Training Data:** N/A - Rule-based approach.
+  - **Output:** A filtered database with category labels (`ir`, `fx`, `cp`, `eq`, `gen`) per sentence.
 
 - [x] **4. Implement Noise Filtering Script**
 
   - **Status:** Done.
-  - **Task:** Create a new Python script that uses the fine-tuned noise classification model (from Step 3) to process `web_data.db`. Using `classify.py` for classification and `filter_database.py` to split up text chunks into manageable 3-sentence paragraphs into `prepared_data.db`.
-  - **Workflow:** 0. Prepare the database by splitting long paragraphs into smaller chunks (3 sentences each) using `filter_database.py`. Delete all trading statements and non position that are not relevant.
+  - **Task:** `filter_database.py` (now renamed to `prepare_database.py` or similar) processes `web_data.db` and applies comprehensive regex-based filtering.
+  - **Workflow:** 
     1. Read paragraphs from the `webpage_result` table.
-    2. For each paragraph send it to the model.
-    3. Classify each sentence within the paragraph as `hedge` or other false positive categories (`std`, `law`, `cmp`, etc.).
-    4. Store the model results back into the database `server_result`, marking sentences for retention or deletion.
+    2. Split into manageable 3-sentence chunks.
+    3. Delete trading statements and non-position statements.
+    4. Apply category disambiguation for multi-category sentences.
+    5. Filter out false positives (equity compensation, legal/litigation, definitions, AOCI-only, PnL-only).
+  - **Output:** Cleaned database (`prepared_data.db`) with parallel arrays: sentences and their categories.
 
-- [] **4. Start using the Noise Filtering Script**
-
-  - **Status:** To-Do.
-  - **Task:** Run the script, this will take time, so I am going to skip this step and assume it works for now.
+- [x] **4.5 Pass-Through Merge (Simulated RoBERTa Step)**
+  - **Status:** Done (modified).
+  - **Task:** `roberta_merge.py` now performs a simple pass-through copy from `prepared_data.db` to `hedge_data.db` without any ML-based filtering.
+  - **Rationale:** Regex filtering in Step 4 is comprehensive enough; no additional ML filtering needed.
   - **Workflow:**
-    1. Run the noise filtering script on the existing `web_data.db`.
-    2. Merge the results into the database for further processing into `hedge_data.db`.
-
-- [x] **4.5 Implement Discarding Script**
-  - **Status:** Done
-  - **Task:** Create a new Python script that takes the results from step 4 to process `prepared_data.db`.
-  - **Workflow:**
-    1. Read paragraphs from the `webpage_result` table.
-    2. Retrieve the classification results from the `server_result` table.
-    3. Combine the results to identify and retain only the sentences classified as relevant (`hedge`). Use a special regex to identify sentences that contain derivative keywords to ensure no relevant information is lost in case of false negatives.
-    4. Discard false positives.
-    5. Store the cleaned, relevant-only paragraphs in a new database (e.g., `hedge_data.db`).
+    1. Copy all data from `prepared_data.db`.
+    2. Maintain parallel array structure (sentences + categories).
+    3. Save to `hedge_data.db` for next phase.
 
 ## Phase 3: Controlled Deletion & Final Dataset Assembly
 
 - [ ] **5. Remove Historical References**
 
   - **Status:** To-Do.
-  - **Task:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. This ensures only current year or undated mentions remain, which is essential for the "active any use in current year" use case.
+  - **Task:** For each sentence, extract all mentioned years (`YYYY`). If `max(mentioned_years) < reporting_year` of the filing, discard the sentence. This ensures only current year or undated mentions remain.
   - **Output:** A filtered database containing only current or undated mentions of derivatives into `current_data.db`.
 
-- [ ] **6. Fine-Tune RoBERTa for High-Level Classification**
+- [ ] **6. Category Validation & Refinement**
 
-  - **Status:** Optional.
-  - **Task:** Fine-tune a separate RoBERTa model (or the same one, depending on strategy) to perform multi-label or multi-class classification on the _relevant_ sentences. Reason: the current regex will not be able to capture all forms of derivative instruments and usage contexts.
-  - **Classification Schema:**
-    - **Category:** `interest_rate`, `foreign_exchange`, `commodity`, `equity`, `generic_other`.
-    - **Usage Indicator (Optional but Recommended):** `active_use` vs. `passive_mention` vs `denial`. This is the core of the "active user" goal. We should have deleted all trading statements, so `denial` should be straightforward. Also, since we are supposed to be left with only current year mentions, `active_use` should be easier to identify.
-      - `active_use`: Sentences indicating current or recent usage of derivatives for hedging or trading purposes.
-      - `termination`: Sentences indicating the cessation of derivative use. Critical to identify companies that have stopped using derivatives for current year analysis, since they are not active year-end users, but had some derivative use in the reporting year.
-      - `passive_mention`: Passive statements such as PnL impact, accounting treatment.
-      - `denial`: Explicit statements denying the use of derivatives or none at all.
-  - **Training Data:** Requires a labeled dataset of relevant sentences categorized by derivative type and usage
-  - **Goal:** Retain high-level metadata about each sentence before the final deletion stage. The output should be structured data, not just text.
+  - **Status:** To-Do (Optional).
+  - **Task:** Review and validate the regex-based category assignments. May involve:
+    - Statistical analysis of category distributions
+    - Manual spot-checking of edge cases
+    - Refinement of disambiguation rules if needed
+  - **Goal:** Ensure high confidence in category labels before final analysis.
 
 - [ ] **7. Final Controlled Deletion & Cleanup**
 
   - **Status:** To-Do.
   - **Task:** Perform final filtering steps on the classified data:
-    1. **Remove Non-Essential Context:** Discard sentences kept only for context that do not contain primary derivative keywords, which may include PnL impact statements or accounting treatment without active usage context.
-    2. **Delete Denial Statements:** Remove sentences that explicitly state the company does not use derivatives.
-    3. **Delete Potential use but not confirmed:** Remove sentences that indicate potential future use without confirmation of current use.
+    1. **Remove Non-Essential Context:** Discard sentences kept only for context that do not contain primary derivative keywords.
+    2. **Delete Denial Statements:** Remove sentences that explicitly state the company does not use derivatives (should be minimal after earlier filtering).
+    3. **Delete Potential/Future Use:** Remove sentences indicating potential future use without confirmation of current use.
   - **Output:** The final, analysis-ready database (`active_data.db`) containing only current, relevant, and categorized derivative mentions.
 
 - [ ] **8. Aggregation & Analysis**
   - **Status:** To-Do.
   - **Task:** Aggregate the cleaned and classified data to generate insights on active derivative users.
   - **Analysis Goals:**
-    - With controlled deletion, detect if there is still any mentions of active use classified from Step 5. If none exist, then it meant that controlled deletion deleted all previous years mentions, leaving only current year/non year mentions. Create a script that returns a list of companies with active derivative use per category in the current year.
+    - Detect companies with active derivative use per category in the current year.
+    - Generate summary statistics by category (IR, FX, CP, EQ).
+    - Create exportable lists/reports of active derivative users.
 
-| Stage                                       | Database File      | Produced By                   |
-| ------------------------------------------- | ------------------ | ----------------------------- |
-| Raw extraction                              | `web_data.db`      | `webpage.py`                  |
-| Prepared 3-sentence chunks + regex cleaning | `prepared_data.db` | `filter_database.py`          |
-| After RoBERTa noise filtering               | `hedge_data.db`    | `roberta_merge.py`            |
-| After past-year deletion                    | `current_data.db`  | `year_deletion.py`            |
-| Final active-user dataset                   | `active_data.db`   | Final cleanup script (Step 7) |
+## Updated Pipeline Architecture
+
+| Stage                                            | Database File      | Produced By                        |
+| ------------------------------------------------ | ------------------ | ---------------------------------- |
+| Raw extraction                                   | `web_data.db`      | `webpage.py`                       |
+| Prepared 3-sentence chunks + regex cleaning      | `prepared_data.db` | `filter_database.py` (regex-based) |
+| Pass-through copy (maintains category alignment) | `hedge_data.db`    | `roberta_merge.py` (pass-through)  |
+| After past-year deletion                         | `current_data.db`  | `year_deletion.py`                 |
+| Final active-user dataset                        | `active_data.db`   | Final cleanup script (Step 7)      |
+
+## Key Changes from Original Plan
+
+1. **No ML Training Required:** Eliminated RoBERTa pre-training and fine-tuning steps.
+2. **Regex-First Approach:** All classification and filtering done via pattern matching and context analysis.
+3. **Simpler Pipeline:** Fewer dependencies, faster iteration, easier debugging.
+4. **Maintained Structure:** Parallel array architecture (sentences + categories) preserved throughout.
+5. **Cost Savings:** No GPU compute, no training data labeling, no model hosting.
