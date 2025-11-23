@@ -62,7 +62,7 @@ This document outlines the development roadmap for building a classified dataset
 
 - [ ] **6. Fine-Tune RoBERTa for High-Level Classification**
 
-  - **Status:** To-Do.
+  - **Status:** Optional.
   - **Task:** Fine-tune a separate RoBERTa model (or the same one, depending on strategy) to perform multi-label or multi-class classification on the _relevant_ sentences. Reason: the current regex will not be able to capture all forms of derivative instruments and usage contexts.
   - **Classification Schema:**
     - **Category:** `interest_rate`, `foreign_exchange`, `commodity`, `equity`, `generic_other`.
