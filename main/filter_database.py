@@ -44,6 +44,7 @@ import sqlite3
 
 from derivative_regex import (
     ALL_REGEX,
+    DEFINITION_INDICATORS,
     IR_REGEX,
     FX_REGEX,
     CP_REGEX,
@@ -169,6 +170,7 @@ def create_clean_db():
                 "aoci",
                 "pnl_only_no_position",
                 "pnl_only_removed",
+                "definition_boilerplate",
             ] + [
                 f"disambiguation_excision_failed_{cat}"
                 for cat in CATEGORY_CONTEXT_MAP.keys()
@@ -525,6 +527,15 @@ def filter_matches_with_disambiguation(
 
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 all_discarded.append((url, sentence, "too_short"))
+                continue
+            
+            # ═══════════════════════════════════════════════════════════
+            # DEFINITION REMOVAL (before any context incorporation)
+            # ═══════════════════════════════════════════════════════════
+            
+            if DEFINITION_INDICATORS.search(sentence):
+                all_discarded.append((url, sentence, "definition_boilerplate"))
+                used_indices.add(idx)  # Mark as processed to prevent context reuse
                 continue
 
             # ═══════════════════════════════════════════════════════════

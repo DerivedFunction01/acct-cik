@@ -795,6 +795,44 @@ def build_trading_denial_pattern() -> re.Pattern:
 
 
 TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
+# =============================================================================
+# DEFINITION DETECTION (Isolated boilerplate)
+# =============================================================================
+
+
+def build_definition_regex() -> re.Pattern:
+    """
+    Builds a comprehensive definition detection regex using:
+    - CATEOGRY_REGEX: all derivative instruments
+    - SUBJ: company/subject references
+    - VERB_PATTERN: negative check (definitions shouldn't have action verbs)
+    """
+
+    instr = f"(?:{CATEOGRY_REGEX.pattern})"
+    subject = SUBJ
+
+    # Negative lookahead: don't match if sentence contains action verbs
+    # (those indicate actual usage, not pure definition)
+    no_action_verb = rf"(?!.*\b(?:{VERB_PATTERN})\b)"
+
+    pattern_list = [
+        rf"{no_action_verb}(?:a\s+)?{instr}\s+(?:is\s+)?defined\s+as",
+        rf"{no_action_verb}definition\s+(?:of|for)\s+(?:a\s+)?{instr}",
+        rf"{no_action_verb}(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{instr}.*as",
+        rf'{no_action_verb}"(?:{instr})".*(?:means|refers\s+to)',
+        r"for\s+purposes?\s+of\s+(?:this|the|ASC|FASB|reporting|disclosure)",
+        r"(?:pursuant\s+to|in\s+accordance\s+with|under).*(?:ASC\s+815|FASB|Regulation\s+AB)",
+        r"accounting\s+(?:standard|guidance|treatment|policy|model).*(?:derivative|instrument)",
+        rf"{no_action_verb}the\s+following\s+(?:are\s+)?{instr}s?",
+        r"(?:derivative|instrument)s?\s+(?:include|consist\s+of|comprise)",
+    ]
+
+    combined = "|".join(f"(?:{p})" for p in pattern_list)
+    return re.compile(combined, re.IGNORECASE | re.VERBOSE)
+
+
+# Compile at module load
+DEFINITION_INDICATORS = build_definition_regex()
 
 def build_prior_statement_pattern() -> re.Pattern:
     """
@@ -1019,4 +1057,5 @@ __all__ = [
     "CATEGORY_CONTEXT_MAP",
     "NON_POSITION_INDICATORS",
     "PNL_ONLY_NO_POSITION",
+    "DEFINITION_INDICATORS",
 ]
