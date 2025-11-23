@@ -44,6 +44,8 @@ from derivative_regex import (
     ALL_REGEX,
     DEFINITION_INDICATORS,
     EXCLUDE_REGEX_ACCOUNTING_STD,
+    EXCLUDE_REGEX_EQUITY_COMP,
+    EXCLUDE_REGEX_LEGAL_LITIGATION,
     IR_REGEX,
     FX_REGEX,
     CP_REGEX,
@@ -563,6 +565,12 @@ def filter_matches_with_disambiguation(
             continue
         if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
             all_discarded.append((url, match, "adoption"))
+            continue
+        if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
+            all_discarded.append((url, match, "legal"))
+            continue
+        if EXCLUDE_REGEX_EQUITY_COMP.search(match):
+            all_discarded.append((url, match, "comp"))
             continue
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()
