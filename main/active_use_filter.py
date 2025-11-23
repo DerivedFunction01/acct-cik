@@ -31,21 +31,15 @@ SOURCE_DB_PATH = "current_data.db"
 FINAL_DB_PATH = "active_data.db"
 
 # Import the robust, battle-tested regexes
-try:
-    from derivative_regex import (
-        SENTENCE_SPLIT_PATTERN,
-        POTENTIAL_REGEX,
-        VAGUE_TIMING_REGEX,
-        NEGATIVE_INTENT_REGEX,
-        ABSENCE_REGEX,
-        DID_NOT_HOLD_REGEX,
-        TERMINATION_REGEX,
-    )
-except ImportError:
-    raise ImportError(
-        "Could not import regex patterns. Ensure 'derivative_regex.py' is in the same directory "
-        "and contains the updated builder functions."
-    )
+from derivative_regex import (
+    SENTENCE_SPLIT_PATTERN,
+    POTENTIAL_REGEX,
+    VAGUE_TIMING_REGEX,
+    NEGATIVE_INTENT_REGEX,
+    ABSENCE_REGEX,
+    DID_NOT_HOLD_REGEX,
+    check_for_instrument
+)
 
 # =============================================================================
 # DATABASE FUNCTIONS
@@ -214,6 +208,28 @@ def process_item(item):
         if kept_sentences:
             final_paragraphs.append(" ".join(kept_sentences))
             final_categories.append(category)
+
+    # -------------------------------------------------------------------------
+    # FINAL SAFETY CHECK: Ensure instrument name survived cleaning
+    # -------------------------------------------------------------------------
+    # Filter out sentences where the cleaning process accidentally stripped
+    # the actual instrument name (e.g., reducing "We use swaps to hedge" -> "We use to hedge")
+
+    validated_paragraphs = []
+
+    # Assuming final_paragraphs is a list of (text, category) tuples based on your Phase 2 script
+    # If it is just a list of strings, remove the unpacking.
+    for item in final_paragraphs:
+        # Handle both tuple (text, cat) and string formats dynamically
+        text = item[0] if isinstance(item, tuple) else item
+
+        # strict=False: Allows "contracts", "instruments", "derivatives" (Broader)
+        # strict=True:  Requires "ir swaps", "forward contract", "call options" (Stricter)
+        if check_for_instrument(text, strict=False):
+            validated_paragraphs.append(item)
+        else:
+            # Log it as a specific discard reason so you can debug regex over-pruning
+            discards.append((url, text, "lost_instrument_reference"))
 
     if final_paragraphs:
         return (
