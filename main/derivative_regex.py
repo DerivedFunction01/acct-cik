@@ -696,16 +696,49 @@ LEGAL_LITIGATION_KEYWORDS = [
 
 # Section 3: Accounting Standards
 ACCOUNTING_STANDARDS_KEYWORDS = [
-    "fasb",
-    "sfas",
-    "s.f.a.s",
-    "asc 815",
-    "a.s.c 815",
-    "Credit Enhancement and Other Support",
-    "Regulation AB",
-    "regulat",
-    "adoption",
-    "amendment",
+    # === Adoption / Future Application ===
+    r"will\s+(?:adopt|begin\s+to\s+apply|implement|transition\s+to)",
+    r"expect(?:s|ed)?\s+to\s+adopt",
+    r"plan(?:s|ned)?\s+to\s+adopt",
+    r"intends?\s+to\s+adopt",
+    r"required?\s+to\s+adopt",
+    r"adopt(?:ing|ed)?\s+(?:the\s+new\s+|this\s+)?(?:guidance|standard|amendment|ASU|Update)",
+    r"elect(?:s|ed)?\s+to\s+(?:early\s+)?adopt",
+    r"early\s+adopt(?:ed|ing)?",
+    # === FASB / Standard Issuance ===
+    r"FASB\s+(?:issued|has\s+issued|released)",
+    r"ASU\s+20\d{2}-\d{2}",
+    r"Accounting\s+Standards\s+Update",
+    r"Financial\s+Accounting\s+Standards\s+Board\s+(?:issued|FASB)",
+    r"new\s+accounting\s+(?:standard|guidance|pronouncement)",
+    r"generally accepted accounting principles",
+    r"accordance with GAAP",    
+    # === Impact Assessment / Evaluation ===
+    r"evaluat(?:ing|ed|e|es|ion)\s+(?:of the|the)\s+(?:impact|effect|adoption)",
+    r"assess(?:ing|ed|es)\s+the\s+(?:impact|effect|potential\s+impact)",
+    r"continu(?:ing|es)\s+to\s+evaluate",
+    r"currently\s+(?:evaluating|assessing|analyzing)",
+    r"expect(?:s|ed)?\s+that\s+the\s+adoption\s+(?:will|is\s+not\s+expected\s+to)",
+    # === Definition / Scope Clarification ===
+    r"meet\s+the\s+definition\s+of\s+a\s+derivative",
+    r"do\s+not\s+meet\s+the\s+definition\s+of\s+a\s+derivative",
+    r"scope\s+exception\s+(?:under|in|to)",
+    r"qualif(?:y|ies)\s+for\s+the\s+scope\s+exception",
+    r"not\s+qualify\s+for\s+hedge\s+accounting",
+    r"do\s+not\s+qualify\s+as\s+(?:a\s+)?hedge",
+    # === Effective Date References ===
+    r"effective\s+for\s+(?:fiscal\s+years|annual\s+periods)",
+    r"effective\s+(?:beginning|for)\s+(?:after|in)",
+    r"effective\s+immediately",
+    # === Disclosure / Presentation Changes ===
+    r"clarifies\s+the\s+accounting",
+    r"amends?\s+the\s+(?:presentation|disclosure|guidance)",
+    r"provides\s+an?\s+accounting\s+alternative",
+    r"establishes?\s+accounting\s+and\s+reporting\s+standards",
+    r"no\s+material\s+impact\s+(?:on|to)",
+    r"not\s+expected\s+to\s+have\s+a\s+material\s+effect",
+    # === Documentation ===
+    r"documentation require(?:s|d)",
 ]
 
 def build_exclude_regex(keywords: list) -> re.Pattern:

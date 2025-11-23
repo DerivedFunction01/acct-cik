@@ -43,6 +43,7 @@ import sqlite3
 from derivative_regex import (
     ALL_REGEX,
     DEFINITION_INDICATORS,
+    EXCLUDE_REGEX_ACCOUNTING_STD,
     IR_REGEX,
     FX_REGEX,
     CP_REGEX,
@@ -187,6 +188,7 @@ def create_clean_db():
                 "pnl_only_no_position",
                 "pnl_only_removed",
                 "definition_boilerplate",
+                "adoption",
             ] + [
                 f"disambiguation_excision_failed_{cat}"
                 for cat in CATEGORY_CONTEXT_MAP.keys()
@@ -558,6 +560,9 @@ def filter_matches_with_disambiguation(
         if '<TABLE>' in match.upper():
             # Keep table as-is without processing
             final_paragraphs.append((match, 'table'))  # Special 'table' category
+            continue
+        if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
+            all_discarded.append((url, match, "adoption"))
             continue
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()
