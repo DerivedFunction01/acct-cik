@@ -147,8 +147,8 @@ COMMON_COMMODITIES = [
     "wool",
 ]
 
-# Minimum sentence length to consider
-MIN_SENTENCE_LENGTH = 50
+# Minimum sentence length to consider (we use swaps is 12 chars and rarely ever occurs)
+MIN_SENTENCE_LENGTH = 15
 
 
 # =============================================================================
@@ -312,6 +312,9 @@ def build_soft_gen_regex() -> re.Pattern:
     pattern = build_alternation(specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
+def build_loose_gen_regex() -> re.Pattern:
+    pattern = build_alternation(ALL_BASE_TYPES + ALL_SUFFIXES)
+    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 # =============================================================================
 # COMPILED REGEXES (exported)
@@ -344,9 +347,9 @@ STRICT_REGEX = re.compile(
     ),
     re.IGNORECASE,
 )
-SOFT_REGEX = SOFT_GEN_REGEX
+LOOSE_GEN_REGEX = build_loose_gen_regex()
 ALL_REGEX = re.compile(
-    r"|".join([STRICT_REGEX.pattern, SOFT_REGEX.pattern]), re.IGNORECASE
+    r"|".join([STRICT_REGEX.pattern, SOFT_GEN_REGEX.pattern]), re.IGNORECASE
 )
 # Interest Rate context clues
 IR_CONTEXT_TERMS = [
@@ -858,11 +861,6 @@ def build_definition_regex() -> re.Pattern:
         rf"{no_action_verb}definition\s+(?:of|for)\s+(?:a\s+)?{instr}",
         rf"{no_action_verb}(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{instr}.*as",
         rf'{no_action_verb}"(?:{instr})".*(?:means|refers\s+to)',
-        r"for\s+purposes?\s+of\s+(?:this|the|ASC|FASB|reporting|disclosure)",
-        r"(?:pursuant\s+to|in\s+accordance\s+with|under).*(?:ASC\s+815|FASB|Regulation\s+AB)",
-        r"accounting\s+(?:standard|guidance|treatment|policy|model).*(?:derivative|instrument)",
-        rf"{no_action_verb}the\s+following\s+(?:are\s+)?{instr}s?",
-        r"(?:derivative|instrument)s?\s+(?:include|consist\s+of|comprise)",
     ]
 
     combined = "|".join(f"(?:{p})" for p in pattern_list)
@@ -1067,7 +1065,6 @@ __all__ = [
     "STRICT_GEN_REGEX",
     "SOFT_GEN_REGEX",
     "STRICT_REGEX",
-    "SOFT_REGEX",
     "ALL_REGEX",
     "COMBINED_REGEX",
     "COMMON_COMMODITIES",

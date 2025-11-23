@@ -11,31 +11,29 @@ from tqdm import tqdm
 import multiprocessing as mp
 
 from derivative_regex import (
-    build_ir_regex,
-    build_fx_regex,
-    build_cp_regex,
-    build_eq_regex,
-    build_strict_gen_regex,
-    build_soft_gen_regex,
+  IR_REGEX,
+  FX_REGEX,
+  CP_REGEX,
+  EQ_REGEX,
+  GEN_REGEX,
+  STRICT_GEN_REGEX,
+  SOFT_GEN_REGEX,
+  LOOSE_GEN_REGEX,
 )
 
 # ——————————————————————————————————————————————————————————————
 # Regex setup
 # ——————————————————————————————————————————————————————————————
-IR_REGEX = build_ir_regex()
-FX_REGEX = build_fx_regex()
-CP_REGEX = build_cp_regex()
-EQ_REGEX = build_eq_regex()
-GEN_STRICT = build_strict_gen_regex()
-GEN_SOFT = build_soft_gen_regex()
+
 
 REGEX_TO_CAT = [
     (IR_REGEX, "ir"),
     (FX_REGEX, "fx"),
     (CP_REGEX, "cp"),
     (EQ_REGEX, "eq"),
-    (GEN_STRICT, "gen"),
-    (GEN_SOFT, "gen"),
+    (GEN_REGEX, "gen"),
+    (STRICT_GEN_REGEX, "gen"),
+    (SOFT_GEN_REGEX, "gen"),
 ]
 
 
@@ -62,7 +60,14 @@ def enrich_sentences(batch):
             for regex, cat in REGEX_TO_CAT:
                 if regex.search(sent):
                     cats.add(cat)
-
+            # If it only matches the gen regex, check to see if we can match the gen_regex (ie swap agreement) to any known types. Strict/soft have hedge, derivative, notional, etc
+            if len(cats) == 1 and list(cats)[0] == "gen":
+                if GEN_REGEX.search(sent): # (ie swap agreement)
+                    pass
+                elif LOOSE_GEN_REGEX.search(sent): # ie (swap, contract)
+                    pass
+                else:
+                    pass
             if not cats:
                 cats.add("other")  # fallback
 
