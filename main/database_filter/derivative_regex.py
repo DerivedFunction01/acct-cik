@@ -506,18 +506,27 @@ CP_CONTEXT_TERMS = [
     "processing", "milling", "manufacturing",
 ] + COMMON_COMMODITIES + ["commodity"]
 # Equity context clues
+# derivative_regex.py
+
+# ... (Previous code) ...
+
+# Equity context clues
+# REMOVED: "market volatility", "market risk", "investment portfolio", "publicly traded"
+# REASON: These appear in IR/FX disclosures and cause false positives.
 EQ_CONTEXT_TERMS = [
     r"stock\s+price",
     r"share\s+price",
     r"equity\s+(?:award|grant|compensation)",
-    r"market\s+(?:volatility|risk)",
     r"stock\s+market",
     r"equity\s+security",
-    r"investment\s+portfolio",
     r"market\s+index",
-    r"publicly\s+traded",
+    r"S&P\s+500",
+    r"Nasdaq",
+    r"Dow\s+Jones",
+    r"dividend\s+yield",
 ]
 
+# ... (Rest of file) ...
 # Build compiled regex patterns
 IR_CONTEXT_REGEX = re.compile(
     r"\b" + build_alternation(IR_CONTEXT_TERMS) + r"\b", re.IGNORECASE
