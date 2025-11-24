@@ -94,6 +94,9 @@ ALL_SUFFIXES = [
     "commitments?",
     "positions?",
     "strateg(?:ies|y)",
+    "options?",
+    "call options?",  # Captures "Interest rate call options"
+    "put options?",  # Captures "Commodity put options"
 ]
 
 COMMON_COMMODITIES = [
@@ -192,13 +195,354 @@ def build_smart_regex(
     pattern2 = build_alternation(specific_phrases)
     return build_alternation([pattern1, pattern2])
 
+# Interest Rate context clues
+IR_CONTEXT_TERMS = [
+    r"debt",
+    r"loan",
+    r"borrow(?:ing|ed)?",
+    r"bond",
+    r"note",
+    r"credit\s+facilit(?:y|ies)",
+    r"floating[- ]rate",
+    r"variable[- ]rate",
+    r"benchmark[-]rate",
+    r"interest[- ]rate",
+    r"treasury[-]rate",
+    r"forward[- ]rate",
+    r"LIBOR",
+    r"SOFR",
+    r"EURIBOR",
+    r"SONIA",
+    r"interest\s+(?:rate\s+)?(?:risk|exposure|volatility)",
+    r"fixed[- ](?:rate|to[- ]floating)",
+    r"basis\s+point",
+]
+
+
+@dataclass
+class Currency:
+    code: str
+    full_name: str
+    symbol: str
+    adjective: str
+    location: str
+    symbol_first: bool = True  # Default to symbol before the number (e.g., $100)
+
+
+major_currencies = [
+    Currency("USD", "US Dollar", "$", "U.S.", "United States"),
+    Currency("EUR", "Euro", "€", "European", "Europe"),
+    Currency("GBP", "British Pound", "£", "British", "U.K."),
+    Currency("JPY", "Japanese Yen", "¥", "Japanese", "Japan"),
+    Currency("CAD", "Canadian Dollar", "C$", "Canadian", "Canada"),
+    Currency("AUD", "Australian Dollar", "A$", "Australian", "Australia"),
+    Currency("CHF", "Swiss Franc", "CHF", "Swiss", "Switzerland"),
+    Currency("CNY", "Chinese Yuan", "¥", "Chinese", "China"),
+]
+
+european_currencies = [
+    Currency("NOK", "Norwegian Krone", "kr", "Norwegian", "Norway", symbol_first=False),
+    Currency("SEK", "Swedish Krona", "kr", "Swedish", "Sweden", symbol_first=False),
+    Currency("DKK", "Danish Krone", "kr", "Danish", "Denmark", symbol_first=False),
+    Currency("PLN", "Polish Zloty", "zł", "Polish", "Poland", symbol_first=False),
+    Currency(
+        "HUF", "Hungarian Forint", "Ft", "Hungarian", "Hungary", symbol_first=False
+    ),
+    Currency(
+        "CZK", "Czech Koruna", "Kč", "Czech", "Czech Republic", symbol_first=False
+    ),
+    Currency("TRY", "Turkish Lira", "₺", "Turkish", "Turkey", symbol_first=False),
+    Currency("RUB", "Russian Ruble", "₽", "Russian", "Russia", symbol_first=False),
+    Currency("BGN", "Bulgarian Lev", "лв", "Bulgarian", "Bulgaria", symbol_first=False),
+    Currency("RON", "Romanian Leu", "lei", "Romanian", "Romania", symbol_first=False),
+]
+
+asian_currencies = [
+    Currency("INR", "Indian Rupee", "₹", "Indian", "India"),
+    Currency("KRW", "South Korean Won", "₩", "South Korean", "South Korea"),
+    Currency("SGD", "Singapore Dollar", "S$", "Singaporean", "Singapore"),
+    Currency("HKD", "Hong Kong Dollar", "HK$", "Hong Kong", "Hong Kong"),
+    Currency("THB", "Thai Baht", "฿", "Thai", "Thailand", symbol_first=False),
+    Currency("MYR", "Malaysian Ringgit", "RM", "Malaysian", "Malaysia"),
+]
+
+americas_currencies = [
+    Currency("MXN", "Mexican Peso", "Mex$", "Mexican", "Mexico"),
+    Currency("BRL", "Brazilian Real", "R$", "Brazilian", "Brazil", symbol_first=False),
+    Currency("ARS", "Argentine Peso", "ARS$", "Argentine", "Argentina"),
+    Currency("CLP", "Chilean Peso", "CLP$", "Chilean", "Chile"),
+    Currency("COP", "Colombian Peso", "COL$", "Colombian", "Colombia"),
+]
+
+other_currencies = [
+    Currency(
+        "NZD", "New Zealand Dollar", "NZ$", "New Zealand", "Oceania", symbol_first=True
+    ),
+    Currency(
+        "ZAR",
+        "South African Rand",
+        "R",
+        "South African",
+        "south Africa",
+        symbol_first=True,
+    ),
+    Currency(
+        "AED",
+        "UAE Dirham",
+        "د.إ",
+        "Emirati",
+        "United Arab Emirates",
+        symbol_first=False,
+    ),
+    Currency("SAR", "Saudi Riyal", "ر.س", "Saudi", "Saudi Arabia", symbol_first=False),
+]
+
+
+all_currencies = (
+    major_currencies
+    + european_currencies
+    + asian_currencies
+    + americas_currencies
+    + other_currencies
+)
+def build_currency_patterns() -> List[str]:
+    """
+    Generates regex patterns derived specifically from the Currency class objects.
+    Includes codes, adjectives, locations, and specific denominating phrases.
+    """
+    terms = []
+    for currency in all_currencies:
+        # Basic terms
+        terms.append(currency.code)
+        terms.append(re.escape(currency.adjective))
+        terms.append(re.escape(currency.location))
+
+        # Currency name patterns
+        # "U.S. Dollar", "Euro", "Japanese Yen"
+        terms.append(re.escape(currency.full_name))
+
+        # Adjective + common words
+        adj_esc = re.escape(currency.adjective)
+        terms.extend(
+            [
+                adj_esc + r"\s+(?:operations?|subsidiaries|entities)",
+                adj_esc + r"\s+(?:revenue|sales|income|earnings)",
+                adj_esc + r"\s+(?:assets?|liabilities)",
+                adj_esc + r"\s+(?:market|economy|business)",
+                adj_esc + r"\s+(?:exposure|risk)",
+            ]
+        )
+
+        # Code + patterns
+        code = currency.code
+        terms.extend(
+            [
+                code + r"[- ]denominated",
+                code + r"[/]" + r"[A-Z]{3}",  # USD/EUR, GBP/JPY
+                r"[A-Z]{3}" + r"[/]" + code,  # EUR/USD, JPY/GBP
+            ]
+        )
+    return terms
+
+def build_currency_iso_pattern() -> str:
+    """
+    Returns a regex alternation of all ISO 4217 currency codes.
+    Sorted by length descending to prevent partial matches (e.g., 'NOK' before 'OK').
+    """
+    codes = {c.code for c in all_currencies if c.code}
+    sorted_codes = sorted(codes, key=len, reverse=True)
+    escaped = [re.escape(code) for code in sorted_codes]
+    return build_alternation(escaped)
+
+
+def build_currency_name_pattern() -> str:
+    """
+    FX-optimized currency fragment generator.
+
+    Produces:
+      - ISO codes (USD, EUR)
+      - ISO pairs (USD/JPY, EUR/USD)
+      - code-denominated (USD-denominated)
+      - adjective + unit (Canadian dollar)
+      - safe unit-only (forint, zloty, rand)
+    """
+    patterns = set()
+
+    unsafe_units = {"dollar", "pound", "yen", "won"}
+
+    # ISO code set for cross patterns
+    codes = [c.code for c in all_currencies]
+
+    # -----------------------------------
+    # 1. ISO codes and ISO FX pairs
+    # -----------------------------------
+    for c in codes:
+        patterns.add(re.escape(c))
+        patterns.add(re.escape(c) + r"-denominated")
+        patterns.add(re.escape(c) + r"/" + r"[A-Z]{3}")
+        patterns.add(r"[A-Z]{3}/" + re.escape(c))
+
+    # -----------------------------------
+    # 2. Adjective + unit pairs
+    # -----------------------------------
+    for curr in all_currencies:
+        full = curr.full_name.strip()
+        words = full.split()
+        adjective = curr.adjective
+        unit = words[-1]
+
+        # e.g., "Canadian dollar"
+        if adjective and unit:
+            patterns.add(re.escape(f"{adjective} {unit}"))
+
+        # Unit-only when safe
+        if unit.lower() not in unsafe_units:
+            patterns.add(re.escape(unit))
+
+        # U.S. variants
+        if adjective == "U.S.":
+            patterns.update(
+                [
+                    r"U\.?S\.?\s+" + re.escape(unit),
+                    r"United\s+States\s+" + re.escape(unit),
+                ]
+            )
+
+    sorted_patterns = sorted(patterns, key=len, reverse=True)
+    return build_alternation(sorted_patterns)
+
+def build_currency_symbol_pattern() -> str:
+    """
+    Generates a comprehensive regex OR-string for all currency symbols and ISO codes.
+    Used for quantitative analysis to detect amounts like "$100", "100 USD", "€50".
+    Sorts by length descending to ensure multi-char symbols (e.g. 'US$') match before single ones ('$').
+    """
+    symbols = set()
+    codes = set()
+
+    for currency in all_currencies:
+        if currency.symbol:
+            symbols.add(re.escape(currency.symbol))
+        if currency.code:
+            codes.add(re.escape(currency.code))
+
+    # Combine and sort by length desc (critical for regex precedence)
+    all_identifiers = sorted(symbols | codes, key=len, reverse=True)
+
+    return build_alternation(all_identifiers)
+
+
+def build_fx_context_terms_advanced() -> List[str]:
+    """Generate comprehensive FX context terms combining currency-specific and generic patterns."""
+
+    # 1. Get patterns dynamically generated from Currency objects
+    currency_specific_terms = build_currency_patterns()
+
+    # 2. Define static generic FX terms
+    generic_fx_terms = [
+        r"international",
+        r"foreign",
+        r"overseas",
+        r"global",
+        r"cross[- ]border",
+        r"multinational",
+        r"transnational",
+        r"export(?:s|ing|ed)?",
+        r"import(?:s|ing|ed)?",
+        r"translation",
+        r"remeasurement",
+        r"repatriation",
+        r"foreign\s+(?:currency|exchange|operations|subsidiaries|sales|revenue)",
+        r"currency\s+(?:risk|exposure|volatility|fluctuation|translation)",
+        r"exchange\s+rate",
+        r"functional\s+currency",
+        r"reporting\s+currency",
+        r"local\s+currency",
+        r"transactional\s+(?:exposure|risk)",
+    ]
+
+    return currency_specific_terms + generic_fx_terms
+
+CURRENCY_SYMBOL_PATTERN = build_currency_symbol_pattern()
+# Generic hedging context (required for generic matches)
+HEDGING_CONTEXT_TERMS = [
+    r"hedge(?:s|d|ing)?",
+    r"mitigat(?:e|es|ed|ing)",
+    r"protect(?:s|ed|ing)?",
+    r"manage(?:s|d|ing)?",
+    r"exposure",
+    r"risk\s+management",
+    r"economic\s+risk",
+    r"fair\s+value\s+hedge",
+    r"cash\s+flow\s+hedge",
+    r"net\s+investment\s+hedge",
+    r"designated\s+as\s+(?:a\s+)?hedge",
+    r"hedge\s+effectiveness",
+    r"hedge\s+accounting",
+]
+CP_CONTEXT_TERMS = [
+    # Physical quantity units
+    "barrels", "bbl", "bbl/d",
+    "btu", "gj", "mmbtu", "mmbtu/h", "mwh",
+    "bushels", "cwt", "hundredweights", "pecks",
+    "ounces", "pounds", "tons", "tonne", "long tons", "short tons",
+    "kiloliters", "liters", "cubic", "gallons", "joules", "gigajoules"
+
+    # Containers/packaging (physical)
+    "bales", "bundles", "coils", "containers", "packages",
+    "pallets", "sacks", "sheets", "units",
+
+    # Extractive/production
+    "drilling", "mining", "smelting", "refining", "extraction",
+    "harvesting", "farming", "agriculture",
+
+    # Industrial transformation
+    "processing", "milling", "manufacturing",
+] + COMMON_COMMODITIES + ["commodity"]
+# Equity context clues
+EQ_CONTEXT_TERMS = [
+    r"stock\s+price",
+    r"share\s+price",
+    r"equity\s+(?:award|grant|compensation)",
+    r"market\s+(?:volatility|risk)",
+    r"stock\s+market",
+    r"equity\s+security",
+    r"investment\s+portfolio",
+    r"market\s+index",
+    r"publicly\s+traded",
+]
+
+# Build compiled regex patterns
+IR_CONTEXT_REGEX = re.compile(
+    r"\b" + build_alternation(IR_CONTEXT_TERMS) + r"\b", re.IGNORECASE
+)
+FX_CONTEXT_REGEX = re.compile(
+    r"\b" + build_alternation(build_fx_context_terms_advanced()) + r"\b", re.IGNORECASE
+)
+CP_CONTEXT_REGEX = re.compile(
+    r"\b" + build_alternation(CP_CONTEXT_TERMS) + r"\b", re.IGNORECASE
+)
+EQ_CONTEXT_REGEX = re.compile(
+    r"\b" + build_alternation(EQ_CONTEXT_TERMS) + r"\b", re.IGNORECASE
+)
+HEDGING_CONTEXT_REGEX = re.compile(
+    r"\b" + build_alternation(HEDGING_CONTEXT_TERMS) + r"\b", re.IGNORECASE
+)
+
+# Map categories to their context patterns
+CATEGORY_CONTEXT_MAP = {
+    "ir": IR_CONTEXT_REGEX,
+    "fx": FX_CONTEXT_REGEX,
+    "cp": CP_CONTEXT_REGEX,
+    "eq": EQ_CONTEXT_REGEX,
+    "gen": HEDGING_CONTEXT_REGEX,
+}
+
 
 def build_ir_regex() -> re.Pattern:
     core_terms = [
         "interest[- ]rate",
         "single[- ]currency",
-        "Eurodollar",
-        "dollar",
         "SOFR",
         "SONIA",
         "LIBOR",
@@ -227,18 +571,48 @@ def build_fx_regex() -> re.Pattern:
         "exchange[- ]rate",
         "FX",
         "forex",
+        "cross[- ]currency",
+        "multi[- ]currency",
     ]
+
+    # --- DEFINE FX-SPECIFIC SAFE TYPES ---
+    # 1. Start with the strictly safe stuff (Swaps, Forwards, Caps)
+    fx_expanded_types = UNAMBIGUOUS_BASE_TYPES.copy()
+
+    # 2. Add terms that are SAFE here because they are preceded by ISO/Currency
+    #    (e.g., "USD options" is safe, whereas "Strategic options" is not)
+    fx_expanded_types.extend(
+        [
+            "options?",
+            "futures?",
+        ]
+    )
+
+    # 3. Add FULL FORM call/puts (Safe)
+    fx_expanded_types.extend(
+        [
+            "call options?",
+            "put options?",
+        ]
+    )
+
+    iso = build_currency_iso_pattern()
+    name = build_currency_name_pattern()
+
     specific_phrases = [
         "NDF",
         "deliverable forwards?",
         "hedge of the net investment",
         "net investment hedges?",
+        # Use fx_expanded_types here instead of UNAMBIGUOUS_BASE_TYPES
+        f"{iso}\\s*(?:denominated|based|linked)?\\s*{build_alternation(fx_expanded_types)}",
+        f"{name}\\s*(?:denominated|based)?\\s*{build_alternation(fx_expanded_types)}",
     ]
+
     pattern = build_smart_regex(
         core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
 
 def build_cp_regex() -> re.Pattern:
     base_commodities = ["commodity"]
@@ -255,8 +629,6 @@ def build_cp_regex() -> re.Pattern:
 def build_eq_regex() -> re.Pattern:
     core_terms = ["equity", "equity[- ]related"]
     specific_phrases = [
-        "call options?",
-        "put options?",
     ]
     pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -373,282 +745,6 @@ LOOSE_GEN_REGEX = build_loose_gen_regex()
 ALL_REGEX = re.compile(
     r"|".join([STRICT_REGEX.pattern, SOFT_GEN_REGEX.pattern]), re.IGNORECASE
 )
-# Interest Rate context clues
-IR_CONTEXT_TERMS = [
-    r"debt",
-    r"loan",
-    r"borrow(?:ing|ed)?",
-    r"bond",
-    r"note",
-    r"credit\s+facilit(?:y|ies)",
-    r"floating[- ]rate",
-    r"variable[- ]rate",
-    r"benchmark[-]rate",
-    r"interest[- ]rate",
-    r"treasury[-]rate",
-    r"forward[- ]rate",
-    r"LIBOR",
-    r"SOFR",
-    r"EURIBOR",
-    r"SONIA",
-    r"interest\s+(?:rate\s+)?(?:risk|exposure|volatility)",
-    r"fixed[- ](?:rate|to[- ]floating)",
-    r"basis\s+point",
-]
-
-
-@dataclass
-class Currency:
-    code: str
-    full_name: str
-    symbol: str
-    adjective: str
-    location: str
-    symbol_first: bool = True  # Default to symbol before the number (e.g., $100)
-
-
-major_currencies = [
-    Currency("USD", "U.S. Dollar", "$", "U.S.", "United States"),
-    Currency("EUR", "Euro", "€", "European", "Europe"),
-    Currency("GBP", "British Pound", "£", "British", "U.K."),
-    Currency("JPY", "Japanese Yen", "¥", "Japanese", "Japan"),
-    Currency("CAD", "Canadian Dollar", "C$", "Canadian", "Canada"),
-    Currency("AUD", "Australian Dollar", "A$", "Australian", "Australia"),
-    Currency("CHF", "Swiss Franc", "CHF", "Swiss", "Switzerland"),
-    Currency("CNY", "Chinese Yuan", "¥", "Chinese", "China"),
-]
-
-european_currencies = [
-    Currency("NOK", "Norwegian Krone", "kr", "Norwegian", "Norway", symbol_first=False),
-    Currency("SEK", "Swedish Krona", "kr", "Swedish", "Sweden", symbol_first=False),
-    Currency("DKK", "Danish Krone", "kr", "Danish", "Denmark", symbol_first=False),
-    Currency("PLN", "Polish Zloty", "zł", "Polish", "Poland", symbol_first=False),
-    Currency(
-        "HUF", "Hungarian Forint", "Ft", "Hungarian", "Hungary", symbol_first=False
-    ),
-    Currency(
-        "CZK", "Czech Koruna", "Kč", "Czech", "Czech Republic", symbol_first=False
-    ),
-    Currency("TRY", "Turkish Lira", "₺", "Turkish", "Turkey", symbol_first=False),
-    Currency("RUB", "Russian Ruble", "₽", "Russian", "Russia", symbol_first=False),
-    Currency("BGN", "Bulgarian Lev", "лв", "Bulgarian", "Bulgaria", symbol_first=False),
-    Currency("RON", "Romanian Leu", "lei", "Romanian", "Romania", symbol_first=False),
-]
-
-asian_currencies = [
-    Currency("INR", "Indian Rupee", "₹", "Indian", "India"),
-    Currency("KRW", "South Korean Won", "₩", "South Korean", "South Korea"),
-    Currency("SGD", "Singapore Dollar", "S$", "Singaporean", "Singapore"),
-    Currency("HKD", "Hong Kong Dollar", "HK$", "Hong Kong", "Hong Kong"),
-    Currency("THB", "Thai Baht", "฿", "Thai", "Thailand", symbol_first=False),
-    Currency("MYR", "Malaysian Ringgit", "RM", "Malaysian", "Malaysia"),
-]
-
-americas_currencies = [
-    Currency("MXN", "Mexican Peso", "Mex$", "Mexican", "Mexico"),
-    Currency("BRL", "Brazilian Real", "R$", "Brazilian", "Brazil", symbol_first=False),
-    Currency("ARS", "Argentine Peso", "ARS$", "Argentine", "Argentina"),
-    Currency("CLP", "Chilean Peso", "CLP$", "Chilean", "Chile"),
-    Currency("COP", "Colombian Peso", "COL$", "Colombian", "Colombia"),
-]
-
-other_currencies = [
-    Currency(
-        "NZD", "New Zealand Dollar", "NZ$", "New Zealand", "Oceania", symbol_first=True
-    ),
-    Currency(
-        "ZAR",
-        "South African Rand",
-        "R",
-        "South African",
-        "south Africa",
-        symbol_first=True,
-    ),
-    Currency(
-        "AED",
-        "UAE Dirham",
-        "د.إ",
-        "Emirati",
-        "United Arab Emirates",
-        symbol_first=False,
-    ),
-    Currency("SAR", "Saudi Riyal", "ر.س", "Saudi", "Saudi Arabia", symbol_first=False),
-]
-
-
-all_currencies = (
-    major_currencies
-    + european_currencies
-    + asian_currencies
-    + americas_currencies
-    + other_currencies
-)
-def build_currency_patterns() -> List[str]:
-    """
-    Generates regex patterns derived specifically from the Currency class objects.
-    Includes codes, adjectives, locations, and specific denominating phrases.
-    """
-    terms = []
-    for currency in all_currencies:
-        # Basic terms
-        terms.append(currency.code)
-        terms.append(re.escape(currency.adjective))
-        terms.append(re.escape(currency.location))
-
-        # Currency name patterns
-        # "U.S. Dollar", "Euro", "Japanese Yen"
-        terms.append(re.escape(currency.full_name))
-
-        # Adjective + common words
-        adj_esc = re.escape(currency.adjective)
-        terms.extend(
-            [
-                adj_esc + r"\s+(?:operations?|subsidiaries|entities)",
-                adj_esc + r"\s+(?:revenue|sales|income|earnings)",
-                adj_esc + r"\s+(?:assets?|liabilities)",
-                adj_esc + r"\s+(?:market|economy|business)",
-                adj_esc + r"\s+(?:exposure|risk)",
-            ]
-        )
-
-        # Code + patterns
-        code = currency.code
-        terms.extend(
-            [
-                code + r"[- ]denominated",
-                code + r"[/]" + r"[A-Z]{3}",  # USD/EUR, GBP/JPY
-                r"[A-Z]{3}" + r"[/]" + code,  # EUR/USD, JPY/GBP
-            ]
-        )
-    return terms
-
-
-def build_currency_symbol_pattern() -> str:
-    """
-    Generates a comprehensive regex OR-string for all currency symbols and ISO codes.
-    Used for quantitative analysis to detect amounts like "$100", "100 USD", "€50".
-    Sorts by length descending to ensure multi-char symbols (e.g. 'US$') match before single ones ('$').
-    """
-    symbols = set()
-    codes = set()
-
-    for currency in all_currencies:
-        if currency.symbol:
-            symbols.add(re.escape(currency.symbol))
-        if currency.code:
-            codes.add(re.escape(currency.code))
-
-    # Combine and sort by length desc (critical for regex precedence)
-    all_identifiers = sorted(symbols | codes, key=len, reverse=True)
-
-    return "(?:" + "|".join(all_identifiers) + ")"
-
-
-def build_fx_context_terms_advanced() -> List[str]:
-    """Generate comprehensive FX context terms combining currency-specific and generic patterns."""
-
-    # 1. Get patterns dynamically generated from Currency objects
-    currency_specific_terms = build_currency_patterns()
-
-    # 2. Define static generic FX terms
-    generic_fx_terms = [
-        r"international",
-        r"foreign",
-        r"overseas",
-        r"global",
-        r"cross[- ]border",
-        r"multinational",
-        r"transnational",
-        r"export(?:s|ing|ed)?",
-        r"import(?:s|ing|ed)?",
-        r"translation",
-        r"remeasurement",
-        r"repatriation",
-        r"foreign\s+(?:currency|exchange|operations|subsidiaries|sales|revenue)",
-        r"currency\s+(?:risk|exposure|volatility|fluctuation|translation)",
-        r"exchange\s+rate",
-        r"functional\s+currency",
-        r"reporting\s+currency",
-        r"local\s+currency",
-        r"transactional\s+(?:exposure|risk)",
-    ]
-
-    return currency_specific_terms + generic_fx_terms
-
-CURRENCY_SYMBOL_PATTERN = build_currency_symbol_pattern()
-# Generic hedging context (required for generic matches)
-HEDGING_CONTEXT_TERMS = [
-    r"hedge(?:s|d|ing)?",
-    r"mitigat(?:e|es|ed|ing)",
-    r"protect(?:s|ed|ing)?",
-    r"manage(?:s|d|ing)?",
-    r"exposure",
-    r"risk\s+management",
-    r"economic\s+risk",
-    r"fair\s+value\s+hedge",
-    r"cash\s+flow\s+hedge",
-    r"net\s+investment\s+hedge",
-    r"designated\s+as\s+(?:a\s+)?hedge",
-    r"hedge\s+effectiveness",
-    r"hedge\s+accounting",
-]
-CP_CONTEXT_TERMS = [
-    # Physical quantity units
-    "barrels", "bbl", "bbl/d",
-    "btu", "gj", "mmbtu", "mmbtu/h", "mwh",
-    "bushels", "cwt", "hundredweights", "pecks",
-    "ounces", "pounds", "tons", "tonne", "long tons", "short tons",
-    "kiloliters", "liters", "cubic", "gallons", "joules", "gigajoules"
-
-    # Containers/packaging (physical)
-    "bales", "bundles", "coils", "containers", "packages",
-    "pallets", "sacks", "sheets", "units",
-
-    # Extractive/production
-    "drilling", "mining", "smelting", "refining", "extraction",
-    "harvesting", "farming", "agriculture",
-
-    # Industrial transformation
-    "processing", "milling", "manufacturing",
-] + COMMON_COMMODITIES + ["commodity"]
-# Equity context clues
-EQ_CONTEXT_TERMS = [
-    r"stock\s+price",
-    r"share\s+price",
-    r"equity\s+(?:award|grant|compensation)",
-    r"market\s+(?:volatility|risk)",
-    r"stock\s+market",
-    r"equity\s+security",
-    r"investment\s+portfolio",
-    r"market\s+index",
-    r"publicly\s+traded",
-]
-
-# Build compiled regex patterns
-IR_CONTEXT_REGEX = re.compile(
-    r"\b" + build_alternation(IR_CONTEXT_TERMS) + r"\b", re.IGNORECASE
-)
-FX_CONTEXT_REGEX = re.compile(
-    r"\b" + build_alternation(build_fx_context_terms_advanced()) + r"\b", re.IGNORECASE
-)
-CP_CONTEXT_REGEX = re.compile(
-    r"\b" + build_alternation(CP_CONTEXT_TERMS) + r"\b", re.IGNORECASE
-)
-EQ_CONTEXT_REGEX = re.compile(
-    r"\b" + build_alternation(EQ_CONTEXT_TERMS) + r"\b", re.IGNORECASE
-)
-HEDGING_CONTEXT_REGEX = re.compile(
-    r"\b" + build_alternation(HEDGING_CONTEXT_TERMS) + r"\b", re.IGNORECASE
-)
-
-# Map categories to their context patterns
-CATEGORY_CONTEXT_MAP = {
-    "ir": IR_CONTEXT_REGEX,
-    "fx": FX_CONTEXT_REGEX,
-    "cp": CP_CONTEXT_REGEX,
-    "eq": EQ_CONTEXT_REGEX,
-    "gen": HEDGING_CONTEXT_REGEX,
-}
 # =============================================================================
 # EXCLUSION PATTERNS (from filter_database.py)
 # =============================================================================
