@@ -95,14 +95,14 @@ ALL_SUFFIXES = [
     "contracts?",
     "instruments?",
     "arrangements?",
-    "assets?",
-    "liabilit(?:y|ies)",
-    "commitments?",
-    "positions?",
-    "strateg(?:ies|y)",
+    # "assets?",      <-- DELETE (Too common in accounting)
+    # "liabilit(?:y|ies)", <-- DELETE (Too common)
+    # "commitments?", <-- DELETE (Legal term)
+    # "positions?",   <-- DELETE (Business term)
+    # "strateg(?:ies|y)", <-- DELETE (Business term)
     "options?",
-    "call options?",  # Captures "Interest rate call options"
-    "put options?",  # Captures "Commodity put options"
+    "call options?",
+    "put options?",
 ]
 
 COMMON_COMMODITIES = [
@@ -446,25 +446,11 @@ def build_fx_context_terms_advanced() -> List[str]:
 
     # 2. Define static generic FX terms
     generic_fx_terms = [
-        r"international",
-        r"foreign",
-        r"overseas",
-        r"global",
         r"cross[- ]border",
-        r"multinational",
-        r"transnational",
-        r"export(?:s|ing|ed)?",
-        r"import(?:s|ing|ed)?",
-        r"translation",
-        r"remeasurement",
         r"repatriation",
+        r"remeasurement",
+        r"translation",  # Be careful, "translation of documents" exists, but usually accounting
         r"foreign\s+(?:currency|exchange|operations|subsidiaries|sales|revenue)",
-        r"currency\s+(?:risk|exposure|volatility|fluctuation|translation)",
-        r"exchange\s+rate",
-        r"functional\s+currency",
-        r"reporting\s+currency",
-        r"local\s+currency",
-        r"transactional\s+(?:exposure|risk)",
     ]
 
     return currency_specific_terms + generic_fx_terms
@@ -493,17 +479,6 @@ CP_CONTEXT_TERMS = [
     "bushels", "cwt", "hundredweights", "pecks",
     "ounces", "pounds", "tons", "tonne", "long tons", "short tons",
     "kiloliters", "liters", "cubic", "gallons", "joules", "gigajoules"
-
-    # Containers/packaging (physical)
-    "bales", "bundles", "coils", "containers", "packages",
-    "pallets", "sacks", "sheets", "units",
-
-    # Extractive/production
-    "drilling", "mining", "smelting", "refining", "extraction",
-    "harvesting", "farming", "agriculture",
-
-    # Industrial transformation
-    "processing", "milling", "manufacturing",
 ] + COMMON_COMMODITIES + ["commodity"]
 # Equity context clues
 # derivative_regex.py
