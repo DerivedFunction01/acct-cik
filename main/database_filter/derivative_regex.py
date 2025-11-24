@@ -613,10 +613,10 @@ def build_ir_regex() -> re.Pattern:
         "(?:treasury|forward|fixed|floating|variable|benchmark)[- ]rate",
     ]
     specific_phrases = [
-        "zero[- ]coupon swap",
+        "zero[- ]coupon swaps?",
         "FRA",
-        "treasury lock",
-        "basis swap",
+        "treasury locks?",
+        "credit default swaps?",
     ]
     pattern = build_smart_regex(
         core_terms, EXPANDED_INSTRUMENTS + ALL_SUFFIXES + ALL_BASE_TYPES, specific_phrases
@@ -649,6 +649,7 @@ def build_fx_regex() -> re.Pattern:
         "deliverable forwards?",
         "hedge of the net investment",
         "net investment hedges?",
+        "deal[- ]contingent forwards?",
         # Use fx_expanded_types here instead of UNAMBIGUOUS_BASE_TYPES
         f"{iso}\\s*(?:denominated|based|linked)?\\s*{build_alternation(fx_expanded_types)}",
         f"{name}\\s*(?:denominated|based)?\\s*{build_alternation(fx_expanded_types)}",
@@ -687,6 +688,11 @@ def build_cp_regex() -> re.Pattern:
         "weather derivatives?",
         # Add these to catch specific PPA nuances if needed:
         "power purchase agreements?",
+        "crack spreads?",  # Oil vs Products
+        "spark spreads?",  # Power vs Gas
+        "dark spreads?",  # Power vs Coal
+        "virtual power purchase agreements?",  # VPPAs (Financial)
+        "virtual PPA",
     ]
 
     pattern = build_smart_regex(core_terms, safe_cp_instruments, specific_phrases)
