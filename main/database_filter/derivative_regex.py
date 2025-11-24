@@ -84,7 +84,8 @@ SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<!\bNos\.)"  # Plural numbers
     r"(?<!\bVol\.)"  # Volume
     r"(?<!\bvs\.)"  # versus
-    r"(?<!\bpp?\.)"  # p. or pp. (pages)
+    r"(?<!\bp\.)"  # p. (page) - FIXED (Separated)
+    r"(?<!\bpp\.)"  # pp. (pages) - FIXED (Separated)
     r"(?<!\b[Ee]tc\.)"  # etc.
     r"\s+(?=[A-Z])"  # Must be followed by Whitespace + Uppercase
     r"|"
