@@ -17,6 +17,7 @@ from tqdm import tqdm
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from derivative_regex import (
+    GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     STRICT_REGEX,
     MIN_SENTENCE_LENGTH,
@@ -408,38 +409,20 @@ def prepare_training_example(
 
 def _get_base_form(matched_text: str, category: str) -> str:
     """
-    Extract base instrument form (e.g., "interest rate swap" → "swap").
-    Removes category-specific prefixes, keeps the core instrument.
+    Extract base instrument form using GEN_REGEX.
+    E.g., "interest rate swap agreement" → "swap" or "swaps"
     """
-    prefix_map = {
-        "ir": [
-            "interest rate",
-            "treasury",
-            "fixed rate",
-            "floating rate",
-            "variable rate",
-        ],
-        "fx": ["foreign exchange", "foreign currency", "currency", "cross currency"],
-        "cp": ["commodity", "oil", "energy", "metal"],
-        "eq": ["equity", "stock"],
-    }
+    # GEN_REGEX captures the instrument portion
+    match = GEN_REGEX.search(matched_text)
+    if match:
+        instrument = match.group("instrument")
+        # Extract just the last word (typically the base)
+        words = instrument.split()
+        return words[-1] if words else instrument
 
-    text_lower = matched_text.lower()
-
-    # Try to remove category-specific prefixes
-    if category in prefix_map:
-        for prefix in prefix_map[category]:
-            if text_lower.startswith(prefix.lower()):
-                remainder = matched_text[len(prefix) :].strip()
-                if remainder:
-                    return remainder
-
-    # Fallback: Use just the last word if multi-word
+    # Fallback: just use last word of original match
     words = matched_text.split()
-    if len(words) > 1:
-        return words[-1]
-
-    return matched_text
+    return words[-1] if len(words) > 1 else matched_text
 
 
 def _get_loose_variant(matched_text: str, category: str) -> str:
@@ -464,6 +447,7 @@ def _get_generic_form(category: str) -> str:
         "financial instruments",
         "hedging agreements",
         "derivative positions",
+        "derivatives",
     ]
 
     return random.choice(generics)

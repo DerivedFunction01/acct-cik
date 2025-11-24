@@ -929,6 +929,13 @@ LOOSE_GEN_REGEX = build_loose_gen_regex()
 ALL_REGEX = re.compile(
     r"|".join([STRICT_REGEX.pattern, SOFT_GEN_REGEX.pattern]), re.IGNORECASE
 )
+CATEGORY_DELETION_MAP = {
+    "ir": (IR_REGEX, IR_CONTEXT_REGEX),
+    "fx": (FX_REGEX, FX_CONTEXT_REGEX),
+    "cp": (CP_REGEX, CP_CONTEXT_REGEX),
+    "eq": (EQ_REGEX, EQ_CONTEXT_REGEX),
+}
+
 # =============================================================================
 # EXCLUSION PATTERNS (from filter_database.py)
 # =============================================================================
