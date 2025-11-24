@@ -91,7 +91,7 @@ class NetworkDerivativeResolver:
         self,
         api_url: str = "http://localhost:5001/predict",
         confidence_threshold: float = 0.85,
-        context_window_size: int = 3,
+        context_window_size: int = 2,
         timeout: int = 60
     ):
         self.api_url = api_url
