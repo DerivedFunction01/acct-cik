@@ -1,12 +1,8 @@
-# =============================================================================
-# DOMAIN-ADAPTIVE PRE-TRAINING (DAPT) SCRIPT FOR ROBERTA
-# Supports: MLM-only or Supervised Classification Fine-Tuning (with domain labels)
-# =============================================================================
-
 import logging
 from pathlib import Path
 import json
 from types import SimpleNamespace
+from collections import defaultdict  # Added for custom tokenization output
 
 from datasets import load_dataset
 from transformers import (
@@ -30,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 CONFIG_FILE = ".roberta.json"
 
+# Defining the separator token for manual parsing
+SEP_TOKEN = " [SEP] "
 
 # === Login to Hugging Face Hub (if token exists) ===
 if Path("hf_token").exists():
@@ -119,6 +117,18 @@ def main():
         )
         label2id, id2label = create_label_mapping(dataset, classification_column)
 
+        # --- Drop Irrelevant Columns ---
+        cols_to_keep = ["text", classification_column]
+        all_cols = dataset.column_names
+        cols_to_remove = [c for c in all_cols if c not in cols_to_keep]
+
+        if cols_to_remove:
+            logger.info(f"Removing irrelevant debug/metadata columns: {cols_to_remove}")
+            dataset = dataset.remove_columns(cols_to_remove)
+            if eval_dataset:
+                eval_dataset = eval_dataset.remove_columns(cols_to_remove)
+        # --- END NEW CODE ---
+
         def map_labels(example):
             example["labels"] = label2id[example[classification_column]]
             return example
@@ -129,20 +139,81 @@ def main():
                 map_labels, remove_columns=[classification_column]
             )
 
-    # === Tokenization function ===
+    # === Tokenization function (MODIFIED) ===
     def tokenize_function(examples):
-        tokenized = tokenizer(
-            examples["text"],
-            truncation=True,
-            max_length=512,
-            padding=False,  # Let collator handle padding
-        )
-        # In MLM mode, we need special tokens mask
-        if not is_classification:
-            tokenized["special_tokens_mask"] = tokenized.get(
-                "special_tokens_mask", None
+        tokenized_output = defaultdict(list)
+        cls_id = tokenizer.cls_token_id
+        sep_id = tokenizer.sep_token_id
+
+        # Max tokens available for the sequence
+        max_len = tokenizer.model_max_length  # 512 is standard
+        required_separators = 4  # [CLS], [SEP], [SEP], [SEP]
+        max_content_len = max_len - required_separators
+
+        for full_text in examples["text"]:
+            parts = full_text.split(SEP_TOKEN)
+
+            # Pad to ensure 3 parts exist
+            if len(parts) < 3:
+                parts.extend([""] * (3 - len(parts)))
+            prev, target, next_context = parts[0], parts[1], parts[2]
+
+            # 1. Tokenize parts without adding special tokens yet
+            # RoBERTa's tokenizer automatically splits on its own [SEP] token if we don't disable special tokens
+            prev_tokens = tokenizer.encode(prev, add_special_tokens=False)
+            target_tokens = tokenizer.encode(target, add_special_tokens=False)
+            next_tokens = tokenizer.encode(next_context, add_special_tokens=False)
+
+            # 2. Truncation Strategy (Prioritize Target -> Balance Context)
+
+            # Truncate Target if it's extremely long (safety)
+            if len(target_tokens) > max_content_len:
+                target_tokens = target_tokens[:max_content_len]
+
+            # Recalculate space remaining for context (P and N)
+            len_for_context = max_content_len - len(target_tokens)
+
+            # Allocate remaining space
+            if len_for_context > 0:
+                len_per_side = len_for_context // 2
+
+                # Truncate Prev (keep closest to target: last N tokens)
+                if len(prev_tokens) > len_per_side:
+                    prev_tokens = prev_tokens[-len_per_side:]
+
+                # Truncate Next (keep closest to target: first N tokens)
+                if len(next_tokens) > len_per_side:
+                    next_tokens = next_tokens[:len_per_side]
+            else:
+                # No room left after target sentence
+                prev_tokens = []
+                next_tokens = []
+
+            # 3. Reconstruct the final sequence manually
+            # Sequence: [CLS] Prev... [SEP] Target... [SEP] Next... [SEP]
+            full_ids = (
+                [cls_id]
+                + prev_tokens
+                + [sep_id]
+                + target_tokens
+                + [sep_id]
+                + next_tokens
+                + [sep_id]
             )
-        return tokenized
+
+            # Final safety truncation (shouldn't be needed, but handles off-by-one errors)
+            if len(full_ids) > max_len:
+                full_ids = full_ids[: max_len - 1] + [sep_id]
+
+            tokenized_output["input_ids"].append(full_ids)
+            tokenized_output["attention_mask"].append([1] * len(full_ids))
+
+            # RoBERTa does not use token_type_ids, but standard practice is to include them if manually generating
+            tokenized_output["token_type_ids"].append([0] * len(full_ids))
+
+        return tokenized_output
+
+    # === End Modified Tokenization function ===
 
     # Tokenize train
     tokenized_train = dataset.map(
@@ -163,6 +234,7 @@ def main():
         )
 
     # === Block grouping for MLM (only) ===
+    # This section is skipped if is_classification is True
     if not is_classification:
         block_size = 512
 
@@ -192,6 +264,7 @@ def main():
 
     # === Data collator ===
     if is_classification:
+        # DataCollatorWithPadding will now pad the manually created sequences
         data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
     else:
         data_collator = DataCollatorForLanguageModeling(
