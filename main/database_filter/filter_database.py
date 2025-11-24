@@ -64,10 +64,7 @@ from derivative_regex import (
     check_for_instrument,
     cleanup_fragment,
     CATEGORY_CONTEXT_MAP,
-    IR_CONTEXT_REGEX,
-    FX_CONTEXT_REGEX,
-    CP_CONTEXT_REGEX,
-    EQ_CONTEXT_REGEX,
+    CATEGORY_DELETION_MAP,
     NON_POSITION_INDICATORS,
     PNL_ONLY_NO_POSITION,
     HIGH_PRECISION_SUFFIXES,
@@ -712,12 +709,6 @@ def get_primary_category(categories: set) -> str:
 
 # Mapping of derivative categories to their respective deletion patterns
 # Each category maps to (instrument_pattern, context_pattern) for comprehensive removal
-CATEGORY_DELETION_MAP = {
-    "ir": (IR_REGEX, IR_CONTEXT_REGEX),
-    "fx": (FX_REGEX, FX_CONTEXT_REGEX),
-    "cp": (CP_REGEX, CP_CONTEXT_REGEX),
-    "eq": (EQ_REGEX, EQ_CONTEXT_REGEX),
-}
 
 
 def excise_category_terminology(text: str, category: str) -> str:

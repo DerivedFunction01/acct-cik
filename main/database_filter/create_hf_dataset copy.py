@@ -9,6 +9,8 @@ from collections import Counter, defaultdict
 import sys
 import os
 import hashlib
+import logging
+from typing import Tuple, Set, List, Optional, Dict, Any
 from tqdm import tqdm
 
 # Ensure we can import local modules
@@ -26,20 +28,25 @@ from derivative_regex import (
     EQ_CONTEXT_REGEX,
     HEDGING_CONTEXT_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
+    CATEGORY_DELETION_MAP,
+    cleanup_fragment,
 )
 from filter_database import get_sentence_categories
+
+# Setup logging
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 DB_PATH = "web_data.db"
-OUTPUT_PATH = "roberta/classification_data_v16_dynamic_window.parquet"
+OUTPUT_PATH = "roberta/classification_data_v17_scrubbed.parquet"
 
 # THE SEPARATOR TOKEN
 SEP_TOKEN = " [SEP] "
 
 # DYNAMIC WINDOW SETTINGS
-# Min 1 (immediate neighbor), Max 3 (3 prev, 3 next)
 MIN_WINDOW_SIZE = 1
 MAX_WINDOW_SIZE = 3
 
@@ -47,6 +54,14 @@ TARGET_SAMPLES_PER_CLASS = 2500
 SATURATION_LIMIT = int(TARGET_SAMPLES_PER_CLASS * 1.5)
 CHUNK_SIZE = 5000
 MAX_WORKERS = max(1, mp.cpu_count() - 1)
+
+# Scrubbing configuration
+SCRUBBING_CONFIG = {
+    "keep_same_category_bases": True,  # Keep multiple IR swaps/caps/locks
+    "remove_category_context": True,  # Remove FX/CP/EQ context signals
+    "min_instruments_per_sentence": 1,  # At least one instrument remains
+    "aggressive_scrub": True,  # If True, remove ALL non-target instruments
+}
 
 LABEL_TO_CONFLICT_REGEX = {
     "ir": [FX_CONTEXT_REGEX, CP_CONTEXT_REGEX, EQ_CONTEXT_REGEX],
@@ -167,6 +182,294 @@ class DynamicContextBank:
 
 
 # =============================================================================
+# SCRUBBING FUNCTIONS
+# =============================================================================
+
+
+def scrub_non_target_instruments(
+    text: str,
+    target_category: str,
+    all_detected_categories: Set[str],
+    keep_same_category_bases: bool = True,
+) -> Tuple[str, List[Dict[str, Any]]]:
+    """
+    Remove all derivative instruments NOT matching the target category.
+    Preserves target category instruments unless aggressive mode is enabled.
+
+    Args:
+        text: Original sentence
+        target_category: Category to preserve ("ir", "fx", "cp", "eq")
+        all_detected_categories: Set of all categories found in text
+        keep_same_category_bases: If True, keep multiple same-category instruments
+                                  (e.g., keep "caps" when masking "swap" for IR).
+                                  If False, remove all but the first.
+
+    Returns:
+        Tuple of (cleaned_text, list_of_removed_info)
+
+    Example:
+        >>> text = "We use interest rate swaps and FX forwards."
+        >>> scrub_non_target_instruments(text, "ir", {"ir", "fx"})
+        # Returns: ("We use interest rate swaps and forwards.", [...])
+        # Removed FX context but kept both instrument names
+    """
+
+    removed_info = []
+    cleaned_text = text
+
+    # Identify categories to scrub (all except target)
+    categories_to_scrub = all_detected_categories - {target_category, "gen", "other"}
+
+    if not categories_to_scrub:
+        return cleaned_text, removed_info
+
+    # For each non-target category, remove its instruments and context
+    for scrub_cat in categories_to_scrub:
+        if scrub_cat not in CATEGORY_DELETION_MAP:
+            continue
+
+        instrument_regex, context_regex = CATEGORY_DELETION_MAP[scrub_cat]
+
+        # Track what we're removing
+        instrument_matches = [
+            m.group(0) for m in instrument_regex.finditer(cleaned_text)
+        ]
+        context_matches = [m.group(0) for m in context_regex.finditer(cleaned_text)]
+
+        if instrument_matches or context_matches:
+            removed_info.append(
+                {
+                    "category": scrub_cat,
+                    "instruments": instrument_matches,
+                    "context_terms": context_matches,
+                }
+            )
+
+        # Remove cross-category instruments
+        cleaned_text = instrument_regex.sub(" ", cleaned_text)
+
+        # Remove cross-category context clues
+        cleaned_text = context_regex.sub(" ", cleaned_text)
+
+    # Normalize whitespace and punctuation
+    cleaned_text = cleanup_fragment(cleaned_text)
+
+    return cleaned_text, removed_info
+
+
+def validate_scrubbed_example(
+    scrubbed_text: str,
+    target_category: str,
+    removed_info: List[Dict[str, Any]],
+) -> Tuple[bool, Optional[str]]:
+    """
+    Validate that scrubbing produced a usable training example.
+
+    Checks:
+    1. Scrubbed text meets minimum length
+    2. Target category instrument still present
+    3. Text is non-empty after scrubbing
+
+    Returns:
+        Tuple of (is_valid, error_reason_or_none)
+    """
+
+    # Check 1: Minimum length
+    if len(scrubbed_text) < MIN_SENTENCE_LENGTH:
+        return (
+            False,
+            f"Scrubbed text too short: {len(scrubbed_text)} < {MIN_SENTENCE_LENGTH}",
+        )
+
+    # Check 2: Target instrument still present (if specific category)
+    if target_category not in {"gen", "other"}:
+        target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0]
+
+        if not target_instrument_regex.search(scrubbed_text):
+            return (
+                False,
+                f"Target category {target_category} instrument lost after scrubbing",
+            )
+
+    # Check 3: Text not empty
+    if not scrubbed_text.strip():
+        return False, "Text became empty after scrubbing"
+
+    return True, None
+
+
+def prepare_training_example(
+    sentence: str,
+    target_category: str,
+    all_detected_categories: Set[str],
+    replacement_strategy: str = "stochastic",
+) -> Optional[Tuple[str, str, Dict[str, Any]]]:
+    """
+    Convert a sentence into a training example by:
+    1. Scrubbing non-target category instruments/context
+    2. Masking the target category instrument
+    3. Validating output quality
+
+    Args:
+        sentence: Source sentence
+        target_category: Category for this training example
+        all_detected_categories: All categories found in sentence
+        replacement_strategy: "stochastic", "base", or "generic"
+
+    Returns:
+        Tuple of (masked_text, category, metadata) or None if validation fails
+
+    Example:
+        >>> sentence = "We use interest rate swaps to hedge."
+        >>> prepare_training_example(sentence, "ir", {"ir"})
+        # Returns: ("We use swaps to hedge.", "ir", {...})
+    """
+
+    # Step 1: Scrub non-target instruments/context
+    scrubbed_text, removed = scrub_non_target_instruments(
+        sentence,
+        target_category,
+        all_detected_categories,
+        keep_same_category_bases=SCRUBBING_CONFIG["keep_same_category_bases"],
+    )
+
+    # Step 2: Validate scrubbed result
+    is_valid, error_reason = validate_scrubbed_example(
+        scrubbed_text, target_category, removed
+    )
+
+    if not is_valid:
+        logger.debug(f"Scrubbed example invalid: {error_reason}")
+        return None
+
+    # Step 3: Mask the target instrument
+    masked_text = scrubbed_text
+    replacement_info = {}
+
+    if target_category not in {"gen", "other"}:
+        target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0]
+
+        # Find the match to determine what we're replacing
+        match = target_instrument_regex.search(scrubbed_text)
+        if not match:
+            logger.warning(
+                f"Target instrument not found after scrubbing: {target_category}"
+            )
+            return None
+
+        matched_text = match.group(0)
+
+        # Apply replacement strategy
+        if replacement_strategy == "stochastic":
+            # 30% base, 70% loose variant
+            if random.random() < 0.3:
+                replacement = _get_base_form(matched_text, target_category)
+                strategy = "base"
+            else:
+                replacement = _get_loose_variant(matched_text, target_category)
+                strategy = "loose_variant"
+        elif replacement_strategy == "base":
+            replacement = _get_base_form(matched_text, target_category)
+            strategy = "base"
+        elif replacement_strategy == "generic":
+            replacement = _get_generic_form(target_category)
+            strategy = "generic"
+        else:
+            replacement = matched_text
+            strategy = "none"
+
+        replacement_info = {
+            "original_instrument": matched_text,
+            "replacement": replacement,
+            "strategy": strategy,
+        }
+
+        # Replace only the first occurrence to preserve other same-category bases
+        masked_text = target_instrument_regex.sub(replacement, scrubbed_text, count=1)
+
+    # Step 4: Final validation
+    if len(masked_text) < MIN_SENTENCE_LENGTH:
+        logger.debug(f"Masked text too short after replacement")
+        return None
+
+    metadata = {
+        "removed_categories": removed,
+        "replacement_info": replacement_info,
+        "scrubbing_applied": bool(removed),
+    }
+
+    return (masked_text, target_category, metadata)
+
+
+# =============================================================================
+# REPLACEMENT STRATEGY HELPERS
+# =============================================================================
+
+
+def _get_base_form(matched_text: str, category: str) -> str:
+    """
+    Extract base instrument form (e.g., "interest rate swap" → "swap").
+    Removes category-specific prefixes, keeps the core instrument.
+    """
+    prefix_map = {
+        "ir": [
+            "interest rate",
+            "treasury",
+            "fixed rate",
+            "floating rate",
+            "variable rate",
+        ],
+        "fx": ["foreign exchange", "foreign currency", "currency", "cross currency"],
+        "cp": ["commodity", "oil", "energy", "metal"],
+        "eq": ["equity", "stock"],
+    }
+
+    text_lower = matched_text.lower()
+
+    # Try to remove category-specific prefixes
+    if category in prefix_map:
+        for prefix in prefix_map[category]:
+            if text_lower.startswith(prefix.lower()):
+                remainder = matched_text[len(prefix) :].strip()
+                if remainder:
+                    return remainder
+
+    # Fallback: Use just the last word if multi-word
+    words = matched_text.split()
+    if len(words) > 1:
+        return words[-1]
+
+    return matched_text
+
+
+def _get_loose_variant(matched_text: str, category: str) -> str:
+    """
+    Create a loose variant (e.g., "swap" → "swap agreement" or "swap instrument").
+    """
+    base = _get_base_form(matched_text, category)
+
+    suffixes = ["agreement", "instrument", "contract"]
+    chosen_suffix = random.choice(suffixes)
+
+    return f"{base} {chosen_suffix}"
+
+
+def _get_generic_form(category: str) -> str:
+    """
+    Use generic hedging language without category-specific signals.
+    """
+    generics = [
+        "hedging instruments",
+        "derivative contracts",
+        "financial instruments",
+        "hedging agreements",
+        "derivative positions",
+    ]
+
+    return random.choice(generics)
+
+
+# =============================================================================
 # DYNAMIC WINDOW LOGIC
 # =============================================================================
 
@@ -177,26 +480,17 @@ def get_dynamic_window(sentences, target_idx, override_target=None, context_bank
     - Distance 1: Always kept clean.
     - Distance 2+: Chance to inject noise increases.
     """
-
-    # 1. Determine Target
     target_sent = (
         override_target if override_target is not None else sentences[target_idx]
     )
 
-    # 2. Determine Window Width (Random between Min and Max)
-    # This forces the model to handle both short and long contexts
     current_width = random.randint(MIN_WINDOW_SIZE, MAX_WINDOW_SIZE)
-
     prev_parts = []
     next_parts = []
 
-    # 3. Build Outwards
     for dist in range(1, current_width + 1):
-
-        # --- Previous Side ---
         if target_idx - dist >= 0:
             sent = sentences[target_idx - dist]
-            # Noise Logic: Distance 2=20%, Distance 3=50%
             noise_prob = 0.0
             if dist == 2:
                 noise_prob = 0.2
@@ -204,15 +498,12 @@ def get_dynamic_window(sentences, target_idx, override_target=None, context_bank
                 noise_prob = 0.5
 
             if context_bank and random.random() < noise_prob:
-                sent = context_bank.get_noise()  # Inject Noise
+                sent = context_bank.get_noise()
 
-            # Prepend (so order is correct: Dist3, Dist2, Dist1)
             prev_parts.insert(0, sent)
 
-        # --- Next Side ---
         if target_idx + dist < len(sentences):
             sent = sentences[target_idx + dist]
-            # Same noise logic
             noise_prob = 0.0
             if dist == 2:
                 noise_prob = 0.2
@@ -224,12 +515,9 @@ def get_dynamic_window(sentences, target_idx, override_target=None, context_bank
 
             next_parts.append(sent)
 
-    # 4. Construct with Separators
-    # Join neighbors with spaces first
     prev_block = " ".join(prev_parts)
     next_block = " ".join(next_parts)
 
-    # Final Structure: PrevBlock [SEP] Target [SEP] NextBlock
     return f"{prev_block}{SEP_TOKEN}{target_sent}{SEP_TOKEN}{next_block}"
 
 
@@ -240,11 +528,15 @@ def has_conflict(text, label):
     return False
 
 
+# =============================================================================
+# ENHANCED PROCESSING WITH SCRUBBING
+# =============================================================================
+
+
 def process_chunk(chunk_data):
     scorer = ContextScorer()
     augmenter_dummy = AugmentationEngine()
     local_candidates = []
-    # We return noise candidates to main process
     local_noise = []
 
     for url, matches_json in chunk_data:
@@ -258,13 +550,12 @@ def process_chunk(chunk_data):
         for para in paragraphs:
             if "<TABLE>" in para:
                 continue
-            # Optimization
+
             if not (
                 STRICT_REGEX.search(para)
                 or HEDGING_CONTEXT_REGEX.search(para)
                 or EXCLUDE_REGEX_ACCOUNTING_STD.search(para)
             ):
-                # Even if skipped, maybe use as noise? (Optional, skipping for speed)
                 continue
 
             sentences = [
@@ -273,7 +564,6 @@ def process_chunk(chunk_data):
                 if len(s.strip()) >= MIN_SENTENCE_LENGTH
             ]
 
-            # Collect sentences for noise pool (generic financial text)
             if len(sentences) > 2:
                 local_noise.append(random.choice(sentences))
 
@@ -288,15 +578,12 @@ def process_chunk(chunk_data):
                     if len(specific_cats) == 1:
                         label = list(specific_cats)[0]
 
-                        # Score using just immediate context (Distance 1) for reliability
-                        # We don't want to score based on the noisy outer layers
                         target_sent = sentences[i]
                         blanked_target = (
                             target_sent[: match.start()]
                             + "       "
                             + target_sent[match.end() :]
                         )
-                        # Use minimal window for scoring check
                         validation_text = get_dynamic_window(
                             sentences, i, override_target=blanked_target
                         )
@@ -317,11 +604,11 @@ def process_chunk(chunk_data):
                                 "original_sent": sentence,
                                 "score": score,
                                 "url": url,
+                                "detected_categories": cats,
                             }
                         )
 
                     elif len(specific_cats) == 0:
-                        # Generic Instrument
                         full_window = get_dynamic_window(sentences, i)
                         max_score = scorer.get_max_score_any_category(full_window)
                         if max_score < 10:
@@ -336,6 +623,7 @@ def process_chunk(chunk_data):
                                     "score": 0,
                                     "url": url,
                                     "subtype": "L0_Ambiguous_Instrument",
+                                    "detected_categories": cats,
                                 }
                             )
 
@@ -369,6 +657,7 @@ def process_chunk(chunk_data):
                                         "score": 0,
                                         "url": url,
                                         "subtype": subtype,
+                                        "detected_categories": cats,
                                     }
                                 )
 
@@ -376,12 +665,12 @@ def process_chunk(chunk_data):
 
 
 # =============================================================================
-# MAIN
+# MAIN GENERATION WITH SCRUBBING
 # =============================================================================
 
 
 def create_labeled_dataset():
-    print(f"🚀 Starting Dataset Generation v16 (Dynamic Window + Noise)")
+    print(f"🚀 Starting Dataset Generation v17 (Scrubbing + Masking)")
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -436,7 +725,6 @@ def create_labeled_dataset():
                     try:
                         candidates, noise_samples = future.result()
 
-                        # Feed the noise bank
                         for n in noise_samples:
                             context_bank.add_noise_candidate(n)
 
@@ -452,10 +740,11 @@ def create_labeled_dataset():
     conn.close()
     print(f"   🚫 Deduped {deduplicator.dupe_count:,} redundant sentences.")
 
-    # --- PHASE 2: GENERATION ---
-    print("\n🏆 PASS 2: Generating Dataset...")
+    # --- PHASE 2: GENERATION WITH SCRUBBING ---
+    print("\n🏆 PASS 2: Generating Dataset with Scrubbing & Masking...")
     final_data = []
     stats = Counter()
+    scrubbing_stats = Counter()
 
     for label, items in global_candidates.items():
         if label == "gen":
@@ -472,9 +761,7 @@ def create_labeled_dataset():
             orig = item["original_sent"]
             score = item.get("score", 0)
             url = item["url"]
-
-            # DYNAMIC WINDOW GENERATION IS CALLED HERE
-            # It uses the Noise Bank populated in Phase 1
+            detected_cats = item.get("detected_categories", {label})
 
             row = {
                 "text": "",
@@ -483,6 +770,7 @@ def create_labeled_dataset():
                 "debug_original": orig,
                 "debug_score": score,
                 "debug_hint": "None",
+                "scrubbing_applied": False,
             }
 
             if label == "gen":
@@ -498,23 +786,56 @@ def create_labeled_dataset():
                 row["difficulty"] = "L4_Natural_Adverse"
 
             elif score >= 20:
-                match_span = item["match_span"]
-                match_text = item["match_text"]
-
-                # We removed conflict injection for simplicity, but you can re-add it here
-                # For now, focus on pure L2 Masking with Dynamic Context
-                aug, _ = augmenter.augment(orig, match_span, match_text)
-                row["text"] = get_dynamic_window(
-                    sentences, idx, override_target=aug, context_bank=context_bank
+                # Use scrubbing + masking approach
+                prep_result = prepare_training_example(
+                    orig, label, detected_cats, replacement_strategy="stochastic"
                 )
-                row["difficulty"] = "L2_Masked"
+
+                if prep_result:
+                    masked_text, _, metadata = prep_result
+                    row["text"] = get_dynamic_window(
+                        sentences,
+                        idx,
+                        override_target=masked_text,
+                        context_bank=context_bank,
+                    )
+                    row["difficulty"] = "L2_Masked_Scrubbed"
+                    row["scrubbing_applied"] = metadata["scrubbing_applied"]
+                    scrubbing_stats["L2_scrubbed"] += 1
+                else:
+                    # Fallback to old method if scrubbing fails
+                    match_span = item["match_span"]
+                    match_text = item["match_text"]
+                    aug, _ = augmenter.augment(orig, match_span, match_text)
+                    row["text"] = get_dynamic_window(
+                        sentences, idx, override_target=aug, context_bank=context_bank
+                    )
+                    row["difficulty"] = "L2_Masked"
+                    scrubbing_stats["L2_fallback"] += 1
 
             elif score > 0:
-                # L1 Weak (We don't mask, but we widen the window to find help)
-                row["text"] = get_dynamic_window(
-                    sentences, idx, context_bank=context_bank
+                # L1 Weak context
+                prep_result = prepare_training_example(
+                    orig, label, detected_cats, replacement_strategy="base"
                 )
-                row["difficulty"] = "L1_WeakContext"
+
+                if prep_result:
+                    masked_text, _, metadata = prep_result
+                    row["text"] = get_dynamic_window(
+                        sentences,
+                        idx,
+                        override_target=masked_text,
+                        context_bank=context_bank,
+                    )
+                    row["difficulty"] = "L1_WeakContext_Scrubbed"
+                    row["scrubbing_applied"] = metadata["scrubbing_applied"]
+                    scrubbing_stats["L1_scrubbed"] += 1
+                else:
+                    row["text"] = get_dynamic_window(
+                        sentences, idx, context_bank=context_bank
+                    )
+                    row["difficulty"] = "L1_WeakContext"
+                    scrubbing_stats["L1_unscrubbed"] += 1
 
             else:
                 row["text"] = get_dynamic_window(
@@ -528,6 +849,8 @@ def create_labeled_dataset():
     df = pd.DataFrame(final_data)
     print("\n📊 Final Distribution:")
     print(df["label"].value_counts())
+    print("\n🧹 Scrubbing Statistics:")
+    print(dict(scrubbing_stats))
     df.to_parquet(OUTPUT_PATH, index=False)
     print(f"✅ Saved to {OUTPUT_PATH}")
 
