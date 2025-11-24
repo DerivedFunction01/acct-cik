@@ -374,7 +374,7 @@ def build_currency_name_pattern() -> str:
     """
     patterns = set()
 
-    unsafe_units = {"dollar", "pound", "yen", "won"}
+    unsafe_units = {"dollar", "pound", "yen", "won", "real"}
 
     # ISO code set for cross patterns
     codes = [c.code for c in all_currencies]
