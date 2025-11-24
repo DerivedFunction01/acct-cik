@@ -134,6 +134,9 @@ SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (unchanged)
 )
 
+SPECIAL_BASE =  [   
+    "call options?",
+    "put options?",]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
     "forwards?",
@@ -145,9 +148,8 @@ UNAMBIGUOUS_BASE_TYPES = [
     "hedges",  # plural form
     "locks",  # plural form
     "futures",  # plural form
-    "call options?",
-    "put options?",
-]
+ 
+] + SPECIAL_BASE
 
 AMBIGUOUS_BASE_TYPES = [
     "futures?",
@@ -269,7 +271,7 @@ def build_smart_regex(
 
     # Return sorted so longest specific phrases come first
     # E.g., "interest rate swap agreement" before "interest rate swap"
-    return build_alternation([pattern2, pattern1], sort_longest_first=True)
+    return build_alternation([pattern2, pattern1])
 
 
 # Interest Rate context clues
@@ -645,11 +647,12 @@ def expand_instruments(bases: List[str], suffixes: List[str]) -> List[str]:
     combos = []
     for b in bases:
         for s in suffixes:
+            if b not in SPECIAL_BASE:
             # Create "swap-agreement", "swap agreement", "swaps agreements"
-            combos.append(f"{b}[- ]{s}")
+                combos.append(f"{b}[- ]{s}")
 
     # Return original bases + new combos (suffixes alone are usually passed separately if needed)
-    return bases + combos
+    return combos
 EXPANDED_INSTRUMENTS = expand_instruments(ALL_BASE_TYPES, ALL_SUFFIXES)
 
 def build_ir_regex() -> re.Pattern:
