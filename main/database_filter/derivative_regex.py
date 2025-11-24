@@ -212,6 +212,8 @@ def build_smart_regex(
     core_pattern = build_alternation(core_terms)
     follow_pattern = build_alternation(context_terms)
     pattern1 = f"{core_pattern}[- ]{follow_pattern}"
+    if not specific_phrases:
+        return pattern1
     pattern2 = build_alternation(specific_phrases)
     return build_alternation([pattern1, pattern2])
 
