@@ -9,7 +9,7 @@ import hashlib
 # Ensure we can import local modules for regex access
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from derivative_regex import CATEGORY_REGEX, CP_CONTEXT_REGEX, EQ_CONTEXT_REGEX, FX_CONTEXT_REGEX, IR_CONTEXT_REGEX
+from derivative_regex import CATEGORY_REGEX, CP_CONTEXT_REGEX, EQ_CONTEXT_REGEX, EXCLUDE_REGEX_EQUITY_COMP, FX_CONTEXT_REGEX, IR_CONTEXT_REGEX
 from filter_database import get_sentence_categories
 
 # =============================================================================
@@ -29,8 +29,10 @@ FORBIDDEN_REGEX = re.compile(
             FX_CONTEXT_REGEX.pattern,
             CP_CONTEXT_REGEX.pattern,
             EQ_CONTEXT_REGEX.pattern,
+            EXCLUDE_REGEX_EQUITY_COMP.pattern,
+            "equity"
         ]
-    )
+    ), re.IGNORECASE
 )
 
 # =============================================================================
