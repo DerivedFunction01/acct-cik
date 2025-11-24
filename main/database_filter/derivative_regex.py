@@ -492,14 +492,7 @@ CP_CONTEXT_TERMS = [
     "ounces", "pounds", "tons", "tonne", "long tons", "short tons",
     "kiloliters", "liters", "cubic", "gallons", "joules", "gigajoules"
 ] + COMMON_COMMODITIES + ["commodity"]
-# Equity context clues
-# derivative_regex.py
 
-# ... (Previous code) ...
-
-# Equity context clues
-# REMOVED: "market volatility", "market risk", "investment portfolio", "publicly traded"
-# REASON: These appear in IR/FX disclosures and cause false positives.
 EQ_CONTEXT_TERMS = [
     r"stock\s+price",
     r"share\s+price",
