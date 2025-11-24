@@ -698,8 +698,25 @@ def build_eq_regex() -> re.Pattern:
 
     # Custom base types for Equity to be safer
     eq_base_types = UNAMBIGUOUS_BASE_TYPES + EXPANDED_INSTRUMENTS
+    convertible_phrases = [
+        r"embedded\s+conversion\s+(?:option|feature|derivative)",
+        r"conversion\s+option\s+liability",
+        r"bifurcated\s+conversion\s+option",
+        r"derivative\s+liability.*convertible\s+notes",
+    ]
 
-    pattern = build_smart_regex(core_terms, eq_base_types, [])  # Empty specific phrases
+    # 2. Warrant Liabilities (The "Safe" Warrants)
+    # These patterns ensure we ONLY catch financial warrants, not compensation
+    warrant_phrases = [
+        r"warrant\s+liabilit(?:y|ies)",
+        r"liabilit(?:y|ies)\s+for\s+warrants?",
+        r"derivative\s+warrant",
+        r"warrants?.*classified\s+as\s+liabilities",
+        r"change\s+in\s+fair\s+value\s+of\s+warrants?",
+    ]
+
+    all_specifics = convertible_phrases + warrant_phrases
+    pattern = build_smart_regex(core_terms, eq_base_types, all_specifics)  # Empty specific phrases
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
