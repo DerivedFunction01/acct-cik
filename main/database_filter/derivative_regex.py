@@ -744,6 +744,9 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "embedded derivatives?",
         "over[- ]the[- ]counter derivatives?",
         "derivative financial instruments?",
+        "call options?", 
+        "put options?",
+        "swaptions?",  # Swaptions are also safe standalone
     ]
 
     instrument_pattern = build_alternation(instrument_parts + instrument_specific)
