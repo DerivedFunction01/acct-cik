@@ -292,16 +292,24 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-
 if __name__ == "__main__":
-    mp.set_start_method("spawn", force=True)  # Required for stability
+    mp.set_start_method("spawn", force=True)
 
-    # Default to the final single DB
-    default_db = "verified_active_data.db"
-    db_input = input(f"Enter database (default: {default_db}): ").strip()
-    db_name = db_input or default_db
+    import sys
 
-    if not db_name.endswith(".db"):
-        db_name += ".db"
+    # Logic: If arguments provided via command line, use them.
+    # Otherwise ask user (fallback).
+    if len(sys.argv) > 1:
+        db_name = sys.argv[1]
+        csv_name = sys.argv[2] if len(sys.argv) > 2 else None
+        export_users_production(db_name, csv_name)
+    else:
+        # Default interactive mode
+        default_db = "verified_active_data.db"
+        db_input = input(f"Enter database (default: {default_db}): ").strip()
+        db_name = db_input or default_db
 
-    export_users_production(db_name)
+        if not db_name.endswith(".db"):
+            db_name += ".db"
+
+        export_users_production(db_name)
