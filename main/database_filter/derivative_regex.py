@@ -584,7 +584,7 @@ def build_fx_regex() -> re.Pattern:
     fx_expanded_types.extend(
         [
             "options?",
-            "futures?",
+            "futures",
         ]
     )
 
