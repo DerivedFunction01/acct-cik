@@ -528,6 +528,7 @@ HEDGING_CONTEXT_REGEX = re.compile(
     r"\b" + build_alternation(HEDGING_CONTEXT_TERMS) + r"\b", re.IGNORECASE
 )
 
+
 # Map categories to their context patterns
 CATEGORY_CONTEXT_MAP = {
     "ir": IR_CONTEXT_REGEX,
@@ -537,6 +538,21 @@ CATEGORY_CONTEXT_MAP = {
     "gen": HEDGING_CONTEXT_REGEX,
 }
 
+def expand_instruments(bases: List[str], suffixes: List[str]) -> List[str]:
+    """
+    Creates permutations of Base + Suffix to catch 3-word phrases.
+    Input: ["swaps?"], ["agreements?"]
+    Output: ["swaps?", "swaps?[- ]agreements?"]
+    """
+    combos = []
+    for b in bases:
+        for s in suffixes:
+            # Create "swap-agreement", "swap agreement", "swaps agreements"
+            combos.append(f"{b}[- ]{s}")
+
+    # Return original bases + new combos (suffixes alone are usually passed separately if needed)
+    return bases + combos
+EXPANDED_INSTRUMENTS = expand_instruments(ALL_BASE_TYPES, ALL_SUFFIXES)
 
 def build_ir_regex() -> re.Pattern:
     core_terms = [
@@ -556,7 +572,7 @@ def build_ir_regex() -> re.Pattern:
         "basis swap",
     ]
     pattern = build_smart_regex(
-        core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
+        core_terms, EXPANDED_INSTRUMENTS + ALL_SUFFIXES + ALL_BASE_TYPES, specific_phrases
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
@@ -576,8 +592,7 @@ def build_fx_regex() -> re.Pattern:
 
     # --- DEFINE FX-SPECIFIC SAFE TYPES ---
     # 1. Start with the strictly safe stuff (Swaps, Forwards, Caps)
-    fx_expanded_types = UNAMBIGUOUS_BASE_TYPES.copy()
-
+    fx_expanded_types = UNAMBIGUOUS_BASE_TYPES + EXPANDED_INSTRUMENTS
 
     iso = build_currency_iso_pattern()
     name = build_currency_name_pattern()
@@ -593,7 +608,9 @@ def build_fx_regex() -> re.Pattern:
     ]
 
     pattern = build_smart_regex(
-        core_terms, ALL_BASE_TYPES + ALL_SUFFIXES, specific_phrases
+        core_terms,
+        ALL_BASE_TYPES + ALL_SUFFIXES + EXPANDED_INSTRUMENTS,
+        specific_phrases,
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
@@ -616,7 +633,7 @@ def build_cp_regex() -> re.Pattern:
     # We use ALL_BASE_TYPES (Swaps, Futures, Options, Forwards)
     # CRITICAL: We do NOT use ALL_SUFFIXES (Agreements, Contracts) here.
     # Why? "Gold Swaps" is a derivative. "Gold Contracts" is likely a physical supply deal.
-    safe_cp_instruments = ALL_BASE_TYPES
+    safe_cp_instruments = ALL_BASE_TYPES + EXPANDED_INSTRUMENTS
 
     specific_phrases = [
         "commodity index",
@@ -633,13 +650,7 @@ def build_eq_regex() -> re.Pattern:
     core_terms = ["equity", "equity[- ]related"]
 
     # Custom base types for Equity to be safer
-    eq_base_types = UNAMBIGUOUS_BASE_TYPES.copy()
-    eq_base_types.extend(
-        [
-            "options?",  # Equity options (usually comp, but syntactically an instrument)
-            "futures",  # MANDATORY PLURAL for Equity
-        ]
-    )
+    eq_base_types = UNAMBIGUOUS_BASE_TYPES + EXPANDED_INSTRUMENTS
 
     pattern = build_smart_regex(core_terms, eq_base_types, [])  # Empty specific phrases
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
