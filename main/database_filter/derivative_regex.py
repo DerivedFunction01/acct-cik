@@ -58,10 +58,16 @@ PASSIVE_STATE_VERBS = [
     r"be\s+a\s+party\s+to",      # "Is a party to interest rate swaps"
     r"remained?\s+outstanding",
 ]
-
 SENTENCE_SPLIT_PATTERN = re.compile(
-    r"(?<=[.!?])\s+(?=[A-Z])|"  # Period/exclamation/question + whitespace + uppercase
-    r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (extraction artifacts)
+    r"(?<=[.!?])"  # Positive lookbehind for punctuation
+    r"(?<!\bU\.S\.)"  # Negative lookbehind for "U.S."
+    r"(?<!\bNo\.)"  # Negative lookbehind for "No."
+    r"(?<!\bInc\.)"  # Negative lookbehind for "Inc."
+    r"(?<!\bCorp\.)"  # Negative lookbehind for "Corp."
+    r"(?<!\bLtd\.)"  # Negative lookbehind for "Ltd."
+    r"\s+(?=[A-Z])"  # Whitespace + Uppercase
+    r"|"
+    r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries
 )
 
 UNAMBIGUOUS_BASE_TYPES = [
@@ -74,12 +80,12 @@ UNAMBIGUOUS_BASE_TYPES = [
     "swaptions?",
     "locks?",
     "hedges?",
-    "hedging",
 ]
 
 AMBIGUOUS_BASE_TYPES = [
     "futures?",
     "options?",
+    "hedging",
 ]
 
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
@@ -628,9 +634,18 @@ def build_cp_regex() -> re.Pattern:
 
 def build_eq_regex() -> re.Pattern:
     core_terms = ["equity", "equity[- ]related"]
-    specific_phrases = [
-    ]
-    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
+
+    # Custom base types for Equity to be safer
+    eq_base_types = UNAMBIGUOUS_BASE_TYPES.copy()
+    eq_base_types.extend(
+        [
+            "options?",  # Equity options (usually comp, but syntactically an instrument)
+            "futures",  # MANDATORY PLURAL for Equity
+            "swaps?",
+        ]
+    )
+
+    pattern = build_smart_regex(core_terms, eq_base_types, [])  # Empty specific phrases
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
@@ -1038,9 +1053,6 @@ def build_trading_denial_pattern() -> re.Pattern:
     CLAUSE_6 = (
         rf"\bno\s+(?:{TRAD})(?:\s+or\s+(?:{TRAD}))?(?:\s+(?:{PURP}))?\b"
     )
-
-    # Clause 8: "No trading or speculative purposes"
-    CLAUSE_8 = rf"\bno\s+(?:{TRAD})(?:\s+or\s+(?:{TRAD}))?(?:\s+(?:{PURP}))?\b"
     pattern = build_alternation(
         [
             CLAUSE_1,
@@ -1049,7 +1061,6 @@ def build_trading_denial_pattern() -> re.Pattern:
             CLAUSE_4,
             CLAUSE_5,
             CLAUSE_6,
-            CLAUSE_8,
         ]
     )
     return re.compile(pattern, re.IGNORECASE)
