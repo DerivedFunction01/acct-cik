@@ -620,15 +620,35 @@ def build_fx_regex() -> re.Pattern:
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
+
 def build_cp_regex() -> re.Pattern:
-    base_commodities = ["commodity"]
-    modifiers = ["[- ]price", "[- ]related", "[- ]based", "[- ]linked"]
+    # 1. Base Terms: Generic + Specific List
+    # Ensure "commodities" (plural) is covered in base
+    base_commodities = ["commodity", "commodities"] + COMMON_COMMODITIES
+
+    # 2. Modifiers: MUST include optional 's' for prices/costs to catch "Oil prices"
+    modifiers = ["[- ]prices?", "[- ]costs?", "[- ]related", "[- ]based", "[- ]linked"]
+
+    # 3. Generate Core Terms (e.g., "Gold", "Gold-linked", "Oil price")
     core_terms = [c for c in base_commodities] + [
         f"{c}{mod}" for c in base_commodities for mod in modifiers
     ]
     core_terms.append("fixed[- ]commodity")
-    specific_phrases = ["commodity index", "weather derivatives?", ]
-    pattern = build_smart_regex(core_terms, ALL_BASE_TYPES, specific_phrases)
+
+    # 4. Define Safe Follow-up Instruments
+    # We use ALL_BASE_TYPES (Swaps, Futures, Options, Forwards)
+    # CRITICAL: We do NOT use ALL_SUFFIXES (Agreements, Contracts) here.
+    # Why? "Gold Swaps" is a derivative. "Gold Contracts" is likely a physical supply deal.
+    safe_cp_instruments = ALL_BASE_TYPES
+
+    specific_phrases = [
+        "commodity index",
+        "weather derivatives?",
+        # Add these to catch specific PPA nuances if needed:
+        "power purchase agreements?",
+    ]
+
+    pattern = build_smart_regex(core_terms, safe_cp_instruments, specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
