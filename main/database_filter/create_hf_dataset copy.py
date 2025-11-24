@@ -842,5 +842,4 @@ def create_labeled_dataset():
 
 if __name__ == "__main__":
     mp.freeze_support()
-    print(IR_REGEX.pattern)
     create_labeled_dataset()
