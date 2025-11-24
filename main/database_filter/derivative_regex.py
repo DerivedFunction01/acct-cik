@@ -99,8 +99,9 @@ UNAMBIGUOUS_BASE_TYPES = [
     "collars?",
     "derivatives?",
     "swaptions?",
-    "hedges",
-    "futures",
+    "hedges",  # plural form
+    "locks",  # plural form
+    "futures",  # plural form
     "call options?",
     "put options?",
 ]
@@ -574,22 +575,6 @@ def build_fx_regex() -> re.Pattern:
     # 1. Start with the strictly safe stuff (Swaps, Forwards, Caps)
     fx_expanded_types = UNAMBIGUOUS_BASE_TYPES.copy()
 
-    # 2. Add terms that are SAFE here because they are preceded by ISO/Currency
-    #    (e.g., "USD options" is safe, whereas "Strategic options" is not)
-    fx_expanded_types.extend(
-        [
-            "options?",
-            "futures",
-        ]
-    )
-
-    # 3. Add FULL FORM call/puts (Safe)
-    fx_expanded_types.extend(
-        [
-            "call options?",
-            "put options?",
-        ]
-    )
 
     iso = build_currency_iso_pattern()
     name = build_currency_name_pattern()
