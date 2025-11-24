@@ -30,7 +30,10 @@ comparison_phrases = [
     "when compared with",
     "in comparison with",
 ]
+# State Descriptors (New)
+ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open"]
 
+ACTIVE_STATE_PATTERN = build_alternation(ACTIVE_STATE_DESCRIPTORS)
 
 # STRONG: Unambiguous indicators of active usage or transaction
 STRONG_ACTION_VERBS = [
@@ -65,7 +68,7 @@ PASSIVE_STATE_VERBS = [
     r"carr(?:y|ies|ied|ying)",   # "Carries at fair value"
     r"designat(?:e|es|ed|ing)",  # "Designated as a hedge"
     r"be\s+a\s+party\s+to",      # "Is a party to interest rate swaps"
-    r"remained?\s+outstanding",
+    rf"remained?\s+{ACTIVE_STATE_PATTERN}", # "remained active/open/outstanding"
 ]
 
 SENTENCE_SPLIT_PATTERN = re.compile(
@@ -74,12 +77,14 @@ SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<!\b[A-Z]\.)"
     # 2. Protect 2-letter Acronyms (e.g., "U.S.", "U.K.", "N.Y.") -> Cap.Cap.
     r"(?<!\b[A-Z]\.[A-Z]\.)"
-    # 3. Protect 3-letter Acronyms (e.g., "U.S.A.", "S.E.C.") -> Cap.Cap.Cap.
+    # 3. Protect 3-letter and 4-letter Acronyms (e.g., "U.S.A.", "S.E.C.", "F.A.S.B.") -> Cap.Cap.Cap.Cap. 4-letter acronyms are rare
     r"(?<!\b[A-Z]\.[A-Z]\.[A-Z]\.)"
+    r"(?<!\b[A-Z]\.[A-Z]\.[A-Z]\.[A-Z]\.)"
     # 4. Protect common Title/Corp abbreviations (Mixed Case)
     r"(?<!\bInc\.)"
     r"(?<!\bCorp\.)"
     r"(?<!\bLtd\.)"
+    r"(?<!\bLlc\.)"
     r"(?<!\bNo\.)"  # "Note No. 5"
     r"(?<!\bNos\.)"  # Plural numbers
     r"(?<!\bVol\.)"  # Volume
@@ -1371,9 +1376,6 @@ ACTIVE_INDICATORS = [
     "now",
 ]
 
-# State Descriptors (New)
-ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open"]
-
 # Materiality (New)
 IMMATERIAL = [
     "immaterial",
@@ -1398,7 +1400,6 @@ MATERIAL = [
 
 # Build Patterns
 ACTIVE_PATTERN = build_alternation(ACTIVE_INDICATORS)
-ACTIVE_STATE_PATTERN = build_alternation(ACTIVE_STATE_DESCRIPTORS)
 ACTIVE_STATE_REGEX = re.compile(r"\b" + ACTIVE_STATE_PATTERN + r"\b", re.IGNORECASE)
 IMMATERIAL_PATTERN = build_alternation(IMMATERIAL)
 MATERIAL_PATTERN = build_alternation(MATERIAL)

@@ -34,11 +34,12 @@ import logging
 from pathlib import Path
 import re
 from tqdm import tqdm
-from typing import List, Tuple, Optional, Set
+from typing import Dict, List, Tuple, Optional, Set, Any
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 import time
 import sqlite3
+from itertools import groupby
 
 # Import all derivative regexes
 
@@ -69,6 +70,7 @@ from derivative_regex import (
     NON_POSITION_INDICATORS,
     PNL_ONLY_NO_POSITION,
     HIGH_PRECISION_SUFFIXES,
+    validate_instrument_retention,
 )
 
 # =============================================================================
@@ -77,64 +79,180 @@ from derivative_regex import (
 
 # --- NEW: ML Resolver -------------------------------------------------
 import requests
+log = logging.getLogger(__name__)
 class NetworkDerivativeResolver:
-
+    """
+    Client for RoBERTa-based derivative category resolution.
+    Handles batching, context window construction, and fallback logic.
+    """
+   
     def __init__(
         self,
-        api_url="http://localhost:5001/predict",
-        confidence_threshold=0.85,
-        context_window_size=3,
-        timeout=60,
+        api_url: str = "http://localhost:5001/predict",
+        confidence_threshold: float = 0.85,
+        context_window_size: int = 3,
+        timeout: int = 60
     ):
         self.api_url = api_url
         self.confidence_threshold = confidence_threshold
         self.context_window_size = context_window_size
         self.timeout = timeout
-
-    def resolve_batch(self, context_windows: list) -> list:
+        self._verify_connection()
+   
+    def _verify_connection(self):
+        """Verify server is reachable at startup."""
+        try:
+            response = requests.get(
+                self.api_url.replace("/predict", "/info"),
+                timeout=5
+            )
+            if response.ok:
+                info = response.json()
+                log.info(f"✅ Connected to RoBERTa server: {info.get('model')}")
+                log.info(f" Device: {info.get('device')}, Labels: {info.get('labels')}")
+            else:
+                log.warning(f"⚠️ Server responded but not healthy: {response.status_code}")
+        except Exception as e:
+            log.error(f"❌ Could not connect to resolver API: {e}")
+            log.error(f" Server must be running at {self.api_url}")
+            raise ConnectionError(f"Resolver API unavailable: {e}")
+   
+    def build_context_window(
+        self,
+        target_sentence: str,
+        prev_sentences: List[str],
+        next_sentences: List[str]
+    ) -> str:
         """
+        Build formatted context window for RoBERTa.
+        Format: "prev_context [SEP] target_sentence [SEP] next_context"
+       
         Args:
-            context_windows: List of strings ["prev [SEP] target [SEP] next", ...]
+            target_sentence: The generic sentence to classify
+            prev_sentences: Previous sentences (most recent first)
+            next_sentences: Following sentences
+       
         Returns:
-            List of labels ["ir", "gen", "cp", ...]
+            Formatted string ready for tokenizer
+        """
+        # Take last N previous sentences (most recent context)
+        prev_context = " ".join(prev_sentences[-self.context_window_size:])
+       
+        # Take first N next sentences
+        next_context = " ".join(next_sentences[:self.context_window_size])
+       
+        # Format with [SEP] tokens (RoBERTa tokenizer handles these)
+        parts = []
+        if prev_context:
+            parts.append(prev_context)
+        parts.append(target_sentence)
+        if next_context:
+            parts.append(next_context)
+       
+        return " [SEP] ".join(parts)
+   
+    def resolve_batch(
+        self,
+        context_windows: List[str],
+        fallback_labels: Optional[List[str]] = None
+    ) -> List[Tuple[str, float]]:
+        """
+        Send batch of context windows to server for classification.
+       
+        Args:
+            context_windows: List of formatted context strings
+            fallback_labels: Optional list of fallback labels if API fails
+       
+        Returns:
+            List of (label, confidence_score) tuples
         """
         if not context_windows:
             return []
-
+       
+        if fallback_labels and len(fallback_labels) != len(context_windows):
+            raise ValueError("Fallback labels must match context_windows length")
+       
         try:
-            # Send batch to server
             response = requests.post(
-                self.api_url, json={"texts": context_windows}, timeout=30
+                self.api_url,
+                json={"texts": context_windows},
+                timeout=self.timeout
             )
             response.raise_for_status()
-
-            # Parse results
+           
             predictions = response.json().get("predictions", [])
-            final_labels = []
-
-            for pred in predictions:
+           
+            if len(predictions) != len(context_windows):
+                log.error(f"Server returned {len(predictions)} predictions for {len(context_windows)} inputs")
+                return self._fallback_resolution(context_windows, fallback_labels)
+           
+            results = []
+            for idx, pred in enumerate(predictions):
                 if "error" in pred:
-                    final_labels.append("gen")  # Fallback
+                    log.warning(f"Prediction error at index {idx}: {pred['error']}")
+                    fallback = fallback_labels[idx] if fallback_labels else "gen"
+                    results.append((fallback, 0.0))
                     continue
-
-                # Get highest score label
-                # pred looks like: {'ir': 0.99, 'fx': 0.01...}
+               
+                # pred format: {'ir': 0.95, 'fx': 0.03, 'cp': 0.01, 'eq': 0.01, 'gen': 0.00}
                 best_label = max(pred, key=pred.get)
-                score = pred[best_label]
-
-                # Thresholding (Client Side)
-                if score > 0.85:
-                    final_labels.append(best_label)
+                best_score = pred[best_label]
+               
+                # Apply confidence thresholding
+                if best_score >= self.confidence_threshold:
+                    results.append((best_label, best_score))
                 else:
-                    final_labels.append("gen")
-
-            return final_labels
-
+                    # Low confidence → use fallback or 'gen'
+                    fallback = fallback_labels[idx] if fallback_labels else "gen"
+                    results.append((fallback, best_score))
+                    log.debug(f"Low confidence ({best_score:.3f}) → fallback to '{fallback}'")
+           
+            return results
+       
+        except requests.exceptions.Timeout:
+            log.error(f"⏱️ API timeout after {self.timeout}s")
+            return self._fallback_resolution(context_windows, fallback_labels)
+       
+        except requests.exceptions.RequestException as e:
+            log.error(f"❌ API request failed: {e}")
+            return self._fallback_resolution(context_windows, fallback_labels)
+       
         except Exception as e:
-            print(f"⚠️ Resolver API Error: {e}")
-            # Fail safe: return 'gen' for everything so we don't crash
-            return ["gen"] * len(context_windows)
-
+            log.error(f"❌ Unexpected error in resolve_batch: {e}")
+            return self._fallback_resolution(context_windows, fallback_labels)
+   
+    def _fallback_resolution(
+        self,
+        context_windows: List[str],
+        fallback_labels: Optional[List[str]]
+    ) -> List[Tuple[str, float]]:
+        """Return fallback labels with 0.0 confidence."""
+        if fallback_labels:
+            return [(label, 0.0) for label in fallback_labels]
+        return [("gen", 0.0) for _ in context_windows]
+   
+    def resolve_single(
+        self,
+        target_sentence: str,
+        prev_sentences: List[str] = [],
+        next_sentences: List[str] = [],
+        fallback_label: str = "gen"
+    ) -> Tuple[str, float]:
+        """
+        Convenience method for single sentence resolution.
+        """
+        context_window = self.build_context_window(
+            target_sentence,
+            prev_sentences or [],
+            next_sentences or []
+        )
+       
+        results = self.resolve_batch(
+            [context_window],
+            fallback_labels=[fallback_label]
+        )
+       
+        return results[0] if results else (fallback_label, 0.0)
 
 # Global resolver instance (initialized once at startup)
 RESOLVER: Optional[NetworkDerivativeResolver] = None
@@ -644,6 +762,152 @@ def generate_single_category_variant(
 # ENHANCED FILTER_MATCHES WITH CATEGORY DISAMBIGUATION
 # =============================================================================
 
+# ============================================================================
+# ADD THESE NEW FUNCTIONS (before filter_matches_with_disambiguation)
+# ============================================================================
+
+def process_resolved_sentence(
+    meta: Dict[str, Any],
+    sentences: List[str],
+    used_indices: Set[int],
+    url: str,
+) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str, str]]]:
+    """
+    Process a fully-resolved sentence metadata object into final paragraphs.
+    
+    Handles three distinct cases:
+    1. Single-category sentence (direct or ML-resolved) → build with context
+    2. Multi-category sentence → generate single-category variants via excision
+    3. Unresolved generic → discard with reason
+    """
+    paragraphs = []
+    discards = []
+    
+    final_cat = meta["final_category"]
+    sent_idx = meta["sent_idx"]
+    
+    # Skip if already processed as part of multi-sentence paragraph
+    if sent_idx in used_indices:
+        return [], []
+    
+    # ════════════════════════════════════════════════════════════════
+    # CASE 1: Single-category sentence
+    # ════════════════════════════════════════════════════════════════
+    if len(meta["specific_cats"]) <= 1 and final_cat not in {"gen", "other"}:
+        parts = [meta["sentence"]]
+        context_indices = {sent_idx}
+        
+        # Try to incorporate previous sentence if contextually compatible
+        if sent_idx > 0 and (sent_idx - 1) not in used_indices:
+            prev = sentences[sent_idx - 1]
+            
+            if len(prev) >= MIN_SENTENCE_LENGTH:
+                prev_cats = get_sentence_categories(prev)
+                
+                # Include if: category matches OR prev is generic
+                if final_cat in prev_cats or not (prev_cats - {"gen", "other"}):
+                    parts.insert(0, prev)
+                    context_indices.add(sent_idx - 1)
+        
+        # Try to incorporate next sentence if contextually compatible
+        if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
+            nxt = sentences[sent_idx + 1]
+            
+            if len(nxt) >= MIN_SENTENCE_LENGTH:
+                nxt_cats = get_sentence_categories(nxt)
+                
+                if final_cat in nxt_cats or not (nxt_cats - {"gen", "other"}):
+                    parts.append(nxt)
+                    context_indices.add(sent_idx + 1)
+        
+        paragraph = " ".join(parts)
+        
+        # VALIDATION: Ensure instrument name survived
+        if check_for_instrument(paragraph, strict=False):
+            paragraphs.append((paragraph, final_cat))
+            used_indices.update(context_indices)
+        else:
+            discards.append((url, paragraph, "lost_instrument_reference"))
+    
+    # ════════════════════════════════════════════════════════════════
+    # CASE 2: Multi-category sentence → Generate variants
+    # ════════════════════════════════════════════════════════════════
+    elif len(meta["specific_cats"]) > 1:
+        any_variant_succeeded = False
+        
+        for target_cat in meta["specific_cats"]:
+            # Excise all other categories' terminology
+            pure_variant = generate_single_category_variant(
+                meta["sentence"],
+                target_cat,
+                meta["categories"],
+            )
+            
+            if pure_variant:
+                parts = [pure_variant]
+                
+                # Attempt to incorporate compatible context with excision
+                if sent_idx > 0 and (sent_idx - 1) not in used_indices:
+                    prev = sentences[sent_idx - 1]
+                    
+                    if len(prev) >= MIN_SENTENCE_LENGTH:
+                        prev_cats = get_sentence_categories(prev)
+                        
+                        if target_cat in prev_cats or not (prev_cats - {"gen", "other"}):
+                            clean_prev = generate_single_category_variant(
+                                prev, target_cat, prev_cats
+                            )
+                            if clean_prev:
+                                parts.insert(0, clean_prev)
+                
+                if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
+                    nxt = sentences[sent_idx + 1]
+                    
+                    if len(nxt) >= MIN_SENTENCE_LENGTH:
+                        nxt_cats = get_sentence_categories(nxt)
+                        
+                        if target_cat in nxt_cats or not (nxt_cats - {"gen", "other"}):
+                            clean_nxt = generate_single_category_variant(
+                                nxt, target_cat, nxt_cats
+                            )
+                            if clean_nxt:
+                                parts.append(clean_nxt)
+                
+                paragraph = " ".join(parts)
+                
+                if check_for_instrument(paragraph, strict=False):
+                    paragraphs.append((paragraph, target_cat))
+                    any_variant_succeeded = True
+            else:
+                discards.append(
+                    (url, meta["sentence"], f"disambiguation_excision_failed_{target_cat}")
+                )
+        
+        if any_variant_succeeded:
+            used_indices.add(sent_idx)
+    
+    # ════════════════════════════════════════════════════════════════
+    # CASE 3: Unresolved generic or invalid category
+    # ════════════════════════════════════════════════════════════════
+    else:
+        resolution_method = meta.get("resolution_method", "unknown")
+        confidence = meta.get("confidence", 0.0)
+        
+        discard_reason = f"unresolved_generic_{resolution_method}"
+        if confidence is not None and confidence < 0.5:
+            discard_reason += "_low_conf"
+        
+        discards.append(
+            (url, meta["sentence"], discard_reason)
+        )
+        used_indices.add(sent_idx)
+    
+    return paragraphs, discards
+
+
+# ============================================================================
+# REPLACE: filter_matches_with_disambiguation FUNCTION (entire function)
+# ============================================================================
 
 def filter_matches_with_disambiguation(
     matches_json: str, url: str = ""
@@ -651,44 +915,8 @@ def filter_matches_with_disambiguation(
     """
     Advanced filtering system implementing category-based sentence disambiguation
     through duplication and targeted terminology excision.
-
-    Processing Pipeline:
-        1. Sentence segmentation and initial validation
-        2. Trading denial clause removal
-        3. Multi-category detection via pattern matching
-        4. Category-specific variant generation for mixed sentences
-        5. Context sentence compatibility assessment and integration
-        6. Quality validation and discard tracking
-
-    Args:
-        matches_json: JSON-encoded list of text segments from source documents
-        url: Document identifier for discard tracking
-
-    Returns:
-        Tuple containing:
-        - List of (paragraph_text, category_label) for category-pure examples
-        - List of (url, sentence, discard_reason) for rejected content
-
-    Category Labels:
-        'ir': Interest rate derivatives
-        'fx': Foreign exchange derivatives
-        'cp': Commodity derivatives
-        'eq': Equity derivatives
-        'gen': Generic derivative references
-        'other': Insufficient category signals
-
-    Advanced filtering with hierarchical category resolution:
-
-    Resolution Priority:
-    1. Current sentence: direct instrument + context detection
-    2. Within-paragraph lookback: previous sentences in same paragraph
-    3. Cross-paragraph lookback: last known category from prior paragraphs
-
-    This handles cases like:
-        "We use interest rate swaps. These instruments with a notional value of XX are used hedge our debt."
-        └─ Sentence 1: ir (direct) ─┘  └─ Sentence 2: ir (lookback) ─┘
-
-    CRITICAL: Returns parallel arrays where matches[i] corresponds to categories[i]
+    
+    Returns: (list_of_(paragraph, category), list_of_discards)
     """
     try:
         matches = json.loads(matches_json)
@@ -698,29 +926,30 @@ def filter_matches_with_disambiguation(
     if not isinstance(matches, list):
         return [], []
 
-    final_paragraphs = []  # List of (paragraph_text, category_label)
+    final_paragraphs = []
     all_discarded = []
-
-    # Track ALL sentences across ALL paragraphs (for cross-paragraph lookback)
-    global_sentence_history = (
-        []
-    )  # List of (para_idx, sent_idx, category, instrument, sentence_text)
-
+    
+    # Metadata collection for all sentences across all paragraphs
+    sentence_metadata = []
+    generic_buffer = []
+    
+    # ═════════════════════════════════════════════════════════════════
+    # PASS 1: SEGMENTATION, VALIDATION, NOISE REDUCTION
+    # ═════════════════════════════════════════════════════════════════
+    
     for para_idx, match in enumerate(matches):
-        # ADD THIS BLOCK:
+        # Skip tables
         if '<TABLE>' in match.upper():
-            # Keep table as-is without processing
-            final_paragraphs.append((match, 'table'))  # Special 'table' category
+            final_paragraphs.append((match, 'table'))
             continue
+        
+        # Remove accounting standards boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
-            # Try to salvage the paragraph by stepping through sentence by sentence, and then try to reconstruct it
-            sentences = SENTENCE_SPLIT_PATTERN.split(match)
+            sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
             text = []
             discard = []
-            for sentence in sentences:
-                if EXCLUDE_REGEX_ACCOUNTING_STD.search(
-                    sentence
-                ) and not CATEGORY_REGEX.search(sentence): # Skip "derivative instruments but keep ir swaps"
+            for sentence in sentences_temp:
+                if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence) and not CATEGORY_REGEX.search(sentence):
                     discard.append(sentence)
                 else:
                     text.append(sentence)
@@ -730,16 +959,19 @@ def filter_matches_with_disambiguation(
             match = " ".join(text)
             if not match.strip():
                 continue
-        if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match): # If the text is all about legal problems, then there is no point salvaging "cp options" if it was part of the legal case
+        
+        # Skip litigation
+        if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
             all_discarded.append((url, match, "legal"))
             continue
-        if EXCLUDE_REGEX_EQUITY_COMP.search(match): 
-            # Try to salvage the paragraph by stepping through for derivative mentions
-            sentences = SENTENCE_SPLIT_PATTERN.split(match)
+        
+        # Remove equity compensation boilerplate (salvage derivative mentions)
+        if EXCLUDE_REGEX_EQUITY_COMP.search(match):
+            sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
             text = []
             discard = []
-            for sentence in sentences:
-                if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence): # Any equity derivative
+            for sentence in sentences_temp:
+                if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
                     text.append(sentence)
                 else:
                     discard.append(sentence)
@@ -749,399 +981,200 @@ def filter_matches_with_disambiguation(
             match = " ".join(text)
             if not match.strip():
                 continue
-
-        # Begin construction
+        
+        # Split into sentences
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()
-
-        # Track category within current paragraph
-        paragraph_category_history = []  # List of (sentence_idx, category, instrument)
-
+        
         for sent_idx, sentence in enumerate(sentences):
             if sent_idx in used_indices:
                 continue
-
+            
             # ═══════════════════════════════════════════════════════════
-            # VALIDATION PHASE
+            # VALIDATION: Length, definition, trading denials, AOCI, PnL
             # ═══════════════════════════════════════════════════════════
+            
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 all_discarded.append((url, sentence, "too_short"))
                 continue
-
+            
             if DEFINITION_INDICATORS.search(sentence):
                 all_discarded.append((url, sentence, "definition_boilerplate"))
                 used_indices.add(sent_idx)
                 continue
-
-            # ═══════════════════════════════════════════════════════════
-            # NOISE REDUCTION: Trading denial clause removal
-            # ═══════════════════════════════════════════════════════════
-
+            
+            # Trading denial removal
             if TRADING_STATEMENTS_REGEX.search(sentence):
-                # 1. Capture what we are about to delete (for history tracking)
                 deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
-
-                # 2. Extract Category Signal from the denial (Valuable for Context!)
-                # We want to know this paragraph is about "IR" or "FX", even if we delete the sentence.
-                deleted_cats = get_sentence_categories(deleted_text)
-                deleted_specific_cats = deleted_cats - {"gen", "other"}
-
-                if deleted_specific_cats:
-                    detected_cat = list(deleted_specific_cats)[0]
-                    instrument_match = STRICT_REGEX.search(deleted_text)
-                    detected_instrument = instrument_match.group(0) if instrument_match else None
-
-                    # Update the History Buffers (Critical for "Lookback" logic)
-                    paragraph_category_history.append((sent_idx, detected_cat, detected_instrument))
-                    global_sentence_history.append((
-                        para_idx, sent_idx, detected_cat, detected_instrument, 
-                        f"[TRADING-DELETED-CONTEXT] {deleted_text[:80]}"
-                    ))
-
-                # 3. THE CHANGE: Unconditionally Discard the Text
                 all_discarded.append((url, sentence, "trading_statements_full_delete"))
-
-                # Skip to next sentence
                 continue
-
-            # ═══════════════════════════════════════════════════════════
-            # NOISE REDUCTION: AOCI-only clause removal
-            # ═══════════════════════════════════════════════════════════
-
+            
+            # AOCI removal
             if NON_POSITION_INDICATORS.search(sentence):
-                # EXTRACT CATEGORY BEFORE DISCARDING for history tracking
-                aoci_cats = get_sentence_categories(sentence)
-                aoci_specific_cats = aoci_cats - {"gen", "other"}
-
-                if aoci_specific_cats:
-                    detected_cat = list(aoci_specific_cats)[0]
-                    instrument_match = STRICT_REGEX.search(sentence)
-                    detected_instrument = (
-                        instrument_match.group(0) if instrument_match else None
-                    )
-
-                    # Add to history - this tells us what derivative type the document discusses
-                    paragraph_category_history.append(
-                        (sent_idx, detected_cat, detected_instrument)
-                    )
-                    global_sentence_history.append(
-                        (
-                            para_idx,
-                            sent_idx,
-                            detected_cat,
-                            detected_instrument,
-                            f"[AOCI] {sentence[:80]}",
-                        )
-                    )
-
-                # AOCI statements don't indicate positions → discard entirely
                 all_discarded.append((url, sentence, "aoci_or_pnl_only"))
                 continue
-
-            # ═══════════════════════════════════════════════════════════
-            # NOISE REDUCTION: PnL-only clause removal (with instrument detection)
-            # ═══════════════════════════════════════════════════════════
-
+            
+            # PnL-only removal (with partial salvage)
             if PNL_ONLY_NO_POSITION.search(sentence):
-                # Check if there's an instrument name (strong signal to keep) or notional indicator
                 has_instrument = bool(STRICT_REGEX.search(sentence))
-
-                # Check if there's position context
-                has_position_context = bool(
-                    POSITION_CONTEXT_INDICATORS.search(sentence)
-                )
-
+                has_position_context = bool(POSITION_CONTEXT_INDICATORS.search(sentence))
+                
                 if has_instrument or has_position_context:
-                    # Compound sentence or has instrument: surgically remove PnL part
-                    deleted_text = " ".join(
-                        m.group(0) for m in PNL_ONLY_NO_POSITION.finditer(sentence)
-                    )
-                    all_discarded.append(
-                        (url, deleted_text.strip(), "pnl_only_removed")
-                    )
-
-                    # Remove PnL clause
+                    deleted_text = " ".join(m.group(0) for m in PNL_ONLY_NO_POSITION.finditer(sentence))
+                    all_discarded.append((url, deleted_text.strip(), "pnl_only_removed"))
                     sentence = PNL_ONLY_NO_POSITION.sub("", sentence)
                     sentence = cleanup_fragment(sentence)
-
-                    # PRIORITY 1: Check remaining fragment for category
-                    remaining_cats = (
-                        get_sentence_categories(sentence) if sentence else set()
-                    )
-                    remaining_specific_cats = remaining_cats - {"gen", "other"}
-
-                    # PRIORITY 2: Check deleted PnL clause for category
-                    pnl_cats = get_sentence_categories(deleted_text)
-                    pnl_specific_cats = pnl_cats - {"gen", "other"}
-
-                    # Use remaining fragment category if available (higher priority)
-                    if remaining_specific_cats:
-                        detected_cat = list(remaining_specific_cats)[0]
-                        instrument_match = STRICT_REGEX.search(sentence)
-                        detected_instrument = (
-                            instrument_match.group(0) if instrument_match else None
-                        )
-
-                        paragraph_category_history.append(
-                            (sent_idx, detected_cat, detected_instrument)
-                        )
-                        global_sentence_history.append(
-                            (
-                                para_idx,
-                                sent_idx,
-                                detected_cat,
-                                detected_instrument,
-                                f"[PNL-REMAINING] {sentence[:80]}",
-                            )
-                        )
-
-                    # Fall back to deleted clause category
-                    elif pnl_specific_cats:
-                        detected_cat = list(pnl_specific_cats)[0]
-                        instrument_match = STRICT_REGEX.search(deleted_text)
-                        detected_instrument = (
-                            instrument_match.group(0) if instrument_match else None
-                        )
-
-                        paragraph_category_history.append(
-                            (sent_idx, detected_cat, detected_instrument)
-                        )
-                        global_sentence_history.append(
-                            (
-                                para_idx,
-                                sent_idx,
-                                detected_cat,
-                                detected_instrument,
-                                f"[PNL-DELETED] {deleted_text[:80]}",
-                            )
-                        )
-
+                    
                     if not sentence:
                         continue
                 else:
-                    # Pure PnL with no instrument → but still check for category signal
-                    pnl_cats = get_sentence_categories(sentence)
-                    pnl_specific_cats = pnl_cats - {"gen", "other"}
-
-                    if pnl_specific_cats:
-                        detected_cat = list(pnl_specific_cats)[0]
-                        instrument_match = STRICT_REGEX.search(sentence)
-                        detected_instrument = (
-                            instrument_match.group(0) if instrument_match else None
-                        )
-
-                        # Track even though discarding
-                        paragraph_category_history.append(
-                            (sent_idx, detected_cat, detected_instrument)
-                        )
-                        global_sentence_history.append(
-                            (
-                                para_idx,
-                                sent_idx,
-                                detected_cat,
-                                detected_instrument,
-                                f"[PNL ONLY] {sentence[:80]}",
-                            )
-                        )
-
                     all_discarded.append((url, sentence, "pnl_only_no_position"))
                     continue
-
+            
+            # No derivative match
             if not STRICT_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue
-
+            
             # ═══════════════════════════════════════════════════════════
-            # ENHANCED CATEGORY DETECTION WITH LOOKBACK
+            # CATEGORY DETECTION
             # ═══════════════════════════════════════════════════════════
-
-            # Step 1: Detect categories in current sentence
+            
             core_categories = get_sentence_categories(sentence)
             specific_cats = core_categories - {"gen", "other"}
-
-            # Extract instrument for tracking
+            
             current_instrument = None
             instrument_match = STRICT_REGEX.search(sentence)
             if instrument_match:
                 current_instrument = instrument_match.group(0)
-
+            
             # ═══════════════════════════════════════════════════════════
-            # CASE 1: Generic-only sentence → Apply hierarchical resolution
+            # METADATA STAGING
             # ═══════════════════════════════════════════════════════════
+            
+            meta = {
+                "para_idx": para_idx,
+                "sent_idx": sent_idx,
+                "sentence": sentence,
+                "categories": core_categories,
+                "specific_cats": specific_cats,
+                "instrument": current_instrument,
+                "prev_sentences": sentences[:sent_idx],
+                "next_sentences": sentences[sent_idx + 1:],
+                "all_sentences": sentences,  # Store for later processing
+                "final_category": None,
+                "confidence": None,
+                "resolution_method": None,
+            }
+            
             if not specific_cats:
-                resolved_category = resolve_generic_reference(
-                    sentence=sentence,
-                    paragraph_history=paragraph_category_history,
-                    global_history=global_sentence_history,
-                    current_para_idx=para_idx,
-                )
-
-                if resolved_category and resolved_category not in {"gen", "other"}:
-                    # Successfully resolved!
-                    specific_cats = {resolved_category}
-                    primary = resolved_category
-                else:
-                    # Could not resolve, treat as generic
-                    primary = get_primary_category(core_categories)
-
-                # Build paragraph with context
-                parts = [sentence]
-                context_indices = {sent_idx}
-
-                # Try to incorporate adjacent sentences
-                if sent_idx > 0 and (sent_idx - 1) not in used_indices:
-                    prev = sentences[sent_idx - 1]
-                    if len(prev) >= MIN_SENTENCE_LENGTH:
-                        parts.insert(0, prev)
-                        context_indices.add(sent_idx - 1)
-
-                if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
-                    nxt = sentences[sent_idx + 1]
-                    if len(nxt) >= MIN_SENTENCE_LENGTH:
-                        parts.append(nxt)
-                        context_indices.add(sent_idx + 1)
-
-                final_paragraphs.append((" ".join(parts), primary))
-                used_indices.update(context_indices)
-
-                # Update both histories
-                paragraph_category_history.append((sent_idx, primary, current_instrument))
-                global_sentence_history.append(
-                    (para_idx, sent_idx, primary, current_instrument, sentence[:100])
-                )
-
-            # ═══════════════════════════════════════════════════════════
-            # CASE 2: Single specific category
-            # ═══════════════════════════════════════════════════════════
-            elif len(specific_cats) == 1:
-                primary = list(specific_cats)[0]
-                parts = [sentence]
-                context_indices = {sent_idx}
-
-                # Category-compatible context incorporation
-                if sent_idx > 0 and (sent_idx - 1) not in used_indices:
-                    prev = sentences[sent_idx - 1]
-                    if len(prev) >= MIN_SENTENCE_LENGTH:
-                        prev_cats = get_sentence_categories(prev)
-                        if primary in prev_cats or not (prev_cats - {"gen", "other"}):
-                            parts.insert(0, prev)
-                            context_indices.add(sent_idx - 1)
-
-                if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
-                    nxt = sentences[sent_idx + 1]
-                    if len(nxt) >= MIN_SENTENCE_LENGTH:
-                        nxt_cats = get_sentence_categories(nxt)
-                        if primary in nxt_cats or not (nxt_cats - {"gen", "other"}):
-                            parts.append(nxt)
-                            context_indices.add(sent_idx + 1)
-
-                final_paragraphs.append((" ".join(parts), primary))
-                used_indices.update(context_indices)
-
-                # Update histories AFTER successful classification
-                paragraph_category_history.append((sent_idx, primary, current_instrument))
-                global_sentence_history.append(
-                    (para_idx, sent_idx, primary, current_instrument, sentence[:100])
-                )
-
-            # ═══════════════════════════════════════════════════════════
-            # CASE 3: Multi-category sentence → Disambiguation
-            # ═══════════════════════════════════════════════════════════
+                # Generic sentence → defer to ML
+                generic_buffer.append(len(sentence_metadata))
+                meta["resolution_method"] = "ml_pending"
             else:
-                # Track if ANY variant succeeded (only update history if at least one worked)
-                any_variant_succeeded = False
-                first_successful_category = None
+                # Direct match → assign immediately
+                primary = get_primary_category(core_categories)
+                meta["final_category"] = primary
+                meta["confidence"] = 1.0
+                meta["resolution_method"] = "specific"
+            
+            sentence_metadata.append(meta)
+    
+    # ═════════════════════════════════════════════════════════════════
+    # PASS 2: ML BATCH RESOLUTION (for generics)
+    # ═════════════════════════════════════════════════════════════════
+    
+    if generic_buffer and RESOLVER:
+        print(f"Sending {len(generic_buffer)} generic sentences to ML resolver...")
+        context_windows = []
+        fallback_labels = []
 
-                for target_cat in specific_cats:
-                    pure_variant = generate_single_category_variant(
-                        sentence, target_cat, core_categories
-                    )
+        for idx in generic_buffer:
+            m = sentence_metadata[idx]
+            ctx = RESOLVER.build_context_window(
+                target_sentence=m["sentence"],
+                prev_sentences=m["prev_sentences"],
+                next_sentences=m["next_sentences"],
+            )
+            context_windows.append(ctx)
 
-                    if pure_variant:
-                        parts = [pure_variant]
+            fb = resolve_generic_reference(
+                sentence=m["sentence"],
+                paragraph_history=[],
+                global_history=[],
+                current_para_idx=m["para_idx"],
+            ) or "gen"
+            fallback_labels.append(fb)
 
-                        # Context incorporation with excision
-                        if sent_idx > 0 and (sent_idx - 1) not in used_indices:
-                            prev = sentences[sent_idx - 1]
-                            if len(prev) >= MIN_SENTENCE_LENGTH:
-                                prev_cats = get_sentence_categories(prev)
-                                if target_cat in prev_cats or not (
-                                    prev_cats - {"gen", "other"}
-                                ):
-                                    clean_prev = generate_single_category_variant(
-                                        prev, target_cat, prev_cats
-                                    )
-                                    if clean_prev:
-                                        parts.insert(0, clean_prev)
+        results = RESOLVER.resolve_batch(context_windows, fallback_labels)
 
-                        if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
-                            nxt = sentences[sent_idx + 1]
-                            if len(nxt) >= MIN_SENTENCE_LENGTH:
-                                nxt_cats = get_sentence_categories(nxt)
-                                if target_cat in nxt_cats or not (
-                                    nxt_cats - {"gen", "other"}
-                                ):
-                                    clean_nxt = generate_single_category_variant(
-                                        nxt, target_cat, nxt_cats
-                                    )
-                                    if clean_nxt:
-                                        parts.append(clean_nxt)
-
-                        final_paragraphs.append((" ".join(parts), target_cat))
-                        any_variant_succeeded = True
-
-                        # Track first successful category for history
-                        if first_successful_category is None:
-                            first_successful_category = target_cat
-                    else:
-                        all_discarded.append(
-                            (
-                                url,
-                                sentence,
-                                f"disambiguation_excision_failed_{target_cat}",
-                            )
-                        )
-
-                # Update histories ONLY if at least one variant succeeded
-                # Use the first successful category as the "dominant" one for future lookback
-                if any_variant_succeeded and first_successful_category:
-                    paragraph_category_history.append(
-                        (sent_idx, first_successful_category, current_instrument)
-                    )
-                    global_sentence_history.append(
-                        (
-                            para_idx,
-                            sent_idx,
-                            first_successful_category,
-                            current_instrument,
-                            sentence[:100],
-                        )
-                    )
-
-                used_indices.add(sent_idx)
-    # -------------------------------------------------------------------------
-    # FINAL SAFETY CHECK: Ensure instrument name survived cleaning
-    # -------------------------------------------------------------------------
-    # Filter out sentences where the cleaning process accidentally stripped
-    # the actual instrument name (e.g., reducing "We use swaps to hedge" -> "We use to hedge")
-
-    validated_paragraphs = []
-
-    # Assuming final_paragraphs is a list of (text, category) tuples based on your Phase 2 script
-    # If it is just a list of strings, remove the unpacking.
-    for item in final_paragraphs:
-        # Handle both tuple (text, cat) and string formats dynamically
-        text = item[0] if isinstance(item, tuple) else item
-
-        # strict=False: Allows "contracts", "instruments", "derivatives" (Broader)
-        # strict=True:  Requires "ir swaps", "forward contract", "call options" (Stricter)
-        if check_for_instrument(text, strict=False):
-            validated_paragraphs.append(item)
+        for pos, (label, conf) in enumerate(results):
+            idx = generic_buffer[pos]
+            sentence_metadata[idx].update({
+                "final_category": label,
+                "confidence": conf,
+                "resolution_method": "ml" if conf > 0.5 else "fallback",
+            })
+    
+    # ═════════════════════════════════════════════════════════════════
+    # PASS 3: POST-RESOLUTION PROCESSING
+    # ═════════════════════════════════════════════════════════════════
+    
+    final_paragraphs_all = []
+    all_discarded_final = []
+    used_indices_global = set()
+    
+    # Group metadata by paragraph for context incorporation
+    by_paragraph = {}
+    for meta in sentence_metadata:
+        para_idx = meta["para_idx"]
+        if para_idx not in by_paragraph:
+            by_paragraph[para_idx] = []
+        by_paragraph[para_idx].append(meta)
+    
+    # Process each paragraph's metadata
+    for para_idx in sorted(by_paragraph.keys()):
+        para_metadata = by_paragraph[para_idx]
+        used_indices_para = set()
+        
+        # Get original sentences for this paragraph
+        # (We stored all_sentences in metadata)
+        if para_metadata:
+            sentences = para_metadata[0]["all_sentences"]
         else:
-            # Log it as a specific discard reason so you can debug regex over-pruning
-            all_discarded.append((url, text, "lost_instrument_reference"))
-    final_paragraphs = validated_paragraphs
-    return final_paragraphs, all_discarded
+            continue
+        
+        for meta in para_metadata:
+            paras, discs = process_resolved_sentence(
+                meta,
+                sentences,
+                used_indices_para,
+                url,
+            )
+            final_paragraphs_all.extend(paras)
+            all_discarded_final.extend(discs)
+    
+    # ═════════════════════════════════════════════════════════════════
+    # SAFETY CHECK: Instrument retention validation
+    # ═════════════════════════════════════════════════════════════════
+    
+    if final_paragraphs_all:
+        validated_paragraphs, validated_categories, validation_discards = validate_instrument_retention(
+            [p[0] for p in final_paragraphs_all],
+            [p[1] for p in final_paragraphs_all],
+            url,
+            strict=False,
+        )
+        
+        # Reconstruct (text, category) tuples with validated texts
+        final_paragraphs_all = list(zip(
+            validated_paragraphs,
+            validated_categories,
+        ))
+    
+        all_discarded_final.extend(validation_discards)
+    
+    return final_paragraphs_all, all_discarded_final
 
 
 def resolve_generic_reference(
