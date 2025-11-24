@@ -579,6 +579,7 @@ def get_sentence_categories(
     """
     Determines category using Hierarchical Normalization + Proximity Scoring.
     Priority: Specific Instrument > Proximity-Verified Context > Context.
+    Note: this feature is unreliable and is being rejected in favor of a classification model, hence the inference call.
     """
     if context_sentences is None:
         context_sentences = []
