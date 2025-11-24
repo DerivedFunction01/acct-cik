@@ -661,7 +661,6 @@ def build_eq_regex() -> re.Pattern:
         [
             "options?",  # Equity options (usually comp, but syntactically an instrument)
             "futures",  # MANDATORY PLURAL for Equity
-            "swaps?",
         ]
     )
 
