@@ -757,8 +757,8 @@ def filter_matches_with_disambiguation(
         # Track category within current paragraph
         paragraph_category_history = []  # List of (sentence_idx, category, instrument)
 
-        for idx, sentence in enumerate(sentences):
-            if idx in used_indices:
+        for sent_idx, sentence in enumerate(sentences):
+            if sent_idx in used_indices:
                 continue
 
             # ═══════════════════════════════════════════════════════════
@@ -770,7 +770,7 @@ def filter_matches_with_disambiguation(
 
             if DEFINITION_INDICATORS.search(sentence):
                 all_discarded.append((url, sentence, "definition_boilerplate"))
-                used_indices.add(idx)
+                used_indices.add(sent_idx)
                 continue
 
             # ═══════════════════════════════════════════════════════════
@@ -792,9 +792,9 @@ def filter_matches_with_disambiguation(
                     detected_instrument = instrument_match.group(0) if instrument_match else None
 
                     # Update the History Buffers (Critical for "Lookback" logic)
-                    paragraph_category_history.append((idx, detected_cat, detected_instrument))
+                    paragraph_category_history.append((sent_idx, detected_cat, detected_instrument))
                     global_sentence_history.append((
-                        para_idx, idx, detected_cat, detected_instrument, 
+                        para_idx, sent_idx, detected_cat, detected_instrument, 
                         f"[TRADING-DELETED-CONTEXT] {deleted_text[:80]}"
                     ))
 
@@ -822,12 +822,12 @@ def filter_matches_with_disambiguation(
 
                     # Add to history - this tells us what derivative type the document discusses
                     paragraph_category_history.append(
-                        (idx, detected_cat, detected_instrument)
+                        (sent_idx, detected_cat, detected_instrument)
                     )
                     global_sentence_history.append(
                         (
                             para_idx,
-                            idx,
+                            sent_idx,
                             detected_cat,
                             detected_instrument,
                             f"[AOCI] {sentence[:80]}",
@@ -883,12 +883,12 @@ def filter_matches_with_disambiguation(
                         )
 
                         paragraph_category_history.append(
-                            (idx, detected_cat, detected_instrument)
+                            (sent_idx, detected_cat, detected_instrument)
                         )
                         global_sentence_history.append(
                             (
                                 para_idx,
-                                idx,
+                                sent_idx,
                                 detected_cat,
                                 detected_instrument,
                                 f"[PNL-REMAINING] {sentence[:80]}",
@@ -904,12 +904,12 @@ def filter_matches_with_disambiguation(
                         )
 
                         paragraph_category_history.append(
-                            (idx, detected_cat, detected_instrument)
+                            (sent_idx, detected_cat, detected_instrument)
                         )
                         global_sentence_history.append(
                             (
                                 para_idx,
-                                idx,
+                                sent_idx,
                                 detected_cat,
                                 detected_instrument,
                                 f"[PNL-DELETED] {deleted_text[:80]}",
@@ -932,12 +932,12 @@ def filter_matches_with_disambiguation(
 
                         # Track even though discarding
                         paragraph_category_history.append(
-                            (idx, detected_cat, detected_instrument)
+                            (sent_idx, detected_cat, detected_instrument)
                         )
                         global_sentence_history.append(
                             (
                                 para_idx,
-                                idx,
+                                sent_idx,
                                 detected_cat,
                                 detected_instrument,
                                 f"[PNL ONLY] {sentence[:80]}",
@@ -986,28 +986,28 @@ def filter_matches_with_disambiguation(
 
                 # Build paragraph with context
                 parts = [sentence]
-                context_indices = {idx}
+                context_indices = {sent_idx}
 
                 # Try to incorporate adjacent sentences
-                if idx > 0 and (idx - 1) not in used_indices:
-                    prev = sentences[idx - 1]
+                if sent_idx > 0 and (sent_idx - 1) not in used_indices:
+                    prev = sentences[sent_idx - 1]
                     if len(prev) >= MIN_SENTENCE_LENGTH:
                         parts.insert(0, prev)
-                        context_indices.add(idx - 1)
+                        context_indices.add(sent_idx - 1)
 
-                if idx + 1 < len(sentences) and (idx + 1) not in used_indices:
-                    nxt = sentences[idx + 1]
+                if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
+                    nxt = sentences[sent_idx + 1]
                     if len(nxt) >= MIN_SENTENCE_LENGTH:
                         parts.append(nxt)
-                        context_indices.add(idx + 1)
+                        context_indices.add(sent_idx + 1)
 
                 final_paragraphs.append((" ".join(parts), primary))
                 used_indices.update(context_indices)
 
                 # Update both histories
-                paragraph_category_history.append((idx, primary, current_instrument))
+                paragraph_category_history.append((sent_idx, primary, current_instrument))
                 global_sentence_history.append(
-                    (para_idx, idx, primary, current_instrument, sentence[:100])
+                    (para_idx, sent_idx, primary, current_instrument, sentence[:100])
                 )
 
             # ═══════════════════════════════════════════════════════════
@@ -1016,32 +1016,32 @@ def filter_matches_with_disambiguation(
             elif len(specific_cats) == 1:
                 primary = list(specific_cats)[0]
                 parts = [sentence]
-                context_indices = {idx}
+                context_indices = {sent_idx}
 
                 # Category-compatible context incorporation
-                if idx > 0 and (idx - 1) not in used_indices:
-                    prev = sentences[idx - 1]
+                if sent_idx > 0 and (sent_idx - 1) not in used_indices:
+                    prev = sentences[sent_idx - 1]
                     if len(prev) >= MIN_SENTENCE_LENGTH:
                         prev_cats = get_sentence_categories(prev)
                         if primary in prev_cats or not (prev_cats - {"gen", "other"}):
                             parts.insert(0, prev)
-                            context_indices.add(idx - 1)
+                            context_indices.add(sent_idx - 1)
 
-                if idx + 1 < len(sentences) and (idx + 1) not in used_indices:
-                    nxt = sentences[idx + 1]
+                if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
+                    nxt = sentences[sent_idx + 1]
                     if len(nxt) >= MIN_SENTENCE_LENGTH:
                         nxt_cats = get_sentence_categories(nxt)
                         if primary in nxt_cats or not (nxt_cats - {"gen", "other"}):
                             parts.append(nxt)
-                            context_indices.add(idx + 1)
+                            context_indices.add(sent_idx + 1)
 
                 final_paragraphs.append((" ".join(parts), primary))
                 used_indices.update(context_indices)
 
                 # Update histories AFTER successful classification
-                paragraph_category_history.append((idx, primary, current_instrument))
+                paragraph_category_history.append((sent_idx, primary, current_instrument))
                 global_sentence_history.append(
-                    (para_idx, idx, primary, current_instrument, sentence[:100])
+                    (para_idx, sent_idx, primary, current_instrument, sentence[:100])
                 )
 
             # ═══════════════════════════════════════════════════════════
@@ -1061,8 +1061,8 @@ def filter_matches_with_disambiguation(
                         parts = [pure_variant]
 
                         # Context incorporation with excision
-                        if idx > 0 and (idx - 1) not in used_indices:
-                            prev = sentences[idx - 1]
+                        if sent_idx > 0 and (sent_idx - 1) not in used_indices:
+                            prev = sentences[sent_idx - 1]
                             if len(prev) >= MIN_SENTENCE_LENGTH:
                                 prev_cats = get_sentence_categories(prev)
                                 if target_cat in prev_cats or not (
@@ -1074,8 +1074,8 @@ def filter_matches_with_disambiguation(
                                     if clean_prev:
                                         parts.insert(0, clean_prev)
 
-                        if idx + 1 < len(sentences) and (idx + 1) not in used_indices:
-                            nxt = sentences[idx + 1]
+                        if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
+                            nxt = sentences[sent_idx + 1]
                             if len(nxt) >= MIN_SENTENCE_LENGTH:
                                 nxt_cats = get_sentence_categories(nxt)
                                 if target_cat in nxt_cats or not (
@@ -1106,19 +1106,19 @@ def filter_matches_with_disambiguation(
                 # Use the first successful category as the "dominant" one for future lookback
                 if any_variant_succeeded and first_successful_category:
                     paragraph_category_history.append(
-                        (idx, first_successful_category, current_instrument)
+                        (sent_idx, first_successful_category, current_instrument)
                     )
                     global_sentence_history.append(
                         (
                             para_idx,
-                            idx,
+                            sent_idx,
                             first_successful_category,
                             current_instrument,
                             sentence[:100],
                         )
                     )
 
-                used_indices.add(idx)
+                used_indices.add(sent_idx)
     # -------------------------------------------------------------------------
     # FINAL SAFETY CHECK: Ensure instrument name survived cleaning
     # -------------------------------------------------------------------------
