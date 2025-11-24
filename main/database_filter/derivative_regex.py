@@ -78,7 +78,6 @@ UNAMBIGUOUS_BASE_TYPES = [
     "collars?",
     "derivatives?",
     "swaptions?",
-    "locks?",
     "hedges?",
 ]
 
@@ -86,6 +85,7 @@ AMBIGUOUS_BASE_TYPES = [
     "futures?",
     "options?",
     "hedging",
+    "locks?",
 ]
 
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
