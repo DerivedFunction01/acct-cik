@@ -2,6 +2,15 @@ from dataclasses import dataclass
 import re
 from typing import List, Tuple
 
+
+def build_alternation(items: List[str]) -> str:
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return f'(?:{"|".join(items)})'
+
+
 # =============================================================================
 # SHARED COMPONENTS (moved from filter_database.py)
 # =============================================================================
@@ -78,7 +87,10 @@ UNAMBIGUOUS_BASE_TYPES = [
     "collars?",
     "derivatives?",
     "swaptions?",
-    "hedges?",
+    "hedges",
+    "futures",
+    "call options?",
+    "put options?",
 ]
 
 AMBIGUOUS_BASE_TYPES = [
@@ -86,23 +98,17 @@ AMBIGUOUS_BASE_TYPES = [
     "options?",
     "hedging",
     "locks?",
+    "hedges?",
 ]
 
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
-
+HIGH_PRECISION_SUFFIXES = re.compile(r"\b" + build_alternation(UNAMBIGUOUS_BASE_TYPES) + r"\b", re.IGNORECASE)
 ALL_SUFFIXES = [
     "agreements?",
     "contracts?",
     "instruments?",
     "arrangements?",
-    # "assets?",      <-- DELETE (Too common in accounting)
-    # "liabilit(?:y|ies)", <-- DELETE (Too common)
-    # "commitments?", <-- DELETE (Legal term)
-    # "positions?",   <-- DELETE (Business term)
-    # "strateg(?:ies|y)", <-- DELETE (Business term)
     "options?",
-    "call options?",
-    "put options?",
 ]
 
 COMMON_COMMODITIES = [
@@ -184,12 +190,6 @@ MIN_SENTENCE_LENGTH = 15
 # =============================================================================
 # REGEX BUILDERS (moved)
 # =============================================================================
-def build_alternation(items: List[str]) -> str:
-    if not items:
-        return ""
-    if len(items) == 1:
-        return items[0]
-    return f'(?:{"|".join(items)})'
 
 
 def build_smart_regex(
@@ -1597,4 +1597,5 @@ __all__ = [
     "WEAK_VERB_PATTERN",
     "ACTIVE_STATE_REGEX",
     "validate_instrument_retention",
+    "HIGH_PRECISION_SUFFIXES",
 ]
