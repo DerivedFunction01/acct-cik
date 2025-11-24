@@ -73,15 +73,17 @@ def run_pipeline():
 
             # 3. Analysis: Visual Sampling (HTML)
             # Generates sample_view_{db_name}.html
-            run_command(
+            if not run_command(
                 [PYTHON_EXEC, "run_analysis.py", "sample", db_target],
-                f"Generating Visual Sample for {db_target}",
-            )
+                f"Visual Sample: {db_target}",
+            ):
+                log(
+                    f"⚠️ Non-critical error: Visual sampling failed for {db_target}. Continuing."
+                )
 
             # 4. Analysis: Diff Comparison (Excel)
-            # Compare current step with previous step to see what dropped
             if previous_csv and Path(previous_csv).exists():
-                run_command(
+                if not run_command(
                     [
                         PYTHON_EXEC,
                         "run_analysis.py",
@@ -89,8 +91,9 @@ def run_pipeline():
                         previous_csv,
                         csv_target,
                     ],
-                    f"Comparing {previous_csv} vs {csv_target}",
-                )
+                    f"Compare: {previous_csv} vs {csv_target}",
+                ):
+                    log(f"⚠️ Non-critical error: Comparison failed. Continuing.")
 
             previous_csv = csv_target
 
