@@ -30,6 +30,7 @@ Example Transformation:
 """
 
 import json
+import logging
 from pathlib import Path
 import re
 from tqdm import tqdm
@@ -42,7 +43,6 @@ import sqlite3
 # Import all derivative regexes
 
 from derivative_regex import (
-    ALL_REGEX,
     CATEGORY_REGEX,
     DEFINITION_INDICATORS,
     EXCLUDE_REGEX_ACCOUNTING_STD,
@@ -55,9 +55,9 @@ from derivative_regex import (
     LOOSE_GEN_REGEX,
     POSITION_CONTEXT_INDICATORS,
     STRICT_GEN_REGEX,
-    SOFT_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
+    STRICT_REGEX,
     TRADING_STATEMENTS_REGEX,
     check_for_instrument,
     cleanup_fragment,
@@ -75,7 +75,90 @@ from derivative_regex import (
 # CONFIGURATION
 # =============================================================================
 
+# --- NEW: ML Resolver -------------------------------------------------
+import requests
+class NetworkDerivativeResolver:
 
+    def __init__(
+        self,
+        api_url="http://localhost:5001/predict",
+        confidence_threshold=0.85,
+        context_window_size=3,
+        timeout=60,
+    ):
+        self.api_url = api_url
+        self.confidence_threshold = confidence_threshold
+        self.context_window_size = context_window_size
+        self.timeout = timeout
+
+    def resolve_batch(self, context_windows: list) -> list:
+        """
+        Args:
+            context_windows: List of strings ["prev [SEP] target [SEP] next", ...]
+        Returns:
+            List of labels ["ir", "gen", "cp", ...]
+        """
+        if not context_windows:
+            return []
+
+        try:
+            # Send batch to server
+            response = requests.post(
+                self.api_url, json={"texts": context_windows}, timeout=30
+            )
+            response.raise_for_status()
+
+            # Parse results
+            predictions = response.json().get("predictions", [])
+            final_labels = []
+
+            for pred in predictions:
+                if "error" in pred:
+                    final_labels.append("gen")  # Fallback
+                    continue
+
+                # Get highest score label
+                # pred looks like: {'ir': 0.99, 'fx': 0.01...}
+                best_label = max(pred, key=pred.get)
+                score = pred[best_label]
+
+                # Thresholding (Client Side)
+                if score > 0.85:
+                    final_labels.append(best_label)
+                else:
+                    final_labels.append("gen")
+
+            return final_labels
+
+        except Exception as e:
+            print(f"⚠️ Resolver API Error: {e}")
+            # Fail safe: return 'gen' for everything so we don't crash
+            return ["gen"] * len(context_windows)
+
+
+# Global resolver instance (initialized once at startup)
+RESOLVER: Optional[NetworkDerivativeResolver] = None
+
+
+def initialize_resolver(api_url: str = "http://localhost:5001/predict"):
+    """Initialize the RoBERTa resolver – called once at program start."""
+    global RESOLVER
+    try:
+        RESOLVER = NetworkDerivativeResolver(
+            api_url=api_url,
+            confidence_threshold=0.85,
+            context_window_size=3,
+            timeout=60,
+        )
+        print("ML resolver initialized successfully")
+    except Exception as e:
+        print(
+            f"ML resolver unavailable ({e}) – will fall back to regex-only resolution"
+        )
+        RESOLVER = None
+
+
+# ---------------------------------------------------------------------
 def get_worker_count():
     """Auto-detects CPU cores to set worker count."""
     cpu_cores = mp.cpu_count()
@@ -694,74 +777,10 @@ def filter_matches_with_disambiguation(
             # NOISE REDUCTION: Trading denial clause removal
             # ═══════════════════════════════════════════════════════════
 
-            # if TRADING_STATEMENTS_REGEX.search(sentence):
-            #     deleted_text = " ".join(
-            #         m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence)
-            #     )
-            #     all_discarded.append((url, deleted_text.strip(), "trading_statements"))
-
-            #     # Remove the trading denial clause
-            #     sentence = TRADING_STATEMENTS_REGEX.sub("", sentence)
-            #     sentence = cleanup_fragment(sentence)
-
-            #     # PRIORITY 1: Check remaining fragment for category
-            #     remaining_cats = (
-            #         get_sentence_categories(sentence) if sentence else set()
-            #     )
-            #     remaining_specific_cats = remaining_cats - {"gen", "other"}
-
-            #     # PRIORITY 2: Check deleted clause for category
-            #     deleted_cats = get_sentence_categories(deleted_text)
-            #     deleted_specific_cats = deleted_cats - {"gen", "other"}
-
-            #     # Use remaining fragment category if available (higher priority)
-            #     if remaining_specific_cats:
-            #         detected_cat = list(remaining_specific_cats)[0]
-            #         instrument_match = ALL_REGEX.search(sentence)
-            #         detected_instrument = (
-            #             instrument_match.group(0) if instrument_match else None
-            #         )
-
-            #         paragraph_category_history.append(
-            #             (idx, detected_cat, detected_instrument)
-            #         )
-            #         global_sentence_history.append(
-            #             (
-            #                 para_idx,
-            #                 idx,
-            #                 detected_cat,
-            #                 detected_instrument,
-            #                 f"[TRADING-REMAINING] {sentence[:80]}",
-            #             )
-            #         )
-
-            #     # Fall back to deleted clause category if remaining is generic
-            #     elif deleted_specific_cats:
-            #         detected_cat = list(deleted_specific_cats)[0]
-            #         instrument_match = ALL_REGEX.search(deleted_text)
-            #         detected_instrument = (
-            #             instrument_match.group(0) if instrument_match else None
-            #         )
-
-            #         paragraph_category_history.append(
-            #             (idx, detected_cat, detected_instrument)
-            #         )
-            #         global_sentence_history.append(
-            #             (
-            #                 para_idx,
-            #                 idx,
-            #                 detected_cat,
-            #                 detected_instrument,
-            #                 f"[TRADING-DELETED] {deleted_text[:80]}",
-            #             )
-            #         )
-
-            #     if not sentence:
-            #         continue
             if TRADING_STATEMENTS_REGEX.search(sentence):
                 # 1. Capture what we are about to delete (for history tracking)
                 deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
-                
+
                 # 2. Extract Category Signal from the denial (Valuable for Context!)
                 # We want to know this paragraph is about "IR" or "FX", even if we delete the sentence.
                 deleted_cats = get_sentence_categories(deleted_text)
@@ -769,7 +788,7 @@ def filter_matches_with_disambiguation(
 
                 if deleted_specific_cats:
                     detected_cat = list(deleted_specific_cats)[0]
-                    instrument_match = ALL_REGEX.search(deleted_text)
+                    instrument_match = STRICT_REGEX.search(deleted_text)
                     detected_instrument = instrument_match.group(0) if instrument_match else None
 
                     # Update the History Buffers (Critical for "Lookback" logic)
@@ -780,9 +799,8 @@ def filter_matches_with_disambiguation(
                     ))
 
                 # 3. THE CHANGE: Unconditionally Discard the Text
-                # Do not attempt to salvage "remaining_cats". The risk of "We [do not] use" -> "We use" is too high.
                 all_discarded.append((url, sentence, "trading_statements_full_delete"))
-                
+
                 # Skip to next sentence
                 continue
 
@@ -797,7 +815,7 @@ def filter_matches_with_disambiguation(
 
                 if aoci_specific_cats:
                     detected_cat = list(aoci_specific_cats)[0]
-                    instrument_match = ALL_REGEX.search(sentence)
+                    instrument_match = STRICT_REGEX.search(sentence)
                     detected_instrument = (
                         instrument_match.group(0) if instrument_match else None
                     )
@@ -825,8 +843,8 @@ def filter_matches_with_disambiguation(
             # ═══════════════════════════════════════════════════════════
 
             if PNL_ONLY_NO_POSITION.search(sentence):
-                # Check if there's an instrument name (strong signal to keep)
-                has_instrument = bool(ALL_REGEX.search(sentence))
+                # Check if there's an instrument name (strong signal to keep) or notional indicator
+                has_instrument = bool(STRICT_REGEX.search(sentence))
 
                 # Check if there's position context
                 has_position_context = bool(
@@ -859,7 +877,7 @@ def filter_matches_with_disambiguation(
                     # Use remaining fragment category if available (higher priority)
                     if remaining_specific_cats:
                         detected_cat = list(remaining_specific_cats)[0]
-                        instrument_match = ALL_REGEX.search(sentence)
+                        instrument_match = STRICT_REGEX.search(sentence)
                         detected_instrument = (
                             instrument_match.group(0) if instrument_match else None
                         )
@@ -880,7 +898,7 @@ def filter_matches_with_disambiguation(
                     # Fall back to deleted clause category
                     elif pnl_specific_cats:
                         detected_cat = list(pnl_specific_cats)[0]
-                        instrument_match = ALL_REGEX.search(deleted_text)
+                        instrument_match = STRICT_REGEX.search(deleted_text)
                         detected_instrument = (
                             instrument_match.group(0) if instrument_match else None
                         )
@@ -907,7 +925,7 @@ def filter_matches_with_disambiguation(
 
                     if pnl_specific_cats:
                         detected_cat = list(pnl_specific_cats)[0]
-                        instrument_match = ALL_REGEX.search(sentence)
+                        instrument_match = STRICT_REGEX.search(sentence)
                         detected_instrument = (
                             instrument_match.group(0) if instrument_match else None
                         )
@@ -929,7 +947,7 @@ def filter_matches_with_disambiguation(
                     all_discarded.append((url, sentence, "pnl_only_no_position"))
                     continue
 
-            if not ALL_REGEX.search(sentence):
+            if not STRICT_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue
 
@@ -943,7 +961,7 @@ def filter_matches_with_disambiguation(
 
             # Extract instrument for tracking
             current_instrument = None
-            instrument_match = ALL_REGEX.search(sentence)
+            instrument_match = STRICT_REGEX.search(sentence)
             if instrument_match:
                 current_instrument = instrument_match.group(0)
 
@@ -1259,21 +1277,18 @@ def resolve_generic_reference(
 def process_item_buffered(
     item: Tuple[str, str], report_data_map: dict
 ) -> Optional[Tuple]:
-    """
-    Worker function to process a single URL's matches.
-    Returns data instead of writing to database.
-    """
     url, matches_json = item
     try:
+        # NEW: use ML-enhanced version
         strict_matches, discarded = filter_matches_with_disambiguation(matches_json, url)
 
         if not strict_matches:
             return None
 
-        # Get metadata from the passed-in map
         cik, year = report_data_map.get(url, (None, None))
         return (url, strict_matches, cik, year, discarded)
-    except Exception:
+    except Exception as e:
+        logging.error(f"Error processing {url}: {e}")
         return None
 
 
@@ -1394,6 +1409,7 @@ def print_discard_summary():
 # =============================================================================
 # %%
 if __name__ == "__main__":
+    initialize_resolver(api_url="http://localhost:5001/predict")
     # Run the filtering process
     process_and_filter_database()
 

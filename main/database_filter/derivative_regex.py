@@ -720,6 +720,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "cash flow hedges?",
         "fair value hedges?",
         "embedded derivatives?",
+        "over[- ]the[- ]counter derivatives?",
+        "derivative financial instruments?",
     ]
 
     instrument_pattern = build_alternation(instrument_parts + instrument_specific)
@@ -731,9 +733,6 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     # ── 2. Notional phrases (very high precision, no overlap with instruments) ──
     notional_variants = [
         r"notional\s+(?:amounts?|values?|principals?)\b",
-        r"notional\s+(?:amount|value|principal)\s+(?:thereof|outstanding)?\b",
-        r"(?:aggregate|total)\s+notional\s+(?:amount|value|principal)\b",
-        r"notional\s+(?:of\s+)?(?:[\d,]+(?:\.\d+)?\s*(?:million|billion|trillion)?|approximately?\s*[\d,]+)",
     ]
 
     NOTIONAL_REGEX = re.compile(
@@ -762,10 +761,7 @@ def build_soft_gen_regex() -> re.Pattern:
         "change in fair value of derivatives?",
         "derivative expense",
         "designated as (?:a )?hedges?",
-        "derivative financial instruments?",
-        "derivative (?:assets?|liabilities|gains?|losses?|positions?|contracts?|instruments?)",
         "(?:gain|loss) on derivatives?",
-        "over[- ]the[- ]counter derivatives?",
     ]
     pattern = build_alternation(specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
