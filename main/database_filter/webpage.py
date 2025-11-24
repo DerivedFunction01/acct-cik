@@ -112,36 +112,12 @@ else:
 # =============================================================================
 
 # Import all derivative regexes and patterns
-try:
-    from derivative_regex import (
-        SENTENCE_SPLIT_PATTERN,
-        IR_REGEX,
-        FX_REGEX,
-        CP_REGEX,
-        EQ_REGEX,
-        STRICT_GEN_REGEX,
-        SOFT_GEN_REGEX,
-        COMBINED_REGEX,
-        TABLE_BASE_TYPES_REGEX,
-        IGNORE_REGEX,
-        EQUITY_COMP_KEYWORDS_WEBPAGE,
-        LEGAL_LITIGATION_KEYWORDS_WEBPAGE,
-    )
-except Exception:
-    from .derivative_regex import (
-        SENTENCE_SPLIT_PATTERN,
-        IR_REGEX,
-        FX_REGEX,
-        CP_REGEX,
-        EQ_REGEX,
-        STRICT_GEN_REGEX,
-        SOFT_GEN_REGEX,
-        COMBINED_REGEX,
-        TABLE_BASE_TYPES_REGEX,
-        IGNORE_REGEX,
-        EQUITY_COMP_KEYWORDS_WEBPAGE,
-        LEGAL_LITIGATION_KEYWORDS_WEBPAGE,
-    )
+from derivative_regex import (
+    COMBINED_REGEX,
+    SENTENCE_SPLIT_PATTERN,
+    TABLE_BASE_TYPES_REGEX,
+    IGNORE_REGEX,
+)
 
 FILING_TYPES = {
     "10-K",
@@ -465,7 +441,7 @@ def extract_content(data: str, asHTML=True) -> str:
                 # Signal 1: Check for extremely long cells (>500 chars = definitely paragraph text)
                 for row in rows:
                     for cell in row:
-                        if len(cell) > 500:  # Very high threshold
+                        if len(cell) > 200:  # Very high threshold
                             convert_to_paragraphs = True
                             debug_print(
                                 f"⚠️  Found cell with {len(cell)} chars - converting to paragraphs"
@@ -484,10 +460,8 @@ def extract_content(data: str, asHTML=True) -> str:
                             if cell:
                                 total_cells += 1
                                 # Count sentence endings (. ! ?) followed by capital letter
-                                sentence_endings = len(
-                                    re.findall(r"[.!?]\s+[A-Z]", cell)
-                                )
-                                if sentence_endings >= 3:  # 3+ sentences in one cell
+                                sentence_endings = len(SENTENCE_SPLIT_PATTERN.split(cell))
+                                if sentence_endings >= 2:  # 2+ sentences in one cell
                                     cells_with_multiple_sentences += 1
 
                     # If >50% of cells have multiple sentences, it's paragraph text
@@ -497,7 +471,7 @@ def extract_content(data: str, asHTML=True) -> str:
                     ):
                         convert_to_paragraphs = True
                         debug_print(
-                            f"⚠️  {cells_with_multiple_sentences}/{total_cells} cells have 3+ sentences - converting to paragraphs"
+                            f"⚠️  {cells_with_multiple_sentences}/{total_cells} cells have 2+ sentences - converting to paragraphs"
                         )
 
                 # Signal 3: Check for very high average text density across ALL cells

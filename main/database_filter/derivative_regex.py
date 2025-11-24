@@ -815,8 +815,7 @@ ALL_REGEX = re.compile(
 
 # Section 1: Employee Equity Compensation
 EQUITY_COMP_KEYWORDS = [
-    "stock option",
-    "stock award",
+    "stock (?:options?|awards?|splits?|dividends?|purchases?)",
     "restricted stock",
     "RSU",
     "compensation",
@@ -824,14 +823,11 @@ EQUITY_COMP_KEYWORDS = [
     "share-based",
     "vesting",
     "exercisable",
-    "stock purchase",
     "ESPP",
     "bonus",
     "salary",
     "wage",
     "dividend",
-    "stock split",
-    "stock dividend",
     "outstanding shares",
     "share repurchase",
     "buyback",
@@ -1212,43 +1208,7 @@ PRIOR_PATTERN = build_prior_statement_pattern()
 # EXCLUSION PATTERNS (from webpage.py)
 # =============================================================================
 
-EQUITY_COMP_KEYWORDS_WEBPAGE = [
-    "stock (?:options?|awards?|splits?|dividends?|purchases?)",
-    "restricted stock",
-    "RSU",
-    "compensation",
-    "employee",
-    "share[- ]based",
-    "vesting",
-    "exercisable",
-    "ESPP",
-    "bonus",
-    "salary",
-    "wage",
-    "dividend",
-    "shares",
-    "share repurchase",
-    "buyback",
-    "warrant",
-    "hedge fund",
-    "pension",
-    "renewal",
-]
-
-LEGAL_LITIGATION_KEYWORDS_WEBPAGE = [
-    "lawsuit",
-    "litigation",
-    "arbitration",
-    "(?:civil|legal|administrative|criminal) action",
-    "officer",
-    "director",
-    "convicted",
-    "judgement",
-    "violated",
-]
-
-IGNORE_WORDS = EQUITY_COMP_KEYWORDS_WEBPAGE + LEGAL_LITIGATION_KEYWORDS_WEBPAGE
-IGNORE_REGEX = re.compile(r"|".join(IGNORE_WORDS), re.IGNORECASE)
+IGNORE_REGEX = re.compile(r"|".join(LEGAL_LITIGATION_KEYWORDS + EQUITY_COMP_KEYWORDS), re.IGNORECASE)
 
 # =============================================================================
 # TABLE AND MISCELLANEOUS PATTERNS
@@ -1614,8 +1574,6 @@ __all__ = [
     "COMBINED_EXCLUDE_REGEX",
     "TRADING_STATEMENTS_REGEX",
     "EQUITY_COMP_KEYWORDS_WEBPAGE",
-    "LEGAL_LITIGATION_KEYWORDS_WEBPAGE",
-    "IGNORE_WORDS",
     "IGNORE_REGEX",
     "TABLE_BASE_TYPES_REGEX",
     "YEAR_REGEX",
