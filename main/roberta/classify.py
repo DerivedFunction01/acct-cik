@@ -1,5 +1,7 @@
 # =============================================================================
-# Model Classification Script - Chunked Processing (Single-Label)
+# Model Classification Script - Chunked Processing (Single-Label). Note, 
+# this script fell out of favor with a regex based approach to determine noise,
+# But serves as a reference in case there is a need for a script again.
 # =============================================================================
 import pandas as pd
 import requests
