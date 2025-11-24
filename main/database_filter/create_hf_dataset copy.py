@@ -8,8 +8,7 @@ from concurrent.futures import ProcessPoolExecutor
 from collections import Counter, defaultdict
 import sys
 import os
-
-# Import tqdm for progress bars
+import hashlib
 from tqdm import tqdm
 
 # Ensure we can import local modules
@@ -34,9 +33,16 @@ from filter_database import get_sentence_categories
 # CONFIGURATION
 # =============================================================================
 DB_PATH = "web_data.db"
-OUTPUT_PATH = "roberta/classification_data_v11_tqdm.parquet"
-TARGET_SAMPLES_PER_CLASS = 6000
+OUTPUT_PATH = "roberta/classification_data_v13_lean.parquet"
+
+# Optional External Data (Only keeping GEN based on your request)
+EXTERNAL_GEN_PATH = "roberta/gen_terms_cleaned.parquet"
+
+# REDUCED SAMPLE SIZE
+# 2,500 is sufficient for RoBERTa fine-tuning if the data is high quality.
+TARGET_SAMPLES_PER_CLASS = 2500
 SATURATION_LIMIT = int(TARGET_SAMPLES_PER_CLASS * 1.5)
+
 CONTEXT_WINDOW_SIZE = 1
 CHUNK_SIZE = 5000
 MAX_WORKERS = max(1, mp.cpu_count() - 1)
@@ -60,19 +66,41 @@ CONFLICT_CATEGORY_MAP = {
 # =============================================================================
 
 
+class ContentDeduplicator:
+    """Prevents near-duplicate sentences."""
+
+    def __init__(self):
+        self.seen_hashes = set()
+        self.dupe_count = 0
+
+    def is_duplicate(self, text: str) -> bool:
+        # Normalize: Lowercase + Remove numbers + Remove punctuation
+        norm = re.sub(r"\d+", "0", text.lower())
+        norm = re.sub(r"[^\w]", "", norm)
+
+        if len(norm) < 10:
+            return False
+
+        content_hash = hashlib.md5(norm.encode("utf-8")).hexdigest()
+        if content_hash in self.seen_hashes:
+            self.dupe_count += 1
+            return True
+        self.seen_hashes.add(content_hash)
+        return False
+
+
 class ContextScorer:
     def score(self, text: str, label: str) -> int:
         regex = CATEGORY_CONTEXT_MAP.get(label)
         if not regex:
             return 0
-
         matches = regex.findall(text)
         unique_hits = set(m.lower() for m in matches)
-
         score = len(unique_hits) * 10
         if re.search(r"\b(hedg|mitigat|manag)(?:e|es|ed|ing)\b", text, re.I):
             score += 15
 
+        # Category specific bonuses
         if label == "ir" and re.search(
             r"\b(variable|floating|fixed)\s+rate\b", text, re.I
         ):
@@ -81,6 +109,22 @@ class ContextScorer:
             score += 20
         if label == "cp" and re.search(r"\b(price|commodity|fuel|oil)\b", text, re.I):
             score += 20
+
+        # Special Equity Handling (Stock Comp Penalty)
+        if label == "eq":
+            text_lower = text.lower()
+            is_comp_talk = any(
+                x in text_lower
+                for x in ["employee", "compensation", "vesting", "grant", "award"]
+            )
+            is_hedging_talk = re.search(
+                r"\b(hedg|mitigat|manag|offset)(?:e|es|ed|ing)\b", text, re.I
+            )
+
+            if is_comp_talk and not is_hedging_talk:
+                return -1  # Kill candidates that are purely HR talk
+            if is_comp_talk and is_hedging_talk:
+                score += 25  # Boost valid hedges of stock comp
 
         return score
 
@@ -117,7 +161,6 @@ class AugmentationEngine:
                     break
             replacement = f"{found_base} {random.choice(['', 'contract'])}".strip()
             strategy = "Loose_Variant"
-
         augmented_text = text[:start] + replacement + text[end:]
         return augmented_text, strategy
 
@@ -142,7 +185,7 @@ class DynamicContextBank:
 
 
 # =============================================================================
-# WORKER FUNCTIONS
+# WORKER & PROCESSING
 # =============================================================================
 
 
@@ -172,7 +215,6 @@ def has_conflict(text, label):
 def process_chunk(chunk_data):
     scorer = ContextScorer()
     augmenter_dummy = AugmentationEngine()
-
     local_candidates = []
     local_teachers = []
 
@@ -186,6 +228,8 @@ def process_chunk(chunk_data):
 
         for para in paragraphs:
             if "<TABLE>" in para:
+                continue
+            if not STRICT_REGEX.search(para):
                 continue
 
             sentences = [
@@ -215,10 +259,11 @@ def process_chunk(chunk_data):
                             override_target=blanked_target,
                         )
 
-                        if has_conflict(validation_text, label):
-                            score = -1
-                        else:
-                            score = scorer.score(validation_text, label)
+                        score = (
+                            -1
+                            if has_conflict(validation_text, label)
+                            else scorer.score(validation_text, label)
+                        )
 
                         local_candidates.append(
                             {
@@ -232,7 +277,6 @@ def process_chunk(chunk_data):
                                 "url": url,
                             }
                         )
-
                         if score >= 20:
                             aug_text, _ = augmenter_dummy.augment(
                                 sentence, match.span(), match.group(0)
@@ -264,15 +308,13 @@ def process_chunk(chunk_data):
                                     "subtype": "L0_Ambiguous_Instrument",
                                 }
                             )
-
                 else:
+                    # Waste Bin Mining
                     is_hedging_talk = bool(HEDGING_CONTEXT_REGEX.search(sentence))
                     is_accounting = bool(EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence))
-
                     if is_hedging_talk or is_accounting:
                         cats = get_sentence_categories(sentence)
                         specific_cats = cats - {"gen", "other"}
-
                         if len(specific_cats) == 0:
                             subtype = (
                                 "L0_Accounting" if is_accounting else "L0_Risk_Policy"
@@ -295,20 +337,23 @@ def process_chunk(chunk_data):
 
 
 # =============================================================================
-# MAIN PROCESS
+# MAIN
 # =============================================================================
 
 
 def create_labeled_dataset():
-    print(f"🚀 Starting Dataset Generation v11 (Progress Tracking Enabled)")
+    print(
+        f"🚀 Starting Dataset Generation v13 (Lean Target: {TARGET_SAMPLES_PER_CLASS})"
+    )
 
     conn = sqlite3.connect(DB_PATH)
-    # 1. Count total rows for progress bar
-    print("📊 Counting total rows in database...")
     cursor = conn.cursor()
-    cursor.execute("SELECT count(*) FROM webpage_result WHERE matches IS NOT NULL")
-    total_rows = cursor.fetchone()[0]
-    print(f"   -> Total Rows: {total_rows:,}")
+    try:
+        cursor.execute("SELECT count(*) FROM webpage_result WHERE matches IS NOT NULL")
+        total_rows = cursor.fetchone()[0]
+    except:
+        total_rows = 0
+    print(f"   Source DB Rows: {total_rows:,}")
 
     df_iter = pd.read_sql_query(
         "SELECT url, matches FROM webpage_result WHERE matches IS NOT NULL",
@@ -319,34 +364,30 @@ def create_labeled_dataset():
     global_candidates = defaultdict(list)
     context_bank = DynamicContextBank()
     augmenter = AugmentationEngine()
+    deduplicator = ContentDeduplicator()
 
     # --- PHASE 1: PARALLEL SCAN ---
     with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = []
-        future_sizes = {}  # Map future -> number of rows in chunk
+        future_sizes = {}
         iterator = iter(df_iter)
         active = True
 
-        # Initialize Phase 1 Progress Bar
-        with tqdm(total=total_rows, desc="Phase 1: Scanning", unit="rows") as pbar:
+        with tqdm(total=total_rows, desc="Scanning DB", unit="rows") as pbar:
             while active or futures:
-                # Fill queue
                 while len(futures) < MAX_WORKERS * 2 and active:
                     try:
                         chunk = next(iterator)
-                        chunk_len = len(chunk)
                         chunk_data = list(zip(chunk["url"], chunk["matches"]))
-
                         ft = executor.submit(process_chunk, chunk_data)
                         futures.append(ft)
-                        future_sizes[ft] = chunk_len
+                        future_sizes[ft] = len(chunk)
                     except StopIteration:
                         active = False
 
                 if not futures:
                     break
 
-                # Wait for results
                 import concurrent.futures
 
                 done, _ = concurrent.futures.wait(
@@ -355,34 +396,56 @@ def create_labeled_dataset():
 
                 for future in done:
                     futures.remove(future)
-                    nrows = future_sizes.pop(future, 0)
-                    pbar.update(nrows)  # Update progress bar
-
+                    pbar.update(future_sizes.pop(future, 0))
                     try:
                         candidates, teachers = future.result()
                         for label, url, text in teachers:
                             context_bank.add_teacher(label, url, text)
+
                         for c in candidates:
-                            global_candidates[c["label"]].append(c)
+                            # Dedup on ORIGINAL sentence
+                            if not deduplicator.is_duplicate(c["original_sent"]):
+                                global_candidates[c["label"]].append(c)
 
-                        # Update status text with counts
-                        counts = {k: len(v) for k, v in global_candidates.items()}
-                        pbar.set_postfix(counts)
-
-                        if all(
-                            len(global_candidates.get(l, [])) >= SATURATION_LIMIT
-                            for l in ["ir", "fx", "cp", "eq", "gen"]
-                        ):
-                            # pbar.write("🛑 All classes saturated. Stopping scan.")
-                            active = False
-                            futures = []
-                            break
+                        pbar.set_postfix(
+                            {k: len(v) for k, v in global_candidates.items()}
+                        )
                     except Exception as e:
-                        pbar.write(f"Worker error: {e}")
+                        pbar.write(f"Error: {e}")
     conn.close()
+    print(f"   🚫 Deduped {deduplicator.dupe_count:,} redundant sentences.")
+
+    # --- PHASE 1.5: INJECT EXTERNAL DATA (GEN ONLY) ---
+    # We removed Equity injection as requested.
+    for label, path in [("gen", EXTERNAL_GEN_PATH)]:
+        if os.path.exists(path):
+            print(f"📥 Injecting external {label.upper()} data from {path}...")
+            try:
+                ext_df = (
+                    pd.read_parquet(path)
+                    if path.endswith(".parquet")
+                    else pd.read_csv(path)
+                )
+                if "text" in ext_df.columns:
+                    for _, row in ext_df.iterrows():
+                        text = row["text"]
+                        if not deduplicator.is_duplicate(text):
+                            global_candidates[label].append(
+                                {
+                                    "label": label,
+                                    "sentences": [text],
+                                    "target_idx": 0,
+                                    "original_sent": text,
+                                    "score": 0,
+                                    "url": "EXTERNAL_DATASET",
+                                    "subtype": row.get("difficulty", "L0_External"),
+                                }
+                            )
+            except Exception as e:
+                print(f"Failed to load {path}: {e}")
 
     # --- PHASE 2: GENERATION ---
-    print("\n\n🏆 PASS 2: Generating Dataset...")
+    print("\n🏆 PASS 2: Generating Dataset...")
     final_data = []
     stats = Counter()
 
@@ -392,111 +455,93 @@ def create_labeled_dataset():
         else:
             items.sort(key=lambda x: x["score"], reverse=True)
 
-        # Phase 2 Progress Bar (Per Class)
-        limit = min(len(items), TARGET_SAMPLES_PER_CLASS)
-
-        for item in tqdm(
-            items, desc=f"  Generating {label:>3}", total=limit, leave=False
-        ):
+        for item in tqdm(items, desc=f"Generating {label}", leave=False):
             if stats[label] >= TARGET_SAMPLES_PER_CLASS:
                 break
 
             sentences = item["sentences"]
             idx = item["target_idx"]
-            orig_sent = item["original_sent"]
-            score = item["score"]
-            match_span = item["match_span"]
-            match_text = item["match_text"]
+            orig = item["original_sent"]
+            score = item.get("score", 0)
             url = item["url"]
-            subtype = item.get("subtype", "")
 
             row = {
                 "text": "",
                 "label": label,
                 "difficulty": "",
-                "debug_original": orig_sent,
-                "debug_match": match_text,
+                "debug_original": orig,
                 "debug_score": score,
                 "debug_hint": "None",
             }
 
-            if label == "gen":
+            if url == "EXTERNAL_DATASET":
+                row["text"] = orig
+                row["difficulty"] = item.get("subtype", "L0_External")
+
+            elif label == "gen":
                 row["text"] = get_context_window(sentences, idx, CONTEXT_WINDOW_SIZE)
-                row["difficulty"] = subtype if subtype else "L0_Ambiguous_Instrument"
-                stats[f"gen_{row['difficulty']}"] += 1
+                row["difficulty"] = item.get("subtype", "L0_Ambiguous")
 
             elif score == -1:
                 row["text"] = get_context_window(sentences, idx, CONTEXT_WINDOW_SIZE)
                 row["difficulty"] = "L4_Natural_Adverse"
-                stats[f"{label}_L4_Natural"] += 1
 
             elif score >= 20:
+                match_span = item["match_span"]
+                match_text = item["match_text"]
                 if random.random() < 0.2:
-                    conflict_cat = random.choice(CONFLICT_CATEGORY_MAP[label])
-                    fake_hint = context_bank.get_hint(conflict_cat, url)
-                    if fake_hint:
+                    conflict = random.choice(CONFLICT_CATEGORY_MAP[label])
+                    hint = context_bank.get_hint(conflict, url)
+                    if hint:
                         row["text"] = get_context_window(
                             sentences,
                             idx,
                             CONTEXT_WINDOW_SIZE,
-                            override_target=orig_sent,
-                            injected_hint=fake_hint,
+                            override_target=orig,
+                            injected_hint=hint,
                         )
                         row["difficulty"] = "L4_Synthetic_Adverse"
-                        row["debug_hint"] = f"FAKE({conflict_cat})"
-                        stats[f"{label}_L4_Synthetic"] += 1
                     else:
-                        aug_text, _ = augmenter.augment(
-                            orig_sent, match_span, match_text
-                        )
+                        aug, _ = augmenter.augment(orig, match_span, match_text)
                         row["text"] = get_context_window(
-                            sentences,
-                            idx,
-                            CONTEXT_WINDOW_SIZE,
-                            override_target=aug_text,
+                            sentences, idx, CONTEXT_WINDOW_SIZE, override_target=aug
                         )
                         row["difficulty"] = "L2_Masked"
-                        stats[f"{label}_L2_Masked"] += 1
                 else:
-                    aug_text, _ = augmenter.augment(orig_sent, match_span, match_text)
+                    aug, _ = augmenter.augment(orig, match_span, match_text)
                     row["text"] = get_context_window(
-                        sentences, idx, CONTEXT_WINDOW_SIZE, override_target=aug_text
+                        sentences, idx, CONTEXT_WINDOW_SIZE, override_target=aug
                     )
                     row["difficulty"] = "L2_Masked"
-                    stats[f"{label}_L2_Masked"] += 1
 
             elif score > 0:
                 if random.random() < 0.5:
-                    aug_text, _ = augmenter.augment(orig_sent, match_span, match_text)
+                    match_span = item["match_span"]
+                    match_text = item["match_text"]
+                    aug, _ = augmenter.augment(orig, match_span, match_text)
                     hint = context_bank.get_hint(label, url)
                     if hint:
                         row["text"] = get_context_window(
                             sentences,
                             idx,
                             CONTEXT_WINDOW_SIZE,
-                            override_target=aug_text,
+                            override_target=aug,
                             injected_hint=hint,
                         )
                         row["difficulty"] = "L3_Injected"
-                        row["debug_hint"] = hint[:30]
-                        stats[f"{label}_L3_Injected"] += 1
                     else:
                         row["text"] = get_context_window(
                             sentences, idx, CONTEXT_WINDOW_SIZE
                         )
                         row["difficulty"] = "L1_WeakContext"
-                        stats[f"{label}_L1_WeakContext"] += 1
                 else:
                     row["text"] = get_context_window(
                         sentences, idx, CONTEXT_WINDOW_SIZE
                     )
                     row["difficulty"] = "L1_WeakContext"
-                    stats[f"{label}_L1_WeakContext"] += 1
-
             else:
                 row["text"] = get_context_window(sentences, idx, CONTEXT_WINDOW_SIZE)
                 row["difficulty"] = "L1_NoContext"
-                stats[f"{label}_L1_NoContext"] += 1
 
             final_data.append(row)
             stats[label] += 1
@@ -504,8 +549,6 @@ def create_labeled_dataset():
     df = pd.DataFrame(final_data)
     print("\n📊 Final Distribution:")
     print(df["label"].value_counts())
-    print("\n", df["difficulty"].value_counts())
-
     df.to_parquet(OUTPUT_PATH, index=False)
     print(f"✅ Saved to {OUTPUT_PATH}")
 
