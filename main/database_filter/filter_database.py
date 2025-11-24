@@ -40,6 +40,7 @@ import multiprocessing as mp
 import time
 import sqlite3
 from itertools import groupby
+import uuid
 
 # Import all derivative regexes
 
@@ -533,6 +534,46 @@ def flush_buffers(force: bool = False) -> bool:
 # =============================================================================
 # CATEGORY DETECTION & VALIDATION
 # =============================================================================
+def scrub_unmatched_generics(text: str, category: str) -> str:
+    """
+    Removes generic derivative terms (e.g., 'options', 'swaps') UNLESS they are
+    part of the specific category match.
+
+    Strategy:
+    1. Find specific category matches (e.g., 'interest rate swaps').
+    2. Mask them with a unique placeholder.
+    3. Aggressively remove loose generic terms from the remaining text.
+    4. Restore the specific matches.
+    """
+    if category not in CATEGORY_DELETION_MAP:
+        return text
+
+    # 1. Get the regex for the category we want to KEEP (e.g., IR_REGEX)
+    keep_regex = CATEGORY_DELETION_MAP[category][0]
+
+    # 2. Mask specific matches
+    # We use a unique ID to avoid accidental partial replacement collisions
+    protections = {}
+
+    def mask_match(match):
+        token = f"__PROTECTED_{uuid.uuid4().hex}__"
+        protections[token] = match.group(0)
+        return token
+
+    masked_text = keep_regex.sub(mask_match, text)
+
+    # 3. Scrub generics from the REST of the text
+    # remove "swaps", "options", "contracts" that weren't protected
+    from derivative_regex import LOOSE_GEN_REGEX
+
+    scrubbed_text = LOOSE_GEN_REGEX.sub(" ", masked_text)
+
+    # 4. Restore the specific matches
+    for token, original_phrase in protections.items():
+        scrubbed_text = scrubbed_text.replace(token, original_phrase)
+
+    # 5. Cleanup whitespace
+    return cleanup_fragment(scrubbed_text)
 
 
 def get_sentence_categories(
@@ -744,7 +785,10 @@ def generate_single_category_variant(
     # Iteratively excise each conflicting category
     for target_category in excision_targets:
         cleaned = excise_category_terminology(cleaned, target_category)
-
+    # 2. NEW: Scrub Unmatched Generics
+    # Only keeps 'swaps' if it's inside 'interest rate swaps'
+    if preserve_category in ["ir", "fx", "cp", "eq"]:
+        cleaned = scrub_unmatched_generics(cleaned, preserve_category)
     # Validation 1: Minimum length requirement
     if len(cleaned) < MIN_SENTENCE_LENGTH:
         return None

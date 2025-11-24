@@ -28,7 +28,6 @@ comparison_phrases = [
     "as opposed to",
     "vis-à-vis",
     "when compared with",
-    "in comparison with",
 ]
 # State Descriptors (New)
 ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open"]
