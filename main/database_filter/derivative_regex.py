@@ -246,73 +246,31 @@ MIN_SENTENCE_LENGTH = 15
 # =============================================================================
 # REGEX BUILDERS (moved)
 # =============================================================================
-
-
 def build_smart_regex(
     core_terms: List[str],
     context_terms: List[str],
     specific_phrases: List[str],
-    sort_longest_first: bool = True
 ) -> str:
     """
-    Build smart regex combining core terms, context terms, and specific phrases.
-    Ensures proper ordering so specific patterns match before generic ones.
-    
-    Args:
-        core_terms: Base patterns (e.g., ["interest rate", "foreign exchange"])
-        context_terms: Follow-up terms (e.g., ["swap", "forward", "instrument"])
-        specific_phrases: Explicit full phrases (e.g., ["zero coupon swaps"])
-        sort_longest_first: If True, reorder all patterns for safe matching
-    
-    Returns:
-        Full pattern string ready for regex compilation
-    
-    Example:
-        >>> build_smart_regex(
-        ...     core_terms=["interest rate"],
-        ...     context_terms=["swap", "forward"],
-        ...     specific_phrases=["interest rate swap agreement"]
-        ... )
-        # Combines and re-sorts so "interest rate swap agreement" comes first
+    Build smart regex ensuring longest matches first.
+    "interest rate swap contract" matches fully, not just "interest rate swap"
     """
-    
-    # Phase 1: Build basic patterns
     core_pattern = build_alternation(core_terms, sort_longest_first=True)
     follow_pattern = build_alternation(context_terms, sort_longest_first=True)
-    
-    # Pattern 1: core + suffix (e.g., "interest rate" + "-" + "swap")
-    pattern1 = f"{core_pattern}[- ]{follow_pattern}" if core_pattern and follow_pattern else ""
-    
-    # Phase 2: Combine all pattern sources
-    all_patterns = []
-    
-    # Add generated core+suffix combinations
-    if pattern1:
-        all_patterns.append(pattern1)
-    
-    # Add core terms alone
-    all_patterns.extend(core_terms)
-    
-    # Add context terms alone
-    all_patterns.extend(context_terms)
-    
-    # Add explicit specific phrases
-    all_patterns.extend(specific_phrases)
-    
-    # Phase 3: If sorting enabled, re-sort the ENTIRE combined list
-    if sort_longest_first and len(all_patterns) > 1:
-        all_patterns = sorted(
-            all_patterns,
-            key=lambda x: (
-                -len(x.split()),    # Word count (descending)
-                -len(x)              # Character length (descending)
-            )
-        )
-    
-    # Phase 4: Build final alternation
-    if not all_patterns:
-        return ""
-    return build_alternation(all_patterns, sort_longest_first=False)  # Already sorted
+
+    # Core + suffix: "interest rate" + "-" + "swap"
+    pattern1 = f"{core_pattern}[- ]{follow_pattern}"
+
+    # Specific phrases like "zero coupon swaps"
+    if not specific_phrases:
+        return pattern1
+
+    pattern2 = build_alternation(specific_phrases, sort_longest_first=True)
+
+    # Return sorted so longest specific phrases come first
+    # E.g., "interest rate swap agreement" before "interest rate swap"
+    return build_alternation([pattern2, pattern1], sort_longest_first=True)
+
 
 # Interest Rate context clues
 IR_CONTEXT_TERMS = [
