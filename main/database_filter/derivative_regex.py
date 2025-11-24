@@ -67,16 +67,28 @@ PASSIVE_STATE_VERBS = [
     r"be\s+a\s+party\s+to",      # "Is a party to interest rate swaps"
     r"remained?\s+outstanding",
 ]
+
 SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<=[.!?])"  # Positive lookbehind for punctuation
-    r"(?<!\bU\.S\.)"  # Negative lookbehind for "U.S."
-    r"(?<!\bNo\.)"  # Negative lookbehind for "No."
-    r"(?<!\bInc\.)"  # Negative lookbehind for "Inc."
-    r"(?<!\bCorp\.)"  # Negative lookbehind for "Corp."
-    r"(?<!\bLtd\.)"  # Negative lookbehind for "Ltd."
-    r"\s+(?=[A-Z])"  # Whitespace + Uppercase
+    # 1. Protect Initials (e.g., "John H. Smith") -> Capital + Dot
+    r"(?<!\b[A-Z]\.)"
+    # 2. Protect 2-letter Acronyms (e.g., "U.S.", "U.K.", "N.Y.") -> Cap.Cap.
+    r"(?<!\b[A-Z]\.[A-Z]\.)"
+    # 3. Protect 3-letter Acronyms (e.g., "U.S.A.", "S.E.C.") -> Cap.Cap.Cap.
+    r"(?<!\b[A-Z]\.[A-Z]\.[A-Z]\.)"
+    # 4. Protect common Title/Corp abbreviations (Mixed Case)
+    r"(?<!\bInc\.)"
+    r"(?<!\bCorp\.)"
+    r"(?<!\bLtd\.)"
+    r"(?<!\bNo\.)"  # "Note No. 5"
+    r"(?<!\bNos\.)"  # Plural numbers
+    r"(?<!\bVol\.)"  # Volume
+    r"(?<!\bvs\.)"  # versus
+    r"(?<!\bpp?\.)"  # p. or pp. (pages)
+    r"(?<!\b[Ee]tc\.)"  # etc.
+    r"\s+(?=[A-Z])"  # Must be followed by Whitespace + Uppercase
     r"|"
-    r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries
+    r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (unchanged)
 )
 
 UNAMBIGUOUS_BASE_TYPES = [
