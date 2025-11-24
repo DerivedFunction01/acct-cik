@@ -554,6 +554,7 @@ EQ_CONTEXT_TERMS = [
     r"Nasdaq",
     r"Dow\s+Jones",
     r"dividend\s+yield",
+    r"warrants"
 ]
 
 # ... (Rest of file) ...
