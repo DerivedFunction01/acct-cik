@@ -374,7 +374,7 @@ def build_currency_patterns() -> List[str]:
             [
                 adj_esc + r"\s+(?:operations?|subsidiaries|entities)",
                 adj_esc + r"\s+(?:revenue|sales|income|earnings)",
-                adj_esc + r"\s+(?:assets?|liabilities)",
+                adj_esc + r"\s+(?:assets?|liabilit(?:y|ies))",
                 adj_esc + r"\s+(?:market|economy|business)",
                 adj_esc + r"\s+(?:exposure|risk)",
             ]
@@ -868,7 +868,7 @@ LEGAL_LITIGATION_KEYWORDS = [
 # === FASB ISSUANCE & ADOPTION ONLY ===
 ACCOUNTING_STANDARDS_KEYWORDS = [
     # Issuance announcements (the boilerplate you want to remove)
-    r"FASB\s+(?:issued|has\s+issued|released|published)",
+    r"(FASB|Financial Accounting Standards Board|F.A.S.B.)\s+(?:issued|has\s+issued|released|published)",
     r"(?:SFAS|FAS|ASU|ASC)\s+(?:No\.\s+)?\d+(?:-\d+)*\s+(?:was|is)\s+issued",
     r"issued.*(?:SFAS|FAS|ASU|Statement)\s+(?:No\.\s+)?\d+",
     r"in\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}.*(?:issued|released)",
@@ -896,7 +896,7 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     r"no\s+material\s+impact.*(?:upon|from)\s+adoption",
     # Standard descriptions (only in issuance context)
     r"establishes?\s+accounting\s+and\s+reporting\s+standards\s+(?:for|requiring)",
-    r"(?:this|the)\s+(?:statement|standard|guidance|amendment)\s+(?:addresses|clarifies|amends)",
+    r"(?:this|the)\s+(?:statement|standard|guidance|amendment)\s+(?:addresse(?:d|s)|clarifie(?:d|s)|amend(?:ed|s))",
     r"Accounting for Derivative Instruments and Hedging Activities",
 ]
 
@@ -1249,8 +1249,8 @@ PNL_ONLY_NO_POSITION = re.compile(
     (?!.*(?:
         {VERB_PATTERN}|
         position|outstanding|active|open|notional|
-        fair\s+value\s+(?:asset|liabilit)|
-        derivative.*(?:asset|liabilit)|designated|hedging\s+relationship
+        fair\s+value\s+(?:asset|liabilit(?:y|ies))|
+        derivative.*(?:asset|liabilit(?:y|ies))|designated|hedging\s+relationship
     ))
     """,
     re.IGNORECASE | re.VERBOSE,
@@ -1261,7 +1261,7 @@ POSITION_CONTEXT_INDICATORS = re.compile(
     (?:
         {VERB_PATTERN}|
         position|outstanding|notional|
-        fair\s+value.*(?:asset|liabilit)|
+        fair\s+value.*(?:asset|liabilit(?:y|ies))|
         designated
     )
     """,
