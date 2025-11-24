@@ -633,7 +633,7 @@ CP_CONTEXT_TERMS = [
     "btu", "gj", "mmbtu", "mmbtu/h", "mwh",
     "bushels", "cwt", "hundredweights", "pecks",
     "ounces", "pounds", "tons", "tonne", "long tons", "short tons",
-    "kiloliters", "liters", "cubic", "gallons", "joules", "gigajoules"
+     "joules", "gigajoules"
 ] + COMMON_COMMODITIES + ["commodity"]
 
 EQ_CONTEXT_TERMS = [
@@ -1218,6 +1218,12 @@ def build_trading_denial_pattern() -> re.Pattern:
     CLAUSE_6 = (
         rf"\bno\s+(?:{TRAD})(?:\s+or\s+(?:{TRAD}))?(?:\s+(?:{PURP}))?\b"
     )
+    CLAUSE_7 = (
+        rf"\b(?:{SUBJ}|derivatives?|instruments?|contracts?)\s+"
+        rf"(?:are|is|were|was)\s+not\s+"
+        rf"(?:used|held|entered|designated)\s+"
+        rf"(?:for\s+)?(?:{TRAD})(?:\s+(?:{PURP}))?\b"
+    )
     pattern = build_alternation(
         [
             CLAUSE_1,
@@ -1226,6 +1232,7 @@ def build_trading_denial_pattern() -> re.Pattern:
             CLAUSE_4,
             CLAUSE_5,
             CLAUSE_6,
+            CLAUSE_7,
         ]
     )
     return re.compile(pattern, re.IGNORECASE)
@@ -1480,6 +1487,9 @@ TERMINATION_VERBS = [
     r"ceased",
     r"closed",
     r"unwound",
+    r"exercised", # Essential for options/swaptions
+    r"extinguished",
+    r"novated", # Transferring the trade to another counterparty (implies exit)
 ]
 
 # Active / Timing Indicators (New)
