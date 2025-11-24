@@ -1,10 +1,11 @@
 # custom_analyzers/analysis.py
+import inspect
 import sqlite3
 import pandas as pd
 import json
 import multiprocessing as mp
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Dict, Optional
 from pathlib import Path
 
 
@@ -90,3 +91,25 @@ class BaseAnalyzer:
 
     def analyze(self, **kwargs):
         raise NotImplementedError
+
+    @classmethod
+    def get_configurable_args(cls) -> Dict:
+        """
+        Inspects the __init__ method to find configurable arguments with default values.
+        This allows for dynamic configuration without hardcoding.
+        It automatically skips 'self', 'config', 'data_loader'
+        """
+        args = {}
+        try:
+            sig = inspect.signature(cls.__init__)
+            for param in sig.parameters.values():
+                # We only want parameters with default values that are not the standard ones.
+                if (
+                    param.name not in ["self", "config", "data_loader"]
+                    and param.default is not inspect.Parameter.empty
+                ):
+                    args[param.name] = param.default
+        except (TypeError, ValueError):
+            # Fails gracefully if __init__ is not a standard Python function
+            pass
+        return args
