@@ -219,25 +219,50 @@ def build_smart_regex(
 
 # Interest Rate context clues
 IR_CONTEXT_TERMS = [
+    # 1. Debt Instruments (The Underlying)
     r"debt",
     r"loan",
     r"borrow(?:ing|ed)?",
     r"bond",
     r"note",
+    r"debenture",
     r"credit\s+facilit(?:y|ies)",
+    r"revolving\s+credit",
+    r"term\s+loan",
+    r"senior\s+notes?",
+    r"subordinated\s+notes?",
+    r"commercial\s+paper",
+    r"capital\s+lease",
+    r"mortgages?",
+    # 2. Rate Types & Benchmarks
     r"floating[- ]rate",
     r"variable[- ]rate",
+    r"fixed[- ]rate",
     r"benchmark[-]rate",
     r"interest[- ]rate",
-    r"treasury[-]rate",
+    r"treasury[- ]rate",
     r"forward[- ]rate",
     r"LIBOR",
     r"SOFR",
     r"EURIBOR",
     r"SONIA",
-    r"interest\s+(?:rate\s+)?(?:risk|exposure|volatility)",
-    r"fixed[- ](?:rate|to[- ]floating)",
+    r"TONAR",  # Tokyo Overnight
+    r"prime\s+rate",
+    r"fed(?:eral)?\s+funds\s+rate",
+    r"yield\s+curve",
+    # 3. Mechanics (High Precision)
+    r"pay[- ]fixed",
+    r"receive[- ]fixed",
+    r"pay[- ]variable",
+    r"receive[- ]variable",
+    r"pay[- ]floating",
+    r"receive[- ]floating",
+    r"interest\s+expense",
+    r"interest\s+income",
+    r"interest\s+payment",
     r"basis\s+point",
+    r"repric(?:ing|ed)",
+    r"weighted\s+average\s+interest"
 ]
 
 
@@ -462,11 +487,28 @@ def build_fx_context_terms_advanced() -> List[str]:
 
     # 2. Define static generic FX terms
     generic_fx_terms = [
-        r"cross[- ]border",
-        r"repatriation",
         r"remeasurement",
         r"translation",  # Be careful, "translation of documents" exists, but usually accounting
         r"foreign\s+(?:currency|exchange|operations|subsidiaries|sales|revenue)",
+        # 1. Operations & Accounting
+        r"functional\s+currency",
+        r"reporting\s+currency",
+        r"local\s+currency",
+        r"foreign\s+currency",
+        r"remeasurement",
+        r"translation\s+adjustments?",
+        r"exchange\s+rate\s+fluctuations?",
+        r"currency\s+exchange\s+rates?",
+        r"currency\s+fluctuations?",
+        # 2. Transactional Context
+        r"cross[- ]border",
+        r"repatriation",
+        r"intercompany",  # Strong signal for FX swaps
+        r"denominated\s+in",
+        # 3. Specific FX Instruments Keywords
+        r"spot\s+rate",
+        r"forward\s+points?",
+        r"non[- ]deliverable",
     ]
 
     return currency_specific_terms + generic_fx_terms
