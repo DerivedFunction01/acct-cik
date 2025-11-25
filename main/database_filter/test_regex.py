@@ -71,7 +71,7 @@ HEDGING_TEMPLATES: List[str] = [
 # Specific generic phrases where the expected match needs careful definition
 GENERIC_PHRASES: List[Tuple[str, str]] = [
     ("The company uses derivatives for hedging.", "derivatives"),
-    ("We designated hedging instruments as cash flow hedges.", "hedging instruments"),
+    ("We designated hedging instruments as cash flow hedges.", "cash flow hedges"),
     ("Derivative contracts are recorded at fair value.", "Derivative contracts"),
     (
         "Notional amounts for cap contracts do not represent actual risk exposure.",
