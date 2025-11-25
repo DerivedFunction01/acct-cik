@@ -101,8 +101,8 @@ class InstrumentGenerator:
             "currency option contract",
             "non-deliverable forward arrangement",
             # Code-specific
-            "USD swap",  # Testing the new safe currency match
-            "EUR forward contract",  # Testing currency code + suffix
+            "USD swap", # Testing the new safe currency match
+            "EUR forward contract", # Testing currency code + suffix
             # Complex descriptive
             "cross-currency swap",
             "cross-currency basis swap",
@@ -189,7 +189,7 @@ class InstrumentGenerator:
             "swaption",
         ]
         return list(set(instruments))
-
+    
     @staticmethod
     def generate_fp_instruments() -> List[str]:
         """Generate non-derivative terms that could be false positives."""
@@ -204,7 +204,7 @@ class InstrumentGenerator:
             "Trade contract",
             "Currency purchase agreement",
             # Equity FPs (non-derivative)
-            "Stock option plan",  # Not a derivative liability
+            "Stock option plan", # Not a derivative liability
             "Subscription agreement",
             "Share purchase contract",
             "Equity financing agreement",
@@ -243,18 +243,18 @@ def generate_verification_data() -> Dict[str, List[Tuple[str, str]]]:
         "cp": InstrumentGenerator.generate_cp_instruments(),
         "eq": InstrumentGenerator.generate_eq_instruments(),
         "gen": InstrumentGenerator.generate_gen_instruments(),
-        "fp": InstrumentGenerator.generate_fp_instruments(),  # NEW FP CATEGORY
+        "fp": InstrumentGenerator.generate_fp_instruments(), # NEW FP CATEGORY
     }
 
     # Generate test cases
     for category, instruments in category_instruments.items():
         cat_tests = []
-        tested_instruments: Set[str] = set()
+        tested_instruments: Set[str] = set() 
 
         # Determine which templates to use
         templates_to_use = [SIMPLE_TEMPLATE, SIMPLE_CONTEXT_TEMPLATE]
         if category == "fp":
-            # For FPs, we must test them in context to ensure they don't match
+             # For FPs, we must test them in context to ensure they don't match
             templates_to_use = [FP_CONTEXT_TEMPLATE]
 
         for instr in instruments:
@@ -279,7 +279,7 @@ def generate_verification_data() -> Dict[str, List[Tuple[str, str]]]:
                 seen_phrases.add(p)
                 deduped.append((p, m))
 
-        TEST_DATA[category] = deduped[:50]
+        TEST_DATA[category] = deduped[:50] 
 
     return TEST_DATA
 
@@ -314,12 +314,9 @@ def test_auto_verification(
                 match = reg.search(phrase)
                 if match:
                     matched_text = match.group(0).strip().lower()
-                    return (
-                        False,
-                        f"FP Matched by {reg.pattern[:20]}...: '{matched_text}'",
-                    )
+                    return False, f"FP Matched by {reg.pattern[:20]}...: '{matched_text}'"
             return True, "Correctly found NO match (False Positive Passed)"
-
+        
         return False, f"Category '{category.upper()}' has no defined regex."
 
     # Standard true positive check
@@ -327,8 +324,9 @@ def test_auto_verification(
     expected_clean = expected_match.strip().lower()
 
     if expected_clean == "":
-        # Should not happen for standard categories, but defensive
-        return False, "Error: Standard category must have an expected match."
+         # Should not happen for standard categories, but defensive
+         return False, "Error: Standard category must have an expected match."
+
 
     if not match:
         return False, f"No match found. Expected: '{expected_clean}'"
@@ -415,10 +413,8 @@ def run_primary_test_suite() -> Tuple[int, int]:
 def run_cross_validation_suite() -> Tuple[int, int]:
     """Runs cross-validation (ensures no regex bleeds into other categories)."""
     # Cross-validation does NOT apply to FP or GEN categories, so we filter them out
-    categories_for_cross_check = {
-        k: v for k, v in TEST_DATA.items() if k not in ["fp", "gen"]
-    }
-
+    categories_for_cross_check = {k: v for k, v in TEST_DATA.items() if k not in ["fp", "gen"]}
+    
     total_tests = 0
     total_passed = 0
 
@@ -490,9 +486,7 @@ def run_test_suite() -> None:
 
     print("\n" + "=" * 100)
     if passed_all == total_all:
-        print(
-            "🎉 ALL TESTS PASSED! Maximum Munch preserved, categories isolated, and FPs rejected."
-        )
+        print("🎉 ALL TESTS PASSED! Maximum Munch preserved, categories isolated, and FPs rejected.")
     else:
         print("⚠️  FAILURES DETECTED. Review output above for details.")
     print("=" * 100)
