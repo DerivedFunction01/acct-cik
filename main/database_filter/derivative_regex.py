@@ -591,6 +591,7 @@ SPECIAL_BASE =  [
     "call options?",
     "put options?",
     "basis swaps?",
+    "total[- ]return swaps?"
 ]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
