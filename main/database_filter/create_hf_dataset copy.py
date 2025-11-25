@@ -324,7 +324,11 @@ class NumericSubstitutionEngine:
 
             # Map each month: base_month + offset, wrapping around 1-12
             for month, offset in offsets.items():
-                replacement_month = ((self.base_month - 1 + offset) % 12) + 1
+                replacement_month = self.base_month + offset
+                if replacement_month > 12:
+                    replacement_month = ((replacement_month - 1) % 12) + 1
+                elif replacement_month < 1:
+                    replacement_month = ((replacement_month - 1) % 12) + 1
                 self.month_mapping[month] = replacement_month
 
     def substitute_months_in_text(self, text):
