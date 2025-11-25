@@ -17,6 +17,7 @@ from tqdm import tqdm
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from derivative_regex import (
+    BASE_REGEX,
     CP_REGEX,
     EQ_REGEX,
     FX_REGEX,
@@ -453,16 +454,14 @@ def prepare_training_example(
 
 def _get_base_form(matched_text: str, category: str) -> str:
     """
-    Extract base instrument form using GEN_REGEX.
+    Extract base instrument form using BASE_REGEX.
     E.g., "interest rate swap agreement" → "swap" or "swaps"
     """
-    # GEN_REGEX captures the instrument portion
-    match = GEN_REGEX.search(matched_text)
+    # BASE_REGEX captures the instrument portion
+    match = BASE_REGEX.search(matched_text)
     if match:
-        instrument = match.group("instrument")
-        # Extract just the last word (typically the base)
-        words = instrument.split()
-        return words[-1] if words else instrument
+        instrument = match.group(0)
+        return instrument
 
     # Fallback: just use last word of original match
     words = matched_text.split()

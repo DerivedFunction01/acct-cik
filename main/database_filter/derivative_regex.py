@@ -655,6 +655,7 @@ def build_smart_regex(
 
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(ALL_BASE_TYPES, True)
+BASE_REGEX = re.compile(r"\b" + base_alternation + r"\b", re.IGNORECASE)
 safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
 suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
@@ -2034,4 +2035,5 @@ __all__ = [
     "ACTIVE_STATE_REGEX",
     "validate_instrument_retention",
     "HIGH_PRECISION_SUFFIXES",
+    "BASE_REGEX",
 ]
