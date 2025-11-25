@@ -887,13 +887,19 @@ def build_cp_regex() -> re.Pattern:
 
     specific_phrases = [
         "weather derivatives?",
-        # Add these to catch specific PPA nuances if needed:
         "power purchase agreements?",
         rf"(?:{spread_types_alternation})\s+spreads?(?:\s+[- ](?:{suffix_alternation}))",
         rf"(?:{spread_types_alternation})\s+spreads?",
-        "virtual power purchase agreements?",  # VPPAs (Financial)
+        "virtual power purchase agreements?",
         "virtual PPA",
     ]
+
+    # Pre-sort before passing to build_smart_regex
+    specific_phrases = sorted(
+        specific_phrases,
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count("(?:")),
+        reverse=False  # reverse=False because we negated the first key
+    )
 
     pattern = build_smart_regex([core_alternation], expand_instruments(unsafe=True), specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)

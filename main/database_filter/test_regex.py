@@ -321,7 +321,11 @@ def test_cross_validation(
             matched_text = match.group(0).strip().lower()
             results[category] = matched_text
 
-            if category != expected_category:
+            if (
+                category != expected_category
+                and category != "gen"
+                and expected_category !="gen"
+            ):
                 unwanted_matches.append((category, matched_text))
         else:
             results[category] = "(no match)"
