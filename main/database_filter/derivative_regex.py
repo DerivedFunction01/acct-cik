@@ -696,6 +696,7 @@ def build_ir_regex() -> re.Pattern:
         "forward",
         "benchmark",
         "interest",
+        "cross[- ]currency interest", # special
         "prime",
         "fed[- ]funds",
     ] + RATE_TYPES
