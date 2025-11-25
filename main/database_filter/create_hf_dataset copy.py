@@ -152,7 +152,7 @@ class ContextScorer:
             r"\b(variable|floating|fixed)\s+rate\b", text, re.I
         ):
             score += 20
-        if label == "fx" and re.search(r"\b(foreign|exchange)\s+rate\b", text, re.I):
+        if label == "fx" and re.search(r"\b(foreign rate|exchange rate|denominated)\b", text, re.I):
             score += 20
         if label == "cp" and re.search(r"\b(price|commodity|fuel|oil)\b", text, re.I):
             score += 20
