@@ -45,6 +45,7 @@ import uuid
 # Import all derivative regexes
 
 from derivative_regex import (
+    ALL_REGEX,
     CATEGORY_REGEX,
     DEFINITION_INDICATORS,
     EXCLUDE_REGEX_ACCOUNTING_STD,
@@ -69,6 +70,7 @@ from derivative_regex import (
     PNL_ONLY_NO_POSITION,
     HIGH_PRECISION_SUFFIXES,
     validate_instrument_retention,
+    MAX_SENTENCE_LENGTH
 )
 
 # =============================================================================
@@ -1032,6 +1034,10 @@ def filter_matches_with_disambiguation(
             
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 all_discarded.append((url, sentence, "too_short"))
+                continue
+            if len(sentence) > MAX_SENTENCE_LENGTH and ALL_REGEX.search(sentence): # an unwrapped table: convert it back
+                sentence = "<TABLE>" +  sentence + "</TABLE>"
+                final_paragraphs.append((sentence, 'table'))
                 continue
             
             if DEFINITION_INDICATORS.search(sentence):

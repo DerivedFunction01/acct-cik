@@ -243,7 +243,7 @@ COMMON_COMMODITIES = [
 
 # Minimum sentence length to consider (we use swaps is 12 chars and rarely ever occurs)
 MIN_SENTENCE_LENGTH = 15
-
+MAX_SENTENCE_LENGTH = 800 # A very long sentence is probably a table that became a sentence
 
 # =============================================================================
 # REGEX BUILDERS (moved)
