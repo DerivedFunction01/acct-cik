@@ -737,6 +737,7 @@ def build_ir_regex() -> re.Pattern:
         "FRA",
         "treasury locks?",
         "credit default swaps?",
+        "overnight index swaps?",
     ]
 
     # --- 5. Final Build and Compile ---
