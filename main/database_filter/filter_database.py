@@ -57,6 +57,7 @@ from derivative_regex import (
     EQ_REGEX,
     LOOSE_GEN_REGEX,
     POSITION_CONTEXT_INDICATORS,
+    SOFT_REGEX,
     STRICT_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
@@ -969,21 +970,21 @@ def filter_matches_with_disambiguation(
 
     final_paragraphs = []
     all_discarded = []
-    
+
     # Metadata collection for all sentences across all paragraphs
     sentence_metadata = []
     generic_buffer = []
-    
+
     # ═════════════════════════════════════════════════════════════════
     # PASS 1: SEGMENTATION, VALIDATION, NOISE REDUCTION
     # ═════════════════════════════════════════════════════════════════
-    
+
     for para_idx, match in enumerate(matches):
         # Skip tables
         if '<TABLE>' in match.upper():
             final_paragraphs.append((match, 'table'))
             continue
-        
+
         # Remove accounting standards boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
             sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
@@ -1000,12 +1001,12 @@ def filter_matches_with_disambiguation(
             match = " ".join(text)
             if not match.strip():
                 continue
-        
+
         # Skip litigation
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
             all_discarded.append((url, match, "legal"))
             continue
-        
+
         # Remove equity compensation boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_EQUITY_COMP.search(match):
             sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
@@ -1022,19 +1023,19 @@ def filter_matches_with_disambiguation(
             match = " ".join(text)
             if not match.strip():
                 continue
-        
+
         # Split into sentences
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()
-        
+
         for sent_idx, sentence in enumerate(sentences):
             if sent_idx in used_indices:
                 continue
-            
+
             # ═══════════════════════════════════════════════════════════
             # VALIDATION: Length, definition, trading denials, AOCI, PnL
             # ═══════════════════════════════════════════════════════════
-            
+
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 all_discarded.append((url, sentence, "too_short"))
                 continue
@@ -1042,61 +1043,64 @@ def filter_matches_with_disambiguation(
                 sentence = "<TABLE>" +  sentence + "</TABLE>"
                 final_paragraphs.append((sentence, 'table'))
                 continue
-            
+
             if DEFINITION_INDICATORS.search(sentence):
                 all_discarded.append((url, sentence, "definition_boilerplate"))
                 used_indices.add(sent_idx)
                 continue
-            
+
             # Trading denial removal
             if TRADING_STATEMENTS_REGEX.search(sentence):
                 deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
                 all_discarded.append((url, sentence, "trading_statements_full_delete"))
                 continue
-            
+
             # AOCI removal
             if NON_POSITION_INDICATORS.search(sentence):
                 all_discarded.append((url, sentence, "aoci_or_pnl_only"))
                 continue
-            
+
             # PnL-only removal (with partial salvage)
             if PNL_ONLY_NO_POSITION.search(sentence):
                 has_instrument = bool(STRICT_REGEX.search(sentence))
                 has_position_context = bool(POSITION_CONTEXT_INDICATORS.search(sentence))
-                
+
                 if has_instrument or has_position_context:
                     deleted_text = " ".join(m.group(0) for m in PNL_ONLY_NO_POSITION.finditer(sentence))
                     all_discarded.append((url, deleted_text.strip(), "pnl_only_removed"))
                     sentence = PNL_ONLY_NO_POSITION.sub("", sentence)
                     sentence = cleanup_fragment(sentence)
-                    
+
                     if not sentence:
                         continue
                 else:
                     all_discarded.append((url, sentence, "pnl_only_no_position"))
                     continue
-            
+
             # No derivative match
             if not STRICT_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue
-            
+
             # ═══════════════════════════════════════════════════════════
             # CATEGORY DETECTION
             # ═══════════════════════════════════════════════════════════
-            
+
             core_categories = get_sentence_categories(sentence)
             specific_cats = core_categories - {"gen", "other"}
-            
+
             current_instrument = None
             instrument_match = STRICT_REGEX.search(sentence)
+            soft_instrument_match = SOFT_REGEX.search(sentence)
             if instrument_match:
                 current_instrument = instrument_match.group(0)
-            
+            elif soft_instrument_match:
+                current_instrument = soft_instrument_match.group(0)
+
             # ═══════════════════════════════════════════════════════════
             # METADATA STAGING
             # ═══════════════════════════════════════════════════════════
-            
+
             meta = {
                 "para_idx": para_idx,
                 "sent_idx": sent_idx,
@@ -1111,7 +1115,7 @@ def filter_matches_with_disambiguation(
                 "confidence": None,
                 "resolution_method": None,
             }
-            
+
             if not specific_cats:
                 # Generic sentence → defer to ML
                 generic_buffer.append(len(sentence_metadata))
@@ -1122,13 +1126,13 @@ def filter_matches_with_disambiguation(
                 meta["final_category"] = primary
                 meta["confidence"] = 1.0
                 meta["resolution_method"] = "specific"
-            
+
             sentence_metadata.append(meta)
-    
+
     # ═════════════════════════════════════════════════════════════════
     # PASS 2: ML BATCH RESOLUTION (for generics)
     # ═════════════════════════════════════════════════════════════════
-    
+
     if generic_buffer and RESOLVER:
         print(f"Sending {len(generic_buffer)} generic sentences to ML resolver...")
         context_windows = []
@@ -1160,15 +1164,15 @@ def filter_matches_with_disambiguation(
                 "confidence": conf,
                 "resolution_method": "ml" if conf > 0.5 else "fallback",
             })
-    
+
     # ═════════════════════════════════════════════════════════════════
     # PASS 3: POST-RESOLUTION PROCESSING
     # ═════════════════════════════════════════════════════════════════
-    
+
     final_paragraphs_all = []
     all_discarded_final = []
     used_indices_global = set()
-    
+
     # Group metadata by paragraph for context incorporation
     by_paragraph = {}
     for meta in sentence_metadata:
@@ -1176,19 +1180,19 @@ def filter_matches_with_disambiguation(
         if para_idx not in by_paragraph:
             by_paragraph[para_idx] = []
         by_paragraph[para_idx].append(meta)
-    
+
     # Process each paragraph's metadata
     for para_idx in sorted(by_paragraph.keys()):
         para_metadata = by_paragraph[para_idx]
         used_indices_para = set()
-        
+
         # Get original sentences for this paragraph
         # (We stored all_sentences in metadata)
         if para_metadata:
             sentences = para_metadata[0]["all_sentences"]
         else:
             continue
-        
+
         for meta in para_metadata:
             paras, discs = process_resolved_sentence(
                 meta,
@@ -1198,11 +1202,11 @@ def filter_matches_with_disambiguation(
             )
             final_paragraphs_all.extend(paras)
             all_discarded_final.extend(discs)
-    
+
     # ═════════════════════════════════════════════════════════════════
     # SAFETY CHECK: Instrument retention validation
     # ═════════════════════════════════════════════════════════════════
-    
+
     if final_paragraphs_all:
         validated_paragraphs, validated_categories, validation_discards = validate_instrument_retention(
             [p[0] for p in final_paragraphs_all],
@@ -1210,15 +1214,15 @@ def filter_matches_with_disambiguation(
             url,
             strict=False,
         )
-        
+
         # Reconstruct (text, category) tuples with validated texts
         final_paragraphs_all = list(zip(
             validated_paragraphs,
             validated_categories,
         ))
-    
+
         all_discarded_final.extend(validation_discards)
-    
+
     return final_paragraphs_all, all_discarded_final
 
 
