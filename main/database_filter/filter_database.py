@@ -46,6 +46,7 @@ import uuid
 
 from derivative_regex import (
     ALL_REGEX,
+    BOTH_CATEGORY_REGEX,
     CATEGORY_REGEX,
     DEFINITION_INDICATORS,
     EXCLUDE_REGEX_ACCOUNTING_STD,
@@ -57,6 +58,7 @@ from derivative_regex import (
     EQ_REGEX,
     LOOSE_GEN_REGEX,
     POSITION_CONTEXT_INDICATORS,
+    SOFT_CATEGORY_REGEX,
     SOFT_REGEX,
     STRICT_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
@@ -991,7 +993,7 @@ def filter_matches_with_disambiguation(
             text = []
             discard = []
             for sentence in sentences_temp:
-                if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence) and not CATEGORY_REGEX.search(sentence):
+                if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence) and not BOTH_CATEGORY_REGEX.search(sentence):
                     discard.append(sentence)
                 else:
                     text.append(sentence)
@@ -1013,7 +1015,7 @@ def filter_matches_with_disambiguation(
             text = []
             discard = []
             for sentence in sentences_temp:
-                if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
+                if BOTH_CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
                     text.append(sentence)
                 else:
                     discard.append(sentence)
