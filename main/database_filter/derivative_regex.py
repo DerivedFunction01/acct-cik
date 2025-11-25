@@ -887,31 +887,57 @@ def build_cp_regex() -> re.Pattern:
     pattern = build_smart_regex([core_alternation], [expand_instruments(unsafe=True)], specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
-
 def build_eq_regex() -> re.Pattern:
-    core_terms = ["equity", "equity[- ]related"]
+    # Common fragments for readability and consistency
+    liability = r"liabilit(?:y|ies)"
+    option = r"options?"
+    warrant = r"warrants?"
+    derivative = r"derivatives?"
 
-    # Custom base types for Equity to be safer
-    eq_base_types = UNAMBIGUOUS_BASE_TYPES + EXPANDED_INSTRUMENTS
-    convertible_phrases = [
-        r"embedded\s+conversion\s+(?:option|feature|derivative)",
-        r"conversion\s+option\s+liability",
-        r"bifurcated\s+conversion\s+option",
-        r"derivative\s+liability.*convertible\s+notes",
+    # 1. Build Core Terms (Prefixes)
+    core_terms = [
+        r"equity",
+        r"equity[- ](?:based|related|linked|index)",
+        # RESTORED CRITICAL TERMS: These are needed for combinations like "S&P 500 swap"
+        r"share\s+price",
+        r"stock\s+price",
+        r"market\s+index",
+        r"S&P\s+500",
+        r"Nasdaq",
+        r"Dow\s+Jones",
     ]
 
-    # 2. Warrant Liabilities (The "Safe" Warrants)
-    # These patterns ensure we ONLY catch financial warrants, not compensation
+    # 2. Build Specific Phrases (Max Munch)
+
+    # Convertible phrases (Structural Embedded Derivatives)
+    convertible_phrases = [
+        rf"embedded\s+conversion\s+(?:{option}|features?|{derivative})",
+        rf"conversion\s+option\s+{liability}",
+        rf"bifurcated\s+conversion\s+{option}",
+        rf"{derivative}\s+{liability}\s+\S*convertible\s+notes?",  # Retained long structure
+    ]
+
+    # Warrant liabilities (Financial Warrants only)
     warrant_phrases = [
-        r"warrant\s+liabilit(?:y|ies)",
-        r"liabilit(?:y|ies)\s+for\s+warrants?",
-        r"derivative\s+warrant",
-        r"warrants?.*classified\s+as\s+liabilities",
-        r"change\s+in\s+fair\s+value\s+of\s+warrants?",
+        # Direct warrant + (liability OR derivative)
+        rf"{warrant}\s+(?:{liability}|{derivative})",
+        
+        # Inverted: liability/derivative + warrant
+        rf"(?:{liability}|{derivative})\s+(?:classified|for)\s+{warrant}",
+        rf"(?:{liability}|{derivative})[- ]classified\s+{warrant}",
+        
+        # Classified context: warrant...classified as (liability|derivative)
+        rf"(?:{derivative}\s+)?{warrant}.*classified\s+as\s+(?:a\s+)?(?:{derivative}|{liability})",
     ]
 
     all_specifics = convertible_phrases + warrant_phrases
-    pattern = build_smart_regex(core_terms, eq_base_types, all_specifics)  # Empty specific phrases
+
+    pattern = build_smart_regex(
+        core_terms,
+        [expand_instruments(unsafe=True)],
+        all_specifics,
+    )
+
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
