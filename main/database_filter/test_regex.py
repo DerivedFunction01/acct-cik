@@ -61,7 +61,7 @@ INSTRUMENTS: Dict[str, List[str]] = {
 # Generic hedging/context phrases (placeholder {instr} is replaced)
 HEDGING_TEMPLATES: List[str] = [
     "We use {instr} to hedge our exposure.",
-    "The company entered into {instr} agreements.",
+    "The company entered into {instr}.",
     "We hold {instr} on our floating rate debt.",
     "We designated {instr} as cash flow hedges.",
     "We execute {instr} for hedging purposes.",
