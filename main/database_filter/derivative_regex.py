@@ -975,48 +975,89 @@ def build_eq_regex() -> re.Pattern:
 
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
+
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
     Returns a tuple:
         (INSTRUMENT_REGEX, NOTIONAL_REGEX)
 
-    INSTRUMENT_REGEX  → captures pure derivative instrument names (strict)
+    INSTRUMENT_REGEX  → captures ONLY safe derivative patterns
     NOTIONAL_REGEX    → captures notional amount/principal/value phrases
-    Both use named groups for convenient extraction.
     """
-    # Pattern 1: Specific phrases (highest priority - most specific/longest)
-    instrument_specific = [
+
+    # SAFE BASES: Low false-positive risk
+    safe_bases = [
+        "swaps?",
+        "forwards?",
+        "derivatives?",
+        "swaptions?",
+    ]
+
+    # UNSAFE STANDALONE: Require suffix
+    unsafe_alone = [
+        "options?",
+        "futures",
+        "hedges?",
+        "locks?",
+        "caps?",
+        "floors?",
+        "collars?",
+        "hedging",
+    ]
+
+    # SPECIAL BASES: Always require suffix
+    special_bases = [
+        "call options?",
+        "put options?",
+        "basis swaps?",
         "total[- ]return swaps?",
+    ]
+
+    # SAFE SUFFIXES
+    suffixes = [
+        "agreements?",
+        "contracts?",
+        "instruments?",
+        "arrangements?",
+    ]
+
+    safe_bases_alt = build_alternation(safe_bases, sort_longest_first=True)
+    unsafe_alone_alt = build_alternation(unsafe_alone, sort_longest_first=True)
+    special_bases_alt = build_alternation(special_bases, sort_longest_first=True)
+    suffix_alt = build_alternation(suffixes, sort_longest_first=True)
+
+    # Pattern 1: Safe bases (can be standalone OR with suffix)
+    pattern1 = rf"(?:{safe_bases_alt})(?:\s+[- ](?:{suffix_alt}))?"
+
+    # Pattern 2: Unsafe bases (MUST have suffix)
+    pattern2 = rf"(?:{unsafe_alone_alt})\s+[- ](?:{suffix_alt})"
+
+    # Pattern 3: Special bases (complete phrases)
+    pattern3 = special_bases_alt
+
+    # Combine with specific phrases first (highest priority)
+    specific_phrases = [
         "cash flow hedges?",
         "fair value hedges?",
         "embedded derivatives?",
         "over[- ]the[- ]counter derivatives?",
         "derivative financial instruments?",
-        "financial derivatives?"
+        "financial derivatives?",
+        "derivative liabilit(?:y|ies)"
     ]
+    specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
-    specific_alternation = build_alternation(
-        instrument_specific, sort_longest_first=True
-    )
-
-    # Pattern 2: Generic base + suffix combinations and standalones
-    generic_instruments = expand_instruments(unsafe=True)
-
-    # Combine with specific phrases first (longest match priority)
-    instrument_pattern = build_alternation(
-        [specific_alternation, generic_instruments], 
-        sort_longest_first=True
-    )
+    # FINAL: Specific phrases FIRST, then pattern3, then pattern2, then pattern1
+    instrument_pattern = rf"{specific_alt}|{pattern3}|{pattern2}|{pattern1}"
 
     INSTRUMENT_REGEX = re.compile(
         rf"\b(?P<instrument>{instrument_pattern})\b", re.IGNORECASE
     )
 
-    # ── 2. Notional phrases (very high precision, no overlap with instruments) ──
+    # Notional phrases
     notional_variants = [
         r"notional\s+(?:amounts?|values?|principals?)",
     ]
-
     NOTIONAL_REGEX = re.compile(
         rf"\b(?P<notional>(?:{'|'.join(notional_variants)}))\b", re.IGNORECASE
     )
