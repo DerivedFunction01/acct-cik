@@ -1305,7 +1305,7 @@ def _get_loose_variant(matched_text: str, category: str) -> str:
     """
     base = _get_base_form(matched_text, category)
 
-    suffixes = ["agreement", "instrument", "contract"]
+    suffixes = ["agreements", "instruments", "contracts", "arrangements"]
     chosen_suffix = random.choice(suffixes)
 
     return f"{base} {chosen_suffix}"
