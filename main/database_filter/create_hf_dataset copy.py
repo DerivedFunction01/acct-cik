@@ -1433,6 +1433,9 @@ def has_conflict(text, label):
 
 
 def process_chunk(chunk_data):
+    import time
+
+    random.seed(os.getpid() + time.time())
     scorer = ContextScorer()
     augmenter_dummy = AugmentationEngine()
     local_candidates = []
