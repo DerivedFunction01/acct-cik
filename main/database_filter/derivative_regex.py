@@ -813,23 +813,22 @@ def build_fx_regex() -> re.Pattern:
         rf"(?:{fx_dynamic_pattern})",  # Optimized FX prefix combinations
         rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))",  # Optimized currency names (USD, JPY, etc.)
     ]
-     forward_types = [
+    forward_types = [
         "non[- ]deliverable",
         "deliverable",
         "deal[- ]contingent",
     ]
     forward_types_alternation = build_alternation(forward_types, sort_longest_first=True)
-    
+
     # These capture the longest matches before falling back to pattern1
     specific_phrases = [
         # All forward types with optional suffixes (e.g., "non-deliverable forward contract")
         rf"(?:{forward_types_alternation})\s+forwards?(?:\s+[- ](?:{suffix_alternation}))?",
-        
         # Other long-form specific FX instruments
         "NDF",
-        "hedge of the net investment",
+        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
         "net investment hedges?",
-        rf"cash\s+flow\s+hedge\s+of\s+currency\s+risk",
+        
     ]
 
     pattern = build_smart_regex(
@@ -872,14 +871,18 @@ def build_cp_regex() -> re.Pattern:
 
     # Then wrap in build_alternation with sort_longest_first=True
     core_alternation = build_alternation(all_patterns, sort_longest_first=True)
+    spread_types = [
+        "crack",
+        "spark",
+        "dark",
+    ]
+    spread_types_alternation = build_alternation(spread_types, sort_longest_first=True)
 
     specific_phrases = [
         "weather derivatives?",
         # Add these to catch specific PPA nuances if needed:
         "power purchase agreements?",
-        "crack spreads?",  # Oil vs Products
-        "spark spreads?",  # Power vs Gas
-        "dark spreads?",  # Power vs Coal
+        rf"(?:{spread_types_alternation})\s+spreads?(?:\s+[- ](?:{suffix_alternation}))?",
         "virtual power purchase agreements?",  # VPPAs (Financial)
         "virtual PPA",
     ]
