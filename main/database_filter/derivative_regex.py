@@ -652,12 +652,13 @@ def build_smart_regex(
 
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(ALL_BASE_TYPES, True)
+safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
 suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
 unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
-def expand_instruments(unsafe: bool = True) -> str:
+def expand_instruments(unsafe: bool = True, base_only: bool = False) -> str:
     """
     Creates an optimized, single alternation pattern that captures:
     1. Base + Suffix (e.g., swaps-agreement)
@@ -667,15 +668,19 @@ def expand_instruments(unsafe: bool = True) -> str:
 
     Args:
         unsafe: If True, includes ambiguous bases (e.g., generic options, futures).
+        base_only: If True, only return unambiguous bases (no suffixes). Overrides unsafe
     """
 
     # 1. Base + Suffix Combination (Highest priority)
     combined_pattern = rf"(?:{base_alternation}[- ]{suffix_alternation})"
 
     # 2. Standalone Term (Lower priority)
-    standalone_pattern = (
-        unsafe_standalone_alternation if unsafe else standalone_alternation
-    )
+    if not base_only:
+        standalone_pattern = (
+            unsafe_standalone_alternation if unsafe else standalone_alternation
+        )
+    else:
+        standalone_pattern = safe_base_alternation
     
     # If build_alternation supports it, sort these alternatives by length
     # Otherwise, manually construct with longest first
@@ -950,11 +955,21 @@ def build_eq_regex() -> re.Pattern:
         rf"(?:{derivative}[- ]{liability}|{derivative}|{liability})[- ]{warrant}",
     ]
 
-    all_specifics = convertible_phrases + warrant_phrases
+    all_specifics = (
+        [
+            r"call spreads?",
+            r"capped calls?",
+            r"accelerated\s+share\s+repurchases?",
+            r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
+            r"margin\s+loans?",
+        ]
+        + convertible_phrases
+        + warrant_phrases
+    )
 
     pattern = build_smart_regex(
         [core_alternation],
-        expand_instruments(unsafe=True),
+        expand_instruments(unsafe=True, base_only=True),
         all_specifics,
     )
 
