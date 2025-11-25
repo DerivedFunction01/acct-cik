@@ -944,10 +944,10 @@ def build_eq_regex() -> re.Pattern:
         # Direct warrant + (liability OR derivative)
         rf"{warrant}\s+(?:{derivative}[- ]{liability}|{liability}|{derivative})",
         # Inverted: liability/derivative + warrant
-        rf"(?:{liability}|{derivative})\s+(?:classified|for)\s+{warrant}",
         rf"(?:{liability}|{derivative})[- ]classified\s+{warrant}",
         # Classified context: warrant...classified as (liability|derivative)
         rf"(?:{derivative}\s+)?{warrant}.*classified\s+as\s+(?:a\s+)?(?:{derivative}[- ]{liability}|{derivative}|{liability})",
+        rf"(?:{derivative}[- ]{liability}|{derivative}|{liability})[- ]{warrant}",
     ]
 
     all_specifics = convertible_phrases + warrant_phrases
