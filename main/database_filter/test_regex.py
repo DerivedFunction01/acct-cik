@@ -188,7 +188,6 @@ class InstrumentGenerator:
             "embedded conversion option",
             "conversion option liability",
             "warrant liability",
-            "embedded derivative",
             "bifurcated conversion option",
             "derivative warrant",
             "warrant classified as derivative liability",
