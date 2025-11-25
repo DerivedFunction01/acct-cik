@@ -658,7 +658,7 @@ standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES
 unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
-def expand_instruments(unsafe: bool = True, base_only: bool = False) -> str:
+def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = False) -> str:
     """
     Creates an optimized, single alternation pattern that captures:
     1. Base + Suffix (e.g., swaps-agreement)
@@ -668,14 +668,14 @@ def expand_instruments(unsafe: bool = True, base_only: bool = False) -> str:
 
     Args:
         unsafe: If True, includes ambiguous bases (e.g., generic options, futures).
-        base_only: If True, only return unambiguous bases (no suffixes). Overrides unsafe
+        exclude_standalone_suffixes: If True, only return unambiguous bases (no suffixes). Overrides unsafe
     """
 
     # 1. Base + Suffix Combination (Highest priority)
     combined_pattern = rf"(?:{base_alternation}[- ]{suffix_alternation})"
 
     # 2. Standalone Term (Lower priority)
-    if not base_only:
+    if not exclude_standalone_suffixes:
         standalone_pattern = (
             unsafe_standalone_alternation if unsafe else standalone_alternation
         )
@@ -805,7 +805,6 @@ def build_fx_dynamic_pattern() -> str:
         compound,
         r"FX",
         r"forex",
-        r"currency",
     ]
 
     # CRITICAL: We let build_alternation sort this entire list by length/word count
@@ -821,8 +820,6 @@ def build_fx_regex() -> re.Pattern:
     # --- 2. Build Core Terms (Prefixes) ---
     core_terms = [
         rf"(?:{fx_dynamic_pattern})",  # Optimized FX prefix combinations
-        rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))",  # Optimized currency names (USD, JPY, etc.)
-        rf"(?:{currency_name_alternation})",
     ]
     forward_types = [
         "non[- ]deliverable",
@@ -834,6 +831,9 @@ def build_fx_regex() -> re.Pattern:
     # These capture the longest matches before falling back to pattern1
     specific_phrases = [
         # All forward types with optional suffixes (e.g., "non-deliverable forward contract")
+        rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))[- ](?:{expand_instruments(exclude_standalone_suffixes=True)})",  # Optimized currency names (USD, JPY, etc.)
+        rf"(?:{currency_name_alternation})[- ](?:{expand_instruments(exclude_standalone_suffixes=True)})",
+        rf"currency[- ](?:{expand_instruments(exclude_standalone_suffixes=True)})",
         rf"(?:{forward_types_alternation})\s+forwards?\s+(?:{suffix_alternation})",
         rf"(?:{forward_types_alternation})\s+forwards?",
         # Other long-form specific FX instruments
@@ -970,7 +970,7 @@ def build_eq_regex() -> re.Pattern:
 
     pattern = build_smart_regex(
         [core_alternation],
-        expand_instruments(unsafe=True, base_only=True),
+        expand_instruments(unsafe=True, exclude_standalone_suffixes=True),
         all_specifics,
     )
 
