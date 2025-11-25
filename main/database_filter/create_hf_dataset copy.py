@@ -326,6 +326,7 @@ class NumericSubstitutionEngine:
             for month, offset in offsets.items():
                 replacement_month = self.base_month + offset
                 replacement_month = ((replacement_month - 1) % 12) + 1
+                self.month_mapping[month] = replacement_month
 
     def substitute_months_in_text(self, text):
         """
@@ -1210,7 +1211,7 @@ def _normalize_base(base: str) -> str:
 def _get_dynamic_base(
     base: str,
     random_seed: Optional[int] = None,
-    substitution_probability: float = 0.25,
+    substitution_probability: float = 0.75,
 ) -> str:
     """
     Replace a common instrument base with a semantically similar but less common variant.
@@ -1222,7 +1223,7 @@ def _get_dynamic_base(
     Args:
         base: Instrument base form (e.g., "swap", "swaps", "Swaps")
         random_seed: Optional seed for reproducibility in testing
-        substitution_probability: Probability to substitute when alternatives exist (default 0.7)
+        substitution_probability: Probability to substitute when alternatives exist (default 0.75)
                                  Higher = more diversity, lower = preserve more originals
 
     Returns:
@@ -1325,80 +1326,6 @@ def _get_generic_form(category: str) -> str:
 
     return random.choice(generics)
 
-
-def _apply_base_substitution_to_text(
-    text: str,
-    bases_to_substitute: Optional[Set[str]] = None,
-    random_seed: Optional[int] = None,
-    substitution_probability: float = 0.7,
-) -> Tuple[str, List[Dict[str, str]]]:
-    """
-    Apply base substitution to replace common bases with less common variants.
-
-    This increases dataset diversity by making less common instrument types
-    (collars, swaptions, options) appear more frequently than they naturally would,
-    forcing the model to learn multiple expressions for the same concept.
-
-    Matches bases using word boundaries and handles plural/singular forms.
-    Preserves suffixes (agreements, contracts, etc.) unchanged.
-
-    Args:
-        text: Source text containing instrument bases
-        bases_to_substitute: Set of bases to consider. If None, uses UNAMBIGUOUS_BASES.
-        random_seed: Optional seed for reproducibility
-        substitution_probability: Probability to substitute each base (default 0.25)
-                                
-
-    Returns:
-        Tuple of (substituted_text, substitution_log)
-        where substitution_log is list of {"original": "X", "replacement": "Y", "base": "Z"}
-
-    Examples:
-        >>> text = "We use interest rate swaps and FX forwards."
-        >>> result, log = _apply_base_substitution_to_text(text, random_seed=42)
-        >>> result
-        "We use interest rate collars and FX options."
-        >>> log
-        [
-            {"original": "swaps", "replacement": "collars", "base": "swap"},
-            {"original": "forwards", "replacement": "options", "base": "forward"}
-        ]
-    """
-    rng = random.Random(random_seed) if random_seed else random
-    bases_to_try = bases_to_substitute or UNAMBIGUOUS_BASE_TYPES
-    substitution_log = []
-    substituted_text = text
-
-    for base in bases_to_try:
-        # Match singular or plural form at word boundary
-        # Pattern handles: "swap", "swaps", "Swap", "Swaps", etc.
-        pattern = re.compile(rf"\b({re.escape(base)}s?)\b", re.IGNORECASE)
-
-        def replacer(match):
-            original_match = match.group(1)
-
-            # Get substitution
-            substitute = _get_dynamic_base(
-                original_match,
-                random_seed=rng.randint(0, 2**31 - 1),
-                substitution_probability=substitution_probability,
-            )
-
-            # Log if actually changed
-            if substitute.lower() != original_match.lower():
-                substitution_log.append(
-                    {
-                        "original": original_match,
-                        "replacement": substitute,
-                        "base": base,
-                    }
-                )
-
-            return substitute
-
-        substituted_text = pattern.sub(replacer, substituted_text)
-
-    return substituted_text, substitution_log
 
 
 # =============================================================================
