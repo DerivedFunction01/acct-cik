@@ -549,6 +549,7 @@ def scrub_unmatched_generics(text: str, category: str) -> str:
 
     # 1. Get the regex for the category we want to KEEP (e.g., IR_REGEX)
     keep_regex = CATEGORY_DELETION_MAP[category][0]
+    keep_soft_regex =  CATEGORY_DELETION_MAP[category][1]
 
     # 2. Mask specific matches
     # We use a unique ID to avoid accidental partial replacement collisions
@@ -559,8 +560,8 @@ def scrub_unmatched_generics(text: str, category: str) -> str:
         protections[token] = match.group(0)
         return token
 
-    masked_text = keep_regex.sub(mask_match, text)
-
+    masked_text = keep_regex.sub(mask_match, text) # Max munch
+    masked_text = keep_soft_regex.sub(mask_match, text) # fallback if the strict match doesn't have it
     # 3. Scrub generics from the REST of the text
     # remove "swaps", "options", "contracts" that weren't protected
     from derivative_regex import LOOSE_GEN_REGEX
@@ -736,10 +737,12 @@ def excise_category_terminology(text: str, category: str) -> str:
     if category not in CATEGORY_DELETION_MAP:
         return text
 
-    instrument_regex, context_regex = CATEGORY_DELETION_MAP[category]
+    instrument_regex, instrument_soft_regex, context_regex = CATEGORY_DELETION_MAP[category]
 
     # Phase 1: Remove instrument-specific terminology
     text = instrument_regex.sub(" ", text)
+
+    text = instrument_soft_regex.sub(" ", text)
 
     # Phase 2: Remove contextual terminology
     text = context_regex.sub(" ", text)
@@ -789,7 +792,7 @@ def generate_single_category_variant(
 
     # Validation 2: Verify preserved category remains detectable
     if preserve_category not in {"gen", "other"}:
-        instrument_regex = CATEGORY_DELETION_MAP[preserve_category][0]
+        instrument_regex = CATEGORY_DELETION_MAP[preserve_category][1] # soft regex
         if not instrument_regex.search(cleaned):
             return None  # Over-excision removed target category
 
