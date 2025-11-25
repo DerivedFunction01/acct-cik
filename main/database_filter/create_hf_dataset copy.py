@@ -1327,7 +1327,6 @@ def _get_generic_form(category: str) -> str:
     return random.choice(generics)
 
 
-
 # =============================================================================
 # DYNAMIC WINDOW LOGIC
 # =============================================================================
@@ -1423,26 +1422,27 @@ def get_dynamic_window(
 
     window = f"{prev_block}{SEP_TOKEN}{target_sent}{SEP_TOKEN}{next_block}"
 
-    # Apply numeric substitution (years, months, numbers) to entire window
+    # Inside get_dynamic_window, after building window string:
     if apply_numeric_substitution and NUMERIC_SUBSTITUTION_CONFIG["enabled"]:
-        # Extract months and years from all sentences in window, tracking offsets
         all_sentences = prev_parts + [target_sent] + next_parts
-        sentence_month_info, all_months, sentence_year_info, all_years = (
-            _extract_all_months_and_years_from_sentences(all_sentences)
-        )
-        currency_subst = DynamicCurrencySubstitution()
-        window, curr_log = currency_subst.substitute_all(window)
-        if all_years or all_months:
-            subst_engine = NumericSubstitutionEngine()
 
-            # Build mappings
-            if all_years:
-                subst_engine.build_year_mapping(sentence_year_info, all_years)
-            if all_months:
-                subst_engine.build_month_mapping(sentence_month_info, all_months)
+        # Extract info
+        engine = NumericSubstitutionEngine()
+        month_info, all_months = engine.extract_sentence_months(all_sentences)
+        year_info, all_years = engine.extract_sentence_years(all_sentences)
 
-            # Apply substitution to window
-            window = subst_engine.substitute_all(window)
+        # Build mappings
+        if all_years:
+            engine.build_year_mapping(year_info, all_years)
+        if all_months:
+            engine.build_month_mapping(month_info, all_months)
+
+        # Apply all substitutions
+        window = engine.substitute_all(window)
+
+        # Currency substitution (the whole text)
+        curr_sub = DynamicCurrencySubstitution()
+        window, _ = curr_sub.substitute_all(window)
 
     return window
 
