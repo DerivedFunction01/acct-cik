@@ -1272,6 +1272,17 @@ CATEGORY_REGEX = re.compile(
     ),
     re.IGNORECASE,
 )
+SOFT_CATEGORY_REGEX = re.compile(
+    r"|".join(
+        [
+            IR_SOFT_REGEX.pattern,
+            FX_SOFT_REGEX.pattern,
+            CP_SOFT_REGEX.pattern,
+            EQ_SOFT_REGEX.pattern,
+        ]
+    ),
+    re.IGNORECASE,
+)
 
 SOFT_GEN_REGEX = build_soft_gen_regex()
 
@@ -1279,6 +1290,15 @@ STRICT_REGEX = re.compile(
     r"|".join(
         [
             CATEGORY_REGEX.pattern,
+            STRICT_GEN_REGEX.pattern,
+        ]
+    ),
+    re.IGNORECASE,
+)
+SOFT_REGEX = re.compile(
+    r"|".join(
+        [
+            SOFT_CATEGORY_REGEX.pattern,
             STRICT_GEN_REGEX.pattern,
         ]
     ),
