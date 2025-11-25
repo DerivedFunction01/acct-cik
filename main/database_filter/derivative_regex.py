@@ -75,10 +75,12 @@ ACTIVE_STATE_PATTERN = build_alternation(ACTIVE_STATE_DESCRIPTORS)
 # STRONG: Unambiguous indicators of active usage or transaction
 STRONG_ACTION_VERBS = [
     # Transactional (The "Smoking Gun")
-    r"enter(?:s|ed|ing)?\s+into",
-    r"engag(?:e|es|ed|ing)\s+in",
+    r"enter(?:s|ed|ing)?\s+(?:into)?",
+    r"engag(?:e|es|ed|ing)\s+(?:in)?",
     r"transact(?:s|ed|ing)?",
     r"execut(?:e|es|ed|ing)",
+    r"issu(?:e|es|ed|ing)?",        # NEW: For embedded derivatives/warrants
+    r"convert(?:s|ed|ing)?",
     
     # Direct Usage
     r"use(?:s|d|ing)?",
@@ -1694,16 +1696,27 @@ _ABSENCE_NOUNS = [
 
 # Termination Verbs
 TERMINATION_VERBS = [
+    # Natural End
     r"expired",
     r"matured",
+    
+    # Settlement / Closeout
     r"settled",
+    r"exercised", 
+    r"extinguished",
+    
+    # Active Early End / Status Change
     r"terminated",
     r"ceased",
     r"closed",
     r"unwound",
-    r"exercised", # Essential for options/swaptions
-    r"extinguished",
-    r"novated", # Transferring the trade to another counterparty (implies exit)
+    r"novated", 
+    
+    # High-Recall Additions
+    r"cancel(?:s|led|ling)?",        # Common early closure
+    r"repa(?:y|id|ying)?",           # Final payoff/extinguishment
+    r"discontinue(?:s|d|ing)?",      # End of accounting treatment
+    r"dispos(?:e|es|ed|ing)?",       # Selling the position
 ]
 
 # Active / Timing Indicators (New)
