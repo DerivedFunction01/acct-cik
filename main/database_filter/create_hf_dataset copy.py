@@ -39,8 +39,10 @@ from derivative_regex import (
     HEDGING_CONTEXT_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
     CATEGORY_DELETION_MAP,
+    Currency,
     cleanup_fragment,
-    VERB_USE_REGEX, 
+    VERB_USE_REGEX,
+    all_currencies, # dynamic currency subsitution
 )
 from filter_database import get_sentence_categories
 
@@ -525,6 +527,223 @@ class NumericSubstitutionEngine:
         self.month_mapping = {}
         self.base_year = None
         self.base_month = None
+
+
+class DynamicCurrencySubstitution:
+    """
+    Performs dynamic currency substitution on text, replacing currency names,
+    locations, and ISO codes with placeholders and then substituting random currencies.
+
+    Strategy:
+    1. Detect all currency references (names, locations, ISO codes)
+    2. Find longest sequence (N currencies detected)
+    3. Select N random currencies from pool
+    4. Create mapping of detected -> replacement currencies
+    5. Substitute all variants in text
+    """
+
+    def __init__(
+        self,
+        currency_pool: Optional[List[Currency]] = None,
+        random_seed: Optional[int] = None,
+    ):
+        self.currency_pool = currency_pool or all_currencies
+        self.rng = random.Random(random_seed) if random_seed else random
+        self.substitution_log = []
+        self.currency_mapping = {}  # Original text -> Currency object
+        self.detected_currencies = (
+            []
+        )  # List of detected (type, original_text, currency_obj)
+
+    def build_currency_regex_patterns(self) -> Dict[str, re.Pattern]:
+        """
+        Build regex patterns for matching:
+        - Full names (case-insensitive)
+        - Locations (case-insensitive)
+        - ISO codes (case-insensitive)
+        """
+        names = "|".join(re.escape(c.full_name) for c in self.currency_pool)
+        locations = "|".join(re.escape(c.location) for c in self.currency_pool)
+        codes = "|".join(c.code for c in self.currency_pool)
+
+        return {
+            "name": re.compile(rf"\b({names})\b", re.IGNORECASE),
+            "location": re.compile(rf"\b({locations})\b", re.IGNORECASE),
+            "code": re.compile(rf"\b({codes})\b", re.IGNORECASE),
+        }
+
+    def detect_currencies(self, text: str) -> Dict[str, List[Tuple[str, Currency]]]:
+        """
+        Detect all currency references in text by type (name, location, code).
+        Returns dict: {'name': [(original_text, currency_obj), ...], ...}
+        """
+        patterns = self.build_currency_regex_patterns()
+        detected = defaultdict(list)
+
+        # Create mapping for case-insensitive lookup
+        name_map = {c.full_name.lower(): c for c in self.currency_pool}
+        location_map = {c.location.lower(): c for c in self.currency_pool}
+        code_map = {c.code.upper(): c for c in self.currency_pool}
+
+        # Find names
+        for match in patterns["name"].finditer(text):
+            original = match.group(1)
+            currency = name_map.get(original.lower())
+            if currency:
+                detected["name"].append((original, currency))
+
+        # Find locations
+        for match in patterns["location"].finditer(text):
+            original = match.group(1)
+            currency = location_map.get(original.lower())
+            if currency:
+                detected["location"].append((original, currency))
+
+        # Find codes
+        for match in patterns["code"].finditer(text):
+            original = match.group(1)
+            currency = code_map.get(original.upper())
+            if currency:
+                detected["code"].append((original, currency))
+
+        return detected
+
+    def get_substitution_sequence(
+        self, detected: Dict[str, List[Tuple[str, Currency]]]
+    ) -> int:
+        """
+        Find the longest sequence of detected currency references.
+        Returns N (number of random currencies to substitute).
+
+        Example:
+            detected = {
+                'name': [('Japanese Yen', JPY_obj), ('Euro', EUR_obj), ('British Pound', GBP_obj)],
+                'location': [('China', CNY_obj), ('Brazil', BRL_obj)],
+                'code': [('CHF', CHF_obj)]
+            }
+            Returns: 3 (longest sequence is 3 names)
+        """
+        max_sequence = 0
+        for det_type, items in detected.items():
+            max_sequence = max(max_sequence, len(items))
+
+        return max_sequence
+
+    def build_currency_mapping(
+        self, detected: Dict[str, List[Tuple[str, Currency]]]
+    ) -> Dict[str, Currency]:
+        """
+        Build mapping from original detected currencies to replacement currencies.
+
+        Strategy:
+        1. For each detection type, collect all detected currencies
+        2. Get N = longest sequence
+        3. Sample N random currencies without replacement
+        4. Map detected -> replacement
+        """
+        n_substitutions = self.get_substitution_sequence(detected)
+
+        if n_substitutions == 0:
+            return {}
+
+        # Collect all detected currencies (deduplicated by code to avoid duplicate mappings)
+        detected_currency_codes = set()
+        for det_type, items in detected.items():
+            for original_text, currency in items:
+                detected_currency_codes.add(currency.code)
+
+        # Select N random currencies from pool
+        available_currencies = [
+            c for c in self.currency_pool if c.code not in detected_currency_codes
+        ]
+        if len(available_currencies) < n_substitutions:
+            available_currencies = self.currency_pool
+
+        replacement_currencies = self.rng.sample(
+            available_currencies, min(n_substitutions, len(available_currencies))
+        )
+
+        # Build mapping: original_text -> replacement_currency
+        mapping = {}
+        replacement_idx = 0
+
+        for det_type, items in detected.items():
+            for original_text, currency in items:
+                if original_text not in mapping:  # Avoid re-mapping same text
+                    if replacement_idx < len(replacement_currencies):
+                        mapping[original_text] = replacement_currencies[replacement_idx]
+                        replacement_idx += 1
+
+        return mapping
+
+    def substitute_currencies_in_text(
+        self, text: str, mapping: Dict[str, Currency], det_type: str
+    ) -> str:
+        """
+        Replace detected currencies in text based on type (name, location, code).
+        """
+        for original_text, replacement_currency in mapping.items():
+            if det_type == "name":
+                replacement = replacement_currency.full_name
+            elif det_type == "location":
+                replacement = replacement_currency.location
+            elif det_type == "code":
+                replacement = replacement_currency.code
+            else:
+                replacement = original_text
+
+            # Case-insensitive replacement that preserves original case pattern
+            pattern = re.compile(re.escape(original_text), re.IGNORECASE)
+            text = pattern.sub(replacement, text)
+
+            self.substitution_log.append(
+                {
+                    "type": det_type,
+                    "original": original_text,
+                    "replacement": replacement,
+                    "original_currency": None,  # Would need to track this
+                    "replacement_currency": replacement_currency.code,
+                }
+            )
+
+        return text
+
+    def substitute_all(self, text: str) -> Tuple[str, List[Dict]]:
+        """
+        Apply full currency substitution pipeline.
+
+        Returns:
+            (substituted_text, substitution_log)
+        """
+        detected = self.detect_currencies(text)
+
+        if not detected or all(len(v) == 0 for v in detected.values()):
+            return text, []
+
+        mapping = self.build_currency_mapping(detected)
+
+        substituted_text = text
+        for det_type in ["name", "location", "code"]:
+            # Filter mapping to only this detection type
+            type_mapping = {}
+            for det_type_key, items in detected.items():
+                if det_type_key == det_type:
+                    for original_text, currency in items:
+                        if original_text in mapping:
+                            type_mapping[original_text] = mapping[original_text]
+
+            if type_mapping:
+                substituted_text = self.substitute_currencies_in_text(
+                    substituted_text, type_mapping, det_type
+                )
+
+        return substituted_text, self.substitution_log
+
+    def clear_log(self):
+        """Reset substitution log and mappings."""
+        self.substitution_log = []
+        self.currency_mapping = {}
+        self.detected_currencies = []
 
 
 class ContentDeduplicator:
@@ -1012,7 +1231,8 @@ def get_dynamic_window(
         sentence_month_info, all_months, sentence_year_info, all_years = (
             _extract_all_months_and_years_from_sentences(all_sentences)
         )
-
+        currency_subst = DynamicCurrencySubstitution()
+        window, curr_log = currency_subst.substitute_all(window)
         if all_years or all_months:
             subst_engine = NumericSubstitutionEngine()
 
@@ -1365,22 +1585,18 @@ def create_labeled_dataset():
 
 
 if __name__ == "__main__":
-    test_sentences = [
-        "In 1996, we entered into derivatives.",
-        "We used 2.5M notional in interest rate swaps.",
-        "The notional was 3M and 3.1M in 2023 and 2024 respectively.",
-        "We manage 1500 basis points of exposure.",
+    combined_test_sentences = [
+        "In 1996, we entered into derivatives in the Japanese Yen and Euro.",
+        "We used 2.5M notional in interest rate swaps and USD forwards.",
+        "The notional was 3M in GBP and 3.1M in EUR in 2023 and 2024 respectively.",
+        "We manage CHF exposure through 1500 basis points of FX derivatives.",
+        "Since 2020, we hedge JPY exposure in Brazil with 500K notional.",
     ]
+    
+    combined_numeric_engine = NumericSubstitutionEngine()
+    combined_currency_substituter = DynamicCurrencySubstitution()
+    # Apply it
+    combined_numeric_engine.substitute_all(combined_test_sentences)
 
-    # Extract years with offsets
-    engine = NumericSubstitutionEngine()
-    sent_year_info, all_years = engine.extract_sentence_years(test_sentences)
-    print(f"Sentence year info: {sent_year_info}")
-    print(f"All years: {all_years}")
-
-    # Build mapping with random base year
-    engine.build_year_mapping(sent_year_info, all_years)
-    print(f"\nBase year: {engine.base_year}")
-    print(f"Year mapping: {engine.year_mapping}")
     mp.freeze_support()
     create_labeled_dataset()
