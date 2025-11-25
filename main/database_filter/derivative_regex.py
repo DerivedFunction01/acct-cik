@@ -1028,14 +1028,18 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     special_bases_alt = build_alternation(special_bases, sort_longest_first=True)
     suffix_alt = build_alternation(suffixes, sort_longest_first=True)
 
-    # Pattern 1: Safe bases (can be standalone OR with suffix)
-    pattern1 = rf"(?:{safe_bases_alt})(?:\s+[- ](?:{suffix_alt}))?"
+    # CRITICAL FIX: Reorder to enforce MAX MUNCH
+    # Pattern 1: Safe bases WITH suffix (HIGHEST PRIORITY - longest match first)
+    pattern1 = rf"{safe_bases_alt}[- ]{suffix_alt}"
 
-    # Pattern 2: Unsafe bases (MUST have suffix)
-    pattern2 = rf"(?:{unsafe_alone_alt})\s+[- ](?:{suffix_alt})"
+    # Pattern 2: Unsafe bases MUST have suffix
+    pattern2 = rf"{unsafe_alone_alt}[- ]{suffix_alt}"
 
-    # Pattern 3: Special bases (complete phrases)
-    pattern3 = special_bases_alt
+    # Pattern 3: Safe bases standalone (LOWER PRIORITY)
+    pattern3 = safe_bases_alt
+
+    # Pattern 4: Special bases (complete phrases)
+    pattern4 = special_bases_alt
 
     # Combine with specific phrases first (highest priority)
     specific_phrases = [
@@ -1049,8 +1053,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     ]
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
-    # FINAL: Specific phrases FIRST, then pattern3, then pattern2, then pattern1
-    instrument_pattern = rf"{specific_alt}|{pattern3}|{pattern2}|{pattern1}"
+    # FINAL: Specific phrases FIRST, then combined+suffix patterns, then standalone
+    instrument_pattern = rf"{specific_alt}|{pattern4}|{pattern1}|{pattern2}|{pattern3}"
 
     INSTRUMENT_REGEX = re.compile(
         rf"\b(?P<instrument>{instrument_pattern})\b", re.IGNORECASE
