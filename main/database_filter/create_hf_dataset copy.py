@@ -275,19 +275,23 @@ def scrub_non_target_instruments(
         if scrub_cat not in CATEGORY_DELETION_MAP:
             continue
 
-        instrument_regex, context_regex = CATEGORY_DELETION_MAP[scrub_cat]
+        instrument_regex, soft_instrument_regex, context_regex = CATEGORY_DELETION_MAP[scrub_cat]
 
         # Track what we're removing
         instrument_matches = [
             m.group(0) for m in instrument_regex.finditer(cleaned_text)
         ]
+        # Scrub soft mentions not caught by the strict one
+        soft_instrument_matches = [
+            m.group(0) for m in soft_instrument_regex.finditer(cleaned_text)
+        ]
         context_matches = [m.group(0) for m in context_regex.finditer(cleaned_text)]
 
-        if instrument_matches or context_matches:
+        if instrument_matches or context_matches or soft_instrument_matches:
             removed_info.append(
                 {
                     "category": scrub_cat,
-                    "instruments": instrument_matches,
+                    "instruments": instrument_matches + soft_instrument_matches,
                     "context_terms": context_matches,
                 }
             )
@@ -330,9 +334,9 @@ def validate_scrubbed_example(
 
     # Check 2: Target instrument still present (if specific category)
     if target_category not in {"gen", "other"}:
-        target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0]
-
-        if not target_instrument_regex.search(scrubbed_text):
+        target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0] # strict
+        target_soft_instrument_regex = CATEGORY_DELETION_MAP[target_category][1] # soft
+        if not target_instrument_regex.search(scrubbed_text) or target_soft_instrument_regex.search(scrubbed_text):
             return (
                 False,
                 f"Target category {target_category} instrument lost after scrubbing",
@@ -395,9 +399,9 @@ def prepare_training_example(
 
     if target_category not in {"gen", "other"}:
         target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0]
-
+        target_soft_instrument_regex = CATEGORY_DELETION_MAP[target_category][1]
         # Find the match to determine what we're replacing
-        match = target_instrument_regex.search(scrubbed_text)
+        match = target_instrument_regex.search(scrubbed_text) or target_soft_instrument_regex.search(scrubbed_text)
         if not match:
             logger.warning(
                 f"Target instrument not found after scrubbing: {target_category}"
