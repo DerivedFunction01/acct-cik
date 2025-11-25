@@ -583,7 +583,9 @@ CATEGORY_CONTEXT_MAP = {
 
 SPECIAL_BASE =  [   
     "call options?",
-    "put options?",]
+    "put options?",
+    "basis swaps?",
+]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
     "forwards?",
@@ -811,17 +813,23 @@ def build_fx_regex() -> re.Pattern:
         rf"(?:{fx_dynamic_pattern})",  # Optimized FX prefix combinations
         rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))",  # Optimized currency names (USD, JPY, etc.)
     ]
-
-    # --- 3. Build Specific Phrases (Max Munch) ---
+     forward_types = [
+        "non[- ]deliverable",
+        "deliverable",
+        "deal[- ]contingent",
+    ]
+    forward_types_alternation = build_alternation(forward_types, sort_longest_first=True)
+    
+    # These capture the longest matches before falling back to pattern1
     specific_phrases = [
-        # NDF and hedge of net investment are high priority, long phrases
+        # All forward types with optional suffixes (e.g., "non-deliverable forward contract")
+        rf"(?:{forward_types_alternation})\s+forwards?(?:\s+[- ](?:{suffix_alternation}))?",
+        
+        # Other long-form specific FX instruments
         "NDF",
-        "deliverable forwards?",
         "hedge of the net investment",
         "net investment hedges?",
-        "deal[- ]contingent forwards?",
-        r"cash\s+flow\s+hedge\s+of\s+currency\s+risk",
-        r"non[- ]deliverable\s+forwards?",
+        rf"cash\s+flow\s+hedge\s+of\s+currency\s+risk",
     ]
 
     pattern = build_smart_regex(
@@ -956,12 +964,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "cash flow hedges?",
         "fair value hedges?",
         "embedded derivatives?",
-        "derivatives?",
         "over[- ]the[- ]counter derivatives?",
         "derivative financial instruments?",
-        "call options?",
-        "put options?",
-        "swaptions?",  # Swaptions are also safe standalone
     ]
 
     instrument_pattern = build_alternation(instrument_parts + instrument_specific)
