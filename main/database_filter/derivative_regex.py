@@ -247,11 +247,20 @@ IR_CONTEXT_TERMS = [
     r"interest[- ]rate",
     r"treasury[- ]rate",
     r"forward[- ]rate",
-    r"LIBOR",
-    r"SOFR",
-    r"EURIBOR",
-    r"SONIA",
-    r"TONAR",  # Tokyo Overnight
+    "SOFR",
+    "SONIA",
+    "LIBOR",
+    "EURIBOR",
+    "ESTR",
+    "EONIA",
+    "TONAR",
+    "BBSW",
+    "CIBOR",
+    "STIBOR",
+    "HIBOR",
+    "TIBOR",
+    "PRIBOR",
+    "MOSPRIME",
     r"prime\s+rate",
     r"fed(?:eral)?\s+funds\s+rate",
     r"yield\s+curve",
@@ -267,7 +276,7 @@ IR_CONTEXT_TERMS = [
     r"interest\s+payment",
     r"basis\s+point",
     r"repric(?:ing|ed)",
-    r"weighted\s+average\s+interest"
+    r"weighted\s+average\s+interest",
 ]
 
 
@@ -923,8 +932,8 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     return strict_fx_regex, soft_fx_regex
 
 
-def build_cp_regex() -> re.Pattern:
-    # 1. Base Terms: Generic + Specific List
+def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
+    # --- 1. Helper Definitions ---
 
     # Sorted alternation of all commodities (Max Munch applied internally)
     commodity_alternation = build_alternation(
@@ -943,18 +952,17 @@ def build_cp_regex() -> re.Pattern:
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
 
-    # 2. Generate Core Terms (Prefixes)
+    # 2. Generate Core Terms (Prefixes) for STRICT pattern
 
     # Optimized Core: Commodity Name + Modifier (e.g., Crude Oil[- ]price)
-    # Build this way (what you should do):
-    all_patterns = [
+    # This is the original, high-precision core alternation
+    strict_core_patterns = [
         rf"fixed[- ](?:{commodity_alternation})[- ](?:{modifier_alternation})",
         rf"(?:{commodity_alternation})[- ](?:{modifier_alternation})",
         rf"(?:{commodity_alternation})",
     ]
+    strict_core_alternation = build_alternation(strict_core_patterns, sort_longest_first=True)
 
-    # Then wrap in build_alternation with sort_longest_first=True
-    core_alternation = build_alternation(all_patterns, sort_longest_first=True)
     spread_types = [
         "crack",
         "spark",
@@ -962,10 +970,12 @@ def build_cp_regex() -> re.Pattern:
     ]
     spread_types_alternation = build_alternation(spread_types, sort_longest_first=True)
 
+    # 3. Unified Specific Phrases
+    # These contain the max-munch phrases and apply to both strict and soft.
     specific_phrases = [
-        r"weather derivatives?",                     # raw string for regex
+        r"weather derivatives?", # raw string for regex
         r"power purchase agreements?",               # raw string for regex
-        # LONGEST FIRST: spreads with suffix
+        # LONGEST FIRST: spreads with suffix (uses standalone_alternation for bases/suffixes)
         rf"(?:{spread_types_alternation})\s+spreads?\s+(?:{standalone_alternation})",
         # SHORTER: spreads alone
         rf"(?:{spread_types_alternation})\s+spreads?",
@@ -973,28 +983,55 @@ def build_cp_regex() -> re.Pattern:
         r"virtual PPA",
     ]
 
-    # Then pre-sort longest-first before passing to build_smart_regex
-    specific_phrases = sorted(
+    # Pre-sort longest-first for Max Munch precedence
+    sorted_specific_phrases = sorted(
         specific_phrases,
         key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:" ))
     )
 
+    # -------------------------------------------------------------------------
+    # --- A. STRICT Pattern Construction (High Precision) ---
+    # -------------------------------------------------------------------------
 
-    pattern = build_smart_regex([core_alternation], expand_instruments(unsafe=True, exclude_standalone_suffixes=True), specific_phrases)
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+    # Fragment used for attachment to core terms: Requires an instrument base, excludes standalones.
+    # This maintains the high precision of the original function's core logic.
+    strict_attachment_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=True)
 
-def build_eq_regex() -> re.Pattern:
-    # Common fragments for readability and consistency
+    strict_pattern = build_smart_regex(
+        [strict_core_alternation],               # Highly precise core prefixes
+        strict_attachment_fragment,              # Must attach a derivative base (e.g., 'swap' or 'future')
+        sorted_specific_phrases,                 # All high-priority explicit phrases
+    )
+    strict_cp_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
+
+    # -------------------------------------------------------------------------
+    # --- B. SOFT Pattern Construction (Contextual Precision) ---
+    # -------------------------------------------------------------------------
+
+    # Fragment used for general pattern combination: Includes all derivative terminology.
+    soft_instrument_fragment = expand_instruments(unsafe=True)
+
+    # Soft pattern combines simple prefixes ('commodity', 'CP') with the full range of instrument terms.
+    soft_pattern = build_smart_regex(
+        [strict_core_alternation],                 # Simple prefixes
+        soft_instrument_fragment,                # Full range of instruments (e.g., 'options', 'futures')
+        sorted_specific_phrases,                 # All high-priority explicit phrases
+    )
+    soft_cp_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+
+    # Return the tuple of (strict, soft)
+    return strict_cp_regex, soft_cp_regex
+
+def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
+    # --- 1. Build Core Terms (Prefixes) ---
     liability = r"liabilit(?:y|ies)"
     option = r"options?"
     warrant = r"warrants?"
     derivative = r"derivatives?"
-
-    # 1. Build Core Terms (Prefixes)
-    core_terms = [
+    # Strict Core Terms (Precise market/price references)
+    strict_core_terms = [
         r"equity",
         r"equity[- ](?:based|related|linked|index)",
-        # RESTORED CRITICAL TERMS: These are needed for combinations like "S&P 500 swap"
         r"share\s+price",
         r"stock\s+price",
         r"market\s+index",
@@ -1002,16 +1039,16 @@ def build_eq_regex() -> re.Pattern:
         r"Nasdaq",
         r"Dow\s+Jones",
     ]
-    core_alternation = build_alternation(core_terms, True)
+    strict_core_alternation = build_alternation(strict_core_terms, True)
 
-    # 2. Build Specific Phrases (Max Munch)
 
+    # 2. Build Specific Phrases (Max Munch) - UNIFIED LIST
     # Convertible phrases (Structural Embedded Derivatives)
     convertible_phrases = [
         rf"embedded\s+conversion\s+(?:{option}|features?|{derivative})",
         rf"conversion\s+option\s+{liability}",
         rf"bifurcated\s+conversion\s+{option}",
-        rf"{derivative}\s+{liability}\s+\S*convertible\s+notes?",  # Retained long structure
+        rf"{derivative}\s+{liability}\s+\S*convertible\s+notes?",
     ]
 
     # Warrant liabilities (Financial Warrants only)
@@ -1025,25 +1062,53 @@ def build_eq_regex() -> re.Pattern:
         rf"(?:{derivative}[- ]{liability}|{derivative}|{liability})[- ]{warrant}",
     ]
 
-    all_specifics = (
-        [
-            r"call spreads?",
-            r"capped calls?",
-            r"accelerated\s+share\s+repurchases?",
-            r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
-            r"margin\s+loans?",
-        ]
-        + convertible_phrases
-        + warrant_phrases
+    # Other Explicitly Safe Phrases
+    explicit_phrases = [
+        r"call spreads?",
+        r"capped calls?",
+        r"accelerated\s+share\s+repurchases?",
+        r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
+        r"margin\s+loans?",
+    ]
+
+    # Combine and pre-sort all high-confidence specific phrases
+    all_specifics = explicit_phrases + convertible_phrases + warrant_phrases
+    sorted_specific_phrases = sorted(
+        all_specifics, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
     )
 
-    pattern = build_smart_regex(
-        [core_alternation],
-        expand_instruments(unsafe=True, exclude_standalone_suffixes=True),
-        all_specifics,
+    # -------------------------------------------------------------------------
+    # --- A. STRICT Pattern Construction (High Precision) ---
+    # -------------------------------------------------------------------------
+
+    # Fragment for attachment: Must exclude standalones to ensure precision in core matches
+    strict_attachment_fragment = expand_instruments(
+        unsafe=True, exclude_standalone_suffixes=True
     )
 
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+    strict_pattern = build_smart_regex(
+        [strict_core_alternation],  # Precise prefixes (share price, S&P 500, etc.)
+        strict_attachment_fragment,  # Must attach a derivative base (e.g., 'swap' or 'future')
+        sorted_specific_phrases,  # All high-priority explicit phrases
+    )
+    strict_eq_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
+
+    # -------------------------------------------------------------------------
+    # --- B. SOFT Pattern Construction (Contextual Precision) ---
+    # -------------------------------------------------------------------------
+
+    # Fragment for general pattern combination: Includes all derivative terminology, including standalones.
+    soft_instrument_fragment = expand_instruments(unsafe=True)
+
+    soft_pattern = build_smart_regex(
+        [strict_core_alternation], 
+        soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
+        sorted_specific_phrases,  # All high-priority explicit phrases
+    )
+    soft_eq_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+
+    # Return the tuple of (strict, soft)
+    return strict_eq_regex, soft_eq_regex
 
 
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
@@ -1151,18 +1216,35 @@ STRICT_GEN_REGEX = re.compile(
 
 
 def build_soft_gen_regex() -> re.Pattern:
-    specific_phrases = [
-        "(?:instruments?|contracts?) are designated",
-        "ineffective portion",
-        "hedging relationship",
-        "hedge accounting",
-        "change in fair value of derivatives?",
-        "derivative expense",
-        "designated as (?:a )?hedges?",
-        "(?:gain|loss) on derivatives?",
+    # 1. Phrases explicitly related to derivative accounting treatment (PNL/Classification)
+    accounting_phrases = [
+        r"(?:instruments?|contracts?) are designated",
+        r"ineffective portion",
+        r"hedging relationship",
+        r"hedge accounting",
+        r"change in fair value of derivatives?",
+        r"derivative expense",
+        r"designated as (?:a )?hedges?",
+        r"(?:gain|loss) on derivatives?",
+        r"fair\s+value\s+measurements?",
+        r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
     ]
-    pattern = build_alternation(specific_phrases)
+    
+    # 3. Add other generic hedging/risk management concepts
+    generic_concepts = [
+        r"market\s+risk",
+        r"counterparty\s+risk",
+        r"risk\s+exposure",
+        r"manage\s+risk",
+    ]
+
+    all_patterns = accounting_phrases + generic_concepts
+
+    # Combine and prioritize based on length/specificity
+    pattern = build_alternation(all_patterns)
+
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+
 
 def build_loose_gen_regex() -> re.Pattern:
     pattern = build_alternation(ALL_BASE_TYPES + ALL_SUFFIXES)
@@ -1173,8 +1255,8 @@ def build_loose_gen_regex() -> re.Pattern:
 # =============================================================================
 IR_REGEX = build_ir_regex()
 FX_REGEX, FX_SOFT_REGEX = build_fx_regex()
-CP_REGEX = build_cp_regex()
-EQ_REGEX = build_eq_regex()
+CP_REGEX, CP_SOFT_REGEX = build_cp_regex()
+EQ_REGEX, EQ_SOFT_REGEX = build_eq_regex()
 
 CATEGORY_REGEX = re.compile(
     r"|".join(
