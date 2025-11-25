@@ -59,6 +59,7 @@ from derivative_regex import (
     LOOSE_GEN_REGEX,
     POSITION_CONTEXT_INDICATORS,
     SOFT_CATEGORY_REGEX,
+    SOFT_GEN_REGEX,
     SOFT_REGEX,
     STRICT_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
@@ -1015,7 +1016,9 @@ def filter_matches_with_disambiguation(
             text = []
             discard = []
             for sentence in sentences_temp:
-                if BOTH_CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
+                if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
+                    text.append(sentence)
+                elif SOFT_CATEGORY_REGEX.search(sentence) and SOFT_GEN_REGEX.search(sentence): # for unsafe mentions, check for hedging context
                     text.append(sentence)
                 else:
                     discard.append(sentence)
