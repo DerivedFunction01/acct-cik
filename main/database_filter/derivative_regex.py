@@ -1054,7 +1054,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         rf"\b(?P<instrument>{instrument_pattern})\b", re.IGNORECASE
     )
 
-    # Notional phrases
+    # Notional phrases (will catch unsafe variants as standalone if important)
     notional_variants = [
         r"notional\s+(?:amounts?|values?|principals?)",
     ]
