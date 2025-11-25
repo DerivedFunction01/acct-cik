@@ -36,6 +36,7 @@ from derivative_regex import (
     EXCLUDE_REGEX_ACCOUNTING_STD,
     CATEGORY_DELETION_MAP,
     cleanup_fragment,
+    VERB_USE_REGEX, 
 )
 from filter_database import get_sentence_categories
 
@@ -664,6 +665,8 @@ def process_chunk(chunk_data):
                         specific_cats = cats - {"gen", "other"}
 
                         if len(specific_cats) == 0:
+                            if VERB_USE_REGEX.search(sentence) and GEN_REGEX.search(sentence): # We use derivatives within the boilerplate
+                                continue 
                             full_window = get_dynamic_window(sentences, i)
                             max_score = scorer.get_max_score_any_category(full_window)
 
