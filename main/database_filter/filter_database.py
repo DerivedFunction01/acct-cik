@@ -1096,7 +1096,7 @@ def filter_matches_with_disambiguation(
 
             current_instrument = None
             instrument_match = STRICT_REGEX.search(sentence)
-            soft_instrument_match = SOFT_REGEX.search(sentence)
+            soft_instrument_match = SOFT_REGEX.search(sentence) # Should be safe, since it should've passed the first stage
             if instrument_match:
                 current_instrument = instrument_match.group(0)
             elif soft_instrument_match:
