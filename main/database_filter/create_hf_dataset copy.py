@@ -17,6 +17,9 @@ from tqdm import tqdm
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from derivative_regex import (
+    CP_REGEX,
+    EQ_REGEX,
+    FX_REGEX,
     GEN_REGEX,
     IR_REGEX,
     SENTENCE_SPLIT_PATTERN,
@@ -66,10 +69,48 @@ SCRUBBING_CONFIG = {
 }
 
 LABEL_TO_CONFLICT_REGEX = {
-    "ir": [FX_CONTEXT_REGEX, CP_CONTEXT_REGEX, EQ_CONTEXT_REGEX],
-    "fx": [IR_CONTEXT_REGEX, CP_CONTEXT_REGEX, EQ_CONTEXT_REGEX],
-    "cp": [IR_CONTEXT_REGEX, FX_CONTEXT_REGEX, EQ_CONTEXT_REGEX],
-    "eq": [IR_CONTEXT_REGEX, FX_CONTEXT_REGEX, CP_CONTEXT_REGEX],
+    "ir": [
+        FX_CONTEXT_REGEX,
+        CP_CONTEXT_REGEX,
+        EQ_CONTEXT_REGEX,
+        FX_REGEX,
+        CP_REGEX,
+        EQ_REGEX,
+    ],
+    "fx": [
+        IR_CONTEXT_REGEX,
+        CP_CONTEXT_REGEX,
+        EQ_CONTEXT_REGEX,
+        IR_REGEX,
+        CP_REGEX,
+        EQ_REGEX,
+    ],
+    "cp": [
+        IR_CONTEXT_REGEX,
+        FX_CONTEXT_REGEX,
+        EQ_CONTEXT_REGEX,
+        IR_REGEX,
+        FX_REGEX,
+        EQ_REGEX,
+    ],
+    "eq": [
+        IR_CONTEXT_REGEX,
+        FX_CONTEXT_REGEX,
+        CP_CONTEXT_REGEX,
+        IR_REGEX,
+        FX_REGEX,
+        CP_REGEX,
+    ],
+    "gen": [
+        IR_CONTEXT_REGEX,
+        FX_CONTEXT_REGEX,
+        CP_CONTEXT_REGEX,
+        EQ_CONTEXT_REGEX,
+        IR_REGEX,
+        FX_REGEX,
+        CP_REGEX,
+        EQ_REGEX
+    ],
 }
 
 # =============================================================================
