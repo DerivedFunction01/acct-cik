@@ -655,28 +655,39 @@ def expand_instruments(bases: List[str], suffixes: List[str]) -> List[str]:
     return combos
 EXPANDED_INSTRUMENTS = expand_instruments(ALL_BASE_TYPES, ALL_SUFFIXES)
 
-def build_ir_regex() -> re.Pattern:
-    RATE_TYPES = ["fixed", "variable", "floating"]
-    RATES = ["treasury", "forward", "benchmark", "interest"] + RATE_TYPES
-    # Improved Flexible Separator Pattern
-    FLEXIBLE_SEPARATOR = r"(?:\s*[,/;&]?\s*|\s+(?:and|or)\s+|\s*[- ]+)\s*"
 
-    def build_pay_receive_pattern() -> str:
+def build_ir_regex() -> re.Pattern:
+    # --- 1. Define Helper Components ---
+    RATE_TYPES = ["fixed", "variable", "floating"]
+    # RATES is for descriptive prefixes that combine with 'rate'
+    RATES = ["treasury", "forward", "benchmark", "interest"] + RATE_TYPES
+
+    # We rely on the globally defined build_alternation, EXPANDED_INSTRUMENTS, etc.
+
+    def build_pay_receive_structure() -> str:
         """
-        Constructs the highly flexible Interest Rate Pay/Receive swap pattern.
-        Example: (pay-fixed receive-variable) or (pay-floating and receive-fixed)
+        Constructs the core pay/receive structure pattern (e.g., "pay fixed...receive floating").
+        This is treated as a long, high-priority prefix.
         """
+        # Note: The existing logic inside derivative_regex.py assumes these are available
+        # build_alternation, FLEXIBLE_SEPARATOR (now defined within the module)
         rate_alternation = build_alternation(RATE_TYPES, sort_longest_first=False)
-        rates = build_alternation(RATES, sort_longest_first=True)
-        # Pattern: pay/receive side (non-capturing group for the whole pattern)
-        pattern = (
+        FLEXIBLE_SEPARATOR = r"(?:\s*[,/;&]?\s*|\s+(?:and|or)\s+|\s*[- ]+)\s*"
+
+        # This captures just the pay/receive descriptive part
+        pay_receive = (
             r"(?i)pay[- ]"
             rf"(?:{rate_alternation})"
-            rf"{FLEXIBLE_SEPARATOR}"  # Use the flexible separator
+            rf"{FLEXIBLE_SEPARATOR}"
             r"receive[- ]"
-            rf"(?:{rate_alternation})(?:{rates}[- ]rates?)"
+            rf"(?:{rate_alternation})"
         )
-        return pattern
+        return pay_receive  # Returns just the pattern string for the structure
+
+    # --- 2. Build Core Terms (Prefixes for combination with base instruments) ---
+    # These terms combine with the instrument base (e.g., 'fixed-rate swap')
+    rate_adjective_phrases = [r + r"[- ]rate" for r in RATES]
+
     core_terms = [
         "single[- ]currency",
         "SOFR",
@@ -684,16 +695,38 @@ def build_ir_regex() -> re.Pattern:
         "LIBOR",
         "LIBOR[- ]based",
         "EURIBOR",
-        build_pay_receive_pattern(),
+    ] + rate_adjective_phrases
+
+    # --- 3. Build Specific Phrases (The Longest Matches) ---
+
+    # CRITICAL STEP: Combine the long descriptive pattern with the base instrument.
+    pay_receive_pattern = build_pay_receive_structure()
+
+    # This manually generates the longest possible instrument names
+    # (e.g., "pay fixed, receive floating swap agreement")
+    pay_receive_instruments = [
+        # Combine pay/receive structure with all possible instrument base types
+        f"{pay_receive_pattern}[- ]{base}"
+        for base in EXPANDED_INSTRUMENTS + ALL_BASE_TYPES
     ]
+
     specific_phrases = [
+        # Add the combined (Pay/Receive + Instrument) patterns for Max Munch priority
+        *pay_receive_instruments,
+        # Add other high-priority instruments
         "zero[- ]coupon swaps?",
         "FRA",
         "treasury locks?",
         "credit default swaps?",
     ]
+
+    # --- 4. Build and Compile ---
+    # build_smart_regex will combine all core_terms with base instruments AND
+    # prioritize the long specific_phrases.
     pattern = build_smart_regex(
-        core_terms, EXPANDED_INSTRUMENTS + ALL_SUFFIXES + ALL_BASE_TYPES, specific_phrases
+        core_terms,
+        EXPANDED_INSTRUMENTS + ALL_SUFFIXES + ALL_BASE_TYPES,
+        specific_phrases,
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
