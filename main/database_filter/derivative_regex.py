@@ -245,34 +245,6 @@ COMMON_COMMODITIES = [
 MIN_SENTENCE_LENGTH = 15
 MAX_SENTENCE_LENGTH = 800 # A very long sentence is probably a table that became a sentence
 
-# =============================================================================
-# REGEX BUILDERS (moved)
-# =============================================================================
-def build_smart_regex(
-    core_terms: List[str],
-    context_terms: List[str],
-    specific_phrases: List[str],
-) -> str:
-    """
-    Build smart regex ensuring longest matches first.
-    "interest rate swap contract" matches fully, not just "interest rate swap"
-    """
-    core_pattern = build_alternation(core_terms, sort_longest_first=True)
-    follow_pattern = build_alternation(context_terms, sort_longest_first=True)
-
-    # Core + suffix: "interest rate" + "-" + "swap"
-    pattern1 = f"{core_pattern}[- ]{follow_pattern}"
-
-    # Specific phrases like "zero coupon swaps"
-    if not specific_phrases:
-        return pattern1
-
-    pattern2 = build_alternation(specific_phrases, sort_longest_first=True)
-
-    # Return sorted so longest specific phrases come first
-    # E.g., "interest rate swap agreement" before "interest rate swap"
-    return build_alternation([pattern2, pattern1])
-
 
 # Interest Rate context clues
 IR_CONTEXT_TERMS = [
@@ -639,6 +611,35 @@ CATEGORY_CONTEXT_MAP = {
 }
 
 
+# =============================================================================
+# REGEX BUILDERS (moved)
+# =============================================================================
+def build_smart_regex(
+    core_terms: List[str],
+    context_terms: List[str],
+    specific_phrases: List[str],
+) -> str:
+    """
+    Build smart regex ensuring longest matches first.
+    "interest rate swap contract" matches fully, not just "interest rate swap"
+    """
+    core_pattern = build_alternation(core_terms, sort_longest_first=True)
+    follow_pattern = build_alternation(context_terms, sort_longest_first=True)
+
+    # Core + suffix: "interest rate" + "-" + "swap"
+    pattern1 = f"{core_pattern}[- ]{follow_pattern}"
+
+    # Specific phrases like "zero coupon swaps"
+    if not specific_phrases:
+        return pattern1
+
+    pattern2 = build_alternation(specific_phrases, sort_longest_first=True)
+
+    # Return sorted so longest specific phrases come first
+    # E.g., "interest rate swap agreement" before "interest rate swap"
+    return build_alternation([pattern2, pattern1])
+
+
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(ALL_BASE_TYPES, True)
 suffix_alternation = build_alternation(ALL_SUFFIXES, True)
@@ -684,11 +685,12 @@ def build_ir_regex() -> re.Pattern:
     ] + RATE_TYPES
 
     BENCHMARK_RATES = [
-        "SOFR",
-        "SONIA",
-        "LIBOR",
-        "EURIBOR",
+        "SOFR", "SONIA", "LIBOR", "EURIBOR",
+        "ESTR", "EONIA", "TONAR", "BBSW",
+        "CIBOR", "STIBOR", "HIBOR", "TIBOR",
+        "PRIBOR", "MOSPRIME"
     ]
+
 
     def build_pay_receive_structure() -> str:
         """Constructs the core pay/receive structure pattern."""
@@ -839,26 +841,39 @@ def build_fx_regex() -> re.Pattern:
 
 def build_cp_regex() -> re.Pattern:
     # 1. Base Terms: Generic + Specific List
-    # Ensure "commodities" (plural) is covered in base
-    base_commodities = ["commodity", "commodities"] + COMMON_COMMODITIES
 
-    # 2. Modifiers: MUST include optional 's' for prices/costs to catch "Oil prices"
-    modifiers = ["[- ]prices?", "[- ]costs?", "[- ]related", "[- ]based", "[- ]linked"]
+    # Sorted alternation of all commodities (Max Munch applied internally)
+    commodity_alternation = build_alternation(
+        ["commodity", "commodities"] + COMMON_COMMODITIES, sort_longest_first=True
+    )
 
-    # 3. Generate Core Terms (e.g., "Gold", "Gold-linked", "Oil price")
-    core_terms = [c for c in base_commodities] + [
-        f"{c}{mod}" for c in base_commodities for mod in modifiers
+    # Optimized modifiers (Max Munch applied internally)
+    modifier_terms = [
+        "price",
+        "prices?",
+        "cost",
+        "costs?",
+        "related",
+        "based",
+        "linked",
+        "index",
+        "spreads?",
     ]
-    core_terms.append("fixed[- ]commodity")
+    modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
 
-    # 4. Define Safe Follow-up Instruments
-    # We use ALL_BASE_TYPES (Swaps, Futures, Options, Forwards)
-    # CRITICAL: We do NOT use ALL_SUFFIXES (Agreements, Contracts) here.
-    # Why? "Gold Swaps" is a derivative. "Gold Contracts" is likely a physical supply deal.
-    safe_cp_instruments = ALL_BASE_TYPES + EXPANDED_INSTRUMENTS
+    # 2. Generate Core Terms (Prefixes)
+
+    # Optimized Core: Commodity Name + Modifier (e.g., Crude Oil[- ]price)
+    # Build this way (what you should do):
+    all_patterns = [
+        rf"fixed[- ](?:{commodity_alternation})[- ](?:{modifier_alternation})",
+        rf"(?:{commodity_alternation})[- ](?:{modifier_alternation})",
+    ]
+
+    # Then wrap in build_alternation with sort_longest_first=True
+    core_alternation = build_alternation(all_patterns, sort_longest_first=True)
 
     specific_phrases = [
-        "commodity index",
         "weather derivatives?",
         # Add these to catch specific PPA nuances if needed:
         "power purchase agreements?",
@@ -869,7 +884,7 @@ def build_cp_regex() -> re.Pattern:
         "virtual PPA",
     ]
 
-    pattern = build_smart_regex(core_terms, safe_cp_instruments, specific_phrases)
+    pattern = build_smart_regex([core_alternation], [expand_instruments(unsafe=True)], specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
