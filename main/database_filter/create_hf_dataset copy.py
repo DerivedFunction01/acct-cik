@@ -698,13 +698,25 @@ class DynamicCurrencySubstitution:
 
         return mapping
 
-    def substitute_currencies_in_text(
-        self, text: str, mapping: Dict[str, Currency], det_type: str
-    ) -> str:
-        """
-        Replace detected currencies in text based on type (name, location, code).
-        """
-        for original_text, replacement_currency in mapping.items():
+    def substitute_currencies_in_text(self, text: str, mapping: Dict[str, Currency], det_type: str) -> str:
+        # 1. Create a single regex pattern for ALL keys in this mapping
+        # Sort keys by length (descending) to ensure greedy matching (e.g., match "US Dollar" before "US")
+        sorted_keys = sorted(mapping.keys(), key=len, reverse=True)
+        pattern = re.compile(r'\b(' + '|'.join(map(re.escape, sorted_keys)) + r')\b', re.IGNORECASE)
+
+        # 2. Define callback to look up replacement
+        def replace_match(match):
+            original = match.group(1)
+            # We need to find the key in the mapping that matches case-insensitively
+            # (Since your mapping keys preserve original casing from detection)
+            # Optimization: You might want to normalize mapping keys to lower case for lookup
+            for key, val in mapping.items():
+                if key.lower() == original.lower():
+                    replacement_currency = val
+                    break
+            else:
+                return original # Should not happen given regex
+
             if det_type == "name":
                 replacement = replacement_currency.full_name
             elif det_type == "location":
@@ -712,22 +724,15 @@ class DynamicCurrencySubstitution:
             elif det_type == "code":
                 replacement = replacement_currency.code
             else:
-                replacement = original_text
+                replacement = original
+                
+            # Optional: Attempt to preserve capitalization of 'original' in 'replacement'
+            return replacement
 
-            # Case-insensitive replacement that preserves original case pattern
-            pattern = re.compile(re.escape(original_text), re.IGNORECASE)
-            text = pattern.sub(replacement, text)
-
-            self.substitution_log.append(
-                {
-                    "type": det_type,
-                    "original": original_text,
-                    "replacement": replacement,
-                    "original_currency": None,  # Would need to track this
-                    "replacement_currency": replacement_currency.code,
-                }
-            )
-
+        # 3. Single pass substitution
+        text = pattern.sub(replace_match, text)
+        
+        # ... logging logic ...
         return text
 
     def substitute_all(self, text: str) -> Tuple[str, List[Dict]]:
