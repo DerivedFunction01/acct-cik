@@ -23,7 +23,6 @@ except ImportError:
 class InstrumentGenerator:
     """Dynamically generates realistic derivative instrument phrases."""
 
-    # Base components for each category
     IR_BASES = ["swap", "forward", "cap", "floor", "collar", "swaption", "lock"]
     IR_RATES = [
         "interest rate",
@@ -88,14 +87,6 @@ class InstrumentGenerator:
     @staticmethod
     def generate_fx_instruments() -> List[str]:
         """Generate diverse FX instruments."""
-        pairs = [
-            ("USD", "EUR"),
-            ("EUR", "JPY"),
-            ("GBP", "USD"),
-            ("AUD", "USD"),
-            ("USD", "CAD"),
-        ]
-
         instruments = [
             # Simple base instruments
             "foreign currency forward",
@@ -109,10 +100,9 @@ class InstrumentGenerator:
             "cross-currency swap agreement",
             "currency option contract",
             "non-deliverable forward arrangement",
-            # Pair-specific
-            "USD/EUR forward",
-            "EUR/JPY swap",
-            "GBP/USD option",
+            # Code-specific
+            "USD swap",  # Testing the new safe currency match
+            "EUR forward contract",  # Testing currency code + suffix
             # Complex descriptive
             "cross-currency swap",
             "cross-currency basis swap",
@@ -124,16 +114,6 @@ class InstrumentGenerator:
     @staticmethod
     def generate_cp_instruments() -> List[str]:
         """Generate diverse Commodity instruments."""
-        commodities_prices = [
-            "crude oil price",
-            "natural gas price",
-            "copper price",
-            "gold price",
-            "wheat price",
-        ]
-
-        commodities_spreads = ["crack spread", "spark spread", "dark spread"]
-
         instruments = [
             # Simple base instruments
             "commodity swap",
@@ -168,8 +148,6 @@ class InstrumentGenerator:
     @staticmethod
     def generate_eq_instruments() -> List[str]:
         """Generate diverse Equity instruments."""
-        indices = ["S&P 500", "Nasdaq", "Dow Jones", "Russell 2000"]
-
         instruments = [
             # Simple base instruments
             "equity swap",
@@ -212,9 +190,38 @@ class InstrumentGenerator:
         ]
         return list(set(instruments))
 
+    @staticmethod
+    def generate_fp_instruments() -> List[str]:
+        """Generate non-derivative terms that could be false positives."""
+        return [
+            # General Legal/Corporate FPs
+            "Employment agreement",
+            "Services contract",
+            "License agreement",
+            # Currency FPs (simple trade/loan)
+            "Intercompany currency arrangement",
+            "Foreign exchange service agreement",
+            "Trade contract",
+            "Currency purchase agreement",
+            # Equity FPs (non-derivative)
+            "Stock option plan",  # Not a derivative liability
+            "Subscription agreement",
+            "Share purchase contract",
+            "Equity financing agreement",
+            # Commodity FPs (physical delivery)
+            "Crude oil purchase contract",
+            "Natural gas sales agreement",
+            "Power supply agreement",
+            "Electricity contract",
+            # Rate FPs (simple loans/debt)
+            "Fixed rate loan agreement",
+            "Floating rate note",
+            "Interest payment arrangement",
+        ]
+
 
 # =============================================================================
-# 2. ENHANCED TEST DATA GENERATION
+# 2. ENHANCED TEST DATA GENERATION (FIXED FOR REDUNDANCY)
 # =============================================================================
 
 
@@ -222,18 +229,12 @@ def generate_verification_data() -> Dict[str, List[Tuple[str, str]]]:
     """Generate structured test phrases with dynamic instruments."""
     TEST_DATA: Dict[str, List[Tuple[str, str]]] = {}
 
-    # Generic hedging templates
-    HEDGING_TEMPLATES: List[str] = [
-        "We use {instr} to hedge our exposure.",
-        "The company entered into {instr}.",
-        "We hold {instr} on our floating rate debt.",
-        "We designated {instr} as cash flow hedges.",
-        "We execute {instr} for hedging purposes.",
-        "Outstanding {instr} are marked to fair value.",
-        "The fair value of our {instr} increased this quarter.",
-        "{instr} are used to mitigate currency translation risk.",
-        "We have {instr} outstanding with notional of $500 million.",
-    ]
+    # Template 1: Bare instrument (ideal for strict Max Munch test)
+    SIMPLE_TEMPLATE: str = "{instr}"
+    # Template 2: Instrument in simple context (used for cross-validation)
+    SIMPLE_CONTEXT_TEMPLATE: str = "We use {instr} to hedge our exposure."
+    # Template 3: Simple context for False Positives
+    FP_CONTEXT_TEMPLATE: str = "The document includes a {instr}."
 
     # Generate instruments for each category
     category_instruments = {
@@ -242,26 +243,43 @@ def generate_verification_data() -> Dict[str, List[Tuple[str, str]]]:
         "cp": InstrumentGenerator.generate_cp_instruments(),
         "eq": InstrumentGenerator.generate_eq_instruments(),
         "gen": InstrumentGenerator.generate_gen_instruments(),
+        "fp": InstrumentGenerator.generate_fp_instruments(),  # NEW FP CATEGORY
     }
 
     # Generate test cases
     for category, instruments in category_instruments.items():
         cat_tests = []
+        tested_instruments: Set[str] = set()
+
+        # Determine which templates to use
+        templates_to_use = [SIMPLE_TEMPLATE, SIMPLE_CONTEXT_TEMPLATE]
+        if category == "fp":
+            # For FPs, we must test them in context to ensure they don't match
+            templates_to_use = [FP_CONTEXT_TEMPLATE]
 
         for instr in instruments:
-            for template in HEDGING_TEMPLATES:
-                phrase = template.format(instr=instr)
+            # Add bare instrument test for TRUE POSITIVES (Max Munch)
+            if category != "fp" and instr not in tested_instruments:
+                phrase = SIMPLE_TEMPLATE.format(instr=instr)
                 cat_tests.append((phrase, instr))
+                tested_instruments.add(instr)
 
-        # Dedupe and limit
-        seen = set()
+            # Add contextual tests (for cross-validation and FP checks)
+            for template in templates_to_use:
+                phrase = template.format(instr=instr)
+                # For FPs, the expected match is an empty string
+                expected = "" if category == "fp" else instr
+                cat_tests.append((phrase, expected))
+
+        # Final dedupe and limit
+        seen_phrases = set()
         deduped = []
         for p, m in cat_tests:
-            if p not in seen:
-                seen.add(p)
+            if p not in seen_phrases:
+                seen_phrases.add(p)
                 deduped.append((p, m))
 
-        TEST_DATA[category] = deduped[:25]
+        TEST_DATA[category] = deduped[:50]
 
     return TEST_DATA
 
@@ -269,7 +287,7 @@ def generate_verification_data() -> Dict[str, List[Tuple[str, str]]]:
 # Generate test data
 TEST_DATA = generate_verification_data()
 
-# Regexes map
+# Regexes map (FP category is tested against ALL regexes)
 REGEXES = {
     "ir": IR_REGEX,
     "fx": FX_REGEX,
@@ -289,10 +307,28 @@ def test_auto_verification(
     """Tests a single phrase and verifies the longest match."""
     regex = REGEXES.get(category)
     if not regex:
+        # Special handling for FP category: test against all, expect no match
+        if category == "fp":
+            all_regexes = list(REGEXES.values())
+            for reg in all_regexes:
+                match = reg.search(phrase)
+                if match:
+                    matched_text = match.group(0).strip().lower()
+                    return (
+                        False,
+                        f"FP Matched by {reg.pattern[:20]}...: '{matched_text}'",
+                    )
+            return True, "Correctly found NO match (False Positive Passed)"
+
         return False, f"Category '{category.upper()}' has no defined regex."
 
+    # Standard true positive check
     match = regex.search(phrase)
     expected_clean = expected_match.strip().lower()
+
+    if expected_clean == "":
+        # Should not happen for standard categories, but defensive
+        return False, "Error: Standard category must have an expected match."
 
     if not match:
         return False, f"No match found. Expected: '{expected_clean}'"
@@ -307,10 +343,10 @@ def test_auto_verification(
 
 def test_cross_validation(
     phrase: str, expected_category: str
-) -> Tuple[bool, Dict[str, str]]:
+) -> Tuple[bool, Dict[str, str], List[Tuple[str, str]]]:
     """
-    Cross-validation: ensure ONLY the expected regex matches.
-    Returns (passed, results_dict) where results_dict shows matches per category.
+    Cross-validation: ensures ONLY the expected regex matches among *specialized*
+    categories. GEN_REGEX is allowed to match anything.
     """
     results = {}
     unwanted_matches = []
@@ -321,16 +357,16 @@ def test_cross_validation(
             matched_text = match.group(0).strip().lower()
             results[category] = matched_text
 
-            if (
-                category != expected_category
-                and category != "gen"
-                and expected_category !="gen"
-            ):
+            # Unwanted match if:
+            # 1. It's not the expected category, AND
+            # 2. It's not the generic category ("gen").
+            # 3. It's not an FP test (where all matches are wrong)
+            if category != expected_category and category != "gen":
                 unwanted_matches.append((category, matched_text))
         else:
             results[category] = "(no match)"
 
-    # Passed if: expected category matched AND no unwanted categories matched
+    # Passed if: expected category matched AND no unwanted specialized categories matched
     expected_matched = (
         expected_category in results and results[expected_category] != "(no match)"
     )
@@ -340,12 +376,12 @@ def test_cross_validation(
 
 
 def run_primary_test_suite() -> Tuple[int, int]:
-    """Runs primary verification tests (longest match check)."""
+    """Runs primary verification tests (longest match check, including FPs)."""
     total_tests = 0
     total_passed = 0
 
     print("\n" + "=" * 100)
-    print("🚀 PRIMARY TEST SUITE: Category Regex Verification (Max Munch Check)")
+    print("🚀 PRIMARY TEST SUITE: Verification and False Positive Check (Max Munch/FP)")
     print("=" * 100)
 
     for category, tests in TEST_DATA.items():
@@ -368,15 +404,21 @@ def run_primary_test_suite() -> Tuple[int, int]:
             # Only print failures to save space
             if not passed:
                 print(f"[{status}] Case {i}: {phrase}")
-                print(f"         {result_message}")
+                print(f"       Expected: '{expected_match}'")
+                print(f"        {result_message}")
 
-        print(f"    → {category_passed}/{len(tests)} passed")
+        print(f"     → {category_passed}/{len(tests)} passed")
 
     return total_tests, total_passed
 
 
 def run_cross_validation_suite() -> Tuple[int, int]:
     """Runs cross-validation (ensures no regex bleeds into other categories)."""
+    # Cross-validation does NOT apply to FP or GEN categories, so we filter them out
+    categories_for_cross_check = {
+        k: v for k, v in TEST_DATA.items() if k not in ["fp", "gen"]
+    }
+
     total_tests = 0
     total_passed = 0
 
@@ -384,13 +426,12 @@ def run_cross_validation_suite() -> Tuple[int, int]:
     print("🔍 CROSS-VALIDATION TEST SUITE: Category Isolation Check")
     print("=" * 100)
 
-    for category, tests in TEST_DATA.items():
-        print(
-            f"\n--- {category.upper()} Category Isolation ({min(5, len(tests))} spot checks) ---"
-        )
-
+    for category, tests in categories_for_cross_check.items():
         # Sample 5 tests per category for cross-validation (to save runtime)
         sample_tests = tests[:5]
+        print(
+            f"\n--- {category.upper()} Category Isolation ({len(sample_tests)} spot checks) ---"
+        )
         category_passed = 0
 
         for phrase, expected_match in sample_tests:
@@ -405,11 +446,11 @@ def run_cross_validation_suite() -> Tuple[int, int]:
             else:
                 status = "✗"
                 print(f"[{status}] '{phrase[:60]}...'")
-                print(f"         Expected only {category.upper()}, but got:")
+                print(f"        Expected only {category.upper()}, but got:")
                 for wrong_cat, match in unwanted:
-                    print(f"           - {wrong_cat.upper()}: '{match}'")
+                    print(f"          - {wrong_cat.upper()}: '{match}'")
 
-        print(f"    → {category_passed}/{len(sample_tests)} isolated correctly")
+        print(f"     → {category_passed}/{len(sample_tests)} isolated correctly")
 
     return total_tests, total_passed
 
@@ -427,29 +468,31 @@ def run_test_suite() -> None:
     print("\n" + "=" * 100)
     print("📊 FINAL TEST SUMMARY")
     print("=" * 100)
-    print(f"\nPrimary Tests (Max Munch):")
+    print(f"\nPrimary Tests (Max Munch & FP):")
     print(
-        f"   Total: {total_primary} | Passed: {passed_primary} | Failed: {total_primary - passed_primary}"
+        f"     Total: {total_primary} | Passed: {passed_primary} | Failed: {total_primary - passed_primary}"
     )
-    print(f"   Success Rate: {100 * passed_primary / total_primary:.1f}%")
+    print(f"     Success Rate: {100 * passed_primary / total_primary:.1f}%")
 
     print(f"\nCross-Validation Tests (Isolation):")
     print(
-        f"   Total: {total_cross} | Passed: {passed_cross} | Failed: {total_cross - passed_cross}"
+        f"     Total: {total_cross} | Passed: {passed_cross} | Failed: {total_cross - passed_cross}"
     )
-    print(f"   Success Rate: {100 * passed_cross / total_cross:.1f}%")
+    print(f"     Success Rate: {100 * passed_cross / total_cross:.1f}%")
 
     total_all = total_primary + total_cross
     passed_all = passed_primary + passed_cross
     print(f"\nOverall:")
     print(
-        f"   Total: {total_all} | Passed: {passed_all} | Failed: {total_all - passed_all}"
+        f"     Total: {total_all} | Passed: {passed_all} | Failed: {total_all - passed_all}"
     )
-    print(f"   Success Rate: {100 * passed_all / total_all:.1f}%")
+    print(f"     Success Rate: {100 * passed_all / total_all:.1f}%")
 
     print("\n" + "=" * 100)
     if passed_all == total_all:
-        print("🎉 ALL TESTS PASSED! Maximum Munch preserved & categories isolated.")
+        print(
+            "🎉 ALL TESTS PASSED! Maximum Munch preserved, categories isolated, and FPs rejected."
+        )
     else:
         print("⚠️  FAILURES DETECTED. Review output above for details.")
     print("=" * 100)

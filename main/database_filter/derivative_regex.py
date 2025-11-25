@@ -1059,6 +1059,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     # Notional phrases (will catch unsafe variants as standalone if important)
     notional_variants = [
         r"notional\s+(?:amounts?|values?|principals?)",
+        r"notional",
     ]
     NOTIONAL_REGEX = re.compile(
         rf"\b(?P<notional>(?:{'|'.join(notional_variants)}))\b", re.IGNORECASE
