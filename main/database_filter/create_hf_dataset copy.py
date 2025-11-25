@@ -964,7 +964,7 @@ def validate_scrubbed_example(
     if target_category not in {"gen", "other"}:
         target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0] # strict
         target_soft_instrument_regex = CATEGORY_DELETION_MAP[target_category][1] # soft
-        if not target_instrument_regex.search(scrubbed_text) or target_soft_instrument_regex.search(scrubbed_text):
+        if not (target_instrument_regex.search(scrubbed_text) or target_soft_instrument_regex.search(scrubbed_text)):
             return (
                 False,
                 f"Target category {target_category} instrument lost after scrubbing",
