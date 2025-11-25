@@ -1289,10 +1289,10 @@ ALL_REGEX = re.compile(
     r"|".join([STRICT_REGEX.pattern, SOFT_GEN_REGEX.pattern]), re.IGNORECASE
 )
 CATEGORY_DELETION_MAP = {
-    "ir": (IR_REGEX, IR_CONTEXT_REGEX),
-    "fx": (FX_REGEX, FX_CONTEXT_REGEX),
-    "cp": (CP_REGEX, CP_CONTEXT_REGEX),
-    "eq": (EQ_REGEX, EQ_CONTEXT_REGEX),
+    "ir": (IR_REGEX, IR_SOFT_REGEX, IR_CONTEXT_REGEX),
+    "fx": (FX_REGEX, FX_SOFT_REGEX, FX_CONTEXT_REGEX),
+    "cp": (CP_REGEX, CP_SOFT_REGEX, CP_CONTEXT_REGEX),
+    "eq": (EQ_REGEX, EQ_SOFT_REGEX, EQ_CONTEXT_REGEX),
 }
 
 # =============================================================================
