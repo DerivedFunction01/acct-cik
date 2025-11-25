@@ -698,7 +698,6 @@ def build_ir_regex() -> re.Pattern:
         "PRIBOR", "MOSPRIME"
     ]
 
-
     def build_pay_receive_structure() -> str:
         """Constructs the core pay/receive structure pattern."""
         rate_alternation = build_alternation(RATE_TYPES, sort_longest_first=False)
@@ -719,7 +718,6 @@ def build_ir_regex() -> re.Pattern:
     rate_alternation = build_alternation(RATES_ADJECTIVES, sort_longest_first=True)
     rate_adjective_phrases = [rf"{rate_alternation}[- ]rate"]
 
-
     # This pattern enforces the sequence: [P/R] + [Optional Adjectives] + [Mandatory Instrument Base]
     aggressive_capture_pattern = (
         rf"(?:{pay_receive_pattern_string})"  # 1. Start with 'pay fixed, receive fixed'
@@ -734,7 +732,7 @@ def build_ir_regex() -> re.Pattern:
 
     benchmark_alternation = build_alternation(BENCHMARK_RATES, sort_longest_first=True)
     brate_adjective_phrases = [
-        rf"(?:{benchmark_alternation})(?:[- ](?:related|linked|based))"
+        rf"(?:{benchmark_alternation})(?:[- ](?:related|linked|based))?"
     ]
     core_terms = (
         [
@@ -749,6 +747,7 @@ def build_ir_regex() -> re.Pattern:
         aggressive_capture_pattern,
         "zero[- ]coupon swaps?",
         "FRA",
+        f"treasury locks?(?:[- ]{suffix_alternation})",
         "treasury locks?",
         "credit default swaps?",
         "overnight index swaps?",
@@ -823,12 +822,12 @@ def build_fx_regex() -> re.Pattern:
     # These capture the longest matches before falling back to pattern1
     specific_phrases = [
         # All forward types with optional suffixes (e.g., "non-deliverable forward contract")
-        rf"(?:{forward_types_alternation})\s+forwards?(?:\s+[- ](?:{suffix_alternation}))?",
+        rf"(?:{forward_types_alternation})\s+forwards?\s+[- ](?:{suffix_alternation})"
+        rf"(?:{forward_types_alternation})\s+forwards?",
         # Other long-form specific FX instruments
         "NDF",
         r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
         "net investment hedges?",
-        
     ]
 
     pattern = build_smart_regex(
