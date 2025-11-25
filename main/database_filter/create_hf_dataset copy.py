@@ -154,6 +154,48 @@ LABEL_TO_CONFLICT_REGEX = {
 # HELPER CLASSES
 # =============================================================================
 
+# Add these regex patterns after the NUMERIC_SUBSTITUTION_CONFIG section (around line 100)
+MONTH_NAMES = {
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+}
+
+MONTH_ABBREVIATIONS = {
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
+
+# Map month number (1-12) back to name/abbrev
+MONTH_NUMBER_TO_NAME = {v: k for k, v in MONTH_NAMES.items()}
+MONTH_NUMBER_TO_ABBREV = {v: k for k, v in MONTH_ABBREVIATIONS.items()}
+
+# Regex to match month names, abbreviations, or numeric months
+MONTH_REGEX = re.compile(
+    r"\b("
+    + "|".join(list(MONTH_NAMES.keys()) + list(MONTH_ABBREVIATIONS.keys()))
+    + r")\b",
+    re.IGNORECASE,
+)
 
 class NumericSubstitutionEngine:
     """
@@ -161,6 +203,7 @@ class NumericSubstitutionEngine:
 
     Strategy:
     - Years: Collect all, pick random base year, apply ±1 uniformly
+    - Months: Collect all, pick random base month, preserve offsets
     - Numbers (non-zero): Apply ±5% uniform multiplicative perturbation
     - Zeros: Skip
     - Validation: Check perturbed years stay within window context range
@@ -176,7 +219,164 @@ class NumericSubstitutionEngine:
         self.rng = random.Random(random_seed) if random_seed else random
         self.substitution_log = []
         self.year_mapping = {}  # Maps original year -> replacement year
+        self.month_mapping = (
+            {}
+        )  # Maps original month (1-12) -> replacement month (1-12)
         self.base_year = None
+        self.base_month = None
+
+    # ========== MONTH EXTRACTION & SUBSTITUTION ==========
+
+    def extract_sentence_months(self, sentences):
+        """
+        Extract months from each sentence, tracking both month values and offsets.
+
+        For each sentence, compute:
+        - Months found (as integers 1-12)
+        - Offsets from the minimum month in that sentence (to preserve comparatives)
+
+        Example:
+            sentence = "From January to March we saw growth."
+            Returns: {
+                'months': [1, 3],
+                'min_month': 1,
+                'offsets': {1: 0, 3: 2}
+            }
+
+        Returns:
+            Dict mapping sentence_idx -> {
+                'months': [list of month integers],
+                'min_month': minimum month in sentence,
+                'offsets': {month -> offset_from_min}
+            }
+        """
+        sentence_month_info = {}
+        all_months = set()
+
+        for idx, sent in enumerate(sentences):
+            months = []
+            for match in MONTH_REGEX.finditer(sent):
+                month_str = match.group(1).lower()
+                month_num = MONTH_NAMES.get(month_str) or MONTH_ABBREVIATIONS.get(
+                    month_str
+                )
+                if month_num:
+                    months.append(month_num)
+
+            if months:
+                min_month = min(months)
+                offsets = {month: month - min_month for month in months}
+                sentence_month_info[idx] = {
+                    "months": months,
+                    "min_month": min_month,
+                    "offsets": offsets,
+                }
+                all_months.update(months)
+
+        return sentence_month_info, all_months
+
+    def pick_base_month(self, all_months):
+        """Randomly select one month (1-12) as the base for perturbation."""
+        if not all_months:
+            return None
+        return self.rng.choice(list(all_months))
+
+    def build_month_mapping(self, sentence_month_info, all_months):
+        """
+        Build mapping from original month -> replacement month.
+
+        Strategy (handles both single months and comparatives):
+        1. Pick random base month (ZZ) from all_months
+        2. For each sentence:
+           - If single month: map to ZZ
+           - If comparative (multiple months): map to ZZ + offset, wrapping around (1-12)
+
+        Example:
+            sentence_month_info = {
+                0: {'months': [1], 'min_month': 1, 'offsets': {1: 0}},
+                2: {'months': [1, 3], 'min_month': 1, 'offsets': {1: 0, 3: 2}}
+            }
+            all_months = {1, 3}
+            Pick base_month = 5
+
+            Output mapping:
+                1 -> 5  (single month)
+                3 -> 7  (5 + offset of 2)
+
+        Args:
+            sentence_month_info: Dict from extract_sentence_months()
+            all_months: Set of all unique months across all sentences
+        """
+        if not all_months:
+            self.month_mapping = {}
+            return
+
+        # Pick random base month
+        self.base_month = self.pick_base_month(all_months)
+        if not self.base_month:
+            self.month_mapping = {}
+            return
+        # For each sentence, determine how to map its months
+        for sent_idx, month_info in sentence_month_info.items():
+            offsets = month_info["offsets"]
+
+            # Map each month: base_month + offset, wrapping around 1-12
+            for month, offset in offsets.items():
+                replacement_month = ((self.base_month - 1 + offset) % 12) + 1
+                self.month_mapping[month] = replacement_month
+
+    def substitute_months_in_text(self, text):
+        """
+        Replace months in text using pre-built month_mapping.
+
+        Preserves capitalization (January vs january).
+        Must call build_month_mapping() first.
+        """
+        if not self.month_mapping:
+            return text
+
+        def replace_month(match):
+            original_month_str = match.group(1).lower()
+            original_month_num = MONTH_NAMES.get(
+                original_month_str
+            ) or MONTH_ABBREVIATIONS.get(original_month_str)
+
+            if original_month_num is None:
+                return match.group(0)
+
+            replacement_month_num = self.month_mapping.get(
+                original_month_num, original_month_num
+            )
+
+            # Determine if original was abbreviated or full name
+            is_abbrev = original_month_str in MONTH_ABBREVIATIONS
+            is_capitalized = match.group(1)[0].isupper()
+
+            if is_abbrev:
+                replacement_str = MONTH_NUMBER_TO_ABBREV[replacement_month_num]
+            else:
+                replacement_str = MONTH_NUMBER_TO_NAME[replacement_month_num]
+
+            # Preserve capitalization
+            if is_capitalized:
+                replacement_str = replacement_str.capitalize()
+
+            self.substitution_log.append(
+                {
+                    "type": "month",
+                    "original": match.group(1),
+                    "replacement": replacement_str,
+                    "original_month_num": original_month_num,
+                    "replacement_month_num": replacement_month_num,
+                    "span": match.span(),
+                }
+            )
+
+            return replacement_str
+
+        return MONTH_REGEX.sub(replace_month, text)
+
+    # ========== EXISTING YEAR & NUMBER METHODS (unchanged) ==========
 
     def extract_sentence_years(self, sentences):
         """
@@ -217,56 +417,23 @@ class NumericSubstitutionEngine:
         return self.rng.choice(list(all_years))
 
     def build_year_mapping(self, sentence_year_info, all_years):
-        """
-        Build mapping from original year -> replacement year.
-
-        Strategy (handles both single years and comparatives):
-        1. Pick random base year (ZZ) from all_years
-        2. For each sentence:
-           - If single year: map to ZZ
-           - If comparative (multiple years): map to ZZ + offset
-
-        Example:
-            sentence_year_info = {
-                0: {'years': [1996], 'min_year': 1996, 'offsets': {1996: 0}},
-                2: {'years': [2023, 2024], 'min_year': 2023, 'offsets': {2023: 0, 2024: 1}}
-            }
-            all_years = {1996, 2023, 2024}
-            Pick base_year = 2015
-
-            Output mapping:
-                1996 -> 2015  (single year)
-                2023 -> 2015  (comparative min year)
-                2024 -> 2016  (2015 + offset of 1)
-
-        Args:
-            sentence_year_info: Dict from extract_sentence_years()
-            all_years: Set of all unique years across all sentences
-        """
+        """Build mapping from original year -> replacement year (with offsets)."""
         if not all_years:
             self.year_mapping = {}
             return
 
-        # Pick random base year (ZZ)
         self.base_year = self.pick_base_year(all_years)
 
-        # For each sentence, determine how to map its years
         for sent_idx, year_info in sentence_year_info.items():
             min_year = year_info["min_year"]
             offsets = year_info["offsets"]
 
-            # Map minimum year of sentence to base_year
-            # All other years in that sentence get base_year + their offset
             for year, offset in offsets.items():
                 replacement_year = self.base_year + offset
                 self.year_mapping[year] = replacement_year
 
     def substitute_years_in_text(self, text):
-        """
-        Replace years in text using pre-built year_mapping.
-
-        Must call build_year_mapping() first.
-        """
+        """Replace years in text using pre-built year_mapping."""
         if not self.year_mapping:
             return text
 
@@ -290,17 +457,13 @@ class NumericSubstitutionEngine:
         return YEAR_REGEX_COLLECTOR.sub(replace_year, text)
 
     def substitute_numbers_in_text(self, text):
-        """
-        Replace non-year numbers with ±5% uniform perturbation.
-        Skip zeros and already-substituted years.
-        """
+        """Replace non-year numbers with ±5% uniform perturbation."""
         if not self.config["apply_to_numbers"]:
             return text
 
         def replace_number(match):
             num_str = match.group(0)
 
-            # Skip if it's a year (already processed)
             try:
                 num_val = int(num_str)
                 if num_val in self.year_mapping:
@@ -308,23 +471,19 @@ class NumericSubstitutionEngine:
             except (ValueError, TypeError):
                 pass
 
-            # Parse the number
             try:
                 num_val = float(num_str)
             except ValueError:
                 return num_str
 
-            # Skip zeros
             if num_val == 0:
                 return num_str
 
-            # Apply ±5% uniform perturbation
             delta = self.rng.uniform(
                 -self.config["number_perturbation"], self.config["number_perturbation"]
             )
             new_val = num_val * (1 + delta)
 
-            # Preserve precision
             decimals = self._count_decimals(num_str)
             new_str = f"{new_val:.{decimals}f}".rstrip("0").rstrip(".")
 
@@ -343,8 +502,9 @@ class NumericSubstitutionEngine:
         return NON_YEAR_NUMBER_REGEX.sub(replace_number, text)
 
     def substitute_all(self, text):
-        """Apply year substitution followed by number substitution."""
+        """Apply year, month, and number substitution."""
         text = self.substitute_years_in_text(text)
+        text = self.substitute_months_in_text(text)
         text = self.substitute_numbers_in_text(text)
         return text
 
@@ -362,7 +522,9 @@ class NumericSubstitutionEngine:
         """Reset substitution log and mappings."""
         self.substitution_log = []
         self.year_mapping = {}
+        self.month_mapping = {}
         self.base_year = None
+        self.base_month = None
 
 
 class ContentDeduplicator:
@@ -751,6 +913,17 @@ def _get_generic_form(category: str) -> str:
 # =============================================================================
 # DYNAMIC WINDOW LOGIC
 # =============================================================================
+def _extract_all_months_and_years_from_sentences(sentences):
+    """
+    Helper to extract months and years from a list of sentences, tracking per-sentence offsets.
+
+    Returns:
+        (sentence_month_info, all_months, sentence_year_info, all_years)
+    """
+    engine = NumericSubstitutionEngine()
+    sentence_month_info, all_months = engine.extract_sentence_months(sentences)
+    sentence_year_info, all_years = engine.extract_sentence_years(sentences)
+    return sentence_month_info, all_months, sentence_year_info, all_years
 
 
 def _extract_all_years_from_sentences(sentences):
@@ -776,6 +949,11 @@ def get_dynamic_window(
 ):
     """
     Constructs a variable-width window with optional dynamic numeric substitution.
+
+    Applies substitution to:
+    - Years (with offset preservation)
+    - Months (with offset preservation)
+    - Other numbers (±5% perturbation)
 
     Args:
         sentences: List of sentences
@@ -827,17 +1005,23 @@ def get_dynamic_window(
 
     window = f"{prev_block}{SEP_TOKEN}{target_sent}{SEP_TOKEN}{next_block}"
 
-    # NEW: Apply numeric substitution to entire window
+    # Apply numeric substitution (years, months, numbers) to entire window
     if apply_numeric_substitution and NUMERIC_SUBSTITUTION_CONFIG["enabled"]:
-        # Extract years from all sentences in window, tracking offsets
+        # Extract months and years from all sentences in window, tracking offsets
         all_sentences = prev_parts + [target_sent] + next_parts
-        sentence_year_info, all_years = _extract_all_years_from_sentences(all_sentences)
+        sentence_month_info, all_months, sentence_year_info, all_years = (
+            _extract_all_months_and_years_from_sentences(all_sentences)
+        )
 
-        if all_years:
+        if all_years or all_months:
             subst_engine = NumericSubstitutionEngine()
-            # Build mapping: pick random base year, map single years to it,
-            # map comparatives to base_year + offset
-            subst_engine.build_year_mapping(sentence_year_info, all_years)
+
+            # Build mappings
+            if all_years:
+                subst_engine.build_year_mapping(sentence_year_info, all_years)
+            if all_months:
+                subst_engine.build_month_mapping(sentence_month_info, all_months)
+
             # Apply substitution to window
             window = subst_engine.substitute_all(window)
 
