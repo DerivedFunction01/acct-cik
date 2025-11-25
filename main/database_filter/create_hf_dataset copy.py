@@ -61,7 +61,7 @@ SEP_TOKEN = " [SEP] "
 MIN_WINDOW_SIZE = 1
 MAX_WINDOW_SIZE = 3
 
-TARGET_SAMPLES_PER_CLASS = 1000
+TARGET_SAMPLES_PER_CLASS = 1250
 SATURATION_LIMIT = int(TARGET_SAMPLES_PER_CLASS * 1.5)
 CHUNK_SIZE = 5000
 MAX_WORKERS = max(1, mp.cpu_count() - 1)
@@ -201,13 +201,15 @@ class ContextScorer:
 class AugmentationEngine:
     def __init__(self):
         self.generic_terms = [
-            "derivative",
-            "instrument",
-            "contract",
-            "agreement",
-            "hedging instrument",
-            "hedge",
-            "position",
+            "derivatives",
+            "instruments",
+            "contracts",
+            "agreements",
+            "hedging arrangements",
+            "hedging instruments",
+            "hedge contracts",
+            "hedges",
+            "positions",
         ]
         self.bases = [
             b.replace("?", "").replace("s", "") for b in UNAMBIGUOUS_BASE_TYPES
