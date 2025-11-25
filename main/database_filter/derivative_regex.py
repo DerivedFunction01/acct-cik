@@ -616,7 +616,7 @@ CATEGORY_CONTEXT_MAP = {
 # =============================================================================
 def build_smart_regex(
     core_terms: List[str],
-    context_terms: List[str],
+    context_terms: str,
     specific_phrases: List[str],
 ) -> str:
     """
@@ -624,10 +624,9 @@ def build_smart_regex(
     "interest rate swap contract" matches fully, not just "interest rate swap"
     """
     core_pattern = build_alternation(core_terms, sort_longest_first=True)
-    follow_pattern = build_alternation(context_terms, sort_longest_first=True)
 
     # Core + suffix: "interest rate" + "-" + "swap"
-    pattern1 = f"{core_pattern}[- ]{follow_pattern}"
+    pattern1 = f"{core_pattern}[- ]{context_terms}"
 
     # Specific phrases like "zero coupon swaps"
     if not specific_phrases:
@@ -750,7 +749,7 @@ def build_ir_regex() -> re.Pattern:
     # --- 5. Final Build and Compile ---
     pattern = build_smart_regex(
         core_terms,
-        [expand_instruments(unsafe=False)],
+        expand_instruments(unsafe=False),
         specific_phrases,
     )
     print(pattern)
@@ -788,7 +787,6 @@ def build_fx_dynamic_pattern() -> str:
         rf"(?:{compound})",
         # Single-word descriptive terms (low priority, included for completeness)
         compound,
-        word2_alt,
         r"FX",
         r"forex",
     ]
@@ -823,7 +821,7 @@ def build_fx_regex() -> re.Pattern:
 
     pattern = build_smart_regex(
         core_terms,
-        [expand_instruments(unsafe=False)],
+        expand_instruments(unsafe=False),
         specific_phrases,
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -874,7 +872,7 @@ def build_cp_regex() -> re.Pattern:
         "virtual PPA",
     ]
 
-    pattern = build_smart_regex([core_alternation], [expand_instruments(unsafe=True)], specific_phrases)
+    pattern = build_smart_regex([core_alternation], expand_instruments(unsafe=True), specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 def build_eq_regex() -> re.Pattern:
@@ -924,7 +922,7 @@ def build_eq_regex() -> re.Pattern:
 
     pattern = build_smart_regex(
         core_terms,
-        [expand_instruments(unsafe=True)],
+        expand_instruments(unsafe=True),
         all_specifics,
     )
 
