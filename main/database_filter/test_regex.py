@@ -149,6 +149,7 @@ def test_deletion(phrase: str, category: str) -> None:
     print(f"\nOriginal:\n  '{phrase}'")
 
     match = regex.search(phrase)
+    print(regex.pattern)
     if match:
         print(f"\nMatched: '{match.group(0)}'")
         deleted = regex.sub(" ", phrase)

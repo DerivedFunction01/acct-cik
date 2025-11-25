@@ -657,36 +657,69 @@ EXPANDED_INSTRUMENTS = expand_instruments(ALL_BASE_TYPES, ALL_SUFFIXES)
 
 
 def build_ir_regex() -> re.Pattern:
-    # --- 1. Define Helper Components ---
+    # --- 1. Helper Definitions ---
     RATE_TYPES = ["fixed", "variable", "floating"]
     # RATES is for descriptive prefixes that combine with 'rate'
-    RATES = ["treasury", "forward", "benchmark", "interest"] + RATE_TYPES
-
-    # We rely on the globally defined build_alternation, EXPANDED_INSTRUMENTS, etc.
+    RATES_ADJECTIVES = [
+        "treasury",
+        "forward",
+        "benchmark",
+        "interest",
+        "prime",
+        "fed-funds",
+    ] + RATE_TYPES
 
     def build_pay_receive_structure() -> str:
-        """
-        Constructs the core pay/receive structure pattern (e.g., "pay fixed...receive floating").
-        This is treated as a long, high-priority prefix.
-        """
-        # Note: The existing logic inside derivative_regex.py assumes these are available
-        # build_alternation, FLEXIBLE_SEPARATOR (now defined within the module)
+        """Constructs the core pay/receive structure pattern."""
         rate_alternation = build_alternation(RATE_TYPES, sort_longest_first=False)
         FLEXIBLE_SEPARATOR = r"(?:\s*[,/;&]?\s*|\s+(?:and|or)\s+|\s*[- ]+)\s*"
 
-        # This captures just the pay/receive descriptive part
-        pay_receive = (
-            r"(?i)pay[- ]"
+        return (
+            r"pay[- ]"
             rf"(?:{rate_alternation})"
             rf"{FLEXIBLE_SEPARATOR}"
             r"receive[- ]"
             rf"(?:{rate_alternation})"
         )
-        return pay_receive  # Returns just the pattern string for the structure
 
-    # --- 2. Build Core Terms (Prefixes for combination with base instruments) ---
-    # These terms combine with the instrument base (e.g., 'fixed-rate swap')
-    rate_adjective_phrases = [r + r"[- ]rate" for r in RATES]
+    # --- 2. Build Instrument Alternations ---
+    pay_receive_pattern_string = build_pay_receive_structure()
+
+    # Intervening words that may appear before the final base instrument
+    rate_adjectives_alternation = build_alternation(
+        [
+            r"interest\s+rate",
+            r"fixed\s+rate",
+            r"rate",
+            r"interest",
+            r"financial",
+            r"derivative",
+        ],
+        sort_longest_first=True,
+    )
+
+    # All possible instrument suffixes (swaps?, contracts?, agreements?, etc.)
+    all_bases_and_suffixes = EXPANDED_INSTRUMENTS + ALL_BASE_TYPES
+    instrument_bases_alternation = build_alternation(
+        all_bases_and_suffixes, sort_longest_first=True
+    )
+
+    # --- 3. Build Aggressive, Non-Greedy Capture Pattern ---
+
+    # This pattern enforces the sequence: [P/R] + [Optional Adjectives] + [Mandatory Instrument Base]
+    aggressive_capture_pattern = (
+        rf"(?:{pay_receive_pattern_string})"  # 1. Start with 'pay fixed, receive fixed'
+        r"(?:"  # Start of Optional Adjective Group
+        r"\s+"  # Mandatory space
+        rf"(?:{rate_adjectives_alternation})"  # 2. Optional: 'interest rate', 'derivative' etc.
+        r")?"
+        r"(?:\s+"  # Mandatory space before the base instrument
+        rf"(?:{instrument_bases_alternation})"  # 3. Mandatory: 'derivatives contracts' or 'swap'
+        r")"  # This group is mandatory for this specific phrase match
+    )
+
+    # --- 4. Build Core Terms and Specific Phrases ---
+    rate_adjective_phrases = [r + r"[- ]rate" for r in RATES_ADJECTIVES]
 
     core_terms = [
         "single[- ]currency",
@@ -697,32 +730,16 @@ def build_ir_regex() -> re.Pattern:
         "EURIBOR",
     ] + rate_adjective_phrases
 
-    # --- 3. Build Specific Phrases (The Longest Matches) ---
-
-    # CRITICAL STEP: Combine the long descriptive pattern with the base instrument.
-    pay_receive_pattern = build_pay_receive_structure()
-
-    # This manually generates the longest possible instrument names
-    # (e.g., "pay fixed, receive floating swap agreement")
-    pay_receive_instruments = [
-        # Combine pay/receive structure with all possible instrument base types
-        f"{pay_receive_pattern}[- ]{base}"
-        for base in EXPANDED_INSTRUMENTS + ALL_BASE_TYPES
-    ]
-
     specific_phrases = [
-        # Add the combined (Pay/Receive + Instrument) patterns for Max Munch priority
-        *pay_receive_instruments,
-        # Add other high-priority instruments
+        # CRITICAL: This pattern is prioritized for Max Munch
+        aggressive_capture_pattern,
         "zero[- ]coupon swaps?",
         "FRA",
         "treasury locks?",
         "credit default swaps?",
     ]
 
-    # --- 4. Build and Compile ---
-    # build_smart_regex will combine all core_terms with base instruments AND
-    # prioritize the long specific_phrases.
+    # --- 5. Final Build and Compile ---
     pattern = build_smart_regex(
         core_terms,
         EXPANDED_INSTRUMENTS + ALL_SUFFIXES + ALL_BASE_TYPES,
