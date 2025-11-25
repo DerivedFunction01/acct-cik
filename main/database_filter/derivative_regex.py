@@ -891,7 +891,7 @@ def build_cp_regex() -> re.Pattern:
         r"weather derivatives?",                     # raw string for regex
         r"power purchase agreements?",               # raw string for regex
         # LONGEST FIRST: spreads with suffix
-        rf"(?:{spread_types_alternation})\s+spreads?\s+(?:{suffix_alternation})",
+        rf"(?:{spread_types_alternation})\s+spreads?\s+(?:{standalone_alternation})",
         # SHORTER: spreads alone
         rf"(?:{spread_types_alternation})\s+spreads?",
         r"virtual power purchase agreements?",       # raw string for regex
