@@ -325,11 +325,7 @@ class NumericSubstitutionEngine:
             # Map each month: base_month + offset, wrapping around 1-12
             for month, offset in offsets.items():
                 replacement_month = self.base_month + offset
-                if replacement_month > 12:
-                    replacement_month = ((replacement_month - 1) % 12) + 1
-                elif replacement_month < 1:
-                    replacement_month = ((replacement_month - 1) % 12) + 1
-                self.month_mapping[month] = replacement_month
+                replacement_month = ((replacement_month - 1) % 12) + 1
 
     def substitute_months_in_text(self, text):
         """
@@ -1865,18 +1861,6 @@ def create_labeled_dataset():
 
 
 if __name__ == "__main__":
-    combined_test_sentences = [
-        "In 1996, we entered into derivatives in the Japanese Yen and Euro.",
-        "We used 2.5M notional in interest rate swaps and USD forwards.",
-        "The notional was 3M in GBP and 3.1M in EUR in 2023 and 2024 respectively.",
-        "We manage CHF exposure through 1500 basis points of FX derivatives.",
-        "Since 2020, we hedge JPY exposure in Brazil with 500K notional.",
-    ]
-    
-    combined_numeric_engine = NumericSubstitutionEngine()
-    combined_currency_substituter = DynamicCurrencySubstitution()
-    # Apply it
-    combined_numeric_engine.substitute_all(combined_test_sentences)
-
     mp.freeze_support()
+
     create_labeled_dataset()
