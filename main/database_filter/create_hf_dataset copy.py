@@ -74,6 +74,21 @@ SCRUBBING_CONFIG = {
     "aggressive_scrub": True,  # If True, remove ALL non-target instruments
 }
 
+NUMERIC_SUBSTITUTION_CONFIG = {
+    "enabled": True,
+    "apply_to_years": True,
+    "year_delta": 1,  # ±1 applied uniformly to ALL years
+    "apply_to_numbers": True,
+    "number_perturbation": 0.05,  # ±5% uniform
+    "skip_zeros": True,
+    "preserve_precision": True,
+}
+
+# Regex patterns
+YEAR_REGEX_COLLECTOR = re.compile(r"\b(19[0-9]{2}|20[0-9]{2})\b")
+NON_YEAR_NUMBER_REGEX = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\b")
+
+
 LABEL_TO_CONFLICT_REGEX = {
     "ir": [
         FX_CONTEXT_REGEX,
@@ -138,6 +153,216 @@ LABEL_TO_CONFLICT_REGEX = {
 # =============================================================================
 # HELPER CLASSES
 # =============================================================================
+
+
+class NumericSubstitutionEngine:
+    """
+    Performs dynamic numeric substitution on text windows.
+
+    Strategy:
+    - Years: Collect all, pick random base year, apply ±1 uniformly
+    - Numbers (non-zero): Apply ±5% uniform multiplicative perturbation
+    - Zeros: Skip
+    - Validation: Check perturbed years stay within window context range
+    """
+
+    def __init__(self, config=None, random_seed=None):
+        """
+        Args:
+            config: Dict with substitution parameters
+            random_seed: For reproducibility
+        """
+        self.config = config or NUMERIC_SUBSTITUTION_CONFIG
+        self.rng = random.Random(random_seed) if random_seed else random
+        self.substitution_log = []
+        self.year_mapping = {}  # Maps original year -> replacement year
+        self.base_year = None
+
+    def extract_sentence_years(self, sentences):
+        """
+        Extract years from each sentence, tracking both year values and offsets.
+
+        For each sentence, compute:
+        - Years found
+        - Offsets from the minimum year in that sentence (to preserve comparatives)
+
+        Returns:
+            Dict mapping sentence_idx -> {
+                'years': [list of years],
+                'min_year': minimum year in sentence,
+                'offsets': {year -> offset_from_min}
+            }
+        """
+        sentence_year_info = {}
+        all_years = set()
+
+        for idx, sent in enumerate(sentences):
+            years = [int(y) for y in YEAR_REGEX_COLLECTOR.findall(sent)]
+            if years:
+                min_year = min(years)
+                offsets = {year: year - min_year for year in years}
+                sentence_year_info[idx] = {
+                    "years": years,
+                    "min_year": min_year,
+                    "offsets": offsets,
+                }
+                all_years.update(years)
+
+        return sentence_year_info, all_years
+
+    def pick_base_year(self, all_years):
+        """Randomly select one year as the base for perturbation."""
+        if not all_years:
+            return None
+        return self.rng.choice(list(all_years))
+
+    def build_year_mapping(self, sentence_year_info, all_years):
+        """
+        Build mapping from original year -> replacement year.
+
+        Strategy (handles both single years and comparatives):
+        1. Pick random base year (ZZ) from all_years
+        2. For each sentence:
+           - If single year: map to ZZ
+           - If comparative (multiple years): map to ZZ + offset
+
+        Example:
+            sentence_year_info = {
+                0: {'years': [1996], 'min_year': 1996, 'offsets': {1996: 0}},
+                2: {'years': [2023, 2024], 'min_year': 2023, 'offsets': {2023: 0, 2024: 1}}
+            }
+            all_years = {1996, 2023, 2024}
+            Pick base_year = 2015
+
+            Output mapping:
+                1996 -> 2015  (single year)
+                2023 -> 2015  (comparative min year)
+                2024 -> 2016  (2015 + offset of 1)
+
+        Args:
+            sentence_year_info: Dict from extract_sentence_years()
+            all_years: Set of all unique years across all sentences
+        """
+        if not all_years:
+            self.year_mapping = {}
+            return
+
+        # Pick random base year (ZZ)
+        self.base_year = self.pick_base_year(all_years)
+
+        # For each sentence, determine how to map its years
+        for sent_idx, year_info in sentence_year_info.items():
+            min_year = year_info["min_year"]
+            offsets = year_info["offsets"]
+
+            # Map minimum year of sentence to base_year
+            # All other years in that sentence get base_year + their offset
+            for year, offset in offsets.items():
+                replacement_year = self.base_year + offset
+                self.year_mapping[year] = replacement_year
+
+    def substitute_years_in_text(self, text):
+        """
+        Replace years in text using pre-built year_mapping.
+
+        Must call build_year_mapping() first.
+        """
+        if not self.year_mapping:
+            return text
+
+        def replace_year(match):
+            original_year_str = match.group(0)
+            original_year = int(original_year_str)
+
+            new_year = self.year_mapping.get(original_year, original_year)
+
+            self.substitution_log.append(
+                {
+                    "type": "year",
+                    "original": original_year_str,
+                    "replacement": str(new_year),
+                    "span": match.span(),
+                }
+            )
+
+            return str(new_year)
+
+        return YEAR_REGEX_COLLECTOR.sub(replace_year, text)
+
+    def substitute_numbers_in_text(self, text):
+        """
+        Replace non-year numbers with ±5% uniform perturbation.
+        Skip zeros and already-substituted years.
+        """
+        if not self.config["apply_to_numbers"]:
+            return text
+
+        def replace_number(match):
+            num_str = match.group(0)
+
+            # Skip if it's a year (already processed)
+            try:
+                num_val = int(num_str)
+                if num_val in self.year_mapping:
+                    return num_str
+            except (ValueError, TypeError):
+                pass
+
+            # Parse the number
+            try:
+                num_val = float(num_str)
+            except ValueError:
+                return num_str
+
+            # Skip zeros
+            if num_val == 0:
+                return num_str
+
+            # Apply ±5% uniform perturbation
+            delta = self.rng.uniform(
+                -self.config["number_perturbation"], self.config["number_perturbation"]
+            )
+            new_val = num_val * (1 + delta)
+
+            # Preserve precision
+            decimals = self._count_decimals(num_str)
+            new_str = f"{new_val:.{decimals}f}".rstrip("0").rstrip(".")
+
+            self.substitution_log.append(
+                {
+                    "type": "number",
+                    "original": num_str,
+                    "replacement": new_str,
+                    "delta": delta,
+                    "span": match.span(),
+                }
+            )
+
+            return new_str
+
+        return NON_YEAR_NUMBER_REGEX.sub(replace_number, text)
+
+    def substitute_all(self, text):
+        """Apply year substitution followed by number substitution."""
+        text = self.substitute_years_in_text(text)
+        text = self.substitute_numbers_in_text(text)
+        return text
+
+    @staticmethod
+    def _count_decimals(num_str):
+        """Infer decimal places from string representation."""
+        num_str = num_str.strip()
+        if "." not in num_str:
+            return 0
+        if "e" in num_str.lower():
+            return 2
+        return len(num_str.split(".")[1])
+
+    def clear_log(self):
+        """Reset substitution log and mappings."""
+        self.substitution_log = []
+        self.year_mapping = {}
+        self.base_year = None
 
 
 class ContentDeduplicator:
@@ -528,11 +753,39 @@ def _get_generic_form(category: str) -> str:
 # =============================================================================
 
 
-def get_dynamic_window(sentences, target_idx, override_target=None, context_bank=None):
+def _extract_all_years_from_sentences(sentences):
     """
-    Constructs a variable-width window.
-    - Distance 1: Always kept clean.
-    - Distance 2+: Chance to inject noise increases.
+    Helper to extract years from a list of sentences, tracking per-sentence offsets.
+
+    Returns:
+        (sentence_year_info, all_years_set)
+        - sentence_year_info: Dict with year offsets per sentence
+        - all_years_set: Set of all unique years
+    """
+    engine = NumericSubstitutionEngine()
+    sentence_year_info, all_years = engine.extract_sentence_years(sentences)
+    return sentence_year_info, all_years
+
+
+def get_dynamic_window(
+    sentences,
+    target_idx,
+    override_target=None,
+    context_bank=None,
+    apply_numeric_substitution=True,
+):
+    """
+    Constructs a variable-width window with optional dynamic numeric substitution.
+
+    Args:
+        sentences: List of sentences
+        target_idx: Index of target sentence
+        override_target: Optional replacement for target sentence
+        context_bank: Optional noise injection bank
+        apply_numeric_substitution: If True, apply numeric substitution to final window
+
+    Returns:
+        Window text with [SEP] tokens
     """
     target_sent = (
         override_target if override_target is not None else sentences[target_idx]
@@ -572,7 +825,23 @@ def get_dynamic_window(sentences, target_idx, override_target=None, context_bank
     prev_block = " ".join(prev_parts)
     next_block = " ".join(next_parts)
 
-    return f"{prev_block}{SEP_TOKEN}{target_sent}{SEP_TOKEN}{next_block}"
+    window = f"{prev_block}{SEP_TOKEN}{target_sent}{SEP_TOKEN}{next_block}"
+
+    # NEW: Apply numeric substitution to entire window
+    if apply_numeric_substitution and NUMERIC_SUBSTITUTION_CONFIG["enabled"]:
+        # Extract years from all sentences in window, tracking offsets
+        all_sentences = prev_parts + [target_sent] + next_parts
+        sentence_year_info, all_years = _extract_all_years_from_sentences(all_sentences)
+
+        if all_years:
+            subst_engine = NumericSubstitutionEngine()
+            # Build mapping: pick random base year, map single years to it,
+            # map comparatives to base_year + offset
+            subst_engine.build_year_mapping(sentence_year_info, all_years)
+            # Apply substitution to window
+            window = subst_engine.substitute_all(window)
+
+    return window
 
 
 def has_conflict(text, label):
@@ -912,5 +1181,22 @@ def create_labeled_dataset():
 
 
 if __name__ == "__main__":
+    test_sentences = [
+        "In 1996, we entered into derivatives.",
+        "We used 2.5M notional in interest rate swaps.",
+        "The notional was 3M and 3.1M in 2023 and 2024 respectively.",
+        "We manage 1500 basis points of exposure.",
+    ]
+
+    # Extract years with offsets
+    engine = NumericSubstitutionEngine()
+    sent_year_info, all_years = engine.extract_sentence_years(test_sentences)
+    print(f"Sentence year info: {sent_year_info}")
+    print(f"All years: {all_years}")
+
+    # Build mapping with random base year
+    engine.build_year_mapping(sent_year_info, all_years)
+    print(f"\nBase year: {engine.base_year}")
+    print(f"Year mapping: {engine.year_mapping}")
     mp.freeze_support()
     create_labeled_dataset()
