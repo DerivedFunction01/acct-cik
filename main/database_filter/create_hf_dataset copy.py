@@ -1328,8 +1328,8 @@ def _apply_base_substitution_to_text(
         text: Source text containing instrument bases
         bases_to_substitute: Set of bases to consider. If None, uses UNAMBIGUOUS_BASES.
         random_seed: Optional seed for reproducibility
-        substitution_probability: Probability to substitute each base (default 0.7)
-                                 Recommended: 0.6-0.8 for good diversity
+        substitution_probability: Probability to substitute each base (default 0.25)
+                                
 
     Returns:
         Tuple of (substituted_text, substitution_log)
