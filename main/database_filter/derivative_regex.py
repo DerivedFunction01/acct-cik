@@ -702,7 +702,7 @@ def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = 
     return rf"{combined_pattern}|{standalone_pattern}"
 
 
-def build_ir_regex() -> re.Pattern:
+def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
     RATE_TYPES = ["fixed", "variable", "floating"]
     # RATES is for descriptive prefixes that combine with 'rate'
@@ -784,7 +784,8 @@ def build_ir_regex() -> re.Pattern:
         expand_instruments(unsafe=False),
         specific_phrases,
     )
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+    regex = re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+    return regex, regex # return the same thing as a tuple for consistency
 
 
 def build_fx_dynamic_pattern() -> str:
@@ -1228,6 +1229,8 @@ def build_soft_gen_regex() -> re.Pattern:
         r"(?:gain|loss) on derivatives?",
         r"fair\s+value\s+measurements?",
         r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
+        r"to hedge",
+        r"to mitigate",
     ]
     
     # 3. Add other generic hedging/risk management concepts
@@ -1253,7 +1256,7 @@ def build_loose_gen_regex() -> re.Pattern:
 # =============================================================================
 # COMPILED REGEXES (exported)
 # =============================================================================
-IR_REGEX = build_ir_regex()
+IR_REGEX, IR_SOFT_REGEX = build_ir_regex()
 FX_REGEX, FX_SOFT_REGEX = build_fx_regex()
 CP_REGEX, CP_SOFT_REGEX = build_cp_regex()
 EQ_REGEX, EQ_SOFT_REGEX = build_eq_regex()
