@@ -668,7 +668,7 @@ def expand_instruments(unsafe: bool = True) -> str:
     )
 
     # Final alternation: Combined OR Standalone
-    return rf"{combined_pattern}|(?:{standalone_pattern})"
+    return rf"{combined_pattern}|{standalone_pattern}"
 
 
 def build_ir_regex() -> re.Pattern:
@@ -712,24 +712,13 @@ def build_ir_regex() -> re.Pattern:
     rate_alternation = build_alternation(RATES_ADJECTIVES, sort_longest_first=True)
     rate_adjective_phrases = [rf"{rate_alternation}[- ]rate"]
 
-    # Intervening words that may appear before the final base instrument
-    rate_adjectives_alternation = build_alternation(
-        [
-            r"interest\s+rate",
-            r"fixed\s+rate",
-            r"rate",
-            r"interest",
-            r"financial",
-            r"derivative",
-        ],
-        sort_longest_first=True,
-    )
+
     # This pattern enforces the sequence: [P/R] + [Optional Adjectives] + [Mandatory Instrument Base]
     aggressive_capture_pattern = (
         rf"(?:{pay_receive_pattern_string})"  # 1. Start with 'pay fixed, receive fixed'
         r"(?:"  # Start of Optional Adjective Group
         r"\s+"  # Mandatory space
-        rf"(?:{rate_adjectives_alternation})"  # 2. Optional: 'interest rate', 'derivative' etc.
+        rf"(?:{rate_adjective_phrases[0]})"  # 2. Optional: 'interest rate'
         r")?"
         r"(?:\s+"  # Mandatory space before the base instrument
         rf"(?:{expand_instruments(unsafe=False)})"  # 3. Mandatory: 'derivatives contracts' or 'swap'
@@ -764,6 +753,7 @@ def build_ir_regex() -> re.Pattern:
         [expand_instruments(unsafe=False)],
         specific_phrases,
     )
+    print(pattern)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
