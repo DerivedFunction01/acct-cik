@@ -666,8 +666,15 @@ def build_ir_regex() -> re.Pattern:
         "benchmark",
         "interest",
         "prime",
-        "fed-funds",
+        "fed[- ]funds",
     ] + RATE_TYPES
+
+    BENCHMARK_RATES = [
+        "SOFR",
+        "SONIA",
+        "LIBOR",
+        "EURIBOR",
+    ]
 
     def build_pay_receive_structure() -> str:
         """Constructs the core pay/receive structure pattern."""
@@ -719,16 +726,19 @@ def build_ir_regex() -> re.Pattern:
     )
 
     # --- 4. Build Core Terms and Specific Phrases ---
-    rate_adjective_phrases = [r + r"[- ]rate" for r in RATES_ADJECTIVES]
-
-    core_terms = [
-        "single[- ]currency",
-        "SOFR",
-        "SONIA",
-        "LIBOR",
-        "LIBOR[- ]based",
-        "EURIBOR",
-    ] + rate_adjective_phrases
+    rate_alternation = build_alternation(RATES_ADJECTIVES, sort_longest_first=True)
+    rate_adjective_phrases = [rf"{rate_alternation}[- ]rate"]
+    benchmark_alternation = build_alternation(BENCHMARK_RATES, sort_longest_first=True)
+    brate_adjective_phrases = [
+        rf"(?:{benchmark_alternation})(?:[- ](?:related|linked|based))"
+    ]
+    core_terms = (
+        [
+            "single[- ]currency",
+        ]
+        + rate_adjective_phrases
+        + brate_adjective_phrases
+    )
 
     specific_phrases = [
         # CRITICAL: This pattern is prioritized for Max Munch
