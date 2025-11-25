@@ -73,13 +73,12 @@ ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open"]
 ACTIVE_STATE_PATTERN = build_alternation(ACTIVE_STATE_DESCRIPTORS)
 
 # STRONG: Unambiguous indicators of active usage or transaction
-STRONG_ACTION_VERBS = [
+ACTION_VERBS = [
     # Transactional (The "Smoking Gun")
     r"enter(?:s|ed|ing)?\s+(?:into)?",
     r"engag(?:e|es|ed|ing)\s+(?:in)?",
     r"transact(?:s|ed|ing)?",
     r"execut(?:e|es|ed|ing)",
-    r"issu(?:e|es|ed|ing)?",        # NEW: For embedded derivatives/warrants
     r"convert(?:s|ed|ing)?",
     
     # Direct Usage
@@ -101,6 +100,8 @@ STRONG_ACTION_VERBS = [
     r"offset(?:s|ting)?",
 ]
 
+STRONG_ACTION_VERBS = ACTION_VERBS + [r"issu(?:e|es|ed|ing)?"]   # NEW: For embedded derivatives/warrants, but separate against "FASB issued"
+VERB_USE_REGEX = re.compile(r"\b" + build_alternation(ACTION_VERBS) +r"\b", re.IGNORECASE)
 # WEAK / PASSIVE: Legal or Accounting states that *imply* existence
 # We include these because "carrying at fair value" implies you have it.
 PASSIVE_STATE_VERBS = [
@@ -2036,4 +2037,5 @@ __all__ = [
     "validate_instrument_retention",
     "HIGH_PRECISION_SUFFIXES",
     "BASE_REGEX",
+    "VERB_USE_REGEX",
 ]
