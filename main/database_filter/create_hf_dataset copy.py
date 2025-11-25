@@ -1106,18 +1106,43 @@ def prepare_training_example(
 
         matched_text = match.group(0)
 
+        # 1. Get the base form (e.g., 'swap')
+        base_form = _get_base_form(matched_text, target_category)
+
+        # 2. Apply dynamic substitution to the base form
+        #    The result will be the same as base_form most of the time,
+        #    but will be a new base (e.g., 'collar') 25% of the time.
+        dynamically_substituted_base = _get_dynamic_base(
+            base_form, 
+            # Using a deterministic seed for same text, but a random one ensures diversity
+            random_seed=random.randint(0, 2**31 - 1), 
+            substitution_probability=0.25 # Use the default 0.25
+        )
+
         # Apply replacement strategy
         if replacement_strategy == "stochastic":
-            # 30% base, 70% loose variant
-            if random.random() < 0.3:
+            # Determine replacement based on a single random choice
+            rand_val = random.random()
+            
+            # 30% chance for Dynamic Base
+            if rand_val < 0.30:
+                replacement = dynamically_substituted_base
+                strategy = "base_dynamic"
+            # 30% chance for Original Base (0.30 <= rand_val < 0.60)
+            elif rand_val < 0.60: 
                 replacement = _get_base_form(matched_text, target_category)
                 strategy = "base"
-            else:
+            # 40% chance for Loose Variant (0.60 <= rand_val < 1.0)
+            else: 
+                # Use the original matched text's base for the loose variant, 
+                # as the substitution should happen independently for diversity.
                 replacement = _get_loose_variant(matched_text, target_category)
                 strategy = "loose_variant"
+                
         elif replacement_strategy == "base":
-            replacement = _get_base_form(matched_text, target_category)
-            strategy = "base"
+            # Use the dynamically substituted base for 'base' strategy
+            replacement = dynamically_substituted_base 
+            strategy = "base_dynamic"
         elif replacement_strategy == "generic":
             replacement = _get_generic_form(target_category)
             strategy = "generic"
