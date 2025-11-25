@@ -1206,35 +1206,126 @@ LEGAL_LITIGATION_KEYWORDS = [
 ]
 # Section 3: Accounting Standards
 # === FASB ISSUANCE & ADOPTION ONLY ===
-ACCOUNTING_STANDARDS_KEYWORDS = [
-    # Issuance announcements (the boilerplate you want to remove)
-    r"(FASB|Financial Accounting Standards Board|F.A.S.B.)\s+(?:issued|has\s+issued|released|published)",
-    r"(?:SFAS|FAS|ASU|ASC)\s+(?:No\.\s+)?\d+(?:-\d+)*\s+(?:was|is)\s+issued",
-    r"issued.*(?:SFAS|FAS|ASU|Statement)\s+(?:No\.\s+)?\d+",
-    r"in\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}.*(?:issued|released)",
-    # Adoption language (future application)
+# --- 1. Define Components (Lists/Arrays) ---
+# Issuing Bodies (FASB, IASB)
+ISSUER_TERMS = [
+    r"FASB",
+    r"Financial Accounting Standards Board",
+    r"F\.A\.S\.B\.",  # Escaped dots for literal match
+    r"IASB",
+    r"International Accounting Standards Board",
+    r"I\.A\.S\.B\.",
+    r"Accounting Standards Board",
+]
+
+# Standard Acronyms (GAAP and IFRS)
+STANDARDS_TERMS = [
+    r"SFAS",
+    r"FAS",
+    r"ASU",
+    r"ASC",
+    r"IFRS",
+    r"IAS",
+    r"IFRIC",
+    r"SIC",
+]
+
+# Months (for date boilerplate)
+MONTHS_TERMS = [
+    r"January",
+    r"February",
+    r"March",
+    r"April",
+    r"May",
+    r"June",
+    r"July",
+    r"August",
+    r"September",
+    r"October",
+    r"November",
+    r"December",
+]
+
+# Verbs for Issuance (The standard has been published)
+ISSUANCE_VERBS = [
+    r"issued",
+    r"released",
+    r"published",
+    r"has\s+issued",
+    r"has\s+released",
+    r"has\s+published",
+]
+
+# Verbs for Future Adoption Intent (The company plans/expects to adopt)
+ADOPTION_VERBS_FUTURE = [
     r"will\s+adopt",
     r"plan(?:s|ned)?\s+to\s+adopt",
     r"expect(?:s|ed)?\s+to\s+adopt",
     r"required?\s+to\s+adopt",
-    r"adopt(?:ing|ed)?\s+(?:the\s+)?(?:new\s+)?(?:guidance|standard|amendment|ASU|Statement)",
+]
+
+# Verbs for General Adoption Action (The act of adopting/early adopting)
+ADOPTION_VERBS_GENERAL = [
+    r"adopt(?:ing|ed)?",
     r"early\s+adopt(?:ed|ing|ion)?",
+]
+
+
+# --- 2. Build Regex Fragments ---
+
+ISSUER_FRAGMENT = build_alternation(ISSUER_TERMS)
+STANDARDS_FRAGMENT = build_alternation(STANDARDS_TERMS)
+MONTHS_FRAGMENT = build_alternation(MONTHS_TERMS)
+ISSUANCE_VERBS_FRAGMENT = build_alternation(ISSUANCE_VERBS)
+ADOPTION_VERBS_FUTURE_FRAGMENT = build_alternation(ADOPTION_VERBS_FUTURE)
+ADOPTION_VERBS_GENERAL_FRAGMENT = build_alternation(ADOPTION_VERBS_GENERAL)
+
+
+# --- 3. Construct Final Keyword List using f-strings ---
+
+ACCOUNTING_STANDARDS_KEYWORDS = [
+    # 📢 Issuance announcements (The boilerplate you want to remove)
+    # 1. Issuer + Issuance Verbs
+    rf"{ISSUER_FRAGMENT}\s+{ISSUANCE_VERBS_FRAGMENT}",
+
+    # 2. Standard Acronym + Issuance Verbs
+    # Added optional period `\.?` after standards fragment for cases like 'ASU. 2014-09'
+    rf"{STANDARDS_FRAGMENT}\.?\s+(?:No\.\s+)?\d+(?:-\d+)*\s+(?:was|is)\s+{ISSUANCE_VERBS_FRAGMENT}",
+
+    # 3. Issuance Verbs + Standard Acronym (Limited the greedy match to max 20 words)
+    rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,20}}.*{STANDARDS_FRAGMENT}\s+(?:No\.\s+)?\d+",
+
+    # 4. Month + Issuance Verbs (safer, only requires `.*` between issuance verb and standard)
+    rf"in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUANCE_VERBS_FRAGMENT}.*{STANDARDS_FRAGMENT}",
+
+    # ✅ Adoption language (future application)
+    # 5. Future Adoption Intent Verbs (e.g., will adopt, plans to adopt)
+    rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
+
+    # 6. General Adoption Verbs + Guideline Terms/Acronyms (Consolidated for better coverage)
+    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?(?:guidance|standard|amendment|Statement|{STANDARDS_FRAGMENT})",
+
+    # 7. Specific adoption phrases (kept as they capture specific boilerplate structures)
     r"upon\s+adoption\s+of",
     r"prior\s+to\s+adoption",
-    # Evaluation of future standards
+
+    # 📝 Evaluation of future standards
     r"evaluat(?:ing|ed|e|es)\s+(?:the\s+)?(?:impact|effect)\s+of.*(?:adoption|standard|guidance)",
     r"assess(?:ing|ed|es)\s+the\s+(?:impact|effect)\s+of.*(?:new|upcoming|proposed)\s+(?:standard|guidance)",
     r"currently\s+(?:evaluating|assessing)\s+(?:the\s+)?(?:impact|effect)",
     r"continu(?:ing|es)\s+to\s+evaluate",
-    # Effective date language (future application)
+
+    # 📅 Effective date language
     r"effective\s+for\s+(?:fiscal\s+years|annual\s+periods)\s+beginning",
     r"effective\s+(?:in|for|after)\s+(?:fiscal\s+)?(?:year\s+)?\d{4}",
     r"becomes\s+effective",
     r"will\s+be\s+effective",
-    # Impact assessment (only future standards)
+
+    # 📉 Impact assessment
     r"(?:not\s+)?expected\s+to\s+have\s+a\s+material\s+(?:impact|effect).*(?:adoption|effective)",
     r"no\s+material\s+impact.*(?:upon|from)\s+adoption",
-    # Standard descriptions (only in issuance context)
+
+    # 📚 Standard descriptions
     r"establishes?\s+accounting\s+and\s+reporting\s+standards\s+(?:for|requiring)",
     r"(?:this|the)\s+(?:statement|standard|guidance|amendment)\s+(?:addresse(?:d|s)|clarifie(?:d|s)|amend(?:ed|s))",
     r"Accounting for Derivative Instruments and Hedging Activities",
@@ -1696,27 +1787,16 @@ _ABSENCE_NOUNS = [
 
 # Termination Verbs
 TERMINATION_VERBS = [
-    # Natural End
     r"expired",
     r"matured",
-    
-    # Settlement / Closeout
     r"settled",
-    r"exercised", 
-    r"extinguished",
-    
-    # Active Early End / Status Change
     r"terminated",
     r"ceased",
     r"closed",
     r"unwound",
-    r"novated", 
-    
-    # High-Recall Additions
-    r"cancel(?:s|led|ling)?",        # Common early closure
-    r"repa(?:y|id|ying)?",           # Final payoff/extinguishment
-    r"discontinue(?:s|d|ing)?",      # End of accounting treatment
-    r"dispos(?:e|es|ed|ing)?",       # Selling the position
+    r"exercised", # Essential for options/swaptions
+    r"extinguished",
+    r"novated", # Transferring the trade to another counterparty (implies exit)
 ]
 
 # Active / Timing Indicators (New)
