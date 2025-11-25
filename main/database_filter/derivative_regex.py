@@ -912,7 +912,7 @@ def build_cp_regex() -> re.Pattern:
     )
 
 
-    pattern = build_smart_regex([core_alternation], expand_instruments(unsafe=True), specific_phrases)
+    pattern = build_smart_regex([core_alternation], expand_instruments(unsafe=True, exclude_standalone_suffixes=True), specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 def build_eq_regex() -> re.Pattern:
