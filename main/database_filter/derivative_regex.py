@@ -668,7 +668,8 @@ def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = 
 
     Args:
         unsafe: If True, includes ambiguous bases (e.g., generic options, futures).
-        exclude_standalone_suffixes: If True, only return unambiguous bases (no suffixes). Overrides unsafe
+        exclude_standalone_suffixes: If True, only return bases (no suffixes), as they are used for attachment to a prefix.
+        Overrides unsafe
     """
 
     # 1. Base + Suffix Combination (Highest priority)
@@ -680,7 +681,7 @@ def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = 
             unsafe_standalone_alternation if unsafe else standalone_alternation
         )
     else:
-        standalone_pattern = safe_base_alternation
+        standalone_pattern = base_alternation
     
     # If build_alternation supports it, sort these alternatives by length
     # Otherwise, manually construct with longest first
