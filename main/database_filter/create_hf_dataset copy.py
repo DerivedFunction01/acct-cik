@@ -229,7 +229,7 @@ class NumericSubstitutionEngine:
 
     # ========== MONTH EXTRACTION & SUBSTITUTION ==========
 
-    def extract_sentence_months(self, sentences):
+    def extract_sentence_months(self, sentences: List[str]):
         """
         Extract months from each sentence, tracking both month values and offsets.
 
@@ -381,7 +381,7 @@ class NumericSubstitutionEngine:
 
     # ========== EXISTING YEAR & NUMBER METHODS (unchanged) ==========
 
-    def extract_sentence_years(self, sentences):
+    def extract_sentence_years(self, sentences: List[str]):
         """
         Extract years from each sentence, tracking both year values and offsets.
 
@@ -1330,33 +1330,6 @@ def _get_generic_form(category: str) -> str:
 # =============================================================================
 # DYNAMIC WINDOW LOGIC
 # =============================================================================
-def _extract_all_months_and_years_from_sentences(sentences):
-    """
-    Helper to extract months and years from a list of sentences, tracking per-sentence offsets.
-
-    Returns:
-        (sentence_month_info, all_months, sentence_year_info, all_years)
-    """
-    engine = NumericSubstitutionEngine()
-    sentence_month_info, all_months = engine.extract_sentence_months(sentences)
-    sentence_year_info, all_years = engine.extract_sentence_years(sentences)
-    return sentence_month_info, all_months, sentence_year_info, all_years
-
-
-def _extract_all_years_from_sentences(sentences):
-    """
-    Helper to extract years from a list of sentences, tracking per-sentence offsets.
-
-    Returns:
-        (sentence_year_info, all_years_set)
-        - sentence_year_info: Dict with year offsets per sentence
-        - all_years_set: Set of all unique years
-    """
-    engine = NumericSubstitutionEngine()
-    sentence_year_info, all_years = engine.extract_sentence_years(sentences)
-    return sentence_year_info, all_years
-
-
 def get_dynamic_window(
     sentences,
     target_idx,
@@ -1440,7 +1413,7 @@ def get_dynamic_window(
         # Apply all substitutions
         window = engine.substitute_all(window)
 
-        # Currency substitution (the whole text)
+        # Currency substitution (the )
         curr_sub = DynamicCurrencySubstitution()
         window, _ = curr_sub.substitute_all(window)
 
