@@ -134,40 +134,6 @@ SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (unchanged)
 )
 
-SPECIAL_BASE =  [   
-    "call options?",
-    "put options?",]
-UNAMBIGUOUS_BASE_TYPES = [
-    "swaps?",
-    "forwards?",
-    "caps?",
-    "floors?",
-    "collars?",
-    "derivatives?",
-    "swaptions?",
-    "hedges",  # plural form
-    "locks",  # plural form
-    "futures",  # plural form
- 
-] + SPECIAL_BASE
-
-AMBIGUOUS_BASE_TYPES = [
-    "futures?",
-    "options?",
-    "hedging",
-    "locks?",
-    "hedges?",
-]
-
-ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
-HIGH_PRECISION_SUFFIXES = re.compile(r"\b" + build_alternation(UNAMBIGUOUS_BASE_TYPES) + r"\b", re.IGNORECASE)
-ALL_SUFFIXES = [
-    "agreements?",
-    "contracts?",
-    "instruments?",
-    "arrangements?",
-    "options?",
-]
 
 COMMON_COMMODITIES = [
     "agricultural",
@@ -614,6 +580,41 @@ CATEGORY_CONTEXT_MAP = {
 # =============================================================================
 # REGEX BUILDERS (moved)
 # =============================================================================
+
+SPECIAL_BASE =  [   
+    "call options?",
+    "put options?",]
+UNAMBIGUOUS_BASE_TYPES = [
+    "swaps?",
+    "forwards?",
+    "caps?",
+    "floors?",
+    "collars?",
+    "derivatives?",
+    "swaptions?",
+    "hedges",  # plural form
+    "locks",  # plural form
+    "futures",  # plural form
+ 
+] + SPECIAL_BASE
+
+AMBIGUOUS_BASE_TYPES = [
+    "futures?",
+    "options?",
+    "hedging",
+    "locks?",
+    "hedges?",
+]
+
+ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
+HIGH_PRECISION_SUFFIXES = re.compile(r"\b" + build_alternation(UNAMBIGUOUS_BASE_TYPES) + r"\b", re.IGNORECASE)
+ALL_SUFFIXES = [
+    "agreements?",
+    "contracts?",
+    "instruments?",
+    "arrangements?",
+    "options?",
+]
 def build_smart_regex(
     core_terms: List[str],
     context_terms: str,
@@ -626,7 +627,11 @@ def build_smart_regex(
     core_pattern = build_alternation(core_terms, sort_longest_first=True)
 
     # Core + suffix: "interest rate" + "-" + "swap"
-    pattern1 = f"{core_pattern}[- ]{context_terms}"
+    pattern1 = (
+        rf"(?:{core_pattern})"           # e.g., "interest rate"
+        r"[- ]"                          # MANDATORY separator (space or hyphen)
+        rf"(?:{context_terms})"          # MANDATORY: base or (base + suffix)
+    )
 
     # Specific phrases like "zero coupon swaps"
     if not specific_phrases:
@@ -636,7 +641,7 @@ def build_smart_regex(
 
     # Return sorted so longest specific phrases come first
     # E.g., "interest rate swap agreement" before "interest rate swap"
-    return build_alternation([pattern2, pattern1])
+    return build_alternation([pattern2, pattern1], True)
 
 
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
@@ -665,8 +670,9 @@ def expand_instruments(unsafe: bool = True) -> str:
     standalone_pattern = (
         unsafe_standalone_alternation if unsafe else standalone_alternation
     )
-
-    # Final alternation: Combined OR Standalone
+    
+    # If build_alternation supports it, sort these alternatives by length
+    # Otherwise, manually construct with longest first
     return rf"{combined_pattern}|{standalone_pattern}"
 
 
@@ -752,7 +758,6 @@ def build_ir_regex() -> re.Pattern:
         expand_instruments(unsafe=False),
         specific_phrases,
     )
-    print(pattern)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
@@ -837,9 +842,7 @@ def build_cp_regex() -> re.Pattern:
 
     # Optimized modifiers (Max Munch applied internally)
     modifier_terms = [
-        "price",
         "prices?",
-        "cost",
         "costs?",
         "related",
         "based",
@@ -856,6 +859,7 @@ def build_cp_regex() -> re.Pattern:
     all_patterns = [
         rf"fixed[- ](?:{commodity_alternation})[- ](?:{modifier_alternation})",
         rf"(?:{commodity_alternation})[- ](?:{modifier_alternation})",
+        rf"(?:{commodity_alternation})",
     ]
 
     # Then wrap in build_alternation with sort_longest_first=True
@@ -894,6 +898,7 @@ def build_eq_regex() -> re.Pattern:
         r"Nasdaq",
         r"Dow\s+Jones",
     ]
+    core_alternation = build_alternation(core_terms, True)
 
     # 2. Build Specific Phrases (Max Munch)
 
@@ -921,7 +926,7 @@ def build_eq_regex() -> re.Pattern:
     all_specifics = convertible_phrases + warrant_phrases
 
     pattern = build_smart_regex(
-        core_terms,
+        [core_alternation],
         expand_instruments(unsafe=True),
         all_specifics,
     )
