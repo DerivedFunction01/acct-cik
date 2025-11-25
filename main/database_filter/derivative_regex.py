@@ -830,7 +830,7 @@ def build_fx_regex() -> re.Pattern:
     # These capture the longest matches before falling back to pattern1
     specific_phrases = [
         # All forward types with optional suffixes (e.g., "non-deliverable forward contract")
-        rf"(?:{forward_types_alternation})\s+forwards?\s+[- ](?:{suffix_alternation})"
+        rf"(?:{forward_types_alternation})\s+forwards?\s+(?:{suffix_alternation})",
         rf"(?:{forward_types_alternation})\s+forwards?",
         # Other long-form specific FX instruments
         "NDF",
@@ -942,7 +942,10 @@ def build_eq_regex() -> re.Pattern:
         rf"(?:{derivative}\s+)?{warrant}.*classified\s+as\s+(?:a\s+)?(?:{derivative}|{liability})",
     ]
 
-    all_specifics = convertible_phrases + warrant_phrases
+    all_specifics = sorted(
+        convertible_phrases + warrant_phrases,
+        key=lambda x: (-len(x), -x.count(r"\s+")),  # Longest first, then more spaces
+    )
 
     pattern = build_smart_regex(
         [core_alternation],
@@ -951,7 +954,6 @@ def build_eq_regex() -> re.Pattern:
     )
 
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
 
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
@@ -962,14 +964,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     NOTIONAL_REGEX    → captures notional amount/principal/value phrases
     Both use named groups for convenient extraction.
     """
-    # ── 1. Strict instrument names (require a recognised base + suffix) ──
-    base_strict = UNAMBIGUOUS_BASE_TYPES  # swaps?, forwards?, caps?, …
-    suffix_strict = ALL_SUFFIXES  # agreements?, contracts?, instruments?, …
-
-    instrument_parts = [
-        f"{base}[- ]{suffix}" for base in base_strict for suffix in suffix_strict
-    ]
-
+    # Pattern 1: Specific phrases (highest priority - most specific/longest)
     instrument_specific = [
         "total[- ]return swaps?",
         "cash flow hedges?",
@@ -977,9 +972,21 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "embedded derivatives?",
         "over[- ]the[- ]counter derivatives?",
         "derivative financial instruments?",
+        "financial derivatives?"
     ]
 
-    instrument_pattern = build_alternation(instrument_parts + instrument_specific)
+    specific_alternation = build_alternation(
+        instrument_specific, sort_longest_first=True
+    )
+
+    # Pattern 2: Generic base + suffix combinations and standalones
+    generic_instruments = expand_instruments(unsafe=True)
+
+    # Combine with specific phrases first (longest match priority)
+    instrument_pattern = build_alternation(
+        [specific_alternation, generic_instruments], 
+        sort_longest_first=True
+    )
 
     INSTRUMENT_REGEX = re.compile(
         rf"\b(?P<instrument>{instrument_pattern})\b", re.IGNORECASE
@@ -987,7 +994,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
 
     # ── 2. Notional phrases (very high precision, no overlap with instruments) ──
     notional_variants = [
-        r"notional\s+(?:amounts?|values?|principals?)\b",
+        r"notional\s+(?:amounts?|values?|principals?)",
     ]
 
     NOTIONAL_REGEX = re.compile(
