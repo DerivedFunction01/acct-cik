@@ -638,22 +638,18 @@ CATEGORY_CONTEXT_MAP = {
     "gen": HEDGING_CONTEXT_REGEX,
 }
 
-def expand_instruments(bases: List[str], suffixes: List[str]) -> List[str]:
+base_alternation = build_alternation(ALL_BASE_TYPES, True)
+suffix_alternation = build_alternation(ALL_SUFFIXES, True)
+standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
+unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
+def expand_instruments(unsafe: bool = True) -> str:
     """
     Creates permutations of Base + Suffix to catch 3-word phrases.
     Input: ["swaps?"], ["agreements?"]
     Output: ["swaps?", "swaps?[- ]agreements?"]
     """
-    combos = []
-    for b in bases:
-        for s in suffixes:
-            if b not in SPECIAL_BASE:
-            # Create "swap-agreement", "swap agreement", "swaps agreements"
-                combos.append(f"{b}[- ]{s}")
-
     # Return original bases + new combos (suffixes alone are usually passed separately if needed)
-    return combos
-EXPANDED_INSTRUMENTS = expand_instruments(ALL_BASE_TYPES, ALL_SUFFIXES)
+    return rf"(?:{base_alternation}[- ]{suffix_alternation})|(?:{unsafe_standalone_alternation if unsafe else standalone_alternation})"
 
 
 def build_ir_regex() -> re.Pattern:
