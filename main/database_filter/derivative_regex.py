@@ -873,9 +873,10 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "cash flow hedges?",
         "fair value hedges?",
         "embedded derivatives?",
+        "derivatives?",
         "over[- ]the[- ]counter derivatives?",
         "derivative financial instruments?",
-        "call options?", 
+        "call options?",
         "put options?",
         "swaptions?",  # Swaptions are also safe standalone
     ]

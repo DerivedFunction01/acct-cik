@@ -1,12 +1,8 @@
-"""
-Modular Regex Tester for Financial Derivatives
-Centralized instrument lists + templated test phrases = easy maintenance
-"""
-
 import re
 import sys
-from pathlib import Path
+from typing import Dict, List, Tuple
 
+# Assume derivative_regex.py is correctly imported and available
 try:
     from derivative_regex import (
         IR_REGEX,
@@ -14,341 +10,221 @@ try:
         CP_REGEX,
         EQ_REGEX,
         GEN_REGEX,
-        HEDGING_CONTEXT_REGEX,
     )
 except ImportError:
     print("Error: Could not import from derivative_regex.py")
-    print("Make sure derivative_regex.py is in the same directory or PYTHONPATH")
+    print("Ensure derivative_regex.py is in the execution path.")
     sys.exit(1)
 
-
 # =============================================================================
-# CENTRALIZED INSTRUMENT DEFINITIONS (Easy to extend!)
+# 1. INSTRUMENT & TEMPLATE DEFINITIONS
 # =============================================================================
 
-INSTRUMENTS = {
+# Pool of instruments from simple to complex for each category.
+# The string itself is the expected longest match for the regex.
+INSTRUMENTS: Dict[str, List[str]] = {
     "ir": [
-        "interest rate swaps?",
-        "irs",
-        "zero[- ]?coupon swap",
-        "interest rate caps?",
-        "cap options?",
-        "interest rate (?:call|put) options?",
-        "treasury locks?",
-        "treasury rate locks?",
-        "libor[- ]?based swaps?",
-        "sofr swaps?",
-        "cross[- ]?currency interest rate swaps?",
-        "basis swaps?",
-        "overnight index swaps?",
-        "ois",
-        "forward rate agreements?",
-        "fra",
+        "interest rate swap",
+        "fixed-rate swap agreement",
+        "SOFR-based cap",
+        "treasury lock contract",
+        "pay fixed, receive floating swap agreement",  # Critical complex descriptive structure
+        "zero coupon swap",
+        "credit default swap",
+        "FRA",
     ],
     "fx": [
-        "foreign exchange (?:derivative )?contracts?",
-        "fx forwards?",
-        "forward exchange contracts?",
-        "cross[- ]?currency swaps?",
-        "currency swaps?",
-        "ndfs?",
-        "non[- ]?deliverable forwards?",
-        "currency options?",
-        "fx options?",
-        "deliverable forwards?",
+        "foreign currency forward",
+        "FX forward contract",
+        "cross currency swap agreement",
+        "USD/EUR forward",
+        "non-deliverable forward",
+        "currency option",
     ],
     "cp": [
-        "commodity swaps?",
-        "commodity futures",
-        "power purchase agreements?",
-        "ppas?",
-        "weather derivatives?",
-        "crude oil (?:options|swaps|futures)",
-        "natural gas hedges?",
-        "energy derivatives?",
-        "metal price swaps?",
+        "commodity swap",
+        "crude oil futures contract",
+        "natural gas swap agreement",
+        "power purchase agreement",
+        "weather derivative",
+        "commodity call option",
     ],
     "eq": [
-        "embedded conversion options?",
-        "convertible notes? conversion features?",
-        "warrants?",
-        "warrant liabilities",
-        "equity swaps?",
-        "bifurcated (?:embedded )?derivatives?",
-        "conversion options? derivatives?",
-        "prepaid forward contracts?",
+        "equity swap",
+        "stock option contract",
+        "warrant liability",
+        "embedded conversion option",
+        "equity forward agreement",
     ],
 }
 
-# Generic hedging/context phrases (not tied to specific instruments)
-HEDGING_TEMPLATES = [
+# Generic hedging/context phrases (placeholder {instr} is replaced)
+HEDGING_TEMPLATES: List[str] = [
     "We use {instr} to hedge our exposure.",
-    "The company entered into {instr} agreements?.",
+    "The company entered into {instr} agreements.",
     "We hold {instr} on our floating rate debt.",
     "We designated {instr} as cash flow hedges.",
     "We execute {instr} for hedging purposes.",
     "Outstanding {instr} are marked to fair value.",
 ]
 
-GENERIC_PHRASES = [
-    "The company uses derivatives for hedging.",
-    "We designated hedging instruments as cash flow hedges.",
-    "Derivative contracts are recorded at fair value.",
-    "Notional amounts for cap contracts do not represent actual risk exposure.",
+# Specific generic phrases where the expected match needs careful definition
+GENERIC_PHRASES: List[Tuple[str, str]] = [
+    ("The company uses derivatives for hedging.", "derivatives"),
+    ("We designated hedging instruments as cash flow hedges.", "hedging instruments"),
+    ("Derivative contracts are recorded at fair value.", "Derivative contracts"),
+    (
+        "Notional amounts for cap contracts do not represent actual risk exposure.",
+        "cap contracts",
+    ),
 ]
 
-
 # =============================================================================
-# AUTO-GENERATED TEST PHRASES USING TEMPLATES
+# 2. DATA GENERATION LOGIC
 # =============================================================================
 
 
-def generate_test_phrases():
-    """Generate rich test phrases dynamically from instruments + templates"""
-    phrases = {"gen": GENERIC_PHRASES.copy()}
+def generate_verification_data() -> Dict[str, List[Tuple[str, str]]]:
+    """Generate structured test phrases with their expected MAX MUNCH match."""
+    TEST_DATA: Dict[str, List[Tuple[str, str]]] = {}
 
+    # 1. Start with Generic Phrases
+    TEST_DATA["gen"] = GENERIC_PHRASES.copy()
+
+    # 2. Generate Category-Specific Phrases
     for category, instruments in INSTRUMENTS.items():
-        cat_phrases = []
+        cat_tests = []
         for instr in instruments:
-            for template in HEDGING_TEMPLATES:
-                # Replace placeholder or insert naturally
-                if "{instr}" in template:
-                    phrase = template.format(instr=instr)
-                else:
-                    # Fallback: insert instrument in common positions
-                    phrase = template.replace("hedging instruments", instr, 1)
-                    if phrase == template:
-                        phrase = f"We use {instr} to manage interest rate risk."
-                cat_phrases.append(phrase)
+            expected_match = (
+                instr  # The instrument itself is the expected longest match
+            )
 
-            # Add some non-templated realistic variants
-            cat_phrases.extend(
+            for template in HEDGING_TEMPLATES:
+                # Replace placeholder
+                phrase = template.format(instr=instr)
+                cat_tests.append((phrase, expected_match))
+
+            # Add non-templated realistic variants
+            cat_tests.extend(
                 [
-                    f"We have {instr} outstanding with notional of $500 million.",
-                    f"The fair value of our {instr} increased this quarter.",
-                    f"{instr.title()} are used to mitigate currency translation risk.",
+                    (
+                        f"We have {instr} outstanding with notional of $500 million.",
+                        expected_match,
+                    ),
+                    (
+                        f"The fair value of our {instr} increased this quarter.",
+                        expected_match,
+                    ),
+                    (
+                        f"{instr.title()} are used to mitigate currency translation risk.",
+                        expected_match,
+                    ),
                 ]
             )
 
-        # Dedupe while preserving order
+        # Dedupe and limit per category
         seen = set()
         deduped = []
-        for p in cat_phrases:
+        for p, m in cat_tests:
             if p not in seen:
                 seen.add(p)
-                deduped.append(p)
-        phrases[category] = deduped[:12]  # Limit per category for clarity
+                deduped.append((p, m))
 
-    return phrases
+        # Limit to 20 tests per category for manageable output
+        TEST_DATA[category] = deduped[:20]
+
+    return TEST_DATA
 
 
-TEST_PHRASES = generate_test_phrases()
+# Generate the final test data map
+TEST_DATA = generate_verification_data()
 
-
-# =============================================================================
-# REGEX MAPPING
-# =============================================================================
-
+# Regexes map for test function access
 REGEXES = {
     "ir": IR_REGEX,
     "fx": FX_REGEX,
     "cp": CP_REGEX,
     "eq": EQ_REGEX,
     "gen": GEN_REGEX,
-    "hedging": HEDGING_CONTEXT_REGEX,
 }
 
-# Auto-validate that all categories have regexes
-for cat in TEST_PHRASES.keys():
-    if cat not in REGEXES:
-        print(f"Warning: No regex defined for category '{cat}'")
-
-
 # =============================================================================
-# TEST FUNCTIONS (unchanged logic, now cleaner data)
+# 3. AUTOMATIC VERIFICATION FUNCTION
 # =============================================================================
 
 
-def test_single_phrase(phrase: str, category: str = None) -> None:
-    print("\n" + "=" * 80)
-    print(f"Testing: '{phrase}'")
-    print("=" * 80)
-
-    categories = [category] if category else REGEXES.keys()
-    found_any = False
-
-    for cat in categories:
-        if cat not in REGEXES:
-            print(f"\n✗ {cat.upper()}: No regex defined")
-            continue
-
-        regex = REGEXES[cat]
-        matches = list(regex.finditer(phrase))
-
-        if matches:
-            found_any = True
-            print(f"\n{categories} {cat.upper()}: MATCHED")
-            for m in matches:
-                print(f"  → '{m.group(0)}' @ {m.span()}")
-        else:
-            print(f"\n✗ {cat.upper()}: No match")
-
-    if not found_any and not category:
-        print("\nNo regex matched this phrase.")
-
-
-def test_category_phrases(category: str) -> None:
-    if category not in TEST_PHRASES:
-        print(f"Unknown category: {category}")
-        return
-
-    print(f"\n{'='*80}")
-    print(
-        f"Testing {category.upper()} Category Phrases ({len(TEST_PHRASES[category])} phrases)"
-    )
-    print("=" * 80)
-
+def test_auto_verification(
+    category: str, phrase: str, expected_match: str
+) -> Tuple[bool, str]:
+    """
+    Tests a single phrase against its corresponding regex and verifies the longest match.
+    """
     regex = REGEXES.get(category)
     if not regex:
-        print(f"No regex defined for '{category}'")
-        return
+        return False, f"Category '{category.upper()}' has no defined regex."
 
-    for phrase in TEST_PHRASES[category]:
-        match = bool(regex.search(phrase))
-        status = "PASS" if match else "FAIL"
-        print(f"{status} {phrase}")
-        if match:
-            for m in regex.finditer(phrase):
-                print(f"     → '{m.group(0)}'")
+    # Use search() to find the single, longest match (Maximum Munch)
+    match = regex.search(phrase)
 
+    expected_clean = expected_match.strip().lower()
 
-def test_deletion(phrase: str, category: str) -> None:
-    if category not in REGEXES:
-        print(f"Unknown category: {category}")
-        return
+    if not match:
+        return False, f"No match found. Expected: '{expected_clean}'"
 
-    regex = REGEXES[category]
-    print(f"\n{'='*80}")
-    print(f"Deletion Test: {category.upper()}")
-    print(f"Regex: {regex.pattern[:100]}{'...' if len(regex.pattern) > 100 else ''}")
-    print("=" * 80)
-    print(f"Original:  {phrase}")
+    # Clean the matched text for comparison
+    matched_text = match.group(0).strip().lower()
 
-    if regex.search(phrase):
-        cleaned = regex.sub(" [DELETED] ", phrase)
-        print(f"After:     {cleaned}")
-        print(f"Matches: {[m.group(0) for m in regex.finditer(phrase)]}")
+    # Assert that the matched text equals the expected match
+    if matched_text == expected_clean:
+        return True, f"Matched: '{matched_text}'"
     else:
-        print("No match → nothing deleted")
+        # Show what was matched if it was wrong
+        return False, f"Mismatched. Expected: '{expected_clean}', Got: '{matched_text}'"
 
 
-# =============================================================================
-# QUICK & INTERACTIVE MODES
-# =============================================================================
+def run_test_suite() -> None:
+    """Runs all automatic verification tests and prints a summary."""
+    total_tests = 0
+    total_passed = 0
 
-
-def run_quick_test():
-    print("Running Quick Test on All Categories...\n")
-    for cat in TEST_PHRASES.keys():
-        if cat in REGEXES:
-            test_category_phrases(cat)
-
-
-def interactive_mode():
     print("\n" + "=" * 80)
-    print("Derivative Regex Tester – Modular Edition")
+    print("🚀 AUTOMATIC REGEX VERIFICATION TEST SUITE (Max Munch Check)")
     print("=" * 80)
-    print("Commands:")
-    print("  test <phrase> [category]     – Test one phrase")
-    print("  cat <category>               – Test all phrases in category")
-    print("  delete <phrase> <cat>        – Show what gets removed")
-    print("  quick                        – Run all tests")
-    print("  list [category]              – Show test phrases")
-    print("  instruments <cat>            – Show instrument keywords")
-    print("  quit                         – Exit")
-    print()
 
-    while True:
-        try:
-            cmd = input("\n> ").strip()
-            if not cmd:
-                continue
+    for category, tests in TEST_DATA.items():
+        print(f"\n--- {category.upper()} ({len(tests)} cases) ---")
 
-            parts = cmd.split(maxsplit=2)
-            action = parts[0].lower()
+        for i, (phrase, expected_match) in enumerate(tests, 1):
+            total_tests += 1
+            passed, result_message = test_auto_verification(
+                category, phrase, expected_match
+            )
 
-            if action in ("quit", "exit", "q"):
-                print("Goodbye!")
-                break
-
-            elif action == "quick":
-                run_quick_test()
-
-            elif action in ("test", "t"):
-                if len(parts) < 2:
-                    print("Usage: test <phrase> [category]")
-                else:
-                    phrase = parts[1] if len(parts) == 2 else parts[1]
-                    category = parts[2] if len(parts) == 3 else None
-                    test_single_phrase(phrase, category)
-
-            elif action in ("cat", "category"):
-                if len(parts) < 2:
-                    print(f"Available: {', '.join(TEST_PHRASES.keys())}")
-                else:
-                    test_category_phrases(parts[1].lower())
-
-            elif action == "delete":
-                if len(parts) < 3:
-                    print("Usage: delete <phrase> <category>")
-                else:
-                    test_deletion(parts[1], parts[2].lower())
-
-            elif action == "list":
-                if len(parts) == 1:
-                    for c, ps in TEST_PHRASES.items():
-                        print(f"\n--- {c.upper()} ({len(ps)} phrases) ---")
-                        for i, p in enumerate(ps[:8], 1):
-                            print(f"{i:2}. {p}")
-                        if len(ps) > 8:
-                            print(f"   ... and {len(ps)-8} more")
-                else:
-                    cat = parts[1].lower()
-                    if cat in TEST_PHRASES:
-                        for i, p in enumerate(TEST_PHRASES[cat], 1):
-                            print(f"{i:2}. {p}")
-                    else:
-                        print("Category not found")
-
-            elif action == "instruments":
-                cat = parts[1].lower() if len(parts) > 1 else None
-                if not cat:
-                    print("Categories:", ", ".join(INSTRUMENTS.keys()))
-                elif cat in INSTRUMENTS:
-                    print(f"\n{cat.upper()} instrument keywords:")
-                    for i, kw in enumerate(INSTRUMENTS[cat], 1):
-                        print(f"  {i:2}. {kw}")
-                else:
-                    print("Unknown category")
-
+            if passed:
+                total_passed += 1
+                status = "✓ PASS"
             else:
-                print("Unknown command")
+                status = "✗ FAIL"
 
-        except KeyboardInterrupt:
-            print("\nBye!")
-            break
-        except Exception as e:
-            print(f"Error: {e}")
+            print(f"[{status}] Case {i}: {phrase}")
+            print(f"         {result_message}")
 
+    print("\n" + "=" * 80)
+    print("📊 TEST SUMMARY")
+    print(f"   Total Tests Run: {total_tests}")
+    print(f"   Tests Passed:  {total_passed}")
+    print(f"   Tests Failed:  {total_tests - total_passed}")
+    print("=" * 80)
+
+    if total_tests == total_passed:
+        print("🎉 ALL TESTS PASSED SUCCESSFULLY! The Maximum Munch is preserved.")
+    else:
+        print("⚠️ FAILURE DETECTED. Review FAIL cases to fix regex ordering or design.")
+
+
+# =============================================================================
+# MAIN EXECUTION
+# =============================================================================
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        arg = sys.argv[1].lower()
-        if arg == "quick":
-            run_quick_test()
-        elif arg in ("i", "interactive"):
-            interactive_mode()
-        else:
-            print("Usage: python regex_test.py [quick | interactive]")
-    else:
-        interactive_mode()
+    run_test_suite()
