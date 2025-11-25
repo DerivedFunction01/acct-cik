@@ -831,6 +831,8 @@ class ContextScorer:
 
 
 class AugmentationEngine:
+    """Enhanced version with dynamic base substitution."""
+
     def __init__(self):
         self.generic_terms = [
             "derivatives",
@@ -843,25 +845,65 @@ class AugmentationEngine:
             "hedges",
             "positions",
         ]
-        self.bases = [
-            b.replace("?", "").replace("s", "") for b in UNAMBIGUOUS_BASE_TYPES
-        ]
+        # Extract bases from regex patterns (remove '?')
+        self.bases = [base.replace("?", "") for base in UNAMBIGUOUS_BASE_TYPES]
 
-    def augment(self, text: str, span: tuple, match_text: str):
+    def augment(
+        self,
+        text: str,
+        span: tuple,
+        match_text: str,
+        strategy: str = "dynamic_base",
+    ) -> Tuple[str, str]:
+        """
+        Augment text by replacing matched instrument with a variant.
+
+        Args:
+            text: Original text
+            span: (start, end) indices of match
+            match_text: The matched text
+            strategy: "generic", "loose_variant", "dynamic_base", or "stochastic"
+
+        Returns:
+            Tuple of (augmented_text, strategy_used)
+        """
         start, end = span
-        if random.random() < 0.3:
+
+        if strategy == "dynamic_base":
+            # Try to replace base with semantically similar variant
+            base_replacement = _get_dynamic_base(match_text)
+            if base_replacement != match_text:
+                augmented_text = text[:start] + base_replacement + text[end:]
+                return augmented_text, "DynamicBase"
+            # Fall through to loose variant if no substitution
+            strategy = "loose_variant"
+
+        if strategy == "loose_variant":
+            base_form = _get_dynamic_base(match_text)
+            suffix = random.choice(["", "contract", "agreement"])
+            if suffix:
+                replacement_str = f"{base_form} {suffix}"
+            else:
+                replacement_str = base_form
+            augmented_text = text[:start] + replacement_str + text[end:]
+            return augmented_text, "LooseVariant_DynamicBase"
+
+        if strategy == "generic":
             replacement = random.choice(self.generic_terms)
-            strategy = "Generic_Universal"
-        else:
-            found_base = "instrument"
-            for base in self.bases:
-                if base in match_text.lower():
-                    found_base = base
-                    break
-            replacement = f"{found_base} {random.choice(['', 'contract'])}".strip()
-            strategy = "Loose_Variant"
-        augmented_text = text[:start] + replacement + text[end:]
-        return augmented_text, strategy
+            augmented_text = text[:start] + replacement + text[end:]
+            return augmented_text, "Generic"
+
+        if strategy == "stochastic":
+            # Random choice between strategies
+            choice = random.random()
+            if choice < 0.3:
+                return self.augment(text, span, match_text, strategy="dynamic_base")
+            elif choice < 0.6:
+                return self.augment(text, span, match_text, strategy="loose_variant")
+            else:
+                return self.augment(text, span, match_text, strategy="generic")
+
+        return text, "NoChange"
 
 
 class DynamicContextBank:
@@ -1109,6 +1151,117 @@ def prepare_training_example(
 # =============================================================================
 # REPLACEMENT STRATEGY HELPERS
 # =============================================================================
+_SAFE_BASES = ["derivative", "hedge"] # Ir swap contract to ir hedge contract
+_UNSAFE_BASES = {
+    "swaption",
+    "straddle",
+    "strangle",
+    "spread",
+}
+_SIMILAR_BASES = {
+    "swap": ["collar", "swaption"],  # Make collars/swaptions more frequent
+    "cap": ["collar", "floor"],  # Less common than cap
+    "floor": ["collar", "cap"],  # Less common alone
+    "collar": ["swap", "cap",],  # Make other instruments more frequent
+    "forward": ["options"],  # Make options appear more often
+}
+def _normalize_base(base: str) -> str:
+    """
+    Normalize base for matching (lowercase, remove plural 's').
+
+    Examples:
+        "swaps" -> "swap"
+        "Forwards" -> "forward"
+        "CAPS" -> "cap"
+    """
+    base_lower = base.lower()
+    # Remove trailing 's' if it exists (but not for words that end in 's' naturally)
+    if base_lower.endswith("s") and base_lower not in {
+        "hedges",
+        "locks",
+        "futures",
+        "options",
+    }:
+        base_normalized = base_lower[:-1]
+    else:
+        base_normalized = base_lower
+
+    return base_normalized
+
+
+def _get_dynamic_base(
+    base: str,
+    random_seed: Optional[int] = None,
+    substitution_probability: float = 0.25,
+) -> str:
+    """
+    Replace a common instrument base with a semantically similar but less common variant.
+
+    Strategy: Increase dataset diversity by replacing frequent bases (swap, cap, forward)
+    with less common variants (collar, swaption, option), preventing overfitting to
+    common terminology.
+
+    Args:
+        base: Instrument base form (e.g., "swap", "swaps", "Swaps")
+        random_seed: Optional seed for reproducibility in testing
+        substitution_probability: Probability to substitute when alternatives exist (default 0.7)
+                                 Higher = more diversity, lower = preserve more originals
+
+    Returns:
+        Original base or a less common semantic variant (preserves input case/plurality)
+
+    Examples:
+        >>> _get_dynamic_base("swap", random_seed=42)
+        "collar"  # Common base replaced with less common variant
+
+        >>> _get_dynamic_base("Swaps", random_seed=42)
+        "Collars"
+
+        >>> _get_dynamic_base("swaption")
+        "swaption"  # Unsafe, never substituted
+    """
+    rng = random.Random(random_seed) if random_seed else random
+
+    original_base = base
+    is_plural = base.lower().endswith("s") and base.lower() not in {
+        "hedges",
+        "locks",
+        "futures",
+        "options",
+    }
+    is_capitalized = base and base[0].isupper()
+
+    base_normalized = _normalize_base(base)
+
+    # Don't substitute unsafe bases
+    if base_normalized in _UNSAFE_BASES:
+        return original_base
+
+    # Base not in substitution map
+    if base_normalized not in _SIMILAR_BASES:
+        return original_base
+
+    alternatives = _SIMILAR_BASES[base_normalized] + _SAFE_BASES
+
+    # No alternatives available
+    if not alternatives:
+        return original_base
+
+    # Only substitute with configured probability
+    if rng.random() < substitution_probability:
+        substitute = rng.choice(alternatives)
+
+        # Restore plurality
+        if is_plural:
+            substitute = substitute + "s"
+
+        # Restore capitalization
+        if is_capitalized:
+            substitute = substitute.capitalize()
+
+        return substitute
+
+    return original_base
 
 
 def _get_base_form(matched_text: str, category: str) -> str:
@@ -1153,6 +1306,81 @@ def _get_generic_form(category: str) -> str:
     ]
 
     return random.choice(generics)
+
+
+def _apply_base_substitution_to_text(
+    text: str,
+    bases_to_substitute: Optional[Set[str]] = None,
+    random_seed: Optional[int] = None,
+    substitution_probability: float = 0.7,
+) -> Tuple[str, List[Dict[str, str]]]:
+    """
+    Apply base substitution to replace common bases with less common variants.
+
+    This increases dataset diversity by making less common instrument types
+    (collars, swaptions, options) appear more frequently than they naturally would,
+    forcing the model to learn multiple expressions for the same concept.
+
+    Matches bases using word boundaries and handles plural/singular forms.
+    Preserves suffixes (agreements, contracts, etc.) unchanged.
+
+    Args:
+        text: Source text containing instrument bases
+        bases_to_substitute: Set of bases to consider. If None, uses UNAMBIGUOUS_BASES.
+        random_seed: Optional seed for reproducibility
+        substitution_probability: Probability to substitute each base (default 0.7)
+                                 Recommended: 0.6-0.8 for good diversity
+
+    Returns:
+        Tuple of (substituted_text, substitution_log)
+        where substitution_log is list of {"original": "X", "replacement": "Y", "base": "Z"}
+
+    Examples:
+        >>> text = "We use interest rate swaps and FX forwards."
+        >>> result, log = _apply_base_substitution_to_text(text, random_seed=42)
+        >>> result
+        "We use interest rate collars and FX options."
+        >>> log
+        [
+            {"original": "swaps", "replacement": "collars", "base": "swap"},
+            {"original": "forwards", "replacement": "options", "base": "forward"}
+        ]
+    """
+    rng = random.Random(random_seed) if random_seed else random
+    bases_to_try = bases_to_substitute or UNAMBIGUOUS_BASE_TYPES
+    substitution_log = []
+    substituted_text = text
+
+    for base in bases_to_try:
+        # Match singular or plural form at word boundary
+        # Pattern handles: "swap", "swaps", "Swap", "Swaps", etc.
+        pattern = re.compile(rf"\b({re.escape(base)}s?)\b", re.IGNORECASE)
+
+        def replacer(match):
+            original_match = match.group(1)
+
+            # Get substitution
+            substitute = _get_dynamic_base(
+                original_match,
+                random_seed=rng.randint(0, 2**31 - 1),
+                substitution_probability=substitution_probability,
+            )
+
+            # Log if actually changed
+            if substitute.lower() != original_match.lower():
+                substitution_log.append(
+                    {
+                        "original": original_match,
+                        "replacement": substitute,
+                        "base": base,
+                    }
+                )
+
+            return substitute
+
+        substituted_text = pattern.sub(replacer, substituted_text)
+
+    return substituted_text, substitution_log
 
 
 # =============================================================================
