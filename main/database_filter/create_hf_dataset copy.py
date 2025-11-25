@@ -1057,20 +1057,6 @@ def prepare_training_example(
     1. Scrubbing non-target category instruments/context
     2. Masking the target category instrument
     3. Validating output quality
-
-    Args:
-        sentence: Source sentence
-        target_category: Category for this training example
-        all_detected_categories: All categories found in sentence
-        replacement_strategy: "stochastic", "base", or "generic"
-
-    Returns:
-        Tuple of (masked_text, category, metadata) or None if validation fails
-
-    Example:
-        >>> sentence = "We use interest rate swaps to hedge."
-        >>> prepare_training_example(sentence, "ir", {"ir"})
-        # Returns: ("We use swaps to hedge.", "ir", {...})
     """
 
     # Step 1: Scrub non-target instruments/context
@@ -1097,8 +1083,11 @@ def prepare_training_example(
     if target_category not in {"gen", "other"}:
         target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0]
         target_soft_instrument_regex = CATEGORY_DELETION_MAP[target_category][1]
-        # Find the match to determine what we're replacing
-        match = target_instrument_regex.search(scrubbed_text) or target_soft_instrument_regex.search(scrubbed_text)
+
+        # Search using both to ensure we have a match object to derive the base from
+        match = target_instrument_regex.search(
+            scrubbed_text
+        ) or target_soft_instrument_regex.search(scrubbed_text)
         if not match:
             logger.warning(
                 f"Target instrument not found after scrubbing: {target_category}"
@@ -1110,39 +1099,28 @@ def prepare_training_example(
         # 1. Get the base form (e.g., 'swap')
         base_form = _get_base_form(matched_text, target_category)
 
-        # 2. Apply dynamic substitution to the base form
-        #    The result will be the same as base_form most of the time,
-        #    but will be a new base (e.g., 'collar') 25% of the time.
+        # 2. Apply dynamic substitution
         dynamically_substituted_base = _get_dynamic_base(
-            base_form, 
-            # Using a deterministic seed for same text, but a random one ensures diversity
-            random_seed=random.randint(0, 2**31 - 1), 
-            substitution_probability=0.25 # Use the default 0.25
+            base_form,
+            random_seed=random.randint(0, 2**31 - 1),
+            substitution_probability=0.25,
         )
 
         # Apply replacement strategy
         if replacement_strategy == "stochastic":
-            # Determine replacement based on a single random choice
             rand_val = random.random()
-            
-            # 30% chance for Dynamic Base
             if rand_val < 0.30:
                 replacement = dynamically_substituted_base
                 strategy = "base_dynamic"
-            # 30% chance for Original Base (0.30 <= rand_val < 0.60)
-            elif rand_val < 0.60: 
+            elif rand_val < 0.60:
                 replacement = _get_base_form(matched_text, target_category)
                 strategy = "base"
-            # 40% chance for Loose Variant (0.60 <= rand_val < 1.0)
-            else: 
-                # Use the original matched text's base for the loose variant, 
-                # as the substitution should happen independently for diversity.
+            else:
                 replacement = _get_loose_variant(matched_text, target_category)
                 strategy = "loose_variant"
-                
+
         elif replacement_strategy == "base":
-            # Use the dynamically substituted base for 'base' strategy
-            replacement = dynamically_substituted_base 
+            replacement = dynamically_substituted_base
             strategy = "base_dynamic"
         elif replacement_strategy == "generic":
             replacement = _get_generic_form(target_category)
@@ -1157,8 +1135,22 @@ def prepare_training_example(
             "strategy": strategy,
         }
 
-        # Replace only the first occurrence to preserve other same-category bases
-        masked_text = target_instrument_regex.sub(replacement, scrubbed_text, count=1)
+        # ---------------------------------------------------------
+        # STRATEGY: Prioritize Strict Masking, Fallback to Soft
+        # ---------------------------------------------------------
+
+        # 1. Try to mask using the STRICT regex (Max Munch)
+        masked_text = target_instrument_regex.sub(replacement, scrubbed_text)
+
+        # 2. If Strict failed (count=0), it means we found the instrument
+        #    via the Soft regex in the search block above. Mask using Soft anyways
+        if target_soft_instrument_regex.search(scrubbed_text):
+            masked_text = target_soft_instrument_regex.sub(
+                replacement, scrubbed_text
+            )
+        else:
+            # Should be unreachable given the initial check, but safe to keep
+            return None
 
     # Step 4: Final validation
     if len(masked_text) < MIN_SENTENCE_LENGTH:
