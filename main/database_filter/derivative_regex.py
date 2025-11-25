@@ -88,6 +88,7 @@ STRONG_ACTION_VERBS = [
     # Possession / Holding
     r"hold(?:s|ing)?", 
     r"held",
+    r"have",
     r"maintain(?:s|ed|ing)?",
     r"possess(?:e|es|ed|ing)?",
     
