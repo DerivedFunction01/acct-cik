@@ -1005,7 +1005,7 @@ def filter_matches_with_disambiguation(
             if not match.strip():
                 continue
 
-        # Skip litigation
+        # Skip litigation (if a "commodity swap") was involved in the case, we don't want it anyways.
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
             all_discarded.append((url, match, "legal"))
             continue
