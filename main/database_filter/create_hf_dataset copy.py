@@ -532,6 +532,28 @@ class NumericSubstitutionEngine:
         self.base_year = None
         self.base_month = None
 
+_CURRENCY_PATTERNS_CACHE = None
+
+
+def _get_currency_patterns() -> Dict[str, re.Pattern]:
+    """Lazy-load currency regex patterns once."""
+    global _CURRENCY_PATTERNS_CACHE
+
+    if _CURRENCY_PATTERNS_CACHE is not None:
+        return _CURRENCY_PATTERNS_CACHE
+
+    names = "|".join(re.escape(c.full_name) for c in all_currencies)
+    locations = "|".join(re.escape(c.location) for c in all_currencies)
+    codes = "|".join(c.code for c in all_currencies)
+
+    _CURRENCY_PATTERNS_CACHE = {
+        "name": re.compile(rf"\b({names})\b", re.IGNORECASE),
+        "location": re.compile(rf"\b({locations})\b", re.IGNORECASE),
+        "code": re.compile(rf"\b({codes})\b", re.IGNORECASE),
+    }
+
+    return _CURRENCY_PATTERNS_CACHE
+
 
 class DynamicCurrencySubstitution:
     """
@@ -579,9 +601,9 @@ class DynamicCurrencySubstitution:
     def detect_currencies(self, text: str) -> Dict[str, List[Tuple[str, Currency]]]:
         """
         Detect all currency references in text by type (name, location, code).
-        Returns dict: {'name': [(original_text, currency_obj), ...], ...}
+        Uses globally cached regex patterns.
         """
-        patterns = self.build_currency_regex_patterns()
+        patterns = _get_currency_patterns()  # Get cached patterns
         detected = defaultdict(list)
 
         # Create mapping for case-insensitive lookup
@@ -1273,7 +1295,8 @@ def process_chunk(chunk_data):
     for url, matches_json in chunk_data:
         try:
             paragraphs = json.loads(matches_json)
-        except:
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse JSON for URL {url}: {e}")
             continue
         if not isinstance(paragraphs, list):
             continue
