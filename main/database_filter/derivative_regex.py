@@ -706,6 +706,10 @@ def build_ir_regex() -> re.Pattern:
     # --- 2. Build Instrument Alternations ---
     pay_receive_pattern_string = build_pay_receive_structure()
 
+    # --- 4. Build Core Terms and Specific Phrases ---
+    rate_alternation = build_alternation(RATES_ADJECTIVES, sort_longest_first=True)
+    rate_adjective_phrases = [rf"{rate_alternation}[- ]rate"]
+
     # Intervening words that may appear before the final base instrument
     rate_adjectives_alternation = build_alternation(
         [
@@ -718,7 +722,6 @@ def build_ir_regex() -> re.Pattern:
         ],
         sort_longest_first=True,
     )
-
     # This pattern enforces the sequence: [P/R] + [Optional Adjectives] + [Mandatory Instrument Base]
     aggressive_capture_pattern = (
         rf"(?:{pay_receive_pattern_string})"  # 1. Start with 'pay fixed, receive fixed'
@@ -731,9 +734,6 @@ def build_ir_regex() -> re.Pattern:
         r")"  # This group is mandatory for this specific phrase match
     )
 
-    # --- 4. Build Core Terms and Specific Phrases ---
-    rate_alternation = build_alternation(RATES_ADJECTIVES, sort_longest_first=True)
-    rate_adjective_phrases = [rf"{rate_alternation}[- ]rate"]
     benchmark_alternation = build_alternation(BENCHMARK_RATES, sort_longest_first=True)
     brate_adjective_phrases = [
         rf"(?:{benchmark_alternation})(?:[- ](?:related|linked|based))"
@@ -765,40 +765,73 @@ def build_ir_regex() -> re.Pattern:
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
-def build_fx_regex() -> re.Pattern:
-    core_terms = [
-        "foreign[- ]exchange",
-        "forward[- ]exchange",
-        "currency",
-        "currency[- ]rate",
-        "exchange[- ]rate",
-        "FX",
-        "forex",
-        "cross[- ]currency",
-        "multi[- ]currency",
+def build_fx_dynamic_pattern() -> str:
+    """
+    Dynamically build comprehensive FX patterns with optional positions.
+
+    This generates a single alternation pattern that covers almost all descriptive
+    FX prefix combinations, allowing the external build_alternation function
+    to sort them by length (Max Munch) automatically.
+    """
+    # Note: These components are simple alternations (no Max Munch needed here)
+    word1 = build_alternation([r"forward", r"foreign"], sort_longest_first=True)
+    compound = build_alternation(
+        [r"cross[- ]currency", r"multi[- ]currency"], sort_longest_first=True
+    )
+    word2_alt = build_alternation([r"currency", r"exchange"], sort_longest_first=True)
+    word3 = r"rate"
+
+    # List all necessary descriptive fragments/combinations
+    patterns = [
+        # Longest and most specific combinations
+        rf"(?:{word1})[- ](?:{word1})[- ](?:{compound})[- ](?:{word2_alt})[- ]{word3}",
+        # Shorter, common combinations
+        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}",
+        rf"(?:{compound})[- ](?:{word2_alt})[- ]{word3}",
+        rf"(?:{word1})[- ](?:{word2_alt})",
+        rf"(?:{compound})[- ](?:{word2_alt})",
+        # Two-word descriptive terms
+        rf"(?:{word1})[- ]{word3}",
+        rf"(?:{word1})[- ](?:{word2_alt})",
+        rf"(?:{compound})",
+        # Single-word descriptive terms (low priority, included for completeness)
+        compound,
+        word2_alt,
+        r"FX",
+        r"forex",
     ]
 
-    # --- DEFINE FX-SPECIFIC SAFE TYPES ---
-    # 1. Start with the strictly safe stuff (Swaps, Forwards, Caps)
-    fx_expanded_types = UNAMBIGUOUS_BASE_TYPES + EXPANDED_INSTRUMENTS
+    # CRITICAL: We let build_alternation sort this entire list by length/word count
+    # to enforce Max Munch, ensuring "forward foreign currency" matches before "forward".
+    return build_alternation(patterns, sort_longest_first=True)
 
-    iso = build_currency_iso_pattern()
-    name = build_currency_name_pattern()
 
+def build_fx_regex() -> re.Pattern:
+    # --- 1. Helper Definitions ---
+    currency_name_alternation = build_currency_name_pattern()
+    fx_dynamic_pattern = build_fx_dynamic_pattern()
+
+    # --- 2. Build Core Terms (Prefixes) ---
+    core_terms = [
+        rf"(?:{fx_dynamic_pattern})",  # Optimized FX prefix combinations
+        rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))",  # Optimized currency names (USD, JPY, etc.)
+    ]
+
+    # --- 3. Build Specific Phrases (Max Munch) ---
     specific_phrases = [
+        # NDF and hedge of net investment are high priority, long phrases
         "NDF",
         "deliverable forwards?",
         "hedge of the net investment",
         "net investment hedges?",
         "deal[- ]contingent forwards?",
-        # Use fx_expanded_types here instead of UNAMBIGUOUS_BASE_TYPES
-        f"{iso}\\s*(?:denominated|based|linked)?\\s*{build_alternation(fx_expanded_types)}",
-        f"{name}\\s*(?:denominated|based)?\\s*{build_alternation(fx_expanded_types)}",
+        r"cash\s+flow\s+hedge\s+of\s+currency\s+risk",
+        r"non[- ]deliverable\s+forwards?",
     ]
 
     pattern = build_smart_regex(
         core_terms,
-        ALL_BASE_TYPES + ALL_SUFFIXES + EXPANDED_INSTRUMENTS,
+        [expand_instruments(unsafe=False)],
         specific_phrases,
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
