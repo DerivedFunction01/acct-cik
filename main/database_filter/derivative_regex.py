@@ -656,15 +656,35 @@ def expand_instruments(bases: List[str], suffixes: List[str]) -> List[str]:
 EXPANDED_INSTRUMENTS = expand_instruments(ALL_BASE_TYPES, ALL_SUFFIXES)
 
 def build_ir_regex() -> re.Pattern:
+    RATE_TYPES = ["fixed", "variable", "floating"]
+    RATES = ["treasury", "forward", "benchmark", "interest"] + RATE_TYPES
+    # Improved Flexible Separator Pattern
+    FLEXIBLE_SEPARATOR = r"(?:\s*[,/;&]?\s*|\s+(?:and|or)\s+|\s*[- ]+)\s*"
+
+    def build_pay_receive_pattern() -> str:
+        """
+        Constructs the highly flexible Interest Rate Pay/Receive swap pattern.
+        Example: (pay-fixed receive-variable) or (pay-floating and receive-fixed)
+        """
+        rate_alternation = build_alternation(RATE_TYPES, sort_longest_first=False)
+        rates = build_alternation(RATES, sort_longest_first=True)
+        # Pattern: pay/receive side (non-capturing group for the whole pattern)
+        pattern = (
+            r"(?i)pay[- ]"
+            rf"(?:{rate_alternation})"
+            rf"{FLEXIBLE_SEPARATOR}"  # Use the flexible separator
+            r"receive[- ]"
+            rf"(?:{rate_alternation})(?:{rates}[- ]rates?)"
+        )
+        return pattern
     core_terms = [
-        "interest[- ]rate",
         "single[- ]currency",
         "SOFR",
         "SONIA",
         "LIBOR",
         "LIBOR[- ]based",
         "EURIBOR",
-        "(?:treasury|forward|fixed|floating|variable|benchmark)[- ]rate",
+        build_pay_receive_pattern(),
     ]
     specific_phrases = [
         "zero[- ]coupon swaps?",
