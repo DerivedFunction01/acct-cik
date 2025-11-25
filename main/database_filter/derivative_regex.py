@@ -818,15 +818,28 @@ def build_fx_dynamic_pattern() -> str:
     return build_alternation(patterns, sort_longest_first=True)
 
 
-def build_fx_regex() -> re.Pattern:
+def _replace_dynamic_placeholder(phrases: List[str], replacement_fragment: str) -> List[str]:
+    """Replaces the '__DYNAMIC__' placeholder in a list of phrase templates."""
+    return [p.replace(r"__DYNAMIC__", replacement_fragment) for p in phrases]
+
+def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
     currency_name_alternation = build_currency_name_pattern()
     fx_dynamic_pattern = build_fx_dynamic_pattern()
 
     # --- 2. Build Core Terms (Prefixes) ---
-    core_terms = [
-        rf"(?:{fx_dynamic_pattern})",  # Optimized FX prefix combinations
+    # Precise prefixes (e.g., 'forward foreign currency')
+    strict_core_terms = [
+        rf"(?:{fx_dynamic_pattern})"
     ]
+    # Broad prefixes (e.g., 'currency', 'fx')
+    soft_core_terms = [
+        r"foreign\s+exchange",
+        r"currency",
+        r"fx",
+    ]
+    soft_core_alternation = build_alternation(soft_core_terms, sort_longest_first=True)
+    
     forward_types = [
         "non[- ]deliverable",
         "deliverable",
@@ -834,30 +847,80 @@ def build_fx_regex() -> re.Pattern:
     ]
     forward_types_alternation = build_alternation(forward_types, sort_longest_first=True)
 
-    # These capture the longest matches before falling back to pattern1
-    specific_phrases = [
-        # All forward types with optional suffixes (e.g., "non-deliverable forward contract")
-        rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))[- ](?:{expand_instruments(exclude_standalone_suffixes=True)})",  # Optimized currency names (USD, JPY, etc.)
-        rf"(?:{currency_name_alternation})[- ](?:{expand_instruments(exclude_standalone_suffixes=True)})",
-        rf"currency[- ](?:{expand_instruments(exclude_standalone_suffixes=True)})",
+    # -------------------------------------------------------------------------
+    # --- A. UNIFIED TEMPLATE PHRASES ---
+    # -------------------------------------------------------------------------
+    
+    # Templates for phrases that attach instrument bases to currency context
+    dynamic_templates = [
+        rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))[- ](?:__DYNAMIC__)",
+        rf"(?:{currency_name_alternation})[- ](?:__DYNAMIC__)",
+        rf"currency[- ](?:__DYNAMIC__)",
+    ]
+
+    # Fixed (non-dynamic) specific phrases
+    fixed_phrases = [
+        # Explicitly safe Forward Types
         rf"(?:{forward_types_alternation})\s+forwards?\s+(?:{suffix_alternation})",
         rf"(?:{forward_types_alternation})\s+forwards?",
-        # Other long-form specific FX instruments
+        # Specific FX Instrument Names/Hedges
         "NDF",
         r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
         "net investment hedges?",
     ]
-    # Then pre-sort longest-first before passing to build_smart_regex
-    specific_phrases = sorted(
-        specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
+    
+    # -------------------------------------------------------------------------
+    # --- B. STRICT Pattern Construction (High Precision) ---
+    # -------------------------------------------------------------------------
+
+    # Fragment for dynamic replacement: safe bases only (no suffixes as standalones)
+    strict_dynamic_fragment = expand_instruments(unsafe=False, exclude_standalone_suffixes=True)
+    
+    # 1. Substitute the dynamic fragment into the templates
+    strict_dynamic_phrases = _replace_dynamic_placeholder(dynamic_templates, strict_dynamic_fragment)
+    
+    # 2. Combine and sort all specific phrases
+    strict_specific_phrases = sorted(
+        strict_dynamic_phrases + fixed_phrases,
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
     )
 
-    pattern = build_smart_regex(
-        core_terms,
-        expand_instruments(unsafe=False),
-        specific_phrases,
+    # 3. Final pattern build
+    strict_instrument_fragment = expand_instruments(unsafe=False) # Safe standalone bases allowed here
+    strict_pattern = build_smart_regex(
+        strict_core_terms,                   # Precise prefixes
+        strict_instrument_fragment,          # Safe bases only
+        strict_specific_phrases,             # Final list of specific phrases
     )
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+    strict_fx_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
+
+    # -------------------------------------------------------------------------
+    # --- C. SOFT Pattern Construction (Contextual Precision) ---
+    # -------------------------------------------------------------------------
+
+    # Fragment for dynamic replacement: includes all instrument bases (unsafe=True, exclude standalones)
+    soft_dynamic_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=True)
+
+    # 1. Substitute the dynamic fragment into the templates
+    soft_dynamic_phrases = _replace_dynamic_placeholder(dynamic_templates, soft_dynamic_fragment)
+    
+    # 2. Combine and sort all specific phrases
+    soft_specific_phrases = sorted(
+        soft_dynamic_phrases + fixed_phrases,
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
+    )
+
+    # 3. Final pattern build
+    soft_instrument_fragment = expand_instruments(unsafe=True) # Unsafe standalone bases allowed here
+    soft_pattern = build_smart_regex(
+        [soft_core_alternation],             # Broad prefixes
+        soft_instrument_fragment,            # Unsafe bases included
+        soft_specific_phrases,               # Final list of specific phrases
+    )
+    soft_fx_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+
+    # Return the tuple of (strict, soft)
+    return strict_fx_regex, soft_fx_regex
 
 
 def build_cp_regex() -> re.Pattern:
@@ -1109,7 +1172,7 @@ def build_loose_gen_regex() -> re.Pattern:
 # COMPILED REGEXES (exported)
 # =============================================================================
 IR_REGEX = build_ir_regex()
-FX_REGEX = build_fx_regex()
+FX_REGEX, FX_SOFT_REGEX = build_fx_regex()
 CP_REGEX = build_cp_regex()
 EQ_REGEX = build_eq_regex()
 
