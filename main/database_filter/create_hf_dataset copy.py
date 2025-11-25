@@ -97,6 +97,8 @@ class ContentDeduplicator:
 
 class ContextScorer:
     def score(self, text: str, label: str) -> int:
+        if len(text) > 500: # penalize long text; it may be a table
+            return 0
         regex = CATEGORY_CONTEXT_MAP.get(label)
         if not regex:
             return 0
