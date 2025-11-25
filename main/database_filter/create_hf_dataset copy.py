@@ -552,17 +552,14 @@ def _get_currency_patterns() -> Dict[str, re.Pattern]:
     return _CURRENCY_PATTERNS_CACHE
 
 
+# =============================================================================
+# CURRENCY SUBSTITUTION ENGINE (UPDATED)
+# =============================================================================
+
 class DynamicCurrencySubstitution:
     """
-    Performs dynamic currency substitution on text, replacing currency names,
-    locations, and ISO codes with placeholders and then substituting random currencies.
-
-    Strategy:
-    1. Detect all currency references (names, locations, ISO codes)
-    2. Find longest sequence (N currencies detected)
-    3. Select N random currencies from pool
-    4. Create mapping of detected -> replacement currencies
-    5. Substitute all variants in text
+    Performs dynamic currency substitution on text, maintaining semantic consistency
+    across Names, Codes, Locations, and Adjectives.
     """
 
     def __init__(
@@ -573,207 +570,197 @@ class DynamicCurrencySubstitution:
         self.currency_pool = currency_pool or all_currencies
         self.rng = random.Random(random_seed) if random_seed else random
         self.substitution_log = []
-        self.currency_mapping = {}  # Original text -> Currency object
-        self.detected_currencies = (
-            []
-        )  # List of detected (type, original_text, currency_obj)
+        
+        # Cache for the regex patterns so we don't rebuild them every row
+        self._patterns_cache = None
 
     def build_currency_regex_patterns(self) -> Dict[str, re.Pattern]:
         """
-        Build regex patterns for matching:
-        - Full names (case-insensitive)
-        - Locations (case-insensitive)
-        - ISO codes (case-insensitive)
+        Builds or returns cached regex patterns for Name, Location, Code, and Adjective.
         """
+        if self._patterns_cache:
+            return self._patterns_cache
+
+        # Escape strings to be safe for regex
         names = "|".join(re.escape(c.full_name) for c in self.currency_pool)
         locations = "|".join(re.escape(c.location) for c in self.currency_pool)
-        codes = "|".join(c.code for c in self.currency_pool)
+        codes = "|".join(re.escape(c.code) for c in self.currency_pool)
+        adjectives = "|".join(re.escape(c.adjective) for c in self.currency_pool)
 
-        return {
+        self._patterns_cache = {
             "name": re.compile(rf"\b({names})\b", re.IGNORECASE),
             "location": re.compile(rf"\b({locations})\b", re.IGNORECASE),
             "code": re.compile(rf"\b({codes})\b", re.IGNORECASE),
+            "adjective": re.compile(rf"\b({adjectives})\b", re.IGNORECASE),
         }
+        return self._patterns_cache
 
     def detect_currencies(self, text: str) -> Dict[str, List[Tuple[str, Currency]]]:
         """
-        Detect all currency references in text by type (name, location, code).
-        Uses globally cached regex patterns.
+        Detect all currency references.
+        Returns: Dict[type, List[(original_text_span, CurrencyObject)]]
         """
-        patterns = _get_currency_patterns()  # Get cached patterns
+        patterns = self.build_currency_regex_patterns()
         detected = defaultdict(list)
 
-        # Create mapping for case-insensitive lookup
-        name_map = {c.full_name.lower(): c for c in self.currency_pool}
-        location_map = {c.location.lower(): c for c in self.currency_pool}
-        code_map = {c.code.upper(): c for c in self.currency_pool}
+        # Create lookup maps (lowercased keys for case-insensitive matching)
+        # Note: We iterate pool once to build these
+        maps = {
+            "name": {c.full_name.lower(): c for c in self.currency_pool},
+            "location": {c.location.lower(): c for c in self.currency_pool},
+            "code": {c.code.upper(): c for c in self.currency_pool}, # Codes are usually UPPER
+            "adjective": {c.adjective.lower(): c for c in self.currency_pool},
+        }
 
-        # Find names
+        # 1. Names
         for match in patterns["name"].finditer(text):
             original = match.group(1)
-            currency = name_map.get(original.lower())
-            if currency:
-                detected["name"].append((original, currency))
+            curr = maps["name"].get(original.lower())
+            if curr: detected["name"].append((original, curr))
 
-        # Find locations
+        # 2. Locations
         for match in patterns["location"].finditer(text):
             original = match.group(1)
-            currency = location_map.get(original.lower())
-            if currency:
-                detected["location"].append((original, currency))
+            curr = maps["location"].get(original.lower())
+            if curr: detected["location"].append((original, curr))
 
-        # Find codes
+        # 3. Codes
         for match in patterns["code"].finditer(text):
             original = match.group(1)
-            currency = code_map.get(original.upper())
-            if currency:
-                detected["code"].append((original, currency))
+            curr = maps["code"].get(original.upper())
+            if curr: detected["code"].append((original, curr))
+
+        # 4. Adjectives
+        for match in patterns["adjective"].finditer(text):
+            original = match.group(1)
+            curr = maps["adjective"].get(original.lower())
+            if curr: detected["adjective"].append((original, curr))
 
         return detected
 
-    def get_substitution_sequence(
-        self, detected: Dict[str, List[Tuple[str, Currency]]]
-    ) -> int:
-        """
-        Find the longest sequence of detected currency references.
-        Returns N (number of random currencies to substitute).
+    def _match_case(self, original: str, replacement: str) -> str:
+        """Helper to match capitalization of the original text."""
+        if original.isupper():
+            return replacement.upper()
+        if original.islower():
+            return replacement.lower()
+        if original[0].isupper():
+            return replacement.capitalize()
+        return replacement
 
-        Example:
-            detected = {
-                'name': [('Japanese Yen', JPY_obj), ('Euro', EUR_obj), ('British Pound', GBP_obj)],
-                'location': [('China', CNY_obj), ('Brazil', BRL_obj)],
-                'code': [('CHF', CHF_obj)]
-            }
-            Returns: 3 (longest sequence is 3 names)
+    def build_text_mapping(
+        self, detected: Dict[str, List[Tuple[str, Currency]]]
+    ) -> Dict[str, str]:
         """
-        max_sequence = 0
+        Builds the final text-to-text mapping.
+        
+        Logic:
+        1. Identify unique Currency Identities found in text.
+        2. Select distinct Replacements.
+        3. Map specific text spans (e.g. 'Polish') to the correct attribute 
+           of the replacement (e.g. 'Malaysian').
+        """
+        
+        # 1. Identify unique underlying currencies (using Code as ID)
+        unique_detected_codes = set()
         for det_type, items in detected.items():
-            max_sequence = max(max_sequence, len(items))
-
-        return max_sequence
-
-    def build_currency_mapping(
-        self, detected: Dict[str, List[Tuple[str, Currency]]]
-    ) -> Dict[str, Currency]:
-        """
-        Build mapping from original detected currencies to replacement currencies.
-
-        Strategy:
-        1. For each detection type, collect all detected currencies
-        2. Get N = longest sequence
-        3. Sample N random currencies without replacement
-        4. Map detected -> replacement
-        """
-        n_substitutions = self.get_substitution_sequence(detected)
-
-        if n_substitutions == 0:
+            for _, currency in items:
+                unique_detected_codes.add(currency.code)
+        
+        if not unique_detected_codes:
             return {}
 
-        # Collect all detected currencies (deduplicated by code to avoid duplicate mappings)
-        detected_currency_codes = set()
-        for det_type, items in detected.items():
-            for original_text, currency in items:
-                detected_currency_codes.add(currency.code)
+        n_needed = len(unique_detected_codes)
 
-        # Select N random currencies from pool
-        available_currencies = [
-            c for c in self.currency_pool if c.code not in detected_currency_codes
-        ]
-        if len(available_currencies) < n_substitutions:
-            available_currencies = self.currency_pool
-
-        replacement_currencies = self.rng.sample(
-            available_currencies, min(n_substitutions, len(available_currencies))
-        )
-
-        # Build mapping: original_text -> replacement_currency
-        mapping = {}
-        replacement_idx = 0
-
-        for det_type, items in detected.items():
-            for original_text, currency in items:
-                if original_text not in mapping:  # Avoid re-mapping same text
-                    if replacement_idx < len(replacement_currencies):
-                        mapping[original_text] = replacement_currencies[replacement_idx]
-                        replacement_idx += 1
-
-        return mapping
-
-    def substitute_currencies_in_text(self, text: str, mapping: Dict[str, Currency], det_type: str) -> str:
-        # 1. Create a single regex pattern for ALL keys in this mapping
-        # Sort keys by length (descending) to ensure greedy matching (e.g., match "US Dollar" before "US")
-        sorted_keys = sorted(mapping.keys(), key=len, reverse=True)
-        pattern = re.compile(r'\b(' + '|'.join(map(re.escape, sorted_keys)) + r')\b', re.IGNORECASE)
-
-        # 2. Define callback to look up replacement
-        def replace_match(match):
-            original = match.group(1)
-            # We need to find the key in the mapping that matches case-insensitively
-            # (Since your mapping keys preserve original casing from detection)
-            # Optimization: You might want to normalize mapping keys to lower case for lookup
-            for key, val in mapping.items():
-                if key.lower() == original.lower():
-                    replacement_currency = val
-                    break
-            else:
-                return original # Should not happen given regex
-
-            if det_type == "name":
-                replacement = replacement_currency.full_name
-            elif det_type == "location":
-                replacement = replacement_currency.location
-            elif det_type == "code":
-                replacement = replacement_currency.code
-            else:
-                replacement = original
-                
-            # Optional: Attempt to preserve capitalization of 'original' in 'replacement'
-            return replacement
-
-        # 3. Single pass substitution
-        text = pattern.sub(replace_match, text)
+        # 2. Select Replacements (exclude those present in text to avoid confusion)
+        available = [c for c in self.currency_pool if c.code not in unique_detected_codes]
         
-        # ... logging logic ...
-        return text
+        # Fallback if pool exhausted
+        if len(available) < n_needed:
+            available = self.currency_pool
+
+        replacements = self.rng.sample(available, min(n_needed, len(available)))
+        
+        # Create Map: Original Currency Code -> New Currency Object
+        # e.g., 'PLN' -> Currency(MYR)
+        code_map = {}
+        detected_list = list(unique_detected_codes)
+        for i, original_code in enumerate(detected_list):
+            if i < len(replacements):
+                code_map[original_code] = replacements[i]
+
+        # 3. Build Text Substitution Map
+        text_mapping = {}
+
+        for det_type, items in detected.items():
+            for original_text, currency in items:
+                
+                # Get the assigned replacement currency object
+                new_curr = code_map.get(currency.code)
+                if not new_curr:
+                    continue
+
+                # Select the correct attribute based on detection type
+                if det_type == "name":
+                    raw_replacement = new_curr.full_name
+                elif det_type == "location":
+                    raw_replacement = new_curr.location
+                elif det_type == "code":
+                    raw_replacement = new_curr.code
+                elif det_type == "adjective":
+                    raw_replacement = new_curr.adjective
+                else:
+                    raw_replacement = new_curr.full_name
+
+                # Apply casing
+                final_replacement = self._match_case(original_text, raw_replacement)
+                
+                text_mapping[original_text] = final_replacement
+
+        return text_mapping
 
     def substitute_all(self, text: str) -> Tuple[str, List[Dict]]:
         """
-        Apply full currency substitution pipeline.
-
-        Returns:
-            (substituted_text, substitution_log)
+        Execute the substitution pipeline.
         """
+        self.substitution_log = [] # Clear previous log
+        
+        # 1. Detect
         detected = self.detect_currencies(text)
-
-        if not detected or all(len(v) == 0 for v in detected.values()):
+        if not any(detected.values()):
             return text, []
 
-        mapping = self.build_currency_mapping(detected)
+        # 2. Build Mapping
+        # Returns: {'Polish': 'Malaysian', 'PLN': 'MYR'}
+        mapping = self.build_text_mapping(detected)
+        
+        if not mapping:
+            return text, []
 
-        substituted_text = text
-        for det_type in ["name", "location", "code"]:
-            # Filter mapping to only this detection type
-            type_mapping = {}
-            for det_type_key, items in detected.items():
-                if det_type_key == det_type:
-                    for original_text, currency in items:
-                        if original_text in mapping:
-                            type_mapping[original_text] = mapping[original_text]
+        # 3. Substitute (Greedy by length)
+        # Sort keys by length descending to match "US Dollar" before "US"
+        sorted_keys = sorted(mapping.keys(), key=len, reverse=True)
+        pattern = re.compile(r'\b(' + '|'.join(map(re.escape, sorted_keys)) + r')\b', re.IGNORECASE)
 
-            if type_mapping:
-                substituted_text = self.substitute_currencies_in_text(
-                    substituted_text, type_mapping, det_type
-                )
+        def replace_callback(match):
+            original = match.group(1)
+            # Retrieve replacement (mapping keys are exactly as they appeared in text)
+            replacement = mapping.get(original, original)
+            
+            self.substitution_log.append({
+                "original": original,
+                "replacement": replacement,
+                "span": match.span()
+            })
+            return replacement
 
-        return substituted_text, self.substitution_log
+        new_text = pattern.sub(replace_callback, text)
+        
+        return new_text, self.substitution_log
 
     def clear_log(self):
-        """Reset substitution log and mappings."""
         self.substitution_log = []
-        self.currency_mapping = {}
-        self.detected_currencies = []
-
-
+        # cache persists
 class ContentDeduplicator:
     def __init__(self):
         self.seen_hashes = set()
