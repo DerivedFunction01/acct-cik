@@ -353,6 +353,7 @@ all_currencies = (
     + americas_currencies
     + other_currencies
 )
+
 def build_currency_patterns() -> List[str]:
     """
     Generates regex patterns derived specifically from the Currency class objects.
@@ -406,32 +407,30 @@ def build_currency_iso_pattern() -> str:
 def build_currency_name_pattern() -> str:
     """
     FX-optimized currency fragment generator.
-
-    Produces:
-      - ISO codes (USD, EUR)
-      - ISO pairs (USD/JPY, EUR/USD)
-      - code-denominated (USD-denominated)
-      - adjective + unit (Canadian dollar)
-      - safe unit-only (forint, zloty, rand)
     """
-    patterns = set()
-
+    patterns = []
     unsafe_units = {"dollar", "pound", "yen", "won", "real"}
-
-    # ISO code set for cross patterns
     codes = [c.code for c in all_currencies]
 
     # -----------------------------------
-    # 1. ISO codes and ISO FX pairs
+    # 1. ISO pairs (highest priority - longest)
     # -----------------------------------
-    for c in codes:
-        patterns.add(re.escape(c))
-        patterns.add(re.escape(c) + r"-denominated")
-        patterns.add(re.escape(c) + r"/" + r"[A-Z]{3}")
-        patterns.add(r"[A-Z]{3}/" + re.escape(c))
+    iso_codes = build_currency_iso_pattern()
+    pair_string = rf"{iso_codes}\/{iso_codes}"
+    patterns.append(pair_string)
 
     # -----------------------------------
-    # 2. Adjective + unit pairs
+    # 2. Code-denominated
+    # -----------------------------------
+    patterns.extend([c + r"-denominated" for c in codes])
+
+    # -----------------------------------
+    # 3. Standalone codes
+    # -----------------------------------
+    patterns.extend(codes)
+
+    # -----------------------------------
+    # 4. Adjective + unit pairs
     # -----------------------------------
     for curr in all_currencies:
         full = curr.full_name.strip()
@@ -439,25 +438,23 @@ def build_currency_name_pattern() -> str:
         adjective = curr.adjective
         unit = words[-1]
 
-        # e.g., "Canadian dollar"
         if adjective and unit:
-            patterns.add(re.escape(f"{adjective} {unit}"))
+            patterns.append(f"{adjective} {unit}")
 
-        # Unit-only when safe
         if unit.lower() not in unsafe_units:
-            patterns.add(re.escape(unit))
+            patterns.append(unit)
 
-        # U.S. variants
         if adjective == "U.S.":
-            patterns.update(
+            patterns.extend(
                 [
-                    r"U\.?S\.?\s+" + re.escape(unit),
-                    r"United\s+States\s+" + re.escape(unit),
+                    r"U\.?S\.?\s+" + unit,
+                    r"United\s+States\s+" + unit,
                 ]
             )
 
-    sorted_patterns = sorted(patterns, key=len, reverse=True)
-    return build_alternation(sorted_patterns)
+    # Let build_alternation handle sorting (Max Munch)
+    return build_alternation(patterns, sort_longest_first=True)
+
 
 def build_currency_symbol_pattern() -> str:
     """
@@ -819,6 +816,7 @@ def build_fx_regex() -> re.Pattern:
     core_terms = [
         rf"(?:{fx_dynamic_pattern})",  # Optimized FX prefix combinations
         rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))",  # Optimized currency names (USD, JPY, etc.)
+        rf"(?:{currency_name_alternation})",
     ]
     forward_types = [
         "non[- ]deliverable",
@@ -837,6 +835,10 @@ def build_fx_regex() -> re.Pattern:
         r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
         "net investment hedges?",
     ]
+    # Then pre-sort longest-first before passing to build_smart_regex
+    specific_phrases = sorted(
+        specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
+    )
 
     pattern = build_smart_regex(
         core_terms,
@@ -886,20 +888,22 @@ def build_cp_regex() -> re.Pattern:
     spread_types_alternation = build_alternation(spread_types, sort_longest_first=True)
 
     specific_phrases = [
-        "weather derivatives?",
-        "power purchase agreements?",
-        rf"(?:{spread_types_alternation})\s+spreads?(?:\s+[- ](?:{suffix_alternation}))",
+        r"weather derivatives?",                     # raw string for regex
+        r"power purchase agreements?",               # raw string for regex
+        # LONGEST FIRST: spreads with suffix
+        rf"(?:{spread_types_alternation})\s+spreads?\s+(?:{suffix_alternation})",
+        # SHORTER: spreads alone
         rf"(?:{spread_types_alternation})\s+spreads?",
-        "virtual power purchase agreements?",
-        "virtual PPA",
+        r"virtual power purchase agreements?",       # raw string for regex
+        r"virtual PPA",
     ]
 
-    # Pre-sort before passing to build_smart_regex
+    # Then pre-sort longest-first before passing to build_smart_regex
     specific_phrases = sorted(
         specific_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count("(?:")),
-        reverse=False  # reverse=False because we negated the first key
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:" ))
     )
+
 
     pattern = build_smart_regex([core_alternation], expand_instruments(unsafe=True), specific_phrases)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
@@ -938,20 +942,15 @@ def build_eq_regex() -> re.Pattern:
     # Warrant liabilities (Financial Warrants only)
     warrant_phrases = [
         # Direct warrant + (liability OR derivative)
-        rf"{warrant}\s+(?:{liability}|{derivative})",
-        
+        rf"{warrant}\s+(?:{derivative}[- ]{liability}|{liability}|{derivative})",
         # Inverted: liability/derivative + warrant
         rf"(?:{liability}|{derivative})\s+(?:classified|for)\s+{warrant}",
         rf"(?:{liability}|{derivative})[- ]classified\s+{warrant}",
-        
         # Classified context: warrant...classified as (liability|derivative)
-        rf"(?:{derivative}\s+)?{warrant}.*classified\s+as\s+(?:a\s+)?(?:{derivative}|{liability})",
+        rf"(?:{derivative}\s+)?{warrant}.*classified\s+as\s+(?:a\s+)?(?:{derivative}[- ]{liability}|{derivative}|{liability})",
     ]
 
-    all_specifics = sorted(
-        convertible_phrases + warrant_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+")),  # Longest first, then more spaces
-    )
+    all_specifics = convertible_phrases + warrant_phrases
 
     pattern = build_smart_regex(
         [core_alternation],
