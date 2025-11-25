@@ -638,18 +638,36 @@ CATEGORY_CONTEXT_MAP = {
     "gen": HEDGING_CONTEXT_REGEX,
 }
 
+
+# --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(ALL_BASE_TYPES, True)
 suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
 unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
+# ----------------------------------------------------------------------------------
+
 def expand_instruments(unsafe: bool = True) -> str:
     """
-    Creates permutations of Base + Suffix to catch 3-word phrases.
-    Input: ["swaps?"], ["agreements?"]
-    Output: ["swaps?", "swaps?[- ]agreements?"]
+    Creates an optimized, single alternation pattern that captures:
+    1. Base + Suffix (e.g., swaps-agreement)
+    2. OR Standalone base/suffix (e.g., swaps, agreements)
+
+    This pattern enforces Maximum Munch: Base + Suffix is prioritized.
+
+    Args:
+        unsafe: If True, includes ambiguous bases (e.g., generic options, futures).
     """
-    # Return original bases + new combos (suffixes alone are usually passed separately if needed)
-    return rf"(?:{base_alternation}[- ]{suffix_alternation})|(?:{unsafe_standalone_alternation if unsafe else standalone_alternation})"
+
+    # 1. Base + Suffix Combination (Highest priority)
+    combined_pattern = rf"(?:{base_alternation}[- ]{suffix_alternation})"
+
+    # 2. Standalone Term (Lower priority)
+    standalone_pattern = (
+        unsafe_standalone_alternation if unsafe else standalone_alternation
+    )
+
+    # Final alternation: Combined OR Standalone
+    return rf"{combined_pattern}|(?:{standalone_pattern})"
 
 
 def build_ir_regex() -> re.Pattern:
@@ -701,14 +719,6 @@ def build_ir_regex() -> re.Pattern:
         sort_longest_first=True,
     )
 
-    # All possible instrument suffixes (swaps?, contracts?, agreements?, etc.)
-    all_bases_and_suffixes = EXPANDED_INSTRUMENTS + ALL_BASE_TYPES
-    instrument_bases_alternation = build_alternation(
-        all_bases_and_suffixes, sort_longest_first=True
-    )
-
-    # --- 3. Build Aggressive, Non-Greedy Capture Pattern ---
-
     # This pattern enforces the sequence: [P/R] + [Optional Adjectives] + [Mandatory Instrument Base]
     aggressive_capture_pattern = (
         rf"(?:{pay_receive_pattern_string})"  # 1. Start with 'pay fixed, receive fixed'
@@ -717,7 +727,7 @@ def build_ir_regex() -> re.Pattern:
         rf"(?:{rate_adjectives_alternation})"  # 2. Optional: 'interest rate', 'derivative' etc.
         r")?"
         r"(?:\s+"  # Mandatory space before the base instrument
-        rf"(?:{instrument_bases_alternation})"  # 3. Mandatory: 'derivatives contracts' or 'swap'
+        rf"(?:{expand_instruments(unsafe=False)})"  # 3. Mandatory: 'derivatives contracts' or 'swap'
         r")"  # This group is mandatory for this specific phrase match
     )
 
@@ -749,7 +759,7 @@ def build_ir_regex() -> re.Pattern:
     # --- 5. Final Build and Compile ---
     pattern = build_smart_regex(
         core_terms,
-        EXPANDED_INSTRUMENTS + ALL_SUFFIXES + ALL_BASE_TYPES,
+        [expand_instruments(unsafe=False)],
         specific_phrases,
     )
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
