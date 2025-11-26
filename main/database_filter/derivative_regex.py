@@ -1232,7 +1232,6 @@ def build_soft_gen_regex() -> re.Pattern:
         r"derivative expense",
         r"designated as (?:a )?hedges?",
         r"(?:gain|loss) on derivatives?",
-        r"fair\s+value\s+measurements?",
         r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
         r"to hedge",
         r"to mitigate",
@@ -1848,11 +1847,7 @@ IGNORE_REGEX = re.compile(r"|".join(LEGAL_LITIGATION_KEYWORDS + EQUITY_COMP_KEYW
 # TABLE AND MISCELLANEOUS PATTERNS
 # =============================================================================
 
-# Regex for matching only base derivative types, intended for use within tables
-TABLE_BASE_TYPES_REGEX = re.compile(
-    r"\b" + build_alternation([base.rstrip("?") for base in UNAMBIGUOUS_BASE_TYPES]) + r"\b",
-    re.IGNORECASE,
-)
+
 
 # Combined regex for webpage.py
 COMBINED_REGEX = re.compile(
@@ -2207,7 +2202,6 @@ __all__ = [
     "COMBINED_EXCLUDE_REGEX",
     "TRADING_STATEMENTS_REGEX",
     "IGNORE_REGEX",
-    "TABLE_BASE_TYPES_REGEX",
     "YEAR_REGEX",
     "cleanup_fragment",
     "PRIOR_PATTERN",

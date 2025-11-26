@@ -112,11 +112,7 @@ else:
 # =============================================================================
 
 # Import all derivative regexes and patterns
-from derivative_regex import (
-    ALL_REGEX,
-    SENTENCE_SPLIT_PATTERN,
-    IGNORE_REGEX,
-)
+from derivative_regex import ALL_REGEX, EXCLUDE_REGEX_EQUITY_COMP, EXCLUDE_REGEX_LEGAL_LITIGATION, EQ_REGEX, SOFT_GEN_REGEX
 
 FILING_TYPES = {
     "10-K",
@@ -681,10 +677,7 @@ def process_url(url: str):
 
 def filter_by_keywords(content: str) -> list[str]:
     """
-    Filters content for derivative-related keywords and creates larger text
-    chunks for analysis by a generative model. Tables are treated as
-    separate, whole chunks. If a paragraph matches but ends without a period,
-    the next valid paragraph is appended if it doesn't match ignore regex.
+    Filters content using Conditional Salvage Strategy.
     """
 
     filtered = []
@@ -699,45 +692,92 @@ def filter_by_keywords(content: str) -> list[str]:
             continue
         lower_part = part.lower()
 
-        # Handle tables
-        if "<table" in lower_part and not IGNORE_REGEX.search(part):
-            if ALL_REGEX.search(part):
+        # ---------------------------------------------------------
+        # HANDLE TABLES
+        # ---------------------------------------------------------
+        if "<table" in lower_part:
+            if EXCLUDE_REGEX_LEGAL_LITIGATION.search(part):
+                continue
+
+            if ALL_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part):
+
+                # CONDITIONAL SALVAGE (Tables)
+                if EXCLUDE_REGEX_EQUITY_COMP.search(part):
+                    # Discard UNLESS it has Financial Equity (Warrants) OR Financial Context (Hedge Accounting)
+                    if not (EQ_REGEX.search(part) or SOFT_GEN_REGEX.search(part)):
+                        continue
+
                 if lower_part not in seen:
                     filtered.append(part)
                     seen.add(lower_part)
             continue
 
-        # Handle text blocks
-        paragraphs = part.split('\n\n')
+        # ---------------------------------------------------------
+        # HANDLE TEXT BLOCKS
+        # ---------------------------------------------------------
+        paragraphs = part.split("\n\n")
         i = 0
         while i < len(paragraphs):
             para = paragraphs[i].strip()
-            # Try to clean up whitespace
             para = SPACE_PATTERN.sub(" ", para).strip() if para else ""
-            if not para or len(para) < 30:  # Skip very short paragraphs
+
+            if not para or len(para) < 30:
                 i += 1
                 continue
-            if ALL_REGEX.search(para) and not IGNORE_REGEX.search(para):
-                # Check if paragraph ends without a period and is not a table ending
-                if not para.endswith('.') and not para.endswith(">"):
-                    if i + 1 < len(paragraphs):
-                        next_para = paragraphs[i + 1].strip()
-                        # Try to clean up whitespace
-                        next_para = SPACE_PATTERN.sub(" ", next_para).strip() if next_para else ""
-                        # Skip short next paragraphs (likely headers or cut-offs)
-                        if next_para and len(next_para) >= 30:
-                            # Also check if the next paragraph itself is a derivative paragraph
-                            # to avoid merging unrelated content.
-                            if not IGNORE_REGEX.search(next_para) and not ALL_REGEX.search(next_para) and len(next_para) + len(para) < MAX_LEN:
-                                # Merge with next paragraph
-                                para = para + " " + next_para
-                                i += 1  # Skip next paragraph since it's merged
+
+            if ALL_REGEX.search(para):
+                # Page Break / Cut-off Logic
+                ending = para[-1] if para else ""
+                if ending and ending not in [".", "?", "!", ">", ":"]:
+                    look_ahead_idx = i + 1
+                    while look_ahead_idx < len(paragraphs):
+                        next_para_raw = paragraphs[look_ahead_idx].strip()
+                        next_para = (
+                            SPACE_PATTERN.sub(" ", next_para_raw).strip()
+                            if next_para_raw
+                            else ""
+                        )
+
+                        if len(next_para) < 30:
+                            look_ahead_idx += 1
+                            continue
+
+                        if (
+                            not EXCLUDE_REGEX_LEGAL_LITIGATION.search(next_para)
+                            and len(next_para) + len(para) < MAX_LEN
+                        ):
+                            para = para + " " + next_para
+                            i = look_ahead_idx
+                        break
+
+                # -----------------------------------------------------
+                # SALVAGE LOGIC
+                # -----------------------------------------------------
+
+                # 1. Hard Delete (Litigation)
+                if EXCLUDE_REGEX_LEGAL_LITIGATION.search(para):
+                    i += 1
+                    continue
+
+                # 2. Conditional Delete (Equity Comp)
+                if EXCLUDE_REGEX_EQUITY_COMP.search(para):
+                    # Check for "Saviors"
+                    # EQ_REGEX -> "Warrants", "Capped Calls"
+                    # SOFT_GEN_REGEX -> "Hedge Accounting", "Designated", "Fair Value"
+                    if not (EQ_REGEX.search(para) or SOFT_GEN_REGEX.search(para)):
+                        i += 1
+                        continue
+                    # If we reach here, a savior was found -> Keep it.
+
                 para_lower = para.lower()
                 if para_lower not in seen:
                     filtered.append(para)
                     seen.add(para_lower)
+
             i += 1
+
     return filtered
+
 
 # =============================================================================
 # PARALLEL PROCESSING FUNCTIONS (OPTIMIZED FOR PARALLEL CORES)
