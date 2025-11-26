@@ -1072,8 +1072,6 @@ def filter_matches_with_disambiguation(
                 current_instrument = instrument_match.group(0)
             elif soft_instrument_match:
                 current_instrument = soft_instrument_match.group(0)
-            else:
-                print(sentence, flush=True)
 
             # ═══════════════════════════════════════════════════════════
             # METADATA STAGING
