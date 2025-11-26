@@ -92,7 +92,7 @@ class NetworkDerivativeResolver:
    
     def __init__(
         self,
-        api_url: str = "http://localhost:5001/predict",
+        api_url: str = "http://localhost:5000/predict",
         confidence_threshold: float = 0.85,
         context_window_size: int = 2,
         timeout: int = 60
@@ -262,7 +262,7 @@ class NetworkDerivativeResolver:
 RESOLVER: Optional[NetworkDerivativeResolver] = None
 
 
-def initialize_resolver(api_url: str = "http://localhost:5001/predict"):
+def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
     """Initialize the RoBERTa resolver – called once at program start."""
     global RESOLVER
     try:
@@ -1496,7 +1496,7 @@ def print_discard_summary():
 # =============================================================================
 # %%
 if __name__ == "__main__":
-    initialize_resolver(api_url="http://localhost:5001/predict")
+    initialize_resolver(api_url="http://localhost:5000/predict")
     # Run the filtering process
     process_and_filter_database()
 

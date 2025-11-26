@@ -24,6 +24,9 @@ backup
 unsloth_compiled_cache/
 Qwen*/
 analysis_output/
+checkpoint*/
+runs/
+*.bin
 model/
 merge*.py
 *.log

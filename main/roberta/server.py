@@ -16,7 +16,9 @@ app = Flask(__name__)
 
 # ==================== CONFIG ====================
 # Change this to your model path (local or Hugging Face Hub)
-MODEL_PATH = "DerivedFunction/derivative-filter"  # ← your trained model folder
+MODEL_PATH = (
+    "DerivedFunction/derivative-category-classifier"  # ← your trained model folder
+)
 # OR use HF Hub: "your-username/roberta-finance-classifier"
 
 # Optional: override device via env var (useful for CPU-only deployments)
