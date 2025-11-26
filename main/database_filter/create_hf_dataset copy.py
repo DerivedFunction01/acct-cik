@@ -645,7 +645,8 @@ class DynamicCurrencySubstitution:
         if original.islower():
             return replacement.lower()
         if original[0].isupper():
-            return replacement.capitalize()
+            # Capitalize each word
+            return " ".join(w.capitalize() for w in replacement.split())
         return replacement
 
     def build_text_mapping(
@@ -1380,7 +1381,7 @@ def get_dynamic_window(
     prev_block = " ".join(prev_parts)
     next_block = " ".join(next_parts)
 
-    window = f"{prev_block}{SEP_TOKEN}{target_sent}{SEP_TOKEN}{next_block}"
+    window = f"{prev_block}<<>>{target_sent}<<>>{next_block}"
 
     # Inside get_dynamic_window, after building window string:
     if apply_numeric_substitution and NUMERIC_SUBSTITUTION_CONFIG["enabled"]:
@@ -1403,6 +1404,8 @@ def get_dynamic_window(
         # Currency substitution (the )
         curr_sub = DynamicCurrencySubstitution()
         window, _ = curr_sub.substitute_all(window)
+        
+    window.replace("<<>>", SEP_TOKEN)
 
     return window
 
