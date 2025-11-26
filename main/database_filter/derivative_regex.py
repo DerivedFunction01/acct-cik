@@ -634,6 +634,7 @@ HIGH_PRECISION_SUFFIXES = re.compile(r"\b" + build_alternation(UNAMBIGUOUS_BASE_
 ALL_SUFFIXES = [
     "agreements?",
     "contracts?",
+    "commitments?",
     "instruments?",
     "arrangements?",
     "options?",
@@ -755,7 +756,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"(?:{rate_adjective_phrases[0]})"  # 2. Optional: 'interest rate'
         r")?"
         r"(?:\s+"  # Mandatory space before the base instrument
-        rf"(?:{expand_instruments(unsafe=False)})"  # 3. Mandatory: 'derivatives contracts' or 'swap'
+        rf"(?:{expand_instruments(unsafe=True)})"  # 3. Mandatory: 'derivatives contracts' or 'swap'
         r")"  # This group is mandatory for this specific phrase match
     )
 
@@ -783,12 +784,12 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     ]
 
     # --- 5. Final Build and Compile ---
-    pattern = build_smart_regex(
+    soft_pattern = build_smart_regex(
         core_terms,
-        expand_instruments(unsafe=False),
+        expand_instruments(unsafe=True), # IR is highly unambiguous
         specific_phrases,
     )
-    regex = re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+    regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
     return regex, regex # return the same thing as a tuple for consistency
 
 

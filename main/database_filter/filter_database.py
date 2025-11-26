@@ -1054,7 +1054,6 @@ def filter_matches_with_disambiguation(
 
             # No derivative match
             if not SOFT_REGEX.search(sentence):
-                print("Discarded", sentence, flush=True)
                 all_discarded.append((url, sentence, "no_match"))
                 continue
 

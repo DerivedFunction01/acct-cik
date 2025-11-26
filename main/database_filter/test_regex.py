@@ -63,6 +63,7 @@ class InstrumentGenerator:
             "interest rate swap",
             "interest rate cap",
             "interest rate floor",
+            "interest rate lock commitment",
             "SOFR swap",
             "LIBOR forward",
             "treasury lock",
