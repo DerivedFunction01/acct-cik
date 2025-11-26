@@ -542,7 +542,7 @@ HEDGING_CONTEXT_TERMS = [
     # --- ADD THESE BACK (Safe for Phase 1 Contextual Capture) ---
     r"market\s+risk",
     r"interest\s+rate\s+risk",
-    r"foreign\s+currency\s+risk",
+    r"currency\s+risk",
     r"credit\s+risk",
     r"counterparty\s+risk",
     r"fluctuations?",  # e.g., "protect against fluctuations"
@@ -2128,25 +2128,31 @@ def build_did_not_hold_regex() -> re.Pattern:
 def build_termination_regex() -> re.Pattern:
     """Matches: "expired", "matured", "unwound" """
     return re.compile(rf"\b{build_alternation(TERMINATION_VERBS)}\b", re.IGNORECASE)
+# Ensure you have HEDGING_CONTEXT_REGEX available in the function's scope
+# (It is likely already imported or defined in derivative_regex.py)
+
 
 def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     """
     Determines if the instrument name is still present in the paragraph/sentence.
 
-    Args:
-        sentence: The text to scan.
-        strict: If True, only returns True for specific instrument names (swaps, options)
-                or explicit categories (interest rate, foreign exchange).
-                Ignores loose terms like "contracts", "agreements", "instruments".
+    Logic:
+    1. Strict Instrument (Swaps, Forwards) -> Always Keep
+    2. Loose Instrument (Options, Contracts) -> Keep ONLY if accompanied by Hedging Context
     """
-    # High-confidence matches (Category specific + Specific Instruments like 'Swap agreement')
+    # 1. High-confidence matches
+    # "Swaps", "Forwards", "Interest Rate", "Foreign Exchange"
     if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
         return True
 
-    # Loose matches (Generic terms like 'Contracts', 'Agreements', "swaps")
-    # Only checked if strict mode is OFF
-    if not strict and LOOSE_GEN_REGEX.search(sentence):
-        return True
+    # 2. Loose matches (Contextual)
+    # "Options", "Agreements", "Contracts"
+    # MUST be accompanied by "Risk", "Hedge", "Exposure", "Mitigate"
+    if not strict:
+        if LOOSE_GEN_REGEX.search(sentence):
+            # FIX: Require context to avoid "Employment Agreements"
+            if HEDGING_CONTEXT_REGEX.search(sentence):
+                return True
 
     return False
 
