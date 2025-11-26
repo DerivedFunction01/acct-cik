@@ -1109,7 +1109,6 @@ def filter_matches_with_disambiguation(
     # ═════════════════════════════════════════════════════════════════
 
     if generic_buffer and RESOLVER:
-        print(f"Sending {len(generic_buffer)} generic sentences to ML resolver...")
         context_windows = []
         fallback_labels = []
 
