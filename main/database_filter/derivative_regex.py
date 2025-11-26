@@ -519,6 +519,12 @@ def build_fx_context_terms_advanced() -> List[str]:
         r"spot\s+rate",
         r"forward\s+points?",
         r"non[- ]deliverable",
+        r"foreign\s+(?:debts?|loans?|borrowings?|bonds?|notes?)",
+        r"foreign\s+currency\s+(?:debts?|loans?|borrowings?|bonds?|notes?)",
+        # 1. Catch "Euro-denominated debt"
+        r"(?:[a-z]+[- ])?denominated\s+(?:debts?|loans?|borrowings?|bonds?|notes?)",
+        # 2. Catch "Debt denominated in..." (CRITICAL for preventing IR false positives)
+        r"(?:debts?|loans?|borrowings?|bonds?|notes?)\s+denominated\s+(?:in|by)",
     ]
 
     return currency_specific_terms + generic_fx_terms
