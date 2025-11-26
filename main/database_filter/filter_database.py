@@ -1361,14 +1361,14 @@ def process_item_buffered(
         # NEW: use ML-enhanced version
         strict_matches, discarded = filter_matches_with_disambiguation(matches_json, url)
 
-        if not strict_matches:
-            return None
+        # if not strict_matches:
+        #     return None
 
-        cik, year = report_data_map.get(url, (None, None))
+        cik, year = report_data_map.get(url, ([], []))
         return (url, strict_matches, cik, year, discarded)
     except Exception as e:
         logging.error(f"Error processing {url}: {e}")
-        return None
+        return None 
 
 
 # =============================================================================
