@@ -584,93 +584,63 @@ def get_sentence_categories(
     sentence: str, context_sentences: Optional[List[str]] = None
 ) -> set:
     """
-    Determines category using Hierarchical Normalization + Proximity Scoring.
-    Priority: Specific Instrument > Proximity-Verified Context > Context.
-    Note: this feature is unreliable and is being rejected in favor of a classification model, hence the inference call.
+    Determines category using Priority Consumption.
+    FX matches are found and removed first, preventing IR from matching the leftovers.
     """
     if context_sentences is None:
         context_sentences = []
 
+    # Combined text for context checks
     full_text = (
         sentence
         if not context_sentences
         else sentence + " " + " ".join(context_sentences)
     )
-
-    # Scores now represent "Confidence Tiers"
-    # 1000 = Specific Instrument Found (Unbeatable)
-    # 500  = Generic Instrument + Close Context (Proximity Bonus)
-    # 100  = Category Keyword Found
-    # 1    = Context Found (Weak)
+    
     scores = {"ir": 0, "fx": 0, "cp": 0, "eq": 0, "gen": 0}
 
-    # --- HELPER: Calculate Proximity Boost ---
-    def get_proximity_score(
-        text: str, target_regex: re.Pattern, context_regex: re.Pattern
-    ) -> int:
-        """Returns a score boost if context is close to the instrument."""
-        # Find all indices of the generic instrument (e.g., "swap")
-        instr_indices = [m.start() for m in target_regex.finditer(text)]
-        if not instr_indices:
-            return 0
-
-        # Find all indices of the context clue (e.g., "debt")
-        ctx_indices = [m.start() for m in context_regex.finditer(text)]
-        if not ctx_indices:
-            return 0
-
-        # Find the minimum distance between ANY instrument and ANY context clue
-        min_dist = float("inf")
-        for i_idx in instr_indices:
-            for c_idx in ctx_indices:
-                dist = abs(i_idx - c_idx)
-                if dist < min_dist:
-                    min_dist = dist
-
-        # Scoring Logic: Closer = Higher Score
-        # < 50 chars (~8-10 words) is a "Tight Link"
-        if min_dist < 30:
-            return 400  # Very strong link ("swaps on debt")
-        if min_dist < 60:
-            return 200  # Strong link ("swaps used to hedge variable rate debt")
-        if min_dist < 150:
-            return 50  # Weak link (Same sentence, far apart)
-        return 0
-
-    # --- PHASE 1: DIRECT INSTRUMENT DETECTION (The "User" Check) ---
-    for cat, regex in [
-        ("ir", IR_REGEX),
-        ("fx", FX_REGEX),
-        ("cp", CP_REGEX),
-        ("eq", EQ_REGEX),
-    ]:
+    # --- PHASE 1: DIRECT INSTRUMENT DETECTION (Unchanged) ---
+    # Instruments (swaps, options) are specific enough that they rarely conflict 
+    # in this way, but you can apply the same logic here if needed.
+    for cat, regex in [("ir", IR_REGEX), ("fx", FX_REGEX), ("cp", CP_REGEX), ("eq", EQ_REGEX)]:
         matches = regex.findall(sentence)
         for match in matches:
-            # CHECK SPECIFICITY: Does this match contain a hard instrument name?
-            # If yes, max out the score immediately.
             if HIGH_PRECISION_SUFFIXES.search(match):
                 scores[cat] = max(scores[cat], 1000)
             else:
                 scores[cat] = max(scores[cat], 100)
 
-    # --- PHASE 2: PROXIMITY BOOST FOR GENERIC INSTRUMENTS ---
-    # If we have a generic term (like "swaps" or "derivatives"),
-    # verify which category context is physically closest to it.
-
-    # Use LOOSE_GEN_REGEX to capture "swaps", "options", "futures"
+    # --- PHASE 2: PRIORITY CONSUMPTION FOR CONTEXT ---
+    # Only run this if we have a generic instrument (like "swaps")
     if LOOSE_GEN_REGEX.search(sentence):
-        scores["gen"] = max(scores["gen"], 50)  # Base generic score
+        scores["gen"] = max(scores["gen"], 50)
 
-        for cat in ["ir", "fx", "cp", "eq"]:
+        # 1. Define Priority: Specific (FX/EQ/CP) -> Generic (IR)
+        # IR must be LAST so it only catches "leftover" debt terms
+        priority_order = ["fx", "eq", "cp", "ir"] 
+        
+        # 2. Create a working copy of the text to "consume"
+        remaining_text = sentence # Or full_text if you use context window
+        
+        for cat in priority_order:
             ctx_regex = CATEGORY_CONTEXT_MAP.get(cat)
             if ctx_regex:
-                # Calculate proximity between "swaps" and "debt" (or "oil", etc.)
-                prox_boost = get_proximity_score(sentence, LOOSE_GEN_REGEX, ctx_regex)
-                scores[cat] += prox_boost
+                # Search in the text that remains after previous deletions
+                matches = list(ctx_regex.finditer(remaining_text))
+                
+                if matches:
+                    # Logic to calculate score (simplified for brevity)
+                    # You can use the proximity logic here if needed
+                    scores[cat] += 50 * len(matches)
+                    
+                    # THE KEY STEP: CONSUME THE MATCH
+                    # Replace the matched phrase with whitespace to preserve indices roughly
+                    # or just remove it. Re-subbing is safest.
+                    remaining_text = ctx_regex.sub(" ", remaining_text)
 
     # --- PHASE 3: CONTEXT TIE-BREAKER ---
     if context_sentences:
-        for cat in ["ir", "fx", "cp", "eq"]:
+        for cat in ["fx", "cp", "eq", "ir"]:
             context_regex = CATEGORY_CONTEXT_MAP.get(cat)
             if context_regex and context_regex.search(full_text):
                 # Tiny weight just to break ties if everything else is 0
