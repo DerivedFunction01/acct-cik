@@ -539,12 +539,31 @@ HEDGING_CONTEXT_TERMS = [
     r"exposure",
     r"risk\s+management",
     r"economic\s+risks?",
+    # --- ADD THESE BACK (Safe for Phase 1 Contextual Capture) ---
+    r"market\s+risk",
+    r"interest\s+rate\s+risk",
+    r"foreign\s+currency\s+risk",
+    r"credit\s+risk",
+    r"counterparty\s+risk",
+    r"fluctuations?",  # e.g., "protect against fluctuations"
+    r"volatility",  # e.g., "manage volatility"
+    # ------------------------------------------------------------
     r"fair\s+value\s+hedges?",
     r"cash\s+flow\s+hedges?",
     r"designated\s+as\s+(?:a\s+)?hedge",
     r"hedge\s+effectiveness",
     r"hedge\s+accounting",
+    r"(?:instruments?|contracts?) are designated",
+    r"ineffective portion",
+    r"hedging relationship",
+    r"hedge accounting",
+    r"change in fair value of derivatives?",
+    r"derivative expense",
+    r"designated as (?:a )?hedges?",
+    r"(?:gain|loss) on derivatives?",
+    r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
 ]
+
 CP_CONTEXT_TERMS = [
     # Physical quantity units
     "barrels", "bbl", "bbl/d",
@@ -1233,19 +1252,9 @@ def build_soft_gen_regex() -> re.Pattern:
         r"designated as (?:a )?hedges?",
         r"(?:gain|loss) on derivatives?",
         r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
-        r"to hedge",
-        r"to mitigate",
-    ]
-    
-    # 3. Add other generic hedging/risk management concepts
-    generic_concepts = [
-        r"market\s+risk",
-        r"counterparty\s+risk",
-        r"risk\s+exposure",
-        r"manage\s+risk",
     ]
 
-    all_patterns = accounting_phrases + generic_concepts
+    all_patterns = accounting_phrases
 
     # Combine and prioritize based on length/specificity
     pattern = build_alternation(all_patterns)
@@ -1846,7 +1855,6 @@ IGNORE_REGEX = re.compile(r"|".join(LEGAL_LITIGATION_KEYWORDS + EQUITY_COMP_KEYW
 # =============================================================================
 # TABLE AND MISCELLANEOUS PATTERNS
 # =============================================================================
-
 
 
 # Combined regex for webpage.py

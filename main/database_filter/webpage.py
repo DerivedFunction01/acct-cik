@@ -699,8 +699,7 @@ def filter_by_keywords(content: str) -> list[str]:
             if EXCLUDE_REGEX_LEGAL_LITIGATION.search(part):
                 continue
 
-            if ALL_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part):
-
+            if ALL_REGEX.search(part):
                 # CONDITIONAL SALVAGE (Tables)
                 if EXCLUDE_REGEX_EQUITY_COMP.search(part):
                     # Discard UNLESS it has Financial Equity (Warrants) OR Financial Context (Hedge Accounting)
@@ -763,7 +762,7 @@ def filter_by_keywords(content: str) -> list[str]:
                 if EXCLUDE_REGEX_EQUITY_COMP.search(para):
                     # Check for "Saviors"
                     # EQ_REGEX -> "Warrants", "Capped Calls"
-                    # SOFT_GEN_REGEX -> "Hedge Accounting", "Designated", "Fair Value"
+                    # SOFT_GEN_REGEX -> "Hedge Accounting", "Designated"
                     if not (EQ_REGEX.search(para) or SOFT_GEN_REGEX.search(para)):
                         i += 1
                         continue
