@@ -15,7 +15,13 @@ Academic Rationale:
 This approach addresses the challenge of mixed-category financial disclosures where
 companies discuss multiple derivative types in compound sentences. Traditional filtering
 would either discard these sentences or introduce category ambiguity. Our duplication-
-and-reduction strategy preserves information while ensuring training data purity.
+and-reduction strategy preserves information, so as all downstream targeted cleaning filters
+rely on this category to be correct.
+
+Note:
+This is not used for training any classification model; but rather, provide binary flags
+indicating firm usage. If the window survives throughout targeted rounds, then the firm
+is classified as an active user for that category.
 
 Example Transformation:
   Source: "The Company utilizes foreign currency forwards and interest rate swaps
