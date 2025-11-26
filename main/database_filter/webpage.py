@@ -148,7 +148,25 @@ CLEANUP_PATTERNS = [
 ]
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
+# In webpage.py, near other global patterns (around line 125)
 
+# New Header and Structural Cleanup Patterns
+HEADER_CLEANUP_PATTERNS = [
+    # 1. Markdown Headers: Targets # Title # and similar structure
+    (re.compile(r"\n\#+\s*.*?\#*\n", re.IGNORECASE), "\n\n"),
+    # 2. Markdown Bold/Italics Emphasis: Targets **Title** or *Title* or _Title_
+    # Replaces with space to separate merged text fragments
+    (re.compile(r"\*{1,}.*?\*{1,}", re.IGNORECASE), " "),
+    (re.compile(r"\_[^\s_].*?[^\s_]\_", re.IGNORECASE), " "),
+    # 3. ALL-CAPS DERIVATIVE HEADER DELETION (For older filings, removes structural noise)
+    # Targets long, non-narrative all-caps sequences containing key terms like DERIVATIVE or HEDGING
+    (
+        re.compile(
+            r"\b[A-Z\s]{10,}\s+(?:DERIVATIVES?|HEDGING)\s+[A-Z\s]{10,}\b", re.IGNORECASE
+        ),
+        "\n\n",
+    ),
+]
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r'(?<!\n)\n(?!\n)')
 SPACE_PATTERN = re.compile(r'\s+')
@@ -526,6 +544,9 @@ def extract_content(data: str, asHTML=True) -> str:
                             td.replace_with(p_tag)
                 table.unwrap()
 
+        # remove headers and titles, they are false positives
+        for header in soup(["h1", "h2", "h3", "h4", "h5", "h6"]):
+            header.decompose()
         # Use html2text to convert remaining HTML to text
         # This handles complex nested structures without recursion issues
         h = html2text.HTML2Text()
@@ -564,6 +585,10 @@ def extract_content(data: str, asHTML=True) -> str:
                 )
         text = "".join(processed_parts)
 
+    for pattern, replacement in HEADER_CLEANUP_PATTERNS:
+        # Run twice for robustness against nested or overlapping headers
+        text = pattern.sub(replacement, text)
+        text = pattern.sub(replacement, text)
     # Apply crunched text patterns
     for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
         text = pattern.sub(replacement, text)
