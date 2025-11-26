@@ -81,7 +81,8 @@ class HTMLTableConverter:
     Converts a 2D list of strings (from a parsed HTML table) into a GenericTable.
     """
     grid: List[List[str]]
-    title: str = "Financial Table"
+    title: str = ""
+    header_row_count: int = 1
 
     def _calculate_widths_and_alignments(self) -> tuple[List[int], List[str]]:
         """Calculates column widths and default alignments from the grid."""
@@ -103,12 +104,16 @@ class HTMLTableConverter:
         return widths, alignments
 
     def to_generic_table(self) -> GenericTable:
-        """Creates a GenericTable instance from the grid."""
         if not self.grid:
             return GenericTable(headers=[], data_rows=[], widths=[], alignments=[], title=self.title)
 
-        headers = self.grid[0]
-        data_rows = self.grid[1:]
+        # FIX: Slice based on the detected count, not hardcoded [0]
+        # Safety check: ensure we don't slice beyond the grid
+        split_idx = min(self.header_row_count, len(self.grid))
+        
+        headers = self.grid[:split_idx]  # Captures ALL header rows
+        data_rows = self.grid[split_idx:]
+        
         widths, alignments = self._calculate_widths_and_alignments()
         
         return GenericTable(

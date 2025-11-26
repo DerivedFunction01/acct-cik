@@ -113,9 +113,8 @@ else:
 
 # Import all derivative regexes and patterns
 from derivative_regex import (
-    COMBINED_REGEX,
+    ALL_REGEX,
     SENTENCE_SPLIT_PATTERN,
-    TABLE_BASE_TYPES_REGEX,
     IGNORE_REGEX,
 )
 
@@ -290,6 +289,24 @@ def save_process_result(df):
     conn.close()
 
 
+def save_process_result_batch(batch_df):
+    if batch_df.empty:
+        return
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # Use executemany logic via pandas to_sql or raw SQL
+    try:
+        data = list(zip(batch_df.url, batch_df.matches.apply(json.dumps)))
+        c.executemany(
+            "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)", data
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Batch write error: {e}")
+    finally:
+        conn.close()
+
+
 # =============================================================================
 # FETCH SEC FILINGS
 # =============================================================================
@@ -421,110 +438,144 @@ def extract_content(data: str, asHTML=True) -> str:
 
             # OPTIMIZATION: Avoid re-parsing with pd.read_html.
             # Extract rows directly from the BeautifulSoup table object.
+            header_count = 0
+            thead = table.find("thead")
+            if thead:
+                header_count = len(thead.find_all("tr"))
+
+            # Fallback: Count rows containing <th> (Legacy HTML)
+            if header_count == 0:
+                for tr in table.find_all("tr"):
+                    if tr.find("th"):
+                        header_count += 1
+                    else:
+                        # Stop at the first row that is NOT a header
+                        break
+
+            # Default to 1 if detection failed but table exists
+            header_count = max(1, header_count)
             rows = []
             col_count = 0
             try:
                 for tr in table.find_all("tr"):
-                    row = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
-                    rows.append(row)
-                    col_count = max(col_count, len(row))
+                    row_cells = []
+                    for cell in tr.find_all(["td", "th"]):
+                        text = cell.get_text(strip=True)
+
+                        # CAPTURE COLSPAN
+                        # Default to 1 if attribute is missing or invalid
+                        try:
+                            colspan = int(cell.get("colspan", 1)) # type: ignore
+                        except (ValueError, TypeError):
+                            colspan = 1
+
+                        # Add the actual text
+                        row_cells.append(text)
+
+                        # PADDING: Add empty strings to reserve space for the span
+                        if colspan > 1:
+                            row_cells.extend([""] * (colspan - 1))
+
+                    if row_cells:
+                        rows.append(row_cells)
+                        col_count = max(col_count, len(row_cells))
             except Exception as e:
                 debug_print(f"⚠️  Table extraction failed: {e}")
 
             # Only convert if there is at least one row and two cols
             if len(rows) > 1 and col_count > 1:
-                # ===== GREEDY APPROACH: Assume table format UNLESS strong evidence otherwise =====
-                # We ONLY convert to paragraphs if we have STRONG signals of text container
+                # # ===== GREEDY APPROACH: Assume table format UNLESS strong evidence otherwise =====
+                # # We ONLY convert to paragraphs if we have STRONG signals of text container
 
-                convert_to_paragraphs = False
+                # convert_to_paragraphs = False
 
-                # Signal 1: Check for extremely long cells (>500 chars = definitely paragraph text)
-                for row in rows:
-                    for cell in row:
-                        if len(cell) > 200:  # Very high threshold
-                            convert_to_paragraphs = True
-                            debug_print(
-                                f"⚠️  Found cell with {len(cell)} chars - converting to paragraphs"
-                            )
-                            break
-                    if convert_to_paragraphs:
-                        break
+                # # Signal 1: Check for extremely long cells (>500 chars = definitely paragraph text)
+                # for row in rows:
+                #     for cell in row:
+                #         if len(cell) > 200:  # Very high threshold
+                #             convert_to_paragraphs = True
+                #             debug_print(
+                #                 f"⚠️  Found cell with {len(cell)} chars - converting to paragraphs"
+                #             )
+                #             break
+                #     if convert_to_paragraphs:
+                #         break
 
-                # Signal 2: Check if we have multiple complete sentences in most cells
-                if not convert_to_paragraphs:
-                    cells_with_multiple_sentences = 0
-                    total_cells = 0
+                # # Signal 2: Check if we have multiple complete sentences in most cells
+                # if not convert_to_paragraphs:
+                #     cells_with_multiple_sentences = 0
+                #     total_cells = 0
 
-                    for row in rows:
-                        for cell in row:
-                            if cell:
-                                total_cells += 1
-                                # Count sentence endings (. ! ?) followed by capital letter
-                                sentence_endings = len(SENTENCE_SPLIT_PATTERN.split(cell))
-                                if sentence_endings >= 2:  # 2+ sentences in one cell
-                                    cells_with_multiple_sentences += 1
+                #     for row in rows:
+                #         for cell in row:
+                #             if cell:
+                #                 total_cells += 1
+                #                 # Count sentence endings (. ! ?) followed by capital letter
+                #                 sentence_endings = len(SENTENCE_SPLIT_PATTERN.split(cell))
+                #                 if sentence_endings >= 2:  # 2+ sentences in one cell
+                #                     cells_with_multiple_sentences += 1
 
-                    # If >50% of cells have multiple sentences, it's paragraph text
-                    if (
-                        total_cells > 0
-                        and (cells_with_multiple_sentences / total_cells) > 0.5
-                    ):
-                        convert_to_paragraphs = True
-                        debug_print(
-                            f"⚠️  {cells_with_multiple_sentences}/{total_cells} cells have 2+ sentences - converting to paragraphs"
-                        )
+                #     # If >50% of cells have multiple sentences, it's paragraph text
+                #     if (
+                #         total_cells > 0
+                #         and (cells_with_multiple_sentences / total_cells) > 0.5
+                #     ):
+                #         convert_to_paragraphs = True
+                #         debug_print(
+                #             f"⚠️  {cells_with_multiple_sentences}/{total_cells} cells have 2+ sentences - converting to paragraphs"
+                #         )
 
-                # Signal 3: Check for very high average text density across ALL cells
-                if not convert_to_paragraphs:
-                    total_text_length = 0
-                    cell_count = 0
+                # # Signal 3: Check for very high average text density across ALL cells
+                # if not convert_to_paragraphs:
+                #     total_text_length = 0
+                #     cell_count = 0
 
-                    for row in rows:
-                        for cell in row:
-                            if cell:  # Only count non-empty cells
-                                cell_count += 1
-                                total_text_length += len(cell)
+                #     for row in rows:
+                #         for cell in row:
+                #             if cell:  # Only count non-empty cells
+                #                 cell_count += 1
+                #                 total_text_length += len(cell)
 
-                    avg_cell_length = (
-                        total_text_length / cell_count if cell_count > 0 else 0
-                    )
+                #     avg_cell_length = (
+                #         total_text_length / cell_count if cell_count > 0 else 0
+                #     )
 
-                    # Very high threshold - only convert if average is >200 chars per cell
-                    if avg_cell_length > 200:
-                        convert_to_paragraphs = True
-                        debug_print(
-                            f"⚠️  Average cell length {avg_cell_length:.1f} chars - converting to paragraphs"
-                        )
+                #     # Very high threshold - only convert if average is >200 chars per cell
+                #     if avg_cell_length > 200:
+                #         convert_to_paragraphs = True
+                #         debug_print(
+                #             f"⚠️  Average cell length {avg_cell_length:.1f} chars - converting to paragraphs"
+                #         )
 
-                # Signal 4: Single column tables with long text are likely just formatted text
-                if not convert_to_paragraphs and col_count == 1:
-                    total_text = sum(len(cell) for row in rows for cell in row)
-                    if total_text > 1000:  # Single column with lots of text
-                        convert_to_paragraphs = True
-                        debug_print(
-                            f"⚠️  Single column table with {total_text} chars - converting to paragraphs"
-                        )
+                # # Signal 4: Single column tables with long text are likely just formatted text
+                # if not convert_to_paragraphs and col_count == 1:
+                #     total_text = sum(len(cell) for row in rows for cell in row)
+                #     if total_text > 1000:  # Single column with lots of text
+                #         convert_to_paragraphs = True
+                #         debug_print(
+                #             f"⚠️  Single column table with {total_text} chars - converting to paragraphs"
+                #         )
 
-                # Execute conversion decision
-                if convert_to_paragraphs:
-                    # Convert table to paragraphs
-                    for tr in table.find_all("tr"):
-                        for td in tr.find_all(["td", "th"]):
-                            cell_text = td.get_text(strip=True)
-                            if cell_text and len(cell_text) > 20:
-                                p_tag = soup.new_tag("p")
-                                p_tag.string = cell_text
-                                td.replace_with(p_tag)
-                    # Replace the entire table with its contents
-                    table.unwrap()
-                else:
-                    # GREEDY: Convert to formatted table (default behavior)
-                    converter = HTMLTableConverter(grid=rows, title=title)
-                    generic_table = converter.to_generic_table()
-                    table_text = generic_table.build()
-                    pre_tag = soup.new_tag("pre")
-                    pre_tag.string = table_text
-                    table.replace_with(pre_tag)
+                # # Execute conversion decision
+                # if convert_to_paragraphs:
+                #     # Convert table to paragraphs
+                #     for tr in table.find_all("tr"):
+                #         for td in tr.find_all(["td", "th"]):
+                #             cell_text = td.get_text(strip=True)
+                #             if cell_text and len(cell_text) > 20:
+                #                 p_tag = soup.new_tag("p")
+                #                 p_tag.string = cell_text
+                #                 td.replace_with(p_tag)
+                #     # Replace the entire table with its contents
+                #     table.unwrap()
+                # else:
+                # GREEDY: Convert to formatted table (default behavior)
+                converter = HTMLTableConverter(grid=rows, title=title, header_row_count=header_count)
+                generic_table = converter.to_generic_table()
+                table_text = generic_table.build()  
+                pre_tag = soup.new_tag("pre")
+                pre_tag.string = table_text
+                table.replace_with(pre_tag)
             else:
                 # Too short of a table means we convert it to paragraphs
                 for tr in table.find_all("tr"):
@@ -650,7 +701,7 @@ def filter_by_keywords(content: str) -> list[str]:
 
         # Handle tables
         if "<table" in lower_part and not IGNORE_REGEX.search(part):
-            if COMBINED_REGEX.search(part) or TABLE_BASE_TYPES_REGEX.search(part) and not IGNORE_REGEX.search(part):
+            if ALL_REGEX.search(part):
                 if lower_part not in seen:
                     filtered.append(part)
                     seen.add(lower_part)
@@ -666,7 +717,7 @@ def filter_by_keywords(content: str) -> list[str]:
             if not para or len(para) < 30:  # Skip very short paragraphs
                 i += 1
                 continue
-            if COMBINED_REGEX.search(para) and not IGNORE_REGEX.search(para):
+            if ALL_REGEX.search(para) and not IGNORE_REGEX.search(para):
                 # Check if paragraph ends without a period and is not a table ending
                 if not para.endswith('.') and not para.endswith(">"):
                     if i + 1 < len(paragraphs):
@@ -677,7 +728,7 @@ def filter_by_keywords(content: str) -> list[str]:
                         if next_para and len(next_para) >= 30:
                             # Also check if the next paragraph itself is a derivative paragraph
                             # to avoid merging unrelated content.
-                            if not IGNORE_REGEX.search(next_para) and not COMBINED_REGEX.search(next_para) and len(next_para) + len(para) < MAX_LEN:
+                            if not IGNORE_REGEX.search(next_para) and not ALL_REGEX.search(next_para) and len(next_para) + len(para) < MAX_LEN:
                                 # Merge with next paragraph
                                 para = para + " " + next_para
                                 i += 1  # Skip next paragraph since it's merged
@@ -929,6 +980,38 @@ def parse_and_save_content(data):
         return None
 
 
+def parse_content(data):
+    """
+    Parses raw HTML/text, filters for keywords, and saves to the database.
+    This is a CPU-bound task.
+    """
+    if data is None:
+        return None
+
+    url, raw_text = data
+
+    try:
+        # 1. Extract clean content from raw text (CPU-intensive)
+        if url.endswith("htm"):
+            content = extract_content(raw_text, True)
+        else:
+            content = extract_content(raw_text, False)
+
+        if not content:
+            return None
+
+        # 2. Filter for keywords to get relevant sentences (CPU-intensive)
+        # CPU-intensive parsing
+        categorized_sentences = filter_by_keywords(content)
+        # 3. Save the result to the database
+        result_row = pd.Series({"url": url, "matches": categorized_sentences})
+
+        return result_row
+    except Exception as e:
+        print(f"Parse error for {url}: {e}")
+        return None
+
+
 def format_time(seconds):
     hours, remainder = divmod(seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -1026,7 +1109,6 @@ def process_all_reports_fully():
                 # Ensure the background thread is stopped when the loop is done
                 stop_event.set()
 
-
         print(f"  ✓ Fetched {len(fetched_data)} reports.")
 
         # Stage 2: Parse this chunk
@@ -1034,9 +1116,10 @@ def process_all_reports_fully():
         chunk_results = 0
         chunk_empty = 0
 
+        batch_results = []
         with ProcessPoolExecutor(max_workers=NUM_PARSERS) as parse_executor:
             parse_futures = [
-                parse_executor.submit(parse_and_save_content, data) for data in fetched_data
+                parse_executor.submit(parse_content, data) for data in fetched_data
             ]
 
             for future in tqdm(
@@ -1047,8 +1130,9 @@ def process_all_reports_fully():
             ):
                 try:
                     result = future.result()
-                    if result:
+                    if result is not None:
                         debug_print("Parse successful")
+                        batch_results.append(result)  # Collect it
                         chunk_results += 1
                     else:
                         chunk_empty += 1
@@ -1057,6 +1141,12 @@ def process_all_reports_fully():
                     print(f"Parse error: {e}")
                     chunk_empty += 1
         
+        if batch_results:
+            print(f"  💾 Saving batch of {len(batch_results)} records...")
+            # Convert list of Series to DataFrame
+            df_batch = pd.DataFrame(batch_results)
+            save_process_result_batch(df_batch)
+
         chunk_time = time.time() - start_chunk_time
         chunk_times.append(chunk_time)
         total_time += chunk_time
