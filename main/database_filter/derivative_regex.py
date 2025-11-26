@@ -79,7 +79,6 @@ ACTION_VERBS = [
     r"engag(?:e|es|ed|ing)\s+(?:in)?",
     r"transact(?:s|ed|ing)?",
     r"execut(?:e|es|ed|ing)",
-    r"convert(?:s|ed|ing)?",
     
     # Direct Usage
     r"use(?:s|d|ing)?",
@@ -93,14 +92,17 @@ ACTION_VERBS = [
     r"maintain(?:s|ed|ing)?",
     r"possess(?:e|es|ed|ing)?",
     
-    # Active Management
-    r"hedg(?:e|es|ed|ing)", 
+
+]
+
+STRONG_ACTION_VERBS = ACTION_VERBS + [
+    r"issu(?:e|es|ed|ing)?",  # Active Management
+    r"hedg(?:e|es|ed|ing)",
     r"manag(?:e|es|ed|ing)",
     r"mitigat(?:e|es|ed|ing)",
     r"offset(?:s|ting)?",
-]
-
-STRONG_ACTION_VERBS = ACTION_VERBS + [r"issu(?:e|es|ed|ing)?"]   # NEW: For embedded derivatives/warrants, but separate against "FASB issued"
+    r"convert(?:s|ed|ing)?",
+]  # NEW: For embedded derivatives/warrants, but separate against "FASB issued"
 VERB_USE_REGEX = re.compile(r"\b" + build_alternation(ACTION_VERBS) +r"\b", re.IGNORECASE)
 # WEAK / PASSIVE: Legal or Accounting states that *imply* existence
 # We include these because "carrying at fair value" implies you have it.
