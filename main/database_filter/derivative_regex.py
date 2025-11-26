@@ -719,7 +719,7 @@ def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = 
             unsafe_standalone_alternation if unsafe else standalone_alternation
         )
     else:
-        standalone_pattern = base_alternation
+        standalone_pattern = base_alternation if unsafe else safe_base_alternation
     
     # If build_alternation supports it, sort these alternatives by length
     # Otherwise, manually construct with longest first
@@ -1108,7 +1108,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     # Fragment for attachment: Must exclude standalones to ensure precision in core matches
     strict_attachment_fragment = expand_instruments(
-        unsafe=True, exclude_standalone_suffixes=True
+        unsafe=False, exclude_standalone_suffixes=True
     )
 
     strict_pattern = build_smart_regex(
