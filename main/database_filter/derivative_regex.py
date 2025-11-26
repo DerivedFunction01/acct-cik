@@ -1318,7 +1318,18 @@ SOFT_REGEX = re.compile(
 )
 LOOSE_GEN_REGEX = build_loose_gen_regex()
 ALL_REGEX = re.compile(
-    r"|".join([STRICT_REGEX.pattern, SOFT_GEN_REGEX.pattern]), re.IGNORECASE
+    r"|".join([IR_SOFT_REGEX.pattern,
+            FX_SOFT_REGEX.pattern,
+            CP_SOFT_REGEX.pattern,
+            EQ_SOFT_REGEX.pattern,
+            IR_REGEX.pattern,
+            FX_REGEX.pattern,
+            CP_REGEX.pattern,
+            EQ_REGEX.pattern,
+            SOFT_GEN_REGEX.pattern,
+            GEN_REGEX.pattern,
+            STRICT_NOTIONAL_REGEX.pattern,
+            ]), re.IGNORECASE
 )
 CATEGORY_DELETION_MAP = {
     "ir": (IR_REGEX, IR_SOFT_REGEX, IR_CONTEXT_REGEX),
