@@ -48,14 +48,19 @@ from derivative_regex import (
     ALL_REGEX,
     BOTH_CATEGORY_REGEX,
     CATEGORY_REGEX,
+    CP_SOFT_REGEX,
     DEFINITION_INDICATORS,
+    EQ_SOFT_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
+    FX_SOFT_REGEX,
+    HEDGING_CONTEXT_REGEX,
     IR_REGEX,
     FX_REGEX,
     CP_REGEX,
     EQ_REGEX,
+    IR_SOFT_REGEX,
     LOOSE_GEN_REGEX,
     POSITION_CONTEXT_INDICATORS,
     SOFT_CATEGORY_REGEX,
@@ -985,11 +990,29 @@ def filter_matches_with_disambiguation(
             sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
             text = []
             discard = []
+            # Inside the EXCLUDE_REGEX_EQUITY_COMP block
+
             for sentence in sentences_temp:
-                if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
-                    text.append(sentence)
-                elif SOFT_CATEGORY_REGEX.search(sentence) and SOFT_GEN_REGEX.search(sentence): # for unsafe mentions, check for hedging context
-                    text.append(sentence)
+                # 1. SAFE INSTRUMENTS (IR, FX, CP)
+                # These are distinct enough from "Stock Options" that we can trust
+                # Broad Context ("manage risk", "exposure").
+                if (
+                    IR_SOFT_REGEX.search(sentence)
+                    or FX_SOFT_REGEX.search(sentence)
+                    or CP_SOFT_REGEX.search(sentence)
+                ):
+
+                    if HEDGING_CONTEXT_REGEX.search(sentence):
+                        text.append(sentence)
+
+                # 2. DANGEROUS INSTRUMENTS (EQ, Generics)
+                # "Stock Options" or "Swaps" could be compensation.
+                # We require Strict Accounting proof ("hedge accounting", "derivative liability").
+                elif EQ_SOFT_REGEX.search(sentence) or LOOSE_GEN_REGEX.search(sentence):
+
+                    if SOFT_GEN_REGEX.search(sentence):
+                        text.append(sentence)
+
                 else:
                     discard.append(sentence)
             discarded_text = " ".join(discard)
