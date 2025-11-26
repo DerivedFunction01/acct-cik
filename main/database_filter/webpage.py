@@ -112,7 +112,17 @@ else:
 # =============================================================================
 
 # Import all derivative regexes and patterns
-from derivative_regex import ALL_REGEX, EXCLUDE_REGEX_EQUITY_COMP, EXCLUDE_REGEX_LEGAL_LITIGATION, EQ_REGEX, SOFT_GEN_REGEX
+from derivative_regex import (
+    ALL_REGEX,
+    BASE_REGEX,
+    STRICT_REGEX,  # <--- NEW: The "Strict Instrument" Savior
+    SENTENCE_SPLIT_PATTERN,
+    EXCLUDE_REGEX_EQUITY_COMP,
+    EXCLUDE_REGEX_LEGAL_LITIGATION,
+    SOFT_GEN_REGEX,  # <--- NEW: The "Accounting" Savior
+    LOOSE_GEN_REGEX,  # <--- NEW: For Contextual Capture
+    HEDGING_CONTEXT_REGEX,  # <--- NEW: For Contextual Capture
+)
 
 FILING_TYPES = {
     "10-K",
@@ -677,7 +687,11 @@ def process_url(url: str):
 
 def filter_by_keywords(content: str) -> list[str]:
     """
-    Filters content using Conditional Salvage Strategy.
+    Filters content using updated Strict/Soft regex logic.
+
+    1. CAPTURE: ALL_REGEX or (LOOSE + CONTEXT)
+    2. EXCLUDE: Litigation
+    3. SALVAGE: If Comp -> Keep only if STRICT_REGEX (Swap/Forward) or SOFT_GEN (Accounting)
     """
 
     filtered = []
@@ -696,14 +710,19 @@ def filter_by_keywords(content: str) -> list[str]:
         # HANDLE TABLES
         # ---------------------------------------------------------
         if "<table" in lower_part:
+            # 1. Hard Exclusion
             if EXCLUDE_REGEX_LEGAL_LITIGATION.search(part):
                 continue
 
-            if ALL_REGEX.search(part):
-                # CONDITIONAL SALVAGE (Tables)
+            # 2. Capture Logic (Tables are often minimal, so we trust matches more)
+            if ALL_REGEX.search(part) or BASE_REGEX.search(part):
+
+                # 3. Salvage Logic (Comp)
                 if EXCLUDE_REGEX_EQUITY_COMP.search(part):
-                    # Discard UNLESS it has Financial Equity (Warrants) OR Financial Context (Hedge Accounting)
-                    if not (EQ_REGEX.search(part) or SOFT_GEN_REGEX.search(part)):
+                    # STRICT SAVIOR:
+                    # STRICT_REGEX includes IR/FX/CP/Strict-EQ (Swaps), but NOT Options.
+                    # SOFT_GEN includes "Hedge Accounting".
+                    if not (STRICT_REGEX.search(part) or SOFT_GEN_REGEX.search(part)):
                         continue
 
                 if lower_part not in seen:
@@ -724,8 +743,24 @@ def filter_by_keywords(content: str) -> list[str]:
                 i += 1
                 continue
 
+            # -----------------------------------------------------
+            # 1. CAPTURE LOGIC
+            # -----------------------------------------------------
+            is_match = False
+
+            # Rule A: Standard Regex Match
             if ALL_REGEX.search(para):
-                # Page Break / Cut-off Logic
+                is_match = True
+
+            # Rule B: Contextual Match (The "Manage Market Risk" fix)
+            # Catches: "We use [options] to [manage market risk]"
+            elif LOOSE_GEN_REGEX.search(para) and HEDGING_CONTEXT_REGEX.search(para):
+                is_match = True
+
+            if is_match:
+                # -------------------------------------------------
+                # 2. PAGE BREAK MERGING
+                # -------------------------------------------------
                 ending = para[-1] if para else ""
                 if ending and ending not in [".", "?", "!", ">", ":"]:
                     look_ahead_idx = i + 1
@@ -741,6 +776,7 @@ def filter_by_keywords(content: str) -> list[str]:
                             look_ahead_idx += 1
                             continue
 
+                        # Merge if next paragraph isn't litigation noise
                         if (
                             not EXCLUDE_REGEX_LEGAL_LITIGATION.search(next_para)
                             and len(next_para) + len(para) < MAX_LEN
@@ -749,24 +785,23 @@ def filter_by_keywords(content: str) -> list[str]:
                             i = look_ahead_idx
                         break
 
-                # -----------------------------------------------------
-                # SALVAGE LOGIC
-                # -----------------------------------------------------
+                # -------------------------------------------------
+                # 3. EXCLUSION / SALVAGE LOGIC
+                # -------------------------------------------------
 
-                # 1. Hard Delete (Litigation)
+                # A. Litigation: Hard Delete
                 if EXCLUDE_REGEX_LEGAL_LITIGATION.search(para):
                     i += 1
                     continue
 
-                # 2. Conditional Delete (Equity Comp)
+                # B. Equity Compensation: Conditional Delete
                 if EXCLUDE_REGEX_EQUITY_COMP.search(para):
-                    # Check for "Saviors"
-                    # EQ_REGEX -> "Warrants", "Capped Calls"
-                    # SOFT_GEN_REGEX -> "Hedge Accounting", "Designated"
-                    if not (EQ_REGEX.search(para) or SOFT_GEN_REGEX.search(para)):
+                    # THE SAVIOR CHECK:
+                    # STRICT_REGEX now contains "Equity Swaps" but NOT "Equity Options".
+                    # So "Equity Options" (without hedge accounting) will fail this check and be discarded.
+                    if not (STRICT_REGEX.search(para) or SOFT_GEN_REGEX.search(para)):
                         i += 1
                         continue
-                    # If we reach here, a savior was found -> Keep it.
 
                 para_lower = para.lower()
                 if para_lower not in seen:
