@@ -935,20 +935,41 @@ class AugmentationEngine:
 
 class DynamicContextBank:
     def __init__(self):
-        # Store valid sentences to use as "Noise" later
-        self.noise_pool = []
+        self.general_pool = []  # Contains ALL valid sentences
+        self.safe_pool = []  # Contains ONLY non-category specific sentences
 
     def add_noise_candidate(self, text):
-        # Keep pool manageable
-        if len(self.noise_pool) < 5000:
-            self.noise_pool.append(text)
-        elif random.random() < 0.1:  # Random replacement to keep fresh
-            self.noise_pool[random.randint(0, 4999)] = text
+        """
+        Adds text to general pool, and also to safe_pool if it passes the filter.
+        """
+        # 1. Add to General Pool (reservoir sampling)
+        if len(self.general_pool) < 5000:
+            self.general_pool.append(text)
+        elif random.random() < 0.1:
+            self.general_pool[random.randint(0, 4999)] = text
 
-    def get_noise(self):
-        if not self.noise_pool:
+        # 2. Add to Safe Pool if applicable
+        if not is_category_specific(text):
+            if len(self.safe_pool) < 2500:  # Slightly smaller cap for safe pool
+                self.safe_pool.append(text)
+            elif random.random() < 0.1:
+                self.safe_pool[random.randint(0, 2499)] = text
+
+    def get_noise(self, target_label: Optional[str] = None) -> str:
+        """
+        Retrieves noise. If target_label is 'gen', pulls strictly from safe_pool.
+        """
+        # Case A: We need SAFE noise (for ambiguous 'gen' items)
+        if target_label == "gen":
+            if not self.safe_pool:
+                # Fallback if safe pool is empty (rare after warmup)
+                return "See Note X."
+            return random.choice(self.safe_pool)
+
+        # Case B: We can use ANY noise (for specific categories)
+        if not self.general_pool:
             return "See Note X."
-        return random.choice(self.noise_pool)
+        return random.choice(self.general_pool)
 
 
 # =============================================================================
@@ -1355,9 +1376,32 @@ def _get_generic_form(category: str) -> str:
 # =============================================================================
 # DYNAMIC WINDOW LOGIC
 # =============================================================================
+
+def is_category_specific(text: str) -> bool:
+    """
+    Returns True if the text contains strong signals for IR, FX, CP, or EQ.
+    Used to prevent injecting specific noise into 'gen' examples.
+    """
+    # 1. Check Instrument & Context Regexes from Deletion Map
+    for cat, (strict_inst, soft_inst, context_regex) in CATEGORY_DELETION_MAP.items():
+        # We check strict instruments and explicit context.
+        # We typically skip soft_inst here to be slightly permissive with vague words,
+        # but if you want 100% purity, include soft_inst.search(text) as well.
+        if soft_inst.search(text) or context_regex.search(text):
+            return True
+
+    # 2. Check Strict Context Map (The "Smoking Guns")
+    for cat, regex in STRICT_CONTEXT_MAP.items():
+        if regex.search(text):
+            return True
+
+    return False
+
+
 def get_dynamic_window(
     sentences,
     target_idx,
+    label=None,
     override_target=None,
     context_bank=None,
     apply_numeric_substitution=True,
@@ -1397,8 +1441,9 @@ def get_dynamic_window(
             if dist >= 3:
                 noise_prob = 0.5
 
+            # PASS LABEL TO get_noise
             if context_bank and random.random() < noise_prob:
-                sent = context_bank.get_noise()
+                sent = context_bank.get_noise(target_label=label)
 
             prev_parts.insert(0, sent)
 
@@ -1410,8 +1455,9 @@ def get_dynamic_window(
             if dist >= 3:
                 noise_prob = 0.5
 
+            # PASS LABEL TO get_noise
             if context_bank and random.random() < noise_prob:
-                sent = context_bank.get_noise()
+                sent = context_bank.get_noise(target_label=label)
 
             next_parts.append(sent)
 
@@ -1440,7 +1486,7 @@ def get_dynamic_window(
         # Currency substitution
         curr_sub = DynamicCurrencySubstitution()
         window, _ = curr_sub.substitute_all(window)
-    
+
     # Replace markers with SEP token
     window = re.sub("<<>>", SEP_TOKEN, window)
 
@@ -1539,7 +1585,7 @@ def process_chunk(chunk_data):
                         )
 
                     elif len(specific_cats) == 0:
-                        full_window = get_dynamic_window(sentences, i)
+                        full_window = get_dynamic_window(sentences, i, "gen")
                         max_score = scorer.get_max_score_any_category(full_window)
                         if max_score < 10:
                             local_candidates.append(
@@ -1707,7 +1753,7 @@ def create_labeled_dataset():
 
             if label == "gen":
                 row["text"] = get_dynamic_window(
-                    sentences, idx, context_bank=context_bank
+                    sentences, idx, label="gen", context_bank=context_bank
                 )
                 row["difficulty"] = item.get("subtype", "L0_Ambiguous")
 
