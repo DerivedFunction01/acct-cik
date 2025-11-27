@@ -149,6 +149,7 @@ CLEANUP_PATTERNS = [
 ]
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
+TABLE_HINT_PATTERN = re.compile(r"\b(table|summary|following|below|presented|summarized)\b", re.IGNORECASE)
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r'(?<!\n)\n(?!\n)')
 SPACE_PATTERN = re.compile(r'\s+')
@@ -454,7 +455,7 @@ def extract_content(data: str, asHTML=True) -> str:
                 prev_string and str_len > 20 and str_len < 500
             ):  # Must be long enough to be a sentence, but not too long to be a paragraph
                 # Check if the text node itself contains a table introduction keyword
-                if re.search(r"\b(table|summary|following|below|presented|summarized)\b", prev_string, re.IGNORECASE):
+                if TABLE_HINT_PATTERN.search(prev_string, re.IGNORECASE):
                     prologue_text = prev_string
             # Combine the captured prologue with the caption title
             if title and prologue_text:
