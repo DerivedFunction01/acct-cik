@@ -225,7 +225,7 @@ MAX_SENTENCE_LENGTH = 800 # A very long sentence is probably a table that became
 
 # 1. Complex Debt Term (Requires Lookbehind)
 # Helper for the base terms to avoid repetition
-_DEBT_TERMS = r"(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
+_DEBT_TERMS = r"(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|senior notes?|notes?|debentures?)"
 
 # 1. Complex Debt Term (Consolidated)
 # Logic: Match DEBT only if:
@@ -234,19 +234,22 @@ _DEBT_TERMS = r"(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
 #   - NOT preceded by "denominated" (FX context)
 #   - NOT followed by "denominated" (FX context)
 IR_DEBT_LOOKBEHIND_TERM = (
-    r"(?<!convertible\s)"      # Negative Lookbehind 1
-    r"(?<!foreign\s)"          # Negative Lookbehind 2
-    r"(?<!denominated\s)"      # Negative Lookbehind 3
-    rf"{_DEBT_TERMS}"          # The actual match
-    r"(?!\s+denominated)"      # Negative Lookahead (NEW)
+    r"(?<!convertible\s)"  # Negative Lookbehind 1
+    r"(?<!foreign\s)"  # Negative Lookbehind 2
+    r"(?<!denominated\s)"  # Negative Lookbehind 3
+    rf"{_DEBT_TERMS}"  # The actual match
+    r"(?!\s+denominated)"  # Negative Lookahead (NEW)
 )
 
 # 2. All Other IR Context Terms (No Lookbehind Required)
 IR_OTHER_TERMS = [
+    # Debt + Payment Combinations (Strong IR signals)
+    rf"{_DEBT_TERMS}\s+payables?",
+    r"interest\s+payables?",
+    rf"(?:long|short)[- ]term\s+{_DEBT_TERMS}",
     r"credit\s+facilit(?:y|ies)",
     r"revolving\s+credits?",
     r"term\s+loans?",
-    r"senior\s+notes?",
     r"subordinated\s+notes?",
     r"commercial\s+papers?",
     r"capital\s+leases?",
@@ -272,8 +275,8 @@ IR_OTHER_TERMS = [
     r"interest\s+payments?",
     r"basis\s+points?",
     r"weighted\s+average\s+interest",
-    # Add any long/specific terms that need priority, like "credit facility"
 ]
+
 IR_CONTEXT = f"(?:{IR_DEBT_LOOKBEHIND_TERM}|{build_alternation(IR_OTHER_TERMS)})"
 
 
