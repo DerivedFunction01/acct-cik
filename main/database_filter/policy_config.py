@@ -2,7 +2,7 @@
 
 from typing import List, Dict, Any, Tuple
 
-from derivative_regex import ACCOUNTING_STANDARDS_KEYWORDS
+from derivative_regex import ACCOUNTING_STANDARDS_KEYWORDS, PNL_ONLY_NO_POSITION
 
 # =============================================================================
 # GLOBAL EXTRACTION CONFIGURATION
@@ -21,7 +21,8 @@ DEFAULT_EXTRACTION_CONFIG: Dict[str, Any] = {
 # =============================================================================
 # POLICY KEYWORD DEFINITIONS (Stored as Tuples for Immutability)
 # =============================================================================
-
+RECLASSIF_TERM_OPTIONAL = r"(?:reclassif(?:y|ies|ied|ication))?"
+AOCI_FULL_NAME = r"other\s+comprehensive\s+(?:income|loss)"
 POLICY_KEYWORD_SETS: Dict[str, Tuple[str, List[str]]] = {
     # -------------------------------------------------------------------------
     # CATEGORY 1: VALUATION & FAIR VALUE HIERARCHY
@@ -81,4 +82,48 @@ POLICY_KEYWORD_SETS: Dict[str, Tuple[str, List[str]]] = {
     # Focus: Regulatory guidance and future action (Non-use statements)
     # -------------------------------------------------------------------------
     "adoption_boilerplate": ("policy_adopt", ACCOUNTING_STANDARDS_KEYWORDS),
+    # -------------------------------------------------------------------------
+    # CATEGORY 4: STANDARDS & ADOPTION BOILERPLATE
+    # Focus: Regulatory guidance and future action (Non-use statements)
+    # -------------------------------------------------------------------------
+    "aoci_reclassification": (
+        "policy_aoci",
+        [
+            # 1. CORE AOCI MATCH (MANDATORY)
+            r"\bAOCI\b",  # Match "AOCI" acronym
+            rf"\b{AOCI_FULL_NAME}\b",  # Match "Other Comprehensive Income/Loss" full name
+            # 2. OPTIONAL RECLASSIFICATION CONTEXT
+            rf"\b{RECLASSIF_TERM_OPTIONAL}\b.*?(?:AOCI|{AOCI_FULL_NAME})\b",  # e.g., "reclassification...AOCI"
+            rf"(?:AOCI|{AOCI_FULL_NAME})\b.*?\b{RECLASSIF_TERM_OPTIONAL}\b",  # e.g., "AOCI...reclassified"
+            # 3. OTHER HIGH-PRECISION POLICY TERMS
+            r"\bnet\s+deferred\s+tax\s+benefit\b",
+            r"\bincluded\s+in.*AOCI\b",
+            rf"\bdeferred\s+(?:gain|loss).*?(?:AOCI|{AOCI_FULL_NAME})\b",
+            r"\bestimated\s+to\s+be\s+reclassified\b",
+            r"\bumbrella\s+provisions\b",
+        ],
+    ),
+    "references": (
+        "reference_notes",
+        [
+            # --- NOTE REFERENCES ---
+            # Variation 1: See Note X / See Note (X)
+            r"[Ss]ee\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?(?:\s*\(s\))?(?:\s*[,;:]\s+as\s+used\s+herein)?(?:\s*[,;:\.]?\s*\(?(?:of|and|in)\s+the\s+notes)?\b",
+            # Variation 2: Refer to Note X / Reference is made to Note X
+            r"(?:[Rr]efer(?:ence)?\s+(?:to|is\s+made\s+to|is\s+hereby\s+made\s+to))\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?\b",
+            # Variation 3: In Note X
+            r"\b[Ii]n\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?\b",
+            # Variation 4: Note X provides... / Note X details...
+            r"\b(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?\s+(?:provides?|details?|discloses?|discusses?)\b",
+            # --- TABLE / SCHEDULE REFERENCES ---
+            # Variation 1: The table/schedule refers to/shows/summarizes...
+            r"[Tt]he\s+(?:table|schedule|exhibit|note)\s+(?:below|above|following|accompanying)?\s*(?:[Rr]efers\s+to|[Pp]rovides\s+details\s+on|[Pp]resents|[Ss]hows|[Ss]ummarizes|[Dd]etails|[Ii]s\s+presented)\b",
+            # Variation 2: As shown/provided/detailed in the table/schedule
+            r"(?:[Aa]s\s+(?:shown|provided|detailed|presented|summarized|disclosed|set\s+forth)?\s+in\s+the\s+(?:table|schedule|exhibit|note))\b",
+            # Variation 3: In the table/schedule below/above
+            r"[Ii]n\s+(?:the\s+)?(?:table|schedule|exhibit|note)\s+(?:below|above|following)\b",
+            # Variation 4: Punctuation/Word separation followed by a table reference
+            r"(?:[.,;:\-\s]|\s+and\s+)\s*(?:table|schedule|exhibit|note)\s+No\.\s+\d+\b",
+        ],
+    ),
 }
