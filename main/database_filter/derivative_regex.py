@@ -227,12 +227,7 @@ MAX_SENTENCE_LENGTH = 800 # A very long sentence is probably a table that became
 # Interest Rate context clues
 IR_CONTEXT_TERMS = [
     # 1. Debt Instruments (The Underlying)
-    r"debts?",
-    r"loans?",
-    r"borrow(?:ing|ed)?",
-    r"bonds?",
-    r"notes?",
-    r"debentures?",
+    r"(?<!(?:convertible|foreign|denominated)\s+)(?<!\s+denominated\s+)(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
     r"credit\s+facilit(?:y|ies)",
     r"revolving\s+credits?",
     r"term\s+loans?",
@@ -242,15 +237,7 @@ IR_CONTEXT_TERMS = [
     r"capital\s+leases?",
     r"mortgages?",
     # 2. Rate Types & Benchmarks
-    r"floating[- ]rates?",
-    r"variable[- ]rates?",
-    r"fixed[- ]rates?",
-    r"benchmark[-]rates?",
-    r"interest[- ]rates?",
-    r"treasury[- ]rates?",
-    r"forward[- ]rates?",
-    r"prime[- ]rates?",
-    r"fed(?:eral)?\s+funds\s+rates?",
+    r"(?:(?:floating|variable|fixed|benchmark|interest|treasury|forward|prime)[- ]rates?|fed(?:eral)?\s+funds\s+rates?)"
     r"SOFR",
     r"SONIA",
     r"LIBOR",
@@ -265,19 +252,10 @@ IR_CONTEXT_TERMS = [
     r"TIBOR",
     r"PRIBOR",
     r"MOSPRIME",
-    r"yield\s+curves?",
     # 3. Mechanics (High Precision)
-    r"pay[- ]fixed",
-    r"receive[- ]fixed",
-    r"pay[- ]variable",
-    r"receive[- ]variable",
-    r"pay[- ]floating",
-    r"receive[- ]floating",
-    r"interest\s+expenses?",
-    r"interest\s+income",
+    r"(?:pay|receive)[- ](?:fixed|variable|floating)"
     r"interest\s+payments?",
     r"basis\s+points?",
-    r"repric(?:ing|ed)",
     r"weighted\s+average\s+interest",
 ]
 
