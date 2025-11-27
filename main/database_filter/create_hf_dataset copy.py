@@ -869,7 +869,7 @@ def detect_noise_categories(text: str) -> Set[str]:
 
     # 1. Check Instrument & Context Regexes
     for cat, (strict_inst, soft_inst, context_regex) in CATEGORY_DELETION_MAP.items():
-        if soft_inst.search(text) or context_regex.search(text):
+        if soft_inst.search(text) or context_regex.search(text) or strict_inst.search(text):
             found_cats.add(cat)
 
     # 2. Check Strict Context Map (The "Smoking Guns")
@@ -1562,7 +1562,7 @@ def process_chunk(chunk_data):
                         )
 
                     elif len(specific_cats) == 0:
-                        full_window = get_dynamic_window(sentences, i, "gen")
+                        full_window = get_dynamic_window(sentences, i, label="gen")
                         max_score = scorer.get_max_score_any_category(full_window)
                         if max_score < 10:
                             local_candidates.append(
