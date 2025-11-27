@@ -43,7 +43,8 @@ from derivative_regex import (
     Currency,
     cleanup_fragment,
     VERB_USE_REGEX,
-    all_currencies, # dynamic currency subsitution
+    all_currencies,  # dynamic currency subsitution
+    STRICT_CONTEXT_MAP,
 )
 from filter_database import get_sentence_categories
 
@@ -774,24 +775,44 @@ class ContentDeduplicator:
 
 class ContextScorer:
     def score(self, text: str, label: str) -> int:
-        if len(text) > 500 or len(text) < 25: # penalize long text; it may be a table
+        if len(text) > 600 or len(text) < 25:
             return -1
+
+        # 1. Check STRICT Context (The "Smoking Gun")
+        # If we find a strict term (e.g., "amortization of debt" for IR), return immediate high score
+        strict_regex = STRICT_CONTEXT_MAP.get(label)
+        if strict_regex and strict_regex.search(text):
+            return 100  # Immediate validation
+
+        # 2. Check Standard Context
         regex = CATEGORY_CONTEXT_MAP.get(label)
         if not regex:
             return 0
+
         matches = regex.findall(text)
         unique_hits = set(m.lower() for m in matches)
         score = len(unique_hits) * 10
+
+        # 3. Context Boosters
         if re.search(r"\b(hedg|mitigat|manag)(?:e|es|ed|ing)\b", text, re.I):
             score += 15
-        if label == "ir" and re.search(
-            r"\b(variable|floating|fixed)\s+rate\b", text, re.I
+
+        if label == "ir":
+            if re.search(r"\b(variable|floating|fixed|interest)\s+rate\b", text, re.I):
+                score += 20
+            # Boost for explicit debt mentions in window
+            if re.search(r"\b(debts?|notes?|bonds?|loans?|borrowings?|basis\s+points?)\b", text, re.I):
+                score += 10
+            
+
+        if label == "fx" and re.search(
+            r"\b(foreign rate|exchange rate|denominated)\b", text, re.I
         ):
-            score += 20
-        if label == "fx" and re.search(r"\b(foreign rate|exchange rate|denominated)\b", text, re.I):
-            score += 20
+            score += 30
+
         if label == "cp" and re.search(r"\b(price|commodity|fuel|oil)\b", text, re.I):
             score += 20
+
         if label == "eq":
             text_lower = text.lower()
             is_comp_talk = any(
@@ -801,8 +822,15 @@ class ContextScorer:
             is_hedging_talk = re.search(
                 r"\b(hedg|mitigat|manag|offset)(?:e|es|ed|ing)\b", text, re.I
             )
-            is_convertible = re.search(r"\b(?:convertible\s+(?:debt|notes?|bonds?|securit(?:y|ies)))\b", text, re.I)
-            is_valuation_model = re.search(r"\b" + "|".join(VALUATION_MODELS) + r"\b", text, re.I)
+            is_convertible = re.search(
+                r"\b(?:convertible\s+(?:debt|notes?|bonds?|securit(?:y|ies)))\b",
+                text,
+                re.I,
+            )
+            is_valuation_model = re.search(
+                r"\b" + "|".join(VALUATION_MODELS) + r"\b", text, re.I
+            )
+
             if is_valuation_model:
                 score += 50
             if is_convertible:
@@ -811,11 +839,22 @@ class ContextScorer:
                 return -1
             if is_comp_talk and is_hedging_talk:
                 score += 25
+
         return score
 
+    def get_best_category(self, text: str) -> Tuple[str, int]:
+        """
+        Returns the category with the highest score and that score.
+        Useful for disambiguating 'gen' labels.
+        """
+        scores = {lbl: self.score(text, lbl) for lbl in ["fx", "cp", "eq", "ir"]}
+        best_cat = max(scores, key=scores.get)
+        best_score = scores[best_cat]
+        return best_cat, best_score
+
     def get_max_score_any_category(self, text: str) -> int:
-        scores = [self.score(text, lbl) for lbl in ["fx", "cp", "eq", "ir"]]
-        return max(scores)
+        _, score = self.get_best_category(text)
+        return score
 
 
 class AugmentationEngine:
