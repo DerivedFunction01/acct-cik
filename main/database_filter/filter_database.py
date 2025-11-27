@@ -382,6 +382,8 @@ FLUSH_INTERVAL = 5.0  # Seconds — fallback flush if batch not full
 CHUNK_SIZE = 50  # Larger chunks reduce task submission overhead — tune this
 SOURCE_DB_PATH = "web_data.db"
 CLEAN_DB_PATH = "prepared_data.db"
+# How many sentences forward can we look?
+MAX_FORWARD_EXPANSION = 3
 
 # In-memory buffers (protected by main process only)
 result_buffer = []  # List of (url, matches, cik, year)
@@ -862,9 +864,76 @@ def generate_single_category_variant(
 # ENHANCED FILTER_MATCHES WITH CATEGORY DISAMBIGUATION
 # =============================================================================
 
-# ============================================================================
-# ADD THESE NEW FUNCTIONS (before filter_matches_with_disambiguation)
-# ============================================================================
+def expand_forward_context(
+    sentences: List[str],
+    start_idx: int,
+    target_cat: str,
+    used_indices: Set[int],
+    excision_mode: bool = False,
+) -> Tuple[List[str], Set[int]]:
+    """
+    Greedily consumes subsequent sentences if they are contextually compatible.
+
+    Args:
+        sentences: All sentences in the paragraph.
+        start_idx: The index of the *Target* sentence (we look at start_idx + 1).
+        target_cat: The category we are building the paragraph for.
+        used_indices: Global set of indices already processed.
+        excision_mode: If True, applies 'generate_single_category_variant' to context.
+
+    Returns:
+        (list_of_context_strings, set_of_consumed_indices)
+    """
+    context_parts = []
+    newly_used_indices = set()
+
+    current_lookahead = 1
+
+    while current_lookahead <= MAX_FORWARD_EXPANSION:
+        next_idx = start_idx + current_lookahead
+
+        # 1. Boundary Checks
+        if next_idx >= len(sentences) or next_idx in used_indices:
+            break
+
+        nxt = sentences[next_idx]
+
+        # 2. Length/Quality Check
+        if len(nxt) < MIN_SENTENCE_LENGTH:
+            break
+
+        # 3. Category Compatibility Check
+        # We perform category detection on the *next* sentence.
+        nxt_cats = get_sentence_categories(nxt)
+
+        # STOP if we hit a different STRICT category (e.g. IR paragraph hits FX sentence)
+        # Compatible if:
+        # a) It contains our target category
+        # b) OR it is purely Generic/Other (ambiguous context)
+        is_compatible = target_cat in nxt_cats or not (nxt_cats - {"gen", "other"})
+
+        if not is_compatible:
+            break
+
+        # 4. Processing & Accumulation
+        final_text = nxt
+
+        if excision_mode:
+            # If we are splitting a multi-category paragraph, we must also
+            # scrub the context sentences to ensure purity.
+            clean_nxt = generate_single_category_variant(nxt, target_cat, nxt_cats)
+            if clean_nxt:
+                final_text = clean_nxt
+            else:
+                # If excision failed (e.g. sentence destroyed), stop expansion
+                break
+
+        context_parts.append(final_text)
+        newly_used_indices.add(next_idx)
+        current_lookahead += 1
+
+    return context_parts, newly_used_indices
+
 
 def process_resolved_sentence(
     meta: Dict[str, Any],
@@ -872,21 +941,14 @@ def process_resolved_sentence(
     used_indices: Set[int],
     url: str,
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str, str]]]:
-    """
-    Process a fully-resolved sentence metadata object into final paragraphs.
-    
-    Handles three distinct cases:
-    1. Single-category sentence (direct or ML-resolved) → build with context
-    2. Multi-category sentence → generate single-category variants via excision
-    3. Unresolved generic → discard with reason
-    """
+
     paragraphs = []
     discards = []
 
     final_cat = meta["final_category"]
     sent_idx = meta["sent_idx"]
 
-    # Skip if already processed as part of multi-sentence paragraph
+    # Skip if already processed
     if sent_idx in used_indices:
         return [], []
 
@@ -894,39 +956,39 @@ def process_resolved_sentence(
     # CASE 1: Single-category sentence
     # ════════════════════════════════════════════════════════════════
     if len(meta["specific_cats"]) <= 1 and final_cat not in {"gen", "other"}:
+
+        # 1. Prepare Target (Anchor)
         target_sent = meta["sentence"]
         if ANCHOR_TAG not in target_sent:
             target_sent = ANCHOR_TAG + target_sent
+
         parts = [target_sent]
         context_indices = {sent_idx}
 
-        # Try to incorporate previous sentence if contextually compatible
+        # 2. Look Backward (1 Step)
         if sent_idx > 0 and (sent_idx - 1) not in used_indices:
             prev = sentences[sent_idx - 1]
-
             if len(prev) >= MIN_SENTENCE_LENGTH:
                 prev_cats = get_sentence_categories(prev)
-
-                # Include if: category matches OR prev is generic
+                # Compatible?
                 if final_cat in prev_cats or not (prev_cats - {"gen", "other"}):
                     parts.insert(0, prev)
                     context_indices.add(sent_idx - 1)
 
-        # Try to incorporate next sentence if contextually compatible
-        if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
-            nxt = sentences[sent_idx + 1]
+        # 3. Look Forward (Expand)
+        fwd_parts, fwd_indices = expand_forward_context(
+            sentences, sent_idx, final_cat, used_indices, excision_mode=False
+        )
+        parts.extend(fwd_parts)
+        context_indices.update(fwd_indices)
 
-            if len(nxt) >= MIN_SENTENCE_LENGTH:
-                nxt_cats = get_sentence_categories(nxt)
-
-                if final_cat in nxt_cats or not (nxt_cats - {"gen", "other"}):
-                    parts.append(nxt)
-                    context_indices.add(sent_idx + 1)
-
+        # 4. Finalize
         paragraph = " ".join(parts)
 
-        # VALIDATION: Ensure instrument name survived
-        if check_for_instrument(paragraph, strict=False):
+        # Validation: Check strictly if anchor lost, loosely if anchor present
+        # (check_for_instrument handles this logic if called via validate_instrument_retention later,
+        # but here we do a quick check to ensure we didn't build a ghost)
+        if check_for_instrument(paragraph.replace(ANCHOR_TAG, " "), strict=False):
             paragraphs.append((paragraph, final_cat))
             used_indices.update(context_indices)
         else:
@@ -947,72 +1009,79 @@ def process_resolved_sentence(
             )
 
             if pure_variant:
+                # 1. Prepare Anchor
                 if ANCHOR_TAG not in pure_variant:
                     pure_variant = ANCHOR_TAG + pure_variant
                 parts = [pure_variant]
+                current_variant_indices = {
+                    sent_idx
+                }  # Track local indices for this variant
 
-                # Attempt to incorporate compatible context with excision
+                # 2. Look Backward (1 Step with Excision)
                 if sent_idx > 0 and (sent_idx - 1) not in used_indices:
                     prev = sentences[sent_idx - 1]
-
                     if len(prev) >= MIN_SENTENCE_LENGTH:
                         prev_cats = get_sentence_categories(prev)
-
-                        if target_cat in prev_cats or not (prev_cats - {"gen", "other"}):
+                        if target_cat in prev_cats or not (
+                            prev_cats - {"gen", "other"}
+                        ):
                             clean_prev = generate_single_category_variant(
                                 prev, target_cat, prev_cats
                             )
                             if clean_prev:
                                 parts.insert(0, clean_prev)
+                                # Note: We don't mark backward as used yet,
+                                # as other variants might need it too.
 
-                if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
-                    nxt = sentences[sent_idx + 1]
+                # 3. Look Forward (Expand with Excision)
+                fwd_parts, fwd_indices = expand_forward_context(
+                    sentences, sent_idx, target_cat, used_indices, excision_mode=True
+                )
+                parts.extend(fwd_parts)
+                current_variant_indices.update(fwd_indices)
 
-                    if len(nxt) >= MIN_SENTENCE_LENGTH:
-                        nxt_cats = get_sentence_categories(nxt)
-
-                        if target_cat in nxt_cats or not (nxt_cats - {"gen", "other"}):
-                            clean_nxt = generate_single_category_variant(
-                                nxt, target_cat, nxt_cats
-                            )
-                            if clean_nxt:
-                                parts.append(clean_nxt)
-
+                # 4. Finalize
                 paragraph = " ".join(parts)
 
-                if check_for_instrument(paragraph, strict=False):
+                if check_for_instrument(
+                    paragraph.replace(ANCHOR_TAG, " "), strict=False
+                ):
                     paragraphs.append((paragraph, target_cat))
                     any_variant_succeeded = True
             else:
                 discards.append(
-                    (url, meta["sentence"], f"disambiguation_excision_failed_{target_cat}")
+                    (
+                        url,
+                        meta["sentence"],
+                        f"disambiguation_excision_failed_{target_cat}",
+                    )
                 )
 
         if any_variant_succeeded:
+            # We mark the anchor as used.
+            # Note regarding context: In multi-category split scenarios,
+            # strictly marking context as "used" prevents the 2nd variant from grabbing it.
+            # However, reusing context for both variants (e.g. IR and FX sharing the same
+            # generic description sentence) is usually desirable.
+            # Strategy: Only mark the ANCHOR index as globally used.
+            # Context indices can be reused by other variants in this specific loop if logic allows,
+            # but usually `used_indices` prevents double processing across the main loop.
             used_indices.add(sent_idx)
 
     # ════════════════════════════════════════════════════════════════
-    # CASE 3: Unresolved generic or invalid category
+    # CASE 3: Unresolved generic
     # ════════════════════════════════════════════════════════════════
     else:
+        # ... (Existing Case 3 logic) ...
         resolution_method = meta.get("resolution_method", "unknown")
         confidence = meta.get("confidence", 0.0)
-
         discard_reason = f"unresolved_generic_{resolution_method}"
         if confidence is not None and confidence < 0.5:
             discard_reason += "_low_conf"
-
-        discards.append(
-            (url, meta["sentence"], discard_reason)
-        )
+        discards.append((url, meta["sentence"], discard_reason))
         used_indices.add(sent_idx)
 
     return paragraphs, discards
-
-
-# ============================================================================
-# REPLACE: filter_matches_with_disambiguation FUNCTION (entire function)
-# ============================================================================
 
 def filter_matches_with_disambiguation(
     matches_json: str, url: str = ""
