@@ -224,10 +224,21 @@ MIN_SENTENCE_LENGTH = 15
 MAX_SENTENCE_LENGTH = 800 # A very long sentence is probably a table that became a sentence
 
 # 1. Complex Debt Term (Requires Lookbehind)
-IR_DEBT_LOOKBEHIND_TERM = (# One regex per exclusion
-    r"(?<!convertible\s)(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
-    r"(?<!foreign\s)(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
-    r"(?<!denominated\s)(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
+# Helper for the base terms to avoid repetition
+_DEBT_TERMS = r"(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
+
+# 1. Complex Debt Term (Consolidated)
+# Logic: Match DEBT only if:
+#   - NOT preceded by "convertible" (Equity context)
+#   - NOT preceded by "foreign" (FX context)
+#   - NOT preceded by "denominated" (FX context)
+#   - NOT followed by "denominated" (FX context)
+IR_DEBT_LOOKBEHIND_TERM = (
+    r"(?<!convertible\s)"      # Negative Lookbehind 1
+    r"(?<!foreign\s)"          # Negative Lookbehind 2
+    r"(?<!denominated\s)"      # Negative Lookbehind 3
+    rf"{_DEBT_TERMS}"          # The actual match
+    r"(?!\s+denominated)"      # Negative Lookahead (NEW)
 )
 
 # 2. All Other IR Context Terms (No Lookbehind Required)
