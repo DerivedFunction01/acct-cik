@@ -1622,17 +1622,6 @@ def rate_adjuster_worker(
                 current_rate, target_rate
             )
 
-            # Log periodically (every 5 seconds)
-            if now - last_recovery_check > 5:
-                mode = "🔴 Recovery" if in_recovery else "🟢 Normal"
-                print(
-                    f"[Rate Adjuster] {mode} | "
-                    f"Rate: {current_rate:.2f} req/s | "
-                    f"Target: {target_rate_adjusted:.2f} req/s | "
-                    f"Sleep: {new_sleep*1000:.1f}ms"
-                )
-                last_recovery_check = now
-
         except Exception as e:
             print(f"⚠️  Rate adjuster error: {e}")
 
