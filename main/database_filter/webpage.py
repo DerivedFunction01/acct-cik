@@ -1148,7 +1148,7 @@ def process_all_reports_fully():
                 except Exception as e:
                     print(f"Parse error: {e}")
                     chunk_empty += 1
-        
+
         if batch_results:
             print(f"  💾 Saving batch of {len(batch_results)} records...")
             # Convert list of Series to DataFrame
@@ -1221,134 +1221,8 @@ def process_all_reports_fully():
 # =============================================================================
 # %%
 
-def fetch_worker(url_queue, raw_queue, rate_limiter, stop_event):
-    """
-    PRODUCER: Downloads content and puts into raw_queue.
-
-    FIX: Better error handling, proper queue blocking behavior.
-    """
-    while not stop_event.is_set():
-        try:
-            # Get a URL with timeout to allow checking stop_event
-            url = url_queue.get(timeout=1)
-        except queue.Empty:
-            continue
-
-        try:
-            # 1. Apply Rate Limit
-            time.sleep(rate_limiter.value)
-
-            # 2. Fetch
-            result = fetch_raw_content(url, rate_limiter)
-
-            # 3. Put into Queue (Block if Full - this is the backpressure mechanism)
-            if result:
-                if result[0] == "RATE_LIMITED":
-                    # Rate limit detected - put URL back for retry
-                    url_queue.put(url)
-                    rate_limiter.signal_429()
-                    time.sleep(rate_limiter.value * 2)
-                else:
-                    # Successfully fetched - put in raw queue
-                    # This BLOCKS if queue is full, creating backpressure
-                    try:
-                        raw_queue.put(result, timeout=5)
-                    except queue.Full:
-                        # Queue is full - put URL back and try again later
-                        url_queue.put(url)
-                        time.sleep(0.5)
-        except Exception as e:
-            print(f"Fetch worker error: {e}")
-        finally:
-            # Always mark as done for queue accounting
-            url_queue.task_done()
-
-
-def parse_worker(raw_queue, result_queue):
-    """
-    CONSUMER: Takes raw content and puts parsed results into result_queue.
-
-    FIX: Better error handling.
-    """
-    while True:
-        try:
-            data = raw_queue.get(timeout=2)
-        except queue.Empty:
-            continue
-
-        if data is None:  # Sentinel value to kill process
-            break
-
-        try:
-            parsed_result = parse_content(data)
-            if parsed_result is not None:
-                result_queue.put(parsed_result)
-        except Exception as e:
-            print(f"Parse worker error: {e}")
-
-
-def db_writer_worker(result_queue, db_path, shared_counter, total_expected, save_interval=50):
-    """
-    Consumes results, writes to DB, and updates the shared_counter.
-    
-    FIX: Added total_expected to avoid infinite loops, better error handling.
-    """
-    buffer = []
-    conn = sqlite3.connect(db_path)
-    processed = 0
-
-    while processed < total_expected:
-        try:
-            result = result_queue.get(timeout=2)
-        except queue.Empty:
-            # Timeout - if we have buffered data, save it
-            if buffer:
-                save_batch(conn, buffer)
-                with shared_counter.get_lock():
-                    shared_counter.value += len(buffer)
-                processed += len(buffer)
-                buffer = []
-            continue
-
-        if result is None:  # Sentinel value - stop signal
-            if buffer:
-                save_batch(conn, buffer)
-                with shared_counter.get_lock():
-                    shared_counter.value += len(buffer)
-                processed += len(buffer)
-            break
-
-        buffer.append(result)
-
-        if len(buffer) >= save_interval:
-            save_batch(conn, buffer)
-            with shared_counter.get_lock():
-                shared_counter.value += len(buffer)
-            processed += len(buffer)
-            buffer = []
-
-    conn.close()
-
-
-def save_batch(conn, buffer):
-    if not buffer:
-        return
-    try:
-        df_batch = pd.DataFrame(buffer)
-        # Use your existing save logic, but adapted for open connection
-        c = conn.cursor()
-        data = list(zip(df_batch.url, df_batch.matches.apply(json.dumps)))
-        c.executemany(
-            "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)", data
-        )
-        conn.commit()
-        print(f"  💾 Saved batch of {len(buffer)} records")
-    except Exception as e:
-        print(f"DB Write Error: {e}")
-
-
 # =============================================================================
-# NEW MAIN PROCESS LOOP
+# KEY FIXES FOR PRODUCER-CONSUMER MODEL
 # =============================================================================
 
 
@@ -1361,7 +1235,9 @@ def process_producer_consumer():
     result_queue = manager.Queue()
 
     # 2. Shared Stats for TQDM
-    items_processed = manager.Value("i", 0)
+    # Use a dict with a lock instead of Value for better compatibility
+    items_processed = manager.dict({"count": 0})
+    counter_lock = manager.Lock()
 
     # 3. Populate Queue
     processed_set = get_processed_urls()
@@ -1394,7 +1270,7 @@ def process_producer_consumer():
     # 4. Start Workers
     db_thread = threading.Thread(
         target=db_writer_worker,
-        args=(result_queue, DB_PATH, items_processed, initial_count),
+        args=(result_queue, DB_PATH, items_processed, counter_lock, initial_count),
         daemon=False,  # FIX #2: Must not be daemon to ensure DB writes complete
     )
     db_thread.start()
@@ -1430,7 +1306,7 @@ def process_producer_consumer():
                 time.sleep(1)
 
                 # A. Update Progress Bar
-                current_done = items_processed.value
+                current_done = items_processed["count"]
                 pbar.n = current_done
                 pbar.refresh()
 
@@ -1516,6 +1392,142 @@ def process_producer_consumer():
             if IS_COLAB:
                 print("Performing final backup...")
                 subprocess.run(SAVE_SHELL_CMD, shell=True)
+
+            print("Pipeline finished.")
+
+
+def save_batch(conn, buffer):
+    if not buffer:
+        return
+    try:
+        df_batch = pd.DataFrame(buffer)
+        # Use your existing save logic, but adapted for open connection
+        c = conn.cursor()
+        data = list(zip(df_batch.url, df_batch.matches.apply(json.dumps)))
+        c.executemany(
+            "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)", data
+        )
+        conn.commit()
+        print(f"  💾 Saved batch of {len(buffer)} records")
+    except Exception as e:
+        print(f"DB Write Error: {e}")
+
+
+def db_writer_worker(
+    result_queue,
+    db_path,
+    shared_counter,
+    counter_lock,
+    total_expected,
+    save_interval=50,
+):
+    """
+    Consumes results, writes to DB, and updates the shared_counter.
+
+    FIX: Using manager.dict() with lock for proper multiprocessing synchronization.
+    """
+    buffer = []
+    conn = sqlite3.connect(db_path)
+    processed = 0
+
+    while processed < total_expected:
+        try:
+            result = result_queue.get(timeout=2)
+        except queue.Empty:
+            # Timeout - if we have buffered data, save it
+            if buffer:
+                save_batch(conn, buffer)
+                with counter_lock:
+                    shared_counter["count"] += len(buffer)
+                processed += len(buffer)
+                buffer = []
+            continue
+
+        if result is None:  # Sentinel value - stop signal
+            if buffer:
+                save_batch(conn, buffer)
+                with counter_lock:
+                    shared_counter["count"] += len(buffer)
+                processed += len(buffer)
+            break
+
+        buffer.append(result)
+
+        if len(buffer) >= save_interval:
+            save_batch(conn, buffer)
+            with counter_lock:
+                shared_counter["count"] += len(buffer)
+            processed += len(buffer)
+            buffer = []
+
+    conn.close()
+
+
+def fetch_worker(url_queue, raw_queue, rate_limiter, stop_event):
+    """
+    PRODUCER: Downloads content and puts into raw_queue.
+
+    FIX: Better error handling, proper queue blocking behavior.
+    """
+    while not stop_event.is_set():
+        try:
+            # Get a URL with timeout to allow checking stop_event
+            url = url_queue.get(timeout=1)
+        except queue.Empty:
+            continue
+
+        try:
+            # 1. Apply Rate Limit
+            time.sleep(rate_limiter.value)
+
+            # 2. Fetch
+            result = fetch_raw_content(url, rate_limiter)
+
+            # 3. Put into Queue (Block if Full - this is the backpressure mechanism)
+            if result:
+                if result[0] == "RATE_LIMITED":
+                    # Rate limit detected - put URL back for retry
+                    url_queue.put(url)
+                    rate_limiter.signal_429()
+                    time.sleep(rate_limiter.value * 2)
+                else:
+                    # Successfully fetched - put in raw queue
+                    # This BLOCKS if queue is full, creating backpressure
+                    try:
+                        raw_queue.put(result, timeout=5)
+                    except queue.Full:
+                        # Queue is full - put URL back and try again later
+                        url_queue.put(url)
+                        time.sleep(0.5)
+        except Exception as e:
+            print(f"Fetch worker error: {e}")
+        finally:
+            # Always mark as done for queue accounting
+            url_queue.task_done()
+
+
+def parse_worker(raw_queue, result_queue):
+    """
+    CONSUMER: Takes raw content and puts parsed results into result_queue.
+
+    FIX: Better error handling.
+    """
+    while True:
+        try:
+            data = raw_queue.get(timeout=2)
+        except queue.Empty:
+            continue
+
+        if data is None:  # Sentinel value to kill process
+            break
+
+        try:
+            parsed_result = parse_content(data)
+            if parsed_result is not None:
+                result_queue.put(parsed_result)
+        except Exception as e:
+            print(f"Parse worker error: {e}")
+
 
 existing_report_df = pd.DataFrame()
 # =============================================================================
