@@ -2499,9 +2499,16 @@ def build_entity_exclusion_regex() -> re.Pattern:
         r"Financial\s+Accounting\s+Standards\s+Board",
         r"Public\s+Company\s+Accounting\s+Oversight\s+Board",
     ]
+    # NEW: Generic Entity Pattern
+    # Matches: "United States Commodity Index Fund", "Oil Derivatives Trust"
+    # Logic: Capitalized words + [Trigger] + Capitalized words + [Entity Suffix]
+    triggers = r"(?:Commodity|Oil|Gas|Energy|Derivatives?|Futures?|Options?|Swaps?)"
+    suffixes = r"(?:Fund|Trust|ETF|LP|L\.P\.|Holdings?|Portfolio)"
+    fund_pattern = rf"(?:[A-Z][a-z]+\s+)*{triggers}(?:\s+[A-Z][a-z]+)*\s+{suffixes}"
+    all_patterns = entities + [fund_pattern]
 
     # Use build_alternation to ensure longest matches (e.g., full name) are prioritized
-    pattern = build_alternation(entities)
+    pattern = build_alternation(all_patterns)
     return re.compile(rf"\b{pattern}\b", re.IGNORECASE)
 
 
