@@ -3,6 +3,7 @@
 # =============================================================================
 # %%
 # pip install pandas requests beautifulsoup4 tqdm psutil markdownify
+import queue
 import string
 import sys
 # Increase recursion limit to handle deeply nested HTML structures
@@ -1231,6 +1232,252 @@ create_db()
 existing_report_df = fetch_report_data()
 print(f"Found {len(existing_report_df)} reports in database")
 
+
+def fetch_worker(url_queue, raw_queue, rate_limiter, stop_event):
+    """
+    PRODUCER: Consumes URLs, downloads content, puts into Raw Inventory.
+    Stops fetching if Raw Inventory is full (Reorder Point logic).
+    """
+    while not stop_event.is_set():
+        try:
+            # Get a URL (timeout allows checking stop_event)
+            url = url_queue.get(timeout=1)
+        except queue.Empty:
+            continue
+
+        # FETCHING LOGIC (Using your existing fetch_raw_content)
+        # Note: We pass None for rate_limiter here inside the wrapper because
+        # we handle the sleep explicitly below to keep the worker alive
+
+        # 1. Apply Rate Limit
+        time.sleep(rate_limiter.value)
+
+        # 2. Fetch
+        result = fetch_raw_content(url, rate_limiter)
+
+        # 3. Put into Inventory (Block if Full)
+        if result:
+            if result[0] == "RATE_LIMITED":
+                # If limited, put URL back in queue and back off
+                url_queue.put(url)
+                rate_limiter.signal_429()
+                time.sleep(rate_limiter.value * 2)
+            else:
+                # This .put() will BLOCK if queue is full
+                # effectively pausing "production" until "inventory" drops
+                raw_queue.put(result)
+
+        # Mark URL as processed (for queue accounting)
+        url_queue.task_done()
+
+
+def parse_worker(raw_queue, result_queue):
+    """
+    CONSUMER: Takes raw content from Inventory, extracts data,
+    puts into Finished Goods queue.
+    """
+    while True:
+        data = raw_queue.get()
+        if data is None:  # Sentinel value to kill process
+            break
+
+        # CPU INTENSIVE WORK
+        # Using your existing parse logic
+        try:
+            parsed_result = parse_content(data)
+            if parsed_result is not None:
+                result_queue.put(parsed_result)
+        except Exception as e:
+            print(f"Worker Error: {e}")
+
+
+def db_writer_worker(result_queue, db_path, shared_counter, save_interval=50):
+    """
+    Consumes results, writes to DB, and updates the shared_counter
+    so the main thread can update the progress bar.
+    """
+    buffer = []
+    conn = sqlite3.connect(db_path)
+
+    while True:
+        try:
+            result = result_queue.get(timeout=2)
+        except queue.Empty:
+            if buffer:
+                save_batch(conn, buffer)
+                with shared_counter.get_lock():
+                    shared_counter.value += len(buffer)
+                buffer = []
+            continue
+
+        if result is None:  # Sentinel
+            if buffer:
+                save_batch(conn, buffer)
+                with shared_counter.get_lock():
+                    shared_counter.value += len(buffer)
+            break
+
+        buffer.append(result)
+
+        if len(buffer) >= save_interval:
+            save_batch(conn, buffer)
+            with shared_counter.get_lock():
+                shared_counter.value += len(buffer)
+            buffer = []
+
+    conn.close()
+
+
+def save_batch(conn, buffer):
+    if not buffer:
+        return
+    try:
+        df_batch = pd.DataFrame(buffer)
+        # Use your existing save logic, but adapted for open connection
+        c = conn.cursor()
+        data = list(zip(df_batch.url, df_batch.matches.apply(json.dumps)))
+        c.executemany(
+            "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)", data
+        )
+        conn.commit()
+        print(f"  💾 Saved batch of {len(buffer)} records")
+    except Exception as e:
+        print(f"DB Write Error: {e}")
+
+
+# =============================================================================
+# NEW MAIN PROCESS LOOP
+# =============================================================================
+
+
+def process_producer_consumer():
+    manager = mp.Manager()
+
+    # 1. Setup Queues
+    url_queue = manager.Queue()
+    raw_queue = manager.Queue(maxsize=CHUNK_SIZE)
+    result_queue = manager.Queue()
+
+    # 2. Shared Stats for TQDM
+    # This allows the DB writer to tell the Main Thread "I finished X items"
+    items_processed = manager.Value("i", 0)
+
+    # 3. Populate Queue
+    processed_set = get_processed_urls()
+    print("Populating Queue...")
+    initial_count = 0
+    for r in existing_report_df.itertuples(index=False):
+        if r.url and r.url not in processed_set:
+            url_queue.put(r.url)
+            initial_count += 1
+    print(f"Queue populated with {initial_count} reports.")
+
+    if initial_count == 0:
+        print("Nothing to process.")
+        return
+
+    # 4. Start Workers
+    # Pass 'items_processed' to the DB writer
+    db_thread = threading.Thread(
+        target=db_writer_worker, args=(result_queue, DB_PATH, items_processed)
+    )
+    db_thread.start()
+
+    parsers = []
+    for _ in range(NUM_PARSERS):
+        p = mp.Process(target=parse_worker, args=(raw_queue, result_queue))
+        p.start()
+        parsers.append(p)
+
+    rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT)
+    fetchers = []
+    stop_event = threading.Event()
+
+    for _ in range(NUM_FETCHERS):
+        t = threading.Thread(
+            target=fetch_worker, args=(url_queue, raw_queue, rate_limiter, stop_event)
+        )
+        t.start()
+        fetchers.append(t)
+
+    # 5. Monitoring Loop (The "Main Thread")
+    # This replaces the simple "while" loop with a rich TQDM bar
+
+    last_save_time = time.time()
+
+    with tqdm(total=initial_count, unit="files", smoothing=0.1) as pbar:
+        try:
+            while True:
+                time.sleep(1)  # Refresh stats every second
+
+                # A. Update Progress Bar
+                current_done = items_processed.value
+                pbar.n = current_done
+                pbar.refresh()
+
+                # B. Update Stats (Postfix)
+                # Calculate queue depths
+                q_rem = url_queue.qsize() if hasattr(url_queue, "qsize") else "N/A"
+                inv_size = raw_queue.qsize() if hasattr(raw_queue, "qsize") else "N/A"
+
+                pbar.set_postfix(
+                    remaining=q_rem,
+                    inventory=f"{inv_size}/{CHUNK_SIZE}",  # How full is the warehouse?
+                    sleep=f"{rate_limiter.value:.2f}s",  # Current Rate Limit
+                )
+
+                # C. Check Backup Trigger (Your AWS/Colab Requirement)
+                if IS_COLAB and (
+                    time.time() - last_save_time > DRIVE_SAVE_INTERVAL_SECONDS
+                ):
+                    pbar.write("  💾 Triggering Background Backup...")
+                    try:
+                        subprocess.Popen(
+                            SAVE_SHELL_CMD,
+                            shell=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                        last_save_time = time.time()
+                    except Exception as e:
+                        pbar.write(f"  ⚠️ Backup failed: {e}")
+
+                # D. Exit Condition
+                # We stop when the DB writer has processed every item we started with
+                if current_done >= initial_count:
+                    break
+
+                # Fallback: if queue is empty and workers are idle (optional safety)
+                if url_queue.empty() and raw_queue.empty() and result_queue.empty():
+                    # Give it a few seconds to settle
+                    time.sleep(5)
+                    if url_queue.empty() and raw_queue.empty() and result_queue.empty():
+                        break
+
+        except KeyboardInterrupt:
+            pbar.write("Stopping pipeline...")
+
+        finally:
+            # SHUTDOWN SEQUENCE
+            stop_event.set()
+            for t in fetchers:
+                t.join()
+
+            for _ in range(NUM_PARSERS):
+                raw_queue.put(None)
+            for p in parsers:
+                p.join()
+
+            result_queue.put(None)
+            db_thread.join()
+
+            # Final Save
+            if IS_COLAB:
+                print("Performing final backup...")
+                subprocess.run(SAVE_SHELL_CMD, shell=True)
+
+            print("Pipeline finished.")
+
 # =============================================================================
 # MAIN EXECUTION
 # =============================================================================
@@ -1246,8 +1493,8 @@ if __name__ == "__main__":
     print(f"STEP 2: Perform keyword extraction in parallel")
     print("=" * 70)
     # Uncomment to run:
-    process_all_reports_fully()
-
+    # process_all_reports_fully()
+    process_producer_consumer()
     print("\n" + "=" * 70)
     print("All done!")
     print("=" * 70)
