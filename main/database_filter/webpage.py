@@ -1362,23 +1362,23 @@ def process_producer_consumer():
         if (r.url,) not in processed_set and r.url
     ]
     total_files_in_manifest = len(existing_report_df)
-    already_in_warehouse = len(processed_set)
+    already_in_batch = len(processed_set)
 
     print("=" * 60)
     print(f"   • Total Files in Manifest:    {total_files_in_manifest:,}")
-    print(f"   • Already Processed:  {already_in_warehouse:,}")
+    print(f"   • Already Processed:  {already_in_batch:,}")
     print(
-        f"   • Net Requirements (ToDo):    {total_files_in_manifest - already_in_warehouse:,}"
+        f"   • Net Requirements (ToDo):    {total_files_in_manifest - already_in_batch:,}"
     )
     print("=" * 60)
     # ------------------------------------
 
     print("Populating Queue with Net Requirements...")
     initial_count = 0
-    for r in existing_report_df.itertuples(index=False):
-        if r.url and r.url not in reports_to_process:
-            url_queue.put(r.url)
-            initial_count += 1
+    url_queue = manager.Queue()
+    for url in reports_to_process:
+        url_queue.put(url)
+        initial_count += 1
     print(f"Queue populated with {initial_count} reports.")
 
     if initial_count == 0:
@@ -1431,7 +1431,7 @@ def process_producer_consumer():
 
                 pbar.set_postfix(
                     remaining=q_rem,
-                    inventory=f"{inv_size}/{CHUNK_SIZE}",  # How full is the warehouse?
+                    inventory=f"{inv_size}/{CHUNK_SIZE}",  # How full is the batch?
                     sleep=f"{rate_limiter.value:.2f}s",  # Current Rate Limit
                 )
 
