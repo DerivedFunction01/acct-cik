@@ -45,6 +45,7 @@ from derivative_regex import (
 # =============================================================================
 
 VERB_REGEX = re.compile(rf"\b{STRONG_VERB_PATTERN}\b", re.IGNORECASE)
+LEVEL_REGEX = re.compile(r"\bLevel\s+[123]\b", re.IGNORECASE)
 
 # 2. QUANTITATIVE INDICATORS (Money & Metrics)
 # Matches: "$100", "5%", "Notional", "Fair Value"
@@ -74,6 +75,15 @@ def check_strong_signal(sentence: str) -> bool:
     """
     Returns True if the sentence contains at least one strong signal of activity.
     """
+    # -----------------------------------------------------------
+    # 0. THE LEVEL TRAP (New)
+    # -----------------------------------------------------------
+    # If the sentence talks about "Level 1/2/3", it is almost always
+    # valuation policy UNLESS it has a specific number ("$50 million").
+    # We enforce this strictly to kill "we use Level 2 inputs" noise.
+    if LEVEL_REGEX.search(sentence):
+        if not QUANT_REGEX.search(sentence):
+            return False  # KILL IT (Policy)
     # 1. Check Action Verbs ("We use...")
     if VERB_REGEX.search(sentence):
         return True
