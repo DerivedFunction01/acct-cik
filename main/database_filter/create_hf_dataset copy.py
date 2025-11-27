@@ -1381,7 +1381,6 @@ def get_dynamic_window(
 
     window = f"{prev_block}<<>>{target_sent}<<>>{next_block}"
 
-    # Inside get_dynamic_window, after building window string:
     if apply_numeric_substitution and NUMERIC_SUBSTITUTION_CONFIG["enabled"]:
         all_sentences = prev_parts + [target_sent] + next_parts
 
@@ -1399,11 +1398,12 @@ def get_dynamic_window(
         # Apply all substitutions
         window = engine.substitute_all(window)
 
-        # Currency substitution (the )
+        # Currency substitution
         curr_sub = DynamicCurrencySubstitution()
         window, _ = curr_sub.substitute_all(window)
-        
-    re.sub("<<>>", SEP_TOKEN, window)
+    
+    # Replace markers with SEP token
+    window = re.sub("<<>>", SEP_TOKEN, window)
 
     return window
 
