@@ -223,11 +223,15 @@ COMMON_COMMODITIES = [
 MIN_SENTENCE_LENGTH = 15
 MAX_SENTENCE_LENGTH = 800 # A very long sentence is probably a table that became a sentence
 
+# 1. Complex Debt Term (Requires Lookbehind)
+IR_DEBT_LOOKBEHIND_TERM = (# One regex per exclusion
+    r"(?<!convertible\s)(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
+    r"(?<!foreign\s)(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
+    r"(?<!denominated\s)(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
+)
 
-# Interest Rate context clues
-IR_CONTEXT_TERMS = [
-    # 1. Debt Instruments (The Underlying)
-    r"(?<!(?:convertible|foreign|denominated)\s+)(?<!\s+denominated\s+)(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|notes?|debentures?)"
+# 2. All Other IR Context Terms (No Lookbehind Required)
+IR_OTHER_TERMS = [
     r"credit\s+facilit(?:y|ies)",
     r"revolving\s+credits?",
     r"term\s+loans?",
@@ -236,8 +240,8 @@ IR_CONTEXT_TERMS = [
     r"commercial\s+papers?",
     r"capital\s+leases?",
     r"mortgages?",
-    # 2. Rate Types & Benchmarks
-    r"(?:(?:floating|variable|fixed|benchmark|interest|treasury|forward|prime)[- ]rates?|fed(?:eral)?\s+funds\s+rates?)"
+    # Rate Types & Benchmarks
+    r"(?:(?:floating|variable|fixed|benchmark|interest|treasury|forward|prime)[- ]rates?|fed(?:eral)?\s+funds\s+rates?)",
     r"SOFR",
     r"SONIA",
     r"LIBOR",
@@ -252,12 +256,14 @@ IR_CONTEXT_TERMS = [
     r"TIBOR",
     r"PRIBOR",
     r"MOSPRIME",
-    # 3. Mechanics (High Precision)
-    r"(?:pay|receive)[- ](?:fixed|variable|floating)"
+    # Mechanics (High Precision)
+    r"(?:pay|receive)[- ](?:fixed|variable|floating)",
     r"interest\s+payments?",
     r"basis\s+points?",
     r"weighted\s+average\s+interest",
+    # Add any long/specific terms that need priority, like "credit facility"
 ]
+IR_CONTEXT = f"(?:{IR_DEBT_LOOKBEHIND_TERM}|{build_alternation(IR_OTHER_TERMS)})"
 
 
 @dataclass
@@ -572,11 +578,10 @@ EQ_CONTEXT_TERMS = [
     r"stock",
 ]
 
-# ... (Rest of file) ...
-# Build compiled regex patterns
 IR_CONTEXT_REGEX = re.compile(
-    r"\b" + build_alternation(IR_CONTEXT_TERMS) + r"\b", re.IGNORECASE
+    r"\b" + IR_CONTEXT + r"\b", re.IGNORECASE
 )
+
 FX_CONTEXT_REGEX = re.compile(
     r"\b" + build_alternation(build_fx_context_terms_advanced()) + r"\b", re.IGNORECASE
 )
