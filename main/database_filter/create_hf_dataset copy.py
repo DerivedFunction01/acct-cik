@@ -542,11 +542,13 @@ def _get_currency_patterns() -> Dict[str, re.Pattern]:
     names = "|".join(re.escape(c.full_name) for c in all_currencies)
     locations = "|".join(re.escape(c.location) for c in all_currencies)
     codes = "|".join(c.code for c in all_currencies)
+    adjectives = "|".join(re.escape(c.adjective) for c in all_currencies)
 
     _CURRENCY_PATTERNS_CACHE = {
         "name": re.compile(rf"\b({names})\b", re.IGNORECASE),
         "location": re.compile(rf"\b({locations})\b", re.IGNORECASE),
         "code": re.compile(rf"\b({codes})\b", re.IGNORECASE),
+        "adjective": re.compile(rf"\b({adjectives})\b", re.IGNORECASE),
     }
 
     return _CURRENCY_PATTERNS_CACHE
@@ -572,7 +574,7 @@ class DynamicCurrencySubstitution:
         self.substitution_log = []
         
         # Cache for the regex patterns so we don't rebuild them every row
-        self._patterns_cache = None
+        self._patterns_cache = _get_currency_patterns()
 
     def build_currency_regex_patterns(self) -> Dict[str, re.Pattern]:
         """
@@ -580,19 +582,8 @@ class DynamicCurrencySubstitution:
         """
         if self._patterns_cache:
             return self._patterns_cache
-
-        # Escape strings to be safe for regex
-        names = "|".join(re.escape(c.full_name) for c in self.currency_pool)
-        locations = "|".join(re.escape(c.location) for c in self.currency_pool)
-        codes = "|".join(re.escape(c.code) for c in self.currency_pool)
-        adjectives = "|".join(re.escape(c.adjective) for c in self.currency_pool)
-
-        self._patterns_cache = {
-            "name": re.compile(rf"\b({names})\b", re.IGNORECASE),
-            "location": re.compile(rf"\b({locations})\b", re.IGNORECASE),
-            "code": re.compile(rf"\b({codes})\b", re.IGNORECASE),
-            "adjective": re.compile(rf"\b({adjectives})\b", re.IGNORECASE),
-        }
+        else:
+            self._patterns_cache = _get_currency_patterns()
         return self._patterns_cache
 
     def detect_currencies(self, text: str) -> Dict[str, List[Tuple[str, Currency]]]:
