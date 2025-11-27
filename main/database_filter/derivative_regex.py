@@ -617,7 +617,18 @@ CP_CONTEXT_TERMS = (
     + COMMON_COMMODITIES
     + ["commodity"]
 )
-
+VALUATION_MODELS = [
+    # The Gold Standard for Equity Options/Warrants
+    r"Black[- ]Scholes(?:[- ]Merton)?",
+    r"BSM",  # Abbreviation for Black-Scholes-Merton
+    # Used for path-dependent equity features (e.g., Market conditions, TSR awards)
+    r"Monte[- ]Carlo(?:[- ]simulations?)?",
+    # Used for American options (exercisable early) and Convertibles
+    r"Binomial(?:[- ]Lattice)?\s+models?",
+    r"Lattice\s+models?",
+    # General descriptive
+    r"option[- ]pricing\s+models?",
+]
 EQ_CONTEXT_TERMS = [
     r"stock\s+prices?",
     r"share\s+prices?",
@@ -636,6 +647,7 @@ EQ_CONTEXT_TERMS = [
     r"primary\s+market|secondary\s+market",  # Market Types
     r"stock",
 ]
+EQ_CONTEXT_TERMS += VALUATION_MODELS
 
 IR_CONTEXT_REGEX = re.compile(
     r"\b" + IR_CONTEXT + r"\b", re.IGNORECASE
