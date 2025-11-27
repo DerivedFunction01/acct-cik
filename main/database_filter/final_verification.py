@@ -203,7 +203,7 @@ def write_batch(batch):
                 all_discards.extend(b[5])
         if all_discards:
             c.executemany(
-                "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (NULL, ?, ?, ?)",
+                "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
                 all_discards,
             )
         conn.commit()
