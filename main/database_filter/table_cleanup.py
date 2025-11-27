@@ -334,7 +334,7 @@ def is_text_container_table(table_text: str, verbose: bool = False) -> bool:
     for row in all_rows:
         for cell in row:
             sentences = re.findall(r"[.!?]\s+[A-Z]", cell)
-            if len(sentences) > 2:
+            if len(sentences) > 3:
                 sentence_count += 1
 
     if sentence_count > len(all_rows) * 0.3:
