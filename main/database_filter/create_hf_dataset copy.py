@@ -205,7 +205,13 @@ MONTH_REGEX = re.compile(
 class NumericSubstitutionEngine:
     """
     Performs dynamic numeric substitution on text windows.
-    Updated to handle 'May' ambiguity (ignores lowercase 'may').
+
+    Strategy:
+    - Years: Collect all, pick random base year, apply ±1 uniformly
+    - Months: Collect all, pick random base month, preserve offsets
+    - Numbers (non-zero): Apply ±5% uniform multiplicative perturbation
+    - Zeros: Skip
+    - Validation: Check perturbed years stay within window context range
     """
 
     def __init__(self, config=None, random_seed=None):
@@ -712,7 +718,7 @@ class ContextScorer:
 
         matches = regex.findall(text)
         unique_hits = set(m.lower() for m in matches)
-        score = len(unique_hits) * 10
+        score = len(unique_hits) * 15
 
         # 3. Context Boosters
         if re.search(r"\b(hedg|mitigat|manag)(?:e|es|ed|ing)\b", text, re.I):
