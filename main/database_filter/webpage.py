@@ -1622,6 +1622,10 @@ def rate_adjuster_worker(
                 current_rate, target_rate
             )
 
+            # Log periodically (every 5 seconds)
+            if now - last_recovery_check > 5:
+                last_recovery_check = now
+
         except Exception as e:
             print(f"⚠️  Rate adjuster error: {e}")
 
