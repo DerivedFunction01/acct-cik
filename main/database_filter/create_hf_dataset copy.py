@@ -776,7 +776,7 @@ class ContentDeduplicator:
 class ContextScorer:
     def score(self, text: str, label: str) -> int:
         if len(text) > 600 or len(text) < 25:
-            return -1
+            return -2
 
         # 1. Check STRICT Context (The "Smoking Gun")
         # If we find a strict term (e.g., "amortization of debt" for IR), return immediate high score
