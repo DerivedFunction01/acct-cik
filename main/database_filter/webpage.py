@@ -1220,10 +1220,6 @@ def process_all_reports_fully():
 # INITIALIZATION
 # =============================================================================
 # %%
-create_db()
-existing_report_df = fetch_report_data()
-print(f"Found {len(existing_report_df)} reports in database")
-
 
 def fetch_worker(url_queue, raw_queue, rate_limiter, stop_event):
     """
@@ -1521,12 +1517,15 @@ def process_producer_consumer():
                 print("Performing final backup...")
                 subprocess.run(SAVE_SHELL_CMD, shell=True)
 
-
+existing_report_df = pd.DataFrame()
 # =============================================================================
 # MAIN EXECUTION
 # =============================================================================
 # %%
 if __name__ == "__main__":
+    create_db()
+    existing_report_df = fetch_report_data()
+    print(f"Found {len(existing_report_df)} reports in database")
     NUM_FETCHERS, NUM_PARSERS, CHUNK_SIZE, SEC_RATE_LIMIT = get_system_config()
     all_derivatives_df = pd.read_csv(ALL_FIRMS_DATA)
     if IS_COLAB:
