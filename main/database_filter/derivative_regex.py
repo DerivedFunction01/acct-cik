@@ -575,7 +575,7 @@ CP_CONTEXT_TERMS = [
      "joules", "gigajoules"
 ] + COMMON_COMMODITIES + ["commodity"]
 
-EQ_CONTEXT_TERMS_EXPANDED = [
+EQ_CONTEXT_TERMS = [
     r"stock\s+prices?",
     r"share\s+prices?",
     r"equity\s+(?:awards?|grants?|compensation|options?|derivatives?|capital)",
