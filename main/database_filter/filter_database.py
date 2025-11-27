@@ -1085,6 +1085,8 @@ def filter_matches_with_disambiguation(
                         text.append(sentence)
 
                 # 2. DANGEROUS INSTRUMENTS (EQ, Generics)
+                elif EQ_REGEX.search(sentence):
+                    text.append(sentence)
                 # "Stock Options" or "Swaps" could be compensation.
                 # We require Strict Accounting proof ("hedge accounting", "derivative liability").
                 elif EQ_SOFT_REGEX.search(sentence) or LOOSE_GEN_REGEX.search(sentence):
