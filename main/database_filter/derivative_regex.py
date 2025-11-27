@@ -575,18 +575,23 @@ CP_CONTEXT_TERMS = [
      "joules", "gigajoules"
 ] + COMMON_COMMODITIES + ["commodity"]
 
-EQ_CONTEXT_TERMS = [
+EQ_CONTEXT_TERMS_EXPANDED = [
     r"stock\s+prices?",
     r"share\s+prices?",
-    r"equity\s+(?:awards?|grants?|compensation)",
+    r"equity\s+(?:awards?|grants?|compensation|options?|derivatives?|capital)",
     r"stock\s+markets?",
-    r"equity\s+security",
-    r"market\s+index",
-    r"S&P\s+500",
-    r"Nasdaq",
-    r"Dow\s+Jones",
+    r"equity\s+securit(?:y|ies)",
+    r"market\s+index(?:es)?",
+    r"S\&P\s+500",
+    r"Nasdaq(?:\s+Composite|\s+Index)?",
+    r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
     r"dividend\s+yields?",
-    r"warrants"
+    r"warrants?",
+    r"(?:convertible\s+(?:debt|notes?|bonds?|securit(?:y|ies)))",  # Convertible Securities
+    r"(?:preferred|common)\s+stock",  # Stock Classes
+    r"initial\s+public\s+offering|IPO",  # IPO
+    r"primary\s+market|secondary\s+market",  # Market Types
+    r"stock",
 ]
 
 # ... (Rest of file) ...
