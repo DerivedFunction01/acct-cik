@@ -852,9 +852,10 @@ class ThreadSafeRateLimiter:
     """
     A thread-safe class to manage a shared rate limit value using atomic
     update methods to prevent race conditions.
-    
+
     Distinguishes between 429 (rate limit) and timeout errors.
     """
+
     def __init__(self, initial_rate_limit: float):
         self._rate_limit = initial_rate_limit
         self._lock = threading.Lock()
@@ -885,7 +886,9 @@ class ThreadSafeRateLimiter:
             # DO NOT increase sleep time for timeouts - they're network issues, not rate limits
             # Just log it for debugging
             if self._timeout_count % 10 == 0:
-                print(f"⏱️  {self._timeout_count} timeouts detected (not increasing sleep rate)")
+                print(
+                    f"⏱️  {self._timeout_count} timeouts detected (not increasing sleep rate)"
+                )
 
     def adjust(self, current_rate: float, target_rate: float):
         """Atomically adjust the rate limit based on performance."""
@@ -895,29 +898,41 @@ class ThreadSafeRateLimiter:
             # Exit recovery mode if no 429s for 30 seconds
             if self._recovery_mode and time_since_last_429 > 30:
                 self._recovery_mode = False
-                print(f"✓ Exiting recovery mode. Resetting toward {self._initial_rate_limit:.2f}s")
-
+                
             # Determine target rate based on recovery status
-            target_rate_adjusted = target_rate * 0.5 if self._recovery_mode else target_rate
+            target_rate_adjusted = (
+                target_rate * 0.5 if self._recovery_mode else target_rate
+            )
 
-            # --- Main Adjustment Logic ---
-            if current_rate > target_rate_adjusted * 1.05:  # Over target
-                # Multiplicatively increase sleep time to slow down
-                increase_factor = 1.0 + min((current_rate - target_rate_adjusted) / target_rate_adjusted, 1.0) * 0.1
+            # --- Main Adjustment Logic (Performance-based) ---
+            # This is key: adjust sleep based on ACTUAL vs TARGET fetch rate
+            if current_rate > target_rate_adjusted * 1.05:  # Over target - TOO FAST
+                # Fetching too fast - increase sleep to slow down
+                increase_factor = (
+                    1.0
+                    + min(
+                        (current_rate - target_rate_adjusted) / target_rate_adjusted,
+                        1.0,
+                    )
+                    * 0.1
+                )
                 self._rate_limit *= increase_factor
 
-            elif current_rate < target_rate_adjusted * 0.95:  # Under target
+            elif current_rate < target_rate_adjusted * 0.95:  # Under target - TOO SLOW
+                # Fetching too slow - decrease sleep to speed up
+                # NO LOWER BOUND - can go below initial rate if needed!
                 if not self._recovery_mode:
-                    # Only decrease sleep time if not in recovery
-                    self._rate_limit = max(0, self._rate_limit * 0.98)
+                    decrease_factor = 0.98
+                    self._rate_limit *= decrease_factor
 
             # --- Gradual Recovery Logic ---
-            # AGGRESSIVE decay back to initial rate limit (not in recovery mode)
+            # Only decay back to initial if we're above it AND not in recovery
             if not self._recovery_mode and self._rate_limit > self._initial_rate_limit:
-                # Decay 10% per adjustment (~2.5% per second with 0.25s check interval)
                 gap = self._rate_limit - self._initial_rate_limit
                 decay_step = 0.10  # 10% decay per check
-                self._rate_limit = max(self._initial_rate_limit, self._rate_limit - gap * decay_step)
+                self._rate_limit = max(
+                    self._initial_rate_limit, self._rate_limit - gap * decay_step
+                )
 
             return self._rate_limit, self._recovery_mode, target_rate_adjusted
 
