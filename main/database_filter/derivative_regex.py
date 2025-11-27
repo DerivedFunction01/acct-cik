@@ -550,14 +550,73 @@ HEDGING_CONTEXT_TERMS = [
     r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
 ]
 
-CP_CONTEXT_TERMS = [
-    # Physical quantity units
-    "barrels", "bbl", "bbl/d",
-    "btu", "gj", "mmbtu", "mmbtu/h", "mwh",
-    "bushels", "cwt", "hundredweights", "pecks",
-    "ounces", "pounds", "tons", "tonne", "long tons", "short tons",
-     "joules", "gigajoules"
-] + COMMON_COMMODITIES + ["commodity"]
+CP_CONTEXT_TERMS = (
+    [
+        # Physical quantity units
+        "barrels",
+        "bbl",
+        "bbl/d",
+        "btu",
+        "gj",
+        "mmbtu",
+        "mmbtu/h",
+        "mwh",
+        "bushels",
+        "cwt",
+        "hundredweights",
+        "pecks",
+        "ounces",
+        "pounds",
+        "tons",
+        "tonne",
+        "long tons",
+        "short tons",
+        "joules",
+        "gigajoules",
+        "mcf",
+        "mmcf",
+        "bcf",  # thousand/million/billion cubic feet
+        "therm",
+        "therms",
+        "dth",
+        "dekatherms",
+        # Power Grids / ISOs (Strongest context for "power swaps")
+        "PJM",
+        "ERCOT",
+        "MISO",
+        "SPP",
+        "CAISO",
+        "NYISO",
+        "ISO-NE",
+        # Load Types
+        "baseload",
+        "peak load",
+        "off-peak",
+        "on-peak",
+        "capacity",
+        # Gas/NGL Hubs & Benchmarks
+        "Henry Hub",
+        "WTI",
+        "West Texas Intermediate",
+        "Cushing",
+        "Mont Belvieu",
+        "TTF",
+        "JKM",
+        "Dominion South",
+        "Platts",
+        "Argus",
+        "OPIS",  # Pricing reporting agencies
+        "Brent"
+        # Exchanges
+        # Exchanges
+        "LME", "London Metal Exchange",
+        "CBOT", "Chicago Board of Trade",
+        "ICE Futures", "Intercontinental Exchange",
+        "COMEX", "NYMEX",
+    ]
+    + COMMON_COMMODITIES
+    + ["commodity"]
+)
 
 EQ_CONTEXT_TERMS = [
     r"stock\s+prices?",
