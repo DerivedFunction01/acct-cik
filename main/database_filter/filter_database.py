@@ -89,6 +89,7 @@ from derivative_regex import (
     validate_instrument_retention,
     MAX_SENTENCE_LENGTH,
     ANCHOR_TAG,
+    STRICT_CONTEXT_MAP,
 )
 
 # =============================================================================
@@ -666,30 +667,62 @@ def scrub_unmatched_generics(text: str, category: str) -> str:
     # 5. Cleanup whitespace
     return cleanup_fragment(scrubbed_text)
 
-
 def get_sentence_categories(
     sentence: str, context_sentences: Optional[List[str]] = None
 ) -> set:
     """
-    Determines category using Priority Consumption.
-    FX matches are found and removed first, preventing IR from matching the leftovers.
+    Determines category using:
+    1. Strict Context (The Bypass) -> FX > CP > EQ > IR
+    2. Instrument Detection
+    3. Priority Consumption
+    4. Soft Context Tie-Breaking
     """
     if context_sentences is None:
         context_sentences = []
 
-    # Combined text for context checks
     full_text = (
-        sentence
-        if not context_sentences
-        else sentence + " " + " ".join(context_sentences)
+        sentence + " " + " ".join(context_sentences) if context_sentences else sentence
     )
-    
     scores = {"ir": 0, "fx": 0, "cp": 0, "eq": 0, "gen": 0}
 
-    # --- PHASE 1: DIRECT INSTRUMENT DETECTION (Unchanged) ---
-    # Instruments (swaps, options) are specific enough that they rarely conflict 
-    # in this way, but you can apply the same logic here if needed.
-    for cat, regex in [("ir", IR_REGEX), ("fx", FX_REGEX), ("cp", CP_REGEX), ("eq", EQ_REGEX)]:
+    # ═══════════════════════════════════════════════════════════
+    # PHASE 0: STRICT CONTEXT BYPASS (New)
+    # ═══════════════════════════════════════════════════════════
+    # If we find "Convertible Debt" or "Currency Risk", we know the category.
+    # We assign a massive score to skip ML.
+
+    # Check current sentence ONLY for strict context (context window is too noisy for strictness)
+    strict_hits = set()
+    for cat, regex in STRICT_CONTEXT_MAP.items():
+        if regex.search(sentence):
+            strict_hits.add(cat)
+
+    if strict_hits:
+        # COLLISION LOGIC: Define the Hierarchy
+        # 1. FX overrides CP/IR (e.g. "Currency risk of corn")
+        # 2. EQ overrides IR (e.g. "Convertible debt" - debt is IR, but feature is EQ)
+
+        if "fx" in strict_hits:
+            scores["fx"] += 2000
+        elif "eq" in strict_hits:
+            scores["eq"] += 2000
+        elif "cp" in strict_hits:
+            scores["cp"] += 2000
+        elif "ir" in strict_hits:
+            scores["ir"] += 2000
+
+        # If we found a strict context, we can often stop here for classification purposes,
+        # BUT we still run instrument detection to capture specific headers/suffixes.
+
+    # ═══════════════════════════════════════════════════════════
+    # PHASE 1: DIRECT INSTRUMENT DETECTION
+    # ═══════════════════════════════════════════════════════════
+    for cat, regex in [
+        ("ir", IR_REGEX),
+        ("fx", FX_REGEX),
+        ("cp", CP_REGEX),
+        ("eq", EQ_REGEX),
+    ]:
         matches = regex.findall(sentence)
         for match in matches:
             if HIGH_PRECISION_SUFFIXES.search(match):
@@ -697,62 +730,53 @@ def get_sentence_categories(
             else:
                 scores[cat] = max(scores[cat], 100)
 
-    # --- PHASE 2: PRIORITY CONSUMPTION FOR CONTEXT ---
-    # Only run this if we have a generic instrument (like "swaps")
-    if LOOSE_GEN_REGEX.search(sentence):
+    # ═══════════════════════════════════════════════════════════
+    # PHASE 2: PRIORITY CONSUMPTION (For Soft Context)
+    # ═══════════════════════════════════════════════════════════
+    # Only run if we have generic instrument OR no strong signals yet
+    if LOOSE_GEN_REGEX.search(sentence) or max(scores.values()) < 1000:
         scores["gen"] = max(scores["gen"], 50)
 
-        # 1. Define Priority: Specific (FX/EQ/CP) -> Generic (IR)
-        # IR must be LAST so it only catches "leftover" debt terms
-        priority_order = ["fx", "eq", "cp", "ir"] 
-        
-        # 2. Create a working copy of the text to "consume"
-        remaining_text = sentence # Or full_text if you use context window
-        
+        # Priority: FX -> EQ -> CP -> IR
+        # This removes "Currency" before IR sees "Rate", etc.
+        priority_order = ["fx", "eq", "cp", "ir"]
+        remaining_text = sentence
+
         for cat in priority_order:
-            ctx_regex = CATEGORY_CONTEXT_MAP.get(cat)
+            ctx_regex = CATEGORY_CONTEXT_MAP.get(cat)  # Soft Regex
             if ctx_regex:
-                # Search in the text that remains after previous deletions
                 matches = list(ctx_regex.finditer(remaining_text))
-                
                 if matches:
-                    # Logic to calculate score (simplified for brevity)
-                    # You can use the proximity logic here if needed
                     scores[cat] += 50 * len(matches)
-                    
-                    # THE KEY STEP: CONSUME THE MATCH
-                    # Replace the matched phrase with whitespace to preserve indices roughly
-                    # or just remove it. Re-subbing is safest.
                     remaining_text = ctx_regex.sub(" ", remaining_text)
 
-    # --- PHASE 3: CONTEXT TIE-BREAKER ---
-    if context_sentences:
+    # ═══════════════════════════════════════════════════════════
+    # PHASE 3: CONTEXT WINDOW (Tie-Breaker)
+    # ═══════════════════════════════════════════════════════════
+    if context_sentences and max(scores.values()) < 1000:
         for cat in ["fx", "cp", "eq", "ir"]:
             context_regex = CATEGORY_CONTEXT_MAP.get(cat)
             if context_regex and context_regex.search(full_text):
-                # Tiny weight just to break ties if everything else is 0
-                scores[cat] += len(context_regex.findall(full_text))
+                scores[cat] += 10  # Low weight
 
-    # --- PHASE 4: WINNER DETERMINATION ---
+    # ═══════════════════════════════════════════════════════════
+    # WINNER DETERMINATION
+    # ═══════════════════════════════════════════════════════════
     active_scores = {cat: score for cat, score in scores.items() if score > 0}
-
     if not active_scores:
         return {"other"}
 
     max_score = max(active_scores.values())
 
-    # Dynamic Threshold:
-    # If we found a Tier 1 match (1000), ignore anything below Tier 2 (100).
-    # If we found a Proximity match (400), ignore weak context (1).
-    threshold = 50  # Base threshold
+    # If Strict Context (2000) or Strict Instrument (1000) found,
+    # filter out the noise.
+    threshold = 50
     if max_score >= 1000:
-        threshold = 500
-    elif max_score >= 200:
-        threshold = 100
+        threshold = 500  # Kill soft context noise
 
     top_cats = {cat for cat, score in active_scores.items() if score >= threshold}
-
     specific = top_cats - {"gen"}
+
     return specific if specific else top_cats
 
 
