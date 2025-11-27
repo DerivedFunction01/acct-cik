@@ -38,8 +38,8 @@ from derivative_regex import (
     NEGATIVE_INTENT_REGEX,
     ABSENCE_REGEX,
     DID_NOT_HOLD_REGEX,
-    check_for_instrument,
-    validate_instrument_retention
+    validate_instrument_retention,
+    NON_DERIVATIVE_REGEX,
 )
 
 # =============================================================================
@@ -197,6 +197,9 @@ def process_item(item):
             # 5. Check DID NOT HOLD (Did not enter into derivatives)
             if DID_NOT_HOLD_REGEX.search(sent):
                 discards.append((url, original, "linguistic_did_not_hold"))
+                continue
+            if NON_DERIVATIVE_REGEX.search(sent):
+                discards.append((url, original, "linguistic_non_derivative"))
                 continue
 
             # 6. TERMINATION (Explicitly kept)

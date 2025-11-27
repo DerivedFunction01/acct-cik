@@ -1845,6 +1845,45 @@ def build_definition_regex() -> re.Pattern:
     combined = "|".join(f"(?:{p})" for p in pattern_list)
     return re.compile(combined, re.IGNORECASE | re.VERBOSE)
 
+def build_non_derivative_classification_regex() -> re.Pattern:
+    """
+    Matches statements where instruments are explicitly NOT classified/considered derivatives.
+    Targets: "are not considered derivatives", "is not classified as a derivative"
+    """
+    # Verbs that link the subject to the classification
+    verbs = [
+        r"considered",
+        r"classified",
+        r"accounted\s+for",
+        r"designated",
+        r"treated",
+        r"defined",
+        r"viewed",
+    ]
+    
+    # The classification target (singular or plural)
+    targets = [
+        r"derivatives?",
+        r"derivative\s+instruments?",
+        r"financial\s+instruments?", # optional, but common in this context
+        r"hedges?",
+        r"hedging\s+instruments?",
+    ]
+
+    verb_pat = build_alternation(verbs)
+    target_pat = build_alternation(targets)
+
+    # Structure: (Auxiliary Negation) + (Classification Verb) + (Optional 'as a') + (Target)
+    return re.compile(
+        rf"\b(?:are|is|were|was)\s+not\s+"
+        rf"{verb_pat}\s+"
+        rf"(?:as\s+)?(?:a\s+|an\s+)?"
+        rf"{target_pat}\b",
+        re.IGNORECASE
+    )
+
+# Compile and Export
+NON_DERIVATIVE_REGEX = build_non_derivative_classification_regex()
 
 # Compile at module load
 DEFINITION_INDICATORS = build_definition_regex()
@@ -2305,4 +2344,5 @@ __all__ = [
     "HIGH_PRECISION_SUFFIXES",
     "BASE_REGEX",
     "VERB_USE_REGEX",
+    "NON_DERIVATIVE_REGEX",
 ]
