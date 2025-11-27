@@ -1408,7 +1408,6 @@ def save_batch(conn, buffer):
             "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)", data
         )
         conn.commit()
-        print(f"  💾 Saved batch of {len(buffer)} records")
     except Exception as e:
         print(f"DB Write Error: {e}")
 
