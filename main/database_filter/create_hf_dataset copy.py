@@ -158,7 +158,6 @@ LABEL_TO_CONFLICT_REGEX = {
 # HELPER CLASSES
 # =============================================================================
 
-# Add these regex patterns after the NUMERIC_SUBSTITUTION_CONFIG section (around line 100)
 MONTH_NAMES = {
     "january": 1,
     "february": 2,
@@ -189,11 +188,9 @@ MONTH_ABBREVIATIONS = {
     "dec": 12,
 }
 
-# Map month number (1-12) back to name/abbrev
 MONTH_NUMBER_TO_NAME = {v: k for k, v in MONTH_NAMES.items()}
 MONTH_NUMBER_TO_ABBREV = {v: k for k, v in MONTH_ABBREVIATIONS.items()}
 
-# Regex to match month names, abbreviations, or numeric months
 MONTH_REGEX = re.compile(
     r"\b("
     + "|".join(list(MONTH_NAMES.keys()) + list(MONTH_ABBREVIATIONS.keys()))
@@ -293,7 +290,6 @@ class NumericSubstitutionEngine:
             raw_str = match.group(1)
             original_month_str = raw_str.lower()
 
-            # FIX: Skip 'may' if not capitalized
             if original_month_str == "may" and not raw_str[0].isupper():
                 return match.group(0)
 
@@ -332,7 +328,7 @@ class NumericSubstitutionEngine:
 
         return MONTH_REGEX.sub(replace_month, text)
 
-    # ========== YEAR & NUMBER METHODS (Unchanged) ==========
+    # ========== YEAR & NUMBER METHODS ==========
 
     def extract_sentence_years(self, sentences: List[str]):
         sentence_year_info = {}
@@ -464,7 +460,6 @@ _CURRENCY_PATTERNS_CACHE = None
 def _get_currency_patterns() -> Dict[str, re.Pattern]:
     """Lazy-load currency regex patterns once."""
     global _CURRENCY_PATTERNS_CACHE
-
     if _CURRENCY_PATTERNS_CACHE is not None:
         return _CURRENCY_PATTERNS_CACHE
 
@@ -479,7 +474,6 @@ def _get_currency_patterns() -> Dict[str, re.Pattern]:
         "code": re.compile(rf"\b({codes})\b", re.IGNORECASE),
         "adjective": re.compile(rf"\b({adjectives})\b", re.IGNORECASE),
     }
-
     return _CURRENCY_PATTERNS_CACHE
 
 
@@ -522,9 +516,6 @@ class DynamicCurrencySubstitution:
         """
         patterns = self.build_currency_regex_patterns()
         detected = defaultdict(list)
-
-        # Create lookup maps (lowercased keys for case-insensitive matching)
-        # Note: We iterate pool once to build these
         maps = {
             "name": {c.full_name.lower(): c for c in self.currency_pool},
             "location": {c.location.lower(): c for c in self.currency_pool},
@@ -532,29 +523,31 @@ class DynamicCurrencySubstitution:
             "adjective": {c.adjective.lower(): c for c in self.currency_pool},
         }
 
-        # 1. Names
         for match in patterns["name"].finditer(text):
             original = match.group(1)
             curr = maps["name"].get(original.lower())
-            if curr: detected["name"].append((original, curr))
+            if curr:
+                detected["name"].append((original, curr))
 
         # 2. Locations
         for match in patterns["location"].finditer(text):
             original = match.group(1)
             curr = maps["location"].get(original.lower())
-            if curr: detected["location"].append((original, curr))
+            if curr:
+                detected["location"].append((original, curr))
 
         # 3. Codes
         for match in patterns["code"].finditer(text):
             original = match.group(1)
             curr = maps["code"].get(original.upper())
-            if curr: detected["code"].append((original, curr))
+            if curr:
+                detected["code"].append((original, curr))
 
-        # 4. Adjectives
         for match in patterns["adjective"].finditer(text):
             original = match.group(1)
             curr = maps["adjective"].get(original.lower())
-            if curr: detected["adjective"].append((original, curr))
+            if curr:
+                detected["adjective"].append((original, curr))
 
         return detected
 
@@ -565,7 +558,6 @@ class DynamicCurrencySubstitution:
         if original.islower():
             return replacement.lower()
         if original[0].isupper():
-            # Capitalize each word
             return " ".join(w.capitalize() for w in replacement.split())
         return replacement
 
@@ -587,41 +579,33 @@ class DynamicCurrencySubstitution:
         for det_type, items in detected.items():
             for _, currency in items:
                 unique_detected_codes.add(currency.code)
-        
+
         if not unique_detected_codes:
             return {}
 
         n_needed = len(unique_detected_codes)
+        available = [
+            c for c in self.currency_pool if c.code not in unique_detected_codes
+        ]
 
-        # 2. Select Replacements (exclude those present in text to avoid confusion)
-        available = [c for c in self.currency_pool if c.code not in unique_detected_codes]
-        
-        # Fallback if pool exhausted
         if len(available) < n_needed:
             available = self.currency_pool
 
         replacements = self.rng.sample(available, min(n_needed, len(available)))
-        
-        # Create Map: Original Currency Code -> New Currency Object
-        # e.g., 'PLN' -> Currency(MYR)
+
         code_map = {}
         detected_list = list(unique_detected_codes)
         for i, original_code in enumerate(detected_list):
             if i < len(replacements):
                 code_map[original_code] = replacements[i]
 
-        # 3. Build Text Substitution Map
         text_mapping = {}
-
         for det_type, items in detected.items():
             for original_text, currency in items:
-                
-                # Get the assigned replacement currency object
                 new_curr = code_map.get(currency.code)
                 if not new_curr:
                     continue
 
-                # Select the correct attribute based on detection type
                 if det_type == "name":
                     raw_replacement = new_curr.full_name
                 elif det_type == "location":
@@ -633,55 +617,42 @@ class DynamicCurrencySubstitution:
                 else:
                     raw_replacement = new_curr.full_name
 
-                # Apply casing
                 final_replacement = self._match_case(original_text, raw_replacement)
-                
                 text_mapping[original_text] = final_replacement
 
         return text_mapping
 
     def substitute_all(self, text: str) -> Tuple[str, List[Dict]]:
-        """
-        Execute the substitution pipeline.
-        """
-        self.substitution_log = [] # Clear previous log
-        
-        # 1. Detect
+        self.substitution_log = []
         detected = self.detect_currencies(text)
         if not any(detected.values()):
             return text, []
 
-        # 2. Build Mapping
-        # Returns: {'Polish': 'Malaysian', 'PLN': 'MYR'}
         mapping = self.build_text_mapping(detected)
-        
         if not mapping:
             return text, []
 
-        # 3. Substitute (Greedy by length)
-        # Sort keys by length descending to match "US Dollar" before "US"
         sorted_keys = sorted(mapping.keys(), key=len, reverse=True)
-        pattern = re.compile(r'\b(' + '|'.join(map(re.escape, sorted_keys)) + r')\b', re.IGNORECASE)
+        pattern = re.compile(
+            r"\b(" + "|".join(map(re.escape, sorted_keys)) + r")\b", re.IGNORECASE
+        )
 
         def replace_callback(match):
             original = match.group(1)
-            # Retrieve replacement (mapping keys are exactly as they appeared in text)
             replacement = mapping.get(original, original)
-            
-            self.substitution_log.append({
-                "original": original,
-                "replacement": replacement,
-                "span": match.span()
-            })
+            self.substitution_log.append(
+                {
+                    "original": original,
+                    "replacement": replacement,
+                    "span": match.span(),
+                }
+            )
             return replacement
 
         new_text = pattern.sub(replace_callback, text)
-        
         return new_text, self.substitution_log
 
-    def clear_log(self):
-        self.substitution_log = []
-        # cache persists
+
 class ContentDeduplicator:
     def __init__(self):
         self.seen_hashes = set()
@@ -706,10 +677,9 @@ class ContextScorer:
             return -2
 
         # 1. Check STRICT Context (The "Smoking Gun")
-        # If we find a strict term (e.g., "amortization of debt" for IR), return immediate high score
         strict_regex = STRICT_CONTEXT_MAP.get(label)
         if strict_regex and strict_regex.search(text):
-            return 100  # Immediate validation
+            return 100
 
         # 2. Check Standard Context
         regex = CATEGORY_CONTEXT_MAP.get(label)
@@ -727,10 +697,12 @@ class ContextScorer:
         if label == "ir":
             if re.search(r"\b(variable|floating|fixed|interest)\s+rate\b", text, re.I):
                 score += 20
-            # Boost for explicit debt mentions in window
-            if re.search(r"\b(debts?|notes?|bonds?|loans?|borrowings?|basis\s+points?)\b", text, re.I):
+            if re.search(
+                r"\b(debts?|notes?|bonds?|loans?|borrowings?|basis\s+points?)\b",
+                text,
+                re.I,
+            ):
                 score += 10
-            
 
         if label == "fx" and re.search(
             r"\b(foreign rate|exchange rate|denominated)\b", text, re.I
@@ -770,10 +742,6 @@ class ContextScorer:
         return score
 
     def get_best_category(self, text: str) -> Tuple[str, int]:
-        """
-        Returns the category with the highest score and that score.
-        Useful for disambiguating 'gen' labels.
-        """
         scores = {lbl: self.score(text, lbl) for lbl in ["fx", "cp", "eq", "ir"]}
         best_cat = max(scores, key=scores.get)
         best_score = scores[best_cat]
@@ -785,8 +753,6 @@ class ContextScorer:
 
 
 class AugmentationEngine:
-    """Enhanced version with dynamic base substitution."""
-
     def __init__(self):
         self.generic_terms = [
             "derivatives",
@@ -799,7 +765,6 @@ class AugmentationEngine:
             "hedges",
             "positions",
         ]
-        # Extract bases from regex patterns (remove '?')
         self.bases = [base.replace("?", "") for base in UNAMBIGUOUS_BASE_TYPES]
 
     def augment(
@@ -824,12 +789,10 @@ class AugmentationEngine:
         start, end = span
 
         if strategy == "dynamic_base":
-            # Try to replace base with semantically similar variant
             base_replacement = _get_dynamic_base(match_text)
             if base_replacement != match_text:
                 augmented_text = text[:start] + base_replacement + text[end:]
                 return augmented_text, "DynamicBase"
-            # Fall through to loose variant if no substitution
             strategy = "loose_variant"
 
         if strategy == "loose_variant":
@@ -848,7 +811,6 @@ class AugmentationEngine:
             return augmented_text, "Generic"
 
         if strategy == "stochastic":
-            # Random choice between strategies
             choice = random.random()
             if choice < 0.3:
                 return self.augment(text, span, match_text, strategy="dynamic_base")
@@ -866,54 +828,39 @@ def detect_noise_categories(text: str) -> Set[str]:
     If empty, the text is 'Safe' (Generic).
     """
     found_cats = set()
-
-    # 1. Check Instrument & Context Regexes
     for cat, (strict_inst, soft_inst, context_regex) in CATEGORY_DELETION_MAP.items():
-        if soft_inst.search(text) or context_regex.search(text) or strict_inst.search(text):
+        if soft_inst.search(text) or context_regex.search(text):
             found_cats.add(cat)
-
-    # 2. Check Strict Context Map (The "Smoking Guns")
     for cat, regex in STRICT_CONTEXT_MAP.items():
         if regex.search(text):
             found_cats.add(cat)
-            
     return found_cats
+
 
 class DynamicContextBank:
     def __init__(self):
-        self.general_pool = []  # Reservoir for everything (Fallback)
-        self.safe_pool = []  # Strictly non-specific noise
-
-        # Specific pools for IR, FX, CP, EQ
-        # Smaller size cap (e.g., 1000) to keep memory light
+        self.general_pool = []
+        self.safe_pool = []
         self.category_pools = {"ir": [], "fx": [], "cp": [], "eq": []}
 
     def add_noise_candidate(self, text):
-        """
-        Sorts text into Safe Pool, Category Pools, or General Pool.
-        """
-        # 1. Analyze the text
         detected_cats = detect_noise_categories(text)
 
-        # 2. Add to General Pool (Reservoir Sampling - 5000 max)
         if len(self.general_pool) < 5000:
             self.general_pool.append(text)
         elif random.random() < 0.1:
             self.general_pool[random.randint(0, 4999)] = text
 
-        # 3. Sort into Specific vs. Safe
         if not detected_cats:
-            # No categories found -> It is Safe/Generic
             if len(self.safe_pool) < 2500:
                 self.safe_pool.append(text)
             elif random.random() < 0.1:
                 self.safe_pool[random.randint(0, 2499)] = text
         else:
-            # Categories found -> Add to specific pools
             for cat in detected_cats:
                 if cat in self.category_pools:
                     pool = self.category_pools[cat]
-                    if len(pool) < 1000:  # Smaller cap for specific pools
+                    if len(pool) < 1000:
                         pool.append(text)
                     elif random.random() < 0.1:
                         pool[random.randint(0, 999)] = text
@@ -931,19 +878,15 @@ class DynamicContextBank:
                 return random.choice(self.safe_pool)
             return "See Note X."
 
-        # Case B: Specific Category (Prefer congruent noise)
         if target_label in self.category_pools:
             specific_pool = self.category_pools[target_label]
-            if (
-                specific_pool and random.random() < 0.7
-            ):  # 70% chance to use aligned noise
+            if specific_pool and random.random() < 0.7:
                 return random.choice(specific_pool)
-        # Case C: adverse examples (any noise) Pick a random category
+
         if self.category_pools and random.random() < 0.7:
             random_cat = random.choice(list(self.category_pools.keys()))
             return self.get_noise(random_cat)
 
-        # Case D: Fallback (General Pool)
         if self.general_pool:
             return random.choice(self.general_pool)
 
@@ -985,25 +928,20 @@ def scrub_non_target_instruments(
 
     removed_info = []
     cleaned_text = text
-
-    # Identify categories to scrub (all except target)
     categories_to_scrub = all_detected_categories - {target_category, "gen", "other"}
 
     if not categories_to_scrub:
         return cleaned_text, removed_info
 
-    # For each non-target category, remove its instruments and context
     for scrub_cat in categories_to_scrub:
         if scrub_cat not in CATEGORY_DELETION_MAP:
             continue
-
-        instrument_regex, soft_instrument_regex, context_regex = CATEGORY_DELETION_MAP[scrub_cat]
-
-        # Track what we're removing
+        instrument_regex, soft_instrument_regex, context_regex = CATEGORY_DELETION_MAP[
+            scrub_cat
+        ]
         instrument_matches = [
             m.group(0) for m in instrument_regex.finditer(cleaned_text)
         ]
-        # Scrub soft mentions not caught by the strict one
         soft_instrument_matches = [
             m.group(0) for m in soft_instrument_regex.finditer(cleaned_text)
         ]
@@ -1017,16 +955,10 @@ def scrub_non_target_instruments(
                     "context_terms": context_matches,
                 }
             )
-
-        # Remove cross-category instruments
         cleaned_text = instrument_regex.sub(" ", cleaned_text)
-
-        # Remove cross-category context clues
         cleaned_text = context_regex.sub(" ", cleaned_text)
 
-    # Normalize whitespace and punctuation
     cleaned_text = cleanup_fragment(cleaned_text)
-
     return cleaned_text, removed_info
 
 
@@ -1049,24 +981,19 @@ def validate_scrubbed_example(
 
     # Check 1: Minimum length
     if len(scrubbed_text) < MIN_SENTENCE_LENGTH:
-        return (
-            False,
-            f"Scrubbed text too short: {len(scrubbed_text)} < {MIN_SENTENCE_LENGTH}",
-        )
+        return (False, "Too Short")
 
-    # Check 2: Target instrument still present (if specific category)
     if target_category not in {"gen", "other"}:
-        target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0] # strict
-        target_soft_instrument_regex = CATEGORY_DELETION_MAP[target_category][1] # soft
-        if not (target_instrument_regex.search(scrubbed_text) or target_soft_instrument_regex.search(scrubbed_text)):
-            return (
-                False,
-                f"Target category {target_category} instrument lost after scrubbing",
-            )
+        target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0]
+        target_soft_instrument_regex = CATEGORY_DELETION_MAP[target_category][1]
+        if not (
+            target_instrument_regex.search(scrubbed_text)
+            or target_soft_instrument_regex.search(scrubbed_text)
+        ):
+            return (False, "Target Lost")
 
-    # Check 3: Text not empty
     if not scrubbed_text.strip():
-        return False, "Text became empty after scrubbing"
+        return False, "Empty Text"
 
     return True, None
 
@@ -1092,46 +1019,31 @@ def prepare_training_example(
         keep_same_category_bases=SCRUBBING_CONFIG["keep_same_category_bases"],
     )
 
-    # Step 2: Validate scrubbed result
-    is_valid, error_reason = validate_scrubbed_example(
-        scrubbed_text, target_category, removed
-    )
-
+    is_valid, _ = validate_scrubbed_example(scrubbed_text, target_category, removed)
     if not is_valid:
-        logger.debug(f"Scrubbed example invalid: {error_reason}")
         return None
 
-    # Step 3: Mask the target instrument
     masked_text = scrubbed_text
     replacement_info = {}
 
     if target_category not in {"gen", "other"}:
         target_instrument_regex = CATEGORY_DELETION_MAP[target_category][0]
         target_soft_instrument_regex = CATEGORY_DELETION_MAP[target_category][1]
-
-        # Search using both to ensure we have a match object to derive the base from
         match = target_instrument_regex.search(
             scrubbed_text
         ) or target_soft_instrument_regex.search(scrubbed_text)
+
         if not match:
-            logger.warning(
-                f"Target instrument not found after scrubbing: {target_category}"
-            )
             return None
 
         matched_text = match.group(0)
-
-        # 1. Get the base form (e.g., 'swap')
         base_form = _get_base_form(matched_text, target_category)
-
-        # 2. Apply dynamic substitution
         dynamically_substituted_base = _get_dynamic_base(
             base_form,
             random_seed=random.randint(0, 2**31 - 1),
             substitution_probability=0.25,
         )
 
-        # Apply replacement strategy
         if replacement_strategy == "stochastic":
             rand_val = random.random()
             if rand_val < 0.30:
@@ -1143,7 +1055,6 @@ def prepare_training_example(
             else:
                 replacement = _get_loose_variant(matched_text, target_category)
                 strategy = "loose_variant"
-
         elif replacement_strategy == "base":
             replacement = dynamically_substituted_base
             strategy = "base_dynamic"
@@ -1160,26 +1071,16 @@ def prepare_training_example(
             "strategy": strategy,
         }
 
-        # ---------------------------------------------------------
-        # STRATEGY: Prioritize Strict Masking, Fallback to Soft
-        # ---------------------------------------------------------
-
-        # 1. Try to mask using the STRICT regex (Max Munch)
         masked_text = target_instrument_regex.sub(replacement, scrubbed_text)
-
-        # 2. If Strict failed (count=0), it means we found the instrument
-        #    via the Soft regex in the search block above. Mask using Soft anyways
         if target_soft_instrument_regex.search(scrubbed_text):
             masked_text = target_soft_instrument_regex.sub(
                 replacement, scrubbed_text
             )
         else:
-            # Should be unreachable given the initial check, but safe to keep
-            return None
+            # Fallback if strict replacement didn't happen but soft exists
+            pass
 
-    # Step 4: Final validation
     if len(masked_text) < MIN_SENTENCE_LENGTH:
-        logger.debug(f"Masked text too short after replacement")
         return None
 
     metadata = {
@@ -1194,7 +1095,7 @@ def prepare_training_example(
 # =============================================================================
 # REPLACEMENT STRATEGY HELPERS
 # =============================================================================
-_SAFE_BASES = ["derivative", "hedge"] # Ir swap contract to ir hedge contract
+_SAFE_BASES = ["derivative", "hedge"]
 _UNSAFE_BASES = {
     "swaption",
     "straddle",
@@ -1202,12 +1103,14 @@ _UNSAFE_BASES = {
     "spread",
 }
 _SIMILAR_BASES = {
-    "swap": ["collar", "swaption"],  # Make collars/swaptions more frequent
-    "cap": ["collar", "floor"],  # Less common than cap
-    "floor": ["collar", "cap"],  # Less common alone
-    "collar": ["swap", "cap",],  # Make other instruments more frequent
-    "forward": ["options"],  # Make options appear more often
+    "swap": ["collar", "swaption"],
+    "cap": ["collar", "floor"],
+    "floor": ["collar", "cap"],
+    "collar": ["swap", "cap"],
+    "forward": ["options"],
 }
+
+
 def _normalize_base(base: str) -> str:
     """
     Normalize base for matching (lowercase, remove plural 's').
@@ -1218,7 +1121,6 @@ def _normalize_base(base: str) -> str:
         "CAPS" -> "cap"
     """
     base_lower = base.lower()
-    # Remove trailing 's' if it exists (but not for words that end in 's' naturally)
     if base_lower.endswith("s") and base_lower not in {
         "hedges",
         "locks",
@@ -1228,7 +1130,6 @@ def _normalize_base(base: str) -> str:
         base_normalized = base_lower[:-1]
     else:
         base_normalized = base_lower
-
     return base_normalized
 
 
@@ -1264,7 +1165,6 @@ def _get_dynamic_base(
         "swaption"  # Unsafe, never substituted
     """
     rng = random.Random(random_seed) if random_seed else random
-
     original_base = base
     is_plural = base.lower().endswith("s") and base.lower() not in {
         "hedges",
@@ -1273,37 +1173,24 @@ def _get_dynamic_base(
         "options",
     }
     is_capitalized = base and base[0].isupper()
-
     base_normalized = _normalize_base(base)
 
-    # Don't substitute unsafe bases
     if base_normalized in _UNSAFE_BASES:
         return original_base
-
-    # Base not in substitution map
     if base_normalized not in _SIMILAR_BASES:
         return original_base
 
     alternatives = _SIMILAR_BASES[base_normalized] + _SAFE_BASES
-
-    # No alternatives available
     if not alternatives:
         return original_base
 
-    # Only substitute with configured probability
     if rng.random() < substitution_probability:
         substitute = rng.choice(alternatives)
-
-        # Restore plurality
         if is_plural:
             substitute = substitute + "s"
-
-        # Restore capitalization
         if is_capitalized:
             substitute = substitute.capitalize()
-
         return substitute
-
     return original_base
 
 
@@ -1317,8 +1204,6 @@ def _get_base_form(matched_text: str, category: str) -> str:
     if match:
         instrument = match.group(0)
         return instrument
-
-    # Fallback: just use last word of original match
     words = matched_text.split()
     return words[-1] if len(words) > 1 else matched_text
 
@@ -1328,17 +1213,12 @@ def _get_loose_variant(matched_text: str, category: str) -> str:
     Create a loose variant (e.g., "swap" → "swap agreement" or "swap instrument").
     """
     base = _get_base_form(matched_text, category)
-
     suffixes = ["agreements", "instruments", "contracts", "arrangements"]
     chosen_suffix = random.choice(suffixes)
-
     return f"{base} {chosen_suffix}"
 
 
 def _get_generic_form(category: str) -> str:
-    """
-    Use generic hedging language without category-specific signals.
-    """
     generics = [
         "hedging instruments",
         "derivative contracts",
@@ -1347,7 +1227,6 @@ def _get_generic_form(category: str) -> str:
         "derivative positions",
         "derivatives",
     ]
-
     return random.choice(generics)
 
 
@@ -1384,10 +1263,6 @@ def get_dynamic_window(
     context_bank=None,
     apply_numeric_substitution=True,
 ):
-    """
-    Constructs a window. If label='gen', it ACTIVELY CENSORS local neighbors 
-    that contain specific category context to prevent leakage.
-    """
     target_sent = (
         override_target if override_target is not None else sentences[target_idx]
     )
@@ -1400,47 +1275,44 @@ def get_dynamic_window(
         if target_idx - dist >= 0:
             sent = sentences[target_idx - dist]
 
-            # Default noise probability
             noise_prob = 0.0
-            if dist == 2: noise_prob = 0.2
-            if dist >= 3: noise_prob = 0.5
-
-            # CRITICAL: If target is GEN, check if the local neighbor is "Toxic" (Specific)
-            # If neighbor has specific context (e.g. "interest rate swap"), we MUST kill it.
-            is_toxic_neighbor = False
-            if label == "gen":
-                # Check if neighbor has specific category signals
-                cats = detect_noise_categories(sent)
-                if cats: # It has specific categories (ir, fx, cp, eq)
-                    is_toxic_neighbor = True
-            
-            # Force swap if toxic, otherwise use standard probability
-            should_swap = is_toxic_neighbor or (random.random() < noise_prob)
-
-            if context_bank and should_swap:
-                # This will pull from 'safe_pool' because label="gen"
-                sent = context_bank.get_noise(target_label=label)
-
-            prev_parts.insert(0, sent)
-
-        if target_idx + dist < len(sentences):
-            sent = sentences[target_idx + dist]
-            
-            noise_prob = 0.0
-            if dist == 2: noise_prob = 0.2
-            if dist >= 3: noise_prob = 0.5
+            if dist == 2:
+                noise_prob = 0.2
+            if dist >= 3:
+                noise_prob = 0.5
 
             is_toxic_neighbor = False
             if label == "gen":
                 cats = detect_noise_categories(sent)
                 if cats:
                     is_toxic_neighbor = True
-            
+
             should_swap = is_toxic_neighbor or (random.random() < noise_prob)
 
             if context_bank and should_swap:
                 sent = context_bank.get_noise(target_label=label)
 
+            prev_parts.insert(0, sent)
+
+        if target_idx + dist < len(sentences):
+            sent = sentences[target_idx + dist]
+
+            noise_prob = 0.0
+            if dist == 2:
+                noise_prob = 0.2
+            if dist >= 3:
+                noise_prob = 0.5
+
+            is_toxic_neighbor = False
+            if label == "gen":
+                cats = detect_noise_categories(sent)
+                if cats:
+                    is_toxic_neighbor = True
+
+            should_swap = is_toxic_neighbor or (random.random() < noise_prob)
+
+            if context_bank and should_swap:
+                sent = context_bank.get_noise(target_label=label)
 
             next_parts.append(sent)
 
@@ -1466,7 +1338,6 @@ def get_dynamic_window(
         window, _ = curr_sub.substitute_all(window)
 
     window = re.sub("<<>>", SEP_TOKEN, window)
-
     return window
 
 
@@ -1478,7 +1349,7 @@ def has_conflict(text, label):
 
 
 # =============================================================================
-# ENHANCED PROCESSING WITH SCRUBBING
+# PROCESSING
 # =============================================================================
 
 
@@ -1523,14 +1394,12 @@ def process_chunk(chunk_data):
             for i, sentence in enumerate(sentences):
                 match = STRICT_REGEX.search(sentence)
 
-                # --- Branch A: Strict Match ---
                 if match:
                     cats = get_sentence_categories(sentence)
                     specific_cats = cats - {"gen", "other"}
 
                     if len(specific_cats) == 1:
                         label = list(specific_cats)[0]
-
                         target_sent = sentences[i]
                         blanked_target = (
                             target_sent[: match.start()]
@@ -1538,7 +1407,10 @@ def process_chunk(chunk_data):
                             + target_sent[match.end() :]
                         )
                         validation_text = get_dynamic_window(
-                            sentences, i, override_target=blanked_target, label=label
+                            sentences,
+                            i,
+                            override_target=blanked_target,
+                            label=label,  # Pass label for safe noise
                         )
 
                         score = (
@@ -1562,9 +1434,27 @@ def process_chunk(chunk_data):
                         )
 
                     elif len(specific_cats) == 0:
-                        full_window = get_dynamic_window(sentences, i, label="gen")
-                        max_score = scorer.get_max_score_any_category(full_window)
-                        if max_score < 10:
+                        full_window = get_dynamic_window(
+                            sentences, i, label="gen"
+                        )  # Pass "gen" for safe window
+                        best_cat, best_score = scorer.get_best_category(full_window)
+
+                        if best_score >= 30:
+                            local_candidates.append(
+                                {
+                                    "label": best_cat,
+                                    "sentences": sentences,
+                                    "target_idx": i,
+                                    "match_span": match.span(),
+                                    "match_text": match.group(0),
+                                    "original_sent": sentence,
+                                    "score": best_score,
+                                    "url": url,
+                                    "subtype": "L2_Disambiguated_Context",
+                                    "detected_categories": {best_cat},
+                                }
+                            )
+                        elif best_score < 10:
                             local_candidates.append(
                                 {
                                     "label": "gen",
@@ -1580,7 +1470,6 @@ def process_chunk(chunk_data):
                                 }
                             )
 
-                # --- Branch B: No Strict Match ---
                 else:
                     is_hedging_talk = bool(HEDGING_CONTEXT_REGEX.search(sentence))
                     is_accounting = bool(EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence))
@@ -1590,9 +1479,13 @@ def process_chunk(chunk_data):
                         specific_cats = cats - {"gen", "other"}
 
                         if len(specific_cats) == 0:
-                            if VERB_USE_REGEX.search(sentence) and GEN_REGEX.search(sentence): # We use derivatives within the boilerplate
-                                continue 
-                            full_window = get_dynamic_window(sentences, i, "gen")
+                            if VERB_USE_REGEX.search(sentence) and GEN_REGEX.search(
+                                sentence
+                            ):
+                                continue
+                            full_window = get_dynamic_window(
+                                sentences, i, label="gen"
+                            )  # Pass "gen"
                             max_score = scorer.get_max_score_any_category(full_window)
 
                             if max_score < 10:
@@ -1619,11 +1512,6 @@ def process_chunk(chunk_data):
     return local_candidates, local_noise
 
 
-# =============================================================================
-# MAIN GENERATION WITH SCRUBBING
-# =============================================================================
-
-
 def create_labeled_dataset():
     print(f"🚀 Starting Dataset Generation v17 (Scrubbing + Masking)")
 
@@ -1644,8 +1532,8 @@ def create_labeled_dataset():
 
     global_candidates = defaultdict(list)
     context_bank = DynamicContextBank()
-    augmenter = AugmentationEngine()
     deduplicator = ContentDeduplicator()
+    augmenter = AugmentationEngine()
 
     with ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = []
@@ -1679,14 +1567,11 @@ def create_labeled_dataset():
                     pbar.update(future_sizes.pop(future, 0))
                     try:
                         candidates, noise_samples = future.result()
-
                         for n in noise_samples:
                             context_bank.add_noise_candidate(n)
-
                         for c in candidates:
                             if not deduplicator.is_duplicate(c["original_sent"]):
                                 global_candidates[c["label"]].append(c)
-
                         pbar.set_postfix(
                             {k: len(v) for k, v in global_candidates.items()}
                         )
@@ -1695,7 +1580,6 @@ def create_labeled_dataset():
     conn.close()
     print(f"   🚫 Deduped {deduplicator.dupe_count:,} redundant sentences.")
 
-    # --- PHASE 2: GENERATION WITH SCRUBBING ---
     print("\n🏆 PASS 2: Generating Dataset with Scrubbing & Masking...")
     final_data = []
     stats = Counter()
@@ -1715,8 +1599,8 @@ def create_labeled_dataset():
             idx = item["target_idx"]
             orig = item["original_sent"]
             score = item.get("score", 0)
-            url = item["url"]
             detected_cats = item.get("detected_categories", {label})
+            window_label_arg = "gen" if label == "gen" else None
 
             row = {
                 "text": "",
@@ -1724,64 +1608,68 @@ def create_labeled_dataset():
                 "difficulty": "",
                 "debug_original": orig,
                 "debug_score": score,
-                "debug_hint": "None",
                 "scrubbing_applied": False,
             }
 
             if label == "gen":
                 row["text"] = get_dynamic_window(
-                    sentences, idx, label="gen", context_bank=context_bank
+                    sentences,
+                    idx,
+                    label=window_label_arg,
+                    context_bank=context_bank,
                 )
                 row["difficulty"] = item.get("subtype", "L0_Ambiguous")
 
             elif score == -1:
                 row["text"] = get_dynamic_window(
-                    sentences, idx, context_bank=context_bank
+                    sentences,
+                    idx,
+                    label=window_label_arg,
+                    context_bank=context_bank,
                 )
                 row["difficulty"] = "L4_Natural_Adverse"
 
             elif score >= 20:
-                # Use scrubbing + masking approach
                 prep_result = prepare_training_example(
                     orig, label, detected_cats, replacement_strategy="stochastic"
                 )
-
                 if prep_result:
                     masked_text, _, metadata = prep_result
                     row["text"] = get_dynamic_window(
                         sentences,
                         idx,
-                        label=label,
                         override_target=masked_text,
+                        label=window_label_arg,
                         context_bank=context_bank,
                     )
                     row["difficulty"] = "L2_Masked_Scrubbed"
                     row["scrubbing_applied"] = metadata["scrubbing_applied"]
                     scrubbing_stats["L2_scrubbed"] += 1
                 else:
-                    # Fallback to old method if scrubbing fails
                     match_span = item["match_span"]
                     match_text = item["match_text"]
                     aug, _ = augmenter.augment(orig, match_span, match_text)
                     row["text"] = get_dynamic_window(
-                        sentences, idx, override_target=aug, context_bank=context_bank
+                        sentences,
+                        idx,
+                        override_target=aug,
+                        label=window_label_arg,
+                        context_bank=context_bank,
                     )
                     row["difficulty"] = "L2_Masked"
                     scrubbing_stats["L2_fallback"] += 1
 
             elif score > 0:
-                # L1 Weak context
                 prep_result = prepare_training_example(
                     orig, label, detected_cats, replacement_strategy="base"
                 )
-
                 if prep_result:
                     masked_text, _, metadata = prep_result
                     row["text"] = get_dynamic_window(
                         sentences,
                         idx,
-                        label=label,
                         override_target=masked_text,
+                        label=window_label_arg,
                         context_bank=context_bank,
                     )
                     row["difficulty"] = "L1_WeakContext_Scrubbed"
@@ -1789,14 +1677,20 @@ def create_labeled_dataset():
                     scrubbing_stats["L1_scrubbed"] += 1
                 else:
                     row["text"] = get_dynamic_window(
-                        sentences, idx, context_bank=context_bank, label=label
+                        sentences,
+                        idx,
+                        label=window_label_arg,
+                        context_bank=context_bank,
                     )
                     row["difficulty"] = "L1_WeakContext"
                     scrubbing_stats["L1_unscrubbed"] += 1
 
             else:
                 row["text"] = get_dynamic_window(
-                    sentences, idx, context_bank=context_bank, label=label
+                    sentences,
+                    idx,
+                    label=window_label_arg,
+                    context_bank=context_bank,
                 )
                 row["difficulty"] = "L1_NoContext"
 
@@ -1814,5 +1708,4 @@ def create_labeled_dataset():
 
 if __name__ == "__main__":
     mp.freeze_support()
-
     create_labeled_dataset()
