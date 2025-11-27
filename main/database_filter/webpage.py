@@ -94,15 +94,7 @@ def get_system_config():
     print(f"⚙️  Configuration: {num_fetchers} fetchers, {num_parsers} parsers, CHUNK_SIZE={chunk_size}")
     return num_fetchers, num_parsers, chunk_size, sec_rate_limit
 
-NUM_FETCHERS, NUM_PARSERS, CHUNK_SIZE, SEC_RATE_LIMIT = get_system_config()
 
-if IS_COLAB:
-    print("Running in Google Colab environment")
-    if not Path(DB_PATH).exists():
-        print("Loading database from Google Drive...")
-        subprocess.run(LOAD_SHELL_CMD, shell=True)
-else:
-    print("Running in local environment")
 # %%
 # =============================================================================
 # REGEX PATTERNS AND KEYWORDS
@@ -159,7 +151,7 @@ SPACE_PATTERN = re.compile(r'\s+')
 # =============================================================================
 # LOAD DATA
 # =============================================================================
-all_derivatives_df = pd.read_csv(ALL_FIRMS_DATA)
+all_derivatives_df = pd.DataFrame()
 
 # =============================================================================
 # DEBUG UTILITIES
@@ -1495,6 +1487,15 @@ def process_producer_consumer():
 # =============================================================================
 # %%
 if __name__ == "__main__":
+    NUM_FETCHERS, NUM_PARSERS, CHUNK_SIZE, SEC_RATE_LIMIT = get_system_config()
+    all_derivatives_df = pd.read_csv(ALL_FIRMS_DATA)
+    if IS_COLAB:
+        print("Running in Google Colab environment")
+        if not Path(DB_PATH).exists():
+            print("Loading database from Google Drive...")
+            subprocess.run(LOAD_SHELL_CMD, shell=True)
+    else:
+        print("Running in local environment")
     print("=" * 70)
     print("STEP 1: Fetch all 10-K report URLs from SEC")
     print("=" * 70)
