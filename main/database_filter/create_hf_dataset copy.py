@@ -774,7 +774,7 @@ class ContentDeduplicator:
 
 class ContextScorer:
     def score(self, text: str, label: str) -> int:
-        if len(text) > 500: # penalize long text; it may be a table
+        if len(text) > 500 or len(text) < 25: # penalize long text; it may be a table
             return 0
         regex = CATEGORY_CONTEXT_MAP.get(label)
         if not regex:
@@ -1403,7 +1403,7 @@ def get_dynamic_window(
         curr_sub = DynamicCurrencySubstitution()
         window, _ = curr_sub.substitute_all(window)
         
-    window.replace("<<>>", SEP_TOKEN)
+    re.sub("<<>>", SEP_TOKEN, window)
 
     return window
 
