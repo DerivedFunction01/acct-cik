@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import re
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
@@ -802,7 +802,7 @@ standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES
 unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
-def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = False) -> str:
+def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = False, additional_standalone: Optional[List[str]] = None) -> str:
     """
     Creates an optimized, single alternation pattern that captures:
     1. Base + Suffix (e.g., swaps-agreement)
@@ -827,9 +827,11 @@ def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = 
     else:
         standalone_pattern = base_alternation if unsafe else safe_base_alternation
     
+    additional_suffixes = "|" + build_alternation(additional_standalone, True) if additional_standalone else ""
+
     # If build_alternation supports it, sort these alternatives by length
     # Otherwise, manually construct with longest first
-    return rf"{combined_pattern}|{standalone_pattern}"
+    return rf"{combined_pattern}|{standalone_pattern}" + additional_suffixes
 
 
 def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
@@ -1017,8 +1019,8 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- B. STRICT Pattern Construction (High Precision) ---
     # -------------------------------------------------------------------------
 
-    # Fragment for dynamic replacement: safe bases only (no suffixes as standalones)
-    strict_dynamic_fragment = expand_instruments(unsafe=False, exclude_standalone_suffixes=True)
+    # Fragment for dynamic replacement: safe bases only (no suffixes as standalones, but include safe ones)
+    strict_dynamic_fragment = expand_instruments(unsafe=False, exclude_standalone_suffixes=True, additional_standalone=["contracts?", "options?"])
     
     # 1. Substitute the dynamic fragment into the templates
     strict_dynamic_phrases = _replace_dynamic_placeholder(dynamic_templates, strict_dynamic_fragment)
