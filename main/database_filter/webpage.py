@@ -852,10 +852,9 @@ class ThreadSafeRateLimiter:
     """
     A thread-safe class to manage a shared rate limit value using atomic
     update methods to prevent race conditions.
-
+    
     Distinguishes between 429 (rate limit) and timeout errors.
     """
-
     def __init__(self, initial_rate_limit: float):
         self._rate_limit = initial_rate_limit
         self._lock = threading.Lock()
@@ -886,9 +885,7 @@ class ThreadSafeRateLimiter:
             # DO NOT increase sleep time for timeouts - they're network issues, not rate limits
             # Just log it for debugging
             if self._timeout_count % 10 == 0:
-                print(
-                    f"⏱️  {self._timeout_count} timeouts detected (not increasing sleep rate)"
-                )
+                print(f"⏱️  {self._timeout_count} timeouts detected (not increasing sleep rate)")
 
     def adjust(self, current_rate: float, target_rate: float):
         """Atomically adjust the rate limit based on performance."""
@@ -898,26 +895,15 @@ class ThreadSafeRateLimiter:
             # Exit recovery mode if no 429s for 30 seconds
             if self._recovery_mode and time_since_last_429 > 30:
                 self._recovery_mode = False
-                print(
-                    f"✓ Exiting recovery mode. Resetting toward {self._initial_rate_limit:.2f}s"
-                )
+                print(f"✓ Exiting recovery mode. Resetting toward {self._initial_rate_limit:.2f}s")
 
             # Determine target rate based on recovery status
-            target_rate_adjusted = (
-                target_rate * 0.5 if self._recovery_mode else target_rate
-            )
+            target_rate_adjusted = target_rate * 0.5 if self._recovery_mode else target_rate
 
             # --- Main Adjustment Logic ---
             if current_rate > target_rate_adjusted * 1.05:  # Over target
                 # Multiplicatively increase sleep time to slow down
-                increase_factor = (
-                    1.0
-                    + min(
-                        (current_rate - target_rate_adjusted) / target_rate_adjusted,
-                        1.0,
-                    )
-                    * 0.1
-                )
+                increase_factor = 1.0 + min((current_rate - target_rate_adjusted) / target_rate_adjusted, 1.0) * 0.1
                 self._rate_limit *= increase_factor
 
             elif current_rate < target_rate_adjusted * 0.95:  # Under target
@@ -926,12 +912,12 @@ class ThreadSafeRateLimiter:
                     self._rate_limit = max(0, self._rate_limit * 0.98)
 
             # --- Gradual Recovery Logic ---
-            # Always try to decay back towards the initial rate limit
-            if self._rate_limit > self._initial_rate_limit:
-                # If we've been clear of 429s for a while, recover faster
-                step = 0.05 if time_since_last_429 > 15 else 0.01
+            # AGGRESSIVE decay back to initial rate limit (not in recovery mode)
+            if not self._recovery_mode and self._rate_limit > self._initial_rate_limit:
+                # Decay 10% per adjustment (~2.5% per second with 0.25s check interval)
                 gap = self._rate_limit - self._initial_rate_limit
-                self._rate_limit -= gap * step
+                decay_step = 0.10  # 10% decay per check
+                self._rate_limit = max(self._initial_rate_limit, self._rate_limit - gap * decay_step)
 
             return self._rate_limit, self._recovery_mode, target_rate_adjusted
 
@@ -948,6 +934,7 @@ def adjust_rate_in_background(
     """
     prev_count = getattr(tqdm_bar, "n", 0)
     prev_time = time.time()
+    last_sleep = rate_limiter.value
 
     while not stop_event.is_set():
         time.sleep(0.25)  # Check 4 times per second
@@ -969,12 +956,15 @@ def adjust_rate_in_background(
         )
         mode = "Recovery" if in_recovery else "Normal"
 
-        tqdm_bar.set_postfix(
-            rate=f"{current_rate:.1f} req/s",
-            sleep=f"{current_sleep*1000:.1f}ms",
-            mode=mode,
-            target=f"{target_rate_adjusted:.1f} req/s",
-        )
+        # Only update postfix if sleep time changed (reduce noise)
+        if abs(current_sleep - last_sleep) > 0.001:  # Changed by more than 1ms
+            tqdm_bar.set_postfix(
+                rate=f"{current_rate:.1f} req/s",
+                sleep=f"{current_sleep*1000:.1f}ms",
+                mode=mode,
+                target=f"{target_rate_adjusted:.1f} req/s",
+            )
+            last_sleep = current_sleep
 
 
 def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
