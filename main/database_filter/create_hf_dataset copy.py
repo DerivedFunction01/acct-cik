@@ -829,7 +829,7 @@ def detect_noise_categories(text: str) -> Set[str]:
     """
     found_cats = set()
     for cat, (strict_inst, soft_inst, context_regex) in CATEGORY_DELETION_MAP.items():
-        if soft_inst.search(text) or context_regex.search(text):
+        if soft_inst.search(text) or context_regex.search(text) or strict_inst.search(text):
             found_cats.add(cat)
     for cat, regex in STRICT_CONTEXT_MAP.items():
         if regex.search(text):
