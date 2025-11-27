@@ -1,24 +1,4 @@
-# final_cleanup.py
-# =============================================================================
-# PHASE 5: YEAR-END ACTIVE USER ISOLATION (SINGLE DB OUTPUT)
-# =============================================================================
-# Refines the dataset by moving "termination" clauses to the discard table.
-#
-# Architecture:
-# - Input: active_data.db (Contains all mentions of use during the year)
-# - Output: active_data2.db
-#
-# Logic:
-# 1. Splits paragraphs into atomic sentences.
-# 2. If a sentence matches TERMINATION_REGEX ("expired", "matured", "settled"):
-#    - Move it to the `discarded_sentences` table (Reason: "termination_clause").
-# 3. If a sentence describes active use:
-#    - Keep it in the `webpage_result` (matches) table.
-#
-# Result Interpretation:
-# - Company with Matches != []: Active Year-End User.
-# - Company with Matches == [] AND Discards > 0: Active During Year, Terminated Year-End.
-# =============================================================================
+# final_cleanup.py (Phase 5)
 
 import sqlite3
 import json
@@ -26,7 +6,8 @@ import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
-from typing import List, Tuple, Dict, Any
+import re
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -44,22 +25,42 @@ from derivative_regex import (
     check_for_instrument,
     validate_instrument_retention,
     build_alternation,
+    ANCHOR_TAG,
 )
-import re
 
-# Create a "Salvation" regex - words that indicate something survives the termination
-# Combining ACTIVE_STATE ("outstanding") with explicit "New" indicators
+# --- SALVATION LOGIC UPDATE ---
+# We split strong verbs into "Usage" (Salvation) vs "Transactional" (Neutral).
+# "We Entered" + "Expired" = DEAD.
+# "We Use" + "Expired" = ALIVE.
+
+USAGE_VERBS = [
+    r"use(?:s|d|ing)?",
+    r"utiliz(?:e|es|ed|ing)",
+    r"employ(?:s|ed|ing)?",
+    r"hold(?:s|ing)?",  # "Held" is ambiguous (past), "Holds" is active
+    r"have",
+    r"maintain(?:s|ed|ing)?",
+    r"possess(?:e|es|ed|ing)?",
+    r"hedg(?:e|es|ed|ing)",
+    r"manag(?:e|es|ed|ing)",
+]
+
+# Explicit terms that indicate survival despite termination keywords
 SALVATION_TERMS = [r"new", r"current", r"replace", r"remain"]
-SALVATION_PATTERN = build_alternation(SALVATION_TERMS + ACTIVE_INDICATORS)
-SALVATION_REGEX = re.compile(
-    rf"(?:{ACTIVE_STATE_REGEX.pattern}|{SALVATION_PATTERN})", re.IGNORECASE
+
+# Combine: State (Outstanding) + Indicators (Currently) + Terms (New) + Usage Verbs (Hold)
+SALVATION_PATTERN_STR = build_alternation(
+    SALVATION_TERMS + ACTIVE_INDICATORS + USAGE_VERBS
 )
 
-# =============================================================================
-# DB SETUP
-# =============================================================================
+SALVATION_REGEX = re.compile(
+    rf"(?:{ACTIVE_STATE_REGEX.pattern}|{SALVATION_PATTERN_STR})", re.IGNORECASE
+)
 
 
+# =============================================================================
+# DB SETUP & I/O (Unchanged)
+# =============================================================================
 def setup_db():
     if Path(FINAL_DB_PATH).exists():
         Path(FINAL_DB_PATH).unlink()
@@ -178,42 +179,46 @@ def process_company(item):
             final_categories.append(category)
             continue
 
-        # --- STEP 1: PARAGRAPH LEVEL CHECK ---
+        # --- STEP 1: PARAGRAPH LEVEL CHECK (The Nuclear Option) ---
         has_termination = bool(TERMINATION_REGEX.search(paragraph))
 
-        # If termination exists, check if there is "Salvation" (evidence of remaining position)
-        # We assume if they say "expired", the whole block is dead UNLESS they explicitly say "outstanding/new/remain"
         if has_termination:
+            # Check for "Salvation" (Usage Verbs, Active State, New/Remaining)
             has_salvation = bool(SALVATION_REGEX.search(paragraph))
 
             if not has_salvation:
-                # NUCLEAR OPTION: The whole paragraph describes a dead instrument.
-                # Discard the whole thing to prevent "We entered" from surviving alone.
+                # NUCLEAR OPTION: No usage/active signals found.
+                # Assume the termination applies to the entire block.
                 discards.append((url, paragraph, "termination_entire_block_removed"))
                 continue
 
-            # If has_salvation is True, we proceed to sentence-level filtering (Churn scenario)
-
         # --- STEP 2: SENTENCE LEVEL FILTERING ---
+        # If we reached here, the block survived. Now surgically remove the dead parts.
+
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
         kept_atomic = []
 
         for sent in atomic_sentences:
-            # If sentence explicitly describes termination, remove it
-            # (Even in a "Churn" paragraph, we don't want the specific "it expired" sentence)
+            # If this specific sentence is the one terminating, kill it.
             if TERMINATION_REGEX.search(sent):
+                # OPTIMIZATION: If this sentence IS the Anchor, and we just killed it,
+                # we don't need to do anything special here because 'validate_instrument_retention'
+                # will see the missing anchor and kill the zombies automatically.
                 discards.append((url, sent, "termination_clause"))
                 continue
 
             kept_atomic.append(sent)
 
+        # Re-assemble
         if kept_atomic:
-            final_paragraphs.append(" ".join(kept_atomic))
+            paragraph_text = " ".join(kept_atomic)
+            final_paragraphs.append(paragraph_text)
             final_categories.append(category)
 
-    # Final Validation (as before)
+    # --- STEP 3: FINAL ANCHOR VALIDATION ---
+    # This cleans up any "Zombie Context" left over from Step 2
     final_paragraphs, final_categories, validation_discards = (
         validate_instrument_retention(
             final_paragraphs, final_categories, url, strict=False
@@ -232,6 +237,7 @@ def process_company(item):
         )
 
     return (url, "[]", "[]", cik, year, discards) if discards else None
+
 
 # =============================================================================
 # MAIN
@@ -269,6 +275,3 @@ if __name__ == "__main__":
 
     print("\n✅ Done.")
     print(f"Final Processed Data saved to: {FINAL_DB_PATH}")
-    print(
-        "You can now run comparison scripts on the 'matches' vs 'discarded_sentences' tables."
-    )
