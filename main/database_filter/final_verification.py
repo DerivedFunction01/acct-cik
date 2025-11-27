@@ -36,6 +36,7 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN,
     CURRENCY_SYMBOL_PATTERN,
     STRONG_VERB_PATTERN,
+    VALUATION_MODELS,
     build_alternation, 
     ACTIVE_STATE_REGEX,
     validate_instrument_retention,
@@ -46,6 +47,9 @@ from derivative_regex import (
 
 VERB_REGEX = re.compile(rf"\b{STRONG_VERB_PATTERN}\b", re.IGNORECASE)
 LEVEL_REGEX = re.compile(r"\bLevel\s+[123]\b", re.IGNORECASE)
+VALUATION_MODEL_REGEX = re.compile(
+    r"\b" + build_alternation(VALUATION_MODELS) + r"\b", re.IGNORECASE
+)
 
 # 2. QUANTITATIVE INDICATORS (Money & Metrics)
 # Matches: "$100", "5%", "Notional", "Fair Value"
@@ -84,6 +88,21 @@ def check_strong_signal(sentence: str) -> bool:
     if LEVEL_REGEX.search(sentence):
         if not QUANT_REGEX.search(sentence):
             return False  # KILL IT (Policy)
+    # 2. MODEL TRAP (New)
+    # If sentence mentions "Black-Scholes" or "Monte Carlo":
+    # It MUST have a Quantitative indicator ($/%) OR a specific "Result" verb.
+    if VALUATION_MODEL_REGEX.search(sentence):
+        # If it has a number ($50m), it's active.
+        if QUANT_REGEX.search(sentence):
+            return True
+
+        # If no number, it's likely "We use Black-Scholes." -> DELETE.
+        # Exception: "The liability was valued using Black-Scholes."
+        # (This is passive voice, usually implies existence, but without a number
+        # it's a weak signal for an "Active User" classifier).
+        # VERDICT: SAFE TO DELETE.
+        # If they actually have it, they will disclose the Fair Value ($) elsewhere.
+        return False
     # 1. Check Action Verbs ("We use...")
     if VERB_REGEX.search(sentence):
         return True
