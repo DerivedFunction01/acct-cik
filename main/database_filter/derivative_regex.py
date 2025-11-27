@@ -605,6 +605,8 @@ CP_CONTEXT_TERMS = (
         "off-peak",
         "on-peak",
         "capacity",
+        "power generation",
+        "power assets",
         # Gas/NGL Hubs & Benchmarks
         "Henry Hub",
         "WTI",
