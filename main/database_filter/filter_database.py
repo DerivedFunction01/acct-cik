@@ -90,6 +90,7 @@ from derivative_regex import (
     MAX_SENTENCE_LENGTH,
     ANCHOR_TAG,
     STRICT_CONTEXT_MAP,
+    ENTITY_EXCLUSION_REGEX,
 )
 
 # =============================================================================
@@ -325,6 +326,13 @@ class TextCleaner:
 
         return pattern.sub(replacement_callback, text)
 
+    def clean_entities(self, text: str) -> str:
+        """
+        Removes official entity names that contain derivative keywords.
+        """
+        # Replace with space to avoid merging words
+        return self._safe_sub(ENTITY_EXCLUSION_REGEX, " ", text)
+
     def clean_structure(self, text: str) -> str:
         """
         Cleans headers, markdown emphasis, and structural all-caps artifacts.
@@ -362,6 +370,7 @@ class TextCleaner:
         text = self.clean_structure(text)
         text = self.clean_references(text)
         text = self.normalize_whitespace(text)
+        text = self.clean_entities(text)
 
         return text
 
