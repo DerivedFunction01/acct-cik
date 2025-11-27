@@ -575,7 +575,13 @@ def extract_content(data: str, asHTML=True) -> str:
     return text
 
 
-def fetch_url(url: str, timeout: int = 10, rate_limiter: Optional["ThreadSafeRateLimiter"] = None) -> str | None:
+def fetch_url(
+    url: str, timeout: int = 60, rate_limiter: Optional["ThreadSafeRateLimiter"] = None
+) -> str | None:
+    """
+    Fetch URL and properly handle different error types.
+    Notifies rate_limiter of 429 errors specifically (not timeouts).
+    """
     global SEC_RATE_LIMIT, SEC_RATE
     if not url:
         return None
@@ -584,16 +590,29 @@ def fetch_url(url: str, timeout: int = 10, rate_limiter: Optional["ThreadSafeRat
         time.sleep(rate_limiter.value if rate_limiter else SEC_RATE_LIMIT)
         debug_print("Fetching", url)
         resp = requests.get(
-            url, timeout=timeout, headers={
-                "User-Agent": "sync-fetch@example.com"}
+            url, timeout=timeout, headers={"User-Agent": "sync-fetch@example.com"}
         )
         if resp.status_code == 429:
-            print(f"Rate Limited {resp.status_code} for {url}")
+            print(f"🛑 Rate Limited {resp.status_code} for {url}")
+            # Notify rate limiter of 429 specifically
+            if rate_limiter:
+                rate_limiter.signal_429()
             return None
         if resp.status_code != 200:
             print(f"Error {resp.status_code} for {url}")
             return None
         return resp.text
+    except requests.exceptions.Timeout:
+        print(f"⏱️  Timeout fetching {url}")
+        # Notify rate limiter of timeout (which should NOT increase sleep)
+        if rate_limiter:
+            rate_limiter.signal_timeout()
+        return None
+    except requests.exceptions.ConnectionError:
+        print(f"🔌 Connection error fetching {url}")
+        if rate_limiter:
+            rate_limiter.signal_timeout()
+        return None
     except Exception as e:
         print(f"Error fetching {url}: {e}")
         return None
@@ -827,17 +846,23 @@ def fetch_all_grouped(saveIteration: int = 100):
         print(f"Saved {len(records)} urls to database")
 
     return fetch_report_data()
+
+
 class ThreadSafeRateLimiter:
     """
     A thread-safe class to manage a shared rate limit value using atomic
     update methods to prevent race conditions.
+
+    Distinguishes between 429 (rate limit) and timeout errors.
     """
+
     def __init__(self, initial_rate_limit: float):
         self._rate_limit = initial_rate_limit
         self._lock = threading.Lock()
         self._last_429_time = 0
         self._recovery_mode = False
         self._initial_rate_limit = float(initial_rate_limit)
+        self._timeout_count = 0  # Track timeouts separately
 
     @property
     def value(self) -> float:
@@ -846,12 +871,24 @@ class ThreadSafeRateLimiter:
             return self._rate_limit
 
     def signal_429(self):
-        """Signal that a 429 response was received."""
+        """Signal that a 429 (Too Many Requests) response was received."""
         with self._lock:
             self._last_429_time = time.time()
             self._recovery_mode = True
             # Increase sleep time by 50%, capped at 60s
             self._rate_limit = min(self._rate_limit * 1.5, 60.0)
+            print(f"🛑 429 Rate Limited! Increasing sleep to {self._rate_limit:.2f}s")
+
+    def signal_timeout(self):
+        """Signal that a timeout error occurred (NOT a rate limit)."""
+        with self._lock:
+            self._timeout_count += 1
+            # DO NOT increase sleep time for timeouts - they're network issues, not rate limits
+            # Just log it for debugging
+            if self._timeout_count % 10 == 0:
+                print(
+                    f"⏱️  {self._timeout_count} timeouts detected (not increasing sleep rate)"
+                )
 
     def adjust(self, current_rate: float, target_rate: float):
         """Atomically adjust the rate limit based on performance."""
@@ -861,21 +898,33 @@ class ThreadSafeRateLimiter:
             # Exit recovery mode if no 429s for 30 seconds
             if self._recovery_mode and time_since_last_429 > 30:
                 self._recovery_mode = False
+                print(
+                    f"✓ Exiting recovery mode. Resetting toward {self._initial_rate_limit:.2f}s"
+                )
 
             # Determine target rate based on recovery status
-            target_rate_adjusted = target_rate * 0.5 if self._recovery_mode else target_rate
+            target_rate_adjusted = (
+                target_rate * 0.5 if self._recovery_mode else target_rate
+            )
 
             # --- Main Adjustment Logic ---
             if current_rate > target_rate_adjusted * 1.05:  # Over target
                 # Multiplicatively increase sleep time to slow down
-                increase_factor = 1.0 + min((current_rate - target_rate_adjusted) / target_rate_adjusted, 1.0) * 0.1
+                increase_factor = (
+                    1.0
+                    + min(
+                        (current_rate - target_rate_adjusted) / target_rate_adjusted,
+                        1.0,
+                    )
+                    * 0.1
+                )
                 self._rate_limit *= increase_factor
 
             elif current_rate < target_rate_adjusted * 0.95:  # Under target
                 if not self._recovery_mode:
                     # Only decrease sleep time if not in recovery
                     self._rate_limit = max(0, self._rate_limit * 0.98)
-            
+
             # --- Gradual Recovery Logic ---
             # Always try to decay back towards the initial rate limit
             if self._rate_limit > self._initial_rate_limit:
@@ -886,13 +935,17 @@ class ThreadSafeRateLimiter:
 
             return self._rate_limit, self._recovery_mode, target_rate_adjusted
 
+
 def adjust_rate_in_background(
     tqdm_bar: tqdm,
     rate_limiter: ThreadSafeRateLimiter,
     target_rate: float,
     stop_event: threading.Event,
 ):
-    """A background thread to dynamically adjust the sleep rate."""
+    """
+    A background thread to dynamically adjust the sleep rate.
+    Only adjusts for actual rate limit conditions, not timeouts.
+    """
     prev_count = getattr(tqdm_bar, "n", 0)
     prev_time = time.time()
 
@@ -910,29 +963,27 @@ def adjust_rate_in_background(
         except Exception:
             current_rate = 0.0
 
-                # Not in recovery: always decay back toward initial value slowly
         # Atomically adjust the rate and get the current state
-        current_sleep, in_recovery, target_rate_adjusted = rate_limiter.adjust(current_rate, target_rate)
+        current_sleep, in_recovery, target_rate_adjusted = rate_limiter.adjust(
+            current_rate, target_rate
+        )
         mode = "Recovery" if in_recovery else "Normal"
 
         tqdm_bar.set_postfix(
             rate=f"{current_rate:.1f} req/s",
             sleep=f"{current_sleep*1000:.1f}ms",
             mode=mode,
-            target=f"{target_rate_adjusted:.1f} req/s"
+            target=f"{target_rate_adjusted:.1f} req/s",
         )
 
 
 def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
     """
     Fetches raw text content from a URL. This is purely I/O-bound.
+    Properly distinguishes between different failure modes.
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Check if the URL is already in the database to avoid re-fetching
-    # This is a quick check before the more expensive fetch_url call
-    # Note: This is a read-only operation, so it's thread-safe without locks
-    # for this specific use case.
     c.execute("SELECT 1 FROM webpage_result WHERE url = ?", (url,))
     exists = c.fetchone()
     conn.close()
@@ -940,17 +991,14 @@ def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = 
         return None
 
     raw_text = fetch_url(url, rate_limiter=rate_limiter)
+
     if raw_text:
+        # Successfully fetched
         return url, raw_text
-    elif raw_text is None and url:  # Check if fetch_url returned None due to rate limit
-        # Notify the rate limiter (if provided) that we saw a 429
-        try:
-            if rate_limiter:
-                rate_limiter.signal_429()
-        except Exception:
-            pass
-        # Return sentinel for the main loop to react to
-        return "RATE_LIMITED", url
+    elif raw_text is None and url:
+        # fetch_url returned None - could be 429, timeout, or other error
+        # The rate_limiter was already notified by fetch_url
+        return "FAILED", url
 
     return None
 
@@ -1465,8 +1513,7 @@ def db_writer_worker(
 def fetch_worker(url_queue, raw_queue, rate_limiter, stop_event):
     """
     PRODUCER: Downloads content and puts into raw_queue.
-
-    FIX: Better error handling, proper queue blocking behavior.
+    Properly handles rate limits vs timeouts.
     """
     while not stop_event.is_set():
         try:
@@ -1485,10 +1532,13 @@ def fetch_worker(url_queue, raw_queue, rate_limiter, stop_event):
             # 3. Put into Queue (Block if Full - this is the backpressure mechanism)
             if result:
                 if result[0] == "RATE_LIMITED":
-                    # Rate limit detected - put URL back for retry
+                    # Explicit rate limit - put URL back for retry with backoff already applied
                     url_queue.put(url)
-                    rate_limiter.signal_429()
                     time.sleep(rate_limiter.value * 2)
+                elif result[0] == "FAILED":
+                    # Other failure (timeout, connection error, etc) - retry but don't increase sleep
+                    url_queue.put(url)
+                    time.sleep(0.5)  # Brief pause before retry
                 else:
                     # Successfully fetched - put in raw queue
                     # This BLOCKS if queue is full, creating backpressure
