@@ -1011,8 +1011,12 @@ class DynamicContextBank:
                 specific_pool and random.random() < 0.7
             ):  # 70% chance to use aligned noise
                 return random.choice(specific_pool)
+        # Case C: adverse examples (any noise) Pick a random category
+        if self.category_pools and random.random() < 0.7:
+            random_cat = random.choice(list(self.category_pools.keys()))
+            return self.get_noise(random_cat)
 
-        # Case C: Fallback (General Pool)
+        # Case D: Fallback (General Pool)
         if self.general_pool:
             return random.choice(self.general_pool)
 
@@ -1806,7 +1810,7 @@ def create_labeled_dataset():
 
             elif score == -1:
                 row["text"] = get_dynamic_window(
-                    sentences, idx, context_bank=context_bank, label=label
+                    sentences, idx, context_bank=context_bank
                 )
                 row["difficulty"] = "L4_Natural_Adverse"
 
