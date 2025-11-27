@@ -1364,7 +1364,19 @@ def process_producer_consumer():
 
     # 3. Populate Queue
     processed_set = get_processed_urls()
-    print("Populating Queue...")
+    total_files_in_manifest = len(existing_report_df)
+    already_in_warehouse = len(processed_set)
+
+    print("=" * 60)
+    print(f"   • Total Files in Manifest:    {total_files_in_manifest:,}")
+    print(f"   • Already Processed:  {already_in_warehouse:,}")
+    print(
+        f"   • Net Requirements (ToDo):    {total_files_in_manifest - already_in_warehouse:,}"
+    )
+    print("=" * 60)
+    # ------------------------------------
+
+    print("Populating Queue with Net Requirements...")
     initial_count = 0
     for r in existing_report_df.itertuples(index=False):
         if r.url and r.url not in processed_set:
