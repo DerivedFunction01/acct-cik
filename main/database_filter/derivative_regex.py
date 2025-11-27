@@ -2496,6 +2496,95 @@ ENTITY_EXCLUSION_REGEX = build_entity_exclusion_regex()
 # Unique marker to identify the "Target" sentence that anchors a context window.
 # Used to enforce dependency: if the anchor is deleted, loose dependents must die.
 ANCHOR_TAG = " [[ANCHOR]] "
+# =============================================================================
+# STRICT CONTEXT DEFINITIONS (The "High Value" Keywords)
+# =============================================================================
+# These terms are so specific to a category that if they appear in a generic sentence,
+# we are 99% sure of the category without needing ML or historical lookback.
+
+# 1. INTEREST RATE (Strict)
+# Focus: Specific rates, benchmarks, and directional payment terms
+# In derivative_regex.py
+
+IR_STRICT_TERMS = [
+    r"interest\s+rate\s+(?:risk|exposure|management|protection)",
+    r"(?:pay|receive)[- ](?:fixed|variable|floating)",
+    r"interest\s+payments?",
+    r"SOFR",
+    "LIBOR",
+    "EURIBOR",
+    "SONIA",
+    "TONAR",
+    r"amortization\s+of\s+debt",
+    # --- NEW ADDITIONS (The Safe Rates) ---
+    # These imply Interest Rate mechanics specifically
+    r"(?:floating|variable|fixed|prime|treasury)[- ]rates?",
+    r"fed(?:eral)?\s+funds\s+rates?",
+]
+
+# 2. FOREIGN EXCHANGE (Strict)
+# Focus: Currency risk, translation, and remeasurement
+FX_STRICT_TERMS = [
+    r"foreign\s+(?:currency|exchange)\s+(?:risk|exposure|management)",
+    r"currency\s+(?:risk|fluctuations?|exchange)",
+    r"functional\s+currenc(?:y|ies)",
+    r"remeasurement\s+(?:gain|loss)",
+    r"foreign\s+operations?",
+    r"denominated\s+in",
+    r"cross[- ]currency",
+] + build_currency_patterns()  # Specific currency names are strict context
+
+# 3. COMMODITY (Strict)
+# Focus: Physical assets and specific commodity names
+# =============================================================================
+# STRICT CONTEXT DEFINITIONS (Updated)
+# =============================================================================
+
+# 1. Helper: Build the commodity alternation once
+_COMMODITY_NAMES = build_alternation(COMMON_COMMODITIES)
+
+# 2. COMMODITY (Strict)
+# FIX: Do NOT include raw commodity names.
+# Only include them if attached to "price", "cost", "risk", "hedge", or "swap".
+CP_STRICT_TERMS = [
+    # General terms
+    r"commodity\s+(?:risk|price|exposure|strategies)",
+    r"energy\s+(?:costs?|prices?)",
+    r"raw\s+material\s+costs?",
+    r"fuel\s+surcharges?",
+    
+    # Specific Commodity + Financial Modifier
+    # Matches: "Corn prices", "Oil hedging",
+    rf"(?:{_COMMODITY_NAMES})\s+(?:prices?|costs?|risks?|exposures?|hedg(?:e|es|ing))",
+    # Financial Modifier + Specific Commodity
+    # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
+    rf"(?:price|cost|risk|exposure|hedging|market\s+value)\s+of\s+(?:{_COMMODITY_NAMES})",
+]
+
+# ... (IR_STRICT_TERMS, FX_STRICT_TERMS, etc. remain the same) ...
+
+# 4. EQUITY (Strict)
+# Focus: Convertibles, Warrants, and Valuation Models
+EQ_STRICT_TERMS = [
+    r"equity\s+(?:price|risk|exposure)",
+    r"stock\s+(?:price|appreciation|option)",
+    r"share\s+price",
+    r"convertible\s+(?:debt|notes?|bonds?|debentures?)",
+    r"embedded\s+(?:conversion|derivative|option)",
+    r"warrants?",
+    r"dividend\s+yield",
+    r"Black[- ]Scholes",
+    r"Monte[- ]Carlo",
+    r"Lattice\s+model",
+]
+
+# Build Regexes
+STRICT_CONTEXT_MAP = {
+    "ir": re.compile(r"\b" + build_alternation(IR_STRICT_TERMS) + r"\b", re.IGNORECASE),
+    "fx": re.compile(r"\b" + build_alternation(FX_STRICT_TERMS) + r"\b", re.IGNORECASE),
+    "cp": re.compile(r"\b" + build_alternation(CP_STRICT_TERMS) + r"\b", re.IGNORECASE),
+    "eq": re.compile(r"\b" + build_alternation(EQ_STRICT_TERMS) + r"\b", re.IGNORECASE),
+}
 
 __all__ = [
     "SENTENCE_SPLIT_PATTERN",
@@ -2549,5 +2638,6 @@ __all__ = [
     "VERB_USE_REGEX",
     "NON_DERIVATIVE_REGEX",
     "ENTITY_EXCLUSION_REGEX",
-    "HEADER_CLEANUP_PATTERNS"
+    "HEADER_CLEANUP_PATTERNS",
+    "STRICT_CONTEXT_MAP"
 ]
