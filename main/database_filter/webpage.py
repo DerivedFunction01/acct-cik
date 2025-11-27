@@ -981,6 +981,114 @@ def adjust_rate_in_background(
             )
             last_sleep = current_sleep
 
+# class ThreadSafeRateLimiter: # Old version for process-report fully
+#     """
+#     A thread-safe class to manage a shared rate limit value using atomic
+#     update methods to prevent race conditions.
+#     """
+
+#     def __init__(self, initial_rate_limit: float):
+#         self._rate_limit = initial_rate_limit
+#         self._lock = threading.Lock()
+#         self._last_429_time = 0
+#         self._recovery_mode = False
+#         self._initial_rate_limit = float(initial_rate_limit)
+
+#     @property
+#     def value(self) -> float:
+#         """Get the current rate limit value."""
+#         with self._lock:
+#             return self._rate_limit
+
+#     def signal_429(self):
+#         """Signal that a 429 response was received."""
+#         with self._lock:
+#             self._last_429_time = time.time()
+#             self._recovery_mode = True
+#             # Increase sleep time by 50%, capped at 60s
+#             self._rate_limit = min(self._rate_limit * 1.5, 60.0)
+
+#     def adjust(self, current_rate: float, target_rate: float):
+#         """Atomically adjust the rate limit based on performance."""
+#         with self._lock:
+#             time_since_last_429 = time.time() - self._last_429_time
+
+#             # Exit recovery mode if no 429s for 30 seconds
+#             if self._recovery_mode and time_since_last_429 > 30:
+#                 self._recovery_mode = False
+
+#             # Determine target rate based on recovery status
+#             target_rate_adjusted = (
+#                 target_rate * 0.5 if self._recovery_mode else target_rate
+#             )
+
+#             # --- Main Adjustment Logic ---
+#             if current_rate > target_rate_adjusted * 1.05:  # Over target
+#                 # Multiplicatively increase sleep time to slow down
+#                 increase_factor = (
+#                     1.0
+#                     + min(
+#                         (current_rate - target_rate_adjusted) / target_rate_adjusted,
+#                         1.0,
+#                     )
+#                     * 0.1
+#                 )
+#                 self._rate_limit *= increase_factor
+
+#             elif current_rate < target_rate_adjusted * 0.95:  # Under target
+#                 if not self._recovery_mode:
+#                     # Only decrease sleep time if not in recovery
+#                     self._rate_limit = max(0, self._rate_limit * 0.98)
+
+#             # --- Gradual Recovery Logic ---
+#             # Always try to decay back towards the initial rate limit
+#             if self._rate_limit > self._initial_rate_limit:
+#                 # If we've been clear of 429s for a while, recover faster
+#                 step = 0.05 if time_since_last_429 > 15 else 0.01
+#                 gap = self._rate_limit - self._initial_rate_limit
+#                 self._rate_limit -= gap * step
+
+#             return self._rate_limit, self._recovery_mode, target_rate_adjusted
+
+
+# def adjust_rate_in_background(
+#     tqdm_bar: tqdm,
+#     rate_limiter: ThreadSafeRateLimiter,
+#     target_rate: float,
+#     stop_event: threading.Event,
+# ):
+#     """A background thread to dynamically adjust the sleep rate."""
+#     prev_count = getattr(tqdm_bar, "n", 0)
+#     prev_time = time.time()
+
+#     while not stop_event.is_set():
+#         time.sleep(0.25)  # Check 4 times per second
+
+#         # Estimate current rate (requests/sec) from progress increments
+#         try:
+#             now = time.time()
+#             current_count = getattr(tqdm_bar, "n", prev_count)
+#             elapsed = now - prev_time if now - prev_time > 0 else 1e-6
+#             current_rate = (current_count - prev_count) / elapsed
+#             prev_count = current_count
+#             prev_time = now
+#         except Exception:
+#             current_rate = 0.0
+
+#             # Not in recovery: always decay back toward initial value slowly
+#         # Atomically adjust the rate and get the current state
+#         current_sleep, in_recovery, target_rate_adjusted = rate_limiter.adjust(
+#             current_rate, target_rate
+#         )
+#         mode = "Recovery" if in_recovery else "Normal"
+
+#         tqdm_bar.set_postfix(
+#             rate=f"{current_rate:.1f} req/s",
+#             sleep=f"{current_sleep*1000:.1f}ms",
+#             mode=mode,
+#             target=f"{target_rate_adjusted:.1f} req/s",
+#         )
+
 
 def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
     """
@@ -1273,13 +1381,11 @@ def process_all_reports_fully():
 # INITIALIZATION
 # =============================================================================
 # %%
-
-# =============================================================================
-# KEY FIXES FOR PRODUCER-CONSUMER MODEL
-# =============================================================================
-
-
-def process_producer_consumer():
+def process_producer_consumer_adaptive():
+    """
+    Producer-Consumer model with ADAPTIVE rate limiting.
+    Continuously monitors fetch rate and adjusts sleep dynamically.
+    """
     manager = mp.Manager()
 
     # 1. Setup Queues
@@ -1287,12 +1393,24 @@ def process_producer_consumer():
     raw_queue = manager.Queue(maxsize=CHUNK_SIZE)
     result_queue = manager.Queue()
 
-    # 2. Shared Stats for TQDM
-    # Use a dict with a lock instead of Value for better compatibility
+    # 2. Shared Stats
     items_processed = manager.dict({"count": 0})
     counter_lock = manager.Lock()
 
-    # 3. Populate Queue
+    # 3. Shared rate limiter (for all fetchers to use)
+    rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT)
+
+    # 4. Metrics for rate adjustment (shared across fetchers)
+    fetch_metrics = manager.dict(
+        {
+            "fetch_count": 0,
+            "last_sample_time": time.time(),
+            "last_adjustment_time": time.time(),
+        }
+    )
+    metrics_lock = manager.Lock()
+
+    # 5. Populate Queue
     processed_set = get_processed_urls()
     total_files_in_manifest = len(existing_report_df)
     already_in_warehouse = len(processed_set)
@@ -1308,9 +1426,8 @@ def process_producer_consumer():
     print("Populating Queue with Net Requirements...")
     initial_count = 0
 
-    # FIX #1: Properly check membership in set - processed_set contains tuples from get_processed_urls()
     for r in existing_report_df.itertuples(index=False):
-        if r.url and (r.url,) not in processed_set:  # <-- Must wrap in tuple!
+        if r.url and (r.url,) not in processed_set:
             url_queue.put(r.url)
             initial_count += 1
 
@@ -1320,11 +1437,11 @@ def process_producer_consumer():
         print("Nothing to process.")
         return
 
-    # 4. Start Workers
+    # 6. Start Workers
     db_thread = threading.Thread(
         target=db_writer_worker,
         args=(result_queue, DB_PATH, items_processed, counter_lock, initial_count),
-        daemon=False,  # FIX #2: Must not be daemon to ensure DB writes complete
+        daemon=False,
     )
     db_thread.start()
 
@@ -1334,20 +1451,35 @@ def process_producer_consumer():
         p.start()
         parsers.append(p)
 
-    rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT)
+    # 7. Start fetchers WITH rate limiter
     fetchers = []
     stop_event = threading.Event()
 
     for _ in range(NUM_FETCHERS):
         t = threading.Thread(
-            target=fetch_worker,
-            args=(url_queue, raw_queue, rate_limiter, stop_event),
-            daemon=False,  # FIX #3: Ensure graceful shutdown
+            target=fetch_worker_adaptive,
+            args=(
+                url_queue,
+                raw_queue,
+                rate_limiter,
+                stop_event,
+                fetch_metrics,
+                metrics_lock,
+            ),
+            daemon=False,
         )
         t.start()
         fetchers.append(t)
 
-    # 5. Monitoring Loop
+    # 8. Start RATE ADJUSTER thread (monitors and adjusts sleep rate)
+    rate_adjuster = threading.Thread(
+        target=rate_adjuster_worker,
+        args=(rate_limiter, fetch_metrics, metrics_lock, stop_event, SEC_RATE),
+        daemon=False,
+    )
+    rate_adjuster.start()
+
+    # 9. Monitoring Loop
     last_save_time = time.time()
 
     with tqdm(total=initial_count, unit="files", smoothing=0.1) as pbar:
@@ -1370,7 +1502,7 @@ def process_producer_consumer():
                 pbar.set_postfix(
                     remaining=q_rem,
                     inventory=f"{inv_size}/{CHUNK_SIZE}",
-                    sleep=f"{rate_limiter.value:.2f}s",
+                    sleep=f"{rate_limiter.value*1000:.1f}ms",
                 )
 
                 # C. Check Backup Trigger
@@ -1389,12 +1521,12 @@ def process_producer_consumer():
                     except Exception as e:
                         pbar.write(f"  ⚠️ Backup failed: {e}")
 
-                # D. Exit Condition (FIX #4: Better exit detection)
+                # D. Exit Condition
                 if current_done >= initial_count and initial_count > 0:
                     pbar.write("✓ All items processed!")
                     break
 
-                # FIX #5: Stall detection - if no progress for 30 seconds, something is wrong
+                # E. Stall detection
                 if current_done == prev_done:
                     stalled_count += 1
                     if stalled_count > 30:
@@ -1402,7 +1534,6 @@ def process_producer_consumer():
                         pbar.write(
                             f"   URL Queue: {url_queue.qsize()}, Raw Queue: {raw_queue.qsize()}, Result Queue: {result_queue.qsize()}"
                         )
-                        # Give it 10 more seconds before force exit
                         if stalled_count > 40:
                             pbar.write("⚠️  Force-exiting stalled pipeline...")
                             break
@@ -1418,6 +1549,9 @@ def process_producer_consumer():
             # SHUTDOWN SEQUENCE
             pbar.write("Initiating shutdown...")
             stop_event.set()
+
+            # Wait for rate adjuster
+            rate_adjuster.join(timeout=5)
 
             # Wait for fetchers to complete
             for t in fetchers:
@@ -1449,12 +1583,124 @@ def process_producer_consumer():
             print("Pipeline finished.")
 
 
+def rate_adjuster_worker(
+    rate_limiter, fetch_metrics, metrics_lock, stop_event, target_rate
+):
+    """
+    BACKGROUND THREAD: Continuously monitors fetch rate and adjusts sleep dynamically.
+
+    This is the "adaptive" component that makes the producer-consumer model responsive
+    to server throttling and network conditions.
+    """
+    prev_fetch_count = 0
+    prev_time = time.time()
+    last_recovery_check = time.time()
+
+    while not stop_event.is_set():
+        time.sleep(0.5)  # Check 2x per second (more responsive than old 0.25s)
+
+        try:
+            with metrics_lock:
+                current_fetch_count = fetch_metrics["fetch_count"]
+                sample_time = fetch_metrics["last_sample_time"]
+
+            now = time.time()
+            elapsed = now - prev_time
+
+            # Calculate current fetch rate (requests/second)
+            if elapsed > 0:
+                current_rate = (current_fetch_count - prev_fetch_count) / elapsed
+            else:
+                current_rate = 0.0
+
+            prev_fetch_count = current_fetch_count
+            prev_time = now
+
+            # Call the rate limiter's atomic adjust method
+            # This returns updated sleep value and recovery mode status
+            new_sleep, in_recovery, target_rate_adjusted = rate_limiter.adjust(
+                current_rate, target_rate
+            )
+
+            # Log periodically (every 5 seconds)
+            if now - last_recovery_check > 5:
+                mode = "🔴 Recovery" if in_recovery else "🟢 Normal"
+                print(
+                    f"[Rate Adjuster] {mode} | "
+                    f"Rate: {current_rate:.2f} req/s | "
+                    f"Target: {target_rate_adjusted:.2f} req/s | "
+                    f"Sleep: {new_sleep*1000:.1f}ms"
+                )
+                last_recovery_check = now
+
+        except Exception as e:
+            print(f"⚠️  Rate adjuster error: {e}")
+
+
+def fetch_worker_adaptive(
+    url_queue, raw_queue, rate_limiter, stop_event, fetch_metrics, metrics_lock
+):
+    """
+    PRODUCER: Downloads content and puts into raw_queue.
+    Reports fetch attempts to metrics for rate adjustment.
+    """
+    while not stop_event.is_set():
+        try:
+            # Get a URL with timeout to allow checking stop_event
+            url = url_queue.get(timeout=1)
+        except queue.Empty:
+            continue
+
+        try:
+            # 1. Apply Rate Limit (dynamically adjusted by rate_adjuster_worker)
+            sleep_time = rate_limiter.value
+            time.sleep(sleep_time)
+
+            # 2. Update metrics (increment fetch attempt)
+            with metrics_lock:
+                fetch_metrics["fetch_count"] += 1
+                fetch_metrics["last_sample_time"] = time.time()
+
+            # 3. Fetch
+            result = fetch_raw_content(url, rate_limiter)
+
+            # 4. Put into Queue
+            if result:
+                if result[0] == "RATE_LIMITED":
+                    # Explicit rate limit - signal the rate limiter
+                    rate_limiter.signal_429()
+                    # Put URL back for retry (sleep already increased)
+                    url_queue.put(url)
+
+                elif result[0] == "FAILED":
+                    # Other failure (timeout, connection error) - retry but don't increase sleep
+                    rate_limiter.signal_timeout()
+                    url_queue.put(url)
+                    time.sleep(0.5)
+
+                else:
+                    # Successfully fetched - put in raw queue
+                    # This BLOCKS if queue is full, creating backpressure
+                    try:
+                        raw_queue.put(result, timeout=5)
+                    except queue.Full:
+                        # Queue is full - put URL back and try again later
+                        url_queue.put(url)
+                        time.sleep(0.5)
+
+        except Exception as e:
+            print(f"Fetch worker error: {e}")
+
+        finally:
+            # Always mark as done for queue accounting
+            url_queue.task_done()
+
+
 def save_batch(conn, buffer):
     if not buffer:
         return
     try:
         df_batch = pd.DataFrame(buffer)
-        # Use your existing save logic, but adapted for open connection
         c = conn.cursor()
         data = list(zip(df_batch.url, df_batch.matches.apply(json.dumps)))
         c.executemany(
@@ -1473,11 +1719,7 @@ def db_writer_worker(
     total_expected,
     save_interval=50,
 ):
-    """
-    Consumes results, writes to DB, and updates the shared_counter.
-
-    FIX: Using manager.dict() with lock for proper multiprocessing synchronization.
-    """
+    """Consumes results, writes to DB, and updates the shared_counter."""
     buffer = []
     conn = sqlite3.connect(db_path)
     processed = 0
@@ -1486,7 +1728,6 @@ def db_writer_worker(
         try:
             result = result_queue.get(timeout=2)
         except queue.Empty:
-            # Timeout - if we have buffered data, save it
             if buffer:
                 save_batch(conn, buffer)
                 with counter_lock:
@@ -1495,7 +1736,7 @@ def db_writer_worker(
                 buffer = []
             continue
 
-        if result is None:  # Sentinel value - stop signal
+        if result is None:
             if buffer:
                 save_batch(conn, buffer)
                 with counter_lock:
@@ -1515,64 +1756,15 @@ def db_writer_worker(
     conn.close()
 
 
-def fetch_worker(url_queue, raw_queue, rate_limiter, stop_event):
-    """
-    PRODUCER: Downloads content and puts into raw_queue.
-    Properly handles rate limits vs timeouts.
-    """
-    while not stop_event.is_set():
-        try:
-            # Get a URL with timeout to allow checking stop_event
-            url = url_queue.get(timeout=1)
-        except queue.Empty:
-            continue
-
-        try:
-            # 1. Apply Rate Limit
-            time.sleep(rate_limiter.value)
-
-            # 2. Fetch
-            result = fetch_raw_content(url, rate_limiter)
-
-            # 3. Put into Queue (Block if Full - this is the backpressure mechanism)
-            if result:
-                if result[0] == "RATE_LIMITED":
-                    # Explicit rate limit - put URL back for retry with backoff already applied
-                    url_queue.put(url)
-                    time.sleep(rate_limiter.value * 2)
-                elif result[0] == "FAILED":
-                    # Other failure (timeout, connection error, etc) - retry but don't increase sleep
-                    url_queue.put(url)
-                    time.sleep(0.5)  # Brief pause before retry
-                else:
-                    # Successfully fetched - put in raw queue
-                    # This BLOCKS if queue is full, creating backpressure
-                    try:
-                        raw_queue.put(result, timeout=5)
-                    except queue.Full:
-                        # Queue is full - put URL back and try again later
-                        url_queue.put(url)
-                        time.sleep(0.5)
-        except Exception as e:
-            print(f"Fetch worker error: {e}")
-        finally:
-            # Always mark as done for queue accounting
-            url_queue.task_done()
-
-
 def parse_worker(raw_queue, result_queue):
-    """
-    CONSUMER: Takes raw content and puts parsed results into result_queue.
-
-    FIX: Better error handling.
-    """
+    """CONSUMER: Takes raw content and puts parsed results into result_queue."""
     while True:
         try:
             data = raw_queue.get(timeout=2)
         except queue.Empty:
             continue
 
-        if data is None:  # Sentinel value to kill process
+        if data is None:
             break
 
         try:
@@ -1581,6 +1773,42 @@ def parse_worker(raw_queue, result_queue):
                 result_queue.put(parsed_result)
         except Exception as e:
             print(f"Parse worker error: {e}")
+
+
+# =============================================================================
+# MAIN EXECUTION
+# =============================================================================
+# %%
+if __name__ == "__main__":
+    create_db()
+    existing_report_df = fetch_report_data()
+    print(f"Found {len(existing_report_df)} reports in database")
+    NUM_FETCHERS, NUM_PARSERS, CHUNK_SIZE, SEC_RATE_LIMIT = get_system_config()
+    all_derivatives_df = pd.read_csv(ALL_FIRMS_DATA)
+    if IS_COLAB:
+        print("Running in Google Colab environment")
+        if not Path(DB_PATH).exists():
+            print("Loading database from Google Drive...")
+            subprocess.run(LOAD_SHELL_CMD, shell=True)
+    else:
+        print("Running in local environment")
+
+    print("=" * 70)
+    print("STEP 1: Fetch all 10-K report URLs from SEC")
+    print("=" * 70)
+    # Uncomment to run:
+    # fetch_all_grouped()
+
+    print("\n" + "=" * 70)
+    print(f"STEP 2: Perform keyword extraction in parallel (ADAPTIVE)")
+    print("=" * 70)
+
+    # Use the adaptive version
+    process_producer_consumer_adaptive()
+
+    print("\n" + "=" * 70)
+    print("All done!")
+    print("=" * 70)
 
 
 existing_report_df = pd.DataFrame()
@@ -1612,7 +1840,7 @@ if __name__ == "__main__":
     print("=" * 70)
     # Uncomment to run:
     # process_all_reports_fully()
-    process_producer_consumer()
+    process_producer_consumer_adaptive()
     print("\n" + "=" * 70)
     print("All done!")
     print("=" * 70)
