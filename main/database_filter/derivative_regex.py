@@ -796,7 +796,6 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
         "forward",
         "benchmark",
         "interest",
-        "cross[- ]currency interest", # special
         "prime",
         "fed[- ]funds",
     ] + RATE_TYPES
@@ -925,7 +924,9 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 2. Build Core Terms (Prefixes) ---
     # Precise prefixes (e.g., 'forward foreign currency')
     strict_core_terms = [
-        rf"(?:{fx_dynamic_pattern})"
+        rf"(?:{fx_dynamic_pattern})",
+        r"cross[- ]currency\s+interest\s+rate",
+        r"cross[- ]currency\s+interest",
     ]
     # Broad prefixes (e.g., 'currency', 'fx')
     soft_core_terms = [
@@ -962,6 +963,9 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         "NDF",
         r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
         "net investment hedges?",
+        "CCIRS",
+        "CCIR",
+        "XCCY",
     ]
     
     # -------------------------------------------------------------------------
