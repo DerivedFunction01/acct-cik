@@ -61,6 +61,7 @@ from derivative_regex import (
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     FX_SOFT_REGEX,
+    HEADER_CLEANUP_PATTERNS,
     HEDGING_CONTEXT_REGEX,
     IR_REGEX,
     FX_REGEX,
@@ -69,6 +70,7 @@ from derivative_regex import (
     IR_SOFT_REGEX,
     LOOSE_GEN_REGEX,
     POSITION_CONTEXT_INDICATORS,
+    REFERENCE_CLEANUP_REGEX,
     SOFT_CATEGORY_REGEX,
     SOFT_GEN_REGEX,
     SOFT_REGEX,
@@ -289,6 +291,77 @@ def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
             f"ML resolver unavailable ({e}) – will fall back to regex-only resolution"
         )
         RESOLVER = None
+
+
+class TextCleaner:
+    MAX_CLEANUP_MATCH_LENGTH = 200
+    def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH):
+        """
+        Args:
+            max_match_length: The safety threshold. If a regex match exceeds this
+                              length (in characters), it is assumed to be a false
+                              positive (e.g., matching a whole paragraph instead of
+                              a header) and is NOT removed.
+        """
+        self.max_match_length = max_match_length
+
+    def _safe_sub(self, pattern: re.Pattern, replacement: str, text: str) -> str:
+        """
+        Performs a regex substitution ONLY if the match length is within limits.
+        """
+
+        def replacement_callback(match):
+            match_len = len(match.group(0))
+
+            # SAFEGUARD: If the match is too huge, assume the regex got greedy
+            # and matched meaningful content. Keep original text.
+            if match_len > self.max_match_length:
+                # logger.warning(f"Skipped cleanup for match of length {match_len} (Threshold: {self.max_match_length})")
+                return match.group(0)
+
+            return replacement
+
+        return pattern.sub(replacement_callback, text)
+
+    def clean_structure(self, text: str) -> str:
+        """
+        Cleans headers, markdown emphasis, and structural all-caps artifacts.
+        """
+        cleaned_text = text
+        for pattern, replacement in HEADER_CLEANUP_PATTERNS:
+            # Run twice to handle nested or adjacent artifacts
+            cleaned_text = self._safe_sub(pattern, replacement, cleaned_text)
+            cleaned_text = self._safe_sub(pattern, replacement, cleaned_text)
+        return cleaned_text
+
+    def clean_references(self, text: str) -> str:
+        """
+        Removes noise references like "See Note 5" or "Table below".
+        """
+        return REFERENCE_CLEANUP_REGEX.sub(" ", text)
+
+    def normalize_whitespace(self, text: str) -> str:
+        """
+        Collapses multiple spaces/newlines into single units.
+        """
+        # Collapse multiple spaces into one
+        text = re.sub(r"[ \t]+", " ", text)
+        # Collapse 3+ newlines into 2 (paragraph breaks)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
+
+    def process(self, text: str) -> str:
+        """
+        Main pipeline execution.
+        """
+        if not text:
+            return ""
+
+        text = self.clean_structure(text)
+        text = self.clean_references(text)
+        text = self.normalize_whitespace(text)
+
+        return text
 
 
 # ---------------------------------------------------------------------

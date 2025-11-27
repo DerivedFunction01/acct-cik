@@ -2294,6 +2294,159 @@ ABSENCE_REGEX = build_absence_regex()
 DID_NOT_HOLD_REGEX = build_did_not_hold_regex()
 TERMINATION_REGEX = build_termination_regex()
 
+
+def build_reference_patterns() -> re.Pattern:
+    """
+    Builds a regex that catches 'See Note X' references and consumes
+    the rest of the sentence to clean up tail noise.
+    """
+
+    # The "Tail" - Consumes everything until a sentence boundary or end of string
+    # We use non-greedy lookahead or simply a negated character class
+    # [^.?!]* matches anything that isn't a period, question mark, or exclamation.
+    SENTENCE_TAIL = r"[^.?!:]*"
+
+    # Base patterns (from your list)
+    patterns = [
+        # --- NOTE REFERENCES ---
+        # 1. See Note X
+        r"[Ss]ee\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?(?:\s*\(s\))?",
+        # 2. Refer to Note X
+        r"(?:[Rr]efer(?:ence)?\s+(?:to|is\s+made\s+to|is\s+hereby\s+made\s+to))\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?",
+        # 3. In Note X (Start of fragment or sentence)
+        r"\b[Ii]n\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?",
+        # 4. Note X provides/details...
+        r"\b(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?\s+(?:provides?|details?|discloses?|discusses?)",
+        # --- TABLE / SCHEDULE REFERENCES ---
+        # 5. The table/schedule below/above...
+        r"[Tt]he\s+(?:table|schedule|exhibit|note)\s+(?:below|above|following|accompanying)?\s*(?:[Rr]efers\s+to|[Pp]rovides\s+details\s+on|[Pp]resents|[Ss]hows|[Ss]ummarizes|[Dd]etails|[Ii]s\s+presented)",
+        # 6. As shown in the table...
+        r"(?:[Aa]s\s+(?:shown|provided|detailed|presented|summarized|disclosed|set\s+forth)?\s+in\s+the\s+(?:table|schedule|exhibit|note))",
+        # 7. In the table below...
+        r"[Ii]n\s+(?:the\s+)?(?:table|schedule|exhibit|note)\s+(?:below|above|following)",
+        # 8. Punctuation + Table No. X (Very specific tail noise)
+        r"(?:[.,;:\-\s]|\s+and\s+)\s*(?:table|schedule|exhibit|note)\s+No\.\s+\d+",
+    ]
+
+    # Combine: (Pattern) + (Tail)
+    # We allow the regex to consume the rest of the sentence.
+    combined = [f"(?:{p}){SENTENCE_TAIL}" for p in patterns]
+
+    return re.compile(r"|".join(combined), re.IGNORECASE | re.DOTALL)
+
+
+def build_information_reference_regex() -> re.Pattern:
+    """
+    Matches informational pointers like:
+    - "For more information regarding..."
+    - "For further details on..."
+    - "For a complete discussion of..."
+    """
+
+    # Adjectives modifying the noun
+    adjectives = [
+        "more",
+        "further",
+        "additional",
+        "extra",
+        "detailed",
+        "supplemental",
+        "complete",
+        "full",
+    ]
+
+    # The nouns themselves
+    nouns = [
+        "information",
+        "details?",
+        "discussion",
+        "analysis",
+        "disclosure",
+        "description",
+    ]
+
+    # Connectors to the subject (Optional)
+    connectors = [
+        "regarding",
+        "concerning",
+        "on",
+        "about",
+        r"related\s+to",
+        r"with\s+respect\s+to",
+    ]
+
+    adj_pat = build_alternation(adjectives)
+    noun_pat = build_alternation(nouns)
+    conn_pat = build_alternation(connectors)
+
+    # Structure: "For" + [Adjective] + [Noun] + (Optional [Connector])
+    pattern = (
+        rf"([Ff]or)?\s+"
+        rf"(?:a\s+|an\s+)?(?:{adj_pat})\s+"
+        rf"(?:{noun_pat})"
+        rf"(?:\s+(?:{conn_pat}))?"
+    )
+
+    return re.compile(pattern, re.IGNORECASE)
+
+
+# Compile and Export
+REFERENCE_CLEANUP_REGEX = build_reference_patterns()
+
+# New Header and Structural Cleanup Patterns
+HEADER_CLEANUP_PATTERNS = [
+    # 1. Markdown Headers: Targets # Title # and similar structure
+    (re.compile(r"\n\#+\s*.*?\#*\n", re.IGNORECASE), "\n\n"),
+    # 2. Markdown Bold/Italics Emphasis: Targets **Title** or *Title* or _Title_
+    # Replaces with space to separate merged text fragments
+    (re.compile(r"\*{1,}.*?\*{1,}", re.IGNORECASE), " "),
+    (re.compile(r"\_[^\s_].*?[^\s_]\_", re.IGNORECASE), " "),
+    # 3. ALL-CAPS DERIVATIVE HEADER DELETION (For older filings, removes structural noise)
+    # Targets long, non-narrative all-caps sequences containing key terms like DERIVATIVE or HEDGING
+    (
+        re.compile(
+            r"^(?:[^a-z\n]*?(?:DERIVATIVES?|HEDGING)[^a-z\n]*?)(?=[A-Z][a-z])",
+            re.MULTILINE,
+        ),
+        " ",
+    ),
+    (
+        re.compile(r"^\s*[^a-z\n]*?(?:DERIVATIVES?|HEDGING)[^a-z\n]*?$", re.MULTILINE),
+        "\n\n",
+    ),
+]
+
+def build_entity_exclusion_regex() -> re.Pattern:
+    """
+    Matches official entity names that contain trigger words
+    (Futures, Swaps, Options, Derivatives) to prevent false positive classification.
+    """
+    entities = [
+        # CP Triggers ("Futures", "Commodity")
+        r"(?:U\.?S\.?\s+)?Commodity\s+Futures\s+Trading\s+Commission",
+        r"National\s+Futures\s+Association",
+        # IR/Gen Triggers ("Swaps", "Derivatives")
+        r"International\s+Swaps\s+(?:and|&)\s+Derivatives\s+Association",
+        r"Swaps\s+(?:and|&)\s+Derivatives\s+Market\s+Association",
+        # EQ Triggers ("Options", "Stock", "Exchange")
+        r"Chicago\s+Board\s+Options\s+Exchange",
+        r"Philadelphia\s+Stock\s+Exchange",
+        r"American\s+Stock\s+Exchange",
+        r"New\s+York\s+Stock\s+Exchange",
+        # General Regulatory (prevent "Exchange" or "Board" context leaks)
+        r"Securities\s+(?:and|&)\s+Exchange\s+Commission",
+        r"Financial\s+Accounting\s+Standards\s+Board",
+        r"Public\s+Company\s+Accounting\s+Oversight\s+Board",
+    ]
+
+    # Use build_alternation to ensure longest matches (e.g., full name) are prioritized
+    pattern = build_alternation(entities)
+    return re.compile(rf"\b{pattern}\b", re.IGNORECASE)
+
+
+# Compile and Export
+ENTITY_EXCLUSION_REGEX = build_entity_exclusion_regex()
+
 __all__ = [
     "SENTENCE_SPLIT_PATTERN",
     "MIN_SENTENCE_LENGTH",
@@ -2345,4 +2498,6 @@ __all__ = [
     "BASE_REGEX",
     "VERB_USE_REGEX",
     "NON_DERIVATIVE_REGEX",
+    "ENTITY_EXCLUSION_REGEX",
+    "HEADER_CLEANUP_PATTERNS"
 ]

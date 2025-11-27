@@ -122,6 +122,7 @@ from derivative_regex import (
     SOFT_GEN_REGEX,  # <--- NEW: The "Accounting" Savior
     LOOSE_GEN_REGEX,  # <--- NEW: For Contextual Capture
     HEDGING_CONTEXT_REGEX,  # <--- NEW: For Contextual Capture
+    HEADER_CLEANUP_PATTERNS,
 )
 
 FILING_TYPES = {
@@ -148,25 +149,6 @@ CLEANUP_PATTERNS = [
 ]
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
-# In webpage.py, near other global patterns (around line 125)
-
-# New Header and Structural Cleanup Patterns
-HEADER_CLEANUP_PATTERNS = [
-    # 1. Markdown Headers: Targets # Title # and similar structure
-    (re.compile(r"\n\#+\s*.*?\#*\n", re.IGNORECASE), "\n\n"),
-    # 2. Markdown Bold/Italics Emphasis: Targets **Title** or *Title* or _Title_
-    # Replaces with space to separate merged text fragments
-    (re.compile(r"\*{1,}.*?\*{1,}", re.IGNORECASE), " "),
-    (re.compile(r"\_[^\s_].*?[^\s_]\_", re.IGNORECASE), " "),
-    # 3. ALL-CAPS DERIVATIVE HEADER DELETION (For older filings, removes structural noise)
-    # Targets long, non-narrative all-caps sequences containing key terms like DERIVATIVE or HEDGING
-    (
-        re.compile(
-            r"\b[A-Z\s]{10,}\s+(?:DERIVATIVES?|HEDGING)\s+[A-Z\s]{10,}\b", re.IGNORECASE
-        ),
-        "\n\n",
-    ),
-]
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r'(?<!\n)\n(?!\n)')
 SPACE_PATTERN = re.compile(r'\s+')
@@ -729,8 +711,8 @@ def filter_by_keywords(content: str) -> list[str]:
                             if next_para_raw
                             else ""
                         )
-
-                        if len(next_para) < 30:
+                        # if it is too short or begins in all caps -> skip
+                        if len(next_para) < 30 or next_para.isupper():
                             look_ahead_idx += 1
                             continue
 
