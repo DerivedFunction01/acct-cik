@@ -1385,22 +1385,8 @@ def get_dynamic_window(
     apply_numeric_substitution=True,
 ):
     """
-    Constructs a variable-width window with optional dynamic numeric substitution.
-
-    Applies substitution to:
-    - Years (with offset preservation)
-    - Months (with offset preservation)
-    - Other numbers (±5% perturbation)
-
-    Args:
-        sentences: List of sentences
-        target_idx: Index of target sentence
-        override_target: Optional replacement for target sentence
-        context_bank: Optional noise injection bank
-        apply_numeric_substitution: If True, apply numeric substitution to final window
-
-    Returns:
-        Window text with [SEP] tokens
+    Constructs a window. If label='gen', it ACTIVELY CENSORS local neighbors 
+    that contain specific category context to prevent leakage.
     """
     target_sent = (
         override_target if override_target is not None else sentences[target_idx]
@@ -1413,29 +1399,48 @@ def get_dynamic_window(
     for dist in range(1, current_width + 1):
         if target_idx - dist >= 0:
             sent = sentences[target_idx - dist]
-            noise_prob = 0.0
-            if dist == 2:
-                noise_prob = 0.2
-            if dist >= 3:
-                noise_prob = 0.5
 
-            # PASS LABEL TO get_noise
-            if context_bank and random.random() < noise_prob:
+            # Default noise probability
+            noise_prob = 0.0
+            if dist == 2: noise_prob = 0.2
+            if dist >= 3: noise_prob = 0.5
+
+            # CRITICAL: If target is GEN, check if the local neighbor is "Toxic" (Specific)
+            # If neighbor has specific context (e.g. "interest rate swap"), we MUST kill it.
+            is_toxic_neighbor = False
+            if label == "gen":
+                # Check if neighbor has specific category signals
+                cats = detect_noise_categories(sent)
+                if cats: # It has specific categories (ir, fx, cp, eq)
+                    is_toxic_neighbor = True
+            
+            # Force swap if toxic, otherwise use standard probability
+            should_swap = is_toxic_neighbor or (random.random() < noise_prob)
+
+            if context_bank and should_swap:
+                # This will pull from 'safe_pool' because label="gen"
                 sent = context_bank.get_noise(target_label=label)
 
             prev_parts.insert(0, sent)
 
         if target_idx + dist < len(sentences):
             sent = sentences[target_idx + dist]
+            
             noise_prob = 0.0
-            if dist == 2:
-                noise_prob = 0.2
-            if dist >= 3:
-                noise_prob = 0.5
+            if dist == 2: noise_prob = 0.2
+            if dist >= 3: noise_prob = 0.5
 
-            # PASS LABEL TO get_noise
-            if context_bank and random.random() < noise_prob:
+            is_toxic_neighbor = False
+            if label == "gen":
+                cats = detect_noise_categories(sent)
+                if cats:
+                    is_toxic_neighbor = True
+            
+            should_swap = is_toxic_neighbor or (random.random() < noise_prob)
+
+            if context_bank and should_swap:
                 sent = context_bank.get_noise(target_label=label)
+
 
             next_parts.append(sent)
 
@@ -1446,26 +1451,20 @@ def get_dynamic_window(
 
     if apply_numeric_substitution and NUMERIC_SUBSTITUTION_CONFIG["enabled"]:
         all_sentences = prev_parts + [target_sent] + next_parts
-
-        # Extract info
         engine = NumericSubstitutionEngine()
         month_info, all_months = engine.extract_sentence_months(all_sentences)
         year_info, all_years = engine.extract_sentence_years(all_sentences)
 
-        # Build mappings
         if all_years:
             engine.build_year_mapping(year_info, all_years)
         if all_months:
             engine.build_month_mapping(month_info, all_months)
 
-        # Apply all substitutions
         window = engine.substitute_all(window)
 
-        # Currency substitution
         curr_sub = DynamicCurrencySubstitution()
         window, _ = curr_sub.substitute_all(window)
 
-    # Replace markers with SEP token
     window = re.sub("<<>>", SEP_TOKEN, window)
 
     return window
