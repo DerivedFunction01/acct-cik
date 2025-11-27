@@ -1227,86 +1227,99 @@ print(f"Found {len(existing_report_df)} reports in database")
 
 def fetch_worker(url_queue, raw_queue, rate_limiter, stop_event):
     """
-    PRODUCER: Consumes URLs, downloads content, puts into Raw Inventory.
-    Stops fetching if Raw Inventory is full (Reorder Point logic).
+    PRODUCER: Downloads content and puts into raw_queue.
+
+    FIX: Better error handling, proper queue blocking behavior.
     """
     while not stop_event.is_set():
         try:
-            # Get a URL (timeout allows checking stop_event)
+            # Get a URL with timeout to allow checking stop_event
             url = url_queue.get(timeout=1)
         except queue.Empty:
             continue
 
-        # FETCHING LOGIC (Using your existing fetch_raw_content)
-        # Note: We pass None for rate_limiter here inside the wrapper because
-        # we handle the sleep explicitly below to keep the worker alive
+        try:
+            # 1. Apply Rate Limit
+            time.sleep(rate_limiter.value)
 
-        # 1. Apply Rate Limit
-        time.sleep(rate_limiter.value)
+            # 2. Fetch
+            result = fetch_raw_content(url, rate_limiter)
 
-        # 2. Fetch
-        result = fetch_raw_content(url, rate_limiter)
-
-        # 3. Put into Inventory (Block if Full)
-        if result:
-            if result[0] == "RATE_LIMITED":
-                # If limited, put URL back in queue and back off
-                url_queue.put(url)
-                rate_limiter.signal_429()
-                time.sleep(rate_limiter.value * 2)
-            else:
-                # This .put() will BLOCK if queue is full
-                # effectively pausing "production" until "inventory" drops
-                raw_queue.put(result)
-
-        # Mark URL as processed (for queue accounting)
-        url_queue.task_done()
+            # 3. Put into Queue (Block if Full - this is the backpressure mechanism)
+            if result:
+                if result[0] == "RATE_LIMITED":
+                    # Rate limit detected - put URL back for retry
+                    url_queue.put(url)
+                    rate_limiter.signal_429()
+                    time.sleep(rate_limiter.value * 2)
+                else:
+                    # Successfully fetched - put in raw queue
+                    # This BLOCKS if queue is full, creating backpressure
+                    try:
+                        raw_queue.put(result, timeout=5)
+                    except queue.Full:
+                        # Queue is full - put URL back and try again later
+                        url_queue.put(url)
+                        time.sleep(0.5)
+        except Exception as e:
+            print(f"Fetch worker error: {e}")
+        finally:
+            # Always mark as done for queue accounting
+            url_queue.task_done()
 
 
 def parse_worker(raw_queue, result_queue):
     """
-    CONSUMER: Takes raw content from Inventory, extracts data,
-    puts into Finished Goods queue.
+    CONSUMER: Takes raw content and puts parsed results into result_queue.
+
+    FIX: Better error handling.
     """
     while True:
-        data = raw_queue.get()
+        try:
+            data = raw_queue.get(timeout=2)
+        except queue.Empty:
+            continue
+
         if data is None:  # Sentinel value to kill process
             break
 
-        # CPU INTENSIVE WORK
-        # Using your existing parse logic
         try:
             parsed_result = parse_content(data)
             if parsed_result is not None:
                 result_queue.put(parsed_result)
         except Exception as e:
-            print(f"Worker Error: {e}")
+            print(f"Parse worker error: {e}")
 
 
-def db_writer_worker(result_queue, db_path, shared_counter, save_interval=50):
+def db_writer_worker(result_queue, db_path, shared_counter, total_expected, save_interval=50):
     """
-    Consumes results, writes to DB, and updates the shared_counter
-    so the main thread can update the progress bar.
+    Consumes results, writes to DB, and updates the shared_counter.
+    
+    FIX: Added total_expected to avoid infinite loops, better error handling.
     """
     buffer = []
     conn = sqlite3.connect(db_path)
+    processed = 0
 
-    while True:
+    while processed < total_expected:
         try:
             result = result_queue.get(timeout=2)
         except queue.Empty:
+            # Timeout - if we have buffered data, save it
             if buffer:
                 save_batch(conn, buffer)
                 with shared_counter.get_lock():
                     shared_counter.value += len(buffer)
+                processed += len(buffer)
                 buffer = []
             continue
 
-        if result is None:  # Sentinel
+        if result is None:  # Sentinel value - stop signal
             if buffer:
                 save_batch(conn, buffer)
                 with shared_counter.get_lock():
                     shared_counter.value += len(buffer)
+                processed += len(buffer)
             break
 
         buffer.append(result)
@@ -1315,6 +1328,7 @@ def db_writer_worker(result_queue, db_path, shared_counter, save_interval=50):
             save_batch(conn, buffer)
             with shared_counter.get_lock():
                 shared_counter.value += len(buffer)
+            processed += len(buffer)
             buffer = []
 
     conn.close()
@@ -1351,34 +1365,30 @@ def process_producer_consumer():
     result_queue = manager.Queue()
 
     # 2. Shared Stats for TQDM
-    # This allows the DB writer to tell the Main Thread "I finished X items"
     items_processed = manager.Value("i", 0)
 
     # 3. Populate Queue
     processed_set = get_processed_urls()
-    reports_to_process = [
-        (r.url)
-        for r in existing_report_df.itertuples(index=False)
-        if (r.url,) not in processed_set and r.url
-    ]
     total_files_in_manifest = len(existing_report_df)
-    already_in_batch = len(processed_set)
+    already_in_warehouse = len(processed_set)
 
     print("=" * 60)
     print(f"   • Total Files in Manifest:    {total_files_in_manifest:,}")
-    print(f"   • Already Processed:  {already_in_batch:,}")
+    print(f"   • Already Processed:          {already_in_warehouse:,}")
     print(
-        f"   • Net Requirements (ToDo):    {total_files_in_manifest - already_in_batch:,}"
+        f"   • Net Requirements (ToDo):    {total_files_in_manifest - already_in_warehouse:,}"
     )
     print("=" * 60)
-    # ------------------------------------
 
     print("Populating Queue with Net Requirements...")
     initial_count = 0
-    url_queue = manager.Queue()
-    for url in reports_to_process:
-        url_queue.put(url)
-        initial_count += 1
+
+    # FIX #1: Properly check membership in set - processed_set contains tuples from get_processed_urls()
+    for r in existing_report_df.itertuples(index=False):
+        if r.url and (r.url,) not in processed_set:  # <-- Must wrap in tuple!
+            url_queue.put(r.url)
+            initial_count += 1
+
     print(f"Queue populated with {initial_count} reports.")
 
     if initial_count == 0:
@@ -1386,9 +1396,10 @@ def process_producer_consumer():
         return
 
     # 4. Start Workers
-    # Pass 'items_processed' to the DB writer
     db_thread = threading.Thread(
-        target=db_writer_worker, args=(result_queue, DB_PATH, items_processed)
+        target=db_writer_worker,
+        args=(result_queue, DB_PATH, items_processed, initial_count),
+        daemon=False,  # FIX #2: Must not be daemon to ensure DB writes complete
     )
     db_thread.start()
 
@@ -1404,20 +1415,23 @@ def process_producer_consumer():
 
     for _ in range(NUM_FETCHERS):
         t = threading.Thread(
-            target=fetch_worker, args=(url_queue, raw_queue, rate_limiter, stop_event)
+            target=fetch_worker,
+            args=(url_queue, raw_queue, rate_limiter, stop_event),
+            daemon=False,  # FIX #3: Ensure graceful shutdown
         )
         t.start()
         fetchers.append(t)
 
-    # 5. Monitoring Loop (The "Main Thread")
-    # This replaces the simple "while" loop with a rich TQDM bar
-
+    # 5. Monitoring Loop
     last_save_time = time.time()
 
     with tqdm(total=initial_count, unit="files", smoothing=0.1) as pbar:
         try:
+            stalled_count = 0
+            prev_done = 0
+
             while True:
-                time.sleep(1)  # Refresh stats every second
+                time.sleep(1)
 
                 # A. Update Progress Bar
                 current_done = items_processed.value
@@ -1425,17 +1439,16 @@ def process_producer_consumer():
                 pbar.refresh()
 
                 # B. Update Stats (Postfix)
-                # Calculate queue depths
                 q_rem = url_queue.qsize() if hasattr(url_queue, "qsize") else "N/A"
                 inv_size = raw_queue.qsize() if hasattr(raw_queue, "qsize") else "N/A"
 
                 pbar.set_postfix(
                     remaining=q_rem,
-                    inventory=f"{inv_size}/{CHUNK_SIZE}",  # How full is the batch?
-                    sleep=f"{rate_limiter.value:.2f}s",  # Current Rate Limit
+                    inventory=f"{inv_size}/{CHUNK_SIZE}",
+                    sleep=f"{rate_limiter.value:.2f}s",
                 )
 
-                # C. Check Backup Trigger (Your AWS/Colab Requirement)
+                # C. Check Backup Trigger
                 if IS_COLAB and (
                     time.time() - last_save_time > DRIVE_SAVE_INTERVAL_SECONDS
                 ):
@@ -1451,41 +1464,63 @@ def process_producer_consumer():
                     except Exception as e:
                         pbar.write(f"  ⚠️ Backup failed: {e}")
 
-                # D. Exit Condition
-                # We stop when the DB writer has processed every item we started with
-                if current_done >= initial_count:
+                # D. Exit Condition (FIX #4: Better exit detection)
+                if current_done >= initial_count and initial_count > 0:
+                    pbar.write("✓ All items processed!")
                     break
 
-                # Fallback: if queue is empty and workers are idle (optional safety)
-                if url_queue.empty() and raw_queue.empty() and result_queue.empty():
-                    # Give it a few seconds to settle
-                    time.sleep(5)
-                    if url_queue.empty() and raw_queue.empty() and result_queue.empty():
-                        break
+                # FIX #5: Stall detection - if no progress for 30 seconds, something is wrong
+                if current_done == prev_done:
+                    stalled_count += 1
+                    if stalled_count > 30:
+                        pbar.write("⚠️  Pipeline stalled! Checking queue status...")
+                        pbar.write(
+                            f"   URL Queue: {url_queue.qsize()}, Raw Queue: {raw_queue.qsize()}, Result Queue: {result_queue.qsize()}"
+                        )
+                        # Give it 10 more seconds before force exit
+                        if stalled_count > 40:
+                            pbar.write("⚠️  Force-exiting stalled pipeline...")
+                            break
+                else:
+                    stalled_count = 0
+
+                prev_done = current_done
 
         except KeyboardInterrupt:
             pbar.write("Stopping pipeline...")
 
         finally:
             # SHUTDOWN SEQUENCE
+            pbar.write("Initiating shutdown...")
             stop_event.set()
-            for t in fetchers:
-                t.join()
 
+            # Wait for fetchers to complete
+            for t in fetchers:
+                t.join(timeout=5)
+                if t.is_alive():
+                    pbar.write("⚠️  Fetcher thread did not terminate gracefully")
+
+            # Signal parsers to stop
             for _ in range(NUM_PARSERS):
                 raw_queue.put(None)
-            for p in parsers:
-                p.join()
 
+            for p in parsers:
+                p.join(timeout=5)
+                if p.is_alive():
+                    pbar.write("⚠️  Parser process did not terminate gracefully")
+                    p.terminate()
+
+            # Signal DB writer to stop
             result_queue.put(None)
-            db_thread.join()
+            db_thread.join(timeout=10)
+            if db_thread.is_alive():
+                pbar.write("⚠️  DB writer thread did not terminate gracefully")
 
             # Final Save
             if IS_COLAB:
                 print("Performing final backup...")
                 subprocess.run(SAVE_SHELL_CMD, shell=True)
 
-            print("Pipeline finished.")
 
 # =============================================================================
 # MAIN EXECUTION
