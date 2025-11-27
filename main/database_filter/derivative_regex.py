@@ -2289,24 +2289,42 @@ def validate_instrument_retention(
     paragraphs: List[str], categories: List[str], url: str, strict: bool = False
 ) -> Tuple[List[str], List[str], List[Tuple[str, str, str]]]:
     """
-    Final safety check to ensure cleaning didn't strip the instrument name.
-    Iterates parallel arrays and filters them in sync.
-
-    Returns:
-        (kept_paragraphs, kept_categories, list_of_discards)
+    Final safety check with Dependency Anchoring.
+    
+    Logic:
+    1. If [[ANCHOR]] tag is present: The primary context survives. Keep the paragraph.
+    2. If [[ANCHOR]] tag is MISSING: The primary context was deleted (e.g. by Year Filter).
+       The remaining sentences are orphans. They must pass STRICT validation 
+       (Unambiguous Instrument) to survive. Context alone is no longer enough.
     """
     validated_paragraphs = []
     validated_categories = []
     discards = []
 
     for text, cat in zip(paragraphs, categories):
-        # Strict=False allows "contracts", "instruments" (Broader)
-        # Strict=True requires "swaps", "options" (Stricter)
-        if check_for_instrument(text, strict=strict):
+        # 1. Check for Anchor Survival
+        has_anchor = ANCHOR_TAG in text
+        
+        # Clean the text for regex checking (remove tag so it doesn't mess up patterns)
+        clean_text = text.replace(ANCHOR_TAG, " ")
+        
+        # 2. Determine Validation Mode
+        # If we have the anchor, we respect the requested strictness (usually False).
+        # If we LOST the anchor, we FORCE Strict Mode to kill orphans.
+        effective_strict = strict
+        if not has_anchor:
+            effective_strict = True
+            
+        # 3. Validation
+        if check_for_instrument(clean_text, strict=effective_strict):
+            # Restore/Keep the text (We usually keep the tag until the very end export)
+            # Or if you want to strip it now, append `clean_text`. 
+            # Recommendation: Keep `text` (with tag) so downstream filters continue to track it.
             validated_paragraphs.append(text)
             validated_categories.append(cat)
         else:
-            discards.append((url, text, "lost_instrument_reference"))
+            reason = "lost_instrument_reference" if has_anchor else "lost_anchor_context"
+            discards.append((url, clean_text, reason))
 
     return validated_paragraphs, validated_categories, discards
 
@@ -2474,6 +2492,10 @@ def build_entity_exclusion_regex() -> re.Pattern:
 
 # Compile and Export
 ENTITY_EXCLUSION_REGEX = build_entity_exclusion_regex()
+
+# Unique marker to identify the "Target" sentence that anchors a context window.
+# Used to enforce dependency: if the anchor is deleted, loose dependents must die.
+ANCHOR_TAG = " [[ANCHOR]] "
 
 __all__ = [
     "SENTENCE_SPLIT_PATTERN",

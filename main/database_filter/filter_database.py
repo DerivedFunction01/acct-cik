@@ -87,7 +87,8 @@ from derivative_regex import (
     PNL_ONLY_NO_POSITION,
     HIGH_PRECISION_SUFFIXES,
     validate_instrument_retention,
-    MAX_SENTENCE_LENGTH
+    MAX_SENTENCE_LENGTH,
+    ANCHOR_TAG,
 )
 
 # =============================================================================
@@ -881,59 +882,62 @@ def process_resolved_sentence(
     """
     paragraphs = []
     discards = []
-    
+
     final_cat = meta["final_category"]
     sent_idx = meta["sent_idx"]
-    
+
     # Skip if already processed as part of multi-sentence paragraph
     if sent_idx in used_indices:
         return [], []
-    
+
     # ════════════════════════════════════════════════════════════════
     # CASE 1: Single-category sentence
     # ════════════════════════════════════════════════════════════════
     if len(meta["specific_cats"]) <= 1 and final_cat not in {"gen", "other"}:
-        parts = [meta["sentence"]]
+        target_sent = meta["sentence"]
+        if ANCHOR_TAG not in target_sent:
+            target_sent = ANCHOR_TAG + target_sent
+        parts = [target_sent]
         context_indices = {sent_idx}
-        
+
         # Try to incorporate previous sentence if contextually compatible
         if sent_idx > 0 and (sent_idx - 1) not in used_indices:
             prev = sentences[sent_idx - 1]
-            
+
             if len(prev) >= MIN_SENTENCE_LENGTH:
                 prev_cats = get_sentence_categories(prev)
-                
+
                 # Include if: category matches OR prev is generic
                 if final_cat in prev_cats or not (prev_cats - {"gen", "other"}):
                     parts.insert(0, prev)
                     context_indices.add(sent_idx - 1)
-        
+
         # Try to incorporate next sentence if contextually compatible
         if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
             nxt = sentences[sent_idx + 1]
-            
+
             if len(nxt) >= MIN_SENTENCE_LENGTH:
                 nxt_cats = get_sentence_categories(nxt)
-                
+
                 if final_cat in nxt_cats or not (nxt_cats - {"gen", "other"}):
                     parts.append(nxt)
                     context_indices.add(sent_idx + 1)
-        
+
         paragraph = " ".join(parts)
-        
+
         # VALIDATION: Ensure instrument name survived
         if check_for_instrument(paragraph, strict=False):
             paragraphs.append((paragraph, final_cat))
             used_indices.update(context_indices)
         else:
             discards.append((url, paragraph, "lost_instrument_reference"))
-    
+
     # ════════════════════════════════════════════════════════════════
     # CASE 2: Multi-category sentence → Generate variants
     # ════════════════════════════════════════════════════════════════
     elif len(meta["specific_cats"]) > 1:
         any_variant_succeeded = False
-        
+
         for target_cat in meta["specific_cats"]:
             # Excise all other categories' terminology
             pure_variant = generate_single_category_variant(
@@ -941,39 +945,41 @@ def process_resolved_sentence(
                 target_cat,
                 meta["categories"],
             )
-            
+
             if pure_variant:
+                if ANCHOR_TAG not in pure_variant:
+                    pure_variant = ANCHOR_TAG + pure_variant
                 parts = [pure_variant]
-                
+
                 # Attempt to incorporate compatible context with excision
                 if sent_idx > 0 and (sent_idx - 1) not in used_indices:
                     prev = sentences[sent_idx - 1]
-                    
+
                     if len(prev) >= MIN_SENTENCE_LENGTH:
                         prev_cats = get_sentence_categories(prev)
-                        
+
                         if target_cat in prev_cats or not (prev_cats - {"gen", "other"}):
                             clean_prev = generate_single_category_variant(
                                 prev, target_cat, prev_cats
                             )
                             if clean_prev:
                                 parts.insert(0, clean_prev)
-                
+
                 if sent_idx + 1 < len(sentences) and (sent_idx + 1) not in used_indices:
                     nxt = sentences[sent_idx + 1]
-                    
+
                     if len(nxt) >= MIN_SENTENCE_LENGTH:
                         nxt_cats = get_sentence_categories(nxt)
-                        
+
                         if target_cat in nxt_cats or not (nxt_cats - {"gen", "other"}):
                             clean_nxt = generate_single_category_variant(
                                 nxt, target_cat, nxt_cats
                             )
                             if clean_nxt:
                                 parts.append(clean_nxt)
-                
+
                 paragraph = " ".join(parts)
-                
+
                 if check_for_instrument(paragraph, strict=False):
                     paragraphs.append((paragraph, target_cat))
                     any_variant_succeeded = True
@@ -981,26 +987,26 @@ def process_resolved_sentence(
                 discards.append(
                     (url, meta["sentence"], f"disambiguation_excision_failed_{target_cat}")
                 )
-        
+
         if any_variant_succeeded:
             used_indices.add(sent_idx)
-    
+
     # ════════════════════════════════════════════════════════════════
     # CASE 3: Unresolved generic or invalid category
     # ════════════════════════════════════════════════════════════════
     else:
         resolution_method = meta.get("resolution_method", "unknown")
         confidence = meta.get("confidence", 0.0)
-        
+
         discard_reason = f"unresolved_generic_{resolution_method}"
         if confidence is not None and confidence < 0.5:
             discard_reason += "_low_conf"
-        
+
         discards.append(
             (url, meta["sentence"], discard_reason)
         )
         used_indices.add(sent_idx)
-    
+
     return paragraphs, discards
 
 
