@@ -39,6 +39,7 @@ from derivative_regex import (
     HEDGING_CONTEXT_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
     CATEGORY_DELETION_MAP,
+    VALUATION_MODELS,
     Currency,
     cleanup_fragment,
     VERB_USE_REGEX,
@@ -801,6 +802,9 @@ class ContextScorer:
                 r"\b(hedg|mitigat|manag|offset)(?:e|es|ed|ing)\b", text, re.I
             )
             is_convertible = re.search(r"\b(?:convertible\s+(?:debt|notes?|bonds?|securit(?:y|ies)))\b", text, re.I)
+            is_valuation_model = re.search(r"\b" + "|".join(VALUATION_MODELS) + r"\b", text, re.I)
+            if is_valuation_model:
+                score += 50
             if is_convertible:
                 score += 50
             if is_comp_talk and not is_hedging_talk:
