@@ -800,6 +800,9 @@ class ContextScorer:
             is_hedging_talk = re.search(
                 r"\b(hedg|mitigat|manag|offset)(?:e|es|ed|ing)\b", text, re.I
             )
+            is_convertible = re.search(r"\b(?:convertible\s+(?:debt|notes?|bonds?|securit(?:y|ies)))\b", text, re.I)
+            if is_convertible:
+                score += 50
             if is_comp_talk and not is_hedging_talk:
                 return -1
             if is_comp_talk and is_hedging_talk:
@@ -807,7 +810,7 @@ class ContextScorer:
         return score
 
     def get_max_score_any_category(self, text: str) -> int:
-        scores = [self.score(text, lbl) for lbl in ["ir", "fx", "cp", "eq"]]
+        scores = [self.score(text, lbl) for lbl in ["fx", "cp", "eq", "ir"]]
         return max(scores)
 
 
