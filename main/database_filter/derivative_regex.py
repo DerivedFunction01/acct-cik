@@ -535,6 +535,7 @@ def build_fx_context_terms_advanced() -> List[str]:
         r"local\s+currenc(?:y|ies)",
         r"foreign\s+currenc(?:y|ies)",
         r"remeasurements?",
+        r"exchange\s+rates?",
         r"translation\s+adjustments?",
         r"exchange\s+rate\s+fluctuations?",
         r"currenc(?:y|ies)\s+exchange\s+rates?",
