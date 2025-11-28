@@ -2614,6 +2614,7 @@ FX_STRICT_TERMS = [
     r"foreign\s+operations?",
     r"denominated\s+in",
     r"cross[- ]currency",
+    r"(?:forward|foreign|currency)\s+exchanges?",
 ] + build_currency_patterns()  # Specific currency names are strict context
 
 # 3. COMMODITY (Strict)
