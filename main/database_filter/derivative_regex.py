@@ -1302,6 +1302,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "floors?",
         "collars?",
         "hedging",
+        "puts?",
+        "calls?"
     ]
 
     # SPECIAL BASES: Always require suffix
@@ -1346,6 +1348,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "over[- ]the[- ]counter derivatives?",
         "derivative financial instruments?",
         "financial derivatives?",
+        "derivative assets?",
         "derivative liabilit(?:y|ies)"
     ]
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
