@@ -291,7 +291,7 @@ IR_OTHER_TERMS = [
     rf"{_DEBT_TERMS}\s+payables?",
     r"interest\s+payables?",
     rf"(?:long|short)[- ]term\s+{_DEBT_TERMS}",
-    rf"interest[- ]rate\s+{_RISK_ALTERNATION}",
+    rf"(?<!foreign\s+)interest[- ]rate\s+{_RISK_ALTERNATION}",
     r"credit\s+facilit(?:y|ies)",
     r"revolving\s+credits?",
     r"term\s+loans?",
@@ -2737,7 +2737,7 @@ ANCHOR_TAG = " [[ANCHOR]] "
 # In derivative_regex.py
 
 IR_STRICT_TERMS = [
-    rf"interest[- ]rate\s+{_RISK_ALTERNATION}",
+    rf"(?<!foreign\s+)interest[- ]rate\s+{_RISK_ALTERNATION}",
     r"(?:pay|receive)[- ](?:fixed|variable|floating)",
     r"interest\s+payments?",
     r"SOFR",
