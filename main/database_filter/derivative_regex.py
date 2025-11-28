@@ -803,19 +803,18 @@ FORWARD_NOT_PHYSICAL_AHEAD = rf"(?!\s+(?:{PHYSICAL_DELIVERY_PATTERN}))"
 SPECIAL_BASE = [
     "call options?",
     "put options?",
-    "call contracts?",
-    "put contracts?",
     "basis swaps?",
     "total[- ]return swaps?",
-    "barrier options",
-    "asian options",
-    "bermuda options",
-    "variance swaps",
-    "volatility swaps",
+    "barrier options?",
+    "asian options?",
+    "bermuda options?",
+    "variance swaps?",
+    "volatility swaps?",
     "swaptions?",
     "basket options?",  # Generic multi-asset
     "rainbow options?",  # Generic multi-asset
     "lookback options?",
+    'exotic options?',
 ]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
