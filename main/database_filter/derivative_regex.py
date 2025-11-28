@@ -730,6 +730,8 @@ CATEGORY_CONTEXT_MAP = {
 SPECIAL_BASE =  [   
     "call options?",
     "put options?",
+    "call contracts?",
+    "put contracts?",
     "basis swaps?",
     "total[- ]return swaps?"
 ]
@@ -753,6 +755,8 @@ AMBIGUOUS_BASE_TYPES = [
     "hedging",
     "locks?",
     "hedges?",
+    "puts?",
+    "calls?",
 ]
 
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
