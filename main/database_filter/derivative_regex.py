@@ -1100,7 +1100,12 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
     commodity_alternation = build_alternation(
         ["commodity", "commodities"] + COMMON_COMMODITIES, sort_longest_first=True
     )
-
+    spread_types = [
+        "crack",
+        "spark",
+        "dark",
+    ]
+    spread_types_alternation = build_alternation(spread_types, sort_longest_first=True)
     # Optimized modifiers (Max Munch applied internally)
     modifier_terms = [
         "prices?",
@@ -1109,6 +1114,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         "based",
         "linked",
         "index",
+        rf"{spread_types_alternation}\s+spreads?",
         "spreads?",
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
@@ -1123,13 +1129,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"(?:{commodity_alternation})",
     ]
     strict_core_alternation = build_alternation(strict_core_patterns, sort_longest_first=True)
-
-    spread_types = [
-        "crack",
-        "spark",
-        "dark",
-    ]
-    spread_types_alternation = build_alternation(spread_types, sort_longest_first=True)
 
     # 3. Unified Specific Phrases
     # These contain the max-munch phrases and apply to both strict and soft.
