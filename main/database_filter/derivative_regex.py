@@ -1654,25 +1654,41 @@ CATEGORY_DELETION_MAP = {
 # EXCLUSION PATTERNS (from filter_database.py)
 # =============================================================================
 
-# Section 1: Employee Equity Compensation
+# Section 1: Employee Equity Compensation (Updated)
 EQUITY_COMP_KEYWORDS = [
+    # 1. Standard Compensation Terms
     "stock (?:options?|awards?|splits?|dividends?|purchases?)",
-    "restricted stock",
-    "RSU",
+    "restricted (?:stock|shares?|units?)",
+    "RSUs?",
+    "PSUs?",  # Performance Share Units
+    "DSUs?",  # Deferred Share Units
+    "ESPP",   # Employee Stock Purchase Plan
+    "SARs?",  # Stock Appreciation Rights
+    "stock appreciation rights?",
+    "phantom stock",
+    "employee stock",
+    
+    # 2. Plan/HR Terminology
     "compensation",
-    "employee",
-    "share-based",
+    "benefit plans?",
+    "incentive plans?",
+    "share-based payment",
     "vesting",
     "exercisable",
-    "ESPP",
+    "grant date",
+    "service period",
+    "unrecognized compensation",
+    "weighted-average exercise price",
+    
+    # 3. Income Statement Noise
     "bonus",
     "salary",
     "wage",
-    "dividend",
-    "outstanding shares",
-    "share repurchase",
-    "buyback",
-    "hedge fund",
+    "payroll",
+    "severance",
+    
+    # Hedge funds (no where else to put them)
+    "hedge funds?",
 ]
 
 # Section 2: Legal/Litigation
