@@ -1707,9 +1707,6 @@ METHODOLOGY_KEYWORDS = [
     r"statistical\s+(?:measure|model)",
     r"hypothetical\s+(?:change|loss|shift|scenario)",
     r"parallel\s+shift",
-    r"simulation\s+model",
-    r"monte\s+carlo",  # Be careful: "We used Monte Carlo to value X" is okay, "Monte Carlo is a method" is not.
-    r"black[- ]scholes(?!\s+model\s+was\s+used)",  # Aggressive filter for definitions
 ]
 
 # Section 2: Legal/Litigation
@@ -1921,7 +1918,6 @@ EXCLUDE_REGULATION_REGEX = re.compile(
     r"|".join(REGULATORY_KEYWORDS), re.IGNORECASE
 )
 EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
-EXCLUDE_METHODOLOGY_REGEX = build_exclude_regex(METHODOLOGY_KEYWORDS)
 SUBJECTS = [
     # Simple pronouns
     r"we",
@@ -2155,7 +2151,7 @@ def build_definition_regex() -> re.Pattern:
         # "Notional value represents amounts..."
         # "Contractual interest represents..."
         # We target specific accounting nouns to avoid deleting "The chart represents our usage."
-        rf"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value)\s+represents{SENTENCE_TAIL}",
+        rf"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value)\s+(?:represents?|shall\s+mean|is\s+defined\s+as){SENTENCE_TAIL}",
         
         # --- GROUP D: "Refers To" ---
         # "The term off-balance sheet risk refers to..."
