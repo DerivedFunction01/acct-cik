@@ -33,6 +33,7 @@ class InstrumentGenerator:
             "interest rate cap",
             "interest rate floor",
             "interest rate lock commitment",
+            "interest rate total return swaps",
             "SOFR swap",
             "LIBOR forward",
             "treasury lock",
@@ -48,7 +49,6 @@ class InstrumentGenerator:
             "pay variable, receive fixed swap contract",
             # Specific types
             "zero coupon swap",
-            "credit default swap",
             "overnight index swap",
             "FRA",
             # NEW: Protection Instruments (Must match with suffix)
@@ -57,6 +57,7 @@ class InstrumentGenerator:
             "floating rate protection instrument",
             "benchmark rate put agreement",
             "interest rate calls",
+            "single currency basis swap"
         ]
         return list(set(instruments))
 
@@ -199,9 +200,8 @@ class InstrumentGenerator:
             "corn forward purchase order",
             "uranium forward sales confirmation",
             "long-term soybeans forward supply agreement",
-            "natural gas capacity forward agreement",
             "carbon forward purchase agreement",
-            "gas hub physical delivery arrangement",
+            "gas hub forward delivery arrangement",
             "commodity price exposure management policy",
             # Rate FPs (simple loans/debt)
             "Fixed rate loan agreement",
