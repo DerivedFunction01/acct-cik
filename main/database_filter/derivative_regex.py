@@ -303,7 +303,6 @@ IR_OTHER_TERMS = [
     r"interest\s+payments?",
     r"basis\s+points?",
     r"weighted\s+average\s+interest",
-    r"credit\s+default",
 ]
 
 IR_CONTEXT = f"(?:{IR_DEBT_LOOKBEHIND_TERM}|{build_alternation(IR_OTHER_TERMS)})"
