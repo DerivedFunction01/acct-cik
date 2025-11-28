@@ -688,24 +688,33 @@ VALUATION_MODELS = [
     r"option[- ]pricing\s+models?",
 ]
 EQ_CONTEXT_TERMS = [
+    # --- A. Core Prices & Markets ---
     r"stock\s+prices?",
     r"share\s+prices?",
-    r"equity\s+(?:awards?|grants?|compensation|options?|derivatives?|capital)",
     r"stock\s+markets?",
-    r"equity\s+securit(?:y|ies)",
     r"market\s+index(?:es)?",
+    # --- B. Specific Indices ---
     r"S\&P\s+500",
     r"Nasdaq(?:\s+Composite|\s+Index)?",
     r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
+    r"Russell\s+2000",
+    # --- C. Equity Components ---
+    r"equity\s+(?:awards?|grants?|compensation|options?|derivatives?|capital)",
+    r"equity\s+securit(?:y|ies)",
     r"dividend\s+yields?",
+    r"(?:preferred|common)\s+stock",
+    # --- D. Structures & Events ---
     r"warrants?",
-    r"(?:convertible\s+(?:debt|notes?|bonds?|securit(?:y|ies)))",  # Convertible Securities
-    r"(?:preferred|common)\s+stock",  # Stock Classes
-    r"initial\s+public\s+offering|IPO",  # IPO
-    r"primary\s+market|secondary\s+market",  # Market Types
-    r"stock",
-    rf"equity\s+{_RISK_ALTERNATION}",
+    r"(?:convertible\s+(?:debt|notes?|bonds?|securit(?:y|ies)))",
+    r"initial\s+public\s+offering|IPO",
+    r"primary\s+market|secondary\s+market",
+    r"accelerated\s+share\s+repurchases?",  # ASR is a derivative
+    # --- E. Risk Integration (Smart Expansion) ---
+    rf"(?:stock|share|equity)\s+{_RISK_ALTERNATION}",
+    # --- F. Fallback ---
+    r"stock",  # Careful, but usually okay in context
 ]
+
 EQ_CONTEXT_TERMS += VALUATION_MODELS
 
 _CR_LINKED_DEBT = rf"credit[- ]linked\s+(?:{_DEBT_TERMS})"
@@ -2800,19 +2809,32 @@ CP_STRICT_TERMS = [
 
 # 4. EQUITY (Strict)
 # Focus: Convertibles, Warrants, and Valuation Models
+# 4. EQUITY (Strict)
+# Focus: Convertibles, Warrants, Valuation Models, and Equity Risk
 EQ_STRICT_TERMS = [
-    r"equity\s+(?:price|risk|exposure)",
-    r"stock\s+(?:price|appreciation|option)",
-    r"share\s+price",
+    # 1. Risk & Price Contexts (Expanded with _RISK_ALTERNATION)
+    rf"equity\s+(?:price|{_RISK_ALTERNATION})",
+    rf"stock\s+(?:price|appreciation|option|{_RISK_ALTERNATION})",
+    rf"share\s+(?:price|{_RISK_ALTERNATION})",
+    # 2. Convertible Instruments
     r"convertible\s+(?:debt|notes?|bonds?|debentures?)",
-    r"embedded\s+(?:conversion|derivative|option)",
+    # 3. Embedded Features (REMOVED: "derivative" as requested)
+    # Only matches specific features now, reducing noise.
+    r"embedded\s+(?:conversion|option)",
+    # 4. Specific Instruments
     r"warrants?",
+    r"accelerated\s+share\s+repurchases?",
+    r"capped\s+calls?",
+    # 5. Indices (Strict indicators of Equity category)
+    r"S\&P\s+500",
+    r"Nasdaq",
+    r"Dow\s+Jones",
+    # 6. Valuation & Metrics
     r"dividend\s+yield",
     r"Black[- ]Scholes",
     r"Monte[- ]Carlo",
     r"Lattice\s+model",
 ]
-
 # Build Regexes
 STRICT_CONTEXT_MAP = {
     "ir": re.compile(r"\b" + build_alternation(IR_STRICT_TERMS) + r"\b", re.IGNORECASE),
