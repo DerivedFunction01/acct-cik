@@ -20,6 +20,8 @@ from derivative_regex import (
     BASE_REGEX,
     CP_REGEX,
     CP_SOFT_REGEX,
+    CR_CONTEXT_REGEX,
+    CR_SOFT_REGEX,
     EQ_REGEX,
     EQ_SOFT_REGEX,
     FX_REGEX,
@@ -104,6 +106,8 @@ LABEL_TO_CONFLICT_REGEX = {
         CP_SOFT_REGEX,
         EQ_REGEX,
         EQ_SOFT_REGEX,
+        CP_REGEX,
+        CR_SOFT_REGEX,
     ],
     "fx": [
         IR_CONTEXT_REGEX,
@@ -115,6 +119,8 @@ LABEL_TO_CONFLICT_REGEX = {
         CP_SOFT_REGEX,
         EQ_REGEX,
         EQ_SOFT_REGEX,
+        CP_REGEX,
+        CR_SOFT_REGEX,
     ],
     "cp": [
         IR_CONTEXT_REGEX,
@@ -126,6 +132,10 @@ LABEL_TO_CONFLICT_REGEX = {
         FX_SOFT_REGEX,
         EQ_REGEX,
         EQ_SOFT_REGEX,
+        CP_REGEX,
+        CR_SOFT_REGEX,
+        CP_REGEX,
+        CR_SOFT_REGEX,
     ],
     "eq": [
         IR_CONTEXT_REGEX,
@@ -137,8 +147,27 @@ LABEL_TO_CONFLICT_REGEX = {
         FX_SOFT_REGEX,
         CP_REGEX,
         CP_SOFT_REGEX,
+        CP_REGEX,
+        CR_SOFT_REGEX,
     ],
     "gen": [
+        IR_CONTEXT_REGEX,
+        FX_CONTEXT_REGEX,
+        CP_CONTEXT_REGEX,
+        EQ_CONTEXT_REGEX,
+        IR_REGEX,
+        IR_SOFT_REGEX,
+        FX_REGEX,
+        FX_SOFT_REGEX,
+        CP_REGEX,
+        CP_SOFT_REGEX,
+        EQ_REGEX,
+        EQ_SOFT_REGEX,
+        CR_CONTEXT_REGEX,
+        CP_REGEX,
+        CR_SOFT_REGEX,
+    ],
+    "cr": [
         IR_CONTEXT_REGEX,
         FX_CONTEXT_REGEX,
         CP_CONTEXT_REGEX,
@@ -693,7 +722,8 @@ class ContextScorer:
         # 3. Context Boosters
         if re.search(r"\b(hedg|mitigat|manag)(?:e|es|ed|ing)\b", text, re.I):
             score += 15
-
+        if label == "cr": # cr is highy specific
+            score +=20
         if label == "ir":
             if re.search(r"\b(variable|floating|fixed|interest)\s+rate\b", text, re.I):
                 score += 20
@@ -742,7 +772,16 @@ class ContextScorer:
         return score
 
     def get_best_category(self, text: str) -> Tuple[str, int]:
-        scores = {lbl: self.score(text, lbl) for lbl in ["fx", "cp", "eq", "ir"]}
+        scores = {
+            lbl: self.score(text, lbl)
+            for lbl in [
+                "cr" ,
+                "fx",
+                "cp",
+                "eq",
+                "ir",
+            ]
+        }
         best_cat = max(scores, key=scores.get)
         best_score = scores[best_cat]
         return best_cat, best_score
@@ -841,7 +880,7 @@ class DynamicContextBank:
     def __init__(self):
         self.general_pool = []
         self.safe_pool = []
-        self.category_pools = {"ir": [], "fx": [], "cp": [], "eq": []}
+        self.category_pools = {"cr":[], "ir": [], "fx": [], "cp": [], "eq": []}
 
     def add_noise_candidate(self, text):
         detected_cats = detect_noise_categories(text)
@@ -910,7 +949,7 @@ def scrub_non_target_instruments(
 
     Args:
         text: Original sentence
-        target_category: Category to preserve ("ir", "fx", "cp", "eq")
+        target_category: Category to preserve ("cr", "ir", "fx", "cp", "eq")
         all_detected_categories: Set of all categories found in text
         keep_same_category_bases: If True, keep multiple same-category instruments
                                   (e.g., keep "caps" when masking "swap" for IR).
