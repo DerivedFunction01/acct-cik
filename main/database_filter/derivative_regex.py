@@ -1899,25 +1899,30 @@ REGULATORY_KEYWORDS = [
     r"regulatory\s+capital",
 ]
 
+HYPOTHETICAL_KEYWORDS = [
+    r"measure(?:s|d|ment)\s+of\s+market\s+risk",
+    r"confidence\s+(?:level|interval)",
+    r"statistical\s+(?:measure|model)",
+    r"hypothetical\s+(?:change|loss|shift|scenario|stress)", # Added 'stress'
+    r"parallel\s+shift",
+    r"simulation\s+model\s+that\s+estimates",
+    r"sensitivity\s+analysis",
+]
+
 def build_exclude_regex(keywords: list) -> re.Pattern:
     """Build regex for excluding noise keywords."""
     escaped_keywords = [re.escape(kw) for kw in keywords]
-    pattern = "|".join(escaped_keywords)
+    pattern = r"|".join(escaped_keywords)
     return re.compile(pattern, re.IGNORECASE)
 
 
 EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
-EXCLUDE_REGEX_LEGAL_LITIGATION = re.compile(
-    r"|".join(LEGAL_LITIGATION_KEYWORDS), re.IGNORECASE
-)
-EXCLUDE_REGEX_ACCOUNTING_STD = re.compile(
-    r"|".join(ACCOUNTING_STANDARDS_KEYWORDS), re.IGNORECASE
-)
-
-EXCLUDE_REGULATION_REGEX = re.compile(
-    r"|".join(REGULATORY_KEYWORDS), re.IGNORECASE
-)
+EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
+EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS)
+EXCLUDE_REGULATION_REGEX = build_exclude_regex(REGULATORY_KEYWORDS)
 EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
+EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
+
 SUBJECTS = [
     # Simple pronouns
     r"we",

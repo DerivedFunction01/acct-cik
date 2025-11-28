@@ -57,6 +57,8 @@ from derivative_regex import (
     CP_SOFT_REGEX,
     DEFINITION_INDICATORS,
     EQ_SOFT_REGEX,
+    EXCLUDE_HYPOTHETICAL_REGEX,
+    EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
@@ -499,7 +501,9 @@ def create_clean_db():
                 "definition_boilerplate",
                 "adoption",
                 "lost_instrument_reference",
-                "regulation"
+                "regulation",
+                "hypo",
+                "planned_assets"
             ] + [
                 f"disambiguation_excision_failed_{cat}"
                 for cat in CATEGORY_CONTEXT_MAP.keys()
@@ -1176,6 +1180,14 @@ def filter_matches_with_disambiguation(
         # Skip regulatory paragraphs, they say how "swaps" are regulated, not a firm uses it
         if EXCLUDE_REGULATION_REGEX.search(match):
             all_discarded.append((url, match, "regulation"))
+            continue
+
+        if EXCLUDE_PLAN_ASSETS_REGEX.search(match):
+            all_discarded.append((url, match, "planned_assets"))
+            continue
+        
+        if EXCLUDE_HYPOTHETICAL_REGEX.search(match):
+            all_discarded.append((url, match, "hypo"))
             continue
 
         # Remove equity compensation boilerplate (salvage derivative mentions)
