@@ -20,7 +20,7 @@ from derivative_regex import (
     BASE_REGEX,
     CP_REGEX,
     CP_SOFT_REGEX,
-    CR_CONTEXT_REGEX,
+    CR_REGEX,
     CR_SOFT_REGEX,
     EQ_REGEX,
     EQ_SOFT_REGEX,
@@ -38,6 +38,7 @@ from derivative_regex import (
     FX_CONTEXT_REGEX,
     CP_CONTEXT_REGEX,
     EQ_CONTEXT_REGEX,
+    CR_CONTEXT_REGEX,
     HEDGING_CONTEXT_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
     CATEGORY_DELETION_MAP,
@@ -106,7 +107,7 @@ LABEL_TO_CONFLICT_REGEX = {
         CP_SOFT_REGEX,
         EQ_REGEX,
         EQ_SOFT_REGEX,
-        CP_REGEX,
+        CR_REGEX,
         CR_SOFT_REGEX,
     ],
     "fx": [
@@ -119,7 +120,7 @@ LABEL_TO_CONFLICT_REGEX = {
         CP_SOFT_REGEX,
         EQ_REGEX,
         EQ_SOFT_REGEX,
-        CP_REGEX,
+        CR_REGEX,
         CR_SOFT_REGEX,
     ],
     "cp": [
@@ -134,7 +135,7 @@ LABEL_TO_CONFLICT_REGEX = {
         EQ_SOFT_REGEX,
         CP_REGEX,
         CR_SOFT_REGEX,
-        CP_REGEX,
+        CR_REGEX,
         CR_SOFT_REGEX,
     ],
     "eq": [
@@ -147,7 +148,7 @@ LABEL_TO_CONFLICT_REGEX = {
         FX_SOFT_REGEX,
         CP_REGEX,
         CP_SOFT_REGEX,
-        CP_REGEX,
+        CR_REGEX,
         CR_SOFT_REGEX,
     ],
     "gen": [
@@ -164,7 +165,7 @@ LABEL_TO_CONFLICT_REGEX = {
         EQ_REGEX,
         EQ_SOFT_REGEX,
         CR_CONTEXT_REGEX,
-        CP_REGEX,
+        CR_REGEX,
         CR_SOFT_REGEX,
     ],
     "cr": [
