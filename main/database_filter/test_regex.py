@@ -10,6 +10,7 @@ try:
         CP_REGEX,
         EQ_REGEX,
         GEN_REGEX,
+        CR_REGEX,
     )
 except ImportError:
     print("Error: Could not import from derivative_regex.py")
@@ -106,7 +107,7 @@ class InstrumentGenerator:
             "commodity forward arrangement",
             "commodity call option",
             # Specific commodities
-            "crude oil swap",
+            "Crude oil swap",
             "natural gas forward",
             "copper futures contract",
             "gold swap agreement",
@@ -122,6 +123,23 @@ class InstrumentGenerator:
             "power purchase agreement",
             "virtual power purchase agreement",
             "weather derivative",
+        ]
+        return list(set(instruments))
+
+    @staticmethod
+    def generate_cr_instruments() -> List[str]:
+        """Generate diverse Credit Risk instruments."""
+        instruments = [
+            # Simple base instruments
+            "credit default swap",
+            "credit-default forward",
+            "basket default option",
+            # With suffixes
+            "credit-default swap agreement",
+            "credit default collar contract",
+            # Credit linked debt
+            "credit-linked notes",
+            "credit linked debt",
         ]
         return list(set(instruments))
 
@@ -220,6 +238,36 @@ class InstrumentGenerator:
             "Floating rate protection",
             "puts",
             "calls",
+            # Credit related
+            "Letter of credit",
+            "Revolving credit facility",
+            "Line of credit",
+            "Tax credits",
+            # --- NEW: Entity & Accounting "Credit" Traps ---
+            "Credit Suisse",
+            "Credit Agricole",
+            "Child tax credit",
+            "Earned income credit",
+            "Carbon credit",
+            "Renewable energy credit",
+            "Credit union",
+            # --- NEW: "Default" & "Spread" Traps ---
+            "Event of default",
+            "Notice of default",
+            "Default judgment",
+            "Cross-default provision",
+            "Yield spread",
+            "Bid-ask spread",
+            # --- NEW: "Protection" Traps ---
+            "Consumer protection",
+            "Data protection",
+            "Bankruptcy protection",
+            "Overdraft protection",
+            # --- NEW: Incomplete Phrases (Should fail strict regex) ---
+            "Credit linked",
+            "credit options"
+            "Basket linked",
+            "Total return",
         ]
 
 
@@ -245,6 +293,7 @@ def generate_verification_data() -> Dict[str, List[Tuple[str, str]]]:
         "fx": InstrumentGenerator.generate_fx_instruments(),
         "cp": InstrumentGenerator.generate_cp_instruments(),
         "eq": InstrumentGenerator.generate_eq_instruments(),
+        "cr": InstrumentGenerator.generate_cr_instruments(),  # CR CATEGORY
         "gen": InstrumentGenerator.generate_gen_instruments(),
         "fp": InstrumentGenerator.generate_fp_instruments(),  # FP CATEGORY
     }
@@ -297,6 +346,7 @@ REGEXES = {
     "cp": CP_REGEX,
     "eq": EQ_REGEX,
     "gen": GEN_REGEX,
+    "cr": CR_REGEX
 }
 
 # =============================================================================
