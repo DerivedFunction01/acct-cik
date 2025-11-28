@@ -291,7 +291,7 @@ IR_OTHER_TERMS = [
     rf"{_DEBT_TERMS}\s+payables?",
     r"interest\s+payables?",
     rf"(?:long|short)[- ]term\s+{_DEBT_TERMS}",
-    rf"(?<!foreign\s+)interest[- ]rate\s+{_RISK_ALTERNATION}",
+    rf"(?<!foreign[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
     r"credit\s+facilit(?:y|ies)",
     r"revolving\s+credits?",
     r"term\s+loans?",
@@ -554,6 +554,8 @@ def build_fx_context_terms_advanced() -> List[str]:
         r"exchange\s+rates?",
         r"translation\s+adjustments?",
         rf"exchange\s+rate\s+{_RISK_ALTERNATION}",
+        r"foreign\s+interest\s+rates?",
+        rf"foreign\s+interest[- ]rate\s+{_RISK_ALTERNATION}",
         r"currenc(?:y|ies)\s+exchange\s+rates?",
         rf"currenc(?:y|ies)\s+{_RISK_ALTERNATION}",
         # 2. Transactional Context
@@ -2737,7 +2739,7 @@ ANCHOR_TAG = " [[ANCHOR]] "
 # In derivative_regex.py
 
 IR_STRICT_TERMS = [
-    rf"(?<!foreign\s+)interest[- ]rate\s+{_RISK_ALTERNATION}",
+    rf"(?<!foreign[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
     r"(?:pay|receive)[- ](?:fixed|variable|floating)",
     r"interest\s+payments?",
     r"SOFR",
@@ -2757,6 +2759,8 @@ IR_STRICT_TERMS = [
 FX_STRICT_TERMS = [
     rf"foreign\s+(?:currency|exchange)\s+{_RISK_ALTERNATION}",
     rf"currency\s+{_RISK_ALTERNATION}",
+    rf"foreign interest[- ]rates?\s+{_RISK_ALTERNATION}",
+    rf"foreign interest[- ]rates?",
     r"functional\s+currenc(?:y|ies)",
     r"remeasurement\s+(?:gain|loss)",
     r"foreign\s+operations?",
