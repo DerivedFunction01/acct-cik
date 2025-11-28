@@ -939,6 +939,8 @@ def scrub_non_target_instruments(
         instrument_regex, soft_instrument_regex, context_regex = CATEGORY_DELETION_MAP[
             scrub_cat
         ]
+        strict_context_regex = STRICT_CONTEXT_MAP[scrub_cat]
+        
         instrument_matches = [
             m.group(0) for m in instrument_regex.finditer(cleaned_text)
         ]
@@ -946,17 +948,22 @@ def scrub_non_target_instruments(
             m.group(0) for m in soft_instrument_regex.finditer(cleaned_text)
         ]
         context_matches = [m.group(0) for m in context_regex.finditer(cleaned_text)]
+        strict_content_matches = [
+            m.group(0) for m in strict_context_regex.finditer(cleaned_text)
+        ]
 
-        if instrument_matches or context_matches or soft_instrument_matches:
+        if instrument_matches or context_matches or soft_instrument_matches or strict_content_matches:
             removed_info.append(
                 {
                     "category": scrub_cat,
                     "instruments": instrument_matches + soft_instrument_matches,
-                    "context_terms": context_matches,
+                    "context_terms": context_matches + strict_content_matches,
                 }
             )
         cleaned_text = instrument_regex.sub(" ", cleaned_text)
         cleaned_text = context_regex.sub(" ", cleaned_text)
+        cleaned_text = soft_instrument_regex.sub(" ", cleaned_text)
+        cleaned_text = strict_context_regex.sub(" ", cleaned_text)
 
     cleaned_text = cleanup_fragment(cleaned_text)
     return cleaned_text, removed_info
