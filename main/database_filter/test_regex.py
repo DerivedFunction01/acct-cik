@@ -195,6 +195,13 @@ class InstrumentGenerator:
             "oil index",
             "natural gas agreement",
             "oil forward purchase order",
+            "physical commodity forward contract",
+            "crude oil forward delivery contract",
+            "corn forward purchase order",
+            "uranium forward sales confirmation",
+            "long-term soybeans forward supply agreement",
+            "natural gas capacity forward agreement",
+            "carbon forward purchase agreement",
             "gas hub physical delivery arrangement",
             "commodity price exposure management policy",
             # Rate FPs (simple loans/debt)
