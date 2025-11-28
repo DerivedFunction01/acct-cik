@@ -55,6 +55,8 @@ class InstrumentGenerator:
             "interest rate protection agreement",
             "interest rate protection contract",
             "floating rate protection instrument",
+            "benchmark rate put agreement",
+            "interest rate calls",
         ]
         return list(set(instruments))
 
@@ -159,6 +161,7 @@ class InstrumentGenerator:
             "call option",
             "put option",
             "swaption",
+            "call contracts",
         ]
         return list(set(instruments))
 
@@ -178,6 +181,7 @@ class InstrumentGenerator:
             # Equity FPs (non-derivative)
             "Stock option plan",  # Not a derivative liability
             "Subscription agreement",
+            "equity options",
             "Share purchase contract",
             "Equity financing agreement",
             # Commodity FPs (physical delivery)
@@ -197,6 +201,8 @@ class InstrumentGenerator:
             # Standalone Protection (Should fail IR because suffix is mandatory for this base)
             "Interest rate protection",
             "Floating rate protection",
+            "puts",
+            "calls"
         ]
 
 
