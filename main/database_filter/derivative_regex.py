@@ -1662,12 +1662,11 @@ EQUITY_COMP_KEYWORDS = [
     "RSUs?",
     "PSUs?",  # Performance Share Units
     "DSUs?",  # Deferred Share Units
-    "ESPP",   # Employee Stock Purchase Plan
+    "ESPP",  # Employee Stock Purchase Plan
     "SARs?",  # Stock Appreciation Rights
     "stock appreciation rights?",
     "phantom stock",
     "employee stock",
-    
     # 2. Plan/HR Terminology
     "compensation",
     "benefit plans?",
@@ -1679,16 +1678,18 @@ EQUITY_COMP_KEYWORDS = [
     "service period",
     "unrecognized compensation",
     "weighted-average exercise price",
-    
     # 3. Income Statement Noise
     "bonus",
     "salary",
     "wage",
     "payroll",
     "severance",
-    
     # Hedge funds (no where else to put them)
-    "hedge funds?",
+    "hedge funds?",  # <--- The Trap: Prevents "Hedge Fund" from triggering "Hedging"
+    "mutual funds?",  # Good practice to add these too
+    "index funds?",
+    "exchange[- ]traded funds?",
+    "ETFs?",
 ]
 
 # Section 2: Legal/Litigation
@@ -1724,6 +1725,8 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"\bsecurities\s+(?:fraud|litigation|class\s+action)\b",
     r"\bclass\s+action\s+lawsuit\b",
     r"\bshareholder\s+(?:lawsuit|litigation|suit)\b",
+    r"derivative\s+(?:action|lawsuit|suit|litigation|settlement|claim|proceeding)",
+    r"shareholder\s+derivative",
 ]
 # Section 3: Accounting Standards
 # === FASB ISSUANCE & ADOPTION ONLY ===
@@ -2735,6 +2738,11 @@ def build_entity_exclusion_regex() -> re.Pattern:
         r"Securities\s+(?:and|&)\s+Exchange\s+Commission",
         r"Financial\s+Accounting\s+Standards\s+Board",
         r"Public\s+Company\s+Accounting\s+Oversight\s+Board",
+        r"hedge funds?",           # <--- The Trap: Prevents "Hedge Fund" from triggering "Hedging"
+        r"mutual funds?",          # Good practice to add these too
+        r"index funds?",
+        r"exchange[- ]traded funds?",
+        r"ETFs?",
     ]
     # NEW: Generic Entity Pattern
     # Matches: "United States Commodity Index Fund", "Oil Derivatives Trust"
