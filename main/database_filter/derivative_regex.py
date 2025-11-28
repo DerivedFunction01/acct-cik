@@ -447,8 +447,9 @@ def build_currency_patterns() -> List[str]:
                 code + r"[- ]denominated",
                 code + r"[/]" + r"[A-Z]{3}",  # USD/EUR, GBP/JPY
                 r"[A-Z]{3}" + r"[/]" + code,  # EUR/USD, JPY/GBP
-            ]
+            ] 
         )
+    terms.extend(["foreign[- ]denominated"])
     return terms
 
 def build_currency_iso_pattern() -> str:
