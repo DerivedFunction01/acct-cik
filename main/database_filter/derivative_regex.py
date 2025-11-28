@@ -1330,7 +1330,9 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "collars?",
         "hedging",
         "puts?",
-        "calls?"
+        "calls?",
+        "straddles?",
+        "strangles?",
     ]
 
     # SPECIAL BASES: safe as well
