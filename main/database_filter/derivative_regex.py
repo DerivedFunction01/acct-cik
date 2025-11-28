@@ -88,27 +88,25 @@ RISK_TERMS = [
 _RISK_ALTERNATION = build_alternation(RISK_TERMS)
 
 # STRONG: Unambiguous indicators of active usage or transaction
+USAGE_VERBS = [
+    # Direct Usage
+    r"use(?:s|d|ing)?",
+    r"utiliz(?:e|es|ed|ing)",
+    r"employ(?:s|ed|ing)?",
+    # Possession / Holding
+    r"hold(?:s|ing)?",
+    r"held",
+    r"have",
+    r"maintain(?:s|ed|ing)?",
+    r"possess(?:e|es|ed|ing)?",
+]
 ACTION_VERBS = [
     # Transactional (The "Smoking Gun")
     r"enter(?:s|ed|ing)?\s+(?:into)?",
     r"engag(?:e|es|ed|ing)\s+(?:in)?",
     r"transact(?:s|ed|ing)?",
     r"execut(?:e|es|ed|ing)",
-    
-    # Direct Usage
-    r"use(?:s|d|ing)?",
-    r"utiliz(?:e|es|ed|ing)",
-    r"employ(?:s|ed|ing)?",
-    
-    # Possession / Holding
-    r"hold(?:s|ing)?", 
-    r"held",
-    r"have",
-    r"maintain(?:s|ed|ing)?",
-    r"possess(?:e|es|ed|ing)?",
-    
-
-]
+] + USAGE_VERBS
 
 STRONG_ACTION_VERBS = ACTION_VERBS + [
     r"issu(?:e|es|ed|ing)?",  # Active Management

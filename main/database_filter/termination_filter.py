@@ -22,6 +22,7 @@ from derivative_regex import (
     TERMINATION_REGEX,
     ACTIVE_STATE_REGEX,
     ACTIVE_INDICATORS,
+    USAGE_VERBS,
     check_for_instrument,
     validate_instrument_retention,
     build_alternation,
@@ -32,18 +33,6 @@ from derivative_regex import (
 # We split strong verbs into "Usage" (Salvation) vs "Transactional" (Neutral).
 # "We Entered" + "Expired" = DEAD.
 # "We Use" + "Expired" = ALIVE.
-
-USAGE_VERBS = [
-    r"use(?:s|d|ing)?",
-    r"utiliz(?:e|es|ed|ing)",
-    r"employ(?:s|ed|ing)?",
-    r"hold(?:s|ing)?",  # "Held" is ambiguous (past), "Holds" is active
-    r"have",
-    r"maintain(?:s|ed|ing)?",
-    r"possess(?:e|es|ed|ing)?",
-    r"hedg(?:e|es|ed|ing)",
-    r"manag(?:e|es|ed|ing)",
-]
 
 # Explicit terms that indicate survival despite termination keywords
 SALVATION_TERMS = [r"new", r"current", r"replace", r"remain"]
