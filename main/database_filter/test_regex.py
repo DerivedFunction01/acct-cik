@@ -178,6 +178,9 @@ class InstrumentGenerator:
             "Foreign exchange service agreement",
             "Trade contract",
             "Currency purchase agreement",
+            "Currency agreement",
+            "Intercompany currency agreement",
+            "Loan currency agreement",
             # Equity FPs (non-derivative)
             "Stock option plan",  # Not a derivative liability
             "Subscription agreement",
@@ -189,6 +192,12 @@ class InstrumentGenerator:
             "Natural gas sales agreement",
             "Power supply agreement",
             "Electricity contract",
+            "oil index",
+            "natural gas agreement",
+            "fixed-price power purchase agreement",
+            "oil forward purchase order",
+            "gas hub physical delivery arrangement",
+            "commodity price exposure management policy",
             # Rate FPs (simple loans/debt)
             "Fixed rate loan agreement",
             "Floating rate note",
@@ -202,7 +211,7 @@ class InstrumentGenerator:
             "Interest rate protection",
             "Floating rate protection",
             "puts",
-            "calls"
+            "calls",
         ]
 
 
