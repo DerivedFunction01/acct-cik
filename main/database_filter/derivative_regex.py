@@ -804,7 +804,7 @@ SPECIAL_BASE =  [
     "call contracts?",
     "put contracts?",
     "basis swaps?",
-    "total[- ]return swaps?"
+    "total[- ]return swaps?",
     "barrier options",
     "asian options",
     "bermuda options",
@@ -1147,7 +1147,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         r"fx",
     ]
     soft_core_alternation = build_alternation(soft_core_terms, sort_longest_first=True)
-    
+
     forward_types = [
         "non[- ]deliverable",
         "deliverable",
@@ -1158,12 +1158,12 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # -------------------------------------------------------------------------
     # --- A. UNIFIED TEMPLATE PHRASES ---
     # -------------------------------------------------------------------------
-    
+
     # Templates for phrases that attach instrument bases to currency context
     dynamic_templates = [
         rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))[- ](?:__DYNAMIC__)",
         rf"(?:{currency_name_alternation})[- ](?:__DYNAMIC__)",
-        rf"currency[- ](?:__DYNAMIC__)",
+        rf"(?<!single[- ])currency[- ](?:__DYNAMIC__)",
     ]
 
     # Fixed (non-dynamic) specific phrases
@@ -1179,17 +1179,17 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         "CCIR",
         "XCCY",
     ]
-    
+
     # -------------------------------------------------------------------------
     # --- B. STRICT Pattern Construction (High Precision) ---
     # -------------------------------------------------------------------------
 
     # Fragment for dynamic replacement: safe bases only (no suffixes as standalones, but include safe ones)
     strict_dynamic_fragment = expand_instruments(unsafe=False, exclude_standalone_suffixes=True, additional_standalone_suffixes=["contracts?", "options?"])
-    
+
     # 1. Substitute the dynamic fragment into the templates
     strict_dynamic_phrases = _replace_dynamic_placeholder(dynamic_templates, strict_dynamic_fragment)
-    
+
     # 2. Combine and sort all specific phrases
     strict_specific_phrases = sorted(
         strict_dynamic_phrases + fixed_phrases,
@@ -1214,7 +1214,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     # 1. Substitute the dynamic fragment into the templates
     soft_dynamic_phrases = _replace_dynamic_placeholder(dynamic_templates, soft_dynamic_fragment)
-    
+
     # 2. Combine and sort all specific phrases
     soft_specific_phrases = sorted(
         soft_dynamic_phrases + fixed_phrases,
