@@ -60,6 +60,7 @@ from derivative_regex import (
     EXCLUDE_REGEX_ACCOUNTING_STD,
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
+    EXCLUDE_REGULATION_REGEX,
     FX_SOFT_REGEX,
     HEADER_CLEANUP_PATTERNS,
     HEDGING_CONTEXT_REGEX,
@@ -498,6 +499,7 @@ def create_clean_db():
                 "definition_boilerplate",
                 "adoption",
                 "lost_instrument_reference",
+                "regulation"
             ] + [
                 f"disambiguation_excision_failed_{cat}"
                 for cat in CATEGORY_CONTEXT_MAP.keys()
@@ -1170,6 +1172,10 @@ def filter_matches_with_disambiguation(
         # Skip litigation (if a "commodity swap") was involved in the case, we don't want it anyways.
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
             all_discarded.append((url, match, "legal"))
+            continue
+        # Skip regulatory paragraphs, they say how "swaps" are regulated, not a firm uses it
+        if EXCLUDE_REGULATION_REGEX.search(match):
+            all_discarded.append((url, match, "regulation"))
             continue
 
         # Remove equity compensation boilerplate (salvage derivative mentions)
