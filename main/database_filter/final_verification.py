@@ -85,6 +85,25 @@ POLICY_TERMS = [
 POLICY_REGEX = re.compile(
     r"\b" + build_alternation(POLICY_TERMS) + r"\b", re.IGNORECASE
 )
+# Targets: "We transact with highly rated institutions", "Subject to master netting
+COUNTERPARTY_POLICY_TERMS = [
+    r"credit\s+risk",
+    r"counterpart(?:y|ies)",
+    r"credit\s+quality",
+    r"credit\s+worthiness",
+    r"highly[- ]rated",
+    r"investment[- ]grade",
+    r"financial\s+institutions",
+    r"master\s+netting",
+    r"isda",
+    r"collateral\s+requirements",
+    r"concentration\s+of\s+credit",
+    r"non[- ]performance",
+]
+
+COUNTERPARTY_REGEX = re.compile(
+    r"\b" + build_alternation(COUNTERPARTY_POLICY_TERMS) + r"\b", re.IGNORECASE
+)
 
 # =============================================================================
 # LOGIC
@@ -119,10 +138,9 @@ def check_strong_signal(sentence: str) -> bool:
     # -----------------------------------------------------------
     # "We formally document hedges..." -> Discard
     # "We designated $50M as hedges..." -> Keep (Salvation via has_quant)
-    if POLICY_REGEX.search(sentence):
+    if POLICY_REGEX.search(sentence) or COUNTERPARTY_REGEX.search(sentence):
         if not has_quant:
             return False  # Discard pure policy boilerplate
-
     # -----------------------------------------------------------
     # STANDARD CHECKS
     # -----------------------------------------------------------
