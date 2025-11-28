@@ -194,7 +194,6 @@ class InstrumentGenerator:
             "Electricity contract",
             "oil index",
             "natural gas agreement",
-            "fixed-price power purchase agreement",
             "oil forward purchase order",
             "gas hub physical delivery arrangement",
             "commodity price exposure management policy",
