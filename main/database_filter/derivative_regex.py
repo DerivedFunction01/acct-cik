@@ -888,6 +888,67 @@ def expand_instruments(
     return rf"{combined_pattern}|{final_standalone}"
 
 
+def build_cr_regex() -> Tuple[re.Pattern, re.Pattern]:
+    """
+    Returns a tuple: (strict_cr_regex, soft_cr_regex)
+
+    STRICT: High-precision credit derivative instrument patterns
+    SOFT: Contextual credit derivative instrument patterns
+
+    Examples matched:
+      - "credit default swap"
+      - "basket default swap"
+      - "first-to-default swap"
+    """
+
+    # --- 1. Core Prefix Terms ---
+    strict_core_terms = [
+        "(?:credit|basket|first[- ]to[ -])[- ](?:default|linked|based)",
+    ]
+    strict_core_alt = build_alternation(strict_core_terms, sort_longest_first=True)
+
+    soft_core_terms = strict_core_terms
+    soft_core_alt = build_alternation(soft_core_terms, sort_longest_first=True)
+
+    # --- 2. Specific Instrument Phrases (Max Munch) ---
+    cln_pattern = rf"credit[- ]linked\s+(?:{_DEBT_TERMS})"
+    specific_phrases = [ # None for this one
+        cln_pattern
+    ]
+
+    sorted_specific_phrases = sorted(
+        specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"))
+    )
+
+    # --- 3. Instrument Fragments ---
+
+    strict_instrument_fragment = expand_instruments(
+        unsafe=False,
+        exclude_standalone_suffixes=True,
+        additional_standalone_suffixes=["contracts?", "options?", "agreements?"],
+    )
+
+    soft_instrument_fragment = expand_instruments(unsafe=True)
+
+    # --- 4. Build Patterns ---
+
+    strict_pattern = build_smart_regex(
+        [strict_core_alt],
+        strict_instrument_fragment,
+        sorted_specific_phrases,
+    )
+    strict_cr_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
+
+    soft_pattern = build_smart_regex(
+        [soft_core_alt],
+        soft_instrument_fragment,
+        sorted_specific_phrases,
+    )
+    soft_cr_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+
+    return strict_cr_regex, soft_cr_regex
+
+
 def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
     RATE_TYPES = ["fixed", "variable", "floating"]
@@ -959,8 +1020,6 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
         "FRA",
         f"treasury locks?(?:[- ]{suffix_alternation})",
         "treasury locks?",
-        f"credit swaps?(?:[- ]{suffix_alternation})",
-        "credit default swaps?",
         "overnight index swaps?",
     ]
 
