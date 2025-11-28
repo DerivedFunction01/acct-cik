@@ -1850,6 +1850,32 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     r"Accounting for Derivative Instruments and Hedging Activities",
 ]
 
+# Section 4: Regulatory & Compliance (New)
+REGULATORY_KEYWORDS = [
+    # 1. General Regulatory Terms
+    r"regulations?",
+    r"regulatory\s+(?:requirements?|compliance|authorit(?:y|ies)|bod(?:y|ies)|agenc(?:y|ies)|frameworks?|matters?|reforms?)",
+    r"compliance\s+with",
+    r"subject\s+to\s+(?:regulation|oversight|regulatory)",
+    r"governmental\s+regulations?",
+    # 2. Specific Laws & Acts (The big noise makers)
+    r"Dodd[- ]Frank",
+    r"Volcker\s+Rule",
+    r"Basel\s+(?:I|II|III|IV)",
+    r"EMIR",  # European Market Infrastructure Regulation
+    r"MiFID",  # Markets in Financial Instruments Directive
+    r"Commodity\s+Exchange\s+Act",
+    r"Securities\s+Exchange\s+Act",
+    r"SEC",
+    r"Sarbanes[- ]Oxley",
+    r"JOBS\s+Act",
+    r"CARES\s+Act",
+    r"Regulation\s+AB",
+    # 3. Capital & Liquidity (Banking Regs)
+    r"capital\s+adequacy",
+    r"liquidity\s+coverage\s+ratio",
+    r"regulatory\s+capital",
+]
 
 def build_exclude_regex(keywords: list) -> re.Pattern:
     """Build regex for excluding noise keywords."""
@@ -1866,11 +1892,10 @@ EXCLUDE_REGEX_ACCOUNTING_STD = re.compile(
     r"|".join(ACCOUNTING_STANDARDS_KEYWORDS), re.IGNORECASE
 )
 
-# Combined exclusion regex (tested first - very fast)
-COMBINED_EXCLUDE_REGEX = re.compile(
-    f"({EXCLUDE_REGEX_EQUITY_COMP.pattern})|({EXCLUDE_REGEX_LEGAL_LITIGATION.pattern})|({EXCLUDE_REGEX_ACCOUNTING_STD.pattern})",
-    re.IGNORECASE,
+EXCLUDE_REGULATION_REGEX = re.compile(
+    r"|".join(REGULATORY_KEYWORDS), re.IGNORECASE
 )
+
 SUBJECTS = [
     # Simple pronouns
     r"we",
@@ -2224,11 +2249,6 @@ def build_prior_statement_pattern() -> re.Pattern:
 
     return re.compile(full_pattern, re.IGNORECASE | re.VERBOSE)
 PRIOR_PATTERN = build_prior_statement_pattern()
-# =============================================================================
-# EXCLUSION PATTERNS (from webpage.py)
-# =============================================================================
-
-IGNORE_REGEX = re.compile(r"|".join(LEGAL_LITIGATION_KEYWORDS + EQUITY_COMP_KEYWORDS), re.IGNORECASE)
 
 # =============================================================================
 # TABLE AND MISCELLANEOUS PATTERNS
@@ -2882,9 +2902,7 @@ __all__ = [
     "EXCLUDE_REGEX_EQUITY_COMP",
     "EXCLUDE_REGEX_LEGAL_LITIGATION",
     "EXCLUDE_REGEX_ACCOUNTING_STD",
-    "COMBINED_EXCLUDE_REGEX",
     "TRADING_STATEMENTS_REGEX",
-    "IGNORE_REGEX",
     "YEAR_REGEX",
     "cleanup_fragment",
     "PRIOR_PATTERN",
