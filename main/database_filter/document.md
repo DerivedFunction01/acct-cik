@@ -43,7 +43,8 @@ This preserves information density while ensuring category purity for downstream
 ### Layer 1: Core Components (`derivative_regex.py`)
 
 #### 1.1 Foundation Functions
-```
+
+```text
 build_alternation(items, sort_longest_first=True)
 ├─ Purpose: Creates regex alternations with Max Munch sorting
 ├─ Input: List of patterns/terms
@@ -85,6 +86,7 @@ Context-aware patterns for removing known false positives:
 **Scope**: Instruments whose primary risk factor is interest rate exposure.
 
 **Core Instruments**:
+
 - Interest rate swaps (pay-fixed/receive-floating or vice versa)
 - Forward rate agreements (FRAs)
 - Interest rate caps, floors, collars
@@ -118,12 +120,11 @@ Soft:    interest[- ]rate\s+(?:risks?|swaps?|exposures?|movements?)
 **Scope**: Instruments hedging currency exposure, translation risk, or remeasurement gains/losses.
 
 **Core Instruments**:
+
 - Currency forwards (deliverable and non-deliverable)
 - Currency swaps (cross-currency interest rate swaps)
 - Currency options
-- Spot & forward contracts
-- Multi-currency exposure hedges
-- 
+
 
 **Identifying Context**:
 ```regex
@@ -147,7 +148,8 @@ Soft:    currency\s+(?:risks?|exposures?|fluctuations?)
 - ✅ "Cross-currency swaps manage net investment in foreign operations"
 - ❌ "The foreign investment showed strong returns" (foreign = geographic descriptor, not FX derivative)
 
-**New matches**: Based on context.
+**New matches**:
+
 - "The company is exposed to foreign interest rate fluctuations on its foreign-denominated debt. However, we do not have derivatives to hedge against this risk.".
 
 ---
@@ -556,9 +558,9 @@ IR_PATTERN = r"(?:pay|receive)[- ](?:fixed|variable|floating).*"
 
 ## Downstream Pipeline Integration
 
-The regex system feeds into a **7-phase "Survival of the Fittest" filtering pipeline** that progressively refines derivative disclosures into high-confidence active-user classifications:
+The regex system feeds into a **7-phase "Survival of the Fittest" filtering pipeline** that progressively refines derivative disclosures into high-confidence active-user classifications, although there are still limitations:
 
-```
+```text
 Raw SEC Text
     ↓
 [PHASE 1] Filter & Classify Regex (filter_database.py)
@@ -801,6 +803,11 @@ def check_strong_signal(sentence):
 4. **Text extraction issues**
    - InterestRateSwap vs. Interest Rate Swap (missing spaces)
 
+5. **Limited system based on my knowledge of derivative disclosures**
+  - If I did not see or remember something, then something may get classified incorrectly, or missed. For example, I recently learned that Convertible Debt relates to Equity derivatives, and saw several BioTech Pharma firms seemingly with "ir" and "eq".
+
+6. **The best I can do with a rule-based system**
+  - No idea if it works as intended; may drop active users (false negative), or have certain firms be classified with a category (false positives)
 ---
 
 # Active Use Filter Pipeline: Phase 3-7
@@ -844,7 +851,7 @@ if not extracted_years:
 ```
 
 **Surgical Deletion Example**:
-```
+```text
 Input:  "In the prior year, we maintained interest rate swaps, but 
          currently we actively hedge with forwards."
 
@@ -1010,7 +1017,7 @@ for sent in atomic_sentences:
 Remove sentences indicating that derivatives have **expired, matured, or been settled** prior to year-end.
 
 ### Problem Solved
-```
+```text
 Sentence A: "We entered into interest rate swaps"
 Sentence B: "The swaps matured on December 15, 2024"
 
@@ -1060,7 +1067,7 @@ for sentence in paragraph:
 ```
 
 **Example**:
-```
+```text
 Paragraph: "We maintain outstanding interest rate swaps. 
             These swaps expired on December 31, 2024.
             New swaps were entered in January 2025."
@@ -1103,7 +1110,7 @@ Output: Sentences 1 + 3 recombined
 Identify sentences where **quantitative amounts explicitly show zero exposure** for the reporting year.
 
 ### Problem Solved
-```
+```text
 "The company's notional exposure was $500M in 2023 and $0 in 2024."
 
 Without Phase 6: Company classified as Active (notional mentioned)
@@ -1171,7 +1178,7 @@ if len(years) != len(all_values):
 ### Examples
 
 **Example 1: Simple Parallel**
-```
+```text
 Sentence: "Notional was $100M in 2023 and $0 in 2024"
 Years: [2023, 2024]
 Values: [$100M (false), $0 (true)]
@@ -1182,7 +1189,7 @@ Check: 2024 → $0 → Discard ✓
 ```
 
 **Example 2: Current Year Only**
-```
+```text
 Sentence: "Notional exposure at December 31, 2024 was $250M"
 Years: [2024]
 Values: [$250M (false)]
@@ -1193,7 +1200,7 @@ Check: 2024 → $250M → Keep ✓
 ```
 
 **Example 3: Ambiguous (Fallback)**
-```
+```text
 Sentence: "Amounts were $500, $300, and $0"
 Years: [2024]
 Values: [$500, $300, $0]
@@ -1220,7 +1227,7 @@ Fallback: ANY positive? Yes ($500, $300) → Keep ✓
 Enforce **"Strong Signal" requirement** - ensure every sentence contains active evidence of derivative position.
 
 ### Problem Solved
-```
+```text
 "We use Level 2 inputs for valuation of derivatives."
 
 Without Phase 7: Sentence survives (mentions derivatives and valuation)
@@ -1291,7 +1298,7 @@ if VALUATION_MODEL_REGEX.search(sentence):  # "Black-Scholes", "Monte Carlo"
 ```
 
 ### Decision Tree
-```
+```text
 Does sentence contain Action Verb?
 ├─ YES → Keep ✓
 └─ NO → Check Quantitative
@@ -1319,7 +1326,7 @@ Consider the Excerpt as a window: the text filtering created this specific parag
 
 ### Scenario A: Company is Classified as ACTIVE (IR Category, FY2024)
 
-```
+```text
 Original SEC Filing Excerpt:
 "Note 3: Derivatives and Risk Management
 
@@ -1373,7 +1380,7 @@ FINAL: Company classified as ACTIVE USER (IR) for FY2024 ✓
 
 ### Scenario B: Company is Classified as INACTIVE (EQ Category, FY2024)
 
-```
+```text
 Original SEC Filing Excerpt:
 "Equity derivatives for valuation purposes: The company evaluated convertible
 bond features using Black-Scholes models. In 2023, the company issued warrants
