@@ -726,7 +726,27 @@ CATEGORY_CONTEXT_MAP = {
 # =============================================================================
 # REGEX BUILDERS (moved)
 # =============================================================================
+PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
+    "delivery",
+    "purchase",
+    "order",
+    "sales?",
+    "supply",
+    "confirmation",
+    "invoice",
+    "shipment",
+    "receipt",
+]
+PHYSICAL_DELIVERY_PATTERN = build_alternation(
+    PHYSICAL_COMMERCIAL_TERMS, sort_longest_first=True
+)
 
+PHYSICAL_INVENTORY_TERMS = [ # "capacity forward contract?"
+    
+]
+
+# Negative lookahead: forward NOT followed by physical keywords
+FORWARD_NOT_PHYSICAL_AHEAD = rf"(?!\s+(?:{PHYSICAL_DELIVERY_PATTERN}))"
 SPECIAL_BASE =  [   
     "call options?",
     "put options?",
@@ -734,15 +754,20 @@ SPECIAL_BASE =  [
     "put contracts?",
     "basis swaps?",
     "total[- ]return swaps?"
+    "barrier options",
+    "asian options",
+    "bermuda options",
+    "variance swaps",
+    "volatility swaps",
+    "swaptions?",
 ]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
-    "forwards?",
+    rf"forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
     "caps?",
     "floors?",
     "collars?",
     "derivatives?",
-    "swaptions?",
     "hedges",  # plural form
     "locks",  # plural form
     "futures",  # plural form
@@ -757,6 +782,8 @@ AMBIGUOUS_BASE_TYPES = [
     "hedges?",
     "puts?",
     "calls?",
+    "straddles?"
+    "strangles?"
 ]
 
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
@@ -1120,9 +1147,10 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         "index",
         rf"{spread_types_alternation}\s+spreads?",
         "spreads?",
+        "capacity",
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
-
+    
     # 2. Generate Core Terms (Prefixes) for STRICT pattern
 
     # Optimized Core: Commodity Name + Modifier (e.g., Crude Oil[- ]price)
@@ -1287,9 +1315,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     # SAFE BASES: Low false-positive risk
     safe_bases = [
         "swaps?",
-        "forwards?",
+        rf"forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
         "derivatives?",
-        "swaptions?",
     ]
 
     # UNSAFE STANDALONE: Require suffix
@@ -1306,13 +1333,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "calls?"
     ]
 
-    # SPECIAL BASES: Always require suffix
-    special_bases = [
-        "call options?",
-        "put options?",
-        "basis swaps?",
-        "total[- ]return swaps?",
-    ]
+    # SPECIAL BASES: safe as well
+    special_bases = SPECIAL_BASE
 
     # SAFE SUFFIXES
     suffixes = [
