@@ -22,6 +22,9 @@ The derivative regex system provides **intelligent, multi-layered pattern matchi
 - Excise cross-category terminology for category-pure sentences.
 - Expands the limited scope of hard-coded keyword lists to indicate active usage, to a multi-phase filtering pipeline, while maintaining distinct derivative categories.
 
+### Current Status
+The first stage, filtering and categorization, is the hardest part: This part must be correct. For a firm to count as an active user, at least one "window" with a category (ir/fx/cp/eq/cr/gen) must make it downstream.
+
 ### Duplication + Excision
 When a sentence contains **multiple derivative categories** (e.g., "The company uses FX forwards and interest rate swaps"), the system:
 
@@ -1311,7 +1314,8 @@ Does sentence contain Action Verb?
 
 ---
 
-## End-to-End Example: Two Scenarios
+## End-to-End Example: Two Scenarios (Ideal scenario)
+Consider the Excerpt as a window: the text filtering created this specific paragraph, and it must survive all stages to count as an active user.
 
 ### Scenario A: Company is Classified as ACTIVE (IR Category, FY2024)
 
