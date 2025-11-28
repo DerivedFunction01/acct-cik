@@ -1157,7 +1157,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # Broad prefixes (e.g., 'currency', 'fx')
     soft_core_terms = [
         r"foreign\s+exchange",
-        r"currency",
+        r"(?<!single[- ])currency",
         r"fx",
     ]
     soft_core_alternation = build_alternation(soft_core_terms, sort_longest_first=True)
