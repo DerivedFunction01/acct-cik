@@ -71,6 +71,21 @@ comparison_phrases = [
 ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open"]
 
 ACTIVE_STATE_PATTERN = build_alternation(ACTIVE_STATE_DESCRIPTORS)
+RISK_TERMS = [
+    "risks?",
+    "fluctuations?",
+    "volatilit(?:y|ies)",
+    "exposures?",
+    "movements?",
+    "variabilit(?:y|ies)",
+    "changes?",
+    "management?",
+    "costs?",
+    "prices?",
+    "hedges?",
+    "hedging?"
+]
+_RISK_ALTERNATION = build_alternation(RISK_TERMS)
 
 # STRONG: Unambiguous indicators of active usage or transaction
 ACTION_VERBS = [
@@ -244,6 +259,9 @@ COMMON_COMMODITIES = [
     "raw material",
     "salt",
     "textile",
+    # Generic
+    "commodity",
+    "commodities",
 ]
 
 
@@ -275,6 +293,7 @@ IR_OTHER_TERMS = [
     rf"{_DEBT_TERMS}\s+payables?",
     r"interest\s+payables?",
     rf"(?:long|short)[- ]term\s+{_DEBT_TERMS}",
+    rf"interest[- ]rate\s+{_RISK_ALTERNATION}",
     r"credit\s+facilit(?:y|ies)",
     r"revolving\s+credits?",
     r"term\s+loans?",
@@ -419,7 +438,7 @@ def build_currency_patterns() -> List[str]:
                 adj_esc + r"\s+(?:revenue|sales|income|earnings)",
                 adj_esc + r"\s+(?:assets?|liabilit(?:y|ies))",
                 adj_esc + r"\s+(?:markets?|econom(?:y|ies)|busine(?:ss|sses))",
-                adj_esc + r"\s+(?:exposures?|risks?)",
+                adj_esc + rf"\s+{_RISK_ALTERNATION}",
             ]
         )
 
@@ -536,9 +555,9 @@ def build_fx_context_terms_advanced() -> List[str]:
         r"remeasurements?",
         r"exchange\s+rates?",
         r"translation\s+adjustments?",
-        r"exchange\s+rate\s+fluctuations?",
+        rf"exchange\s+rate\s+{_RISK_ALTERNATION}",
         r"currenc(?:y|ies)\s+exchange\s+rates?",
-        r"currenc(?:y|ies)\s+fluctuations?",
+        rf"currenc(?:y|ies)\s+{_RISK_ALTERNATION}",
         # 2. Transactional Context
         r"cross[- ]border",
         r"repatriation",
@@ -546,7 +565,6 @@ def build_fx_context_terms_advanced() -> List[str]:
         r"denominated\s+in",
         # 3. Specific FX Instruments Keywords
         r"spot\s+rate",
-        r"forward\s+points?",
         r"non[- ]deliverable",
         r"foreign\s+(?:debts?|loans?|borrowings?|bonds?|notes?)",
         r"foreign\s+currency\s+(?:debts?|loans?|borrowings?|bonds?|notes?)",
@@ -565,15 +583,11 @@ HEDGING_CONTEXT_TERMS = [
     r"mitigat(?:e|es|ed|ing)",
     r"protect(?:s|ed|ing)?",
     r"manage(?:s|d|ing)?",
-    r"exposure",
+    r"exposures?",
     r"risk\s+management",
-    r"economic\s+risks?",
+    rf"economic\s+{_RISK_ALTERNATION}",
     # --- ADD THESE BACK (Safe for Phase 1 Contextual Capture) ---
-    r"market\s+risk",
-    r"interest\s+rate\s+risk",
-    r"currency\s+risk",
-    r"credit\s+risk",
-    r"counterparty\s+risk",
+    rf"(?:market|rate|currency|credit|counterparty|equity)[ -]{_RISK_ALTERNATION}",
     r"fluctuations?",  # e.g., "protect against fluctuations"
     r"volatility",  # e.g., "manage volatility"
     # ------------------------------------------------------------
@@ -660,7 +674,6 @@ CP_CONTEXT_TERMS = (
         "COMEX", "NYMEX",
     ]
     + COMMON_COMMODITIES
-    + ["commodity"]
 )
 VALUATION_MODELS = [
     # The Gold Standard for Equity Options/Warrants
@@ -691,6 +704,7 @@ EQ_CONTEXT_TERMS = [
     r"initial\s+public\s+offering|IPO",  # IPO
     r"primary\s+market|secondary\s+market",  # Market Types
     r"stock",
+    rf"equity\s+{_RISK_ALTERNATION}",
 ]
 EQ_CONTEXT_TERMS += VALUATION_MODELS
 
@@ -703,6 +717,7 @@ CR_CONTEXT_TERMS = [
     _CR_LINKED_DEBT,               # Use the variable!
     r"basket[- ]default",
     r"first[- ]to[- ]default",
+    rf"credit[- ]{_RISK_ALTERNATION}"
     
     # --- B. Indices (Highly Specific) ---
     r"CDX",
@@ -1226,7 +1241,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     # Sorted alternation of all commodities (Max Munch applied internally)
     commodity_alternation = build_alternation(
-        ["commodity", "commodities"] + COMMON_COMMODITIES, sort_longest_first=True
+        COMMON_COMMODITIES, sort_longest_first=True
     )
     spread_types = [
         "crack",
@@ -2724,7 +2739,7 @@ ANCHOR_TAG = " [[ANCHOR]] "
 # In derivative_regex.py
 
 IR_STRICT_TERMS = [
-    r"interest\s+rate\s+(?:risk|exposure|management|protection)",
+    rf"interest[- ]rate\s+{_RISK_ALTERNATION}",
     r"(?:pay|receive)[- ](?:fixed|variable|floating)",
     r"interest\s+payments?",
     r"SOFR",
@@ -2742,8 +2757,8 @@ IR_STRICT_TERMS = [
 # 2. FOREIGN EXCHANGE (Strict)
 # Focus: Currency risk, translation, and remeasurement
 FX_STRICT_TERMS = [
-    r"foreign\s+(?:currency|exchange)\s+(?:risk|exposure|management)",
-    r"currency\s+(?:risk|fluctuations?|exchange)",
+    rf"foreign\s+(?:currency|exchange)\s+{_RISK_ALTERNATION}",
+    rf"currency\s+{_RISK_ALTERNATION}",
     r"functional\s+currenc(?:y|ies)",
     r"remeasurement\s+(?:gain|loss)",
     r"foreign\s+operations?",
@@ -2766,17 +2781,15 @@ _COMMODITY_NAMES = build_alternation(COMMON_COMMODITIES)
 # Only include them if attached to "price", "cost", "risk", "hedge", or "swap".
 CP_STRICT_TERMS = [
     # General terms
-    r"commodity\s+(?:risk|price|exposure|strategies)",
-    r"energy\s+(?:costs?|prices?)",
+    rf"(?:cost|price)\s+{_RISK_ALTERNATION}",
     r"raw\s+material\s+costs?",
     r"fuel\s+surcharges?",
-    
     # Specific Commodity + Financial Modifier
     # Matches: "Corn prices", "Oil hedging",
-    rf"(?:{_COMMODITY_NAMES})\s+(?:prices?|costs?|risks?|exposures?|hedg(?:e|es|ing))",
+    rf"(?:{_COMMODITY_NAMES})\s+{_RISK_ALTERNATION}",
     # Financial Modifier + Specific Commodity
     # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
-    rf"(?:price|cost|risk|exposure|hedging|market\s+value)\s+of\s+(?:{_COMMODITY_NAMES})",
+    rf"{_RISK_ALTERNATION}\s+of\s+(?:{_COMMODITY_NAMES})",
 ]
 
 # ... (IR_STRICT_TERMS, FX_STRICT_TERMS, etc. remain the same) ...
