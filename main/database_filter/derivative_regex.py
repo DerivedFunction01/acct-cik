@@ -1684,12 +1684,6 @@ EQUITY_COMP_KEYWORDS = [
     "wage",
     "payroll",
     "severance",
-    # Hedge funds (no where else to put them)
-    "hedge funds?",  # <--- The Trap: Prevents "Hedge Fund" from triggering "Hedging"
-    "mutual funds?",  # Good practice to add these too
-    "index funds?",
-    "exchange[- ]traded funds?",
-    "ETFs?",
 ]
 
 # Section 2: Legal/Litigation
