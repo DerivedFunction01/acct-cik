@@ -69,49 +69,75 @@ QUANT_REGEX = re.compile(
     re.IGNORECASE,
 )
 
+POLICY_TERMS = [
+    r"formally\s+document",
+    r"hedge\s+documentation",
+    r"documentation",
+    r"at\s+inception",
+    r"effectiveness\s+(?:is|was)\s+assessed",
+    r"highly\s+effective",
+    r"qualif(?:y|ies|ied)\s+for\s+hedge\s+accounting",
+    r"designat(?:ed|ion)\s+as\s+(?:a\s+)?hedge",
+    r"prospectively",
+    r"retrospectively",
+    r"economic\s+relationship",
+]
+POLICY_REGEX = re.compile(
+    r"\b" + build_alternation(POLICY_TERMS) + r"\b", re.IGNORECASE
+)
 
 # =============================================================================
 # LOGIC
 # =============================================================================
 
-
 def check_strong_signal(sentence: str) -> bool:
     """
     Returns True if the sentence contains at least one strong signal of activity.
     """
-    # -----------------------------------------------------------
-    # 0. THE LEVEL TRAP (New)
-    # -----------------------------------------------------------
-    # If the sentence talks about "Level 1/2/3", it is almost always
-    # valuation policy UNLESS it has a specific number ("$50 million").
-    # We enforce this strictly to kill "we use Level 2 inputs" noise.
-    if LEVEL_REGEX.search(sentence):
-        if not QUANT_REGEX.search(sentence):
-            return False  # KILL IT (Policy)
-    # 2. MODEL TRAP (New)
-    # If sentence mentions "Black-Scholes" or "Monte Carlo":
-    # It MUST have a Quantitative indicator ($/%) OR a specific "Result" verb.
-    if VALUATION_MODEL_REGEX.search(sentence):
-        # If it has a number ($50m), it's active.
-        if QUANT_REGEX.search(sentence):
-            return True
 
-        # If no number, it's likely "We use Black-Scholes." -> DELETE.
-        # Exception: "The liability was valued using Black-Scholes."
-        # (This is passive voice, usually implies existence, but without a number
-        # it's a weak signal for an "Active User" classifier).
-        # VERDICT: SAFE TO DELETE.
-        # If they actually have it, they will disclose the Fair Value ($) elsewhere.
-        return False
-    # 1. Check Action Verbs ("We use...")
+    # 1. QUANTITATIVE CHECK (The Ultimate Salvager)
+    # If it has a number ("$50M", "Notional $100"), it is almost certainly active.
+    # We check this FIRST to save valid sentences caught in traps below.
+    has_quant = bool(QUANT_REGEX.search(sentence))
+
+    # -----------------------------------------------------------
+    # TRAP 1: THE LEVEL TRAP (Existing)
+    # -----------------------------------------------------------
+    if LEVEL_REGEX.search(sentence):
+        if not has_quant:
+            return False
+
+    # -----------------------------------------------------------
+    # TRAP 2: THE MODEL TRAP (Existing)
+    # -----------------------------------------------------------
+    if VALUATION_MODEL_REGEX.search(sentence):
+        if not has_quant:
+            return False
+
+    # -----------------------------------------------------------
+    # TRAP 3: THE POLICY TRAP (New)
+    # -----------------------------------------------------------
+    # "We formally document hedges..." -> Discard
+    # "We designated $50M as hedges..." -> Keep (Salvation via has_quant)
+    if POLICY_REGEX.search(sentence):
+        if not has_quant:
+            return False  # Discard pure policy boilerplate
+
+    # -----------------------------------------------------------
+    # STANDARD CHECKS
+    # -----------------------------------------------------------
+
+    # If we survived the traps, we check for standard signals
+
+    # Quantitative is sufficient on its own (we checked it above)
+    if has_quant:
+        return True
+
+    # Action Verbs ("We use", "We hold")
     if VERB_REGEX.search(sentence):
         return True
 
-    # 2. Check Quantitative ("$100 million", "Notional")
-    if QUANT_REGEX.search(sentence):
-        return True
-
-    # 3. Check State ("Outstanding")
+    # Active State ("Outstanding", "Open")
     if ACTIVE_STATE_REGEX.search(sentence):
         return True
 

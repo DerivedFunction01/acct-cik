@@ -1688,6 +1688,30 @@ EQUITY_COMP_KEYWORDS = [
     "severance",
 ]
 
+PLAN_ASSETS_KEYWORDS = [
+    r"\bplan\s+assets\b",
+    r"\bpension\s+(?:plan|fund|trust|benefit)",
+    r"\bpost[- ]?retirement\s+(?:benefit|plan)",
+    r"\bdefined\s+benefit\s+(?:plan|pension)",
+    r"\bretirement\s+(?:plan|system)",
+    r"\btrust\s+assets\b",
+    r"\b401\(?k\)?\s+plan",
+    r"\bVEBA\b",  # Voluntary Employees' Beneficiary Association
+]
+
+METHODOLOGY_KEYWORDS = [
+    r"is\s+defined\s+as",
+    r"value[- ]at[- ]risk\s+(?:model|methodology|measurement|analysis)",
+    r"sensitivity\s+analysis\s+(?:model|methodology)",
+    r"confidence\s+(?:level|interval)",
+    r"statistical\s+(?:measure|model)",
+    r"hypothetical\s+(?:change|loss|shift|scenario)",
+    r"parallel\s+shift",
+    r"simulation\s+model",
+    r"monte\s+carlo",  # Be careful: "We used Monte Carlo to value X" is okay, "Monte Carlo is a method" is not.
+    r"black[- ]scholes(?!\s+model\s+was\s+used)",  # Aggressive filter for definitions
+]
+
 # Section 2: Legal/Litigation
 # === More specific legal/litigation patterns ===
 LEGAL_LITIGATION_KEYWORDS = [
@@ -1896,7 +1920,8 @@ EXCLUDE_REGEX_ACCOUNTING_STD = re.compile(
 EXCLUDE_REGULATION_REGEX = re.compile(
     r"|".join(REGULATORY_KEYWORDS), re.IGNORECASE
 )
-
+EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
+EXCLUDE_METHODOLOGY_REGEX = build_exclude_regex(METHODOLOGY_KEYWORDS)
 SUBJECTS = [
     # Simple pronouns
     r"we",
