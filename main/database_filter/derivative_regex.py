@@ -977,7 +977,8 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 2. Specific Instrument Phrases (Max Munch) ---
     cln_pattern = rf"credit[- ]linked\s+(?:{_DEBT_TERMS})"
     specific_phrases = [ # None for this one
-        cln_pattern
+        cln_pattern,
+        "credit swaps?"
     ]
 
     sorted_specific_phrases = sorted(

@@ -268,7 +268,7 @@ class InstrumentGenerator:
             "credit options"
             "Basket linked",
             "Total return",
-            "credit swap",
+            "credit swap"
         ]
 
 
