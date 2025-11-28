@@ -105,6 +105,8 @@ Soft:    interest[- ]rate\s+(?:risks?|swaps?|exposures?|movements?)
 - ✅ "The company pays fixed and receives SOFR on its interest rate swaps"
 - ✅ "Treasury locks protect against rising rates on refinancing"
 
+**New matches**: Based on context.
+- "The company is exposed to interest rate fluctuations on its variable rate debt. However, we do not have derivatives to hedge against this risk.".
 
 ---
 
@@ -142,6 +144,9 @@ Soft:    currency\s+(?:risks?|exposures?|fluctuations?)
 - ✅ "Cross-currency swaps manage net investment in foreign operations"
 - ❌ "The foreign investment showed strong returns" (foreign = geographic descriptor, not FX derivative)
 
+**New matches**: Based on context.
+- "The company is exposed to foreign interest rate fluctuations on its foreign-denominated debt. However, we do not have derivatives to hedge against this risk.".
+
 ---
 
 ### CP: Commodity/Physical Derivatives
@@ -178,6 +183,8 @@ Soft:    (?:commodity|oil|gas|energy)\s+(?:swaps?|forwards?|options?)
 - ✅ "Natural gas forwards lock in future fuel costs"
 - ❌ "We received an crude oil forward delivery today" (physical transaction, no derivative)
 
+**New matches**: Based on context.
+- "The company is exposed to natural gas price fluctuations. However, we do not have derivatives to hedge against this risk.".
 ---
 
 ### EQ: Equity Derivatives
@@ -190,7 +197,6 @@ Soft:    (?:commodity|oil|gas|energy)\s+(?:swaps?|forwards?|options?)
 - Capped calls (sold as equity collar strategy)
 - Accelerated share repurchase (ASR) agreements
 - Equity forwards on own shares
-- derivative liabilities
 
 **Identifying Context**:
 ```regex
