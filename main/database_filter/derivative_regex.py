@@ -905,6 +905,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
         "FRA",
         f"treasury locks?(?:[- ]{suffix_alternation})",
         "treasury locks?",
+        f"credit swaps?(?:[- ]{suffix_alternation})",
         "credit default swaps?",
         "overnight index swaps?",
     ]
