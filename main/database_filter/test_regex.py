@@ -57,7 +57,8 @@ class InstrumentGenerator:
             "floating rate protection instrument",
             "benchmark rate put agreement",
             "interest rate calls",
-            "single currency basis swap"
+            "single currency basis swap",
+            "single currency contract",
         ]
         return list(set(instruments))
 
@@ -76,6 +77,8 @@ class InstrumentGenerator:
             "FX forward agreement",
             "cross-currency swap agreement",
             "currency option contract",
+            "currency swap contract",
+            "foreign currency contracts",
             "non-deliverable forward arrangement",
             # Code-specific
             "USD swap",
