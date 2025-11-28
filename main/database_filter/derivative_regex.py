@@ -694,6 +694,44 @@ EQ_CONTEXT_TERMS = [
 ]
 EQ_CONTEXT_TERMS += VALUATION_MODELS
 
+_CR_LINKED_DEBT = rf"credit[- ]linked\s+(?:{_DEBT_TERMS})"
+
+CR_CONTEXT_TERMS = [
+    # --- A. Explicit Instruments (Broad Match) ---
+    r"credit[- ]default",          # Matches "credit default swap/option/risk"
+    r"total[- ]return",            # Matches "total return swap" (predominantly credit)
+    _CR_LINKED_DEBT,               # Use the variable!
+    r"basket[- ]default",
+    r"first[- ]to[- ]default",
+    
+    # --- B. Indices (Highly Specific) ---
+    r"CDX",
+    r"iTraxx",
+    r"Markit\s+CDX",
+    r"credit\s+indices",
+    r"credit\s+index",
+    
+    # --- C. Mechanics & Roles (The "Smoking Gun" terms) ---
+    # These imply a derivative contract structure, not just a loan.
+    r"reference\s+(?:entit(?:y|ies)|obligations?|assets?)",
+    r"protection\s+(?:buyer|seller|sold|bought)",
+    r"credit\s+protection\s+(?:sold|bought|held)",
+    r"credit\s+events?",          # Specific ISDA term (bankruptcy, restructuring)
+    r"recovery\s+rates?",
+    r"credit\s+spreads?",         # "Spreads" usually implies trading/hedging context
+    r"spread\s+duration",
+    r"par\s+value",               # Common in CDS context
+    
+    # --- D. General (Use with caution, but usually safe in this regex) ---
+    r"credit\s+derivatives?",
+    r"credit\s+linked",           # Catch-all for "Credit linked deposits", etc.
+]
+
+# Compile the Regex
+CR_CONTEXT_REGEX = re.compile(
+    r"\b" + build_alternation(CR_CONTEXT_TERMS) + r"\b", re.IGNORECASE
+)
+
 IR_CONTEXT_REGEX = re.compile(
     r"\b" + IR_CONTEXT + r"\b", re.IGNORECASE
 )
@@ -718,6 +756,7 @@ CATEGORY_CONTEXT_MAP = {
     "fx": FX_CONTEXT_REGEX,
     "cp": CP_CONTEXT_REGEX,
     "eq": EQ_CONTEXT_REGEX,
+    "cr": CR_CONTEXT_REGEX,
     "gen": HEDGING_CONTEXT_REGEX,
 }
 
@@ -1497,6 +1536,7 @@ IR_REGEX, IR_SOFT_REGEX = build_ir_regex()
 FX_REGEX, FX_SOFT_REGEX = build_fx_regex()
 CP_REGEX, CP_SOFT_REGEX = build_cp_regex()
 EQ_REGEX, EQ_SOFT_REGEX = build_eq_regex()
+CR_REGEX, CR_SOFT_REGEX = build_cr_regex()
 
 CATEGORY_REGEX = re.compile(
     r"|".join(
@@ -1505,6 +1545,7 @@ CATEGORY_REGEX = re.compile(
             FX_REGEX.pattern,
             CP_REGEX.pattern,
             EQ_REGEX.pattern,
+            CR_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,
@@ -1516,6 +1557,7 @@ SOFT_CATEGORY_REGEX = re.compile(
             FX_SOFT_REGEX.pattern,
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
+            CR_SOFT_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,
@@ -1527,10 +1569,12 @@ BOTH_CATEGORY_REGEX = re.compile(
             FX_SOFT_REGEX.pattern,
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
+            CR_SOFT_REGEX.pattern,
             IR_REGEX.pattern,
             FX_REGEX.pattern,
             CP_REGEX.pattern,
             EQ_REGEX.pattern,
+            CR_REGEX.pattern
         ]
     ),
     re.IGNORECASE,
@@ -1561,6 +1605,7 @@ ALL_REGEX = re.compile(
             FX_SOFT_REGEX.pattern,
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
+            CR_SOFT_REGEX.pattern,
             IR_REGEX.pattern,
             FX_REGEX.pattern,
             CP_REGEX.pattern,
@@ -1568,6 +1613,7 @@ ALL_REGEX = re.compile(
             SOFT_GEN_REGEX.pattern,
             GEN_REGEX.pattern,
             STRICT_NOTIONAL_REGEX.pattern,
+            CR_REGEX.pattern,
             ]), re.IGNORECASE
 )
 CATEGORY_DELETION_MAP = {
@@ -1575,6 +1621,7 @@ CATEGORY_DELETION_MAP = {
     "fx": (FX_REGEX, FX_SOFT_REGEX, FX_CONTEXT_REGEX),
     "cp": (CP_REGEX, CP_SOFT_REGEX, CP_CONTEXT_REGEX),
     "eq": (EQ_REGEX, EQ_SOFT_REGEX, EQ_CONTEXT_REGEX),
+    "cr": (CR_REGEX, CR_SOFT_REGEX, CR_CONTEXT_REGEX),
 }
 
 # =============================================================================
@@ -2755,6 +2802,7 @@ STRICT_CONTEXT_MAP = {
     "fx": re.compile(r"\b" + build_alternation(FX_STRICT_TERMS) + r"\b", re.IGNORECASE),
     "cp": re.compile(r"\b" + build_alternation(CP_STRICT_TERMS) + r"\b", re.IGNORECASE),
     "eq": re.compile(r"\b" + build_alternation(EQ_STRICT_TERMS) + r"\b", re.IGNORECASE),
+    "cr": CR_CONTEXT_REGEX
 }
 
 __all__ = [
