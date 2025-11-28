@@ -800,7 +800,7 @@ PHYSICAL_INVENTORY_TERMS = [ # "capacity forward contract?"
 
 # Negative lookahead: forward NOT followed by physical keywords
 FORWARD_NOT_PHYSICAL_AHEAD = rf"(?!\s+(?:{PHYSICAL_DELIVERY_PATTERN}))"
-SPECIAL_BASE =  [   
+SPECIAL_BASE = [
     "call options?",
     "put options?",
     "call contracts?",
@@ -813,6 +813,9 @@ SPECIAL_BASE =  [
     "variance swaps",
     "volatility swaps",
     "swaptions?",
+    "basket options?",  # Generic multi-asset
+    "rainbow options?",  # Generic multi-asset
+    "lookback options?",
 ]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
