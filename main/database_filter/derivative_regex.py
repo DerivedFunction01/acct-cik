@@ -802,36 +802,58 @@ standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES
 unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
-def expand_instruments(unsafe: bool = True, exclude_standalone_suffixes: bool = False, additional_standalone: Optional[List[str]] = None) -> str:
+
+def expand_instruments(
+    unsafe: bool = True,
+    exclude_standalone_suffixes: bool = False,
+    additional_standalone_suffixes: Optional[List[str]] = None,
+    additional_bases: Optional[List[str]] = None,
+) -> str:
     """
-    Creates an optimized, single alternation pattern that captures:
-    1. Base + Suffix (e.g., swaps-agreement)
-    2. OR Standalone base/suffix (e.g., swaps, agreements)
+    Creates an optimized alternation pattern.
 
-    This pattern enforces Maximum Munch: Base + Suffix is prioritized.
-
-    Args:
-        unsafe: If True, includes ambiguous bases (e.g., generic options, futures).
-        exclude_standalone_suffixes: If True, only return bases (no suffixes), as they are used for attachment to a prefix.
-        Overrides unsafe
+    Fixed Logic:
+    1. Ensures (OldBase OR NewBase) + Suffix is treated as a single unit.
+    2. Ensures additional_bases are NOT matched as standalone words.
     """
 
-    # 1. Base + Suffix Combination (Highest priority)
-    combined_pattern = rf"(?:{base_alternation}[- ]{suffix_alternation})"
+    # 1. Construct the Base Component for the Combined Pattern
+    # We wrap (Existing | New) together so the suffix applies to BOTH.
+    if additional_bases:
+        new_base_alt = build_alternation(additional_bases, True)
+        # Result: (?:(?:existing_bases)|(?:new_bases))
+        effective_base_pattern = rf"(?:{base_alternation}|{new_base_alt})"
+    else:
+        effective_base_pattern = base_alternation
 
-    # 2. Standalone Term (Lower priority)
+    # 2. Base + Suffix Combination (Highest priority)
+    # The [- ] separator now applies to everything in effective_base_pattern
+    # Matches: "swap agreement", "protection contract"
+    combined_pattern = rf"(?:{effective_base_pattern}[- ]{suffix_alternation})"
+
+    # 3. Standalone Term (Lower priority)
+    # Note: We DO NOT add additional_bases here. They will fail to match if they lack a suffix.
     if not exclude_standalone_suffixes:
-        standalone_pattern = (
+        base_standalone = (
             unsafe_standalone_alternation if unsafe else standalone_alternation
         )
     else:
-        standalone_pattern = base_alternation if unsafe else safe_base_alternation
-    
-    additional_suffixes = "|" + build_alternation(additional_standalone, True) if additional_standalone else ""
+        base_standalone = base_alternation if unsafe else safe_base_alternation
 
-    # If build_alternation supports it, sort these alternatives by length
-    # Otherwise, manually construct with longest first
-    return rf"{combined_pattern}|{standalone_pattern}" + additional_suffixes
+    # 4. Integrate Additional Standalone SUFFIXES
+    extras = []
+    if additional_standalone_suffixes:
+        extras.append(build_alternation(additional_standalone_suffixes, True))
+
+    if extras:
+        # Append extras to the standalone pattern
+        extras_pattern = "|".join(extras)
+        final_standalone = rf"{base_standalone}|{extras_pattern}"
+    else:
+        final_standalone = base_standalone
+
+    # 5. Final Assembly (Max Munch: Combined first)
+    return rf"{combined_pattern}|{final_standalone}"
 
 
 def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
@@ -913,7 +935,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 5. Final Build and Compile ---
     soft_pattern = build_smart_regex(
         core_terms,
-        expand_instruments(unsafe=True), # IR is highly unambiguous
+        expand_instruments(unsafe=True, additional_bases=["protection"]), # IR is highly unambiguous
         specific_phrases,
     )
     regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
@@ -1021,7 +1043,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # -------------------------------------------------------------------------
 
     # Fragment for dynamic replacement: safe bases only (no suffixes as standalones, but include safe ones)
-    strict_dynamic_fragment = expand_instruments(unsafe=False, exclude_standalone_suffixes=True, additional_standalone=["contracts?", "options?"])
+    strict_dynamic_fragment = expand_instruments(unsafe=False, exclude_standalone_suffixes=True, additional_standalone_suffixes=["contracts?", "options?"])
     
     # 1. Substitute the dynamic fragment into the templates
     strict_dynamic_phrases = _replace_dynamic_placeholder(dynamic_templates, strict_dynamic_fragment)
