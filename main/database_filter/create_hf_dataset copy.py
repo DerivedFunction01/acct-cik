@@ -92,6 +92,23 @@ NUMERIC_SUBSTITUTION_CONFIG = {
 }
 
 # Regex patterns
+COUNTERPARTY_POLICY_TERMS = [
+    r"counterpart(?:y|ies)",
+    r"credit\s+quality",
+    r"credit\s+worthiness",
+    r"highly[- ]rated",
+    r"investment[- ]grade",
+    r"financial\s+institutions",
+    r"master\s+netting",
+    r"isda",
+    r"collateral\s+requirements",
+    r"concentration\s+of\s+credit",
+    r"non[- ]performance",
+]
+
+COUNTERPARTY_REGEX = re.compile(
+    r"\b" + r"|".join(COUNTERPARTY_POLICY_TERMS) + r"\b", re.IGNORECASE
+)
 YEAR_REGEX_COLLECTOR = re.compile(r"\b(19[0-9]{2}|20[0-9]{2})\b")
 NON_YEAR_NUMBER_REGEX = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\b")
 
@@ -1597,6 +1614,26 @@ def process_chunk(chunk_data):
                             )
 
                 else:
+                    # 1. Check for Counterparty/Credit Policy (HARD NEGATIVES)
+                    if COUNTERPARTY_REGEX.search(sentence):
+                        # Ensure we don't accidentally grab a subtle instrument
+                        # (Double check it doesn't have a strict instrument hidden in it)
+                        if not STRICT_REGEX.search(sentence):
+                            local_candidates.append(
+                                {
+                                    "label": "gen",
+                                    "sentences": sentences,
+                                    "target_idx": i,
+                                    "match_span": None,
+                                    "match_text": "HardNegative",
+                                    "original_sent": sentence,
+                                    "score": 0,
+                                    "url": url,
+                                    "subtype": "L0_Hard_Negative_Credit",  # <-- Useful for debugging
+                                    "detected_categories": {"gen"},
+                                }
+                            )
+                            continue
                     is_hedging_talk = bool(HEDGING_CONTEXT_REGEX.search(sentence))
                     is_accounting = bool(EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence))
 
