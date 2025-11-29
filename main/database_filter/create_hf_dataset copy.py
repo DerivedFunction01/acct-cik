@@ -823,7 +823,11 @@ class ContextScorer:
     def score(self, text: str, label: str) -> int:
         if len(text) > 600 or len(text) < 25:
             return -2
-
+        # 0. Check instrument context (most accurate)
+        _, instr_regex, _ = CATEGORY_DELETION_MAP.get(label, (None, None, None))
+        if instr_regex:
+            if instr_regex.search(text):
+                return 100
         # 1. Check STRICT Context (The "Smoking Gun")
         strict_regex = STRICT_CONTEXT_MAP.get(label)
         if strict_regex and strict_regex.search(text):
@@ -845,7 +849,7 @@ class ContextScorer:
             score +=20
         if label == "ir":
             if re.search(r"\b(variable|floating|fixed|interest)\s+rate\b", text, re.I):
-                score += 20
+                score += 10
             if re.search(
                 r"\b(debts?|notes?|bonds?|loans?|borrowings?|basis\s+points?)\b",
                 text,
