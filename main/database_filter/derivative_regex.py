@@ -2297,6 +2297,24 @@ COMBINED_REGEX = re.compile(
     re.IGNORECASE,
 )
 
+NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
+    # The "NPNS" Exemption (Physical Contracts)
+    r"normal\s+purchases?\s+(?:and|&)\s+(?:normal\s+)?sales?",
+    r"NPNS",
+    r"own[- ]use\s+exemption",
+    
+    # Unconditional Obligations (ASC 440)
+    r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
+    r"take[- ]or[- ]pay",
+    r"throughput\s+agreements?",
+    
+    # General Supply Chain (If not caught by Physical Inventory)
+    r"supply\s+arrangements?",
+    r"procurement\s+contracts?",
+]
+EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_exclude_regex(
+    NON_DERIVATIVE_COMMERCIAL_KEYWORDS
+)
 # Regex to find years between 1980-2049, followed by a word boundary character
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20[0-4]\d)\b")
 

@@ -58,6 +58,7 @@ from derivative_regex import (
     DEFINITION_INDICATORS,
     EQ_SOFT_REGEX,
     EXCLUDE_HYPOTHETICAL_REGEX,
+    EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
     EXCLUDE_REGEX_EQUITY_COMP,
@@ -1286,6 +1287,12 @@ def filter_matches_with_disambiguation(
             if not SOFT_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
                 continue
+            if CP_REGEX.search(sentence):
+                # Check for NPNS / Commercial Exemptions
+                if EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(sentence):
+                    # This is a physical supply contract, not a financial derivative
+                    all_discarded.append((url, sentence, "commercial_contract_exemption"))
+                    continue
 
             # ═══════════════════════════════════════════════════════════
             # CATEGORY DETECTION
