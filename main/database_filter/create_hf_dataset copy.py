@@ -1293,8 +1293,10 @@ def _get_generic_form(category: str) -> str:
         "derivative contracts",
         "financial instruments",
         "hedging agreements",
+        "hedge contracts",
         "derivative positions",
         "derivatives",
+        "embedded derivatives",
     ]
     return random.choice(generics)
 
