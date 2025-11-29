@@ -1606,7 +1606,7 @@ def process_item_buffered(
         # if not strict_matches:
         #     return None
 
-        cik, year = report_data_map.get(url, ([], []))
+        cik, year = report_data_map.get(url, (None, None))
         return (url, strict_matches, cik, year, discarded)
     except Exception as e:
         logging.error(f"Error processing {url}: {e}")
