@@ -73,6 +73,7 @@ class InstrumentGenerator:
             "currency swap",
             "currency option",
             "non-deliverable forward",
+            "foreign currency derivatives",
             # With suffixes
             "foreign currency forward contract",
             "FX forward agreement",
