@@ -1908,6 +1908,16 @@ HYPOTHETICAL_KEYWORDS = [
     r"simulation\s+model\s+that\s+estimates",
     r"sensitivity\s+analysis",
 ]
+COMPETITOR_KEYWORDS = [
+    r"competitors?",
+    r"competition",
+    r"other\s+companies",
+    r"other\s+entities",
+    r"other\s+market\s+participants",
+    r"industry\s+peers?",
+    r"industry\s+practice",
+    r"peer\s+group",
+]
 
 def build_exclude_regex(keywords: list) -> re.Pattern:
     """Build regex for excluding noise keywords."""
@@ -1922,6 +1932,7 @@ EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS
 EXCLUDE_REGULATION_REGEX = build_exclude_regex(REGULATORY_KEYWORDS)
 EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
 EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
+EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
 
 SUBJECTS = [
     # Simple pronouns

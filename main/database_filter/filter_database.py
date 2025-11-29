@@ -57,6 +57,7 @@ from derivative_regex import (
     CP_SOFT_REGEX,
     DEFINITION_INDICATORS,
     EQ_SOFT_REGEX,
+    EXCLUDE_COMPETITOR_REGEX,
     EXCLUDE_HYPOTHETICAL_REGEX,
     EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
     EXCLUDE_PLAN_ASSETS_REGEX,
@@ -504,7 +505,8 @@ def create_clean_db():
                 "lost_instrument_reference",
                 "regulation",
                 "hypo",
-                "planned_assets"
+                "planned_assets",
+                "competitor",
             ] + [
                 f"disambiguation_excision_failed_{cat}"
                 for cat in CATEGORY_CONTEXT_MAP.keys()
@@ -1178,6 +1180,10 @@ def filter_matches_with_disambiguation(
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
             all_discarded.append((url, match, "legal"))
             continue
+        # Don't care how competitors uses swaps
+        if EXCLUDE_COMPETITOR_REGEX.search(match):
+            all_discarded.append((url, match, "competitor"))
+            continue
         # Skip regulatory paragraphs, they say how "swaps" are regulated, not a firm uses it
         if EXCLUDE_REGULATION_REGEX.search(match):
             all_discarded.append((url, match, "regulation"))
@@ -1186,7 +1192,7 @@ def filter_matches_with_disambiguation(
         if EXCLUDE_PLAN_ASSETS_REGEX.search(match):
             all_discarded.append((url, match, "planned_assets"))
             continue
-        
+
         if EXCLUDE_HYPOTHETICAL_REGEX.search(match):
             all_discarded.append((url, match, "hypo"))
             continue
