@@ -33,6 +33,7 @@ SOURCE_DB_PATH = "active_nonzero_data.db"
 FINAL_DB_PATH = "verified_active_data.db"
 
 from derivative_regex import (
+    ENTITY_TOKEN,
     SENTENCE_SPLIT_PATTERN,
     CURRENCY_SYMBOL_PATTERN,
     STRONG_VERB_PATTERN,
@@ -68,9 +69,7 @@ QUANT_REGEX = re.compile(
     rf"\b{build_alternation(QUANT_TERMS)}\b",
     re.IGNORECASE,
 )
-ENTITY_TOKENS = [
-    r"__ENTITY__",
-]
+ENTITY_TOKENS = [ENTITY_TOKEN]
 POLICY_TERMS = [
     r"formally\s+document",
     r"hedge\s+documentation",

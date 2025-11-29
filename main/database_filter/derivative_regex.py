@@ -2789,7 +2789,7 @@ HEADER_CLEANUP_PATTERNS = [
 ]
 
 
-def build_entity_exclusion_regex() -> re.Pattern:
+def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
     """
     Matches official entity names AND their acronyms that contain trigger words
     (Futures, Swaps, Options, Derivatives, Exchange) to prevent false positive classification.
@@ -2869,11 +2869,11 @@ def build_entity_exclusion_regex() -> re.Pattern:
     # Use build_alternation to ensure longest matches (e.g., full name) are prioritized
     # Note: We enforce word boundaries \b for short acronyms inside the list above
     pattern = build_alternation(all_patterns)
-    return re.compile(rf"\b{pattern}\b", re.IGNORECASE)
+    return re.compile(rf"\b{pattern}\b", re.IGNORECASE), "_E"
 
 
 # Compile and Export
-ENTITY_EXCLUSION_REGEX = build_entity_exclusion_regex()
+ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN = build_entity_exclusion_regex()
 
 # Unique marker to identify the "Target" sentence that anchors a context window.
 # Used to enforce dependency: if the anchor is deleted, loose dependents must die.

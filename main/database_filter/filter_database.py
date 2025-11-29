@@ -56,6 +56,7 @@ from derivative_regex import (
     CATEGORY_REGEX,
     CP_SOFT_REGEX,
     DEFINITION_INDICATORS,
+    ENTITY_TOKEN,
     EQ_SOFT_REGEX,
     EXCLUDE_COMPETITOR_REGEX,
     EXCLUDE_HYPOTHETICAL_REGEX,
@@ -336,7 +337,7 @@ class TextCleaner:
         Removes official entity names that contain derivative keywords.
         """
         # Replace with __entity__ for final use
-        return self._safe_sub(ENTITY_EXCLUSION_REGEX, " __ENTITY__ ", text)
+        return self._safe_sub(ENTITY_EXCLUSION_REGEX, f" {ENTITY_TOKEN} ", text)
 
     def clean_structure(self, text: str) -> str:
         """
