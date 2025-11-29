@@ -118,6 +118,7 @@ LABEL_TO_CONFLICT_REGEX = {
         FX_CONTEXT_REGEX,
         CP_CONTEXT_REGEX,
         EQ_CONTEXT_REGEX,
+        CR_CONTEXT_REGEX,
         FX_REGEX,
         FX_SOFT_REGEX,
         CP_REGEX,
@@ -131,6 +132,7 @@ LABEL_TO_CONFLICT_REGEX = {
         IR_CONTEXT_REGEX,
         CP_CONTEXT_REGEX,
         EQ_CONTEXT_REGEX,
+        CR_CONTEXT_REGEX,
         IR_REGEX,
         IR_SOFT_REGEX,
         CP_REGEX,
@@ -144,14 +146,13 @@ LABEL_TO_CONFLICT_REGEX = {
         IR_CONTEXT_REGEX,
         FX_CONTEXT_REGEX,
         EQ_CONTEXT_REGEX,
+        CR_CONTEXT_REGEX,
         IR_REGEX,
         IR_SOFT_REGEX,
         FX_REGEX,
         FX_SOFT_REGEX,
         EQ_REGEX,
         EQ_SOFT_REGEX,
-        CP_REGEX,
-        CR_SOFT_REGEX,
         CR_REGEX,
         CR_SOFT_REGEX,
     ],
@@ -159,6 +160,7 @@ LABEL_TO_CONFLICT_REGEX = {
         IR_CONTEXT_REGEX,
         FX_CONTEXT_REGEX,
         CP_CONTEXT_REGEX,
+        CR_CONTEXT_REGEX,
         IR_REGEX,
         IR_SOFT_REGEX,
         FX_REGEX,
@@ -173,6 +175,7 @@ LABEL_TO_CONFLICT_REGEX = {
         FX_CONTEXT_REGEX,
         CP_CONTEXT_REGEX,
         EQ_CONTEXT_REGEX,
+        CR_CONTEXT_REGEX,
         IR_REGEX,
         IR_SOFT_REGEX,
         FX_REGEX,
@@ -181,7 +184,6 @@ LABEL_TO_CONFLICT_REGEX = {
         CP_SOFT_REGEX,
         EQ_REGEX,
         EQ_SOFT_REGEX,
-        CR_CONTEXT_REGEX,
         CR_REGEX,
         CR_SOFT_REGEX,
     ],
@@ -716,6 +718,105 @@ class ContentDeduplicator:
             return True
         self.seen_hashes.add(content_hash)
         return False
+
+
+class DynamicEntitySubstitution:
+    """
+    Substitutes specific accounting entities (FASB, SEC) and standard references (ASC, IFRS)
+    with generic or alternative names to prevent overfitting to specific regulatory bodies.
+    """
+
+    def __init__(self, random_seed=None):
+        self.rng = random.Random(random_seed) if random_seed else random
+
+        # Targets to find
+        self.target_issuers = [
+            "FASB",
+            "IASB",
+            "SEC",
+            "Securities and Exchange Commission",
+            "Financial Accounting Standards Board",
+        ]
+        self.target_standards = [
+            "ASC",
+            "ASU",
+            "IFRS",
+            "IAS",
+            "GAAP",
+            "SFAS",
+            "EITF",
+            "Accounting Standards Codification",
+        ]
+
+        # Replacements
+        self.generic_issuers = [
+            "The Board",
+            "The Authority",
+            "The Council",
+            "Regulatory Body",
+            "The Commission",
+            "Standards Committee",
+            "The Agency",
+            "Oversight Board",
+        ]
+        self.generic_standards = [
+            "Standard",
+            "Topic",
+            "Guidance",
+            "Regulation",
+            "Rule",
+            "Section",
+            "Protocol",
+            "Framework",
+            "Provision",
+            "Requirement",
+        ]
+
+        # Build Regex for fast detection
+        self.issuer_pattern = re.compile(
+            r"\b(" + "|".join(map(re.escape, self.target_issuers)) + r")\b"
+        )
+        self.standard_pattern = re.compile(
+            r"\b(" + "|".join(map(re.escape, self.target_standards)) + r")\b"
+        )
+
+    def substitute(self, text: str) -> str:
+        # Create a consistent mapping for this specific text window
+        # (e.g. if FASB appears twice, map it to the same generic name both times)
+
+        mapping = {}
+
+        # 1. Find and map Issuers
+        found_issuers = set(self.issuer_pattern.findall(text))
+        if found_issuers:
+            # Shuffle replacements to ensure diversity
+            replacements = self.rng.sample(
+                self.generic_issuers, len(self.generic_issuers)
+            )
+            for i, original in enumerate(found_issuers):
+                mapping[original] = replacements[i % len(replacements)]
+
+        # 2. Find and map Standards
+        found_standards = set(self.standard_pattern.findall(text))
+        if found_standards:
+            replacements = self.rng.sample(
+                self.generic_standards, len(self.generic_standards)
+            )
+            for i, original in enumerate(found_standards):
+                mapping[original] = replacements[i % len(replacements)]
+
+        if not mapping:
+            return text
+
+        # 3. Apply substitution
+        # Sort keys by length (descending) to handle subsets (e.g. avoid partial match issues)
+        pattern = re.compile(
+            r"\b("
+            + "|".join(map(re.escape, sorted(mapping.keys(), key=len, reverse=True)))
+            + r")\b"
+        )
+
+        return pattern.sub(lambda m: mapping[m.group(1)], text)
 
 
 class ContextScorer:
@@ -1395,6 +1496,8 @@ def get_dynamic_window(
     if apply_numeric_substitution and NUMERIC_SUBSTITUTION_CONFIG["enabled"]:
         all_sentences = prev_parts + [target_sent] + next_parts
         engine = NumericSubstitutionEngine()
+        entity_sub = DynamicEntitySubstitution()
+        window = entity_sub.substitute(window)
         month_info, all_months = engine.extract_sentence_months(all_sentences)
         year_info, all_years = engine.extract_sentence_years(all_sentences)
 
