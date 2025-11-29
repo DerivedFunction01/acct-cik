@@ -39,6 +39,11 @@ SEPARATOR_PATTERN = re.compile(r"^[\s\-]+$", re.MULTILINE)
 # Pattern to find any <TAG> or </TAG>
 TAG_PATTERN = re.compile(r"<[^>]+>")
 
+STRONG_HEADER_PATTERN = re.compile(
+    r"\b(?:notional|fair\s+value|carrying\s+(?:amount|value)|principal|contract\s+amount|asset|liability)\b",
+    re.IGNORECASE,
+)
+
 # Patterns that indicate a table is just a text container
 TEXT_CONTAINER_INDICATORS = [
     # Very long unbroken text (>200 chars without line breaks)
@@ -298,27 +303,58 @@ def is_text_container_table(table_text: str, verbose: bool = False) -> bool:
 
     Returns True if the table should be REMOVED, False if it should be kept.
     """
-    # Check separator length first
-    max_separator = check_separator_length(table_text)
-    if max_separator > 300:
-        if verbose:
-            print(f"  ❌ Long separator ({max_separator} chars) - removing")
-        return True
-
-    # Extract content
+    # 1. Extract content first
     headers, data = extract_table_content(table_text)
     all_rows = headers + data
 
     if not all_rows:
+        return True  # Empty
+
+    # ---------------------------------------------------------
+    # THE "GOLDEN COLUMN" SAFEGUARD (New Logic)
+    # ---------------------------------------------------------
+    # Check 1: Do we have a strong financial header?
+    has_strong_header = False
+    strong_col_indices = []
+
+    # Check headers (usually top 2 rows)
+    for row_idx, row in enumerate(headers):
+        for col_idx, cell in enumerate(row):
+            if STRONG_HEADER_PATTERN.search(cell):
+                has_strong_header = True
+                strong_col_indices.append(col_idx)
+
+    # Check 2: Do the columns under those headers contain numbers?
+    # We require at least 2 numeric cells in the "Strong" columns to confirm it's real data.
+    valid_numeric_data = 0
+    if has_strong_header:
+        for row in data:
+            for col_idx in strong_col_indices:
+                if col_idx < len(row):
+                    # Check for digits (ignoring parens/currency)
+                    if re.search(r"\d", row[col_idx]):
+                        valid_numeric_data += 1
+
+    # DECISION: If Strong Header + Numeric Data -> KEEP IT.
+    # Bypass all text density/sentence checks.
+    if has_strong_header and valid_numeric_data >= 2:
         if verbose:
-            print(f"  ❌ Empty table - removing")
+            print(
+                f"  ✅ SAFEGUARD: Found Strong Headers + Data ({valid_numeric_data} numeric cells). Keeping."
+            )
+        return False  # False = Do Not Remove
+    # Check separator length first
+    max_separator = check_separator_length(table_text)
+    if max_separator > 700:
+        if verbose:
+            print(f"  ❌ Long separator ({max_separator} chars) - removing")
         return True
 
     # Check for very long text in cells
     has_long_text = False
     for row in all_rows:
         for cell in row:
-            if len(cell) > 300 and "\n" not in cell[:200]:
+            if len(cell) > 400 and "\n" not in cell[:200]:
                 has_long_text = True
                 break
         if has_long_text:
