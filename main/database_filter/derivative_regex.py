@@ -857,6 +857,7 @@ HIGH_PRECISION_SUFFIXES = re.compile(r"\b" + build_alternation(UNAMBIGUOUS_BASE_
 ALL_SUFFIXES = [
     "agreements?",
     "contracts?",
+    "commitments?",
     "instruments?",
     "arrangements?",
     "options?",
