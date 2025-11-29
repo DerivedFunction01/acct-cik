@@ -848,10 +848,10 @@ class ContextScorer:
         if label == "cr": # cr is highy specific
             score +=20
         if label == "ir":
-            if re.search(r"\b(variable|floating|fixed|interest)\s+rate\b", text, re.I):
+            if re.search(r"\b(variable|floating|fixed)\s+rate\b", text, re.I):
                 score += 10
             if re.search(
-                r"\b(debts?|notes?|bonds?|loans?|borrowings?|basis\s+points?)\b",
+                r"\b(mortages?|basis\s+points?)\b",
                 text,
                 re.I,
             ):
