@@ -898,11 +898,11 @@ class DynamicContextBank:
     def __init__(self):
         self.general_pool = []
         self.safe_pool = []
-        self.category_pools = {"cr":[], "ir": [], "fx": [], "cp": [], "eq": []}
+        self.safe_specific_pool = []
+        self.category_pools = {"cr":[], "ir": [], "fx": [], "cp": [], "eq": [], "ctr": []}
 
     def add_noise_candidate(self, text):
         detected_cats = detect_noise_categories(text)
-
         if len(self.general_pool) < 5000:
             self.general_pool.append(text)
         elif random.random() < 0.1:
@@ -931,6 +931,9 @@ class DynamicContextBank:
         """
         # Case A: Generic / Ambiguous (Needs PURE noise)
         if target_label == "gen":
+            if random.random() < 0.15:
+                if self.safe_specific_pool: # choose one of the "counter categories", which are sentences that seem related to a category but it is not
+                    return random.choice(self.safe_specific_pool)
             if self.safe_pool:
                 return random.choice(self.safe_pool)
             return "See Note X."
@@ -1630,7 +1633,7 @@ def process_chunk(chunk_data):
                                     "score": 0,
                                     "url": url,
                                     "subtype": "L0_Hard_Negative_Credit",  # <-- Useful for debugging
-                                    "detected_categories": {"gen"},
+                                    "detected_categories": {"ctr"},
                                 }
                             )
                             continue
