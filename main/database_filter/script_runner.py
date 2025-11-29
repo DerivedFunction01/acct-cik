@@ -9,9 +9,10 @@ LOG_FILE = "pipeline_run.log"
 
 # Definition: (Script, Output_DB, Output_CSV)
 PIPELINE_STAGES = [
+    # 0. Attempt to cleanup tables
+    ("table_cleanup.py", "web_data.db", None),
     # 1. Extraction & Refinement
-    
-    ("filter_database.py", "prepared_data.db", ""),
+    ("filter_database.py", "prepared_data.db", "1_prepared.csv"),
     # 2. Gatekeeper (Pass-through if using simple mode)
     ("roberta_merge.py", "hedge_data.db", "2_merged.csv"),
     # 3. Historical Cleaning
