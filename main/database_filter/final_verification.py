@@ -68,7 +68,9 @@ QUANT_REGEX = re.compile(
     rf"\b{build_alternation(QUANT_TERMS)}\b",
     re.IGNORECASE,
 )
-
+ENTITY_TOKENS = [
+    r"__ENTITY__",
+]
 POLICY_TERMS = [
     r"formally\s+document",
     r"hedge\s+documentation",
@@ -83,7 +85,7 @@ POLICY_TERMS = [
     r"economic\s+relationship",
 ]
 POLICY_REGEX = re.compile(
-    r"\b" + build_alternation(POLICY_TERMS) + r"\b", re.IGNORECASE
+    r"\b" + build_alternation(POLICY_TERMS + ENTITY_TOKENS) + r"\b", re.IGNORECASE
 )
 # Targets: "We transact with highly rated institutions", "Subject to master netting
 COUNTERPARTY_POLICY_TERMS = [
