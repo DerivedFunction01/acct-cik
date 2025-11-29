@@ -799,6 +799,7 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     "invoice",
     "shipment",
     "receipt",
+    "looking", # Just added it here against forward-looking
 ]
 PHYSICAL_DELIVERY_PATTERN = build_alternation(
     PHYSICAL_COMMERCIAL_TERMS, sort_longest_first=True
@@ -809,7 +810,7 @@ PHYSICAL_INVENTORY_TERMS = [ # "capacity forward contract?"
 ]
 
 # Negative lookahead: forward NOT followed by physical keywords
-FORWARD_NOT_PHYSICAL_AHEAD = rf"(?!\s+(?:{PHYSICAL_DELIVERY_PATTERN}))"
+FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 SPECIAL_BASE = [
     "call options?",
     "put options?",
