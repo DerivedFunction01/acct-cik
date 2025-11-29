@@ -10,7 +10,8 @@ LOG_FILE = "pipeline_run.log"
 # Definition: (Script, Output_DB, Output_CSV)
 PIPELINE_STAGES = [
     # 1. Extraction & Refinement
-    ("filter_database.py", "prepared_data.db", "1_prepared.csv"),
+    
+    ("filter_database.py", "prepared_data.db", ""),
     # 2. Gatekeeper (Pass-through if using simple mode)
     ("roberta_merge.py", "hedge_data.db", "2_merged.csv"),
     # 3. Historical Cleaning
@@ -65,7 +66,7 @@ def run_pipeline():
             sys.exit(1)
 
         # 2. Export Step
-        if Path(db_target).exists():
+        if Path(db_target).exists() and csv_target:
             run_command(
                 [PYTHON_EXEC, "database_export.py", db_target, csv_target],
                 f"Exporting {csv_target}",
