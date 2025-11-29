@@ -1126,6 +1126,8 @@ def prepare_training_example(
         else:
             # Fallback if strict replacement didn't happen but soft exists
             pass
+        if masked_text == scrubbed_text:
+            return None  # Fail this example rather than leaking the label
 
     if len(masked_text) < MIN_SENTENCE_LENGTH:
         return None
