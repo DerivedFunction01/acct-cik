@@ -1387,9 +1387,9 @@ def _get_loose_variant(matched_text: str, category: str) -> str:
     Create a loose variant (e.g., "swap" → "swap agreement" or "swap instrument").
     """
     base = _get_base_form(matched_text, category)
-    suffixes = ["agreements", "instruments", "contracts", "arrangements"]
+    suffixes = ["agreement", "instrument", "contract", "arrangement"]
     chosen_suffix = random.choice(suffixes)
-    return f"{base} {chosen_suffix}"
+    return f"{base} {chosen_suffix}s" if base not in suffixes else f"{base}"
 
 
 def _get_generic_form(category: str) -> str:
