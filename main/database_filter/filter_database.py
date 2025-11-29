@@ -47,6 +47,7 @@ import time
 import sqlite3
 from itertools import groupby
 import uuid
+from table_processor import TableToTextConverter
 
 # Import all derivative regexes
 
@@ -1157,8 +1158,28 @@ def filter_matches_with_disambiguation(
     for para_idx, match in enumerate(matches):
         # Skip tables
         if '<TABLE>' in match.upper():
-            final_paragraphs.append((match, 'table'))
-            continue
+            # 1. Attempt to convert valid numeric tables into "Active User" sentences
+            # e.g. "Table Disclosure: The Company held IR Swaps with fair value of $50."
+            try:
+                converter = TableToTextConverter(match)
+                extracted_sentences = converter.process()
+                
+                if extracted_sentences:
+                    # Success: We extracted data. Treat these sentences as a single paragraph.
+                    # This allows standard regex filtering (Phase 1) and intent checks (Phase 4)
+                    # to work on the table data just like narrative text.
+                    match = " ".join(extracted_sentences)
+                else:
+                    # Failure: Table was numeric but had no recognized active columns.
+                    # Keep as is (tagged 'table') or discard depending on preference.
+                    # Currently keeping for manual review if needed.
+                    final_paragraphs.append((match, 'table'))
+                    continue
+            except Exception as e:
+                # Fallback for parsing errors
+                # logging.warning(f"Table parsing failed for {url}: {e}")
+                final_paragraphs.append((match, 'table'))
+                continue
 
         # Remove accounting standards boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):

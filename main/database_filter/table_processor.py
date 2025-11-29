@@ -222,23 +222,23 @@ class TableToTextConverter:
 
                 if col_type == "notional":
                     sentences.append(
-                        f"Table Disclosure: The Company held {full_instrument_name} with a notional amount of {clean_val}."
+                        f"Tabular-Data: The Company held {full_instrument_name} with a notional amount of {clean_val}."
                     )
 
                 elif "fair_value" in col_type:
                     sentences.append(
-                        f"Table Disclosure: The Company held {full_instrument_name} with a fair value of {clean_val}."
+                        f"Tabular-Data: The Company held {full_instrument_name} with a fair value of {clean_val}."
                     )
 
                 elif col_type == "gain_loss":
                     sentences.append(
-                        f"Table Disclosure: The Company recognized a gain or loss on {full_instrument_name} of {clean_val}."
+                        f"Tabular-Data: The Company recognized a gain or loss on {full_instrument_name} of {clean_val}."
                     )
 
                 elif col_type.startswith("value_"):
                     year = col_type.split("_")[1]
                     sentences.append(
-                        f"Table Disclosure: In {year}, the Company held {full_instrument_name} with a value of {clean_val}."
+                        f"Tabular-Data: In {year}, the Company held {full_instrument_name} with a value of {clean_val}."
                     )
 
         return sentences
