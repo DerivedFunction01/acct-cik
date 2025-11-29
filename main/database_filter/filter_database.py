@@ -335,8 +335,8 @@ class TextCleaner:
         """
         Removes official entity names that contain derivative keywords.
         """
-        # Replace with space to avoid merging words
-        return self._safe_sub(ENTITY_EXCLUSION_REGEX, " ", text)
+        # Replace with __entity__ for final use
+        return self._safe_sub(ENTITY_EXCLUSION_REGEX, " __ENTITY__ ", text)
 
     def clean_structure(self, text: str) -> str:
         """
