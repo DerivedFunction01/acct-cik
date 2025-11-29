@@ -2788,42 +2788,86 @@ HEADER_CLEANUP_PATTERNS = [
     ),
 ]
 
+
 def build_entity_exclusion_regex() -> re.Pattern:
     """
-    Matches official entity names that contain trigger words
-    (Futures, Swaps, Options, Derivatives) to prevent false positive classification.
+    Matches official entity names AND their acronyms that contain trigger words
+    (Futures, Swaps, Options, Derivatives, Exchange) to prevent false positive classification.
     """
     entities = [
-        # CP Triggers ("Futures", "Commodity")
+        # --- 1. Regulators & Standard Setters ---
         r"(?:U\.?S\.?\s+)?Commodity\s+Futures\s+Trading\s+Commission",
+        r"\bCFTC\b",
         r"National\s+Futures\s+Association",
-        # IR/Gen Triggers ("Swaps", "Derivatives")
-        r"International\s+Swaps\s+(?:and|&)\s+Derivatives\s+Association",
-        r"Swaps\s+(?:and|&)\s+Derivatives\s+Market\s+Association",
-        # EQ Triggers ("Options", "Stock", "Exchange")
-        r"Chicago\s+Board\s+Options\s+Exchange",
-        r"Philadelphia\s+Stock\s+Exchange",
-        r"American\s+Stock\s+Exchange",
-        r"New\s+York\s+Stock\s+Exchange",
-        # General Regulatory (prevent "Exchange" or "Board" context leaks)
+        r"\bNFA\b",
         r"Securities\s+(?:and|&)\s+Exchange\s+Commission",
+        r"\bSEC\b",
         r"Financial\s+Accounting\s+Standards\s+Board",
+        r"\bFASB\b",
         r"Public\s+Company\s+Accounting\s+Oversight\s+Board",
-        r"hedge funds?",           # <--- The Trap: Prevents "Hedge Fund" from triggering "Hedging"
-        r"mutual funds?",          # Good practice to add these too
-        r"index funds?",
-        r"exchange[- ]traded funds?",
-        r"ETFs?",
+        r"\bPCAOB\b",
+        r"Federal\s+Energy\s+Regulatory\s+Commission",
+        r"\bFERC\b",
+        r"Prudential\s+Regulators?",  # Generic but common in bank filings
+        # --- 2. Associations (Master Agreements) ---
+        r"International\s+Swaps\s+(?:and|&)\s+Derivatives\s+Association",
+        r"\bISDA\b",
+        r"Futures\s+Industry\s+Association",
+        r"\bFIA\b",
+        r"Securities\s+Industry\s+(?:and|&)\s+Financial\s+Markets\s+Association",
+        r"\bSIFMA\b",
+        # --- 3. Exchanges (The "Option/Future/Swap" Triggers) ---
+        # Chicago Group
+        r"Chicago\s+Board\s+Options\s+Exchange",
+        r"\bCBOE\b",
+        r"Chicago\s+Mercantile\s+Exchange",
+        r"\bCME\b",
+        r"Chicago\s+Board\s+of\s+Trade",
+        r"\bCBOT\b",
+        # New York / ICE Group
+        r"New\s+York\s+Stock\s+Exchange",
+        r"\bNYSE\b",
+        r"New\s+York\s+Mercantile\s+Exchange",
+        r"\bNYMEX\b",
+        r"Commodity\s+Exchange(?:,?\s+Inc\.?)?",
+        r"\bCOMEX\b",
+        r"Intercontinental\s+Exchange",
+        r"\bICE\b",
+        # International / Other
+        r"London\s+Metal\s+Exchange",
+        r"\bLME\b",
+        r"London\s+Stock\s+Exchange",
+        r"\bLSE\b",
+        r"Philadelphia\s+Stock\s+Exchange",
+        r"\bPHLX\b",
+        r"Eurex",
+        # --- 4. Clearing Houses (Critical for "Cleared Swaps" noise) ---
+        r"Options\s+Clearing\s+Corporation",
+        r"\bOCC\b",
+        r"London\s+Clearing\s+House",
+        r"\bLCH\b",
+        r"CME\s+Clearing",
+        r"ICE\s+Clear",
+        # --- 5. Generic / Investment Vehicles ---
+        r"hedge\s+funds?",
+        r"mutual\s+funds?",
+        r"index\s+funds?",
+        r"exchange[- ]traded\s+funds?",
+        r"\bETFs?\b",
+        r"money\s+market\s+funds?",
+        r"pension\s+funds?",  # Reinforces Plan Asset exclusion
     ]
-    # NEW: Generic Entity Pattern
+
+    # --- 6. Dynamic Fund Pattern (Your existing logic) ---
     # Matches: "United States Commodity Index Fund", "Oil Derivatives Trust"
-    # Logic: Capitalized words + [Trigger] + Capitalized words + [Entity Suffix]
     triggers = r"(?:Commodity|Oil|Gas|Energy|Derivatives?|Futures?|Options?|Swaps?)"
-    suffixes = r"(?:Fund|Trust|ETF|LP|L\.P\.|Holdings?|Portfolio)"
+    suffixes = r"(?:Fund|Trust|ETF|LP|L\.P\.|Holdings?|Portfolio|Group|Capital)"
     fund_pattern = rf"(?:[A-Z][a-z]+\s+)*{triggers}(?:\s+[A-Z][a-z]+)*\s+{suffixes}"
+
     all_patterns = entities + [fund_pattern]
 
     # Use build_alternation to ensure longest matches (e.g., full name) are prioritized
+    # Note: We enforce word boundaries \b for short acronyms inside the list above
     pattern = build_alternation(all_patterns)
     return re.compile(rf"\b{pattern}\b", re.IGNORECASE)
 
