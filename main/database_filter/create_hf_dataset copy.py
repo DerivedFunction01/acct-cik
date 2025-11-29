@@ -69,7 +69,7 @@ MIN_WINDOW_SIZE = 1
 MAX_WINDOW_SIZE = 3
 
 TARGET_SAMPLES_PER_CLASS = 1250
-SATURATION_LIMIT = int(TARGET_SAMPLES_PER_CLASS * 1.5)
+L4_ADVERSE_RATIO = 0.2
 CHUNK_SIZE = 5000
 MAX_WORKERS = max(1, mp.cpu_count() - 1)
 
@@ -679,7 +679,7 @@ class DynamicCurrencySubstitution:
             )
             return replacement
 
-        new_text = pattern.sub(replace_callback, text)
+        new_text = pattern.sub(replace_callback, text) # type: ignore
         return new_text, self.substitution_log
 
 
@@ -783,7 +783,7 @@ class ContextScorer:
                 "ir",
             ]
         }
-        best_cat = max(scores, key=scores.get)
+        best_cat = max(scores, key=scores.get) # type: ignore
         best_score = scores[best_cat]
         return best_cat, best_score
 
@@ -1397,6 +1397,84 @@ def has_conflict(text, label):
     return False
 
 
+def get_hostile_window(sentences, target_idx, target_label, context_bank):
+    """
+    Build context window with ONLY hostile signals, using variable geometry.
+
+    Structure Variants:
+    1. Sandwich: [Hostile] [SEP] [Target] [SEP] [Hostile] (Standard)
+    2. Buried:   [Hostile] [SEP] [Hostile] [SEP] [Target] (Left-heavy)
+    3. Leading:  [Target] [SEP] [Hostile] [SEP] [Hostile] (Right-heavy)
+    """
+
+    available_cats = ["ir", "fx", "cp", "eq", "cr"]
+    hostile_pool = [c for c in available_cats if c != target_label]
+
+    # 1. Determine Geometry (Randomize structure so position isn't a cheat)
+    # Weights favors "sandwich" slightly as it's the hardest (conflicts on both sides)
+    structure_type = random.choices(
+        ["sandwich", "left_heavy", "right_heavy"], weights=[0.5, 0.25, 0.25]
+    )[0]
+
+    prev_noise_sents = []
+    next_noise_sents = []
+    conflict_meta = {"prev_conflicts": [], "next_conflicts": []}
+
+    # Helper to get unique hostile category (try not to repeat immediate neighbors)
+    def get_hostile_cat(exclude=None):
+        pool = [c for c in hostile_pool if c != exclude]
+        return random.choice(pool) if pool else random.choice(hostile_pool)
+
+    # 2. Build the Segments
+    if structure_type == "sandwich":
+        # 1-2 sentences before, 1-2 after
+        n_prev = random.randint(1, 2)
+        n_next = random.randint(1, 2)
+
+        last_cat = None
+        for _ in range(n_prev):
+            cat = get_hostile_cat(exclude=last_cat)
+            prev_noise_sents.append(context_bank.get_noise(target_label=cat))
+            conflict_meta["prev_conflicts"].append(cat)
+            last_cat = cat
+
+        last_cat = None
+        for _ in range(n_next):
+            cat = get_hostile_cat(exclude=last_cat)
+            next_noise_sents.append(context_bank.get_noise(target_label=cat))
+            conflict_meta["next_conflicts"].append(cat)
+            last_cat = cat
+
+    elif structure_type == "left_heavy":
+        # 2-3 sentences BEFORE the target (Target is at end)
+        n_prev = random.randint(2, 3)
+        last_cat = None
+        for _ in range(n_prev):
+            cat = get_hostile_cat(exclude=last_cat)
+            prev_noise_sents.append(context_bank.get_noise(target_label=cat))
+            conflict_meta["prev_conflicts"].append(cat)
+            last_cat = cat
+
+    elif structure_type == "right_heavy":
+        # 2-3 sentences AFTER the target (Target is at start)
+        n_next = random.randint(2, 3)
+        last_cat = None
+        for _ in range(n_next):
+            cat = get_hostile_cat(exclude=last_cat)
+            next_noise_sents.append(context_bank.get_noise(target_label=cat))
+            conflict_meta["next_conflicts"].append(cat)
+            last_cat = cat
+
+    target_sent = f"<<>>{sentences[target_idx]}<<>>"
+
+    # 3. Assemble Window
+    # We join ALL parts with the separator to maintain consistent tokenization
+    all_parts = prev_noise_sents + [target_sent] + next_noise_sents
+    window = " ".join(all_parts)
+
+    return window, conflict_meta
+
+
 # =============================================================================
 # PROCESSING
 # =============================================================================
@@ -1407,7 +1485,6 @@ def process_chunk(chunk_data):
 
     random.seed(os.getpid() + time.time())
     scorer = ContextScorer()
-    augmenter_dummy = AugmentationEngine()
     local_candidates = []
     local_noise = []
 
@@ -1669,15 +1746,39 @@ def create_labeled_dataset():
                 )
                 row["difficulty"] = item.get("subtype", "L0_Ambiguous")
 
-            elif score == -1:
-                row["text"] = get_dynamic_window(
-                    sentences,
-                    idx,
-                    label=window_label_arg,
-                    context_bank=context_bank,
-                )
-                row["difficulty"] = "L4_Natural_Adverse"
+            if label != "gen" and score > 40 and random.random() < L4_ADVERSE_RATIO:
 
+                # 1. Generate Hostile Window
+                window, conflict_info = get_hostile_window(
+                    sentences, idx, label, context_bank
+                )
+
+                # 2. Apply Substitutions Manually (since we built window manually)
+                numeric_engine = NumericSubstitutionEngine()
+                month_info, all_months = numeric_engine.extract_sentence_months(
+                    sentences
+                )  # Use original sentences for context
+                year_info, all_years = numeric_engine.extract_sentence_years(sentences)
+                if all_years:
+                    numeric_engine.build_year_mapping(year_info, all_years)
+                if all_months:
+                    numeric_engine.build_month_mapping(month_info, all_months)
+
+                window = numeric_engine.substitute_all(window)
+                curr_sub = DynamicCurrencySubstitution()  # Use full class in prod
+                window, _ = curr_sub.substitute_all(window)
+                window = re.sub("<<>>", SEP_TOKEN, window)
+
+                row["text"] = window
+                row["difficulty"] = "L4_Natural_Adverse"
+                row["debug_conflict_sources"] = str(conflict_info)
+
+                # IMPORTANT: We do NOT mask the instrument. The user must see the signal clearly
+                # to override the hostile context.
+
+                final_data.append(row)
+                stats[label] += 1
+                continue
             elif score >= 20:
                 prep_result = prepare_training_example(
                     orig, label, detected_cats, replacement_strategy="stochastic"
