@@ -109,11 +109,9 @@ from derivative_regex import (
     ALL_REGEX,
     BASE_REGEX,
     STRICT_REGEX,  # <--- NEW: The "Strict Instrument" Savior
-    SENTENCE_SPLIT_PATTERN,
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     SOFT_GEN_REGEX,  # <--- NEW: The "Accounting" Savior
-    LOOSE_GEN_REGEX,  # <--- NEW: For Contextual Capture
     HEADER_CLEANUP_PATTERNS,
     EXCLUDE_REGEX_FORWARD_LOOKING,
 )
