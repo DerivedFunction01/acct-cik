@@ -2543,18 +2543,50 @@ def build_vague_timing_regex() -> re.Pattern:
     """Matches: "from time to time", "in the future" """
     return re.compile(rf"\b{build_alternation(SPECULATIVE_PHRASES)}\b", re.IGNORECASE)
 
+# Add this alongside your other lists
+NEGATIVE_CONTRACTIONS = [
+    r"do[nN]['’]?[tT]",  # don't
+    r"does[nN]['’]?[tT]",  # doesn't
+    r"did[nN]['’]?[tT]",  # didn't
+    r"wo[nN]['’]?[tT]",  # won't (handles 'will' negation)
+    r"would[nN]['’]?[tT]",  # wouldn't
+    r"ca[nN]['’]?[tT]",  # can't
+    r"cannot",  # cannot (special case, one word)
+    r"could[nN]['’]?[tT]",  # couldn't
+    r"should[nN]['’]?[tT]",  # shouldn't
+    r"sha[nN]['’]?[tT]",  # shan't
+]
+def build_negation_prefix_pattern() -> str:
+    """
+    Returns a regex string matching:
+    1. "did not", "could not" (Aux + space + not)
+    2. "didn't", "couldn't"   (Contractions)
+    """
+    # 1. Full forms: \b(do|will|could)\s+not\b
+    aux_full = build_alternation(NEGATIVE_AUXILIARY)
+    pattern_full = rf"\b{aux_full}\s+not\b"
+
+    # 2. Contractions: \b(don't|won't|couldn't)\b
+    # Note: build_alternation automatically handles sorting by length
+    aux_contract = build_alternation(NEGATIVE_CONTRACTIONS)
+    pattern_contract = rf"\b{aux_contract}\b"
+
+    # Combine: (Full | Contraction)
+    return rf"(?:{pattern_full}|{pattern_contract})"
+
 
 def build_negative_intent_regex() -> re.Pattern:
     """
-    Matches: "does not intend to", "will not seek to", "has no plans to"
-    Incorporates ACTIVE_PATTERN to catch: "does not [currently] intend to"
+    Matches: "does not intend", "doesn't intend", "won't seek", "couldn't plan"
     """
-    _neg_aux = build_alternation(NEGATIVE_AUXILIARY)
     _neg_verb = build_alternation(NEGATIVE_INTENT_VERBS)
 
-    _neg_pattern_standard = (
-        rf"\b{_neg_aux}\s+not\s+(?:{ACTIVE_PATTERN}\s+)?{_neg_verb}\s+to"
-    )
+    # Get the unified negation start (handles "could not" AND "couldn't")
+    _neg_prefix = build_negation_prefix_pattern()
+
+    _neg_pattern_standard = rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?{_neg_verb}\s+to"
+
+    # "has no plans to" remains separate as it uses a noun structure
     _neg_pattern_plans = r"\bhas\s+no\s+plans\s+to"
 
     return re.compile(
@@ -2583,20 +2615,21 @@ def build_absence_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
-
 def build_did_not_hold_regex() -> re.Pattern:
     """
-    Matches: "did not hold [swaps]", "does not enter into [derivatives]"
-    Expanded start anchor to (did|does|do|will)
+    Matches: "did not hold", "didn't enter", "couldn't engage"
     """
+    # Use the same unified prefix
+    _neg_prefix = build_negation_prefix_pattern()
+    
     _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
-
     _fillers = (
         r"(?:such\s+|any\s+|" rf"{MATERIAL_PATTERN}\s+|" rf"{ACTIVE_STATE_PATTERN}\s+)*"
     )
 
     return re.compile(
-        rf"\b(?:did|does|do|will)\s+not\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+"
+        # Replace the hardcoded (did|does...) with the unified prefix
+        rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+"
         rf"{_fillers}"
         rf"{_instrument_object}\b",
         re.IGNORECASE,
