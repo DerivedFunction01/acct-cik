@@ -12,6 +12,7 @@
 # 4. Saves only Active/Termination statements to `active_data.db`.
 # =============================================================================
 
+import re
 import sqlite3
 import json
 import multiprocessing as mp
@@ -30,6 +31,7 @@ BATCH_SIZE = 1000
 SOURCE_DB_PATH = "current_data.db"
 FINAL_DB_PATH = "active_data.db"
 
+
 # Import the robust, battle-tested regexes
 from derivative_regex import (
     SENTENCE_SPLIT_PATTERN,
@@ -41,7 +43,26 @@ from derivative_regex import (
     validate_instrument_retention,
     NON_DERIVATIVE_REGEX,
 )
+def build_may_month_regex() -> re.Pattern:
+    """
+    Identifies 'May' when used as a month to prevent confusion with the modal 'may'.
+    Targets:
+    1. May followed by digits (May 2024, May 15)
+    2. May preceded by time prepositions (In May, During May)
+    """
+    # Lookahead for digits: "May 20", "May, 2008"
+    date_context = r"\bMay(?=\s*,?\s*\d)"
 
+    # Lookbehind-ish simulation for prepositions
+    # Matches "In May", "Ended May", "Month of May"
+    prep_context = (
+        r"(?:\b(?:in|during|of|ended|since|through|throughout|for|month\s+of|month)\s+)May\b"
+    )
+
+    return re.compile(rf"{date_context}|{prep_context}", re.IGNORECASE)
+
+
+MAY_MONTH_REGEX = build_may_month_regex()
 # =============================================================================
 # DATABASE FUNCTIONS
 # =============================================================================
@@ -173,13 +194,19 @@ def process_item(item):
 
         for sent in atomic_sentences:
             original = sent
+            # Replace "May" (month) with a token "_M" so POTENTIAL_REGEX ignores it.
+            # "In May, we entered" -> "In _M, we entered" (Matches nothing -> KEPT)
+            # "We may enter" -> "We may enter" (Matches POTENTIAL -> DISCARDED)
+
+            # We use a temp string for the check so we don't alter the final output
+            sent = MAY_MONTH_REGEX.sub("_M", sent)
 
             # 1. Check POTENTIAL Use (May, Might, Seek to, Expect to use)
             if POTENTIAL_REGEX.search(sent):
                 discards.append((url, original, "linguistic_potential_use"))
                 continue
 
-            # 2. Check VAGUE TIMING (From time to time, in the future)
+            # 2. Check VAGUE TIMING (From time to time, in the future, may consider)
             if VAGUE_TIMING_REGEX.search(sent):
                 discards.append((url, original, "linguistic_vague_timing"))
                 continue
@@ -206,7 +233,7 @@ def process_item(item):
             # We don't filter these out, but we acknowledge them.
             # if TERMINATION_REGEX.search(sent): pass
 
-            kept_sentences.append(sent)
+            kept_sentences.append(original)
 
         # Re-assemble paragraph if valid sentences remain
         if kept_sentences:
