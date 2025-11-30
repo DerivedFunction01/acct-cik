@@ -1868,6 +1868,32 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     r"(?:this|the)\s+(?:statement|standard|guidance|amendment)\s+(?:addresse(?:d|s)|clarifie(?:d|s)|amend(?:ed|s))",
     r"Accounting for Derivative Instruments and Hedging Activities",
 ]
+# =============================================================================
+# FORWARD-LOOKING STATEMENT PATTERNS (NEW)
+# =============================================================================
+FORWARD_LOOKING_KEYWORDS = [
+    # 1. The Headers/Titles
+    r"cautionary\s+(?:note|statement|language)\s+(?:regarding|concerning|about)",
+    r"forward[- ]looking\s+statements?",
+    r"safe\s+harbor\s+statement",
+    
+    # 2. Legal Acts/Sections (The smoking gun for boilerplate)
+    r"private\s+securities\s+litigation\s+reform\s+act",
+    r"section\s+27a\s+of\s+the\s+securities\s+act",
+    r"section\s+21e\s+of\s+the\s+securities\s+exchange\s+act",
+    
+    # 3. Boilerplate Definitions
+    r"statements\s+that\s+are\s+not\s+historical\s+facts",
+    r"words\s+such\s+as\s+(?:expect|anticipate|intend|plan|believe|seek|see|will|would|target)",
+    r"results\s+(?:could|may|might)\s+differ\s+materially",
+    r"undertake\s+no\s+obligation\s+to\s+update",
+    
+    # 4. Specific Risk Factors boilerplate (careful not to delete actual risk mgmt)
+    r"refer\s+to\s+(?:item|section)\s+1a\.?\s+risk\s+factors",
+    r"risk\s+factors\s+described\s+in",
+]
+
+
 
 # Section 4: Regulatory & Compliance (New)
 REGULATORY_KEYWORDS = [
@@ -1930,6 +1956,7 @@ EXCLUDE_REGULATION_REGEX = build_exclude_regex(REGULATORY_KEYWORDS)
 EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
 EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
 EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
+EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
 
 SUBJECTS = [
     # Simple pronouns
