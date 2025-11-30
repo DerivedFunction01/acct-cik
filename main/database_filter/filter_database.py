@@ -54,7 +54,6 @@ from table_processor import TableToTextConverter
 from derivative_regex import (
     ALL_REGEX,
     BOTH_CATEGORY_REGEX,
-    CATEGORY_REGEX,
     CP_SOFT_REGEX,
     DEFINITION_INDICATORS,
     ENTITY_TOKEN,
@@ -67,6 +66,7 @@ from derivative_regex import (
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_REGULATION_REGEX,
+    EXCLUDE_REGEX_FORWARD_LOOKING,
     FX_SOFT_REGEX,
     HEADER_CLEANUP_PATTERNS,
     HEDGING_CONTEXT_REGEX,
@@ -1217,6 +1217,9 @@ def filter_matches_with_disambiguation(
 
         if EXCLUDE_HYPOTHETICAL_REGEX.search(match):
             all_discarded.append((url, match, "hypo"))
+            continue
+        if EXCLUDE_REGEX_FORWARD_LOOKING.search(match):
+            all_discarded.append((url, match, "forward_looking"))
             continue
 
         # Remove equity compensation boilerplate (salvage derivative mentions)
