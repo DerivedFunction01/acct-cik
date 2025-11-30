@@ -1186,7 +1186,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     fixed_phrases = [
         # Explicitly safe Forward Types
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)\s+(?:{suffix_alternation})",
-        rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)?",
+        rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)",
         # Specific FX Instrument Names/Hedges
         "NDF",
         r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
