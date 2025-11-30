@@ -2448,7 +2448,7 @@ POTENTIAL_INDICATORS = [
 ]
 
 # Negative Intent Components
-NEGATIVE_AUXILIARY = [r"do", r"does", r"did", r"will", r"can", r"could", r"shall", r"should"]
+NEGATIVE_AUXILIARY = [r"do", r"does", r"did", r"will", r"would", r"can", r"could", r"shall", r"should"]
 NEGATIVE_INTENT_VERBS = [r"seek", r"intend", r"plan", r"expect", r"continue"]
 
 # Absence Indicators
