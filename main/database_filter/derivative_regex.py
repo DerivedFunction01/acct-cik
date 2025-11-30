@@ -2898,7 +2898,7 @@ ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN = build_entity_exclusion_regex()
 
 # Unique marker to identify the "Target" sentence that anchors a context window.
 # Used to enforce dependency: if the anchor is deleted, loose dependents must die.
-ANCHOR_TAG = " [[ANCHOR]] "
+ANCHOR_TAG = " _A^ "
 # =============================================================================
 # STRICT CONTEXT DEFINITIONS (The "High Value" Keywords)
 # =============================================================================
