@@ -1436,11 +1436,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
 
     # SAFE BASES: Low false-positive risk
-    safe_bases = [
-        "swaps?",
-        rf"forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
-        "derivatives?",
-    ]
+    safe_bases = ["swaps", "derivatives"]
 
     # UNSAFE STANDALONE: Require suffix
     unsafe_alone = [
@@ -1452,10 +1448,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "floors?",
         "collars?",
         "hedging",
-        "puts?",
-        "calls?",
-        "straddles?",
-        "strangles?",
+        "swaps?",
     ]
 
     # SPECIAL BASES: safe as well
@@ -1496,7 +1489,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "derivative financial instruments?",
         "financial derivatives?",
         "derivative assets?",
-        "derivative liabilit(?:y|ies)"
+        "derivative liabilit(?:y|ies)",
+        "forward contracts",
     ]
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
