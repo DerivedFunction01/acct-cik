@@ -1155,20 +1155,22 @@ def filter_matches_with_disambiguation(
     # PASS 1: SEGMENTATION, VALIDATION, NOISE REDUCTION
     # ═════════════════════════════════════════════════════════════════
 
-    for para_idx, match in enumerate(matches):
+    for para_idx, match     in enumerate(matches):
         # Skip tables
+        is_table_content = False
         if '<TABLE>' in match.upper():
             # 1. Attempt to convert valid numeric tables into "Active User" sentences
             # e.g. "Table Disclosure: The Company held IR Swaps with fair value of $50."
             try:
                 converter = TableToTextConverter(match)
                 extracted_sentences = converter.process()
-                
+
                 if extracted_sentences:
                     # Success: We extracted data. Treat these sentences as a single paragraph.
                     # This allows standard regex filtering (Phase 1) and intent checks (Phase 4)
                     # to work on the table data just like narrative text.
                     match = " ".join(extracted_sentences)
+                    is_table_content = True
                 else:
                     # Failure: Table was numeric but had no recognized active columns.
                     # Keep as is (tagged 'table') or discard depending on preference.
@@ -1360,6 +1362,10 @@ def filter_matches_with_disambiguation(
             }
 
             if not specific_cats:
+                if is_table_content:
+                    meta["final_category"] = "gen"
+                    meta["resolution_method"] = "table_default"
+                    continue
                 # Generic sentence → defer to ML
                 generic_buffer.append(len(sentence_metadata))
                 meta["resolution_method"] = "ml_pending"
