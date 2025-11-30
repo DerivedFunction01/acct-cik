@@ -56,6 +56,7 @@ from derivative_regex import (
     BOTH_CATEGORY_REGEX,
     CP_SOFT_REGEX,
     CR_REGEX,
+    CR_SOFT_REGEX,
     DEFINITION_INDICATORS,
     ENTITY_TOKEN,
     EQ_SOFT_REGEX,
@@ -1327,6 +1328,7 @@ def filter_matches_with_disambiguation(
                     IR_SOFT_REGEX.search(sentence)
                     or FX_SOFT_REGEX.search(sentence)
                     or CP_SOFT_REGEX.search(sentence)
+                    or CR_SOFT_REGEX.search(sentence)
                 ):
 
                     if HEDGING_CONTEXT_REGEX.search(sentence):
