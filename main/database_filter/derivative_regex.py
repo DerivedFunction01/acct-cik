@@ -2427,6 +2427,7 @@ SPECULATIVE_PHRASES = [
     r"occasionally",
     r"in\s+the\s+future",
     r"upon\s+occurrence",
+    r"believe",
 ]
 
 # Potential / Hypothetical Modals & Phrases
