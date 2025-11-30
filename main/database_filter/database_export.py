@@ -113,10 +113,15 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
     if not db.exists():
         print(f"❌ Database not found: {db}")
         return
-    folder = Path("analysis_output")
-    folder.mkdir(exist_ok=True)
+
+    # Create output folder if it doesn't exist
+    output_folder = Path("analysis_output")
+    output_folder.mkdir(exist_ok=True)
+
     if csv_path is None:
-        csv_path = "analysis_output/" + db.stem + "_active_users.csv"
+        csv_path = output_folder / (db.stem + "_active_users.csv")
+    else:
+        csv_path = Path(csv_path)
 
     print(f"{'=' * 60}")
     print(f"EXPORTING ACTIVE YEAR-END USERS")
