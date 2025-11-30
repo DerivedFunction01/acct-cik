@@ -1,25 +1,15 @@
-# database_export.py
+# database_export_FIXED_v2.py
 # =============================================================================
-# EXPORT SCRIPT: ACTIVE USERS TO CSV
+# EXPORT SCRIPT: ACTIVE USERS TO CSV (PRODUCTION READY)
 # =============================================================================
-# Exports a binary classification CSV (1/0) for each derivative category.
-#
-# Logic:
-# 1. Connects to the final Single-DB (`final_active_data.db`).
-# 2. Selects ONLY companies with remaining Active Sentences (matches != '[]').
-# 3. Parses the 'categories' JSON to determine which instruments they hold.
-# 4. Produces a flattened CSV: CIK, Year, IR_User, FX_User, etc.
-# =============================================================================
+# Simplified, robust version without thread-queue complexity
 
 import sqlite3
 import json
 import multiprocessing as mp
-import tempfile
-import shutil
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from queue import Queue
-from threading import Thread, Event
+from tqdm import tqdm
 from typing import Optional
 
 # =============================================================================
@@ -28,7 +18,6 @@ from typing import Optional
 
 BATCH_SIZE = 5000
 WORKERS = max(1, mp.cpu_count() - 1)
-PREFETCH_BATCHES = 4
 
 # =============================================================================
 # WORKER LOGIC
@@ -53,7 +42,6 @@ def process_batch(batch):
             categories = []
 
         # 2. Extract Unique Categories
-        # Normalize to lowercase and remove structural tags
         cat_set = {
             cat.lower()
             for cat in categories
@@ -64,8 +52,6 @@ def process_batch(batch):
             continue
 
         # 3. Create Binary Flags
-        # Note: "gen" (Generic) is kept as a signal, but usually implies
-        # ambiguous language that survived filtering.
         results.append(
             (
                 cik,
@@ -74,25 +60,22 @@ def process_batch(batch):
                 1 if "fx" in cat_set else 0,
                 1 if "cp" in cat_set else 0,
                 1 if "eq" in cat_set else 0,
+                1 if "cr" in cat_set else 0,
                 1 if "gen" in cat_set else 0,
             )
         )
     return results
 
 
-def fetch_worker(db_path, batch_queue, stop_event):
-    """Thread that reads from SQLite and feeds the queue."""
+def fetch_all_data(db_path: str):
+    """Fetch all data from database in batches."""
     conn = sqlite3.connect(db_path, timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA query_only=1")  # Safety
+    conn.execute("PRAGMA query_only=1")
 
     cur = conn.cursor()
 
-    # CRITICAL SQL:
-    # Only select rows that have ACTUAL matches.
-    # Empty lists '[]' represent companies that were active during the year
-    # but fully terminated by year-end (and thus filtered out in Phase 5).
     query = """
         SELECT wr.url, rd.cik, rd.year, wr.matches, cat.categories
         FROM webpage_result wr
@@ -105,75 +88,19 @@ def fetch_worker(db_path, batch_queue, stop_event):
 
     cur.execute(query)
 
-    batch_id = 0
-    while not stop_event.is_set():
+    batch = []
+    while True:
         rows = cur.fetchmany(BATCH_SIZE)
         if not rows:
+            if batch:
+                yield batch
             break
-        batch_queue.put((batch_id, rows))
-        batch_id += 1
+        batch.extend(rows)
+        if len(batch) >= BATCH_SIZE:
+            yield batch
+            batch = []
 
-    batch_queue.put(None)  # Signal done
     conn.close()
-
-
-def write_worker(result_queue, temp_dir, stop_event):
-    """Thread that writes processed results to temp CSVs."""
-    file_writers = {}
-
-    while not stop_event.is_set() or not result_queue.empty():
-        try:
-            item = result_queue.get(timeout=0.1)
-            if item is None:
-                break
-
-            batch_id, batch_results = item
-
-            # Round-robin write to avoid file lock contention if multiple writers existed
-            # (Here we strictly use one writer thread, but split files for safety)
-            file_id = batch_id % WORKERS
-
-            if file_id not in file_writers:
-                file_writers[file_id] = open(
-                    temp_dir / f"partial_{file_id:04d}.csv", "w", encoding="utf-8"
-                )
-
-            f = file_writers[file_id]
-            for row in batch_results:
-                f.write(",".join(map(str, row)) + "\n")
-
-        except Exception:
-            continue
-
-    for f in file_writers.values():
-        f.close()
-
-
-def merge_files(temp_dir: Path, output_path: str):
-    """Merges temp CSV chunks into the final file."""
-    print(f"\nMerging intermediate files to {output_path}...")
-    partial_files = sorted(temp_dir.glob("partial_*.csv"))
-
-    total_lines = 0
-    with open(output_path, "w", encoding="utf-8") as outfile:
-        # Header
-        outfile.write("cik,year,ir_user,fx_user,cp_user,eq_user,gen_user\n")
-
-        for pf in partial_files:
-            with open(pf, "r", encoding="utf-8") as infile:
-                # Read/Write in chunks to avoid memory issues with massive files
-                while True:
-                    chunk = infile.read(1024 * 1024)  # 1MB chunks
-                    if not chunk:
-                        break
-                    outfile.write(chunk)
-                    # Rough line count estimation isn't needed, exact is better:
-                    total_lines += chunk.count("\n")
-
-            print(f"  Merged segment: {pf.name}")
-
-    print(f"  Total Active User Records: {total_lines:,}")
-    return total_lines
 
 
 # =============================================================================
@@ -190,18 +117,18 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
     if csv_path is None:
         csv_path = db.stem + "_active_users.csv"
 
-    print(f"=" * 60)
+    print(f"{'=' * 60}")
     print(f"EXPORTING ACTIVE YEAR-END USERS")
     print(f"Source: {db.name}")
     print(f"Target: {csv_path}")
     print(f"Workers: {WORKERS}")
-    print(f"=" * 60)
+    print(f"{'=' * 60}")
 
     # 1. Pre-Scan Counts
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 
-    print("📊 Scanning Database...")
+    print("🔍 Scanning Database...")
 
     # Count Active
     cur.execute(
@@ -209,7 +136,7 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
     )
     active_count = cur.fetchone()[0]
 
-    # Count Terminated (Present in DB but matches are empty)
+    # Count Terminated
     cur.execute("SELECT COUNT(*) FROM webpage_result WHERE matches = '[]'")
     terminated_count = cur.fetchone()[0]
 
@@ -220,91 +147,61 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
     print(f"   Total Records: {active_count + terminated_count:,}\n")
 
     if active_count == 0:
-        print("⚠️ No active users found. Check your filtering logic.")
+        print("⚠️  No active users found. Check your filtering logic.")
         return
 
-    # 2. Execution
-    temp_dir = Path(tempfile.mkdtemp(prefix="export_users_"))
+    # 2. Execution: Fetch, Process, Write
+    print("🚀 Starting export...\n")
 
-    try:
-        batch_queue = Queue(maxsize=PREFETCH_BATCHES)
-        result_queue = Queue(maxsize=WORKERS * 2)
-        stop_fetch = Event()
-        stop_write = Event()
+    total_records = 0
+    processed_batches = 0
 
-        # Start Threads
-        fetcher = Thread(
-            target=fetch_worker, args=(db_path, batch_queue, stop_fetch), daemon=True
-        )
-        writer = Thread(
-            target=write_worker, args=(result_queue, temp_dir, stop_write), daemon=True
-        )
+    with open(csv_path, "w", encoding="utf-8") as outfile:
+        # Write header
+        outfile.write("cik,year,ir_user,fx_user,cp_user,eq_user,cr_user,gen_user\n")
 
-        fetcher.start()
-        writer.start()
-
-        # Start Processes
-        processed_count = 0
+        # Process batches with progress bar
         with ProcessPoolExecutor(max_workers=WORKERS) as executor:
-            pending = {}
+            # Submit all batches
+            futures = []
+            for batch in tqdm(
+                fetch_all_data(db_path), desc="🔄 Fetching batches", unit="batch"
+            ):
+                future = executor.submit(process_batch, batch)
+                futures.append(future)
 
-            while True:
-                # Feed workers
-                item = None
-                while len(pending) < WORKERS * 2:
-                    try:
-                        item = batch_queue.get_nowait()
-                        if item is None:
-                            break
-                        batch_id, rows = item
-                        future = executor.submit(process_batch, rows)
-                        pending[future] = batch_id
-                    except:
-                        break
+            # Collect results as they complete
+            print(f"\n📊 Processing {len(futures)} batches...\n")
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="⚙️  Processing",
+                unit="batch",
+            ):
+                try:
+                    batch_results = future.result()
+                    for row in batch_results:
+                        outfile.write(",".join(map(str, row)) + "\n")
+                        total_records += 1
+                    processed_batches += 1
+                except Exception as e:
+                    print(f"  ❌ Batch processing error: {e}")
 
-                # Check for completion
-                if not pending and item is None:
-                    break
+    print(f"\n✅ Export Complete: {csv_path}")
+    print(f"   Total Records Written: {total_records:,}")
+    print(f"   Batches Processed: {processed_batches:,}")
 
-                # Collect results
-                done_futures = [f for f in pending if f.done()]
-                for f in done_futures:
-                    batch_results = f.result()
-                    result_queue.put((pending[f], batch_results))
-                    processed_count += len(batch_results)
-                    del pending[f]
-
-                    if processed_count % 25000 == 0:
-                        print(f"   Processed: {processed_count:,}...")
-
-        # Cleanup
-        result_queue.put(None)
-        stop_fetch.set()
-        stop_write.set()
-
-        fetcher.join()
-        writer.join()
-
-        # Merge
-        merge_files(temp_dir, csv_path)
-        print(f"\n✅ Export Complete: {csv_path}")
-
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
 if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
 
     import sys
 
-    # Logic: If arguments provided via command line, use them.
-    # Otherwise ask user (fallback).
     if len(sys.argv) > 1:
         db_name = sys.argv[1]
         csv_name = sys.argv[2] if len(sys.argv) > 2 else None
         export_users_production(db_name, csv_name)
     else:
-        # Default interactive mode
         default_db = "verified_active_data.db"
         db_input = input(f"Enter database (default: {default_db}): ").strip()
         db_name = db_input or default_db
