@@ -55,6 +55,7 @@ from derivative_regex import (
     ALL_REGEX,
     BOTH_CATEGORY_REGEX,
     CP_SOFT_REGEX,
+    CR_REGEX,
     DEFINITION_INDICATORS,
     ENTITY_TOKEN,
     EQ_SOFT_REGEX,
@@ -103,7 +104,7 @@ from derivative_regex import (
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-
+PRIORTY = ["fx", "cp", "eq", "cr", "ir"]
 # --- NEW: ML Resolver -------------------------------------------------
 import requests
 log = logging.getLogger(__name__)
@@ -692,7 +693,7 @@ def get_sentence_categories(
 ) -> set:
     """
     Determines category using:
-    1. Strict Context (The Bypass) -> FX > CP > EQ > IR
+    1. Strict Context (The Bypass) -> FX > CP > EQ > CR > IR
     2. Instrument Detection
     3. Priority Consumption
     4. Soft Context Tie-Breaking
@@ -703,7 +704,7 @@ def get_sentence_categories(
     full_text = (
         sentence + " " + " ".join(context_sentences) if context_sentences else sentence
     )
-    scores = {"ir": 0, "fx": 0, "cp": 0, "eq": 0, "gen": 0}
+    scores = {"ir": 0, "fx": 0, "cp": 0, "eq": 0, "cr": 0, "gen": 0}
 
     # ═══════════════════════════════════════════════════════════
     # PHASE 0: STRICT CONTEXT BYPASS (New)
@@ -728,6 +729,8 @@ def get_sentence_categories(
             scores["eq"] += 2000
         elif "cp" in strict_hits:
             scores["cp"] += 2000
+        elif "cr" in strict_hits:
+            scores["cr"] += 2000
         elif "ir" in strict_hits:
             scores["ir"] += 2000
 
@@ -738,10 +741,11 @@ def get_sentence_categories(
     # PHASE 1: DIRECT INSTRUMENT DETECTION
     # ═══════════════════════════════════════════════════════════
     for cat, regex in [
-        ("ir", IR_REGEX),
         ("fx", FX_REGEX),
         ("cp", CP_REGEX),
         ("eq", EQ_REGEX),
+        ("cr", CR_REGEX),
+        ("ir", IR_REGEX),
     ]:
         matches = regex.findall(sentence)
         for match in matches:
@@ -757,9 +761,9 @@ def get_sentence_categories(
     if LOOSE_GEN_REGEX.search(sentence) or max(scores.values()) < 1000:
         scores["gen"] = max(scores["gen"], 50)
 
-        # Priority: FX -> EQ -> CP -> IR
+        # Priority: FX -> EQ -> CP -> CR -> IR
         # This removes "Currency" before IR sees "Rate", etc.
-        priority_order = ["fx", "eq", "cp", "ir"]
+        priority_order = PRIORTY
         remaining_text = sentence
 
         for cat in priority_order:
@@ -774,7 +778,7 @@ def get_sentence_categories(
     # PHASE 3: CONTEXT WINDOW (Tie-Breaker)
     # ═══════════════════════════════════════════════════════════
     if context_sentences and max(scores.values()) < 1000:
-        for cat in ["fx", "cp", "eq", "ir"]:
+        for cat in PRIORTY:
             context_regex = CATEGORY_CONTEXT_MAP.get(cat)
             if context_regex and context_regex.search(full_text):
                 scores[cat] += 10  # Low weight
@@ -804,7 +808,7 @@ def get_primary_category(categories: set) -> str:
     """Get the primary category, preferring specific over generic."""
     specific = categories - {"gen", "other"}
     if specific:
-        priority = ["ir", "fx", "cp", "eq"]
+        priority = PRIORITY
         for cat in priority:
             if cat in specific:
                 return cat
@@ -889,7 +893,7 @@ def generate_single_category_variant(
         cleaned = excise_category_terminology(cleaned, target_category)
     # 2. NEW: Scrub Unmatched Generics
     # Only keeps 'swaps' if it's inside 'interest rate swaps'
-    if preserve_category in ["ir", "fx", "cp", "eq"]:
+    if preserve_category in PRIORTY:
         cleaned = scrub_unmatched_generics(cleaned, preserve_category)
     # Validation 1: Minimum length requirement
     if len(cleaned) < MIN_SENTENCE_LENGTH:
@@ -1101,7 +1105,7 @@ def process_resolved_sentence(
                 for t_cat in debug_targets:
                     debug_clean = excise_category_terminology(debug_clean, t_cat)
 
-                if target_cat in ["ir", "fx", "cp", "eq"]:
+                if target_cat in PRIORTY:
                     debug_clean = scrub_unmatched_generics(debug_clean, target_cat)
 
                 # 3. Diagnose the exact failure reason
@@ -1616,12 +1620,14 @@ def resolve_generic_reference(
                 continue
 
             if instrument:
-                for cat in ["ir", "fx", "cp", "eq"]:
+                for cat in PRIORTY:
                     cat_regex = {
                         "ir": IR_REGEX,
                         "fx": FX_REGEX,
                         "cp": CP_REGEX,
                         "eq": EQ_REGEX,
+                        "cr": CR_REGEX,
+                    
                     }[cat]
                     if cat_regex.search(instrument):
                         return cat
