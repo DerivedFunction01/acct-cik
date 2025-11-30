@@ -48,7 +48,7 @@ SECTION_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
-
+TABLE_ANCHOR = "_T^"
 class TableToTextConverter:
     def __init__(self, table_text: str):
         self.raw_text = table_text
@@ -238,23 +238,23 @@ class TableToTextConverter:
 
                 if col_type == "notional":
                     sentences.append(
-                        f"Tabular-Data: The Company held {full_instrument_name} with a notional amount of {clean_val}."
+                        f"{TABLE_ANCHOR} The Company held {full_instrument_name} with a notional amount of {clean_val}."
                     )
 
                 elif "fair_value" in col_type:
                     sentences.append(
-                        f"Tabular-Data: The Company held {full_instrument_name} with a fair value of {clean_val}."
+                        f"{TABLE_ANCHOR} The Company held {full_instrument_name} with a fair value of {clean_val}."
                     )
 
                 elif col_type == "gain_loss":
                     sentences.append(
-                        f"Tabular-Data: The Company recognized a gain or loss on {full_instrument_name} of {clean_val}."
+                        f"{TABLE_ANCHOR} The Company recognized a gain or loss on {full_instrument_name} of {clean_val}."
                     )
 
                 elif col_type.startswith("value_"):
                     year = col_type.split("_")[1]
                     sentences.append(
-                        f"Tabular-Data: In {year}, the Company held {full_instrument_name} with a value of {clean_val}."
+                        f"{TABLE_ANCHOR} In {year}, the Company held {full_instrument_name} with a value of {clean_val}."
                     )
 
         return sentences
