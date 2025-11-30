@@ -997,6 +997,8 @@ def expand_forward_context(
             break
 
         nxt = sentences[next_idx]
+        if TABLE_ANCHOR in nxt:
+            break
 
         # 2. Length/Quality Check
         if len(nxt) < MIN_SENTENCE_LENGTH:
