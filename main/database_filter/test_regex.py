@@ -174,7 +174,7 @@ class InstrumentGenerator:
     def generate_gen_instruments() -> List[str]:
         """Generate generic/unspecialized instruments."""
         instruments = [
-            "derivative",
+            "derivatives",
             "derivative contract",
             "derivative instrument",
             "hedging instrument",
@@ -185,7 +185,6 @@ class InstrumentGenerator:
             "call option",
             "put option",
             "swaption",
-            "call contracts",
         ]
         return list(set(instruments))
 
