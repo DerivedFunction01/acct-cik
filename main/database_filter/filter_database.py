@@ -1266,7 +1266,7 @@ def filter_matches_with_disambiguation(
             text = []
             discard = []
             for sentence in sentences_temp:
-                if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence) and not BOTH_CATEGORY_REGEX.search(sentence):
+                if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence):
                     discard.append(sentence)
                 else:
                     text.append(sentence)
