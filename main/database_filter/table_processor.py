@@ -128,7 +128,7 @@ class TableToTextConverter:
     def _is_valid_value(self, val: str) -> bool:
         clean = self._cleanup_spaced_value(val)
         clean = re.sub(r"[(),$€£¥%]", "", clean).strip()
-        if clean in ["-", "—", "0", "0.0", ""]:
+        if clean in ["-", "—", "0", "0.0", "", "0.00", "--"]:
             return False
         return bool(re.match(r"^-?\d+(?:\.\d+)?$", clean))
 
