@@ -1128,7 +1128,6 @@ def build_fx_dynamic_pattern() -> str:
         rf"(?:{word1})[- ](?:{word2_alt})",
         rf"(?:{compound})[- ](?:{word2_alt})",
         # Two-word descriptive terms
-        rf"(?:{word1})[- ]{word3}",
         rf"(?:{word1})[- ](?:{word2_alt})",
         rf"(?:{compound})",
         # Single-word descriptive terms (low priority, included for completeness)
