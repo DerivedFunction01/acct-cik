@@ -2432,6 +2432,7 @@ SPECULATIVE_PHRASES = [
     r"in\s+the\s+future",
     r"upon\s+occurrence",
     r"believes?",
+    r"(?:may|might) consider",
 ]
 
 # Potential / Hypothetical Modals & Phrases
