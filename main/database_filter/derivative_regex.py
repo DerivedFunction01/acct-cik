@@ -1119,10 +1119,12 @@ def build_fx_dynamic_pattern() -> str:
     # List all necessary descriptive fragments/combinations
     patterns = [
         # Longest and most specific combinations
-        rf"(?:{word1})[- ](?:{word1})[- ](?:{compound})[- ](?:{word2_alt})[- ]{word3}",
+        rf"(?:{word1})[- ](?:{word1})[- ](?:{compound})[- ](?:{word2_alt})[- ]{word3}", # forward foreign cross currency exchange rate
+        rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})[- ]{word3}",  # forward foreign exchange rate
         # Shorter, common combinations
-        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}",
-        rf"(?:{compound})[- ](?:{word2_alt})[- ]{word3}",
+        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}", # forward exchange rate
+        rf"(?:{compound})[- ](?:{word2_alt})[- ]{word3}",  # cross currency exchange rate
+        rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})",  # forward foreign exchange
         rf"(?:{word1})[- ](?:{word2_alt})",
         rf"(?:{compound})[- ](?:{word2_alt})",
         # Two-word descriptive terms
@@ -1892,7 +1894,6 @@ FORWARD_LOOKING_KEYWORDS = [
     r"refer\s+to\s+(?:item|section)\s+1a\.?\s+risk\s+factors",
     r"risk\s+factors\s+described\s+in",
 ]
-
 
 
 # Section 4: Regulatory & Compliance (New)
