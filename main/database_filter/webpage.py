@@ -114,8 +114,8 @@ from derivative_regex import (
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     SOFT_GEN_REGEX,  # <--- NEW: The "Accounting" Savior
     LOOSE_GEN_REGEX,  # <--- NEW: For Contextual Capture
-    HEDGING_CONTEXT_REGEX,  # <--- NEW: For Contextual Capture
     HEADER_CLEANUP_PATTERNS,
+    EXCLUDE_REGEX_FORWARD_LOOKING,
 )
 
 FILING_TYPES = {
@@ -700,14 +700,15 @@ def filter_by_keywords(content: str) -> list[str]:
             # 1. CAPTURE LOGIC
             # -----------------------------------------------------
             is_match = False
-
+            # A. Litigation: Hard Delete
+            if EXCLUDE_REGEX_LEGAL_LITIGATION.search(para):
+                i += 1
+                continue
+            if EXCLUDE_REGEX_FORWARD_LOOKING.search(para):
+                i += 1
+                continue
             # Rule A: Standard Regex Match
             if ALL_REGEX.search(para):
-                is_match = True
-
-            # Rule B: Contextual Match (The "Manage Market Risk" fix)
-            # Catches: "We use [options] to [manage market risk]"
-            elif LOOSE_GEN_REGEX.search(para) and HEDGING_CONTEXT_REGEX.search(para):
                 is_match = True
 
             if is_match:
@@ -742,10 +743,6 @@ def filter_by_keywords(content: str) -> list[str]:
                 # 3. EXCLUSION / SALVAGE LOGIC
                 # -------------------------------------------------
 
-                # A. Litigation: Hard Delete
-                if EXCLUDE_REGEX_LEGAL_LITIGATION.search(para):
-                    i += 1
-                    continue
 
                 # B. Equity Compensation: Conditional Delete
                 if EXCLUDE_REGEX_EQUITY_COMP.search(para):
