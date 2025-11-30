@@ -9,6 +9,7 @@ import json
 import multiprocessing as mp
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import subprocess
 from tqdm import tqdm
 from typing import Optional
 
@@ -115,13 +116,12 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
         return
 
     # Create output folder if it doesn't exist
-    output_folder = Path("analysis_output")
+    folder_name = "analysis_output"
+    output_folder = Path(folder_name)
     output_folder.mkdir(exist_ok=True)
 
     if csv_path is None:
-        csv_path = output_folder / (db.stem + "_active_users.csv")
-    else:
-        csv_path = Path(csv_path)
+        csv_path = (db.stem + "_active_users.csv")
 
     print(f"{'=' * 60}")
     print(f"EXPORTING ACTIVE YEAR-END USERS")
@@ -192,7 +192,9 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
                     processed_batches += 1
                 except Exception as e:
                     print(f"  ❌ Batch processing error: {e}")
-
+    # Move the file to the folder
+    subprocess.run(["mv", csv_path, str(output_folder)])
+    
     print(f"\n✅ Export Complete: {csv_path}")
     print(f"   Total Records Written: {total_records:,}")
     print(f"   Batches Processed: {processed_batches:,}")
