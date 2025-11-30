@@ -808,7 +808,7 @@ def get_primary_category(categories: set) -> str:
     """Get the primary category, preferring specific over generic."""
     specific = categories - {"gen", "other"}
     if specific:
-        priority = PRIORITY
+        priority = PRIORTY
         for cat in priority:
             if cat in specific:
                 return cat
