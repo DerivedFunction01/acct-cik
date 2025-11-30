@@ -270,7 +270,10 @@ class InstrumentGenerator:
             "credit options"
             "Basket linked",
             "Total return",
-            "credit swap"
+            "credit swap",
+            
+            "forward inventory purchases",
+            "forward-looking statement",
         ]
 
 

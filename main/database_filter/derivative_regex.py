@@ -1440,15 +1440,15 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
 
     # UNSAFE STANDALONE: Require suffix
     unsafe_alone = [
-        "options?",
-        "futures",
-        "hedges?",
-        "locks?",
-        "caps?",
-        "floors?",
-        "collars?",
+        "swap",
+        "cap",
+        "floor",
+        "collar",
+        "derivative",
+        "hedge",
         "hedging",
-        "swaps?",
+        "lock",  # plural form
+        "futures",  # plural form
     ]
 
     # SPECIAL BASES: safe as well
