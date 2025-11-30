@@ -47,7 +47,7 @@ import time
 import sqlite3
 from itertools import groupby
 import uuid
-from table_processor import TableToTextConverter
+from table_processor import TABLE_ANCHOR, TableToTextConverter
 
 # Import all derivative regexes
 
@@ -974,6 +974,15 @@ def expand_forward_context(
     Returns:
         (list_of_context_strings, set_of_consumed_indices)
     """
+    # ---------------------------------------------------------
+    # NEW: TABULAR ISOLATION
+    # ---------------------------------------------------------
+    # If the current sentence is a table row, we MUST NOT expand.
+    # The TableToTextConverter has already injected full context into this row.
+    # Merging it with the next row creates a dependency that risks data loss
+    # if this specific row (the anchor) is filtered out (e.g. due to year).
+    if TABLE_ANCHOR in sentences[start_idx]:
+        return [], set()
     context_parts = []
     newly_used_indices = set()
 
@@ -1058,7 +1067,9 @@ def process_resolved_sentence(
         # 2. Look Backward (1 Step)
         if sent_idx > 0 and (sent_idx - 1) not in used_indices:
             prev = sentences[sent_idx - 1]
-            if len(prev) >= MIN_SENTENCE_LENGTH:
+            is_curr_table = TABLE_ANCHOR in target_sent
+            is_prev_table = TABLE_ANCHOR in prev
+            if not (is_curr_table and is_prev_table) and len(prev) >= MIN_SENTENCE_LENGTH:
                 prev_cats = get_sentence_categories(prev)
                 # Compatible?
                 if final_cat in prev_cats or not (prev_cats - {"gen", "other"}):
