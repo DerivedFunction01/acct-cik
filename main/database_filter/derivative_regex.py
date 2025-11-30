@@ -1986,7 +1986,7 @@ TIME_UNITS = [
 
 PAST_TIME_INDICATORS = [
     r"prior",  # prior, priors rarely used → no inflection needed
-    r"previous",  # previous(ly)? rarely plural
+    r"previous(?:ly)?",  # previous(ly)? rarely plural
     r"preced(?:e|es|ed|ing)",
     r"earlier",  # earlier/earliest already covered as comparative
     r"last",  # last/lasts/lasting → but usually adjective; add if needed
