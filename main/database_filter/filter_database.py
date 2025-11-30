@@ -862,6 +862,40 @@ def excise_category_terminology(text: str, category: str) -> str:
     return text
 
 
+def protect_category_phrases(text: str, category: str) -> Tuple[str, Dict[str, str]]:
+    """
+    Masks specific phrases belonging to the target category to prevent them
+    from being deleted by subsequent excision steps (Friendly Fire Protection).
+    """
+    if category not in CATEGORY_DELETION_MAP:
+        return text, {}
+
+    # Get the regexes for the category we want to KEEP
+    # Tuple is (Strict, Soft, Context)
+    keep_regex, keep_soft_regex, _ = CATEGORY_DELETION_MAP[category]
+
+    protections = {}
+
+    def mask_match(match):
+        token = f"__PROTECTED_{uuid.uuid4().hex}__"
+        protections[token] = match.group(0)
+        return token
+
+    # Apply masking (Max Munch priority is handled by the regex structure)
+    # Mask strict first, then soft to ensure we catch the best matches
+    masked_text = keep_regex.sub(mask_match, text)
+    masked_text = keep_soft_regex.sub(mask_match, masked_text)
+
+    return masked_text, protections
+
+
+def restore_placeholders(text: str, protections: Dict[str, str]) -> str:
+    """Restores masked phrases after excision is complete."""
+    for token, original_phrase in protections.items():
+        text = text.replace(token, original_phrase)
+    return text
+
+
 def generate_single_category_variant(
     sentence: str, preserve_category: str, detected_categories: Set[str]
 ) -> Optional[str]:
@@ -877,32 +911,40 @@ def generate_single_category_variant(
     Returns:
         Category-pure sentence variant, or None if excision results in
         insufficient content or loss of preserved category
-
-    Validation Steps:
-        1. Minimum length threshold enforcement (MIN_SENTENCE_LENGTH)
-        2. Verification that preserved category remains detectable post-excision
-        3. Structural integrity check via cleanup_fragment()
     """
     # Identify categories requiring excision (all except preserved category)
     excision_targets = detected_categories - {preserve_category, "gen", "other"}
 
-    cleaned = sentence
+    # 1. PROTECT: Mask the specific matches for the category we want to KEEP
+    #    e.g., Turn "equity swap" into "__PROTECTED_...__" so CP regex doesn't see "swap"
+    cleaned, protections = protect_category_phrases(sentence, preserve_category)
 
-    # Iteratively excise each conflicting category
+    # 2. EXCISE: Iteratively excise each conflicting category
+    #    Now safe to run broad regexes because our target is hidden
     for target_category in excision_targets:
         cleaned = excise_category_terminology(cleaned, target_category)
-    # 2. NEW: Scrub Unmatched Generics
-    # Only keeps 'swaps' if it's inside 'interest rate swaps'
+
+    # 3. RESTORE: Put the protected phrases back
+    cleaned = restore_placeholders(cleaned, protections)
+
+    # 4. SCRUB: Remove unmatched generics (Existing Step)
+    #    Removes "swaps" that weren't part of "equity swaps" or other protected phrases
     if preserve_category in PRIORTY:
         cleaned = scrub_unmatched_generics(cleaned, preserve_category)
+
     # Validation 1: Minimum length requirement
     if len(cleaned) < MIN_SENTENCE_LENGTH:
         return None
 
+    # Final cleanup before regex check
+    cleaned = cleanup_fragment(cleaned)
+    if not cleaned:
+        return None
+
     # Validation 2: Verify preserved category remains detectable
     if preserve_category not in {"gen", "other"}:
-        instrument_regex = CATEGORY_DELETION_MAP[preserve_category][1] # soft regex
-        if not instrument_regex.search(cleaned):
+        _, instrument_soft_regex, _ = CATEGORY_DELETION_MAP[preserve_category]
+        if not instrument_soft_regex.search(cleaned):
             return None  # Over-excision removed target category
 
     return cleaned
