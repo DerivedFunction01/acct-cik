@@ -112,8 +112,22 @@ class TableToTextConverter:
             return f"value_{year_match.group(0)}"
         return None
 
+    def _cleanup_spaced_value(self, val: str) -> str:
+        """
+        Removes excess whitespace from numerical values.
+        Examples: "$(100    )" -> "$(100)", "100   .5" -> "100.5"
+        """
+        # Remove spaces between digits and punctuation
+        val = re.sub(r"(\d)\s+([().,])", r"\1\2", val)
+        # Remove spaces between punctuation and digits
+        val = re.sub(r"([().,])\s+(\d)", r"\1\2", val)
+        # Collapse multiple internal spaces to single space
+        val = re.sub(r"\s+", " ", val)
+        return val
+
     def _is_valid_value(self, val: str) -> bool:
-        clean = re.sub(r"[(),$€£¥%]", "", val).strip()
+        clean = self._cleanup_spaced_value(val)
+        clean = re.sub(r"[(),$€£¥%]", "", clean).strip()
         if clean in ["-", "—", "0", "0.0", ""]:
             return False
         return bool(re.match(r"^-?\d+(?:\.\d+)?$", clean))
@@ -218,7 +232,9 @@ class TableToTextConverter:
                 ):
                     continue
 
-                clean_val = cell_val.replace("$", "").strip()
+                clean_val = (
+                    self._cleanup_spaced_value(cell_val).replace("$", "").strip()
+                )
 
                 if col_type == "notional":
                     sentences.append(
