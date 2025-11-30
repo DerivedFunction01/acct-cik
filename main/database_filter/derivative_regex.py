@@ -2938,6 +2938,8 @@ FX_STRICT_TERMS = [
     r"denominated\s+in",
     r"cross[- ]currency",
     r"(?:forward|foreign|currency)\s+exchanges?",
+    r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
+    r"net\s+investment\s+hedges?",
 ] + build_currency_patterns()  # Specific currency names are strict context
 
 # 3. COMMODITY (Strict)
