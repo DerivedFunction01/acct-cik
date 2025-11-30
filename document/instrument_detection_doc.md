@@ -17,11 +17,11 @@ Problem: The company isn't a user; the sentence just discusses regulation.
 
 #### Example 2: Linguistic Variation & False Positives
 ```
-Text: "We offer flexible options to our employees in our 401(k) plan."
-Campbell's Keyword Count: +1 "options"
-Your System: Filtered by EXCLUDE_REGEX_EQUITY_COMP, no classification
+Text: "We offer flexible option contracts to our employees in our 401(k) plan."
+Campbell's Keyword Count: +1 "option contract"
+Your System: Filtered by EXCLUDE_REGEX_EQUITY_COMP, no classification unless indication of hedging activities.
 
-Problem: "Options" here means employment benefits, not financial derivatives.
+Problem: "Option Contract" here means employment benefits, not financial derivatives.
 ```
 
 #### Example 3: Multi-Category Collision
@@ -32,7 +32,8 @@ Campbell's Approach: +1 "interest rate" (IR), +1 "swaps" (base),
 Your System: Creates IR_variant + FX_variant, counts both explicitly
 
 Problem: Campbell can't distinguish whether this is 1 company using both, 
-or whether "interest rate" modifies "swaps" or something else.
+or whether "interest rate" modifies "swaps" or something else. If there are not enough mentions, then it is discarded.
+Solution: Your system creates separate variants for each category. If the variant survives filtering, it is counted.
 ```
 
 #### Example 4: Historical vs. Current
@@ -179,7 +180,7 @@ FX Instruments: "forward", "option", "swap", "collar", "non-deliverable forward"
 foreign[- ]exchange[- ]forward
 currency[- ]swap
 cross[- ]currency.*interest[- ]rate
-(?:denominated in|denominated by)[- ](currency codes)
+(?:denominated in)[- ](currency codes)
 USD/EUR|EUR/GBP  (currency pairs)
 ```
 
@@ -224,8 +225,8 @@ Pattern Matches: "cross-currency" (FX signal)
                  "interest rate" (IR signal)
                  "swaps" (ambiguous base)
 Resolution: Creates TWO variants:
-  - FX variant: "We hold cross-currency swaps to manage FX exposure."
-  - IR variant: "We hold interest rate swaps to manage interest rate exposure."
+  - FX variant: "We hold cross-currency interest rate swaps to manage exposure."
+  - IR variant: "We hold __ to manage interest rate exposure." <-- excised FX terms, and since IR no longer mentions any instrument, it is discarded.
 ```
 
 ---
@@ -267,7 +268,7 @@ Classification: CP (High Confidence = 950 points)
 **Example 2: ❌ Correctly Rejected (Physical Contract)**
 ```
 Text: "We entered into an agreement to purchase 1,000 barrels 
-       of crude oil for delivery in Q2."
+       of crude oil forward delivery shipment in Q2."
 
 Pattern Check: "crude oil" found, but "purchase...for delivery"
                suggests NPNS (Normal Purchases and Normal Sales) exemption
@@ -390,54 +391,6 @@ Classification: NOT CR derivative (correctly filtered)
 
 ---
 
-## Resolving Multi-Category Collisions
-
-### Problem: Ambiguous Sentences
-
-```
-Text: "The Company uses forwards to manage commodity price risk 
-       and interest rate swaps to manage rate exposure."
-```
-
-**Campbell's Approach:**
-```
-Count: +1 "forwards" (base)
-       +1 "commodity" (CP context)
-       +1 "swaps" (base)
-       +1 "interest rate" (IR context)
-Result: One company, both CP and IR users
-Problem: Can't create separate training examples for CP and IR
-```
-
-**Your Approach:**
-
-#### Step 1: Detect Collision
-```
-Sentence matches CP_REGEX:  commodity[- ](?:forwards?|swaps?|options?)
-Sentence matches IR_REGEX:  interest[- ]rate[- ](?:swaps?|caps?|floors?)
-Result: Multi-category sentence detected
-```
-
-#### Step 2: Create Variants
-```
-CP Variant: "The Company uses forwards to manage commodity price risk."
-  Action: excise_category_terminology(text, "ir")
-  Result: Remove "interest rate", "swaps", "rate exposure"
-
-IR Variant: "The Company uses swaps to manage exposure."
-  Action: excise_category_terminology(text, "cp")
-  Result: Remove "commodity", "price", "forwards"
-```
-
-#### Step 3: Validate Retention
-```
-CP_Variant check: Does "forward" still appear? YES ✅
-IR_Variant check: Does "swaps" or "interest rate" still appear? YES ✅
-Both: Pass through to next phase
-```
-
----
-
 ## False Positive Safeguards
 
 ### Safeguard 1: Entity Masking
@@ -535,7 +488,7 @@ Result: Correctly rejected
 Your system applies a **priority hierarchy**:
 
 ```
-Priority Order: FX > EQ > CP > IR
+Priority Order: FX > EQ > CP > CR > IR
 
 Example:
 Text: "We hold convertible bonds with an embedded currency option."
@@ -559,6 +512,7 @@ Text: "We maintain positions to manage risk."
 Score: IR=10, FX=10, CP=5, EQ=5 (all low)
 
 Resolution: Within-paragraph lookback
+  - ML resolver: append prior sentence context
   - Previous sentence: "We hedge interest rate exposure with swaps"
   - Inherits: IR classification
   - Result: Generic sentence classified as IR based on context
@@ -567,16 +521,6 @@ Resolution: Within-paragraph lookback
 ---
 
 ## Validation: Did It Work?
-
-### Quality Metrics
-
-| Metric | Your System | Campbell et al. |
-|--------|-----------|-----------------|
-| False Positives (Entity names, noise) | <2% | ~25% |
-| False Negatives (Missed actual users) | ~8% | ~5% |
-| Multi-category precision | 95% | N/A (not distinguished) |
-| Quantitative validation | Yes | No |
-| Temporal filtering | Yes | No |
 
 ### Common Patterns That Survive All Filters
 
