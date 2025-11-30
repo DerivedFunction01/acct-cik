@@ -82,6 +82,7 @@ class InstrumentGenerator:
             "currency swap contract",
             "foreign currency contracts",
             "non-deliverable forward arrangement",
+            "forward foreign exchange contracts",
             # Code-specific
             "USD swap",
             "EUR forward contract",
