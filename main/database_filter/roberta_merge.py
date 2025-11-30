@@ -2,6 +2,7 @@
 # =============================================================================
 # HIGH-PERFORMANCE MERGE: server classification → clean_web_data.db
 # Handles Parallel Arrays: Text + Category + RoBERTa Result
+# IDEMPOTENT: Skips already-processed URLs to avoid duplicates/re-processing
 # =============================================================================
 
 import sqlite3
@@ -9,7 +10,7 @@ import json
 import multiprocessing as mp
 import time
 from pathlib import Path
-from typing import Tuple, List, Optional, Dict, Any
+from typing import Tuple, List, Optional, Dict, Any, Set
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 
@@ -36,6 +37,7 @@ discard_buffer: List[Tuple[str, str, str]] = []
 # DATABASE SETUP
 # --------------------------------------------------------------------------- #
 def create_clean_db():
+    """Create target database with schema."""
     conn = sqlite3.connect(CLEAN_DB_PATH)
     c = conn.cursor()
 
@@ -83,50 +85,53 @@ def create_clean_db():
     conn.close()
 
 
-def get_already_merged_urls() -> set:
+def get_already_processed_urls() -> Set[str]:
+    """
+    Returns set of URLs that have already been processed and written to CLEAN_DB.
+    This is the idempotency mechanism.
+    """
     if not Path(CLEAN_DB_PATH).exists():
         return set()
-    conn = sqlite3.connect(CLEAN_DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT url FROM webpage_result")
-    urls = {row[0] for row in cur.fetchall()}
-    conn.close()
-    return urls
+
+    conn = sqlite3.connect(CLEAN_DB_PATH, timeout=30)
+    try:
+        cur = conn.cursor()
+        # Query URLs from the target database
+        cur.execute("SELECT url FROM webpage_result")
+        urls = {row[0] for row in cur.fetchall()}
+        conn.close()
+        return urls
+    except sqlite3.OperationalError:
+        # Table doesn't exist yet
+        conn.close()
+        return set()
 
 
-# def fetch_all_reports() -> List[Tuple[int, int, str, str, str, str]]:
-#     """
-#     Returns list of (cik, year, url, matches_json, categories_json, server_response_json)
-#     """
-#     conn = sqlite3.connect(SOURCE_DB_PATH)
-#     cur = conn.cursor()
+def get_source_urls() -> Set[str]:
+    """
+    Returns set of ALL URLs available in source database.
+    Used for statistics only.
+    """
+    if not Path(SOURCE_DB_PATH).exists():
+        return set()
 
-#     # Join with the Category table to get the parallel array
-#     try:
-#         cur.execute(
-#             """
-#             SELECT rd.cik, rd.year, wr.url, wr.matches, cat.categories, sr.server_response
-#             FROM webpage_result wr
-#             JOIN report_data rd ON wr.url = rd.url
-#             JOIN server_result sr ON sr.url = wr.url
-#             LEFT JOIN category cat ON wr.url = cat.url
-#             WHERE sr.server_response IS NOT NULL
-#             """
-#         )
-#         rows = cur.fetchall()
-#     except sqlite3.OperationalError as e:
-#         print(f"Database error (schema mismatch?): {e}")
-#         rows = []
+    conn = sqlite3.connect(SOURCE_DB_PATH, timeout=30)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT url FROM webpage_result")
+        urls = {row[0] for row in cur.fetchall()}
+        conn.close()
+        return urls
+    except sqlite3.OperationalError:
+        conn.close()
+        return set()
 
-
-#     conn.close()
-#     return rows
 
 def fetch_all_reports() -> List[Tuple[int, int, str, str, str, str]]:
     """
     Returns list of (cik, year, url, matches_json, categories_json, dummy_server_json)
     """
-    conn = sqlite3.connect(SOURCE_DB_PATH)
+    conn = sqlite3.connect(SOURCE_DB_PATH, timeout=30)
     cur = conn.cursor()
 
     try:
@@ -140,108 +145,24 @@ def fetch_all_reports() -> List[Tuple[int, int, str, str, str, str]]:
         )
         rows = cur.fetchall()
     except sqlite3.OperationalError as e:
-        print(f"Database error: {e}")
+        print(f"❌ Database error: {e}")
         rows = []
 
     conn.close()
     return rows
 
+
 # --------------------------------------------------------------------------- #
 # CORE PROCESSING (runs in worker processes)
 # --------------------------------------------------------------------------- #
-def build_discard_reason(pred: dict, best_label: str, best_score: float) -> str:
-    if not isinstance(pred, dict):
-        return "error_invalid_pred"
-    if "error" in pred:
-        return f"error_{pred.get('error', 'unknown')}"
-    if best_label not in RELEVANT_LABELS:
-        return f"label={best_label}|score={best_score:.4f}|rejected_noise"
-    return f"label={best_label}|score={best_score:.4f}|below_threshold"
-
-
-# def process_single_report(
-#     item: Tuple[int, int, str, str, str, str], merged_urls: set
-# ) -> Optional[tuple]:
-#     """
-#     Filters sentences based on RoBERTa predictions while maintaining
-#     category alignment.
-#     """
-#     cik, year, url, matches_json, categories_json, server_json = item
-
-#     if url in merged_urls:
-#         return None
-
-#     try:
-#         sentences = json.loads(matches_json) if matches_json else []
-#         predictions = json.loads(server_json) if server_json else []
-#         categories = json.loads(categories_json) if categories_json else []
-#     except json.JSONDecodeError:
-#         return (url, None, None, cik, year, [(url, "", "error_json_parse")])
-
-#     # 1. Validation: Ensure array lengths align
-#     # Categories might be missing (empty list) if the source DB is old, handle gracefully
-#     if not categories:
-#         categories = ["unknown"] * len(sentences)
-
-#     if len(predictions) != len(sentences):
-#         reason = f"mismatch|preds={len(predictions)}|sents={len(sentences)}"
-#         discards = [(url, s, reason) for s in sentences]
-#         return (url, None, None, cik, year, discards)
-
-#     if len(categories) != len(sentences):
-#         # Fallback if category sync broke previously, though filter_database prevents this
-#         reason = f"mismatch|cats={len(categories)}|sents={len(sentences)}"
-#         discards = [(url, s, reason) for s in sentences]
-#         return (url, None, None, cik, year, discards)
-
-#     kept_sentences = []
-#     kept_categories = []
-#     discarded = []
-
-#     # 2. Iterate strictly in parallel
-#     for sent, cat, pred in zip(sentences, categories, predictions):
-#         if not isinstance(pred, dict) or not pred:
-#             discarded.append((url, sent, "error_empty_pred"))
-#             continue
-
-#         label = max(pred.items(), key=lambda x: x[1])[0]
-#         score = pred[label]
-
-#         if "<TABLE>" in sent.upper(): # skip this
-#             kept_sentences.append(sent)
-#             kept_categories.append("table")
-#         # 3. Filtering Logic
-#         if label in RELEVANT_LABELS and score >= CONFIDENCE_THRESHOLD:
-#             kept_sentences.append(sent)
-#             kept_categories.append(cat)
-#         else:
-#             reason = build_discard_reason(pred, label, score)
-#             discarded.append((url, sent, reason))
-
-#     if not kept_sentences:
-#         return (url, None, None, cik, year, discarded)
-
-#     # 4. Return parallel arrays
-#     return (
-#         url,
-#         json.dumps(kept_sentences),
-#         json.dumps(kept_categories),
-#         cik,
-#         year,
-#         discarded,
-#     )
-
-
-def process_single_report(
-    item: Tuple[int, int, str, str, str, str], merged_urls: set
-) -> Optional[tuple]:
+def process_single_report(item: Tuple[int, int, str, str, str, str]) -> Optional[tuple]:
     """
     Pass-through: Copy all sentences without RoBERTa filtering.
+
+    NOTE: We don't check processed_urls here because we want all workers
+    to be independent. The main process filters before submission.
     """
     cik, year, url, matches_json, categories_json, _ = item  # Ignore server_json
-
-    if url in merged_urls:
-        return None
 
     try:
         sentences = json.loads(matches_json) if matches_json else []
@@ -252,7 +173,7 @@ def process_single_report(
     # Handle missing categories
     if not categories:
         categories = ["unknown"] * len(sentences)
-        categories_json = json.dumps(categories)  # Update the JSON!
+        categories_json = json.dumps(categories)
 
     # Validate alignment
     if len(categories) != len(sentences):
@@ -276,6 +197,7 @@ def process_single_report(
 # BATCHED WRITES (main process only)
 # --------------------------------------------------------------------------- #
 def flush_buffers(force: bool = False):
+    """Flush accumulated results to database."""
     global result_buffer, discard_buffer
 
     if (
@@ -329,7 +251,7 @@ def flush_buffers(force: bool = False):
         conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"Flush error: {e}")
+        print(f"❌ Flush error: {e}")
         raise
     finally:
         conn.close()
@@ -340,35 +262,55 @@ def flush_buffers(force: bool = False):
 # --------------------------------------------------------------------------- #
 def merge_server_results_parallel():
     print("=" * 90)
-    print("ROBERTA MERGE: Filtering Sentences & Retaining Categories")
+    print("ROBERTA MERGE: Pass-Through with Idempotency")
     print(f"Using {NUM_WORKERS} worker processes")
     print("=" * 90)
 
+    # 1. Setup target database
     create_clean_db()
-    merged_urls = get_already_merged_urls()
-    print(f"Already merged URLs: {len(merged_urls):,}")
 
-    # Fetch data including categories
+    # 2. Get already-processed URLs (IDEMPOTENCY CHECK)
+    print("\n🔍 Checking for already-processed URLs...")
+    processed_urls = get_already_processed_urls()
+    print(f"   ✓ Already processed: {len(processed_urls):,}")
+
+    # 3. Fetch source data
+    print("\n📥 Fetching source data...")
     all_reports = fetch_all_reports()
-    print(f"Total reports with predictions: {len(all_reports):,}")
+    source_urls = get_source_urls()
+    print(f"   ✓ Total source URLs: {len(source_urls):,}")
+    print(f"   ✓ Source reports with metadata: {len(all_reports):,}")
 
-    to_process = [r for r in all_reports if r[2] not in merged_urls]
-    print(f"Reports to process: {len(to_process):,}\n")
+    # 4. Filter: Keep only NEW (not yet processed)
+    to_process = [r for r in all_reports if r[2] not in processed_urls]
+    print(f"\n⏭️  Reports to process (NEW): {len(to_process):,}")
 
     if not to_process:
-        print("Nothing to do!")
+        print("✅ All reports already processed! Nothing to do.")
         return
 
+    # 5. Show progress
+    print(f"   Progress: {len(processed_urls):,} / {len(all_reports):,} complete")
+    print(
+        f"   Remaining: {len(to_process):,} ({100*len(to_process)/len(all_reports):.1f}%)\n"
+    )
+
+    # 6. Process new reports
+    print("🚀 Starting processing...\n")
     last_flush = time.time()
+    batch_count = 0
+    result_count = 0
 
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        # Pass the merged_urls set to workers to double-check
-        futures = [
-            executor.submit(process_single_report, item, merged_urls)
-            for item in to_process
-        ]
+        # Submit ONLY new reports (already filtered above)
+        futures = [executor.submit(process_single_report, item) for item in to_process]
 
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Merging"):
+        for future in tqdm(
+            as_completed(futures),
+            total=len(futures),
+            desc="⚙️  Processing",
+            unit="report",
+        ):
             result = future.result()
             if result is None:
                 continue
@@ -386,18 +328,29 @@ def merge_server_results_parallel():
                         "year": year,
                     }
                 )
+                result_count += 1
 
             if discards:
                 discard_buffer.extend(discards)
 
+            # Periodic flush
             if len(result_buffer) >= BATCH_SIZE or (
                 time.time() - last_flush > FLUSH_INTERVAL
             ):
                 flush_buffers()
+                batch_count += 1
                 last_flush = time.time()
 
-    flush_buffers(force=True)
-    print("\nMerge Complete. Data saved to:", CLEAN_DB_PATH)
+    # Final flush
+    if result_buffer or discard_buffer:
+        flush_buffers(force=True)
+        batch_count += 1
+
+    print(f"\n✅ Processing Complete!")
+    print(f"   Reports processed: {result_count:,}")
+    print(f"   Batches written: {batch_count}")
+    print(f"   Data saved to: {CLEAN_DB_PATH}")
+    print(f"   Total now in database: {len(processed_urls) + result_count:,}")
 
 
 if __name__ == "__main__":
