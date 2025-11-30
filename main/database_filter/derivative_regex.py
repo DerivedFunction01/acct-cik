@@ -799,6 +799,8 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     "invoice",
     "shipment",
     "receipt",
+    "inventory",
+    "stock",
     "looking", # Just added it here against forward-looking
 ]
 PHYSICAL_DELIVERY_PATTERN = build_alternation(
