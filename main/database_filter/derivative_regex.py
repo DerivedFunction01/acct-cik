@@ -1993,7 +1993,7 @@ PAST_TIME_INDICATORS = [
     r"past",  # past/pasts rarely plural in this context
     r"comparable",  # comparable/comparably
     r"correspond(?:s|ed|ing)",  # corresponding is very common
-    r"historical",  # historical/historically
+    r"historical(?:ly)?",  # historical/historically
     r"former",  # very common synonym for past periods
     r"before",  # e.g., "before the reporting date"
     r"earlier\s+(?:in|during|as\s+of)",  # common collocations
@@ -2424,6 +2424,8 @@ INTENT_VERB_PATTERN = build_alternation([VERB_PATTERN, _TRANSACTION_PATTERN])
 SPECULATIVE_PHRASES = [
     r"from\s+time\s+to\s+time",
     r"periodically",
+    r"historically",
+    r"previously",
     r"occasionally",
     r"in\s+the\s+future",
     r"upon\s+occurrence",

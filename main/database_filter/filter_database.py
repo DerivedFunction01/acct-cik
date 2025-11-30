@@ -1093,10 +1093,41 @@ def process_resolved_sentence(
                     paragraphs.append((paragraph, target_cat))
                     any_variant_succeeded = True
             else:
+                # 1. Re-calculate what we TRIED to remove
+                debug_targets = meta["categories"] - {target_cat, "gen", "other"}
+
+                # 2. Re-run the cleaning steps to see the result
+                debug_clean = meta["sentence"]
+                for t_cat in debug_targets:
+                    debug_clean = excise_category_terminology(debug_clean, t_cat)
+
+                if target_cat in ["ir", "fx", "cp", "eq"]:
+                    debug_clean = scrub_unmatched_generics(debug_clean, target_cat)
+
+                # 3. Diagnose the exact failure reason
+                fail_reason = "Unknown"
+                if len(debug_clean) < MIN_SENTENCE_LENGTH:
+                    fail_reason = f"Result too short ({len(debug_clean)} chars < {MIN_SENTENCE_LENGTH})"
+                else:
+                    # Check if we accidentally deleted the category we wanted to keep
+                    # (Accessing the regex map directly to verify)
+                    instrument_regex = CATEGORY_DELETION_MAP[target_cat][1]
+                    if not instrument_regex.search(debug_clean):
+                        fail_reason = (
+                            f"Preserved category '{target_cat}' lost during excision"
+                        )
+
+                # 4. Pack it all into one string for the 'sentence' column
+                combined_log = (
+                    f"ORIGINAL: {meta['sentence']} "
+                    f"||| AFTER: {debug_clean} "
+                    f"||| EXCISED: {debug_targets} "
+                    f"||| REASON: {fail_reason}"
+                )
                 discards.append(
                     (
                         url,
-                        meta["sentence"],
+                        combined_log,
                         f"disambiguation_excision_failed_{target_cat}",
                     )
                 )
