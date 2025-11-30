@@ -150,6 +150,14 @@ def check_is_quantitative_zero(sentence: str, reporting_year: int) -> bool:
     # --- STRATEGY 2: Fallback (All Zero) ---
     # If NO values found, assume qualitative active -> Keep
     if not values:
+        # NEW: Safeguard against Notional Definitions / Boilerplate
+        # If the sentence mentions "notional" but has NO numbers (values or years),
+        # it is likely a definition (e.g., "Notional amounts represent...").
+        # DISCARD it.
+        if "notional" in sentence.lower() and not years:
+            return True  # True = Is Zero/Discard
+
+        # Otherwise, assume it's a qualitative active statement (e.g., "We hold swaps.")
         return False
 
     # If ANY value is positive -> Keep
