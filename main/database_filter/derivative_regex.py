@@ -1953,7 +1953,7 @@ GUIDANCE_OBJECT_TYPES = [
 
 # --- STANDALONE PHRASES (context-specific, non-generic) ---
 STANDALONE_PHRASES = [
-    r"upon\s+adoption\s+of",
+    r"adoption\s+of",
     r"prior\s+to\s+adoption",
     r"transition\s+period",
     r"cumulative\s+effect\s+adjustment",
