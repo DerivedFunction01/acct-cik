@@ -396,7 +396,7 @@ class TextCleaner:
         text = self.clean_standards(text)
         
         # If the text starts with a leading period, remove it
-        if text.startswith("."):
+        if text.strip().startswith("."):
             text = text[1:]
         return text.strip()
 
