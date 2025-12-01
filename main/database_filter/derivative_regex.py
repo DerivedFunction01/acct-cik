@@ -2613,6 +2613,7 @@ POTENTIAL_INDICATORS = [
     r"seek\s+to",
     r"intend\s+to",
     r"plans?\s+to",
+    r"if",
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
     r"expect\s+to\s+(?!continue)",
 ]
