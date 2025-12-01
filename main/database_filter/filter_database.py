@@ -78,6 +78,7 @@ from derivative_regex import (
     EQ_REGEX,
     IR_SOFT_REGEX,
     LOOSE_GEN_REGEX,
+    MORE_INFO_REGEX,
     POSITION_CONTEXT_INDICATORS,
     REFERENCE_CLEANUP_REGEX,
     SOFT_CATEGORY_REGEX,
@@ -358,6 +359,12 @@ class TextCleaner:
         Removes noise references like "See Note 5" or "Table below".
         """
         return REFERENCE_CLEANUP_REGEX.sub(" ", text)
+    
+    def clean_information(self, text: str) -> str:
+        """
+        Remove "for furthur information"
+        """
+        return MORE_INFO_REGEX.sub(" ", text)
 
     def normalize_whitespace(self, text: str) -> str:
         """
@@ -378,11 +385,13 @@ class TextCleaner:
 
         text = self.clean_structure(text)
         text = self.clean_references(text)
+        text = self.clean_information(text)
         text = self.normalize_whitespace(text)
         text = self.clean_entities(text)
 
         return text
 
+CLEANER = TextCleaner()
 
 # ---------------------------------------------------------------------
 def get_worker_count():
@@ -1246,7 +1255,7 @@ def filter_matches_with_disambiguation(
     # PASS 1: SEGMENTATION, VALIDATION, NOISE REDUCTION
     # ═════════════════════════════════════════════════════════════════
 
-    for para_idx, match     in enumerate(matches):
+    for para_idx, match in enumerate(matches):
         # Skip tables
         is_table_content = False
         if '<TABLE>' in match.upper():
@@ -1273,6 +1282,11 @@ def filter_matches_with_disambiguation(
                 # logging.warning(f"Table parsing failed for {url}: {e}")
                 final_paragraphs.append((match, 'table'))
                 continue
+
+        # Run the text cleaner
+        match = CLEANER.process(match)
+        if not match:
+            continue
 
         # Remove accounting standards boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
