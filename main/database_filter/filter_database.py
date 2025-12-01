@@ -394,8 +394,11 @@ class TextCleaner:
         text = self.normalize_whitespace(text)
         text = self.clean_entities(text)
         text = self.clean_standards(text)
-
-        return text
+        
+        # If the text starts with a leading period, remove it
+        if text.startswith("."):
+            text = text[1:]
+        return text.strip()
 
 CLEANER = TextCleaner()
 
