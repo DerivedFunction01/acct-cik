@@ -1634,6 +1634,31 @@ def filter_matches_with_disambiguation(
                 "resolution_method": "ml" if conf > 0.5 else "fallback",
             })
     # ═════════════════════════════════════════════════════════════════
+    # PASS 2.1: SEQUENTIAL INHERITANCE (Text Extraction Repair)
+    # ═════════════════════════════════════════════════════════════════
+    # If a generic sentence follows a specific one (even across paragraphs),
+    # it inherits the specific category. This heals split sentences/paragraphs.
+    # We iterate forward so changes propagate (Daisy Chain).
+
+    for i in range(1, len(sentence_metadata)):
+        curr = sentence_metadata[i]
+        prev = sentence_metadata[i - 1]
+
+        # Only affect items currently resolved as "gen" or "other"
+        # (Ignore tables, they have their own strict logic)
+        if (
+            curr["final_category"] in {"gen", "other"}
+            and curr.get("resolution_method") != "table_default"
+        ):
+
+            # Check the IMMEDIATELY preceding sentence's resolved category
+            prev_cat = prev["final_category"]
+
+            # If previous was specific (e.g., 'ir', 'fx'), inherit it
+            if prev_cat and prev_cat not in {"gen", "other"}:
+                curr["final_category"] = prev_cat
+                curr["resolution_method"] = "sequential_inheritance"
+    # ═════════════════════════════════════════════════════════════════
     # PASS 2.5: CATEGORY INHERITANCE
     # ═════════════════════════════════════════════════════════════════
     # 1. Collect all SPECIFIC categories found in this document
