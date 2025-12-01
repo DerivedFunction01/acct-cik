@@ -1851,10 +1851,27 @@ IMPACT_RESULT_PHRASES = [
     r"immaterial\s+impact",
 ]
 
+# Adoption Timing Types
+ADOPTION_TIMING_TYPES = [
+    r"early",
+    r"late",
+    r"future",
+    r"current",
+    r"past",
+    r"prospective",
+    r"retrospective",
+]
+
 # Adoption Permissibility Phrases
 ADOPTION_PERMISSION_PHRASES = [
     r"early\s+application\s+(?:is\s+)?permitted",
     r"early\s+adoption\s+(?:is\s+)?permitted",
+    rf"(?:{build_alternation(ADOPTION_TIMING_TYPES)})\s+(?:adoption|application)",
+    r"(?:adoption|application)\s+(?:is\s+)?(?:permitted|allowed|optional)",
+    r"(?:adoption|application)\s+(?:is\s+)?(?:required|mandatory)",
+    r"optional\s+(?:adoption|application)",
+    r"permitted\s+(?:adoption|application)",
+    r"voluntary\s+(?:adoption|application)",
 ]
 
 # --- 2. Build Regex Fragments ---
