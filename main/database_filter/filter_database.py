@@ -47,12 +47,14 @@ import time
 import sqlite3
 from itertools import groupby
 import uuid
+from final_verification import QUANT_REGEX
 from table_processor import TABLE_ANCHOR, TableToTextConverter
 
 # Import all derivative regexes
 
 from derivative_regex import (
     ACCOUNTING_STANDARDS_STRICT_REGEX,
+    ACTIVE_STATE_REGEX,
     ALL_REGEX,
     BOTH_CATEGORY_REGEX,
     CP_SOFT_REGEX,
@@ -92,6 +94,7 @@ from derivative_regex import (
     STRICT_REGEX,
     TITLE_CLEANER_REGEX,
     TRADING_STATEMENTS_REGEX,
+    VERB_REGEX,
     check_for_instrument,
     cleanup_fragment,
     CATEGORY_CONTEXT_MAP,
@@ -1323,14 +1326,37 @@ def process_resolved_sentence(
     # CASE 3: Unresolved generic
     # ════════════════════════════════════════════════════════════════
     else:
-        # ... (Existing Case 3 logic) ...
-        resolution_method = meta.get("resolution_method", "unknown")
-        confidence = meta.get("confidence", 0.0)
-        discard_reason = f"unresolved_generic_{resolution_method}"
-        if confidence is not None and confidence < 0.5:
-            discard_reason += "_low_conf"
-        discards.append((url, meta["sentence"], discard_reason))
-        used_indices.add(sent_idx)
+        # 1. Active State ("outstanding", "open")
+        has_active_state = bool(ACTIVE_STATE_REGEX.search(meta["sentence"]))
+        # 2. Quantitative ("$50M", "Notional")
+        has_quant = (
+            bool(QUANT_REGEX.search(meta["sentence"]))
+            or TABLE_ANCHOR in meta["sentence"]
+        )
+        # 3. Action Verb ("use", "hold")
+        has_verb = bool(VERB_REGEX.search(meta["sentence"]))
+
+        if has_active_state or has_quant or has_verb:
+            # RESURRECT: Keep as 'gen'
+            # We don't build context here to avoid noise, just keep the anchor
+            target_sent = meta["sentence"]
+            if ANCHOR_TAG not in target_sent:
+                target_sent = ANCHOR_TAG + target_sent
+
+            paragraphs.append((target_sent, "gen"))
+            used_indices.add(sent_idx)
+        else:
+            # DISCARD (Original Logic)
+            resolution_method = meta.get("resolution_method", "unknown")
+            confidence = meta.get("confidence", 0.0)
+            discard_reason = f"unresolved_generic_{resolution_method}"
+            if confidence is not None and confidence < 0.5:
+                discard_reason += "_low_conf"
+            # If it failed signal check, append new reason
+            discard_reason = "discarded_generic_no_signal"
+
+            discards.append((url, meta["sentence"], discard_reason))
+            used_indices.add(sent_idx)
 
     return paragraphs, discards
 
@@ -1453,7 +1479,7 @@ def filter_matches_with_disambiguation(
             match = " ".join(text)
             if not match.strip():
                 continue
-        
+
         # Run the text cleaner
         match = CLEANER.process(match)
         if not match:
@@ -1607,7 +1633,28 @@ def filter_matches_with_disambiguation(
                 "confidence": conf,
                 "resolution_method": "ml" if conf > 0.5 else "fallback",
             })
+    # ═════════════════════════════════════════════════════════════════
+    # PASS 2.5: CATEGORY INHERITANCE
+    # ═════════════════════════════════════════════════════════════════
+    # 1. Collect all SPECIFIC categories found in this document
+    doc_specific_cats = set()
+    for meta in sentence_metadata:
+        if meta["specific_cats"]:
+            doc_specific_cats.update(meta["specific_cats"])
 
+    # Remove 'gen' and 'other' just in case
+    doc_specific_cats.discard("gen")
+    doc_specific_cats.discard("other")
+
+    # 2. Apply Inheritance to remaining "gen" items
+    # Only if the document has EXACTLY ONE specific category
+    if len(doc_specific_cats) == 1:
+        single_cat = list(doc_specific_cats)[0]
+        for meta in sentence_metadata:
+            # If it is currently "gen" (from ML or Fallback)
+            if meta["final_category"] in {"gen", "other"}:
+                meta["final_category"] = single_cat
+                meta["resolution_method"] = "inheritance"
     # ═════════════════════════════════════════════════════════════════
     # PASS 3: POST-RESOLUTION PROCESSING
     # ═════════════════════════════════════════════════════════════════
@@ -1617,31 +1664,26 @@ def filter_matches_with_disambiguation(
     used_indices_global = set()
 
     # Group metadata by paragraph for context incorporation
+    # --- PASS 3: POST-PROCESSING (Modified for Resurrection) ---
+    final_paragraphs_all = []
+    all_discarded_final = []
+
     by_paragraph = {}
     for meta in sentence_metadata:
         para_idx = meta["para_idx"]
-        if para_idx not in by_paragraph:
-            by_paragraph[para_idx] = []
+        if para_idx not in by_paragraph: by_paragraph[para_idx] = []
         by_paragraph[para_idx].append(meta)
 
-    # Process each paragraph's metadata
     for para_idx in sorted(by_paragraph.keys()):
         para_metadata = by_paragraph[para_idx]
         used_indices_para = set()
-
-        # Get original sentences for this paragraph
-        # (We stored all_sentences in metadata)
-        if para_metadata:
-            sentences = para_metadata[0]["all_sentences"]
-        else:
-            continue
+        if not para_metadata: continue
+        sentences = para_metadata[0]["all_sentences"]
 
         for meta in para_metadata:
+            # Pass to processor which now handles Resurrection in Case 3
             paras, discs = process_resolved_sentence(
-                meta,
-                sentences,
-                used_indices_para,
-                url,
+                meta, sentences, used_indices_para, url
             )
             final_paragraphs_all.extend(paras)
             all_discarded_final.extend(discs)
