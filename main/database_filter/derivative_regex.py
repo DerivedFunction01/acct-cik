@@ -385,14 +385,6 @@ other_currencies = [
         "NZD", "New Zealand Dollar", "NZ$", "New Zealand", "Oceania", symbol_first=True
     ),
     Currency(
-        "ZAR",
-        "South African Rand",
-        "R",
-        "South African",
-        "south Africa",
-        symbol_first=True,
-    ),
-    Currency(
         "AED",
         "UAE Dirham",
         "د.إ",
