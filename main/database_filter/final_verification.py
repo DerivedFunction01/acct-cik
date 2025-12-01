@@ -117,7 +117,7 @@ COUNTERPARTY_REGEX = re.compile(
 # =============================================================================
 
 
-def check_signal_status(sentence: str) -> Tuple[bool, str]:
+def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, str]:
     """
     Analyzes sentence for evidence of active usage.
     Returns: (is_kept: bool, reason_code: str)
@@ -128,11 +128,8 @@ def check_signal_status(sentence: str) -> Tuple[bool, str]:
     # 1. QUANTITATIVE CHECK (The Ultimate Salvager)
     # If it has a number ("$50M", "Notional $100"), it is almost certainly active.
     # We check this FIRST to save valid sentences caught in traps below.
-    has_quant = bool(QUANT_REGEX.search(sentence)) or TABLE_ANCHOR in sentence
-
-    if has_quant:
-        return True, "kept_quantitative_evidence"
-
+    if QUANT_REGEX.search(sentence):
+        return True, "kept_quantitative_indicator"
     # -----------------------------------------------------------
     # TRAP 1: THE LEVEL TRAP
     # "Fair value determined using Level 2 inputs" -> No position evidence
@@ -193,10 +190,11 @@ def process_company(item):
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
         kept_atomic = []
+        has_quant = bool(QUANT_REGEX.search(paragraph)) or TABLE_ANCHOR in paragraph
 
         for sent in atomic_sentences:
             # --- VERIFICATION CHECK ---
-            is_kept, reason = check_signal_status(sent)
+            is_kept, reason = check_signal_status(sent, has_quant=has_quant)
 
             if is_kept:
                 kept_atomic.append(sent)
