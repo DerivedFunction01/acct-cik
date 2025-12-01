@@ -13,6 +13,11 @@
 # - "We use swaps." (Action Verb)
 # - "Notional was $100." (Quantitative)
 # - "Positions remain outstanding." (State Descriptor)
+#
+# UPDATED LOGIC: "Paragraph-Level Immunity"
+# If a paragraph contains a quantitative signal (e.g. "$50 million"),
+# context sentences (Level 2, Policy) within that paragraph are PRESERVED
+# if they mention an instrument, even if they lack a verb/number themselves.
 # =============================================================================
 
 import sqlite3
@@ -37,6 +42,7 @@ FINAL_DB_PATH = "verified_active_data.db"
 
 from derivative_regex import (
     ENTITY_TOKEN,
+    GEN_REGEX,
     MIN_SENTENCE_LENGTH,
     SENTENCE_SPLIT_PATTERN,
     CURRENCY_SYMBOL_PATTERN,
@@ -45,6 +51,7 @@ from derivative_regex import (
     build_alternation,
     ACTIVE_STATE_REGEX,
     validate_instrument_retention,
+    CATEGORY_REGEX,  # <--- NEW IMPORT for Safety Check
 )
 
 # =============================================================================
@@ -121,20 +128,21 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
     """
     Analyzes sentence for evidence of active usage.
     Returns: (is_kept: bool, reason_code: str)
-
-    This provides granular evidence on EXACTLY why a sentence was discarded.
     """
 
     # 1. QUANTITATIVE CHECK (The Ultimate Salvager)
-    # If it has a number ("$50M", "Notional $100"), it is almost certainly active.
-    # We check this FIRST to save valid sentences caught in traps below.
     if QUANT_REGEX.search(sentence):
         return True, "kept_quantitative_indicator"
+
     # -----------------------------------------------------------
     # TRAP 1: THE LEVEL TRAP
     # "Fair value determined using Level 2 inputs" -> No position evidence
     # -----------------------------------------------------------
     if LEVEL_REGEX.search(sentence):
+        # FIX: Only discard if NO global signal AND no instrument name.
+        # If the paragraph has a number, and this sentence says "Interest Rate Swaps are Level 2", keep it.
+        if has_quant and CATEGORY_REGEX.search(sentence):
+            return True, "kept_context_via_global_quant"
         return False, "discarded_fair_value_hierarchy_boilerplate"
 
     # -----------------------------------------------------------
@@ -142,6 +150,8 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
     # "Valued using Black-Scholes model" -> Methodology, not holding
     # -----------------------------------------------------------
     if VALUATION_MODEL_REGEX.search(sentence):
+        if has_quant and CATEGORY_REGEX.search(sentence):
+            return True, "kept_context_via_global_quant"
         return False, "discarded_valuation_methodology"
 
     # -----------------------------------------------------------
@@ -149,9 +159,13 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
     # "We formally document all hedges" -> Accounting policy, not holding
     # -----------------------------------------------------------
     if POLICY_REGEX.search(sentence):
+        if has_quant and CATEGORY_REGEX.search(sentence):
+            return True, "kept_context_via_global_quant"
         return False, "discarded_accounting_policy_boilerplate"
 
     if COUNTERPARTY_REGEX.search(sentence):
+        if has_quant and CATEGORY_REGEX.search(sentence):
+            return True, "kept_context_via_global_quant"
         return False, "discarded_counterparty_risk_boilerplate"
 
     # -----------------------------------------------------------
@@ -166,8 +180,13 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
     if ACTIVE_STATE_REGEX.search(sentence):
         return True, "kept_active_state_descriptor"
 
-    # If we get here, the sentence mentions a derivative but lacks
-    # any verb, number, or state to prove it exists.
+    # Weak Evidence / Passive Voice fallback
+    # If we have a global quant signal, we are more lenient with passive sentences
+    # provided they mention the instrument name.
+    if has_quant and CATEGORY_REGEX.search(sentence) or GEN_REGEX.search(sentence):
+        return True, "kept_passive_context_via_global_quant"
+
+    # If we get here, the sentence lacks any verb, number, or state to prove it exists.
     return False, "discarded_weak_evidence_no_verb_or_quant"
 
 
@@ -190,6 +209,9 @@ def process_company(item):
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
         kept_atomic = []
+
+        # 1. Calculate Global Signal for Paragraph
+        # If this flag is True, we activate "Immunity Mode" for context sentences
         has_quant = bool(QUANT_REGEX.search(paragraph)) or TABLE_ANCHOR in paragraph
 
         for sent in atomic_sentences:
@@ -199,7 +221,6 @@ def process_company(item):
             if is_kept:
                 kept_atomic.append(sent)
             else:
-                # Log specific discard reason for evidence trail
                 discards.append((url, sent, reason))
 
         if kept_atomic:
@@ -215,7 +236,6 @@ def process_company(item):
         )
     )
 
-    # Add validation discards to your main discard pile
     discards.extend(validation_discards)
 
     if final_paragraphs:
@@ -228,12 +248,11 @@ def process_company(item):
             discards,
         )
 
-    # Return empty lists but include discards so we can track why the company was dropped
     return (url, "[]", "[]", cik, year, discards) if discards else None
 
 
 # =============================================================================
-# DB HELPERS
+# DB HELPERS (Unchanged)
 # =============================================================================
 
 
