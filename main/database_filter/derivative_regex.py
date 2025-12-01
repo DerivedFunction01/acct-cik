@@ -1747,6 +1747,20 @@ ISSUER_TERMS = [
     r"IASB",
     r"International Accounting Standards Board",
     r"I\.A\.S\.B\.",
+    r"GASB",
+    r"Governmental Accounting Standards Board",
+    r"G\.A\.S\.B\.",
+    r"AICPA",
+    r"American Institute of Certified Public Accountants",
+    r"A\.I\.C\.P\.A\.",
+    r"PCAOB",
+    r"Public Company Accounting Oversight Board",
+    r"P\.C\.A\.O\.B\.",
+    r"FASAB",
+    r"Federal Accounting Standards Advisory Board",
+    r"F\.A\.S\.A\.B\.",
+    r"SEC",
+    r"Securities and Exchange Commission",
     r"Accounting Standards Board",
     r"EITF",
     r"E\.I\.T\.F\.",
@@ -1786,6 +1800,7 @@ MONTHS_TERMS = [
 ]
 
 # Verbs for Issuance
+# Verbs for Issuance
 ISSUANCE_VERBS = [
     r"issued",
     r"released",
@@ -1797,8 +1812,17 @@ ISSUANCE_VERBS = [
     r"updated",
     r"announced",
     r"reached\s+a\s+(?:final\s+)?consensus",
+    r"exposed",
+    r"proposed",
+    r"approved",
+    r"finalized",
+    r"adopted",
+    r"re-?issued",
+    r"amended",
+    r"revised",
 ]
 
+# Verbs for Description
 # Verbs for Description
 DESCRIPTION_VERBS = [
     r"addresses",
@@ -1809,14 +1833,40 @@ DESCRIPTION_VERBS = [
     r"relates\s+to",
     r"applies\s+to",
     r"establishes",
+    r"prescribes",
+    r"defines",
+    r"modifies",
+    r"specifies",
+    r"governs",
+    r"affects",
+    r"impacts",
+    r"covers",
+    r"deals\s+with",
+    r"pertains\s+to",
+    r"concerns",
+    r"prohibits",
+    r"permits",
+    r"allows",
+    r"restricts",
+    r"mandates",
+    r"provides\s+(?:standards|accounting\s+(?:for|treatment))",
 ]
 
 # Verbs for Future Adoption Intent
-ADOPTION_VERBS_FUTURE = [
+DOPTION_VERBS_FUTURE = [
     r"will\s+adopt",
     r"plan(?:s|ned)?\s+to\s+adopt",
     r"expect(?:s|ed)?\s+to\s+adopt",
     r"required?\s+to\s+adopt",
+    r"must\s+adopt",
+    r"shall\s+adopt",
+    r"intend(?:s|ed)?\s+to\s+adopt",
+    r"anticipate(?:s|d)?\s+(?:adopting|adoption)",
+    r"scheduled\s+to\s+adopt",
+    r"targeted\s+to\s+adopt",
+    r"is\s+required\s+to\s+adopt",
+    r"will\s+be\s+required\s+to\s+adopt",
+    r"(?:is|will\s+be)\s+(?:eligible|required)\s+for\s+(?:early\s+)?adoption",
 ]
 
 # Verbs for General Adoption Action
@@ -1824,6 +1874,15 @@ ADOPTION_VERBS_GENERAL = [
     r"adopt(?:ing|ed)?",
     r"early\s+adopt(?:ed|ing|ion)?",
     r"application\s+of",
+    r"implement(?:ing|ed|ation)",
+    r"transition(?:ing|ed)?",
+    r"compliance\s+with",
+    r"conform(?:ing|ed|ity)\s+to",
+    r"following",
+    r"(?:early\s+)?application",
+    r"effective\s+(?:upon|date)",
+    r"retroactive\s+(?:application|adoption)",
+    r"prospective\s+(?:application|adoption)",
 ]
 
 # Effective Date Phrases
