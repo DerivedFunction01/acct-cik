@@ -52,6 +52,7 @@ from table_processor import TABLE_ANCHOR, TableToTextConverter
 # Import all derivative regexes
 
 from derivative_regex import (
+    ACCOUNTING_STANDARDS_STRICT_REGEX,
     ALL_REGEX,
     BOTH_CATEGORY_REGEX,
     CP_SOFT_REGEX,
@@ -407,41 +408,73 @@ class TextCleaner:
     def clean_standards(self, text: str) -> str:
         """
         Surgically removes accounting standard references and their capitalized titles.
+        Includes 'Aggressive Mode' if high-confidence issuance verbs are found.
         """
         if TABLE_ANCHOR in text:
             return text
 
+        # 0. Check for High Confidence Triggers (BEFORE deletion)
+        # If we see "FASB Issued", "Adoption of ASC", etc., we enable aggressive title cleaning.
+        # We reuse the specific Accounting Standard Regex for detection.
+        aggressive_clean = bool(ACCOUNTING_STANDARDS_STRICT_REGEX.search(text))
+
         # 1. Run the specific Accounting Standard Regex first
         # This removes "SFAS 133", "FASB Statement No. 133", "in accordance with ASC 815"
-        # We do this UNCONDITIONALLY because it is high-precision noise removal.
         text = EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", text)
-        text = STANDARD_ID_REGEX.sub(" ", text)
-        
-        # 2. Run the Title Cleaner
-        # We rely on the Safe Title Logic (Reporting KW + Derivative KW) to avoid deleting instruments.
 
+        # (Assuming STANDARD_ID_REGEX is likely folded into EXCLUDE_REGEX_ACCOUNTING_STD
+        # or handled by the imported regex module. If you have a separate ID regex, run it here.)
+        text = STANDARD_ID_REGEX.sub(" ", text)
+
+        # 2. Run the Title Cleaner
         def title_replacer(match):
             match_text = match.group(0)
             lower_text = match_text.lower()
+            start_pos = match.start()
 
             # A. Safety: Ignore short fragments (titles are usually multi-word)
             if len(match_text.split()) < 2:
                 return match_text
 
-            # B. The Double-Key Check
-            # Must have a Reporting Noun (Disclosure, Accounting, GuidanDce...)
-            has_reporting = any(kw in lower_text for kw in self.TITLE_KEYWORDS_REPORTING)
+            # B. Sentence Start Protection
+            # If the match is at the very beginning of the text, or preceded by punctuation,
+            # we treat it as a potential sentence start and are more conservative.
+            # (Check for . ? ! followed by space)
+            is_sentence_start = False
+            if start_pos == 0:
+                is_sentence_start = True
+            elif start_pos > 1:
+                # Check the 2 characters before the match for punctuation + space
+                preceding = text[start_pos - 2 : start_pos]
+                if any(p in preceding for p in [". ", "? ", "! "]):
+                    is_sentence_start = True
+            elif start_pos == 1 and text[0] == "\n":  # Newline check
+                is_sentence_start = True
 
-            # Must have a Derivative Keyword (Derivative, Hedging, Swap...)
+            # C. The Double-Key Check
+            has_reporting = any(
+                kw in lower_text for kw in self.TITLE_KEYWORDS_REPORTING
+            )
             has_deriv = any(kw in lower_text for kw in self.TITLE_KEYWORDS_DERIV)
 
-            # C. Action: Mask if BOTH conditions are met
+            # ACTION LOGIC:
+
+            # Scenario 1: High Confidence Context (Aggressive)
+            # If we saw "FASB Issued", we delete ANY Derivative Title,
+            # effectively bypassing the "Reporting" keyword requirement.
+            # We still require 'has_deriv' to ensure we don't delete "The Company" or "United States".
+            if aggressive_clean and not is_sentence_start:
+                if has_deriv:
+                    return " " * len(match_text)
+
+            # Scenario 2: Standard Context (Conservative)
+            # Must have BOTH Reporting + Derivative keywords
             if has_reporting and has_deriv:
-                return " " * len(match_text) # Replace with whitespace
+                return " " * len(match_text)
 
-            return match_text # Keep (likely an instrument like "Interest Rate Swaps")
+            return match_text
 
-        # Apply the title cleaner to the text (which already has IDs removed)
+        # Apply the title cleaner
         text = TITLE_CLEANER_REGEX.sub(title_replacer, text)
 
         return text
