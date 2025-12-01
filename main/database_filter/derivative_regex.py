@@ -1935,12 +1935,12 @@ ADOPTION_PERMISSION_PHRASES = [
 
 # --- GUIDANCE OBJECT TYPES ---
 GUIDANCE_OBJECT_TYPES = [
-    r"guidance",
-    r"standard",
-    r"amendment",
+    r"Guidance",
+    r"Standard",
+    r"Amendment",
     r"Statement",
     r"Provision",
-    r"regulation",
+    r"Regulation",
     r"Abstract",
     r"Opinion",
     r"Codification",
@@ -2070,8 +2070,7 @@ def build_safe_title_regex() -> re.Pattern:
         r"Tables?",
         r"Notes?",
         r"Summar(?:y|ies)",
-        r"Codification",
-    ]
+    ] + GUIDANCE_OBJECT_TYPES
 
     # 2. The Derivative Keywords (The Target)
     DERIV_KEYWORDS = [
@@ -2122,20 +2121,26 @@ def build_safe_title_regex() -> re.Pattern:
     )
 
 
-# Since Python's re doesn't support variable-length lookbehind well,
-# a pure regex for "Active Capitalized Sequence" is cleaner:
-
-
 def build_capitalized_title_cleaner() -> re.Pattern:
     """
-    Simpler approach: Match a sequence of Title Case words.
-    We will validate the match in Python (check for keywords) before deleting.
+    Matches a sequence of Title Case words separated by common connectors.
+    Updated to include 'regarding', 'about', 'as', etc.
     """
+    # Expanded list of lowercase connectors found in accounting titles
+    connectors = r"of|for|and|to|in|on|with|the|about|regarding|as|an"
+    
     return re.compile(
-        r"(?!^)\b(?:[A-Z][a-z0-9-]*\s+(?:of|for|and|to|in|on|with|the)\s+)*[A-Z][a-z0-9-]*"
-        r"(?:\s+(?:[A-Z][a-z0-9-]*|of|for|and|to|in|on|with|the))*\b"
+        # 1. Start with optional chunks of "Word + Connector"
+        # Matches: "Disclosures about ", "Amendment of "
+        rf"(?!^)\b(?:[A-Z][a-z0-9-]*\s+(?:{connectors})\s+)*"
+        
+        # 2. Match the mandatory final Capitalized Word
+        r"[A-Z][a-z0-9-]*"
+        
+        # 3. Allow trailing "Connector + Word" sequences (Greedy)
+        # Matches: "...Derivative Instruments and Hedging Activities"
+        rf"(?:\s+(?:[A-Z][a-z0-9-]*|{connectors}))*\b"
     )
-
 
 TITLE_CLEANER_REGEX = build_capitalized_title_cleaner()
 
