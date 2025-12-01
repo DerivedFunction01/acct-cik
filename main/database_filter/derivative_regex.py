@@ -2638,27 +2638,39 @@ _ABSENCE_NOUNS = [
 ]
 
 # Termination Verbs
-TERMINATION_VERBS = [
-    r"expir(?:e(?:d|s)?|ing|ation|y)",   # expire, expired, expires, expiring, expiration, expiry
-    r"matur(?:e(?:d|s)?|ing|ity)",     # mature, matured, maturity
-    r"settl(?:e(?:d|s|ment)?|ing)",                      # settle, settled settlement
-    r"terminat(?:e|ed|es|ing|ion)",   # terminate, terminated, terminates, terminating, termination
-    r"ceas(?:e|ed|es|ing)",           # cease, ceased, ceases, ceasing
-    r"clos(?:ed|ing)",                  # closed, closing
-    r"unwound", r"unwind",                      # unwind, unwound
-    r"exercis(?:e|ed|es|ing)",        # exercise, exercised, exercises, exercising
-    r"extinguish(?:ed|es|ing)?",      # extinguish, extinguished, extinguishes, extinguishing
-    r"novat(?:e|ed|es|ing|ion)",      # novate, novated, novates, novating, novation
-    r"cancel(?:led|s|ling)?",         # cancel, cancelled, cancels, cancelling
-    r"rescind(?:ed|s|ing)?",          # rescind, rescinded, rescinds, rescinding
-    r"void(?:ed)?",                   # void, voided
-    r"withdraw(?:n|s|ing)?", r"withdrew",         # withdraw, withdrawn, withdraws, withdrawing
-    r"discontinu(?:e|ed|es|ing|ation)", # discontinue, discontinued, discontinues, discontinuing, discontinuation
-    r"exit(?:ed|s|ing)?",             # exit, exited, exits, exiting
-    r"redeem(?:ed|s|ing|ption)?",     # redeem, redeemed, redeems, redeeming, redemption
-    r"repudiat(?:e|ed|es|ing|ion)",   # repudiate, repudiated, repudiates, repudiating, repudiation
-]
+# In termination_filter.py (or wherever you define this list)
 
+# 1. DEFINE SAFEGUARDS (Words that make "Settlement/Closing" active)
+# If these appear before "settled", it's likely a description of mechanics, not termination.
+ACTIVE_SETTLEMENT_TYPES = r"(?:cash|net|daily|monthly|physically|final|mandatory|annually|weekly)"
+
+# In termination_filter.py
+
+TERMINATION_VERBS = [
+    # --- SAFE VERBS (Past/Present/Participle) ---
+    # Regex note: We removed |ion, |ity, |ment, |y suffixes
+    r"expir(?:e(?:d|s)?|ing)",  # Matches: expire, expired, expiring.  STOPS: expiration, expiry
+    r"matur(?:e(?:d|s)?|ing)",  # Matches: mature, matured, maturing.  STOPS: maturity
+    r"terminat(?:e(?:d|s)?|ing)",  # Matches: terminate, terminated.      STOPS: termination
+    r"ceas(?:e(?:d|s)?|ing)",  # Matches: cease, ceased
+    r"clos(?:e(?:d|s)?|ing)(?!\s+(?:price|rate|date|balance|value))",
+    r"unwound",
+    r"unwind",
+    r"exercis(?:e(?:d|s)?|ing)",  # Matches: exercise, exercised.        STOPS: exercisable
+    r"extinguish(?:e(?:d|s)?|ing)",  # Matches: extinguish, extinguished.   STOPS: extinguishment
+    r"novat(?:e(?:d|s)?|ing)",  # Matches: novate, novated.            STOPS: novation
+    r"cancel(?:l(?:ed|ing)|s)?",  # Matches: cancel, cancelled.          STOPS: cancellation
+    r"rescind(?:e(?:d|s)?|ing)",  # Matches: rescind, rescinded.         STOPS: rescission
+    r"void(?:ed)?",
+    r"withdraw(?:n|s|ing)?",
+    r"withdrew",
+    r"discontinu(?:e(?:d|s)?|ing)",  # Matches: discontinued.               STOPS: discontinuation
+    r"exit(?:ed|s|ing)?",
+    r"redeem(?:e(?:d|s)?|ing)",  # Matches: redeem, redeemed.           STOPS: redemption
+    r"repudiat(?:e(?:d|s)?|ing)",
+    # --- SAFEGUARDED SETTLEMENT (From previous turn) ---
+    rf"(?<!{ACTIVE_SETTLEMENT_TYPES}\s)settl(?:e(?:d)|ing)",
+]
 
 # Active / Timing Indicators (New)
 ACTIVE_INDICATORS = [
