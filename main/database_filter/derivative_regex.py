@@ -2609,6 +2609,7 @@ SPECULATIVE_PHRASES = [
     r"upon\s+occurrence",
     r"believes?",
     r"(?:may|might) consider",
+    r"when\s+(?:deemed\s+)?necessary",
 ]
 
 # Potential / Hypothetical Modals & Phrases
