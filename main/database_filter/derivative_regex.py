@@ -2000,6 +2000,8 @@ CAPITALIZED_TITLE_PATTERN = (
 # Triggers "Aggressive Mode" in Title Cleaner.
 # These explicitly mention Regulators, Standard IDs, or Formal Adoption events.
 ACCOUNTING_STANDARDS_STRICT = [
+    # Dated Issuance ("In June 2022, the FASB issued...")
+    rf"{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUER_FRAGMENT}\s+{ISSUANCE_VERBS_FRAGMENT}",
     # Issuer + Issuance ("FASB issued...")
     rf"{ISSUER_FRAGMENT}\s+(?:in\s+{STANDARD_ID_PATTERN}\s+)?{ISSUANCE_VERBS_FRAGMENT}",
     
@@ -2011,9 +2013,6 @@ ACCOUNTING_STANDARDS_STRICT = [
     
     # ID + Title ("ASC 815 Derivatives and Hedging")
     rf"{STANDARD_ID_PATTERN}(?:\s+,\s+)?{CAPITALIZED_TITLE_PATTERN}",
-    
-    # Dated Issuance ("In June 2022, the FASB issued...")
-    rf"in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUANCE_VERBS_FRAGMENT}",
     
     # Standard Descriptions ("ASC 820 defines...")
     rf"{STANDARD_ID_PATTERN}\s+{DESCRIPTION_VERBS_FRAGMENT}",
