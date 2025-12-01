@@ -1819,56 +1819,54 @@ ADOPTION_TIMING_TYPES = [
     r"prospective",
     r"retrospective",
 ]
-
 # --- ISSUANCE VERBS ---
 ISSUANCE_VERBS = [
-    r"issued",
-    r"released",
-    r"published",
-    r"has\s+issued",
-    r"has\s+released",
-    r"has\s+published",
-    r"ratified",
-    r"updated",
-    r"announced",
-    r"reached\s+a\s+(?:final\s+)?consensus",
-    r"exposed",
-    r"proposed",
-    r"approved",
-    r"finalized",
-    r"adopted",
-    r"re-?issued",
-    r"amended",
-    r"revised",
+    # Core issuance verbs (Present/Past/Participle)
+    r"issu(?:es?|ed|ing)",  # issue, issues, issued, issuing
+    r"releas(?:es?|ed|ing)",  # release, releases, released...
+    r"publish(?:es?|ed|ing)?",  # publish, publishes, published...
+    r"ratif(?:y|ies|ied|ying)",  # ratify, ratifies, ratified...
+    r"updat(?:es?|ed|ing)",  # update, updates, updated...
+    r"announc(?:es?|ed|ing)",  # announce, announces, announced...
+    r"expos(?:es?|ed|ing)",  # expose, exposes, exposed...
+    r"propos(?:es?|ed|ing)",  # propose, proposes, proposed...
+    r"approv(?:es?|ed|ing)",  # approve, approves, approved...
+    r"finaliz(?:es?|ed|ing)",  # finalize, finalizes, finalized...
+    r"adopt(?:s|ed|ing)?",  # adopt, adopts, adopted...
+    r"re-?issu(?:es?|ed|ing)",  # reissue, re-issues, reissued...
+    r"amend(?:s|ed|ing)?",  # amend, amends, amended...
+    r"revis(?:es?|ed|ing)",  # revise, revises, revised...
+    # Phrases
+    r"reached?\s+a\s+(?:final\s+)?consensus",  # reach/reached a consensus
 ]
 
 # --- DESCRIPTION VERBS ---
 DESCRIPTION_VERBS = [
-    r"addresses",
-    r"provides\s+guidance",
-    r"clarifies",
-    r"amends",
-    r"requires",
-    r"relates\s+to",
-    r"applies\s+to",
-    r"establishes",
-    r"prescribes",
-    r"defines",
-    r"modifies",
-    r"specifies",
-    r"governs",
-    r"affects",
-    r"impacts",
-    r"covers",
-    r"deals\s+with",
-    r"pertains\s+to",
-    r"concerns",
-    r"prohibits",
-    r"permits",
-    r"allows",
-    r"restricts",
-    r"mandates",
-    r"provides\s+(?:standards|accounting\s+(?:for|treatment))",
+    r"address(?:es|ed|ing)",  # address, addresses, addressed
+    r"provid(?:es?|ed|ing)\s+(?:guidance|standards|accounting\s+(?:for|treatment))",  # Focused phrase
+    r"clarif(?:y|ies|ied|ying)",  # clarify, clarifies, clarified
+    r"amend(?:s|ed|ing)?",  # amend, amends, amended
+    r"requir(?:es?|ed|ing)",  # require, requires, required
+    r"relat(?:es?|ed|ing)\s+to",  # relate/relates/related to
+    r"appl(?:y|ies|ied|ying)\s+to",  # apply/applies/applied to
+    r"establish(?:es|ed|ing)",  # establish, establishes, established
+    r"prescrib(?:es?|ed|ing)",  # prescribe, prescribes, prescribed
+    r"defin(?:es?|ed|ing)",  # define, defines, defined
+    r"modif(?:y|ies|ied|ying)",  # modify, modifies, modified
+    r"specif(?:y|ies|ied|ying)",  # specify, specifies, specified
+    r"govern(?:s|ed|ing)?",  # govern, governs, governed
+    r"affect(?:s|ed|ing)?",  # affect, affects, affected
+    r"impact(?:s|ed|ing)?",  # impact, impacts, impacted
+    r"cover(?:s|ed|ing)?",  # cover, covers, covered
+    r"deal(?:s|t|ing)?\s+with",  # deal, deals, dealt with
+    r"pertain(?:s|ed|ing)?\s+to",  # pertain, pertains, pertained to
+    r"concern(?:s|ed|ing)?",  # concern, concerns, concerned
+    r"prohibit(?:s|ed|ing)?",  # prohibit, prohibits, prohibited
+    r"permit(?:s|ted|ting)?",  # permit, permits, permitted
+    r"allow(?:s|ed|ing)?",  # allow, allows, allowed
+    r"restrict(?:s|ed|ing)?",  # restrict, restricts, restricted
+    r"mandat(?:es?|ed|ing)",  # mandate, mandates, mandated
+    r"expand(?s?|ed|ing)?",  # expand, expands (added per your previous request)
 ]
 
 # --- ADOPTION VERBS: FUTURE INTENT ---
