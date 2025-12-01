@@ -1763,6 +1763,7 @@ STANDARDS_TERMS = [
     r"IAS",
     r"IFRIC",
     r"SIC",
+    r"EITF",
 ]
 
 # Months (for date boilerplate)
@@ -1838,8 +1839,10 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
 
     # 6. General Adoption Verbs + Guideline Terms/Acronyms (Consolidated for better coverage)
-    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?(?:guidance|standard|amendment|Statement|{STANDARDS_FRAGMENT})",
+    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?(?:guidance|standard|amendment|Statement|Provision|regulation|{STANDARDS_FRAGMENT})",
 
+    # 6.5 Any mention of guidance or standards
+    rf"This\s+(?:guidance|standard|amendment|Statement|Provision|regulation)",
     # 7. Specific adoption phrases (kept as they capture specific boilerplate structures)
     r"upon\s+adoption\s+of",
     r"prior\s+to\s+adoption",
@@ -2861,6 +2864,7 @@ def build_information_reference_regex() -> re.Pattern:
 
 
 # Compile and Export
+MORE_INFO_REGEX = build_information_reference_regex()
 REFERENCE_CLEANUP_REGEX = build_reference_patterns()
 
 # New Header and Structural Cleanup Patterns
@@ -2900,8 +2904,7 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         r"\bNFA\b",
         r"Securities\s+(?:and|&)\s+Exchange\s+Commission",
         r"\bSEC\b",
-        r"Financial\s+Accounting\s+Standards\s+Board",
-        r"\bFASB\b",
+        
         r"Public\s+Company\s+Accounting\s+Oversight\s+Board",
         r"\bPCAOB\b",
         r"Federal\s+Energy\s+Regulatory\s+Commission",
