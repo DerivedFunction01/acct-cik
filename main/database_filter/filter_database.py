@@ -486,12 +486,12 @@ class TextCleaner:
         if not text:
             return ""
 
-        text = self.clean_structure(text)
         text = self.clean_references(text)
         text = self.clean_information(text)
         text = self.clean_entities(text)
         text = self.clean_standards(text)
         text = self.normalize_whitespace(text)
+        text = self.clean_structure(text)
 
         # If the text starts with a leading period, remove it
         if text.strip().startswith("."):
