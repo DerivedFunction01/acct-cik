@@ -100,6 +100,7 @@ COUNTERPARTY_POLICY_TERMS = [
     r"collateral\s+requirements",
     r"concentration\s+of\s+credit",
     r"non[- ]performance",
+    r"nonperformance",
 ]
 
 COUNTERPARTY_REGEX = re.compile(
