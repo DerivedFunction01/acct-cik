@@ -115,6 +115,7 @@ STRONG_ACTION_VERBS = ACTION_VERBS + [
     r"mitigat(?:e|es|ed|ing)",
     r"offset(?:s|ting)?",
     r"convert(?:s|ed|ing)?",
+    r"continue\s+to",
 ]  # NEW: For embedded derivatives/warrants, but separate against "FASB issued"
 VERB_USE_REGEX = re.compile(r"\b" + build_alternation(ACTION_VERBS) +r"\b", re.IGNORECASE)
 # WEAK / PASSIVE: Legal or Accounting states that *imply* existence
@@ -2763,7 +2764,7 @@ def build_potential_regex() -> re.Pattern:
     """
     return re.compile(
         rf"\b{build_alternation(POTENTIAL_INDICATORS)}\s+"
-        r"(?:\w+\s+){0,7}"
+        r"(?:\w+\s+){0,3}"
         rf"({INTENT_VERB_PATTERN})\b",
         re.IGNORECASE,
     )
