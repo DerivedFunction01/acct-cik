@@ -347,6 +347,8 @@ class TextCleaner:
         """
         Cleans headers, markdown emphasis, and structural all-caps artifacts.
         """
+        if TABLE_ANCHOR in text:
+            return text
         cleaned_text = text
         for pattern, replacement in HEADER_CLEANUP_PATTERNS:
             # Run twice to handle nested or adjacent artifacts
