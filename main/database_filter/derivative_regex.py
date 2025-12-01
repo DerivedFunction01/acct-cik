@@ -2356,7 +2356,8 @@ def build_definition_regex() -> re.Pattern:
         # "Swap agreements shall mean... (a)... (b)..."
         # We allow ANY subject (.*?) before 'shall mean' as long as the sentence 
         # eventually contains our instrument or matches the structure.
-        rf".*?\s+shall\s+mean\s+.*{SENTENCE_TAIL}",
+        rf".*?\s+(?shall\s+mean|means?|means?\s+any|is\s+defined\s+as|definitions?\s+of|represents?|refers?\s+to|considered\s+as)\s+.*{SENTENCE_TAIL}",
+        rf"(?shall\s+mean|means?|means?\s+any|is\s+defined\s+as|definitions?\s+of|represents?|refers?\s+to|considered\s+as)\s+.*{SENTENCE_TAIL}",
         rf'"{instr}"\s+means{SENTENCE_TAIL}',
         
         # --- GROUP C: "Represents" (Quantitative Definitions) ---
