@@ -1936,14 +1936,20 @@ ADOPTION_PERMISSION_PHRASES = [
 # --- GUIDANCE OBJECT TYPES ---
 GUIDANCE_OBJECT_TYPES = [
     r"Guidance",
-    r"Standard",
-    r"Amendment",
-    r"Statement",
-    r"Provision",
-    r"Regulation",
+    r"Standards?",
+    r"Amendments?",
+    r"Statements?",
+    r"Provisions?",
+    r"Regulations?",
     r"Abstract",
-    r"Opinion",
-    r"Codification",
+    r"Opinions?",
+    r"Codifications?",
+    r"Pronouncements?",
+    r"Interpretations?",
+    r"Bulletins?",
+    r"Frameworks?",
+    r"Concept\s+Statements?",
+    r"Clarifications?",
 ]
 
 # --- STANDALONE PHRASES (context-specific, non-generic) ---
@@ -2037,8 +2043,8 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     rf"(?:intended|designed)\s+to\s+(?:improve|expand|enhance)\s+disclosures?[^.?!]*",
     rf"requiring\s+(?:more|additional|expanded)\s+information\s+about[^.?!]*",
     r"accounting\s+standards?\s+update",
+    rf"recently\s+(?:issued|updated|released|published)\s+{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
 ]
-
 
 
 def build_capitalized_title_cleaner() -> re.Pattern:
