@@ -1090,7 +1090,7 @@ def process_resolved_sentence(
             prev = sentences[sent_idx - 1]
             is_curr_table = TABLE_ANCHOR in target_sent
             is_prev_table = TABLE_ANCHOR in prev
-            if not (is_curr_table and is_prev_table) and len(prev) >= MIN_SENTENCE_LENGTH:
+            if not (is_curr_table or is_prev_table) and len(prev) >= MIN_SENTENCE_LENGTH:
                 prev_cats = get_sentence_categories(prev)
                 # Compatible?
                 if final_cat in prev_cats or not (prev_cats - {"gen", "other"}):
@@ -1142,7 +1142,7 @@ def process_resolved_sentence(
                 # 2. Look Backward (1 Step with Excision)
                 if sent_idx > 0 and (sent_idx - 1) not in used_indices:
                     prev = sentences[sent_idx - 1]
-                    if len(prev) >= MIN_SENTENCE_LENGTH:
+                    if len(prev) >= MIN_SENTENCE_LENGTH and TABLE_ANCHOR not in prev:
                         prev_cats = get_sentence_categories(prev)
                         if target_cat in prev_cats or not (
                             prev_cats - {"gen", "other"}
