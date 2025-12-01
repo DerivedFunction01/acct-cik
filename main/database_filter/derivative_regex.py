@@ -1738,6 +1738,8 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"\bshareholder\s+(?:lawsuit|litigation|suit)\b",
     r"derivative\s+(?:action|lawsuit|suit|litigation|settlement|claim|proceeding)",
     r"shareholder\s+derivative",
+    r"court",
+    r"petition",
 ]
 
 # Section 3: Accounting Standards
