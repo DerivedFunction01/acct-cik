@@ -1738,8 +1738,12 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"\bshareholder\s+(?:lawsuit|litigation|suit)\b",
     r"derivative\s+(?:action|lawsuit|suit|litigation|settlement|claim|proceeding)",
     r"shareholder\s+derivative",
-]# Section 3: Accounting Standards
+]
+
+# Section 3: Accounting Standards
 # === FASB ISSUANCE & ADOPTION ONLY ===
+
+# --- ISSUING BODIES ---
 ISSUER_TERMS = [
     r"FASB",
     r"Financial Accounting Standards Board",
@@ -1768,7 +1772,7 @@ ISSUER_TERMS = [
     r"Task Force",
 ]
 
-# Standard Acronyms
+# --- STANDARD TYPES & ACRONYMS ---
 STANDARDS_TERMS = [
     r"SFAS",
     r"FAS",
@@ -1781,9 +1785,15 @@ STANDARDS_TERMS = [
     r"EITF",
     r"SOP",
     r"FSP",
+    r"FIN",
+    r"Technical\s+Bulletin",
+    r"TB",
+    r"SFAC",
+    r"Concept\s+Statement",
+    r"APB\s+Opinion",
 ]
 
-# Months (for date boilerplate)
+# --- MONTHS (for date boilerplate) ---
 MONTHS_TERMS = [
     r"January",
     r"February",
@@ -1799,8 +1809,18 @@ MONTHS_TERMS = [
     r"December",
 ]
 
-# Verbs for Issuance
-# Verbs for Issuance
+# --- ADOPTION TIMING TYPES ---
+ADOPTION_TIMING_TYPES = [
+    r"early",
+    r"late",
+    r"future",
+    r"current",
+    r"past",
+    r"prospective",
+    r"retrospective",
+]
+
+# --- ISSUANCE VERBS ---
 ISSUANCE_VERBS = [
     r"issued",
     r"released",
@@ -1822,8 +1842,7 @@ ISSUANCE_VERBS = [
     r"revised",
 ]
 
-# Verbs for Description
-# Verbs for Description
+# --- DESCRIPTION VERBS ---
 DESCRIPTION_VERBS = [
     r"addresses",
     r"provides\s+guidance",
@@ -1852,8 +1871,8 @@ DESCRIPTION_VERBS = [
     r"provides\s+(?:standards|accounting\s+(?:for|treatment))",
 ]
 
-# Verbs for Future Adoption Intent
-DOPTION_VERBS_FUTURE = [
+# --- ADOPTION VERBS: FUTURE INTENT ---
+ADOPTION_VERBS_FUTURE = [
     r"will\s+adopt",
     r"plan(?:s|ned)?\s+to\s+adopt",
     r"expect(?:s|ed)?\s+to\s+adopt",
@@ -1869,7 +1888,7 @@ DOPTION_VERBS_FUTURE = [
     r"(?:is|will\s+be)\s+(?:eligible|required)\s+for\s+(?:early\s+)?adoption",
 ]
 
-# Verbs for General Adoption Action
+# --- ADOPTION VERBS: GENERAL ACTION ---
 ADOPTION_VERBS_GENERAL = [
     r"adopt(?:ing|ed)?",
     r"early\s+adopt(?:ed|ing|ion)?",
@@ -1885,7 +1904,7 @@ ADOPTION_VERBS_GENERAL = [
     r"prospective\s+(?:application|adoption)",
 ]
 
-# Effective Date Phrases
+# --- EFFECTIVE DATE PHRASES ---
 EFFECTIVE_DATE_PHRASES = [
     r"effective\s+for\s+(?:fiscal\s+years|annual\s+periods)",
     r"effective\s+(?:in|for|after)\s+(?:fiscal\s+)?(?:year\s+)?\d{4}",
@@ -1894,7 +1913,7 @@ EFFECTIVE_DATE_PHRASES = [
     r"beginning\s+after\s+(?:December|January)",
 ]
 
-# Impact Assessment Phrases
+# --- IMPACT ASSESSMENT PHRASES ---
 IMPACT_PHRASES = [
     r"evaluat(?:ing|ed|e|es)\s+(?:the\s+)?(?:impact|effect)\s+of",
     r"assess(?:ing|ed|es)\s+the\s+(?:impact|effect)\s+of",
@@ -1903,25 +1922,14 @@ IMPACT_PHRASES = [
     r"impact\s+on\s+(?:our|the)\s+consolidated\s+financial\s+statements",
 ]
 
-# Impact Result Phrases
+# --- IMPACT RESULT PHRASES ---
 IMPACT_RESULT_PHRASES = [
     r"(?:not\s+)?expected\s+to\s+have\s+a\s+material\s+(?:impact|effect)",
     r"no\s+material\s+impact",
     r"immaterial\s+impact",
 ]
 
-# Adoption Timing Types
-ADOPTION_TIMING_TYPES = [
-    r"early",
-    r"late",
-    r"future",
-    r"current",
-    r"past",
-    r"prospective",
-    r"retrospective",
-]
-
-# Adoption Permissibility Phrases
+# --- ADOPTION PERMISSIBILITY PHRASES ---
 ADOPTION_PERMISSION_PHRASES = [
     r"early\s+application\s+(?:is\s+)?permitted",
     r"early\s+adoption\s+(?:is\s+)?permitted",
@@ -1933,56 +1941,99 @@ ADOPTION_PERMISSION_PHRASES = [
     r"voluntary\s+(?:adoption|application)",
 ]
 
-# --- 2. Build Regex Fragments ---
+# --- GUIDANCE OBJECT TYPES ---
+GUIDANCE_OBJECT_TYPES = [
+    r"guidance",
+    r"standard",
+    r"amendment",
+    r"Statement",
+    r"Provision",
+    r"regulation",
+]
+
+# --- STANDALONE PHRASES (context-specific, non-generic) ---
+STANDALONE_PHRASES = [
+    r"upon\s+adoption\s+of",
+    r"prior\s+to\s+adoption",
+    r"transition\s+period",
+    r"cumulative\s+effect\s+adjustment",
+    r"transition\s+method",
+    r"adoption\s+method",
+    r"retrospective\s+restatement",
+    r"prospective\s+application\s+only",
+    r"no\s+restatement\s+(?:of\s+)?(?:prior\s+)?periods",
+    r"grandfathering",
+    r"grandfather\s+provision",
+    r"deemed\s+cost\s+(?:option|election)",
+    r"first-?time\s+adoption",
+    r"adoption\s+date",
+    r"adoption\s+guidance",
+    r"implementation\s+guidance",
+    r"transition\s+guidance",
+    r"effective\s+date\s+(?:of\s+adoption|guidance)",
+    r"safe\s+harbor",
+    r"optional\s+expedient",
+    r"practical\s+expedient",
+]
+
+# --- BUILD REGEX FRAGMENTS ---
 ISSUER_FRAGMENT = build_alternation(ISSUER_TERMS)
 STANDARDS_FRAGMENT = build_alternation(STANDARDS_TERMS)
 MONTHS_FRAGMENT = build_alternation(MONTHS_TERMS)
 ISSUANCE_VERBS_FRAGMENT = build_alternation(ISSUANCE_VERBS)
+DESCRIPTION_VERBS_FRAGMENT = build_alternation(DESCRIPTION_VERBS)
 ADOPTION_VERBS_FUTURE_FRAGMENT = build_alternation(ADOPTION_VERBS_FUTURE)
 ADOPTION_VERBS_GENERAL_FRAGMENT = build_alternation(ADOPTION_VERBS_GENERAL)
-DESCRIPTION_VERBS_FRAGMENT = build_alternation(DESCRIPTION_VERBS)
 EFFECTIVE_DATE_PHRASES_FRAGMENT = build_alternation(EFFECTIVE_DATE_PHRASES)
 IMPACT_PHRASES_FRAGMENT = build_alternation(IMPACT_PHRASES)
 IMPACT_RESULT_PHRASES_FRAGMENT = build_alternation(IMPACT_RESULT_PHRASES)
 ADOPTION_PERMISSION_PHRASES_FRAGMENT = build_alternation(ADOPTION_PERMISSION_PHRASES)
+STANDALONE_PHRASES_FRAGMENT = build_alternation(STANDALONE_PHRASES)
+GUIDANCE_OBJECT_TYPES_FRAGMENT = build_alternation(GUIDANCE_OBJECT_TYPES)
 
-# Helper for "EITF Issue No. 06-6" or "FASB Statement No. 133"
-STANDARD_ID_PATTERN = rf"(?:{STANDARDS_FRAGMENT}|Statement)(?:\s+Issue)?(?:\s+No\.?)?\s+\d+(?:-\d+)*"
+# --- STANDARD ID PATTERN ---
+# Matches: "EITF Issue No. 06-6", "FASB Statement No. 133", "ASU 2014-09"
+STANDARD_ID_PATTERN = rf"(?:{STANDARDS_FRAGMENT}|{GUIDANCE_OBJECT_TYPES_FRAGMENT})(?:\s+Issue)?(?:\s+No\.?)?\s+\d+(?:-\d+)*"
 
-# --- 3. Construct Final Keyword List ---
+# --- FINAL KEYWORD LIST ---
 ACCOUNTING_STANDARDS_KEYWORDS = [
-    # 📢 Issuance announcements
+    # Issuer + Issuance
     rf"{ISSUER_FRAGMENT}\s+(?:in\s+{STANDARD_ID_PATTERN}\s+)?{ISSUANCE_VERBS_FRAGMENT}",
+    
+    # Standard ID + Issuance
     rf"{STANDARD_ID_PATTERN}\s+(?:was|is)\s+{ISSUANCE_VERBS_FRAGMENT}",
+    
+    # Issuance Verb + Standard ID
     rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,10}}\s+{STANDARD_ID_PATTERN}",
+    
+    # Dated Issuance
     rf"in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUANCE_VERBS_FRAGMENT}",
     
-    # 📜 Standard Descriptions
+    # Standard Descriptions
     rf"{STANDARD_ID_PATTERN}\s+{DESCRIPTION_VERBS_FRAGMENT}",
     
-    # 🔗 Pure References/Citations (Noise)
+    # Pure References/Citations
     rf"pursuant\s+to\s+{STANDARD_ID_PATTERN}",
     rf"defined\s+in\s+{STANDARD_ID_PATTERN}",
     rf"accordance\s+with\s+{STANDARD_ID_PATTERN}",
     
-    # ✅ Adoption language
+    # Future Adoption Intent
     rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
-    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+{STANDARD_ID_PATTERN}",
-    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?(?:guidance|standard|amendment|Statement|Provision|regulation)",
     
-    # Effective dates and application
+    # General Adoption Actions
+    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+{STANDARD_ID_PATTERN}",
+    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
+    
+    # Effective Dates & Application
     rf"{STANDARD_ID_PATTERN}\s+should\s+be\s+applied",
     rf"{STANDARD_ID_PATTERN}\s+(?:is|was|becomes)\s+effective",
     EFFECTIVE_DATE_PHRASES_FRAGMENT,
     ADOPTION_PERMISSION_PHRASES_FRAGMENT,
     
-    # Adoption transition
-    r"upon\s+adoption\s+of",
-    r"prior\s+to\s+adoption",
-    r"transition\s+period",
-    r"cumulative\s+effect\s+adjustment",
+    # Standalone Phrases
+    STANDALONE_PHRASES_FRAGMENT,
     
-    # 📝 Impact Assessments
+    # Impact Assessment
     IMPACT_PHRASES_FRAGMENT,
     IMPACT_RESULT_PHRASES_FRAGMENT,
     
