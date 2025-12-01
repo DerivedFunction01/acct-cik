@@ -2707,6 +2707,7 @@ MATERIAL = [
     "material",
     "significant",
     "substantial",
+    "not zero",
 ]
 
 # Build Patterns
