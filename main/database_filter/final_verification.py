@@ -22,6 +22,7 @@ import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
+from typing import Tuple
 
 from table_processor import TABLE_ANCHOR
 
@@ -41,10 +42,11 @@ from derivative_regex import (
     CURRENCY_SYMBOL_PATTERN,
     STRONG_VERB_PATTERN,
     VALUATION_MODELS,
-    build_alternation, 
+    build_alternation,
     ACTIVE_STATE_REGEX,
     validate_instrument_retention,
 )
+
 # =============================================================================
 # VERIFICATION REGEXES
 # =============================================================================
@@ -114,9 +116,13 @@ COUNTERPARTY_REGEX = re.compile(
 # LOGIC
 # =============================================================================
 
-def check_strong_signal(sentence: str) -> bool:
+
+def check_signal_status(sentence: str) -> Tuple[bool, str]:
     """
-    Returns True if the sentence contains at least one strong signal of activity.
+    Analyzes sentence for evidence of active usage.
+    Returns: (is_kept: bool, reason_code: str)
+
+    This provides granular evidence on EXACTLY why a sentence was discarded.
     """
 
     # 1. QUANTITATIVE CHECK (The Ultimate Salvager)
@@ -124,47 +130,48 @@ def check_strong_signal(sentence: str) -> bool:
     # We check this FIRST to save valid sentences caught in traps below.
     has_quant = bool(QUANT_REGEX.search(sentence)) or TABLE_ANCHOR in sentence
 
+    if has_quant:
+        return True, "kept_quantitative_evidence"
+
     # -----------------------------------------------------------
-    # TRAP 1: THE LEVEL TRAP (Existing)
+    # TRAP 1: THE LEVEL TRAP
+    # "Fair value determined using Level 2 inputs" -> No position evidence
     # -----------------------------------------------------------
     if LEVEL_REGEX.search(sentence):
-        if not has_quant:
-            return False
+        return False, "discarded_fair_value_hierarchy_boilerplate"
 
     # -----------------------------------------------------------
-    # TRAP 2: THE MODEL TRAP (Existing)
+    # TRAP 2: THE MODEL TRAP
+    # "Valued using Black-Scholes model" -> Methodology, not holding
     # -----------------------------------------------------------
     if VALUATION_MODEL_REGEX.search(sentence):
-        if not has_quant:
-            return False
+        return False, "discarded_valuation_methodology"
 
     # -----------------------------------------------------------
-    # TRAP 3: THE POLICY TRAP (New)
+    # TRAP 3: THE POLICY TRAP
+    # "We formally document all hedges" -> Accounting policy, not holding
     # -----------------------------------------------------------
-    # "We formally document hedges..." -> Discard
-    # "We designated $50M as hedges..." -> Keep (Salvation via has_quant)
-    if POLICY_REGEX.search(sentence) or COUNTERPARTY_REGEX.search(sentence):
-        if not has_quant:
-            return False  # Discard pure policy boilerplate
-    # -----------------------------------------------------------
-    # STANDARD CHECKS
-    # -----------------------------------------------------------
+    if POLICY_REGEX.search(sentence):
+        return False, "discarded_accounting_policy_boilerplate"
 
-    # If we survived the traps, we check for standard signals
+    if COUNTERPARTY_REGEX.search(sentence):
+        return False, "discarded_counterparty_risk_boilerplate"
 
-    # Quantitative is sufficient on its own (we checked it above)
-    if has_quant:
-        return True
+    # -----------------------------------------------------------
+    # STANDARD CHECKS (If survived traps)
+    # -----------------------------------------------------------
 
     # Action Verbs ("We use", "We hold")
     if VERB_REGEX.search(sentence):
-        return True
+        return True, "kept_action_verb"
 
     # Active State ("Outstanding", "Open")
     if ACTIVE_STATE_REGEX.search(sentence):
-        return True
+        return True, "kept_active_state_descriptor"
 
-    return False
+    # If we get here, the sentence mentions a derivative but lacks
+    # any verb, number, or state to prove it exists.
+    return False, "discarded_weak_evidence_no_verb_or_quant"
 
 
 def process_company(item):
@@ -189,20 +196,21 @@ def process_company(item):
 
         for sent in atomic_sentences:
             # --- VERIFICATION CHECK ---
-            if check_strong_signal(sent):
+            is_kept, reason = check_signal_status(sent)
+
+            if is_kept:
                 kept_atomic.append(sent)
             else:
-                # Discard passive sentences (e.g. "The policy was adopted.")
-                discards.append((url, sent, "weak_evidence_no_verb_or_quant"))
+                # Log specific discard reason for evidence trail
+                discards.append((url, sent, reason))
 
         if kept_atomic:
             final_paragraphs.append(
-                " ".join(
-                    [k for k in kept_atomic if len(k) > MIN_SENTENCE_LENGTH]
-                )
+                " ".join([k for k in kept_atomic if len(k) > MIN_SENTENCE_LENGTH])
             )
             final_categories.append(category)
-    # 4. Final Validation Helper
+
+    # 4. Final Validation Helper (Anchor Check)
     final_paragraphs, final_categories, validation_discards = (
         validate_instrument_retention(
             final_paragraphs, final_categories, url, strict=False
@@ -221,6 +229,10 @@ def process_company(item):
             year,
             discards,
         )
+
+    # Return empty lists but include discards so we can track why the company was dropped
+    return (url, "[]", "[]", cik, year, discards) if discards else None
+
 
 # =============================================================================
 # DB HELPERS
