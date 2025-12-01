@@ -1413,7 +1413,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     soft_pattern = build_smart_regex(
         [strict_core_alternation], 
         soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
-        sorted_specific_phrases,  # All high-priority explicit phrases
+        sorted_specific_phrases + ["warrants"],  # All high-priority explicit phrases
     )
     soft_eq_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
 
@@ -2001,54 +2001,91 @@ STANDARD_ID_REGEX = re.compile(STANDARD_ID_PATTERN)
 CAPITALIZED_TITLE_PATTERN = (
     r"(?:,?\s*[\"“']?(?:[A-Z][\w\-']+\s+){2,}[A-Z][\w\-']+[\"”']?)?"
 )
-# --- FINAL KEYWORD LIST ---
-ACCOUNTING_STANDARDS_KEYWORDS = [
-    # Issuer + Issuance
+# =============================================================================
+# ACCOUNTING STANDARDS: STRICT VS SOFT
+# =============================================================================
+
+# --- 1. STRICT (High Confidence) ---
+# Triggers "Aggressive Mode" in Title Cleaner.
+# These explicitly mention Regulators, Standard IDs, or Formal Adoption events.
+ACCOUNTING_STANDARDS_STRICT = [
+    # Issuer + Issuance ("FASB issued...")
     rf"{ISSUER_FRAGMENT}\s+(?:in\s+{STANDARD_ID_PATTERN}\s+)?{ISSUANCE_VERBS_FRAGMENT}",
-    # Standard ID + Issuance
+    
+    # Standard ID + Issuance ("ASU 2016-13 was issued...")
     rf"{STANDARD_ID_PATTERN}\s+(?:was|is)\s+{ISSUANCE_VERBS_FRAGMENT}",
-    # Issuance Verb + Standard ID
+    
+    # Issuance Verb + Standard ID ("Adopted SFAS 157...")
     rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,10}}\s+{STANDARD_ID_PATTERN}",
     
+    # ID + Title ("ASC 815 Derivatives and Hedging")
     rf"{STANDARD_ID_PATTERN}{CAPITALIZED_TITLE_PATTERN}",
-    # Dated Issuance
+    
+    # Dated Issuance ("In June 2022, the FASB issued...")
     rf"in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUANCE_VERBS_FRAGMENT}",
-    # Standard Descriptions
+    
+    # Standard Descriptions ("ASC 820 defines...")
     rf"{STANDARD_ID_PATTERN}\s+{DESCRIPTION_VERBS_FRAGMENT}",
-    # Pure References/Citations
+    
+    # Pure References ("Pursuant to ASC 815")
     rf"pursuant\s+to\s+{STANDARD_ID_PATTERN}",
     rf"defined\s+in\s+{STANDARD_ID_PATTERN}",
     rf"accordance\s+with\s+{STANDARD_ID_PATTERN}",
-    # Future Adoption Intent
-    rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
-    # General Adoption Actions
+    
+    # Explicit Adoption ("Adoption of the new guidance")
     rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+{STANDARD_ID_PATTERN}",
     rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
-    # Effective Dates & Application
+    
+    # Future Adoption ("We plan to adopt...")
+    rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
+    
+    # Effective Dates ("Effective for fiscal years...")
     rf"{STANDARD_ID_PATTERN}\s+should\s+be\s+applied",
     rf"{STANDARD_ID_PATTERN}\s+(?:is|was|becomes)\s+effective",
     EFFECTIVE_DATE_PHRASES_FRAGMENT,
     ADOPTION_PERMISSION_PHRASES_FRAGMENT,
-    # Standalone Phrases
-    STANDALONE_PHRASES_FRAGMENT,
-    # Impact Assessment
-    IMPACT_PHRASES_FRAGMENT,
+    
+    # Explicit "No Material Impact" statements (Classic boilerplate)
     IMPACT_RESULT_PHRASES_FRAGMENT,
-    # Anchor-based patterns (start of line)
+    
+    # Anchored Headers ("In March 2024...")
     rf"^{STANDARD_ID_PATTERN}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
     rf"^{ISSUER_FRAGMENT}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
     rf"^In\s+{MONTHS_FRAGMENT}.*{ISSUER_FRAGMENT}",
     
+    # Specific Terms
+    r"accounting\s+standards?\s+update",
+    rf"recently\s+(?:issued|updated|released|published|announced)\s+(?:accounting\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
+    
+    # Disclosures explicitly mandated by an ID
+    rf"disclosures?\s+(?:required|mandated)\s+by\s+{STANDARD_ID_PATTERN}[^.?!]*",
+]
+
+# --- 2. SOFT (Lower Confidence) ---
+# Used for general text filtering but NOT for aggressive title cleanup.
+# These are more generic descriptions of disclosure improvements or impacts.
+ACCOUNTING_STANDARDS_SOFT = [
+    # Standalone accounting phrases (risk of collision with commercial terms)
+    STANDALONE_PHRASES_FRAGMENT,
+    
+    # Generic impact assessment ("Evaluating the impact of...")
+    IMPACT_PHRASES_FRAGMENT,
+    
+    # Disclosure improvement language (could be general)
     rf"improve\s+disclosures?\s+(?:about|regarding|on)[^.?!]*",
     rf"requiring\s+(?:more|additional)\s+information[^.?!]*",
-    rf"disclosures?\s+(?:required|mandated)\s+by\s+{STANDARD_ID_PATTERN}[^.?!]*",
+    
+    # Indirect references
     rf"disclosures?\s+(?:about|regarding)\s+(?:the\s+)?(?:adoption|application|impact)\s+of[^.?!]*",
     rf"(?:intended|designed)\s+to\s+(?:improve|expand|enhance)\s+disclosures?[^.?!]*",
     rf"requiring\s+(?:more|additional|expanded)\s+information\s+about[^.?!]*",
-    r"accounting\s+standards?\s+update",
-    rf"recently\s+(?:issued|updated|released|published|announced)\s+(?:accounting\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
 ]
 
+# --- 3. COMBINED LIST (For General Filtering) ---
+ACCOUNTING_STANDARDS_KEYWORDS = ACCOUNTING_STANDARDS_STRICT + ACCOUNTING_STANDARDS_SOFT
+ACCOUNTING_STANDARDS_STRICT_REGEX = re.compile(
+    r"|".join(ACCOUNTING_STANDARDS_STRICT), re.IGNORECASE
+)
 
 def build_capitalized_title_cleaner() -> re.Pattern:
     """
