@@ -1994,49 +1994,42 @@ GUIDANCE_OBJECT_TYPES_FRAGMENT = build_alternation(GUIDANCE_OBJECT_TYPES)
 # --- STANDARD ID PATTERN ---
 # Matches: "EITF Issue No. 06-6", "FASB Statement No. 133", "ASU 2014-09"
 STANDARD_ID_PATTERN = rf"(?:{STANDARDS_FRAGMENT}|{GUIDANCE_OBJECT_TYPES_FRAGMENT})(?:\s+Issue)?(?:\s+No\.?)?\s+\d+(?:-\d+)*"
-
+CAPITALIZED_TITLE_PATTERN = (
+    r"(?:,?\s*[\"“']?(?:[A-Z][\w\-']+\s+){2,}[A-Z][\w\-']+[\"”']?)?"
+)
 # --- FINAL KEYWORD LIST ---
 ACCOUNTING_STANDARDS_KEYWORDS = [
     # Issuer + Issuance
     rf"{ISSUER_FRAGMENT}\s+(?:in\s+{STANDARD_ID_PATTERN}\s+)?{ISSUANCE_VERBS_FRAGMENT}",
-    
     # Standard ID + Issuance
     rf"{STANDARD_ID_PATTERN}\s+(?:was|is)\s+{ISSUANCE_VERBS_FRAGMENT}",
-    
     # Issuance Verb + Standard ID
     rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,10}}\s+{STANDARD_ID_PATTERN}",
     
+    rf"{STANDARD_ID_PATTERN}{CAPITALIZED_TITLE_PATTERN}",
     # Dated Issuance
     rf"in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUANCE_VERBS_FRAGMENT}",
-    
     # Standard Descriptions
     rf"{STANDARD_ID_PATTERN}\s+{DESCRIPTION_VERBS_FRAGMENT}",
-    
     # Pure References/Citations
     rf"pursuant\s+to\s+{STANDARD_ID_PATTERN}",
     rf"defined\s+in\s+{STANDARD_ID_PATTERN}",
     rf"accordance\s+with\s+{STANDARD_ID_PATTERN}",
-    
     # Future Adoption Intent
     rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
-    
     # General Adoption Actions
     rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+{STANDARD_ID_PATTERN}",
     rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
-    
     # Effective Dates & Application
     rf"{STANDARD_ID_PATTERN}\s+should\s+be\s+applied",
     rf"{STANDARD_ID_PATTERN}\s+(?:is|was|becomes)\s+effective",
     EFFECTIVE_DATE_PHRASES_FRAGMENT,
     ADOPTION_PERMISSION_PHRASES_FRAGMENT,
-    
     # Standalone Phrases
     STANDALONE_PHRASES_FRAGMENT,
-    
     # Impact Assessment
     IMPACT_PHRASES_FRAGMENT,
     IMPACT_RESULT_PHRASES_FRAGMENT,
-    
     # Anchor-based patterns (start of line)
     rf"^{STANDARD_ID_PATTERN}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
     rf"^{ISSUER_FRAGMENT}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
@@ -3042,15 +3035,20 @@ MORE_INFO_REGEX = build_information_reference_regex()
 REFERENCE_CLEANUP_REGEX = build_reference_patterns()
 
 # New Header and Structural Cleanup Patterns
+# In main/database_filter/derivative_regex.py
+
+# New Header and Structural Cleanup Patterns
 HEADER_CLEANUP_PATTERNS = [
     # 1. Markdown Headers: Targets # Title # and similar structure
     (re.compile(r"\n\#+\s*.*?\#*\n", re.IGNORECASE), "\n\n"),
+    
     # 2. Markdown Bold/Italics Emphasis: Targets **Title** or *Title* or _Title_
     # Replaces with space to separate merged text fragments
     (re.compile(r"\*{1,}.*?\*{1,}", re.IGNORECASE), " "),
     (re.compile(r"\_[^\s_].*?[^\s_]\_", re.IGNORECASE), " "),
-    # 3. ALL-CAPS DERIVATIVE HEADER DELETION (For older filings, removes structural noise)
-    # Targets long, non-narrative all-caps sequences containing key terms like DERIVATIVE or HEDGING
+    
+    # 3. ALL-CAPS DERIVATIVE HEADER DELETION
+    # Targets long, non-narrative all-caps sequences containing key terms
     (
         re.compile(
             r"^(?:[^a-z\n]*?(?:DERIVATIVES?|HEDGING)[^a-z\n]*?)(?=[A-Z][a-z])",
@@ -3061,6 +3059,17 @@ HEADER_CLEANUP_PATTERNS = [
     (
         re.compile(r"^\s*[^a-z\n]*?(?:DERIVATIVES?|HEDGING)[^a-z\n]*?$", re.MULTILINE),
         "\n\n",
+    ),
+
+    # 4. QUOTED HEADER DELETION (NEW)
+    # Targets lines like: "Hedging Activities", "Derivative Instruments"
+    # Logic: Start of line + Quote + (Key Terms) + Quote + End of line
+    (
+        re.compile(
+            r'^\s*["“][^"”\n]*?(?:Derivatives?|Hedging|Fair\s+Value|Financial\s+Instruments)[^"”\n]*?["”]\s*$', 
+            re.MULTILINE | re.IGNORECASE
+        ),
+        "\n\n"
     ),
 ]
 
