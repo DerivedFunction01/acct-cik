@@ -1808,7 +1808,7 @@ MONTHS_TERMS = [
     r"November",
     r"December",
 ]
-
+MONTHS_FRAGMENT = build_alternation(MONTHS_TERMS)
 # --- ADOPTION TIMING TYPES ---
 ADOPTION_TIMING_TYPES = [
     r"early",
@@ -1910,7 +1910,7 @@ EFFECTIVE_DATE_PHRASES = [
     r"effective\s+(?:in|for|after)\s+(?:fiscal\s+)?(?:year\s+)?\d{4}",
     r"becomes\s+effective",
     r"will\s+be\s+effective",
-    r"beginning\s+after\s+(?:December|January)",
+    rf"(?:ending|beginning)\s+after\s+{MONTHS_FRAGMENT}",
 ]
 
 # --- IMPACT ASSESSMENT PHRASES ---
@@ -1979,7 +1979,7 @@ STANDALONE_PHRASES = [
 # --- BUILD REGEX FRAGMENTS ---
 ISSUER_FRAGMENT = build_alternation(ISSUER_TERMS)
 STANDARDS_FRAGMENT = build_alternation(STANDARDS_TERMS)
-MONTHS_FRAGMENT = build_alternation(MONTHS_TERMS)
+
 ISSUANCE_VERBS_FRAGMENT = build_alternation(ISSUANCE_VERBS)
 DESCRIPTION_VERBS_FRAGMENT = build_alternation(DESCRIPTION_VERBS)
 ADOPTION_VERBS_FUTURE_FRAGMENT = build_alternation(ADOPTION_VERBS_FUTURE)
