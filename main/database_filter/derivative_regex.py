@@ -1026,7 +1026,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
         "treasury",
         "forward",
         "benchmark",
-        "interest",
+        r"(?<!currency[- ])interest",
         "prime",
         "fed[- ]funds",
     ] + RATE_TYPES
