@@ -2034,7 +2034,15 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     rf"^{STANDARD_ID_PATTERN}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
     rf"^{ISSUER_FRAGMENT}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
     rf"^In\s+{MONTHS_FRAGMENT}.*{ISSUER_FRAGMENT}",
+    
+    rf"improve\s+disclosures?\s+(?:about|regarding|on)[^.?!]*",
+    rf"requiring\s+(?:more|additional)\s+information[^.?!]*",
+    rf"disclosures?\s+(?:required|mandated)\s+by\s+{STANDARD_ID_PATTERN}[^.?!]*",
+    rf"disclosures?\s+(?:about|regarding)\s+(?:the\s+)?(?:adoption|application|impact)\s+of[^.?!]*",
+    rf"(?:intended|designed)\s+to\s+(?:improve|expand|enhance)\s+disclosures?[^.?!]*",
+    rf"requiring\s+(?:more|additional|expanded)\s+information\s+about[^.?!]*",
 ]
+
 # =============================================================================
 # FORWARD-LOOKING STATEMENT PATTERNS (NEW)
 # =============================================================================
