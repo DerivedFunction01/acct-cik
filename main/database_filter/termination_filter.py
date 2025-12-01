@@ -181,10 +181,14 @@ def process_company(item):
                 # Assume the termination applies to the entire block.
                 discards.append((url, paragraph, "termination_entire_block_removed"))
                 continue
+            else:
+                # keep the entire block atomic and skip the step
+                final_paragraphs.append(paragraph)
+                final_categories.append(category)
+                continue
 
         # --- STEP 2: SENTENCE LEVEL FILTERING ---
         # If we reached here, the block survived. Now surgically remove the dead parts.
-
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
