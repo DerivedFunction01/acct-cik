@@ -1941,6 +1941,8 @@ GUIDANCE_OBJECT_TYPES = [
     r"Statement",
     r"Provision",
     r"regulation",
+    r"Abstract",
+    r"Opinion",
 ]
 
 # --- STANDALONE PHRASES (context-specific, non-generic) ---
