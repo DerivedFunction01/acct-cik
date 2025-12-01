@@ -1686,16 +1686,6 @@ PLAN_ASSETS_KEYWORDS = [
     r"\bVEBA\b",  # Voluntary Employees' Beneficiary Association
 ]
 
-METHODOLOGY_KEYWORDS = [
-    r"is\s+defined\s+as",
-    r"value[- ]at[- ]risk\s+(?:model|methodology|measurement|analysis)",
-    r"sensitivity\s+analysis\s+(?:model|methodology)",
-    r"confidence\s+(?:level|interval)",
-    r"statistical\s+(?:measure|model)",
-    r"hypothetical\s+(?:change|loss|shift|scenario)",
-    r"parallel\s+shift",
-]
-
 # Section 2: Legal/Litigation
 # === More specific legal/litigation patterns ===
 LEGAL_LITIGATION_KEYWORDS = [
