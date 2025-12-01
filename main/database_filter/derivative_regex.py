@@ -2324,60 +2324,58 @@ TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 
 def build_definition_regex() -> re.Pattern:
     """
-    Matches definition boilerplate. 
-    Updated to handle 'shall mean', 'represents', 'refers to', and inverted definitions.
-    Consumes the full sentence tail (including lists) to prevent debris.
+    Matches definition boilerplate safely.
+    Consumes the full sentence tail to prevent debris.
     """
     
     # 1. Setup Components
     instr = f"(?:{CATEGORY_REGEX.pattern})"
-    subject = SUBJ
-    
-    # The Tail: Consumes everything until a sentence ending (. ? !)
-    # This automatically captures "(i) this; (ii) that" because semicolons are consumed.
+    subject = SUBJ  # From derivative_regex.py
     SENTENCE_TAIL = r"[^.?!]*"
     
-    # 2. Build Patterns
-    pattern_list = [
-        # --- GROUP A: Standard "Defined As" ---
-        # "Swaps are defined as..."
-        # "Definition of swaps..."
-        rf"(?:a\s+)?{instr}\s+(?:is\s+)?defined\s+as{SENTENCE_TAIL}",
-        rf"definition\s+(?:of|for)\s+(?:a\s+)?{instr}{SENTENCE_TAIL}",
-        
-        # --- GROUP B: Legal "Means" / "Shall Mean" ---
-        # "General Intangibles shall mean... futures"
-        # "Swap agreements shall mean... (a)... (b)..."
-        # We allow ANY subject (.*?) before 'shall mean' as long as the sentence 
-        # eventually contains our instrument or matches the structure.
-        rf".*?\s+(?shall\s+mean|means?|means?\s+any|is\s+defined\s+as|definitions?\s+of|represents?|refers?\s+to|considered\s+as)\s+.*{SENTENCE_TAIL}",
-        rf"(?shall\s+mean|means?|means?\s+any|is\s+defined\s+as|definitions?\s+of|represents?|refers?\s+to|considered\s+as)\s+.*{SENTENCE_TAIL}",
-        rf'"{instr}"\s+means{SENTENCE_TAIL}',
-        
-        # --- GROUP C: "Represents" (Quantitative Definitions) ---
-        # "Notional value represents amounts..."
-        # "Contractual interest represents..."
-        # We target specific accounting nouns to avoid deleting "The chart represents our usage."
-        rf"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value)\s+(?:represents?|shall\s+mean|is\s+defined\s+as){SENTENCE_TAIL}",
-        
-        # --- GROUP D: "Refers To" ---
-        # "The term off-balance sheet risk refers to..."
-        # Matches "The term [anything] refers to"
-        rf"[Tt]he\s+term\s+.*?\s+refers\s+to{SENTENCE_TAIL}",
-        
-        # --- GROUP E: Inverted Definitions ---
-        # "General Intangibles is the definition of..."
-        rf".*?\s+is\s+the\s+definition\s+of{SENTENCE_TAIL}",
+    # 2. Key Verbs Grouped by Safety
+    
+    # SAFE: Legal terms that rarely appear in narrative flow
+    LEGAL_VERBS = r"(?:shall\s+mean|is\s+defined\s+as|definitions?\s+of)"
+    
+    # RISKY: Common verbs that need specific subjects (Quotes, "The term", Instrument names)
+    COMMON_VERBS = r"(?:means?|represents?|refers?\s+to|considered\s+as)"
+    
+    # SPECIFIC: Accounting nouns allowed for "represents"
+    ACCT_NOUNS = r"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value)"
 
-        # --- GROUP F: Corporate Definitions ---
-        # "The Company defines swaps as..."
+    pattern_list = [
+        # --- 1. The "Legal Hammer" (Safe to be broad) ---
+        # Matches: "Swaps shall mean...", "Hedging is defined as..."
+        # We allow broad subjects here because "shall mean" is distinct.
+        rf".*?\s+{LEGAL_VERBS}\s+.*{SENTENCE_TAIL}",
+
+        # --- 2. Anchored "Means/Refers" (Strict Subjects Only) ---
+        # Matches: "The term 'Swap' means...", "'Derivatives' refers to..."
+        # Logic: Must start with "The term", "This caption", or a Quoted String.
+        rf"(?:[Tt]he\s+term\s+|[Tt]his\s+(?:caption|account)\s+|[\"“].*?[\"”]\s+){COMMON_VERBS}{SENTENCE_TAIL}",
+
+        # --- 3. Instrument-Subject Definitions ---
+        # Matches: "Interest Rate Swaps means...", "Options are considered as..."
+        # Logic: Subject MUST be a detected instrument category.
+        rf"(?:a\s+)?{instr}\s+(?:{COMMON_VERBS}){SENTENCE_TAIL}",
+
+        # --- 4. Accounting Specifics ---
+        # Matches: "Notional value represents..."
+        rf"{ACCT_NOUNS}\s+(?:represents?|means?){SENTENCE_TAIL}",
+        
+        # --- 5. Corporate Definitions ---
+        # Matches: "The Company defines...", "Management considers..."
         rf"(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{instr}.*as{SENTENCE_TAIL}",
+        
+        # --- 6. Inverted Definitions ---
+        # Matches: "...is the definition of..."
+        rf".*?\s+is\s+the\s+definition\s+of{SENTENCE_TAIL}",
     ]
 
     combined = "|".join(f"(?:{p})" for p in pattern_list)
     
     return re.compile(combined, re.IGNORECASE | re.VERBOSE)
-
 
 def build_non_derivative_classification_regex() -> re.Pattern:
     """
