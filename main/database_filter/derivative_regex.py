@@ -2836,7 +2836,7 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
         # Remove the period at the end
         if remaining.endswith("."):
             remaining = remaining[:-1]
-        return True if remaining else False
+        return True if len(remaining) > 5 else False
 
     # 1.5 If specfics failed, soft regex only if there is hedging context
     if SOFT_CATEGORY_REGEX.search(sentence):
