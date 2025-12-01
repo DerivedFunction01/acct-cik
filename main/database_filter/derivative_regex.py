@@ -1741,19 +1741,21 @@ LEGAL_LITIGATION_KEYWORDS = [
 ]
 # Section 3: Accounting Standards
 # === FASB ISSUANCE & ADOPTION ONLY ===
-# --- 1. Define Components (Lists/Arrays) ---
-# Issuing Bodies (FASB, IASB)
 ISSUER_TERMS = [
     r"FASB",
     r"Financial Accounting Standards Board",
-    r"F\.A\.S\.B\.",  # Escaped dots for literal match
+    r"F\.A\.S\.B\.",
     r"IASB",
     r"International Accounting Standards Board",
     r"I\.A\.S\.B\.",
     r"Accounting Standards Board",
+    r"EITF",  # Added
+    r"E\.I\.T\.F\."
+    r"Emerging Issues Task Force",  # Added
+    r"Task Force", # Contextual, usually follows EITF
 ]
 
-# Standard Acronyms (GAAP and IFRS)
+# Standard Acronyms
 STANDARDS_TERMS = [
     r"SFAS",
     r"FAS",
@@ -1763,7 +1765,9 @@ STANDARDS_TERMS = [
     r"IAS",
     r"IFRIC",
     r"SIC",
-    r"EITF",
+    r"EITF", # Added EITF here too as it serves as the standard name
+    r"SOP",  # Statement of Position
+    r"FSP",  # FASB Staff Position
 ]
 
 # Months (for date boilerplate)
@@ -1782,7 +1786,7 @@ MONTHS_TERMS = [
     r"December",
 ]
 
-# Verbs for Issuance (The standard has been published)
+# Verbs for Issuance (Expanded to include EITF language)
 ISSUANCE_VERBS = [
     r"issued",
     r"released",
@@ -1790,6 +1794,21 @@ ISSUANCE_VERBS = [
     r"has\s+issued",
     r"has\s+released",
     r"has\s+published",
+    r"ratified",
+    r"updated",
+    r"announced",
+    r"reached\s+a\s+(?:final\s+)?consensus", # Critical for EITF
+]
+
+DESCRIPTION_VERBS = [
+    r"addresses",
+    r"provides\s+guidance",
+    r"clarifies",
+    r"amends",
+    r"requires",
+    r"relates\s+to",
+    r"applies\s+to",
+    r"establishes",
 ]
 
 # Verbs for Future Adoption Intent (The company plans/expects to adopt)
@@ -1804,6 +1823,7 @@ ADOPTION_VERBS_FUTURE = [
 ADOPTION_VERBS_GENERAL = [
     r"adopt(?:ing|ed)?",
     r"early\s+adopt(?:ed|ing|ion)?",
+    r"application\s+of",  # "Earlier application of... is permitted"
 ]
 
 
@@ -1815,58 +1835,68 @@ MONTHS_FRAGMENT = build_alternation(MONTHS_TERMS)
 ISSUANCE_VERBS_FRAGMENT = build_alternation(ISSUANCE_VERBS)
 ADOPTION_VERBS_FUTURE_FRAGMENT = build_alternation(ADOPTION_VERBS_FUTURE)
 ADOPTION_VERBS_GENERAL_FRAGMENT = build_alternation(ADOPTION_VERBS_GENERAL)
+DESCRIPTION_VERBS_FRAGMENT = build_alternation(DESCRIPTION_VERBS)
 
+# Helper for "EITF Issue No. 06-6" or "FASB Statement No. 133"
+# Matches: EITF 06-6, EITF Issue 06-6, SFAS No. 133, FASB Statement No. 133
+STANDARD_ID_PATTERN = rf"(?:{STANDARDS_FRAGMENT}|Statement)(?:\s+Issue)?(?:\s+No\.?)?\s+\d+(?:-\d+)*"
 
 # --- 3. Construct Final Keyword List using f-strings ---
-
 ACCOUNTING_STANDARDS_KEYWORDS = [
-    # 📢 Issuance announcements (The boilerplate you want to remove)
-    # 1. Issuer + Issuance Verbs
-    rf"{ISSUER_FRAGMENT}\s+{ISSUANCE_VERBS_FRAGMENT}",
-
-    # 2. Standard Acronym + Issuance Verbs
-    # Added optional period `\.?` after standards fragment for cases like 'ASU. 2014-09'
-    rf"{STANDARDS_FRAGMENT}\.?\s+(?:No\.\s+)?\d+(?:-\d+)*\s+(?:was|is)\s+{ISSUANCE_VERBS_FRAGMENT}",
-
-    # 3. Issuance Verbs + Standard Acronym (Limited the greedy match to max 20 words)
-    rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,20}}.*{STANDARDS_FRAGMENT}\s+(?:No\.\s+)?\d+",
-
-    # 4. Month + Issuance Verbs (safer, only requires `.*` between issuance verb and standard)
-    rf"in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUANCE_VERBS_FRAGMENT}.*{STANDARDS_FRAGMENT}",
-
-    # ✅ Adoption language (future application)
-    # 5. Future Adoption Intent Verbs (e.g., will adopt, plans to adopt)
+    # 📢 Issuance announcements
+    # 1. Issuer + Issuance Verbs (e.g. "EITF reached a final consensus")
+    rf"{ISSUER_FRAGMENT}\s+(?:in\s+{STANDARD_ID_PATTERN}\s+)?{ISSUANCE_VERBS_FRAGMENT}",
+    # 2. Standard ID + Issuance Verbs (e.g. "ASU 2014-09 was issued")
+    rf"{STANDARD_ID_PATTERN}\s+(?:was|is)\s+{ISSUANCE_VERBS_FRAGMENT}",
+    # 3. Issuance Verbs + Standard ID (e.g. "Issued ASU 2016-02")
+    # Limited match length to prevent eating a whole sentence
+    rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,10}}\s+{STANDARD_ID_PATTERN}",
+    # 4. Dated Issuance (e.g. "In November 2006... EITF reached...")
+    rf"in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUANCE_VERBS_FRAGMENT}",
+    # 📜 Standard Descriptions (What the standard does)
+    # e.g., "EITF 06-6 addresses the modification of..."
+    # This is safe because it uses "addresses/clarifies", not "we use/we hold".
+    rf"{STANDARD_ID_PATTERN}\s+{DESCRIPTION_VERBS_FRAGMENT}",
+    # 🔗 Pure References/Citations (Noise)
+    # e.g., "...pursuant to EITF 96-19"
+    rf"pursuant\s+to\s+{STANDARD_ID_PATTERN}",
+    rf"defined\s+in\s+{STANDARD_ID_PATTERN}",
+    rf"accordance\s+with\s+{STANDARD_ID_PATTERN}",
+    # ✅ Adoption language
+    # 5. Future Adoption
     rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
-
-    # 6. General Adoption Verbs + Guideline Terms/Acronyms (Consolidated for better coverage)
-    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?(?:guidance|standard|amendment|Statement|Provision|regulation|{STANDARDS_FRAGMENT})",
-
-    # 6.5 Any mention of guidance or standards
-    rf"This\s+(?:guidance|standard|amendment|Statement|Provision|regulation)",
-    # 7. Specific adoption phrases (kept as they capture specific boilerplate structures)
+    # 6. General Adoption / Permissibility
+    # e.g., "Earlier application of EITF 06-7 is permitted"
+    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+{STANDARD_ID_PATTERN}",
+    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?(?:guidance|standard|amendment|Statement|Provision|regulation)",
+    # 6.5 "Should be applied" (Instructional text from the standard)
+    # e.g., "EITF 06-7 should be applied to all..."
+    rf"{STANDARD_ID_PATTERN}\s+should\s+be\s+applied",
+    rf"{STANDARD_ID_PATTERN}\s+(?:is|was|becomes)\s+effective",
+    # 7. Specific Phrases
     r"upon\s+adoption\s+of",
     r"prior\s+to\s+adoption",
-
-    # 📝 Evaluation of future standards
-    r"evaluat(?:ing|ed|e|es)\s+(?:the\s+)?(?:impact|effect)\s+of.*(?:adoption|standard|guidance)",
-    r"assess(?:ing|ed|es)\s+the\s+(?:impact|effect)\s+of.*(?:new|upcoming|proposed)\s+(?:standard|guidance)",
-    r"currently\s+(?:evaluating|assessing)\s+(?:the\s+)?(?:impact|effect)",
+    r"transition\s+period",
+    r"cumulative\s+effect\s+adjustment",
+    # 📝 Impact Assessments
+    r"evaluat(?:ing|ed|e|es)\s+(?:the\s+)?(?:impact|effect)\s+of",
+    r"assess(?:ing|ed|es)\s+the\s+(?:impact|effect)\s+of",
+    r"currently\s+(?:evaluating|assessing)",
     r"continu(?:ing|es)\s+to\s+evaluate",
-
-    # 📅 Effective date language
-    r"effective\s+for\s+(?:fiscal\s+years|annual\s+periods)\s+beginning",
+    r"impact\s+on\s+(?:our|the)\s+consolidated\s+financial\s+statements",
+    # 📅 Effective Dates
+    r"effective\s+for\s+(?:fiscal\s+years|annual\s+periods)",
     r"effective\s+(?:in|for|after)\s+(?:fiscal\s+)?(?:year\s+)?\d{4}",
     r"becomes\s+effective",
     r"will\s+be\s+effective",
-
-    # 📉 Impact assessment
-    r"(?:not\s+)?expected\s+to\s+have\s+a\s+material\s+(?:impact|effect).*(?:adoption|effective)",
-    r"no\s+material\s+impact.*(?:upon|from)\s+adoption",
-
-    # 📚 Standard descriptions
-    r"establishes?\s+accounting\s+and\s+reporting\s+standards\s+(?:for|requiring)",
-    r"(?:this|the)\s+(?:statement|standard|guidance|amendment)\s+(?:addresse(?:d|s)|clarifie(?:d|s)|amend(?:ed|s))",
-    r"Accounting for Derivative Instruments and Hedging Activities",
+    r"beginning\s+after\s+(?:December|January)",  # e.g. "periods beginning after December 15"
+    # 📉 Boilerplate Impact Statements
+    r"(?:not\s+)?expected\s+to\s+have\s+a\s+material\s+(?:impact|effect)",
+    r"no\s+material\s+impact",
+    r"immaterial\s+impact",
+    # Safe "Application" usage (Passive permission)
+    r"early\s+application\s+(?:is\s+)?permitted",
+    r"early\s+adoption\s+(?:is\s+)?permitted",
 ]
 # =============================================================================
 # FORWARD-LOOKING STATEMENT PATTERNS (NEW)
