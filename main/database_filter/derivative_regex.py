@@ -2043,7 +2043,7 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     rf"(?:intended|designed)\s+to\s+(?:improve|expand|enhance)\s+disclosures?[^.?!]*",
     rf"requiring\s+(?:more|additional|expanded)\s+information\s+about[^.?!]*",
     r"accounting\s+standards?\s+update",
-    rf"recently\s+(?:issued|updated|released|published)\s+{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
+    rf"recently\s+(?:issued|updated|released|published|announced)\s+(?:accounting\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
 ]
 
 
