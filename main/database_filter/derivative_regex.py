@@ -2642,8 +2642,10 @@ _ABSENCE_NOUNS = [
 
 # 1. DEFINE SAFEGUARDS (Words that make "Settlement/Closing" active)
 # If these appear before "settled", it's likely a description of mechanics, not termination.
-ACTIVE_SETTLEMENT_TYPES = r"(?:cash|net|daily|monthly|physically|final|mandatory|annually|weekly)"
-
+SETTLEMENT_MODIFIERS = [
+    "cash", "net", "daily", "monthly", "physically", "final", "mandatory", "annually", "weekly"
+]
+_settle_lookbehind = "".join([rf"(?<!\b{word}\s)" for word in SETTLEMENT_MODIFIERS])
 # In termination_filter.py
 
 TERMINATION_VERBS = [
@@ -2669,7 +2671,7 @@ TERMINATION_VERBS = [
     r"redeem(?:e(?:d|s)?|ing)",  # Matches: redeem, redeemed.           STOPS: redemption
     r"repudiat(?:e(?:d|s)?|ing)",
     # --- SAFEGUARDED SETTLEMENT (From previous turn) ---
-    rf"(?<!{ACTIVE_SETTLEMENT_TYPES}\s)settl(?:e(?:d)|ing)",
+    rf"(?<!{_settle_lookbehind}\s)settl(?:e(?:d)|ing)",
 ]
 
 # Active / Timing Indicators (New)
