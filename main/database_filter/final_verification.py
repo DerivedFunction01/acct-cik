@@ -47,7 +47,7 @@ from derivative_regex import (
 # =============================================================================
 
 VERB_REGEX = re.compile(rf"\b{STRONG_VERB_PATTERN}\b", re.IGNORECASE)
-LEVEL_REGEX = re.compile(r"\bLevel\s+[123]\b", re.IGNORECASE)
+LEVEL_REGEX = re.compile(r"\b(?:Level\s+[123]|observable)\b", re.IGNORECASE)
 VALUATION_MODEL_REGEX = re.compile(
     r"\b" + build_alternation(VALUATION_MODELS) + r"\b", re.IGNORECASE
 )
