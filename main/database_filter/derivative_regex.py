@@ -300,7 +300,7 @@ IR_OTHER_TERMS = [
     r"capital\s+leases?",
     r"mortgages?",
     # Rate Types & Benchmarks
-    r"(?:(?:floating|variable|fixed|benchmark|interest|treasury|forward|prime)[- ]rates?|fed(?:eral)?\s+funds\s+rates?)",
+    r"(?:(?:floating|variable|fixed|benchmark|(?<!currency[- ])interest|treasury|forward|prime)[- ]rates?|fed(?:eral)?\s+funds\s+rates?)",
     r"SOFR",
     r"SONIA",
     r"LIBOR",
@@ -3179,6 +3179,7 @@ ANCHOR_TAG = " _A^ "
 
 IR_STRICT_TERMS = [
     rf"(?<!foreign[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
+    rf"(?<!currency[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
     r"(?:pay|receive)[- ](?:fixed|variable|floating)",
     r"interest\s+payments?",
     r"SOFR",
@@ -3189,7 +3190,7 @@ IR_STRICT_TERMS = [
     r"amortization\s+of\s+debt",
     # --- NEW ADDITIONS (The Safe Rates) ---
     # These imply Interest Rate mechanics specifically
-    r"(?:floating|variable|fixed|prime|treasury)[- ]rates?",
+    r"(?:floating|variable|fixed|prime|treasury|(?<!currency[- ])interest|(?<!foreign[- ])interest)[- ]rates?",
     r"fed(?:eral)?\s+funds\s+rates?",
 ]
 
