@@ -2646,12 +2646,12 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     """
     Determines if the instrument name is still present in the paragraph/sentence.
     """
-    
+
     # 1. SPECIFIC MATCHES (The Only Safe Harbor for Orphans)
     # If it says "Interest Rate Swap", it survives ANY filter.
     if CATEGORY_REGEX.search(sentence):
         return True
-    
+
     # 1.5 If specfics failed, soft regex only if there is hedging context
     if SOFT_CATEGORY_REGEX.search(sentence):
         if HEDGING_CONTEXT_REGEX.search(sentence):
@@ -2674,7 +2674,6 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
 
     return False
 
-
 def validate_instrument_retention(
     paragraphs: List[str], 
     categories: List[str], 
@@ -2683,59 +2682,73 @@ def validate_instrument_retention(
     year: Optional[int] = None
 ) -> Tuple[List[str], List[str], List[Tuple[str, str, str]]]:
     """
-    Final safety check with Dependency Anchoring.
+    Final safety check with Dependency Anchoring and Year-Based Promotion.
     
     Logic:
-    1. If [[ANCHOR]] tag is present: The primary context survives. Keep the paragraph.
-    2. If [[ANCHOR]] tag is MISSING: The primary context was deleted (e.g. by Year Filter).
-       The remaining sentences are orphans. They must pass STRICT validation 
-       (Unambiguous Instrument) to survive. Context alone is no longer enough.
+    1. Anchor Present: Validate the whole block (Context survives).
+    2. Anchor Missing (Orphans):
+       - If 'year' is provided: Split into atomic sentences. Validating individually ensures
+         a current-year sentence doesn't accidentally 'save' unrelated generic noise.
+       - If 'year' is None: Validate the block strictly (Standard Phase 5/7 logic).
     """
     validated_paragraphs = []
     validated_categories = []
     discards = []
 
     for text, cat in zip(paragraphs, categories):
-        # 1. Check for Anchor Survival
         has_anchor = ANCHOR_TAG in text
         
-        # Clean the text
-        clean_text = text.replace(ANCHOR_TAG, " ")
-        
-        # 2. Determine Validation Mode
-        effective_strict = strict
-        
-        if not has_anchor:
-            # DEFAULT: Orphans die unless they have a specific name
-            effective_strict = True
-            
-            # SALVATION: Year-Based Promotion
-            # If the orphan explicitly references the reporting year (or future),
-            # it establishes its own timeline. It doesn't need the parent.
-            if year:
-                # Find all years in the sentence
-                years_found = [int(y) for y in YEAR_REGEX.findall(clean_text)]
-                
-                # If any year is >= reporting year, we relax the strictness
-                if any(y >= year for y in years_found):
-                    effective_strict = False # Allow generic/loose matches
-        
-        # 3. Validation
-        if check_for_instrument(clean_text, strict=effective_strict):
-            validated_paragraphs.append(text)
-            validated_categories.append(cat)
+        # --- STRATEGY: SPLIT ORPHANS IF YEAR CHECKING IS ACTIVE ---
+        # We only split if:
+        # 1. We are in a Year-Check phase (year is not None)
+        # 2. The Anchor is missing (If the Anchor is there, the context is valid, so keep the block)
+        if year and not has_anchor:
+            # Split the orphaned block back into atomic components
+            sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
         else:
-            # Different discard reasons help debugging
-            if has_anchor:
-                reason = "lost_instrument_reference"
-            elif year and effective_strict is False:
-                # This case shouldn't technically happen if logic is right, 
-                # but good to track if it failed even after promotion.
-                reason = "orphaned_but_current_failed_check"
-            else:
-                reason = "lost_anchor_context"
+            # Treat as a single unit (Standard behavior)
+            sentences = [text]
+
+        for unit in sentences:
+            # Clean the tag for regex checking
+            clean_unit = unit.replace(ANCHOR_TAG, " ")
+            
+            # Determine Mode
+            effective_strict = strict
+            promoted_to_anchor = False
+
+            if not has_anchor:
+                # Default: Kill orphans
+                effective_strict = True
                 
-            discards.append((url, clean_text, reason))
+                # Salvation: Year-Based Promotion
+                if year:
+                    years_found = [int(y) for y in YEAR_REGEX.findall(clean_unit)]
+                    # If this specific sentence is current, it stands alone
+                    if any(y >= year for y in years_found):
+                        effective_strict = False
+                        promoted_to_anchor = True
+
+            # Validate
+            if check_for_instrument(clean_unit, strict=effective_strict):
+                # Tagging: If promoted, it becomes a new Anchor
+                if promoted_to_anchor and ANCHOR_TAG not in unit:
+                    final_text = ANCHOR_TAG + unit.lstrip()
+                else:
+                    final_text = unit
+                
+                validated_paragraphs.append(final_text)
+                validated_categories.append(cat)
+            else:
+                # Logging
+                if has_anchor:
+                    reason = "lost_instrument_reference"
+                elif year and effective_strict is False:
+                    reason = "orphaned_but_current_failed_check"
+                else:
+                    reason = "lost_anchor_context"
+                
+                discards.append((url, clean_unit, reason))
 
     return validated_paragraphs, validated_categories, discards
 

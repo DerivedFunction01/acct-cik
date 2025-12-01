@@ -276,7 +276,7 @@ def filter_item_by_year(
     # 4. Final Validation Helper
     final_paragraphs, final_categories, validation_discards = (
         validate_instrument_retention(
-            final_paragraphs, final_categories, url, strict=False
+            final_paragraphs, final_categories, url, strict=False, year=reporting_year
         )
     )
 
