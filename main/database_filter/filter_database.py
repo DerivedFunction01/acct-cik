@@ -1283,11 +1283,6 @@ def filter_matches_with_disambiguation(
                 final_paragraphs.append((match, 'table'))
                 continue
 
-        # Run the text cleaner
-        match = CLEANER.process(match)
-        if not match:
-            continue
-
         # Remove accounting standards boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
             sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
@@ -1368,7 +1363,11 @@ def filter_matches_with_disambiguation(
             match = " ".join(text)
             if not match.strip():
                 continue
-
+        
+        # Run the text cleaner
+        match = CLEANER.process(match)
+        if not match:
+            continue
         # Split into sentences
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
         used_indices = set()

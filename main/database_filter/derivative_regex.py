@@ -3087,7 +3087,6 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         r"\bNFA\b",
         r"Securities\s+(?:and|&)\s+Exchange\s+Commission",
         r"\bSEC\b",
-        
         r"Public\s+Company\s+Accounting\s+Oversight\s+Board",
         r"\bPCAOB\b",
         r"Federal\s+Energy\s+Regulatory\s+Commission",
@@ -3140,7 +3139,7 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         r"\bETFs?\b",
         r"money\s+market\s+funds?",
         r"pension\s+funds?",  # Reinforces Plan Asset exclusion
-    ]
+    ] + ISSUER_TERMS
 
     # --- 6. Dynamic Fund Pattern (Your existing logic) ---
     # Matches: "United States Commodity Index Fund", "Oil Derivatives Trust"
