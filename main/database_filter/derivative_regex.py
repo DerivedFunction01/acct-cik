@@ -2642,26 +2642,33 @@ def build_termination_regex() -> re.Pattern:
 # Ensure you have HEDGING_CONTEXT_REGEX available in the function's scope
 # (It is likely already imported or defined in derivative_regex.py)
 
-
 def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     """
     Determines if the instrument name is still present in the paragraph/sentence.
-
-    Logic:
-    1. Strict Instrument (Swaps, Forwards) -> Always Keep
-    2. Loose Instrument (Options, Contracts) -> Keep ONLY if accompanied by Hedging Context
     """
-    # 1. High-confidence matches
-    # "Swaps", "Forwards", "Interest Rate", "Foreign Exchange"
-    if CATEGORY_REGEX.search(sentence) or STRICT_GEN_REGEX.search(sentence):
+    
+    # 1. SPECIFIC MATCHES (The Only Safe Harbor for Orphans)
+    # If it says "Interest Rate Swap", it survives ANY filter.
+    if CATEGORY_REGEX.search(sentence):
         return True
+    
+    # 1.5 If specfics failed, soft regex only if there is hedging context
+    if SOFT_CATEGORY_REGEX.search(sentence):
+        if HEDGING_CONTEXT_REGEX.search(sentence):
+            return True
 
-    # 2. Loose matches (Contextual)
-    # "Options", "Agreements", "Contracts"
-    # MUST be accompanied by "Risk", "Hedge", "Exposure", "Mitigate"
+    # 2. STRICT GENERICS (Notionals, "Swap Agreements")
+    # ONLY Valid if we have Context (Anchor) or Recency (Year Promotion).
+    # If strict=True (Orphaned & Undated), these must die to prevent Zombies.
+    if not strict:
+        if STRICT_GEN_REGEX.search(sentence):
+            return True
+
+    # 3. LOOSE MATCHES (Weakest)
+    # "Contracts", "Options", "Positions"
+    # Requires Context (Anchor) AND Hedging Keywords.
     if not strict:
         if LOOSE_GEN_REGEX.search(sentence):
-            # FIX: Require context to avoid "Employment Agreements"
             if HEDGING_CONTEXT_REGEX.search(sentence):
                 return True
 
@@ -2669,7 +2676,11 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
 
 
 def validate_instrument_retention(
-    paragraphs: List[str], categories: List[str], url: str, strict: bool = False
+    paragraphs: List[str], 
+    categories: List[str], 
+    url: str, 
+    strict: bool = False, 
+    year: Optional[int] = None
 ) -> Tuple[List[str], List[str], List[Tuple[str, str, str]]]:
     """
     Final safety check with Dependency Anchoring.
@@ -2688,25 +2699,42 @@ def validate_instrument_retention(
         # 1. Check for Anchor Survival
         has_anchor = ANCHOR_TAG in text
         
-        # Clean the text for regex checking (remove tag so it doesn't mess up patterns)
+        # Clean the text
         clean_text = text.replace(ANCHOR_TAG, " ")
         
         # 2. Determine Validation Mode
-        # If we have the anchor, we respect the requested strictness (usually False).
-        # If we LOST the anchor, we FORCE Strict Mode to kill orphans.
         effective_strict = strict
+        
         if not has_anchor:
+            # DEFAULT: Orphans die unless they have a specific name
             effective_strict = True
             
+            # SALVATION: Year-Based Promotion
+            # If the orphan explicitly references the reporting year (or future),
+            # it establishes its own timeline. It doesn't need the parent.
+            if year:
+                # Find all years in the sentence
+                years_found = [int(y) for y in YEAR_REGEX.findall(clean_text)]
+                
+                # If any year is >= reporting year, we relax the strictness
+                if any(y >= year for y in years_found):
+                    effective_strict = False # Allow generic/loose matches
+        
         # 3. Validation
         if check_for_instrument(clean_text, strict=effective_strict):
-            # Restore/Keep the text (We usually keep the tag until the very end export)
-            # Or if you want to strip it now, append `clean_text`. 
-            # Recommendation: Keep `text` (with tag) so downstream filters continue to track it.
             validated_paragraphs.append(text)
             validated_categories.append(cat)
         else:
-            reason = "lost_instrument_reference" if has_anchor else "lost_anchor_context"
+            # Different discard reasons help debugging
+            if has_anchor:
+                reason = "lost_instrument_reference"
+            elif year and effective_strict is False:
+                # This case shouldn't technically happen if logic is right, 
+                # but good to track if it failed even after promotion.
+                reason = "orphaned_but_current_failed_check"
+            else:
+                reason = "lost_anchor_context"
+                
             discards.append((url, clean_text, reason))
 
     return validated_paragraphs, validated_categories, discards
