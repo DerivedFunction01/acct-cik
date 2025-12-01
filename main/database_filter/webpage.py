@@ -1524,12 +1524,12 @@ def process_producer_consumer_adaptive():
                 # E. Stall detection
                 if current_done == prev_done:
                     stalled_count += 1
-                    if stalled_count > 30:
+                    if stalled_count >= 100 and stalled_count % 25 == 0:
                         pbar.write("⚠️  Pipeline stalled! Checking queue status...")
                         pbar.write(
                             f"   URL Queue: {url_queue.qsize()}, Raw Queue: {raw_queue.qsize()}, Result Queue: {result_queue.qsize()}"
                         )
-                        if stalled_count > 40:
+                        if stalled_count > 600:
                             pbar.write("⚠️  Force-exiting stalled pipeline...")
                             break
                 else:
