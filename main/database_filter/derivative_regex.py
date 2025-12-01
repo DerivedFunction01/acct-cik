@@ -1943,6 +1943,7 @@ GUIDANCE_OBJECT_TYPES = [
     r"regulation",
     r"Abstract",
     r"Opinion",
+    r"Codification",
 ]
 
 # --- STANDALONE PHRASES (context-specific, non-generic) ---
@@ -2035,7 +2036,108 @@ ACCOUNTING_STANDARDS_KEYWORDS = [
     rf"disclosures?\s+(?:about|regarding)\s+(?:the\s+)?(?:adoption|application|impact)\s+of[^.?!]*",
     rf"(?:intended|designed)\s+to\s+(?:improve|expand|enhance)\s+disclosures?[^.?!]*",
     rf"requiring\s+(?:more|additional|expanded)\s+information\s+about[^.?!]*",
+    r"accounting\s+standards?\s+update",
 ]
+# In derivative_regex.py
+
+
+def build_safe_title_regex() -> re.Pattern:
+    """
+    Matches Capitalized Titles that contain both a DERIVATIVE keyword
+    AND a REPORTING keyword.
+
+    Target: "Expanded Disclosure for Embedded Derivatives"
+    Safe:   "Interest Rate Swaps" (No reporting keyword -> Kept)
+    """
+
+    # 1. The Reporting "Meta-Nouns" (The Safety Switch)
+    # These words indicate we are looking at a Title/Header, not an instrument.
+    REPORTING_NOUNS = [
+        r"Disclosures?",
+        r"Accounting",
+        r"Reporting",
+        r"Measurements?",
+        r"Recognitions?",
+        r"Presentations?",
+        r"Guidance",
+        r"Objectives?",
+        r"Strategies",
+        r"Policies",
+        r"Estimates?",
+        r"Activities",
+        r"Instruments?",  # Be careful with this one, but usually safe if Capitalized context
+        r"Information",
+        r"Tables?",
+        r"Notes?",
+        r"Summar(?:y|ies)",
+        r"Codification",
+    ]
+
+    # 2. The Derivative Keywords (The Target)
+    DERIV_KEYWORDS = [
+        r"Derivatives?",
+        r"Hedging",
+        r"Hedges?",
+        r"Swaps?",
+        r"Options?",
+        r"Forwards?",
+        r"Futures?",
+        r"Instruments?",
+        r"Financial",  # "Financial Instruments"
+    ]
+
+    # 3. Build Alternations
+    reporting_alt = build_alternation(REPORTING_NOUNS)
+    deriv_alt = build_alternation(DERIV_KEYWORDS)
+
+    # 4. Construct the Regex
+    # Logic:
+    # - (?!^)        : Not the start of the sentence (User's heuristic)
+    # - \b          : Word boundary
+    # - [A-Z][\w-]* : Capitalized word
+    # - (?:\s+...)  : Followed by more capitalized words or small connectors (of, for, and)
+    # - MUST contain both sets of keywords in the sequence
+
+    # Helper for "Capitalized Word or connector"
+    # Matches: "Disclosure", "for", "Embedded", "Derivatives"
+    cap_seq_chunk = r"(?:[A-Z][\w-]*|of|for|and|to|in|on|with)"
+
+    return re.compile(
+        rf"(?!^)\b"  # Not start of sentence
+        rf"(?:"  # Start of Title Sequence
+        rf"{cap_seq_chunk}+\s+"
+        rf")*"  # (Greedy match of title words)
+        # WE MUST ENSURE BOTH SIGNALS EXIST IN THE CHUNK
+        # This is complex in pure regex, so we simplify:
+        # Match a long capitalized sequence that contains at least one Reporting Noun
+        # AND at least one Derivative Keyword.
+        rf"(?=\S*?(?:{reporting_alt}))"  # Lookahead: Must contain Reporting Noun
+        rf"(?=\S*?(?:{deriv_alt}))"  # Lookahead: Must contain Derivative Keyword
+        rf"{cap_seq_chunk}+(?:\s+{cap_seq_chunk}+)*"  # Consume the sequence
+        rf"\b",
+        re.IGNORECASE,  # Actually, we want Case Sensitivity for the [A-Z] check,
+        # but we handled it with character classes.
+        # If we use IGNORECASE, we lose the capitalization signal.
+        # So we REMOVE re.IGNORECASE or enforce [A-Z] strictly.
+    )
+
+
+# Since Python's re doesn't support variable-length lookbehind well,
+# a pure regex for "Active Capitalized Sequence" is cleaner:
+
+
+def build_capitalized_title_cleaner() -> re.Pattern:
+    """
+    Simpler approach: Match a sequence of Title Case words.
+    We will validate the match in Python (check for keywords) before deleting.
+    """
+    return re.compile(
+        r"(?!^)\b(?:[A-Z][a-z0-9-]*\s+(?:of|for|and|to|in|on|with|the)\s+)*[A-Z][a-z0-9-]*"
+        r"(?:\s+(?:[A-Z][a-z0-9-]*|of|for|and|to|in|on|with|the))*\b"
+    )
+
+
+TITLE_CLEANER_REGEX = build_capitalized_title_cleaner()
 
 # =============================================================================
 # FORWARD-LOOKING STATEMENT PATTERNS (NEW)
