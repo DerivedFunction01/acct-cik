@@ -88,6 +88,7 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
     STRICT_REGEX,
+    TITLE_CLEANER_REGEX,
     TRADING_STATEMENTS_REGEX,
     check_for_instrument,
     cleanup_fragment,
@@ -308,6 +309,28 @@ def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
 
 class TextCleaner:
     MAX_CLEANUP_MATCH_LENGTH = 500
+    # 1. Reporting Keywords (The Safety Anchor)
+    # If a title contains these, it's about the paperwork, not the position.
+    TITLE_KEYWORDS_REPORTING = {
+        # Generic Nouns
+        "disclosure", "accounting", "reporting", "measurement", "recognition", 
+        "presentation", "guidance", "objective", "strategy", "policy", "activity", 
+        "summary", "information", "impact", "overview", "note", "table",
+        
+        # Regulatory Actions
+        "amendment", "deferral", "interpretation", "position", "adoption", "transition",
+        
+        # Specific Guidance Types (Your new list)
+        "standard", "statement", "provision", "regulation", "abstract", 
+        "opinion", "codification", "bulletin", "release"
+    }
+
+    # 2. Derivative Keywords (The Target)
+    # The title must ALSO contain one of these to be deleted.
+    TITLE_KEYWORDS_DERIV = {
+        "derivative", "hedging", "hedge", "swap", "option", 
+        "future", "forward", "instrument", "financial", "risk"
+    }
     def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH):
         """
         Args:
@@ -317,6 +340,8 @@ class TextCleaner:
                               a header) and is NOT removed.
         """
         self.max_match_length = max_match_length
+        self.TITLE_KEYWORDS_REPORTING = set(self.TITLE_KEYWORDS_REPORTING)
+        self.TITLE_KEYWORDS_DERIV = set(self.TITLE_KEYWORDS_DERIV)
 
     def _safe_sub(self, pattern: re.Pattern, replacement: str, text: str) -> str:
         """
@@ -361,7 +386,7 @@ class TextCleaner:
         Removes noise references like "See Note 5" or "Table below".
         """
         return REFERENCE_CLEANUP_REGEX.sub(" ", text)
-    
+
     def clean_information(self, text: str) -> str:
         """
         Remove "for furthur information"
@@ -377,9 +402,45 @@ class TextCleaner:
         # Collapse 3+ newlines into 2 (paragraph breaks)
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
-    
+
     def clean_standards(self, text: str) -> str:
-        return EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", text)
+        """
+        Surgically removes accounting standard references and their capitalized titles.
+        """
+
+        # 1. Run the specific Accounting Standard Regex first
+        # This removes "SFAS 133", "FASB Statement No. 133", "in accordance with ASC 815"
+        # We do this UNCONDITIONALLY because it is high-precision noise removal.
+        text = EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", text)
+
+        # 2. Run the Title Cleaner
+        # We rely on the Safe Title Logic (Reporting KW + Derivative KW) to avoid deleting instruments.
+
+        def title_replacer(match):
+            match_text = match.group(0)
+            lower_text = match_text.lower()
+
+            # A. Safety: Ignore short fragments (titles are usually multi-word)
+            if len(match_text.split()) < 2:
+                return match_text
+
+            # B. The Double-Key Check
+            # Must have a Reporting Noun (Disclosure, Accounting, GuidanDce...)
+            has_reporting = any(kw in lower_text for kw in self.TITLE_KEYWORDS_REPORTING)
+
+            # Must have a Derivative Keyword (Derivative, Hedging, Swap...)
+            has_deriv = any(kw in lower_text for kw in self.TITLE_KEYWORDS_DERIV)
+
+            # C. Action: Mask if BOTH conditions are met
+            if has_reporting and has_deriv:
+                return " " * len(match_text) # Replace with whitespace
+
+            return match_text # Keep (likely an instrument like "Interest Rate Swaps")
+
+        # Apply the title cleaner to the text (which already has IDs removed)
+        text = TITLE_CLEANER_REGEX.sub(title_replacer, text)
+
+        return text
 
     def process(self, text: str) -> str:
         """
@@ -391,10 +452,10 @@ class TextCleaner:
         text = self.clean_structure(text)
         text = self.clean_references(text)
         text = self.clean_information(text)
-        text = self.normalize_whitespace(text)
         text = self.clean_entities(text)
         text = self.clean_standards(text)
-        
+        text = self.normalize_whitespace(text)
+
         # If the text starts with a leading period, remove it
         if text.strip().startswith("."):
             text = text[1:]
