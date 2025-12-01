@@ -408,6 +408,8 @@ class TextCleaner:
         """
         Surgically removes accounting standard references and their capitalized titles.
         """
+        if TABLE_ANCHOR in text:
+            return text
 
         # 1. Run the specific Accounting Standard Regex first
         # This removes "SFAS 133", "FASB Statement No. 133", "in accordance with ASC 815"
