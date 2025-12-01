@@ -307,7 +307,7 @@ def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
 
 
 class TextCleaner:
-    MAX_CLEANUP_MATCH_LENGTH = 250
+    MAX_CLEANUP_MATCH_LENGTH = 500
     def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH):
         """
         Args:
