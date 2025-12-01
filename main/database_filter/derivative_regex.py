@@ -2648,17 +2648,26 @@ _ABSENCE_NOUNS = [
 
 # Termination Verbs
 TERMINATION_VERBS = [
-    r"expired",
-    r"matured",
-    r"settled",
-    r"terminated",
-    r"ceased",
-    r"closed",
-    r"unwound",
-    r"exercised", # Essential for options/swaptions
-    r"extinguished",
-    r"novated", # Transferring the trade to another counterparty (implies exit)
+    r"expir(?:e(?:d|s)?|ing|ation|y)",   # expire, expired, expires, expiring, expiration, expiry
+    r"matur(?:e(?:d|s)?|ing|ity)",     # mature, matured, maturity
+    r"settl(?:e(?:d|s|ment)?|ing)",                      # settle, settled settlement
+    r"terminat(?:e|ed|es|ing|ion)",   # terminate, terminated, terminates, terminating, termination
+    r"ceas(?:e|ed|es|ing)",           # cease, ceased, ceases, ceasing
+    r"clos(?:ed|ing)",                  # closed, closing
+    r"unwound", r"unwind",                      # unwind, unwound
+    r"exercis(?:e|ed|es|ing)",        # exercise, exercised, exercises, exercising
+    r"extinguish(?:ed|es|ing)?",      # extinguish, extinguished, extinguishes, extinguishing
+    r"novat(?:e|ed|es|ing|ion)",      # novate, novated, novates, novating, novation
+    r"cancel(?:led|s|ling)?",         # cancel, cancelled, cancels, cancelling
+    r"rescind(?:ed|s|ing)?",          # rescind, rescinded, rescinds, rescinding
+    r"void(?:ed)?",                   # void, voided
+    r"withdraw(?:n|s|ing)?", r"withdrew",         # withdraw, withdrawn, withdraws, withdrawing
+    r"discontinu(?:e|ed|es|ing|ation)", # discontinue, discontinued, discontinues, discontinuing, discontinuation
+    r"exit(?:ed|s|ing)?",             # exit, exited, exits, exiting
+    r"redeem(?:ed|s|ing|ption)?",     # redeem, redeemed, redeems, redeeming, redemption
+    r"repudiat(?:e|ed|es|ing|ion)",   # repudiate, repudiated, repudiates, repudiating, repudiation
 ]
+
 
 # Active / Timing Indicators (New)
 ACTIVE_INDICATORS = [
