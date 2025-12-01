@@ -2828,7 +2828,12 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     # 1. SPECIFIC MATCHES (The Only Safe Harbor for Orphans)
     # If it says "Interest Rate Swap", it survives ANY filter.
     if CATEGORY_REGEX.search(sentence):
-        return True
+        # Remove the phrase itself; there should still be something left
+        remaining = CATEGORY_REGEX.sub("", sentence).strip()
+        # Remove the period at the end
+        if remaining.endswith("."):
+            remaining = remaining[:-1]
+        return True if remaining else False
 
     # 1.5 If specfics failed, soft regex only if there is hedging context
     if SOFT_CATEGORY_REGEX.search(sentence):
