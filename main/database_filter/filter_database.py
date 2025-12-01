@@ -307,7 +307,7 @@ def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
 
 
 class TextCleaner:
-    MAX_CLEANUP_MATCH_LENGTH = 200
+    MAX_CLEANUP_MATCH_LENGTH = 250
     def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH):
         """
         Args:
@@ -375,6 +375,9 @@ class TextCleaner:
         # Collapse 3+ newlines into 2 (paragraph breaks)
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
+    
+    def clean_standards(self, text: str) -> str:
+        return EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", text)
 
     def process(self, text: str) -> str:
         """
@@ -388,6 +391,7 @@ class TextCleaner:
         text = self.clean_information(text)
         text = self.normalize_whitespace(text)
         text = self.clean_entities(text)
+        text = self.clean_standards(text)
 
         return text
 
@@ -1281,23 +1285,6 @@ def filter_matches_with_disambiguation(
                 # Fallback for parsing errors
                 # logging.warning(f"Table parsing failed for {url}: {e}")
                 final_paragraphs.append((match, 'table'))
-                continue
-
-        # Remove accounting standards boilerplate (salvage derivative mentions)
-        if EXCLUDE_REGEX_ACCOUNTING_STD.search(match):
-            sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
-            text = []
-            discard = []
-            for sentence in sentences_temp:
-                if EXCLUDE_REGEX_ACCOUNTING_STD.search(sentence):
-                    discard.append(sentence)
-                else:
-                    text.append(sentence)
-            discarded_text = " ".join(discard)
-            if discarded_text.strip():
-                all_discarded.append((url, discarded_text, "adoption"))
-            match = " ".join(text)
-            if not match.strip():
                 continue
 
         # Skip litigation (if a "commodity swap") was involved in the case, we don't want it anyways.
