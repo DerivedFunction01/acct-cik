@@ -84,6 +84,7 @@ from derivative_regex import (
     SOFT_CATEGORY_REGEX,
     SOFT_GEN_REGEX,
     SOFT_REGEX,
+    STANDARD_ID_REGEX,
     STRICT_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
@@ -412,7 +413,8 @@ class TextCleaner:
         # This removes "SFAS 133", "FASB Statement No. 133", "in accordance with ASC 815"
         # We do this UNCONDITIONALLY because it is high-precision noise removal.
         text = EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", text)
-
+        text = STANDARD_ID_REGEX.sub(" ", text)
+        
         # 2. Run the Title Cleaner
         # We rely on the Safe Title Logic (Reporting KW + Derivative KW) to avoid deleting instruments.
 
