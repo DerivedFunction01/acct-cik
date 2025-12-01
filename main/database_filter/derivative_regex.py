@@ -2010,7 +2010,7 @@ ACCOUNTING_STANDARDS_STRICT = [
     rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,10}}\s+{STANDARD_ID_PATTERN}",
     
     # ID + Title ("ASC 815 Derivatives and Hedging")
-    rf"{STANDARD_ID_PATTERN}{CAPITALIZED_TITLE_PATTERN}",
+    rf"{STANDARD_ID_PATTERN}(?:\s+,\s+)?{CAPITALIZED_TITLE_PATTERN}",
     
     # Dated Issuance ("In June 2022, the FASB issued...")
     rf"in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUANCE_VERBS_FRAGMENT}",
