@@ -1750,6 +1750,7 @@ ISSUER_TERMS = [
     r"F\.A\.S\.A\.B\.",
     r"SEC",
     r"Securities and Exchange Commission",
+    r"S\.E\.C\.",
     r"Accounting Standards Board",
     r"EITF",
     r"E\.I\.T\.F\.",
