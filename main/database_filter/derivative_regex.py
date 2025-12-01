@@ -1995,7 +1995,9 @@ GUIDANCE_OBJECT_TYPES_FRAGMENT = build_alternation(GUIDANCE_OBJECT_TYPES)
 
 # --- STANDARD ID PATTERN ---
 # Matches: "EITF Issue No. 06-6", "FASB Statement No. 133", "ASU 2014-09"
-STANDARD_ID_PATTERN = rf"(?:{STANDARDS_FRAGMENT}|{GUIDANCE_OBJECT_TYPES_FRAGMENT})(?:\s+Issue)?(?:\s+No\.?)?\s+\d+(?:-\d+)*"
+STANDARD_ID_PATTERN = rf"(?:{STANDARDS_FRAGMENT}|{GUIDANCE_OBJECT_TYPES_FRAGMENT})(?:\s+Issue)?(?:\s+No\.?)?\s+\d+(?:-\d+)*(?:[A-Z])?"
+STANDARD_ID_REGEX = re.compile(STANDARD_ID_PATTERN)
+
 CAPITALIZED_TITLE_PATTERN = (
     r"(?:,?\s*[\"“']?(?:[A-Z][\w\-']+\s+){2,}[A-Z][\w\-']+[\"”']?)?"
 )
