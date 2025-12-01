@@ -18,6 +18,7 @@ SOURCE_DB_PATH = "active_data.db"
 FINAL_DB_PATH = "active_data2.db"
 
 from derivative_regex import (
+    MIN_SENTENCE_LENGTH,
     SENTENCE_SPLIT_PATTERN,
     TERMINATION_REGEX,
     ACTIVE_STATE_REGEX,
@@ -202,7 +203,9 @@ def process_company(item):
 
         # Re-assemble
         if kept_atomic:
-            paragraph_text = " ".join(kept_atomic)
+            paragraph_text = " ".join(
+                [k for k in kept_atomic if len(k) > MIN_SENTENCE_LENGTH]
+            )
             final_paragraphs.append(paragraph_text)
             final_categories.append(category)
 

@@ -2825,7 +2825,8 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     """
     Determines if the instrument name is still present in the paragraph/sentence.
     """
-
+    # Check for length 
+    if len(sentence) < MIN_SENTENCE_LENGTH: return False
     # 1. SPECIFIC MATCHES (The Only Safe Harbor for Orphans)
     # If it says "Interest Rate Swap", it survives ANY filter.
     if CATEGORY_REGEX.search(sentence):

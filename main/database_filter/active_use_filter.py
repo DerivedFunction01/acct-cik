@@ -34,6 +34,7 @@ FINAL_DB_PATH = "active_data.db"
 
 # Import the robust, battle-tested regexes
 from derivative_regex import (
+    MIN_SENTENCE_LENGTH,
     SENTENCE_SPLIT_PATTERN,
     POTENTIAL_REGEX,
     VAGUE_TIMING_REGEX,
@@ -237,7 +238,11 @@ def process_item(item):
 
         # Re-assemble paragraph if valid sentences remain
         if kept_sentences:
-            final_paragraphs.append(" ".join(kept_sentences))
+            final_paragraphs.append(
+                " ".join(
+                    [k for k in kept_sentences if len(k) > MIN_SENTENCE_LENGTH]
+                )
+            )
             final_categories.append(category)
 
     # 4. Final Validation Helper

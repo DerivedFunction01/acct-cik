@@ -32,6 +32,7 @@ SOURCE_DB_PATH = "hedge_data.db"
 FINAL_DB_PATH = "current_data.db"
 
 from derivative_regex import (
+    MIN_SENTENCE_LENGTH,
     YEAR_REGEX,
     PRIOR_PATTERN,
     SENTENCE_SPLIT_PATTERN,
@@ -249,6 +250,7 @@ def filter_item_by_year(
 
                     # If content remains (e.g. "but currently we use swaps"), use it
                     sentence = cleaned_sentence
+                
 
                 # Keep the (potentially cleaned) sentence
                 kept_atomic_sentences.append(sentence)
@@ -267,7 +269,7 @@ def filter_item_by_year(
 
         # 3. Re-assemble Paragraph
         if kept_atomic_sentences:
-            new_paragraph = " ".join(kept_atomic_sentences)
+            new_paragraph = " ".join([k for k in kept_atomic_sentences if len(k) > MIN_SENTENCE_LENGTH])
             final_paragraphs.append(new_paragraph)
             final_categories.append(category)
         else:

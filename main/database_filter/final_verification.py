@@ -23,6 +23,8 @@ from pathlib import Path
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
 
+from table_processor import TABLE_ANCHOR
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -34,6 +36,7 @@ FINAL_DB_PATH = "verified_active_data.db"
 
 from derivative_regex import (
     ENTITY_TOKEN,
+    MIN_SENTENCE_LENGTH,
     SENTENCE_SPLIT_PATTERN,
     CURRENCY_SYMBOL_PATTERN,
     STRONG_VERB_PATTERN,
@@ -119,7 +122,7 @@ def check_strong_signal(sentence: str) -> bool:
     # 1. QUANTITATIVE CHECK (The Ultimate Salvager)
     # If it has a number ("$50M", "Notional $100"), it is almost certainly active.
     # We check this FIRST to save valid sentences caught in traps below.
-    has_quant = bool(QUANT_REGEX.search(sentence))
+    has_quant = bool(QUANT_REGEX.search(sentence)) or TABLE_ANCHOR in sentence
 
     # -----------------------------------------------------------
     # TRAP 1: THE LEVEL TRAP (Existing)
@@ -193,7 +196,11 @@ def process_company(item):
                 discards.append((url, sent, "weak_evidence_no_verb_or_quant"))
 
         if kept_atomic:
-            final_paragraphs.append(" ".join(kept_atomic))
+            final_paragraphs.append(
+                " ".join(
+                    [k for k in kept_atomic if len(k) > MIN_SENTENCE_LENGTH]
+                )
+            )
             final_categories.append(category)
     # 4. Final Validation Helper
     final_paragraphs, final_categories, validation_discards = (
