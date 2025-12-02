@@ -2,6 +2,8 @@ from dataclasses import dataclass
 import re
 from typing import List, Optional, Tuple
 
+from table_processor import TABLE_ANCHOR
+
 
 def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
     """
@@ -2939,6 +2941,7 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     """
     # Check for length 
     if len(sentence) < MIN_SENTENCE_LENGTH: return False
+    if TABLE_ANCHOR in sentence: return True
     # 1. SPECIFIC MATCHES (The Only Safe Harbor for Orphans)
     # If it says "Interest Rate Swap", it survives ANY filter.
     if CATEGORY_REGEX.search(sentence):
