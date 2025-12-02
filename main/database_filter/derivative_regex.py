@@ -1578,6 +1578,29 @@ def build_soft_gen_regex() -> re.Pattern:
         r"designated as (?:a )?hedges?",
         r"(?:gain|loss) on derivatives?",
         r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
+        # US GAAP - Derivatives & Hedging
+        r"ASC\s+815",  # The big one (Derivatives and Hedging)
+        r"SFAS\s+133",  # The legacy big one
+        r"FAS\s+133",
+        r"Statement\s+133",
+        # US GAAP - Fair Value (Strong signal when combined with "Option/Warrant")
+        r"ASC\s+820",
+        r"SFAS\s+157",
+        # US GAAP - Distinguishing Liabilities from Equity (Crucial for Warrants)
+        r"ASC\s+480",  # Distinguishing Liabilities from Equity
+        r"SFAS\s+150",
+        # International (IFRS)
+        r"IFRS\s+9",  # Financial Instruments
+        r"IAS\s+39",  # Legacy Financial Instruments
+        r"IAS\s+32",  # Presentation (Liability vs Equity)
+        r"SFAS\s+150",
+        # --- NEW: EITF 00-19 (The "Warrant Liability" Key) ---
+        # Matches: "EITF 00-19", "EITF Issue No. 00-19", "EITF 0019"
+        # Note: We allow flexible separators between '00' and '19'
+        r"EITF\s+(?:Issue\s+)?(?:No\.?\s+)?00[-–—\s]?19",
+        # --- NEW: The Codified Version (ASC 815-40) ---
+        # EITF 00-19 was codified into ASC 815-40 "Contracts in Entity's Own Equity"
+        r"ASC\s+815[-–—\s]?40",
     ]
 
     all_patterns = accounting_phrases
