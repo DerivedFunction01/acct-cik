@@ -121,11 +121,17 @@ from collections import defaultdict
 class GlobalInstrumentTracker:
     def __init__(self):
         self.instrument_map = defaultdict(set)
+        self.embedded_regex = re.compile(r"\bembedded\b", re.IGNORECASE)
 
     def register_paragraph(self, paragraph: str, category: str):
         """
         Registers high-confidence instruments to build the global map.
         """
+        # 0. Highly specfic: embedded features. If the word embedded appears
+        # in that same sentence as the paragraph, we should register it for easier lookup
+        if self.embedded_regex.search(paragraph):
+            self.instrument_map["embedded"].add(category)
+            
         # 1. Try to find Specific Instruments first (High Confidence)
         # Use finditer to avoid tuple issues with capturing groups
         specific_matches = [m.group(0) for m in ALL_REGEX.finditer(paragraph)]
@@ -156,7 +162,9 @@ class GlobalInstrumentTracker:
         """
         # Find potential instruments in the generic sentence
         matches = BASE_REGEX.findall(sentence)
-
+        # If the sentence contains the word "embedded", add it
+        if self.embedded_regex.search(sentence):
+            matches.append("embedded")
         candidates = set()
         for m in matches:
             token = m.lower().rstrip("s")
