@@ -501,10 +501,13 @@ class TextCleaner:
         kept_sentences = []
 
         for sent in sentences:
-            # 1. Detect Context
-            has_std_ref = EXCLUDE_REGEX_ACCOUNTING_STD.search(sent)
             # Use the strict regex if available, otherwise fallback to standard
             is_strict_context = ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent)
+            if is_strict_context:
+                break
+
+            # 1. Detect Context
+            has_std_ref = EXCLUDE_REGEX_ACCOUNTING_STD.search(sent)
 
             # 2. Clean the IDs (unconditional cleanup)
             clean_sent = EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", sent)
@@ -512,15 +515,8 @@ class TextCleaner:
 
             # 3. QUANTITATIVE FILTER (Content Check)
             # If it's a standard ref, it needs numbers to survive.
-            if has_std_ref or is_strict_context:
+            if has_std_ref:
                 if not has_strict_quant(clean_sent):
-                    # It's a citation. Now, should we kill the rest of the paragraph?
-                    # Check for Toxic Tail Triggers (e.g., "FASB issued...")
-                    if ACCOUNTING_STANDARDS_STRICT_REGEX.search(clean_sent):
-                        # Stop processing this paragraph entirely.
-                        # We assume the rest is just "Effective date is X..."
-                        break
-
                     continue  # Discard just this sentence, continue to next
 
             # 4. Title Cleaning (Aggressive vs Conservative)
