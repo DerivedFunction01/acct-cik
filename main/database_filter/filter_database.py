@@ -97,6 +97,7 @@ from derivative_regex import (
     TITLE_CLEANER_REGEX,
     TRADING_STATEMENTS_REGEX,
     VERB_REGEX,
+    YEAR_REGEX,
     check_for_instrument,
     cleanup_fragment,
     CATEGORY_CONTEXT_MAP,
@@ -475,77 +476,84 @@ class TextCleaner:
 
     def clean_standards(self, text: str) -> str:
         """
-        Surgically removes accounting standard references and their capitalized titles.
-        Includes 'Aggressive Mode' if high-confidence issuance verbs are found.
+        Surgically removes accounting standard references.
+        Splits into atomic sentences to discard pure citation boilerplate
+        that lacks strict quantitative evidence (numerics other than years).
         """
         if TABLE_ANCHOR in text:
             return text
 
-        # 0. Check for High Confidence Triggers (BEFORE deletion)
-        # If we see "FASB Issued", "Adoption of ASC", etc., we enable aggressive title cleaning.
-        # We reuse the specific Accounting Standard Regex for detection.
-        aggressive_clean = bool(ACCOUNTING_STANDARDS_STRICT_REGEX.search(text))
+        # Helper: Check for numerics (excluding years)
+        def has_strict_quant(s: str) -> bool:
+            # 1. Strip years first (e.g. 1998, 2024) to avoid false positives
+            s_no_year = YEAR_REGEX.sub("", s)
+            # Strip out references too
+            s_no_year = STANDARD_ID_REGEX.sub(" ", s_no_year)
+            # 2. Check for digits or currency/percent symbols
+            # Matches "50", "$", "%", "0.5"
+            return bool(re.search(r"\d|[\$€£¥%]|(?:thousand|million|billion|trillion)", s_no_year))
 
-        # 1. Run the specific Accounting Standard Regex first
-        # This removes "SFAS 133", "FASB Statement No. 133", "in accordance with ASC 815"
-        text = EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", text)
+        # 1. Atomic Split
+        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
+        kept_sentences = []
+        is_strict_context = ACCOUNTING_STANDARDS_STRICT_REGEX.search(text)
+        for sent in sentences:
+            # 2. Detect Context (Before Cleaning)
+            # Does this sentence specifically mention accounting standards?
+            has_std_ref = EXCLUDE_REGEX_ACCOUNTING_STD.search(sent)
+            
+            # 3. Clean the IDs (unconditional cleanup)
+            # e.g. "We adopted ASC 815." -> "We adopted ."
+            # We do this first so "815" isn't counted as a numeric.
+            clean_sent = EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", sent)
+            clean_sent = STANDARD_ID_REGEX.sub(" ", clean_sent)
 
-        # (Assuming STANDARD_ID_REGEX is likely folded into EXCLUDE_REGEX_ACCOUNTING_STD
-        # or handled by the imported regex module. If you have a separate ID regex, run it here.)
-        text = STANDARD_ID_REGEX.sub(" ", text)
+            # 4. QUANTITATIVE FILTER (The New Logic)
+            # If it was an accounting standard sentence, it MUST have real numbers to survive.
+            if has_std_ref or is_strict_context:
+                if not has_strict_quant(clean_sent):
+                    continue  # DISCARD: It was just a citation (e.g. "Adopted in 2023")
 
-        # 2. Run the Title Cleaner
-        def title_replacer(match):
-            match_text = match.group(0)
-            lower_text = match_text.lower()
-            start_pos = match.start()
+            # 5. Title Cleaning (Aggressive vs Conservative)
+            def title_replacer(match):
+                match_text = match.group(0)
+                lower_text = match_text.lower()
+                start_pos = match.start()
 
-            # A. Safety: Ignore short fragments (titles are usually multi-word)
-            if len(match_text.split()) < 2:
-                return match_text
+                if len(match_text.split()) < 2:
+                    return match_text
 
-            # B. Sentence Start Protection
-            # If the match is at the very beginning of the text, or preceded by punctuation,
-            # we treat it as a potential sentence start and are more conservative.
-            # (Check for . ? ! followed by space)
-            is_sentence_start = False
-            if start_pos == 0:
-                is_sentence_start = True
-            elif start_pos > 1:
-                # Check the 2 characters before the match for punctuation + space
-                preceding = text[start_pos - 2 : start_pos]
-                if any(p in preceding for p in [". ", "? ", "! "]):
+                # Sentence Start Protection
+                is_sentence_start = False
+                if start_pos == 0:
                     is_sentence_start = True
-            elif start_pos == 1 and text[0] == "\n":  # Newline check
-                is_sentence_start = True
+                elif start_pos > 1:
+                    preceding = clean_sent[start_pos - 2 : start_pos]
+                    if any(p in preceding for p in [". ", "? ", "! "]):
+                        is_sentence_start = True
 
-            # C. The Double-Key Check
-            has_reporting = any(
-                kw in lower_text for kw in self.TITLE_KEYWORDS_REPORTING
-            )
-            has_deriv = any(kw in lower_text for kw in self.TITLE_KEYWORDS_DERIV)
+                has_reporting = any(
+                    kw in lower_text for kw in self.TITLE_KEYWORDS_REPORTING
+                )
+                has_deriv = any(kw in lower_text for kw in self.TITLE_KEYWORDS_DERIV)
 
-            # ACTION LOGIC:
+                # Scenario 1: Aggressive (Context is Regulatory)
+                if is_strict_context and not is_sentence_start:
+                    if has_deriv:
+                        return " " * len(match_text)
 
-            # Scenario 1: High Confidence Context (Aggressive)
-            # If we saw "FASB Issued", we delete ANY Derivative Title,
-            # effectively bypassing the "Reporting" keyword requirement.
-            # We still require 'has_deriv' to ensure we don't delete "The Company" or "United States".
-            if aggressive_clean and not is_sentence_start:
-                if has_deriv:
+                # Scenario 2: Standard (Context is General)
+                if has_reporting and has_deriv:
                     return " " * len(match_text)
 
-            # Scenario 2: Standard Context (Conservative)
-            # Must have BOTH Reporting + Derivative keywords
-            if has_reporting and has_deriv:
-                return " " * len(match_text)
+                return match_text
 
-            return match_text
+            final_sent = TITLE_CLEANER_REGEX.sub(title_replacer, clean_sent)
 
-        # Apply the title cleaner
-        text = TITLE_CLEANER_REGEX.sub(title_replacer, text)
+            if final_sent.strip():
+                kept_sentences.append(final_sent)
 
-        return text
+        return " ".join(kept_sentences)
 
     def process(self, text: str) -> str:
         """
