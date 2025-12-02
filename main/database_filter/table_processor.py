@@ -85,31 +85,44 @@ class TableToTextConverter:
         header = header.lower()
         if NOISE_HEADERS.search(header):
             return None
+
+        # 1. EXTRACT YEAR FIRST (Critical Fix)
+        # We need to know the year to attach it to the value type.
+        year_match = YEAR_REGEX.search(header)
+        year_suffix = f"_{year_match.group(0)}" if year_match else ""
+
+        # 2. Identify Type
+        col_type = None
         if CONTEXT_HEADERS.search(header):
             return "context_text"
-        if VAR_HEADERS.search(header):
-            return "fair_value"
-        if NOTIONAL_HEADERS.search(header):
-            return "notional"
-        if NET_HEADERS.search(header):
-            return "net_fair_value"
-        if GROSS_HEADERS.search(header):
-            return "gross_fair_value"
-        if LEVEL_HEADERS.search(header):
-            return "fair_value"
-        if VALUE_HEADERS.search(header):
+        elif VAR_HEADERS.search(header):  # VaR is a form of Fair Value risk
+            col_type = "fair_value"
+        elif NOTIONAL_HEADERS.search(header):
+            col_type = "notional"
+        elif NET_HEADERS.search(header):
+            col_type = "net_fair_value"
+        elif GROSS_HEADERS.search(header):
+            col_type = "gross_fair_value"
+        elif LEVEL_HEADERS.search(header):
+            col_type = "fair_value"
+        elif VALUE_HEADERS.search(header):
             if ASSET_HEADERS.search(header):
-                return "asset_fair_value"
-            if LIABILITY_HEADERS.search(header):
-                return "liability_fair_value"
-            return "fair_value"
-        if GAIN_LOSS_HEADERS.search(header):
-            return "gain_loss"
-        if LOCATION_HEADERS.search(header):
-            return "location"
-        year_match = YEAR_REGEX.search(header)
-        if year_match:
-            return f"value_{year_match.group(0)}"
+                col_type = "asset_fair_value"
+            elif LIABILITY_HEADERS.search(header):
+                col_type = "liability_fair_value"
+            else:
+                col_type = "fair_value"
+        # Explicitly ignore Gain/Loss if you only want Notional/FV
+        # elif GAIN_LOSS_HEADERS.search(header):
+        #    col_type = "gain_loss"
+
+        # Fallback: If we have a year but no specific type, assume generic value
+        if not col_type and year_suffix:
+            col_type = "value"
+
+        # 3. Combine
+        if col_type:
+            return f"{col_type}{year_suffix}"
         return None
 
     def _cleanup_spaced_value(self, val: str) -> str:
@@ -224,7 +237,6 @@ class TableToTextConverter:
 
             for i, cell_val in enumerate(row[1:], start=1):
                 col_type = self.col_map.get(i)
-                # Skip invalid values AND skip the context column we just consumed
                 if (
                     not col_type
                     or col_type == "context_text"
@@ -236,25 +248,24 @@ class TableToTextConverter:
                     self._cleanup_spaced_value(cell_val).replace("$", "").strip()
                 )
 
-                if col_type == "notional":
-                    sentences.append(
-                        f"{TABLE_ANCHOR} The Company held {full_instrument_name} with a notional amount of {clean_val}."
-                    )
+                # Parse the type and year from our composite key (e.g. "notional_2023")
+                parts = col_type.split("_")
 
-                elif "fair_value" in col_type:
-                    sentences.append(
-                        f"{TABLE_ANCHOR} The Company held {full_instrument_name} with a fair value of {clean_val}."
-                    )
+                # Detect Year
+                year_str = ""
+                if parts[-1].isdigit() and len(parts[-1]) == 4:
+                    year_str = f"in {parts.pop()} "  # "in 2023 "
 
-                elif col_type == "gain_loss":
-                    sentences.append(
-                        f"{TABLE_ANCHOR} The Company recognized a gain or loss on {full_instrument_name} of {clean_val}."
-                    )
+                base_type = "_".join(parts)  # "notional" or "fair_value"
 
-                elif col_type.startswith("value_"):
-                    year = col_type.split("_")[1]
+                # STRICT FILTER: Only allow Notional and Fair Value
+                if "notional" in base_type:
                     sentences.append(
-                        f"{TABLE_ANCHOR} In {year}, the Company held {full_instrument_name} with a value of {clean_val}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of {clean_val}."
+                    )
+                elif "fair_value" in base_type or "value" == base_type:
+                    sentences.append(
+                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a fair value of {clean_val}."
                     )
 
         return sentences
