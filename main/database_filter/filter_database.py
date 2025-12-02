@@ -1718,28 +1718,46 @@ def filter_matches_with_disambiguation(
     # ═════════════════════════════════════════════════════════════════
     # PASS 2.2: SEQUENTIAL INHERITANCE (Text Extraction Repair)
     # ═════════════════════════════════════════════════════════════════
-    # If a generic sentence follows a specific one (even across paragraphs),
-    # it inherits the specific category. This heals split sentences/paragraphs.
-    # We iterate forward so changes propagate (Daisy Chain).
-    # Add this constant or helper
+    # If a generic sentence follows a specific one (skipping intervening tables),
+    # it inherits the specific category. This heals paragraphs split by data tables.
+    
     for i in range(1, len(sentence_metadata)):
         curr = sentence_metadata[i]
-        prev = sentence_metadata[i - 1]
 
-        # Only affect items currently resolved as "gen" or "other"
-        # (Ignore tables, they have their own strict logic)
-        if (
-            curr["final_category"] in {"gen", "other"}
-            and curr.get("resolution_method") != "table_default"
-        ):
+        # 1. Identify if current sentence is a Table Row
+        #    (We check both the resolution method AND the anchor tag for safety)
+        is_curr_table = (
+            curr.get("resolution_method") == "table_default"
+            or TABLE_ANCHOR in curr["sentence"]
+        )
 
-            # Check the IMMEDIATELY preceding sentence's resolved category
-            prev_cat = prev["final_category"]
+        # 2. Target Condition: Current must be Generic/Other AND NOT a table
+        #    "If a table row is gen, we don't do any resolving"
+        if curr["final_category"] in {"gen", "other"} and not is_curr_table:
 
-            # If previous was specific (e.g., 'ir', 'fx'), inherit it
-            if prev_cat and prev_cat not in {"gen", "other"}:
-                curr["final_category"] = prev_cat
-                curr["resolution_method"] = "sequential_inheritance"
+            # 3. Lookback Logic: Find nearest NON-TABLE predecessor
+            #    "Look back only at non-tabular sentences"
+            prev = None
+            for j in range(i - 1, -1, -1):
+                cand = sentence_metadata[j]
+
+                # Check if candidate is a table row
+                is_cand_table = (
+                    cand.get("resolution_method") == "table_default"
+                    or TABLE_ANCHOR in cand["sentence"]
+                )
+
+                if not is_cand_table:
+                    prev = cand
+                    break
+
+            # 4. Inheritance Logic
+            if prev:
+                prev_cat = prev["final_category"]
+                # If the nearest narrative ancestor was specific, inherit
+                if prev_cat and prev_cat not in {"gen", "other"}:
+                    curr["final_category"] = prev_cat
+                    curr["resolution_method"] = "sequential_inheritance"
     # ═════════════════════════════════════════════════════════════════
     # PASS 2.5: CATEGORY INHERITANCE
     # ═════════════════════════════════════════════════════════════════
@@ -1762,6 +1780,7 @@ def filter_matches_with_disambiguation(
             if meta["final_category"] in {"gen", "other"}:
                 meta["final_category"] = single_cat
                 meta["resolution_method"] = "inheritance"
+
     # ═════════════════════════════════════════════════════════════════
     # PASS 3: POST-RESOLUTION PROCESSING
     # ═════════════════════════════════════════════════════════════════
