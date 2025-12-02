@@ -115,58 +115,46 @@ from derivative_regex import (
 # CONFIGURATION
 # =============================================================================
 PRIORTY = ["fx", "cp", "eq", "cr", "ir"]
-
 from collections import defaultdict
+
+
 class GlobalInstrumentTracker:
     def __init__(self):
-        # Maps instrument token -> set of categories seen with it
-        # e.g. "swap": {"ir"}, "forward": {"fx", "cp"}
         self.instrument_map = defaultdict(set)
 
-    def register_paragraph(self, paragraph, category):
+    def register_paragraph(self, paragraph: str, category: str):
         """
-        Call this during Pass 1 for every High-Confidence (Specific) paragraph. 
-        Why the whole paragraph? Because expand_forward context may miss certain instruments.
+        Registers high-confidence instruments to build the global map.
         """
-        # Extract all the instruments first, (to avoid unsafe bases)
         # 1. Try to find Specific Instruments first (High Confidence)
-        #    e.g. "Interest Rate Caps", "Foreign Exchange Forwards"
-        specific_matches = ALL_REGEX.findall(paragraph)
+        # Use finditer to avoid tuple issues with capturing groups
+        specific_matches = [m.group(0) for m in ALL_REGEX.finditer(paragraph)]
 
         if specific_matches:
             for instr in specific_matches:
                 # Search for the base term INSIDE the specific string
-                # e.g. Extract "Caps" from "Interest Rate Capss"
                 match = BASE_REGEX.search(instr)
                 if match:
-                    # Normalize: "Caps" -> "cap"
                     token = match.group(0).lower().rstrip("s")
                     self.instrument_map[token].add(category)
-
         else:
             # 2. Fallback: Implicit/Soft Context (Medium Confidence)
-            #    Only runs if we found NO specific instruments but the sentence
-            #    was still classified as a category (likely via Soft Regex).
-
-            #    We scan the whole paragraph for bare bases (e.g. "swaps")
-            #    that might have triggered the category via context.
             base_matches = BASE_REGEX.findall(paragraph)
             for instr in base_matches:
                 instr = instr.lower()
-                # Safety check (must end in s)
-                if not instr.endswith("s") and instr not in ["swap"]:
+                # Safety: Enforce plurality for common words (e.g. "futures", "options")
+                # but allow "swap" as it is rarely a non-financial verb here.
+                if not instr.endswith("s") and instr != "swap":
                     continue
+
                 token = instr.rstrip("s")
-                # Safety: Only register if we are ABSOLUTELY sure this base
-                # isn't noise. (BASE_REGEX should be strict).
                 self.instrument_map[token].add(category)
 
-    def resolve_instrument(self, sentence):
+    def resolve_instrument(self, sentence: str):
         """
-        Call this during Pass 2 (Resolution) for Generic sentences.
+        Returns a category if the sentence contains an unambiguous global instrument.
         """
-        # 1. Find potential instruments in the generic sentence
-        # (This is where your Max Munch function ensures we don't partial match)
+        # Find potential instruments in the generic sentence
         matches = BASE_REGEX.findall(sentence)
 
         candidates = set()
@@ -175,14 +163,11 @@ class GlobalInstrumentTracker:
             if token in self.instrument_map:
                 candidates.update(self.instrument_map[token])
 
-        # 2. Decision Logic
+        # Decision Logic
         if len(candidates) == 1:
-            return list(candidates)[0]  # Unambiguous Global Match (e.g., "Swap" -> IR)
+            return list(candidates)[0]  # Unambiguous (e.g., "Swap" -> IR)
 
-        elif len(candidates) > 1:
-            return None  # Collision (e.g. "Option" -> IR and EQ). Fallback to neighbor.
-
-        return None  # No known instrument. Fallback to neighbor.
+        return None  # Collision or Unknown -> Fallback to neighbor logic
 
 
 # --- NEW: ML Resolver -------------------------------------------------
@@ -1453,7 +1438,7 @@ def filter_matches_with_disambiguation(
     # Metadata collection for all sentences across all paragraphs
     sentence_metadata = []
     generic_buffer = []
-    instrument_tracker = defaultdict(set)
+    tracker = GlobalInstrumentTracker()
 
     # ═════════════════════════════════════════════════════════════════
     # PASS 1: SEGMENTATION, VALIDATION, NOISE REDUCTION
@@ -1667,6 +1652,7 @@ def filter_matches_with_disambiguation(
                 meta["final_category"] = primary
                 meta["confidence"] = 1.0
                 meta["resolution_method"] = "specific"
+                tracker.register_paragraph(sentence, primary)
 
             sentence_metadata.append(meta)
 
@@ -1704,6 +1690,22 @@ def filter_matches_with_disambiguation(
                 "confidence": conf,
                 "resolution_method": "ml" if conf > 0.5 else "fallback",
             })
+    # ═════════════════════════════════════════════════════════════════
+    # PASS 2.1: GLOBAL INSTRUMENT RESOLUTION (Tracker)
+    # ═════════════════════════════════════════════════════════════════
+    # Check if we can resolve "gen" sentences using the map we built in Pass 1
+
+    for meta in sentence_metadata:
+        # Only check unresolved or generic items
+        if meta["final_category"] in {"gen", "other"}:
+
+            resolved_cat = tracker.resolve_instrument(meta["sentence"])
+
+            if resolved_cat:
+                meta["final_category"] = resolved_cat
+                meta["resolution_method"] = "global_tracker_resolution"
+                # Note: We set confidence high so it sticks
+                meta["confidence"] = 0.95
 
     # ═════════════════════════════════════════════════════════════════
     # PASS 2.2: SEQUENTIAL INHERITANCE (Text Extraction Repair)
