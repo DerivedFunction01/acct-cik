@@ -3,8 +3,6 @@ import re
 from typing import List, Optional, Tuple
 
 
-
-
 def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
     """
     Build regex alternation pattern, optionally sorting by length (longest first).
@@ -892,7 +890,6 @@ def build_table_regex() -> re.Pattern:
 
 
 TABLE_REGEX = build_table_regex()
-
 def build_smart_regex(
     core_terms: List[str],
     context_terms: str,
@@ -1913,7 +1910,7 @@ DESCRIPTION_VERBS = [
     r"allow(?:s|ed|ing)?",  # allow, allows, allowed
     r"restrict(?:s|ed|ing)?",  # restrict, restricts, restricted
     r"mandat(?:es?|ed|ing)",  # mandate, mandates, mandated
-    r"expand(?s?|ed|ing)?",  # expand, expands (added per your previous request)
+    r"expand(?:s?|ed|ing)?",  # expand, expands (added per your previous request)
 ]
 
 # --- ADOPTION VERBS: FUTURE INTENT ---
@@ -2134,6 +2131,7 @@ ACCOUNTING_STANDARDS_SOFT = [
 
 # --- 3. COMBINED LIST (For General Filtering) ---
 ACCOUNTING_STANDARDS_KEYWORDS = ACCOUNTING_STANDARDS_STRICT + ACCOUNTING_STANDARDS_SOFT
+print(r"|".join(ACCOUNTING_STANDARDS_STRICT))
 ACCOUNTING_STANDARDS_STRICT_REGEX = re.compile(
     r"|".join(ACCOUNTING_STANDARDS_STRICT), re.IGNORECASE
 )
