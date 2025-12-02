@@ -477,8 +477,12 @@ class TextCleaner:
     def clean_standards(self, text: str) -> str:
         """
         Surgically removes accounting standard references.
-        Splits into atomic sentences to discard pure citation boilerplate
-        that lacks strict quantitative evidence (numerics other than years).
+
+        New Logic:
+        1. atomic split: Process sentence by sentence.
+        2. Content Filter: Discard citation sentences lacking strict numerics.
+        3. Toxic Tail: If an "Issuer Statement" (FASB Issued/Adopted) is found,
+           we assume the REST of the paragraph is regulatory boilerplate and discard it.
         """
         if TABLE_ANCHOR in text:
             return text
@@ -493,28 +497,33 @@ class TextCleaner:
             # Matches "50", "$", "%", "0.5"
             return bool(re.search(r"\d|[\$€£¥%]|(?:thousand|million|billion|trillion)", s_no_year))
 
-        # 1. Atomic Split
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
         kept_sentences = []
-        is_strict_context = ACCOUNTING_STANDARDS_STRICT_REGEX.search(text)
+
         for sent in sentences:
-            # 2. Detect Context (Before Cleaning)
-            # Does this sentence specifically mention accounting standards?
+            # 1. Detect Context
             has_std_ref = EXCLUDE_REGEX_ACCOUNTING_STD.search(sent)
-            
-            # 3. Clean the IDs (unconditional cleanup)
-            # e.g. "We adopted ASC 815." -> "We adopted ."
-            # We do this first so "815" isn't counted as a numeric.
+            # Use the strict regex if available, otherwise fallback to standard
+            is_strict_context = ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent)
+
+            # 2. Clean the IDs (unconditional cleanup)
             clean_sent = EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", sent)
             clean_sent = STANDARD_ID_REGEX.sub(" ", clean_sent)
 
-            # 4. QUANTITATIVE FILTER (The New Logic)
-            # If it was an accounting standard sentence, it MUST have real numbers to survive.
+            # 3. QUANTITATIVE FILTER (Content Check)
+            # If it's a standard ref, it needs numbers to survive.
             if has_std_ref or is_strict_context:
                 if not has_strict_quant(clean_sent):
-                    continue  # DISCARD: It was just a citation (e.g. "Adopted in 2023")
+                    # It's a citation. Now, should we kill the rest of the paragraph?
+                    # Check for Toxic Tail Triggers (e.g., "FASB issued...")
+                    if ACCOUNTING_STANDARDS_STRICT_REGEX.search(clean_sent):
+                        # Stop processing this paragraph entirely.
+                        # We assume the rest is just "Effective date is X..."
+                        break
 
-            # 5. Title Cleaning (Aggressive vs Conservative)
+                    continue  # Discard just this sentence, continue to next
+
+            # 4. Title Cleaning (Aggressive vs Conservative)
             def title_replacer(match):
                 match_text = match.group(0)
                 lower_text = match_text.lower()
@@ -523,7 +532,6 @@ class TextCleaner:
                 if len(match_text.split()) < 2:
                     return match_text
 
-                # Sentence Start Protection
                 is_sentence_start = False
                 if start_pos == 0:
                     is_sentence_start = True
@@ -537,7 +545,7 @@ class TextCleaner:
                 )
                 has_deriv = any(kw in lower_text for kw in self.TITLE_KEYWORDS_DERIV)
 
-                # Scenario 1: Aggressive (Context is Regulatory)
+                # Aggressive Mode for Strict Context
                 if is_strict_context and not is_sentence_start:
                     if has_deriv:
                         return " " * len(match_text)
