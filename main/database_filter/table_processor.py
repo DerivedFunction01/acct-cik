@@ -48,7 +48,7 @@ SECTION_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
-TABLE_ANCHOR = "_T^"
+TABLE_ANCHOR = " T_ "
 class TableToTextConverter:
     def __init__(self, table_text: str):
         self.raw_text = table_text
