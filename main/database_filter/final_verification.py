@@ -90,7 +90,6 @@ POLICY_TERMS = [
     r"effectiveness\s+(?:is|was)\s+assessed",
     r"highly\s+effective",
     r"qualif(?:y|ies|ied)\s+for\s+hedge\s+accounting",
-    r"designat(?:ed|ion)\s+as\s+(?:a\s+)?hedge",
     r"prospectively",
     r"retrospectively",
     r"economic\s+relationship",
