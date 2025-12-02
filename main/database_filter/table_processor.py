@@ -253,12 +253,16 @@ class TableToTextConverter:
             full_instrument_name = (
                 f"{' '.join(active_context)} {row_label}{row_context_str}"
             )
-
+            # --- NEW: DETECT ROW-LEVEL NOTIONAL INTENT ---
+            # If the row label says "Principal", "Contract Amount", or "Volume",
+            # we treat all generic values in this row as Notionals.
+            row_implies_notional = bool(NOTIONAL_HEADERS.search(full_instrument_name))
+            
             # --- FILTER: Check if Row+Context is a valid derivative ---
             # If not, skip the row (unless it's a "Total" row we want? No, usually not.)
-            if not SOFT_REGEX.search(full_instrument_name) or TABLE_REGEX.search(
+            if not (row_implies_notional or SOFT_REGEX.search(full_instrument_name) or TABLE_REGEX.search(
                 full_instrument_name
-            ):
+            )):
                 continue
 
             for i, cell_val in enumerate(row[1:], start=1):
