@@ -874,7 +874,6 @@ def build_table_regex() -> re.Pattern:
     table_safe_plurals = [
         "futures",
         "forwards",
-        "options",
         "warrants",
         "hedges",
         "collars",
