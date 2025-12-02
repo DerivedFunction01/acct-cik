@@ -270,7 +270,7 @@ MAX_SENTENCE_LENGTH = 800 # A very long sentence is probably a table that became
 
 # 1. Complex Debt Term (Requires Lookbehind)
 # Helper for the base terms to avoid repetition
-_DEBT_TERMS = r"(?:debts?|loans?|borrow(?:ing|ed)?|bonds?|senior notes?|notes?|debentures?)"
+_DEBT_TERMS = r"(?:debts?|loans?|borrowings?|bonds?|senior notes?|notes?|debentures?)"
 
 # 1. Complex Debt Term (Consolidated)
 # Logic: Match DEBT only if:
@@ -699,7 +699,7 @@ EQ_CONTEXT_TERMS = [
     r"(?:preferred|common)\s+stock",
     # --- D. Structures & Events ---
     r"warrants?",
-    rf"(?:convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies)))",
+    rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     r"initial\s+public\s+offering|IPO",
     r"primary\s+market|secondary\s+market",
     r"accelerated\s+share\s+repurchases?",  # ASR is a derivative
@@ -711,7 +711,7 @@ EQ_CONTEXT_TERMS = [
 
 EQ_CONTEXT_TERMS += VALUATION_MODELS
 
-_CR_LINKED_DEBT = rf"credit[- ]linked\s+(?:{_DEBT_TERMS})"
+_CR_LINKED_DEBT = rf"credit[- ]linked\s+{_DEBT_TERMS}"
 
 CR_CONTEXT_TERMS = [
     # --- A. Explicit Instruments (Broad Match) ---
@@ -1004,10 +1004,10 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern]:
     soft_core_alt = build_alternation(soft_core_terms, sort_longest_first=True)
 
     # --- 2. Specific Instrument Phrases (Max Munch) ---
-    cln_pattern = rf"credit[- ]linked\s+(?:{_DEBT_TERMS})"
+    cln_pattern = rf"credit[- ]linked\s+{_DEBT_TERMS}"
     specific_phrases = [ # None for this one
         cln_pattern,
-        "credit swaps?"
+        "credit swaps"
     ]
 
     sorted_specific_phrases = sorted(
@@ -1385,14 +1385,13 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     ]
     strict_core_alternation = build_alternation(strict_core_terms, True)
 
-
     # 2. Build Specific Phrases (Max Munch) - UNIFIED LIST
     # Convertible phrases (Structural Embedded Derivatives)
     convertible_phrases = [
         rf"embedded\s+conversion\s+(?:{option}|features?|{derivative})",
         rf"conversion\s+option\s+{liability}",
         rf"bifurcated\s+conversion\s+{option}",
-        rf"(?:convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
+        rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     ]
 
     # Warrant liabilities (Financial Warrants only)
@@ -3407,7 +3406,7 @@ EQ_STRICT_TERMS = [
     rf"stock\s+(?:price|appreciation|option|{_RISK_ALTERNATION})",
     rf"share\s+(?:price|{_RISK_ALTERNATION})",
     # 2. Convertible Instruments
-    rf"(?:convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
+    rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     # 3. Embedded Features (REMOVED: "derivative" as requested)
     # Only matches specific features now, reducing noise.
     r"embedded\s+(?:conversion|option)",
