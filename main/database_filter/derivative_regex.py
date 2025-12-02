@@ -2624,21 +2624,30 @@ _CLEAN_TRAILING_JUNK = re.compile(r"[\s.;,]+$")
 _CLEAN_SPACE_COMMA = re.compile(r"\s+,")
 _CLEAN_COMMA_SPACE = re.compile(r",\s+")
 _CLEAN_SPACE_SEMICOLON = re.compile(r"\s+;")
+_CLEAN_AND = re.compile(r"(?:\s{2,}and\b|\band\s{2,}|,\s*and\s{2,})")
 
 
 def cleanup_fragment(sentence: str) -> str:
     """
-    Clean up punctuation mess after surgically removing trading-denial clauses.
-    This turns: ", but we hedge." → "but we hedge."
-                "We only use swaps to manage risk ;" → "We only use swaps to manage risk"
+    Clean up punctuation mess after surgically removing words
     """
+    # 1. Remove dangling "and"
+    sentence = _CLEAN_AND.sub("", sentence)
+
+    # 2. Normalize punctuation spacing
     sentence = _CLEAN_SPACE_COMMA.sub(",", sentence)
     sentence = _CLEAN_COMMA_SPACE.sub(", ", sentence)
     sentence = _CLEAN_SPACE_SEMICOLON.sub(";", sentence)
+
+    # 3. Remove leading/trailing junk
     sentence = _CLEAN_LEADING_JUNK.sub("", sentence)
     sentence = _CLEAN_TRAILING_JUNK.sub("", sentence)
-    sentence = sentence.strip()
-    return sentence if len(sentence) > 10 else "" # too short we don't return anything
+
+    # 4. Collapse spaces and strip
+    sentence = re.sub(r"\s+", " ", sentence).strip()
+
+    return sentence if len(sentence) > 10 else ""
+
 
 # ... existing code ...
 # =============================================================================
