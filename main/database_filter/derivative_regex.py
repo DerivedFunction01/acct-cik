@@ -3184,9 +3184,10 @@ def build_information_reference_regex() -> re.Pattern:
     conn_pat = build_alternation(connectors)
 
     # Structure: "For" + [Adjective] + [Noun] + (Optional [Connector])
+    # Structure: "For" + (Optional [Adjective]) + [Noun] + (Optional [Connector])
     pattern = (
         rf"([Ff]or)?\s+"
-        rf"(?:a\s+|an\s+)?(?:{adj_pat})\s+"
+        rf"(?:(?:a\s+|an\s+)?(?:{adj_pat})\s+)?"  # <--- Added '?' at the end to make the whole block optional
         rf"(?:{noun_pat})"
         rf"(?:\s+(?:{conn_pat}))?"
     )
