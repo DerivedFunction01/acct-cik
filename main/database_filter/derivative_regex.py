@@ -699,7 +699,7 @@ EQ_CONTEXT_TERMS = [
     r"(?:preferred|common)\s+stock",
     # --- D. Structures & Events ---
     r"warrants?",
-    r"(?:convertible\s+(?:debt|notes?|bonds?|securit(?:y|ies)))",
+    rf"(?:convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies)))",
     r"initial\s+public\s+offering|IPO",
     r"primary\s+market|secondary\s+market",
     r"accelerated\s+share\s+repurchases?",  # ASR is a derivative
@@ -1392,7 +1392,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"embedded\s+conversion\s+(?:{option}|features?|{derivative})",
         rf"conversion\s+option\s+{liability}",
         rf"bifurcated\s+conversion\s+{option}",
-        rf"{derivative}\s+{liability}\s+\S*convertible\s+notes?",
+        rf"(?:convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     ]
 
     # Warrant liabilities (Financial Warrants only)
@@ -3407,7 +3407,7 @@ EQ_STRICT_TERMS = [
     rf"stock\s+(?:price|appreciation|option|{_RISK_ALTERNATION})",
     rf"share\s+(?:price|{_RISK_ALTERNATION})",
     # 2. Convertible Instruments
-    r"convertible\s+(?:debt|notes?|bonds?|debentures?)",
+    rf"(?:convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     # 3. Embedded Features (REMOVED: "derivative" as requested)
     # Only matches specific features now, reducing noise.
     r"embedded\s+(?:conversion|option)",
