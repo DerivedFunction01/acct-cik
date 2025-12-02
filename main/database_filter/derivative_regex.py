@@ -3008,10 +3008,9 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
             remaining = remaining[:-1]
         return True if len(remaining) > 5 else False
 
-    # 1.5 If specfics failed, soft regex only if there is hedging context
+    # 1.5 If specfics failed, soft regex only (we trust the context anyways)
     if SOFT_CATEGORY_REGEX.search(sentence):
-        if HEDGING_CONTEXT_REGEX.search(sentence):
-            return True
+        return True
 
     # 2. STRICT GENERICS (Notionals, "Swap Agreements")
     # ONLY Valid if we have Context (Anchor) or Recency (Year Promotion).
@@ -3025,7 +3024,7 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     # Requires Context (Anchor) AND Hedging Keywords.
     if not strict:
         if LOOSE_GEN_REGEX.search(sentence):
-            if HEDGING_CONTEXT_REGEX.search(sentence):
+            if HEDGING_CONTEXT_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
                 return True
 
     return False
