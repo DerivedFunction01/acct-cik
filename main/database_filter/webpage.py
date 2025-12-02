@@ -114,6 +114,7 @@ from derivative_regex import (
     SOFT_GEN_REGEX,  # <--- NEW: The "Accounting" Savior
     HEADER_CLEANUP_PATTERNS,
     EXCLUDE_REGEX_FORWARD_LOOKING,
+    TABLE_REGEX,
 )
 
 FILING_TYPES = {
@@ -666,7 +667,7 @@ def filter_by_keywords(content: str) -> list[str]:
                 continue
 
             # 2. Capture Logic (Tables are often minimal, so we trust matches more)
-            if ALL_REGEX.search(part) or BASE_REGEX.search(part):
+            if ALL_REGEX.search(part) or TABLE_REGEX.search(part):
 
                 # 3. Salvage Logic (Comp)
                 if EXCLUDE_REGEX_EQUITY_COMP.search(part):
@@ -740,7 +741,6 @@ def filter_by_keywords(content: str) -> list[str]:
                 # -------------------------------------------------
                 # 3. EXCLUSION / SALVAGE LOGIC
                 # -------------------------------------------------
-
 
                 # B. Equity Compensation: Conditional Delete
                 if EXCLUDE_REGEX_EQUITY_COMP.search(para):

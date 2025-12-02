@@ -3,19 +3,15 @@ from typing import Dict, List, Tuple, Set
 import re
 
 # Ensure we can import local modules
-try:
-    from derivative_regex import (
-        IR_REGEX,
-        FX_REGEX,
-        CP_REGEX,
-        EQ_REGEX,
-        GEN_REGEX,
-        CR_REGEX,
-    )
-except ImportError:
-    print("Error: Could not import from derivative_regex.py")
-    print("Ensure derivative_regex.py is in the execution path.")
-    sys.exit(1)
+
+from derivative_regex import (
+    IR_REGEX,
+    FX_REGEX,
+    CP_REGEX,
+    EQ_REGEX,
+    GEN_REGEX,
+    CR_REGEX,
+)
 
 # =============================================================================
 # 1. DYNAMIC INSTRUMENT GENERATORS

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import re
 from typing import List, Optional, Tuple
 
-from table_processor import TABLE_ANCHOR
+
 
 
 def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
@@ -850,6 +850,7 @@ AMBIGUOUS_BASE_TYPES = [
     "strangles?"
 ]
 
+
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
 HIGH_PRECISION_SUFFIXES = re.compile(r"\b" + build_alternation(UNAMBIGUOUS_BASE_TYPES) + r"\b", re.IGNORECASE)
 ALL_SUFFIXES = [
@@ -860,6 +861,38 @@ ALL_SUFFIXES = [
     "arrangements?",
     "options?",
 ]
+# =============================================================================
+# TABLE SPECIFIC REGEX
+# =============================================================================
+def build_table_regex() -> re.Pattern:
+    """
+    A stricter regex for table filtering that eliminates singular noise
+    (future, option, forward) but keeps the plurals often found in headers.
+    """
+
+    # 1. Safe Plurals (Standalones that are safe in tables)
+    # Note: 'swaps' and 'derivatives' are already in ALL_REGEX via GEN_REGEX
+    # We add the others that are usually unsafe singular but safe plural.
+    table_safe_plurals = [
+        "futures",
+        "forwards",
+        "options",
+        "warrants",
+        "hedges",
+        "collars",
+        "swaptions",
+        "derivatives",
+        "swaps",
+    ] + SPECIAL_BASE
+    plural_pattern = build_alternation(table_safe_plurals, sort_longest_first=True)
+
+    return re.compile(
+        rf"\b{plural_pattern}\b", re.IGNORECASE
+    )
+
+
+TABLE_REGEX = build_table_regex()
+
 def build_smart_regex(
     core_terms: List[str],
     context_terms: str,
@@ -1699,6 +1732,8 @@ EQUITY_COMP_KEYWORDS = [
     "wage",
     "payroll",
     "severance",
+    "common shares?",
+    "treasury stocks?",
 ]
 
 PLAN_ASSETS_KEYWORDS = [
@@ -2938,6 +2973,7 @@ def build_termination_regex() -> re.Pattern:
 # (It is likely already imported or defined in derivative_regex.py)
 
 def check_for_instrument(sentence: str, strict: bool = False) -> bool:
+    from table_processor import TABLE_ANCHOR
     """
     Determines if the instrument name is still present in the paragraph/sentence.
     """
