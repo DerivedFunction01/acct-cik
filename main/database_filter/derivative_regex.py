@@ -1909,8 +1909,8 @@ IMPACT_PHRASES = [
 # --- IMPACT RESULT PHRASES ---
 IMPACT_RESULT_PHRASES = [
     r"(?:not\s+)?expected\s+to\s+have\s+a\s+material\s+(?:impact|effect)",
-    r"no\s+material\s+impact",
-    r"immaterial\s+impact",
+    r"no\s+material\s+(?:impact|effect)",
+    r"immaterial\s+(?:impact|effect)",
 ]
 
 # --- ADOPTION PERMISSIBILITY PHRASES ---
@@ -2003,7 +2003,7 @@ ACCOUNTING_STANDARDS_STRICT = [
     # Dated Issuance ("In June 2022, the FASB issued...")
     rf"{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUER_FRAGMENT}\s+{ISSUANCE_VERBS_FRAGMENT}",
     # Issuer + Issuance ("FASB issued...")
-    rf"{ISSUER_FRAGMENT}\s+(?:in\s+{STANDARD_ID_PATTERN}\s+)?{ISSUANCE_VERBS_FRAGMENT}",
+    rf"{ISSUER_FRAGMENT}\s+(?:in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*)?{ISSUANCE_VERBS_FRAGMENT}(?:\s+in\s+{MONTHS_FRAGMENT}\s+(?:\d{{4}})?)?",
     
     # Standard ID + Issuance ("ASU 2016-13 was issued...")
     rf"{STANDARD_ID_PATTERN}\s+(?:was|is)\s+{ISSUANCE_VERBS_FRAGMENT}",
