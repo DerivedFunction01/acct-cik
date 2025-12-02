@@ -1418,7 +1418,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     soft_pattern = build_smart_regex(
         [strict_core_alternation], 
         soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
-        sorted_specific_phrases + ["warrants"],  # All high-priority explicit phrases
+        sorted_specific_phrases + [r"(?!stock[- ])warrants"],  # All high-priority explicit phrases
     )
     soft_eq_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
 
