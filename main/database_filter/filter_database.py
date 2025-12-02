@@ -126,9 +126,8 @@ class GlobalInstrumentTracker:
     def register_paragraph(self, paragraph, category):
         """
         Call this during Pass 1 for every High-Confidence (Specific) paragraph. 
+        Why the whole paragraph? Because expand_forward context may miss certain instruments.
         """
-        # Use your expand_instruments logic here to find the "Base"
-        # or simply extract the instrument using your specific regexes.
         # Extract all the instruments first, (to avoid unsafe bases)
         # 1. Try to find Specific Instruments first (High Confidence)
         #    e.g. "Interest Rate Caps", "Foreign Exchange Forwards"
@@ -1454,6 +1453,7 @@ def filter_matches_with_disambiguation(
     # Metadata collection for all sentences across all paragraphs
     sentence_metadata = []
     generic_buffer = []
+    instrument_tracker = defaultdict(set)
 
     # ═════════════════════════════════════════════════════════════════
     # PASS 1: SEGMENTATION, VALIDATION, NOISE REDUCTION
@@ -1704,32 +1704,14 @@ def filter_matches_with_disambiguation(
                 "confidence": conf,
                 "resolution_method": "ml" if conf > 0.5 else "fallback",
             })
+
     # ═════════════════════════════════════════════════════════════════
-    # PASS 2.1: SEQUENTIAL INHERITANCE (Text Extraction Repair)
+    # PASS 2.2: SEQUENTIAL INHERITANCE (Text Extraction Repair)
     # ═════════════════════════════════════════════════════════════════
     # If a generic sentence follows a specific one (even across paragraphs),
     # it inherits the specific category. This heals split sentences/paragraphs.
     # We iterate forward so changes propagate (Daisy Chain).
     # Add this constant or helper
-
-    def get_base_term(text: str) -> Optional[str]:
-        """Finds which base term appears in the text."""
-        text_lower = text.lower()
-        for term in ALL_BASE_TYPES:
-            # Simple inclusion check, or use regex boundary \bterm\b if needed
-            if term in text_lower:
-                return term
-        return None
-    instrument_vocab = {term: set() for term in ALL_BASE_TYPES}
-
-    for meta in sentence_metadata:
-        # Only learn from SPECIFIC categories (High Confidence)
-        if meta["final_category"] and meta["final_category"] not in {"gen", "other"}:
-
-            # Check what base term is in this specific sentence
-            base = get_base_term(meta["sentence"])
-            if base:
-                instrument_vocab[base].add(meta["final_category"])
     for i in range(1, len(sentence_metadata)):
         curr = sentence_metadata[i]
         prev = sentence_metadata[i - 1]
