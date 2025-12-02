@@ -793,6 +793,7 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     "shipment",
     "receipt",
     "inventory",
+    "liability", # Forward liability
     "stock",
     "looking", # Just added it here against forward-looking
 ]
@@ -1476,16 +1477,31 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     pattern4 = special_bases_alt
 
     # Combine with specific phrases first (highest priority)
+    # Combine with specific phrases first (highest priority)
     specific_phrases = [
         "cash flow hedges?",
         "fair value hedges?",
+        "embedded derivative (?:asset|liabilit(?:y|ies))",
         "embedded derivatives?",
         "over[- ]the[- ]counter derivatives?",
         "derivative financial instruments?",
         "financial derivatives?",
+        
+        # Derivative/Swap Balance Sheet Items
         "derivative assets?",
         "derivative liabilit(?:y|ies)",
+        "swap liabilit(?:y|ies)",
+        "swap assets?",  # <-- NEW
+        
+        # Hedging Balance Sheet Items
+        "hedging assets?",            # <-- NEW
+        "hedging liabilit(?:y|ies)",  # <-- NEW
+        
+        # Explicit "Safe" Variants for Ambiguous Bases
         "forward contracts",
+        "forward agreements?",        # <-- NEW
+        "option contracts?",          # <-- NEW
+        "option agreements?",         # <-- NEW
     ]
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
@@ -1616,20 +1632,26 @@ SOFT_REGEX = re.compile(
 )
 LOOSE_GEN_REGEX = build_loose_gen_regex()
 ALL_REGEX = re.compile(
-    r"|".join([IR_SOFT_REGEX.pattern,
-            FX_SOFT_REGEX.pattern,
-            CP_SOFT_REGEX.pattern,
-            EQ_SOFT_REGEX.pattern,
-            CR_SOFT_REGEX.pattern,
-            IR_REGEX.pattern,
+    r"|".join(
+        [
             FX_REGEX.pattern,
             CP_REGEX.pattern,
             EQ_REGEX.pattern,
-            SOFT_GEN_REGEX.pattern,
-            GEN_REGEX.pattern,
-            STRICT_NOTIONAL_REGEX.pattern,
+            IR_REGEX.pattern,
             CR_REGEX.pattern,
-            ]), re.IGNORECASE
+            
+            FX_SOFT_REGEX.pattern,
+            CP_SOFT_REGEX.pattern,
+            EQ_SOFT_REGEX.pattern,
+            IR_SOFT_REGEX.pattern,
+            CR_SOFT_REGEX.pattern,
+            GEN_REGEX.pattern,
+            SOFT_GEN_REGEX.pattern,
+            STRICT_NOTIONAL_REGEX.pattern,
+           
+        ]
+    ),
+    re.IGNORECASE,
 )
 CATEGORY_DELETION_MAP = {
     "ir": (IR_REGEX, IR_SOFT_REGEX, IR_CONTEXT_REGEX),

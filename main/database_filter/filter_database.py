@@ -123,17 +123,44 @@ class GlobalInstrumentTracker:
         # e.g. "swap": {"ir"}, "forward": {"fx", "cp"}
         self.instrument_map = defaultdict(set)
 
-    def register_sentence(self, sentence, category):
+    def register_paragraph(self, paragraph, category):
         """
-        Call this during Pass 1 for every High-Confidence (Specific) sentence.
+        Call this during Pass 1 for every High-Confidence (Specific) paragraph. 
         """
         # Use your expand_instruments logic here to find the "Base"
         # or simply extract the instrument using your specific regexes.
-        match = BASE_REGEX.search(sentence)
-        if match:
-            # Clean the match (normalize "swaps" -> "swap")
-            token = match.group(0).lower().rstrip("s")
-            self.instrument_map[token].add(category)
+        # Extract all the instruments first, (to avoid unsafe bases)
+        # 1. Try to find Specific Instruments first (High Confidence)
+        #    e.g. "Interest Rate Caps", "Foreign Exchange Forwards"
+        specific_matches = ALL_REGEX.findall(paragraph)
+
+        if specific_matches:
+            for instr in specific_matches:
+                # Search for the base term INSIDE the specific string
+                # e.g. Extract "Caps" from "Interest Rate Capss"
+                match = BASE_REGEX.search(instr)
+                if match:
+                    # Normalize: "Caps" -> "cap"
+                    token = match.group(0).lower().rstrip("s")
+                    self.instrument_map[token].add(category)
+
+        else:
+            # 2. Fallback: Implicit/Soft Context (Medium Confidence)
+            #    Only runs if we found NO specific instruments but the sentence
+            #    was still classified as a category (likely via Soft Regex).
+
+            #    We scan the whole paragraph for bare bases (e.g. "swaps")
+            #    that might have triggered the category via context.
+            base_matches = BASE_REGEX.findall(paragraph)
+            for instr in base_matches:
+                instr = instr.lower()
+                # Safety check (must end in s)
+                if not instr.endswith("s") and instr not in ["swap"]:
+                    continue
+                token = instr.rstrip("s")
+                # Safety: Only register if we are ABSOLUTELY sure this base
+                # isn't noise. (BASE_REGEX should be strict).
+                self.instrument_map[token].add(category)
 
     def resolve_instrument(self, sentence):
         """
