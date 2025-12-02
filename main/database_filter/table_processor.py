@@ -1,28 +1,18 @@
 import re
 from typing import List, Dict, Optional, Tuple
 from table_cleanup import extract_table_content
-from derivative_regex import SOFT_REGEX, YEAR_REGEX
+from derivative_regex import SOFT_REGEX, TABLE_REGEX, YEAR_REGEX
 
 # --- 1. EXPANDED HEADER DEFINITIONS ---
-
-# Context/Purpose Headers
 CONTEXT_HEADERS = re.compile(
     r"purpose|risk|objective|hedged item|comments|description", re.IGNORECASE
 )
-
-# Value at Risk (Strong Signal)
 VAR_HEADERS = re.compile(r"\bvar\b|value[- ]at[- ]risk", re.IGNORECASE)
-
-# Expanded Notional
 NOTIONAL_HEADERS = re.compile(
     r"notional|principal|contract\s+(?:amount|volume|value)", re.IGNORECASE
 )
-
-# Netting / Offsetting (ASC 210-20)
 NET_HEADERS = re.compile(r"net\s+amount|net\s+presented|total\s+net", re.IGNORECASE)
 GROSS_HEADERS = re.compile(r"gross\s+amount|gross\s+recognized", re.IGNORECASE)
-
-# Standard Values
 LEVEL_HEADERS = re.compile(r"level\s*[123]", re.IGNORECASE)
 VALUE_HEADERS = re.compile(r"(?:fair|market|carrying)\s+value|balance", re.IGNORECASE)
 ASSET_HEADERS = re.compile(r"asset", re.IGNORECASE)
@@ -30,17 +20,11 @@ LIABILITY_HEADERS = re.compile(r"liabilit", re.IGNORECASE)
 GAIN_LOSS_HEADERS = re.compile(
     r"gain|loss|income|earnings|oci|comprehensive", re.IGNORECASE
 )
-
-# Location
 LOCATION_HEADERS = re.compile(r"location|sheet|line item", re.IGNORECASE)
-
-# Noise to Ignore
 NOISE_HEADERS = re.compile(
     r"strike|exercise|shares|units|count|ratio|rate|maturity|date|weighted",
     re.IGNORECASE,
 )
-
-# Context Row Keywords
 SECTION_KEYWORDS = re.compile(
     r"designated as|hedging instruments|underlying risk|derivatives not designated|"
     r"cash flow|fair value|net investment|assets|liabilities|equity contracts|warrants|"
@@ -49,22 +33,58 @@ SECTION_KEYWORDS = re.compile(
 )
 
 TABLE_ANCHOR = " T_ "
+
 class TableToTextConverter:
     def __init__(self, table_text: str):
         self.raw_text = table_text
+
+        # 1. Extract & Analyze Caption (New)
+        self.caption = self._extract_caption(table_text)
+        self.table_default_type = self._analyze_caption_context(self.caption)
+
+        # 2. Extract Data
         self.headers, self.data = extract_table_content(table_text)
         self.flattened_headers = self._flatten_headers()
 
-        # 1. Initial Classification via Headers
+        # 3. Classify Columns (using caption context)
         self.col_map = {
             i: self._classify_column(h) for i, h in enumerate(self.flattened_headers)
         }
 
-        # 2. Heuristic Refinement (The "Second Column" Rule)
         self._apply_column_heuristics()
-
-        # 3. Conflict Resolution (Gross vs Net)
         self._resolve_offsetting_conflicts()
+
+    def _extract_caption(self, text: str) -> str:
+        """
+        Extracts text following the <caption> tag up to the newline.
+        Format: <table>\n<caption> My Table Title\n...
+        """
+        match = re.search(r"<caption>\s*(.*)", text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return ""
+
+    def _analyze_caption_context(self, caption: str) -> Optional[str]:
+        """
+        Determines the default value type for the table based on the caption.
+        Useful when headers are just years (e.g. '2023' | '2022').
+        """
+        if not caption:
+            return None
+
+        caption_lower = caption.lower()
+
+        # Check specific types
+        if NOTIONAL_HEADERS.search(caption_lower):
+            return "notional"
+        if VAR_HEADERS.search(caption_lower):
+            return "fair_value"  # VaR is treated as FV risk metric
+        if VALUE_HEADERS.search(caption_lower):
+            return "fair_value"
+        if GAIN_LOSS_HEADERS.search(caption_lower):
+            return "gain_loss"
+
+        return None
 
     def _flatten_headers(self) -> List[str]:
         if not self.headers:
@@ -86,16 +106,15 @@ class TableToTextConverter:
         if NOISE_HEADERS.search(header):
             return None
 
-        # 1. EXTRACT YEAR FIRST (Critical Fix)
-        # We need to know the year to attach it to the value type.
+        # 1. EXTRACT YEAR FIRST
         year_match = YEAR_REGEX.search(header)
         year_suffix = f"_{year_match.group(0)}" if year_match else ""
 
-        # 2. Identify Type
+        # 2. Identify Type (Header Override)
         col_type = None
         if CONTEXT_HEADERS.search(header):
             return "context_text"
-        elif VAR_HEADERS.search(header):  # VaR is a form of Fair Value risk
+        elif VAR_HEADERS.search(header):
             col_type = "fair_value"
         elif NOTIONAL_HEADERS.search(header):
             col_type = "notional"
@@ -112,30 +131,26 @@ class TableToTextConverter:
                 col_type = "liability_fair_value"
             else:
                 col_type = "fair_value"
-        # Explicitly ignore Gain/Loss if you only want Notional/FV
-        # elif GAIN_LOSS_HEADERS.search(header):
-        #    col_type = "gain_loss"
 
-        # Fallback: If we have a year but no specific type, assume generic value
+        # 3. Fallback to Caption Context
+        # If we found a year but no specific type in the header, look at the caption.
+        # e.g. Header="2024", Caption="Notional Amounts" -> Type="notional"
         if not col_type and year_suffix:
-            col_type = "value"
+            if self.table_default_type:
+                col_type = self.table_default_type
+            else:
+                col_type = "value"  # Generic fallback
 
-        # 3. Combine
+        # 4. Combine
         if col_type:
             return f"{col_type}{year_suffix}"
+
         return None
 
     def _cleanup_spaced_value(self, val: str) -> str:
-        """
-        Removes excess whitespace from numerical values.
-        Examples: "$(100    )" -> "$(100)", "100   .5" -> "100.5"
-        """
-        # Remove spaces between digits and punctuation
         val = re.sub(r"(\d)\s+([().,])", r"\1\2", val)
-        # Remove spaces between punctuation and digits
         val = re.sub(r"([().,])\s+(\d)", r"\1\2", val)
-        # Collapse multiple internal spaces to single space
-        val = re.sub(r"\s+", " ", val)
+        val = re.sub(r"\s+", "", val)
         return val
 
     def _is_valid_value(self, val: str) -> bool:
@@ -146,35 +161,20 @@ class TableToTextConverter:
         return bool(re.match(r"^-?\d+(?:\.\d+)?$", clean))
 
     def _apply_column_heuristics(self):
-        """
-        Applies data-driven heuristics to classify ambiguous columns.
-        Specific Rule: If Column 2 (Index 1) is unclassified AND contains text (not numbers),
-        treat it as a Context/Purpose column.
-        """
-        # Target Index 1 (Second column)
         TARGET_IDX = 1
-
-        # Only run if column exists and is currently unclassified
         if TARGET_IDX not in self.col_map or self.col_map[TARGET_IDX] is not None:
             return
-
-        # Scan the first 5 data rows to check content type
         text_rows = 0
         numeric_rows = 0
-
         for row in self.data[:5]:
             if len(row) > TARGET_IDX:
                 cell = row[TARGET_IDX].strip()
                 if not cell or set(cell).issubset(set("- ")):
-                    continue  # Skip empty/dash
-
+                    continue
                 if self._is_valid_value(cell):
                     numeric_rows += 1
                 else:
-                    # It has content but isn't a number -> Text
                     text_rows += 1
-
-        # Logic: If we see text and NO numbers, it's a Purpose column
         if text_rows > 0 and numeric_rows == 0:
             self.col_map[TARGET_IDX] = "context_text"
 
@@ -202,6 +202,28 @@ class TableToTextConverter:
                 break
         return not has_data
 
+    def _merge_row_values(self, row: List[str]) -> List[str]:
+        merged = row[:]
+        fragment_pattern = re.compile(r"^[()$€£¥%—\-\s]+$")
+        value_pattern = re.compile(r"\d")
+        for i in range(len(merged)):
+            cell = merged[i].strip()
+            if value_pattern.search(cell) and not fragment_pattern.match(cell):
+                for offset in [1, 2]:
+                    if i - offset >= 0:
+                        left = merged[i - offset].strip()
+                        if left and fragment_pattern.match(left):
+                            merged[i] = left + merged[i]
+                            merged[i - offset] = ""
+                        else:
+                            break
+                if i + 1 < len(merged):
+                    right = merged[i + 1].strip()
+                    if right and fragment_pattern.match(right):
+                        merged[i] = merged[i] + right
+                        merged[i + 1] = ""
+        return merged
+
     def process(self) -> List[str]:
         sentences = []
         active_context = []
@@ -218,7 +240,9 @@ class TableToTextConverter:
             if not row_label or "total" in row_label.lower():
                 continue
 
-            # 1. Scan for Row-Specific Context (Purpose Column)
+            # Pre-process rows to merge currency symbols/parens
+            row = self._merge_row_values(row)
+
             row_context_str = ""
             for i, cell_val in enumerate(row[1:], start=1):
                 if self.col_map.get(i) == "context_text":
@@ -226,13 +250,15 @@ class TableToTextConverter:
                     if clean_text and len(clean_text) > 2:
                         row_context_str = f" ({clean_text})"
 
-            # 2. Build Full Name
-            # "Interest Rate Contracts" + "Swaps" + " (Hedge of Debt)"
             full_instrument_name = (
                 f"{' '.join(active_context)} {row_label}{row_context_str}"
             )
 
-            if not SOFT_REGEX.search(full_instrument_name):
+            # --- FILTER: Check if Row+Context is a valid derivative ---
+            # If not, skip the row (unless it's a "Total" row we want? No, usually not.)
+            if not SOFT_REGEX.search(full_instrument_name) or TABLE_REGEX.search(
+                full_instrument_name
+            ):
                 continue
 
             for i, cell_val in enumerate(row[1:], start=1):
@@ -244,21 +270,20 @@ class TableToTextConverter:
                 ):
                     continue
 
-                clean_val = (
-                    self._cleanup_spaced_value(cell_val).replace("$", "").strip()
-                )
+                clean_val = self._cleanup_spaced_value(cell_val)
+                if "(" in clean_val and ")" in clean_val:
+                    clean_val = "-" + clean_val.replace("(", "").replace(")", "")
 
-                # Parse the type and year from our composite key (e.g. "notional_2023")
+                clean_val = clean_val.replace("$", "").replace(",", "").strip()
+
                 parts = col_type.split("_")
 
-                # Detect Year
                 year_str = ""
                 if parts[-1].isdigit() and len(parts[-1]) == 4:
-                    year_str = f"in {parts.pop()} "  # "in 2023 "
+                    year_str = f"in {parts.pop()} "
 
-                base_type = "_".join(parts)  # "notional" or "fair_value"
+                base_type = "_".join(parts)
 
-                # STRICT FILTER: Only allow Notional and Fair Value
                 if "notional" in base_type:
                     sentences.append(
                         f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of {clean_val}."
