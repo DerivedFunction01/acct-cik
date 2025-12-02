@@ -1533,7 +1533,6 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "forward contracts",
         "forward agreements?",        # <-- NEW
         "option contracts?",          # <-- NEW
-        "option agreements?",         # <-- NEW
     ]
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
