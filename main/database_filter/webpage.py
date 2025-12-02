@@ -440,8 +440,9 @@ def extract_content(data: str, asHTML=True) -> str:
             # Find the element immediately preceding the table that is likely text (e.g., a <p> or just a text node).
             # We use find_previous(['p', 'div']) or just check the previous sibling for text.
 
-            prev_node = table.find_previous(['p', 'div']) if table.find_previous(['p', 'div']) else table.find_previous_sibling()
-            prev_string = prev_node.get_text(strip=True) if prev_node else ""
+            prev_text = table.find_previous(string=True)
+            prev_string = prev_text.strip() if prev_text else ""
+
             str_len = len(prev_string)
             if (
                 prev_string and str_len > 20 and str_len < 500
