@@ -288,7 +288,7 @@ class TableToTextConverter:
 
                 base_type = "_".join(parts)
 
-                if "notional" in base_type:
+                if "notional" in base_type or row_implies_notional:
                     sentences.append(
                         f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of {clean_val}."
                     )
