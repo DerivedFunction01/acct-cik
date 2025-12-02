@@ -55,7 +55,9 @@ from table_processor import TABLE_ANCHOR, TableToTextConverter
 from derivative_regex import (
     ACCOUNTING_STANDARDS_STRICT_REGEX,
     ACTIVE_STATE_REGEX,
+    ALL_BASE_TYPES,
     ALL_REGEX,
+    BASE_REGEX,
     BOTH_CATEGORY_REGEX,
     CP_SOFT_REGEX,
     CR_REGEX,
@@ -113,6 +115,50 @@ from derivative_regex import (
 # CONFIGURATION
 # =============================================================================
 PRIORTY = ["fx", "cp", "eq", "cr", "ir"]
+
+from collections import defaultdict
+class GlobalInstrumentTracker:
+    def __init__(self):
+        # Maps instrument token -> set of categories seen with it
+        # e.g. "swap": {"ir"}, "forward": {"fx", "cp"}
+        self.instrument_map = defaultdict(set)
+
+    def register_sentence(self, sentence, category):
+        """
+        Call this during Pass 1 for every High-Confidence (Specific) sentence.
+        """
+        # Use your expand_instruments logic here to find the "Base"
+        # or simply extract the instrument using your specific regexes.
+        match = BASE_REGEX.search(sentence)
+        if match:
+            # Clean the match (normalize "swaps" -> "swap")
+            token = match.group(0).lower().rstrip("s")
+            self.instrument_map[token].add(category)
+
+    def resolve_instrument(self, sentence):
+        """
+        Call this during Pass 2 (Resolution) for Generic sentences.
+        """
+        # 1. Find potential instruments in the generic sentence
+        # (This is where your Max Munch function ensures we don't partial match)
+        matches = BASE_REGEX.findall(sentence)
+
+        candidates = set()
+        for m in matches:
+            token = m.lower().rstrip("s")
+            if token in self.instrument_map:
+                candidates.update(self.instrument_map[token])
+
+        # 2. Decision Logic
+        if len(candidates) == 1:
+            return list(candidates)[0]  # Unambiguous Global Match (e.g., "Swap" -> IR)
+
+        elif len(candidates) > 1:
+            return None  # Collision (e.g. "Option" -> IR and EQ). Fallback to neighbor.
+
+        return None  # No known instrument. Fallback to neighbor.
+
+
 # --- NEW: ML Resolver -------------------------------------------------
 import requests
 log = logging.getLogger(__name__)
@@ -496,10 +542,8 @@ class TextCleaner:
         text = self.normalize_whitespace(text)
         text = self.clean_structure(text)
 
-        # If the text starts with a leading period, remove it
-        if text.strip().startswith("."):
-            text = text[1:]
-        return text.strip()
+        text = cleanup_fragment(text)
+        return text
 
 CLEANER = TextCleaner()
 
@@ -1639,7 +1683,26 @@ def filter_matches_with_disambiguation(
     # If a generic sentence follows a specific one (even across paragraphs),
     # it inherits the specific category. This heals split sentences/paragraphs.
     # We iterate forward so changes propagate (Daisy Chain).
+    # Add this constant or helper
 
+    def get_base_term(text: str) -> Optional[str]:
+        """Finds which base term appears in the text."""
+        text_lower = text.lower()
+        for term in ALL_BASE_TYPES:
+            # Simple inclusion check, or use regex boundary \bterm\b if needed
+            if term in text_lower:
+                return term
+        return None
+    instrument_vocab = {term: set() for term in ALL_BASE_TYPES}
+
+    for meta in sentence_metadata:
+        # Only learn from SPECIFIC categories (High Confidence)
+        if meta["final_category"] and meta["final_category"] not in {"gen", "other"}:
+
+            # Check what base term is in this specific sentence
+            base = get_base_term(meta["sentence"])
+            if base:
+                instrument_vocab[base].add(meta["final_category"])
     for i in range(1, len(sentence_metadata)):
         curr = sentence_metadata[i]
         prev = sentence_metadata[i - 1]
