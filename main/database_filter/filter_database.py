@@ -556,8 +556,8 @@ class TextCleaner:
 
         text = self.clean_references(text)
         text = self.clean_information(text)
-        text = self.clean_entities(text)
         text = self.clean_standards(text)
+        text = self.clean_entities(text)
         text = self.normalize_whitespace(text)
         text = self.clean_structure(text)
 
