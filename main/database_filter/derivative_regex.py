@@ -1570,14 +1570,15 @@ def build_soft_gen_regex() -> re.Pattern:
     # 1. Phrases explicitly related to derivative accounting treatment (PNL/Classification)
     accounting_phrases = [
         r"(?:instruments?|contracts?) are designated",
-        r"ineffective portion",
+        r"ineffective portions?",
         r"hedging relationship",
         r"hedge accounting",
         r"change in fair value of derivatives?",
-        r"derivative expense",
+        r"derivative expenses?",
         r"designated as (?:a )?hedges?",
         r"(?:gain|loss) on derivatives?",
         r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
+        r"hedging instruments?",
         # US GAAP - Derivatives & Hedging
         r"ASC\s+815",  # The big one (Derivatives and Hedging)
         r"SFAS\s+133",  # The legacy big one
