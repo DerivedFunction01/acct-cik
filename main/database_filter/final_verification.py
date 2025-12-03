@@ -76,9 +76,9 @@ QUANT_TERMS = [
 ]
 # Looks for Currency Symbols or defined terms
 QUANT_REGEX = re.compile(
-    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*[1-9]\d*|"  # Prefix: $100, USD 100
-    rf"[1-9]\d*\s*(?:{CURRENCY_SYMBOL_PATTERN})|"  # Suffix: 100 USD, 100$
-    r"\d+\s+(?:million|billion|trillion|thousand))",  # Magnitude: 50 million
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*(?:0\.\d+|[1-9]\d*(?:\.\d+)?)|"  # Prefix: $0.50, $100.00
+    rf"(?:0\.\d+|[1-9]\d*(?:\.\d+)?)\s*(?:{CURRENCY_SYMBOL_PATTERN})|"  # Suffix: 0.50 USD, 100 USD
+    r"\d+(?:\.\d+)?\s+(?:million|billion|trillion|thousand))",  # Magnitude: 0.5 million, 10.5 billion
     re.IGNORECASE,
 )
 ENTITY_TOKENS = [ENTITY_TOKEN]
