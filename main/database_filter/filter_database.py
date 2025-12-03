@@ -48,7 +48,7 @@ import sqlite3
 from itertools import groupby
 import uuid
 from final_verification import QUANT_REGEX
-from year_deletion import has_current_year_mention
+from year_deletion import extract_years, has_current_year_mention
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX, check_is_quantitative_zero
 from table_processor import TABLE_ANCHOR, TableToTextConverter
 
@@ -1480,16 +1480,6 @@ def process_resolved_sentence(
             used_indices.add(sent_idx)
 
     return paragraphs, discards
-
-from derivative_regex import (
-    extract_years,
-    has_current_year_mention,
-    PRIOR_PATTERN,
-    SENTENCE_SPLIT_PATTERN,
-)
-from notional_filter import check_is_quantitative_zero
-from final_verification import QUANT_REGEX
-
 
 def is_paragraph_salvageable(paragraph: str, year: Optional[int]) -> bool:
     """
