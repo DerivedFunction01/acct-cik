@@ -2485,7 +2485,7 @@ def build_definition_regex() -> re.Pattern:
     LEGAL_VERBS = r"(?:shall\s+mean|is\s+defined\s+as|definitions?\s+of)"
     
     # RISKY: Common verbs that need specific subjects (Quotes, "The term", Instrument names)
-    COMMON_VERBS = r"(?:means?|represents?|refers?\s+to|considered\s+as)"
+    COMMON_VERBS = r"(?:means?|represents?|refers?\s+to|considered\s+as|\:)" # Add colon
     
     # SPECIFIC: Accounting nouns allowed for "represents"
     ACCT_NOUNS = r"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value)"
