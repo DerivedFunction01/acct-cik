@@ -1576,7 +1576,7 @@ def filter_matches_with_disambiguation(
         # ═══════════════════════════════════════════════════════════
         # AGGRESSIVE INTENT FILTER (Paragraph Level)
         # ═══════════════════════════════════════════════════════════
-        # If the paragraph explicitly states "Potential Use" and "Non-Use" together, then it is a risk management paragraph
+        # If the paragraph explicitly states "Potential Use" and "Non-Use" together, then it is a risk management paragraph most of the time
         is_potential = POTENTIAL_REGEX.search(match)
         has_negative_signal = (
             NEGATIVE_INTENT_REGEX.search(match)
