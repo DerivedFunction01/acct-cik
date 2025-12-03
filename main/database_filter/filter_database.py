@@ -1783,6 +1783,7 @@ def filter_matches_with_disambiguation(
             # No derivative match
             if not SOFT_REGEX.search(sentence):
                 all_discarded.append((url, sentence, "no_match"))
+                used_indices.add(sent_idx)
                 continue
             if CP_REGEX.search(sentence):
                 # Check for NPNS / Commercial Exemptions
