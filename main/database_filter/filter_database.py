@@ -592,6 +592,10 @@ class TextCleaner:
         # So we target digit-dash-digit specifically.
 
         text = self.dashed_pattern.sub(" ", text)
+        
+        # Discard month day indicators for safety with a dummy one
+        text = DATE_DM_REGEX.sub(" ", text)
+        text = DATE_MD_REGEX.sub(" ", text)
 
         return text
 
