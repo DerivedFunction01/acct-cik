@@ -2954,7 +2954,7 @@ def build_negative_intent_regex() -> re.Pattern:
     _neg_pattern_standard = rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?{_neg_verb}\s+to"
 
     # "has no plans to" remains separate as it uses a noun structure
-    _neg_pattern_plans = r"\bhas\s+no\s+plans\s+to"
+    _neg_pattern_plans = r"\b(?:had|has|have)\s+no\s+plans?\s+to"
 
     return re.compile(
         rf"(?:{_neg_pattern_standard}|{_neg_pattern_plans})\b", re.IGNORECASE
