@@ -1,7 +1,7 @@
 import re
 from typing import List, Dict, Optional, Tuple
 from table_cleanup import extract_table_content
-from derivative_regex import SOFT_REGEX, TABLE_REGEX, YEAR_REGEX
+from derivative_regex import SOFT_REGEX, TABLE_REGEX, YEAR_REGEX, STRICT_REGEX
 
 # --- 1. EXPANDED HEADER DEFINITIONS ---
 CONTEXT_HEADERS = re.compile(
@@ -224,8 +224,39 @@ class TableToTextConverter:
                         merged[i + 1] = ""
         return merged
 
+    def normalize_value(self, clean_val: str):
+        # Strip parentheses
+        stripped = clean_val.strip("()")
+        try:
+            num = float(stripped.replace(",", ""))
+            # Conditional formatting
+            if num == 0:
+                return "$0"
+            elif num > 1000:
+                # Keep whole number with commas, no decimals
+                return f"${int(num):,}"
+            else:
+                # Format with 2 decimals for smaller values
+                return f"${num:.2f}"
+        except ValueError:
+            # If not numeric, assume it's already a currency string
+            return clean_val
+
+
     def process(self) -> List[str]:
         sentences = []
+
+        # --- PASS 1: SCAN FOR STRONG SIGNALS ---
+        # We need to determine if this table is definitively about derivatives
+        # before we accept "Soft" matches (like "Natural Gas" or "Options").
+
+        # 1. Check for Notional Columns (Strongest Signal)
+        table_has_notional_col = any(
+            "notional" in str(v) for v in self.col_map.values()
+        ) or (self.table_default_type == "notional")
+
+        table_has_strong_row = False
+        candidate_rows = []
         active_context = []
 
         for row in self.data:
@@ -240,9 +271,10 @@ class TableToTextConverter:
             if not row_label or "total" in row_label.lower():
                 continue
 
-            # Pre-process rows to merge currency symbols/parens
+            # Merge values (currency symbols etc)
             row = self._merge_row_values(row)
 
+            # Build Name
             row_context_str = ""
             for i, cell_val in enumerate(row[1:], start=1):
                 if self.col_map.get(i) == "context_text":
@@ -253,17 +285,50 @@ class TableToTextConverter:
             full_instrument_name = (
                 f"{' '.join(active_context)} {row_label}{row_context_str}"
             )
-            # --- NEW: DETECT ROW-LEVEL NOTIONAL INTENT ---
-            # If the row label says "Principal", "Contract Amount", or "Volume",
-            # we treat all generic values in this row as Notionals.
+
+            # Classification
             row_implies_notional = bool(NOTIONAL_HEADERS.search(full_instrument_name))
-            
-            # --- FILTER: Check if Row+Context is a valid derivative ---
-            # If not, skip the row (unless it's a "Total" row we want? No, usually not.)
-            if not (row_implies_notional or SOFT_REGEX.search(full_instrument_name) or TABLE_REGEX.search(
-                full_instrument_name
-            )):
-                continue
+            is_strict = bool(STRICT_REGEX.search(full_instrument_name))
+            is_table_safe = bool(TABLE_REGEX.search(full_instrument_name))
+            is_soft = bool(SOFT_REGEX.search(full_instrument_name))
+
+            # Update Table-Level Signal
+            if is_strict or is_table_safe or row_implies_notional:
+                table_has_strong_row = True
+
+            # Store for Pass 2
+            candidate_rows.append(
+                {
+                    "row": row,
+                    "name": full_instrument_name,
+                    "is_strong": is_strict or is_table_safe or row_implies_notional,
+                    "is_soft": is_soft,
+                    "implies_notional": row_implies_notional,
+                }
+            )
+
+        # --- GLOBAL SIGNAL CHECK ---
+        # A table is valid for Soft matches IF:
+        # 1. It has at least one Strict/Safe row (e.g. "Swaps")
+        # 2. OR it has explicit Notional columns/rows
+        table_is_anchored = table_has_strong_row or table_has_notional_col
+
+        # --- PASS 2: GENERATE SENTENCES ---
+        for cand in candidate_rows:
+            # FILTER LOGIC:
+            # 1. Strong matches are always kept.
+            # 2. Soft matches are kept ONLY if the table is anchored.
+            if cand["is_strong"]:
+                pass  # Keep
+            elif cand["is_soft"] and table_is_anchored:
+                pass  # Keep
+            else:
+                continue  # Discard (Noise or unanchored soft match)
+
+            # Extract Values
+            row = cand["row"]
+            full_instrument_name = cand["name"]
+            row_implies_notional = cand["implies_notional"]
 
             for i, cell_val in enumerate(row[1:], start=1):
                 col_type = self.col_map.get(i)
@@ -281,20 +346,21 @@ class TableToTextConverter:
                 clean_val = clean_val.replace("$", "").replace(",", "").strip()
 
                 parts = col_type.split("_")
-
                 year_str = ""
                 if parts[-1].isdigit() and len(parts[-1]) == 4:
                     year_str = f"in {parts.pop()} "
 
                 base_type = "_".join(parts)
-
+                # Strip the clean_val of parenthesis and attempt to convert it to a number. If it fails, it has a currency symbol
+                value = self.normalize_value(clean_val)
+                # Generate Sentence
                 if "notional" in base_type or row_implies_notional:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of ${clean_val}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of {value}."
                     )
                 elif "fair_value" in base_type or "value" == base_type:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a fair value of ${clean_val}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a fair value of {value}."
                     )
 
         return sentences
