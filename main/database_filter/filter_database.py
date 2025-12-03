@@ -48,6 +48,7 @@ import sqlite3
 from itertools import groupby
 import uuid
 from final_verification import QUANT_REGEX
+from main.database_filter.notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
 from table_processor import TABLE_ANCHOR, TableToTextConverter
 
 # Import all derivative regexes
@@ -501,9 +502,13 @@ class TextCleaner:
             s_no_year = YEAR_REGEX.sub("", s)
             # Strip out references too
             s_no_year = STANDARD_ID_REGEX.sub(" ", s_no_year)
+            s_no_year = DATE_MD_REGEX.sub(" ", s_no_year)
+            s_no_year = DATE_DM_REGEX.sub(" ", s_no_year)
+            s_no_year = self.bullet_pattern.sub(" ", s_no_year)
+            s_no_year = self.dashed_pattern.sub(" ", s_no_year)
             # 2. Check for digits or currency/percent symbols
             # Matches "50", "$", "%", "0.5"
-            return bool(re.search(r"\d|[\$€£¥%]|(?:thousand|million|billion|trillion)", s_no_year))
+            return bool(QUANT_REGEX.search(s_no_year))
 
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
         kept_sentences = []
