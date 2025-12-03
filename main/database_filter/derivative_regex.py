@@ -2766,6 +2766,7 @@ POTENTIAL_INDICATORS = [
     r"may",
     r"might",
     r"could",
+    r"generally",
     r"seek\s+to",
     r"intend\s+to",
     r"plans?\s+to",
