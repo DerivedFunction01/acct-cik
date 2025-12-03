@@ -2996,8 +2996,7 @@ def build_did_not_hold_regex() -> re.Pattern:
 
     return re.compile(
         # Replace the hardcoded (did|does...) with the unified prefix
-        rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+"
-        r"{0,6}"
+        rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+{{0,6}}\s+"
         rf"{_instrument_object}\b",
         re.IGNORECASE,
     )
