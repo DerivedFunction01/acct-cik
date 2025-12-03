@@ -1833,21 +1833,16 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"breach(?:es|ed)?",
 ]
 # ... inside derivative_regex.py ...
-
-CONTRACTUAL_MECHANICS_KEYWORDS = [
-    # 1. The Roles (Existing)
+CONTRACTUAL_KEYWORDS_STRICT = [
+    # 1. ROLES (Capitalized matches "Lenders" but ignores generic "lenders")
     r"\b(?:Administrative|Collateral|Syndication|Documentation)?\s*Agents?\b",
     r"\b(?:Co-)?Lenders?\b",
-    r"Agents?",
     r"\b(?:Co-)?Borrowers?\b",
-    r"\b(?:any|such|no|each|another)\s+Person\b",
-    r"\bSurviving\s+Person\b",
-    r"\bSuccessor\s+Person\b",
     r"\bGuarantors?\b",
     r"\bIssuing\s+Banks?\b",
     r"\bSwingline\s+Lenders?\b",
     r"\bNoteholders?\b",
-    r"\bGrantors?\b",  # Added based on your previous examples
+    r"\bGrantors?\b",
     r"\bPledgors?\b",
     r"\bTrustees?\b",
     r"\bRegistrars?\b",
@@ -1860,65 +1855,69 @@ CONTRACTUAL_MECHANICS_KEYWORDS = [
     r"\bLiquidators?\b",
     r"\bReceivers?\b",
     r"\bSuccessors?(?:\s+and\s+Assigns?)?\b",
-    # 2. The Actions (Existing + Expanded)
-    r"\bhereby\b",  # AGGRESSIVE: "Hereby" is the hallmark of a contract, not a disclosure.
+    # 2. LEGAL IDIOMS WITH CAPITALIZATION
+    # "Person" is a specific legal entity in contracts. Lowercase "person" is generic.
+    r"\b(?:any|such|no|each|another)\s+Person\b",
+    r"\bSurviving\s+Person\b",
+    r"\bSuccessor\s+Person\b",
+    # 3. DOCUMENT OBJECTS
+    # Capitalized "Note" usually refers to the legal instrument.
+    r"\bGlobal\s+Notes?\b",
+    r"\bDefinitive\s+Notes?\b",
+    r"\bSupplemental\s+Indenture\b",
+    r"\bOfficer['’]s\s+Certificate\b",
+    # 4. STRUCTURAL HEADERS (Roman Numerals & Capitalized Sections)
+    # Matches: "Article IV", "Section 5.01"
+    # Ignores: "newspaper article", "in this section"
+    r"\bArticles?\s+(?:[IVXLCDM]+|\d+)\s+(?:hereof|thereof|of\s+the\s+(?:Credit|Loan|Indenture|Agreement))\b",
+    r"\bArticles?\s+[IVXLCDM]+\b",
+    r"\bSections?\s+\d+\.\d+(?:\([a-z]\))?\b",
+    # 5. LISTS (Capitalized)
+    r"\bRecitals?\b",
+    r"\bSchedules?\s+(?:\d+|[A-Z])\b",
+    r"\bExhibits?\s+(?:\d+|[A-Z])\b",
+    r"\bAnnex(?:es)?\s+(?:\d+|[A-Z])\b",
+]
+
+# =============================================================================
+# LIST 2: CASE-INSENSITIVE (LOOSE)
+# Target: Archaic Adverbs, Actions, and Distinctive Legal Phrasing
+# =============================================================================
+CONTRACTUAL_KEYWORDS_LOOSE = [
+    # 1. LEGAL ADVERBS (Never used in normal financial narrative)
+    r"\bhereby\b",
+    r"\bhereof\b",
+    r"\bthereof\b",
+    r"\bthereunder\b",
+    r"\bhereunder\b",
+    r"\bmutatis\s+mutandis\b",
+    r"\binter\s+alia\b",
+    r"\bwitnesseth\b",
+    r"\bwhereas\b",
+    r"\binure\s+to\s+the\s+benefit\b",
+    r"\bnow\s*,?\s*therefore\b",
+    # 2. CONTRACTUAL ACTIONS
     r"acknowledge(?:s|d)?\s+and\s+agree(?:s|d)?",
     r"reaffirm(?:s|ed|ing)?\s+(?:its|their|the)\s+obligations",
     r"ratif(?:y|ies|ied)\s+and\s+confirm(?:s|ed)?",
     r"constitute\s+valid\s+and\s+subsisting\s+obligations",
     r"waive(?:s|d)?\s+any\s+(?:defense|claim|offset)",
     r"operat(?:e|es|ed)\s+to\s+reduce\s+or\s+discharge",
-    # 3. "Consent" Patterns (Targeted)
+    # 3. CONSENT & EVIDENCE
     r"prior\s+written\s+consent",
     r"consent\s+of\s+the\s+(?:Administrative\s+Agent|Lenders?|Banks?)",
     r"without\s+the\s+consent\s+of",
-    # 4. "Evidenced" Patterns (Targeted against Accounting Evidence)
-    # Matches: "evidenced by a Note", "evidenced by the Credit Agreement"
-    # Does NOT match: "evidence of effectiveness"
+    # Note: "Note/Agreement" kept strict-ish via regex structure, but safe to check loosely
+    # because "evidenced by" is the trigger.
     r"evidenced\s+(?:or\s+represented\s+)?by\s+(?:a|an|the|any)\s+(?:Note|Certificate|Instrument|Agreement|Contract)",
-    # 5. "Foregoing" Structural Pointers
+    # 4. POINTERS
     r"the\s+foregoing\s+(?:recitals|definitions|provisions|conditions|covenants)",
-    # 6. Legal Archaism / Boilerplate (The "Other" Category)
-    r"\bWITNESSETH\b",
-    r"\bWHEREAS\b",
-    r"\bNOW\s*,?\s*THEREFORE\b",
-    r"mutatis\s+mutandis",
-    r"inter\s+alia",
-    r"inure\s+to\s+the\s+benefit",
-    r"successors\s+and\s+assigns",
-    # 7. Agreement Object Pointers
     r"under\s+the\s+Credit\s+Agreement",
     r"under\s+the\s+Loan\s+Documents",
     r"under\s+the\s+Guarantee",
     r"terms\s+defined\s+in\s+the\s+Credit\s+Agreement",
-    r"\bSupplemental\s+Indenture\b",
-    r"\bOfficer['’]s\s+Certificate\b",
-    r"\bGlobal\s+Notes?\b",  # "Global Note" is usually the physical paper certificate
-    r"\bDefinitive\s+Notes?\b",
-    # Matches: "Article IV", "Article 9 of the UCC", "Article 5 hereof"
-    # Avoids: "newspaper article", "articles of incorporation" (generic)
-    r"\bArticles?\s+(?:[IVXLCDM]+|\d+)\s+(?:hereof|thereof|of\s+the\s+(?:Credit|Loan|Indenture|Agreement))\b",
-    r"\bArticles?\s+[IVXLCDM]+\b",  # Roman Numerals are almost always legal headers
-    
-    # 2. SECTIONS (Target Decimal numbering or "Hereof")
-    # Matches: "Section 5.02", "Section 9.1(b)", "Section 2 hereof"
-    # Avoids: "In this section, we discuss..." (Generic narrative)
-    r"\bSections?\s+\d+\.\d+(?:\([a-z]\))?\b",  # Decimal sections (5.01) are distinctly legal
-    r"\bSections?\s+(?:[IVXLCDM]+|\d+)\s+(?:hereof|thereof|therein|thereunder)\b",
-
-    # 3. RECITALS & SCHEDULES (Target Capitalized specific references)
-    r"\bRecitals?\b",
-    r"\bSchedules?\s+(?:\d+|[A-Z])\b",  # "Schedule 1", "Schedule A"
-    r"\bExhibits?\s+(?:\d+|[A-Z])\b",    # "Exhibit B"
-    r"\bAnnex(?:es)?\s+(?:\d+|[A-Z])\b", # "Annex I"
-
-    # 4. LEGAL ADVERBS (The "Here/There" family)
-    # These are highly distinctive of contracts.
-    r"\bhereof\b",
-    r"\bthereof\b",
-    r"\bthereunder\b", 
-    r"\bhereunder\b",
 ]
+
 
 # Section 3: Accounting Standards
 # === FASB ISSUANCE & ADOPTION ONLY ===
@@ -2368,10 +2367,10 @@ COMPETITOR_KEYWORDS = [
     r"peer\s+group",
 ]
 
-def build_exclude_regex(keywords: list) -> re.Pattern:
+def build_exclude_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
     """Build regex for excluding noise keywords."""
     pattern = r"|".join(keywords)
-    return re.compile(pattern, re.IGNORECASE)
+    return re.compile(pattern, re.IGNORECASE if ignore_case else 0)
 
 
 EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
@@ -2382,7 +2381,21 @@ EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
 EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
 EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
-EXCLUDE_REGEX_CONTRACTUAL = build_exclude_regex(CONTRACTUAL_MECHANICS_KEYWORDS)
+# Compile separately
+EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(
+    CONTRACTUAL_KEYWORDS_STRICT, ignore_case=False
+)
+EXCLUDE_REGEX_CONTRACTUAL_LOOSE = build_exclude_regex(
+    CONTRACTUAL_KEYWORDS_LOOSE, ignore_case=True
+)
+def is_contractual_noise(text: str) -> bool:
+    if EXCLUDE_REGEX_CONTRACTUAL_STRICT.search(text):
+        return True
+    if EXCLUDE_REGEX_CONTRACTUAL_LOOSE.search(text):
+        return True
+    return False
+
+
 SUBJECTS = [
     # Simple pronouns
     r"we",

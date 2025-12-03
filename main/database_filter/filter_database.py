@@ -75,7 +75,6 @@ from derivative_regex import (
     EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
-    EXCLUDE_REGEX_CONTRACTUAL,
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_REGULATION_REGEX,
@@ -115,6 +114,7 @@ from derivative_regex import (
     NON_POSITION_INDICATORS,
     PNL_ONLY_NO_POSITION,
     HIGH_PRECISION_SUFFIXES,
+    is_contractual_noise,
     validate_instrument_retention,
     MAX_SENTENCE_LENGTH,
     ANCHOR_TAG,
@@ -1636,7 +1636,7 @@ def filter_matches_with_disambiguation(
         if EXCLUDE_REGEX_FORWARD_LOOKING.search(match):
             all_discarded.append((url, match, "forward_looking"))
             continue
-        if EXCLUDE_REGEX_CONTRACTUAL.search(match):
+        if is_contractual_noise(match):
             all_discarded.append((url, match, "contractual"))
             continue
 
