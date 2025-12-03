@@ -52,7 +52,7 @@ POSITIVE_PATTERN = re.compile(
     rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*[1-9]\d*(?:,\d{3})*(?:\.\d+)?|"  # Prefix: $100
     r"[1-9]\d*(?:,\d{3})*(?:\.\d+)?\s+(?:million|billion|trillion|thousand)|"  # Text Suffix: 100 million
     rf"[1-9]\d*(?:,\d{3})*(?:\.\d+)?\s*(?:{CURRENCY_SYMBOL_PATTERN})|"  # Code Suffix: 100 USD
-    r"[1-9]\d*(?:,\d{3})*+\.\d+"  # Decimal forced: 5.5
+    r"[1-9]\d*(?:,\d{3})*+\.\d+(?!\s*\%)"  # Decimal forced: 5.5 (but not percentages)
     r")",
     re.IGNORECASE,
 )
