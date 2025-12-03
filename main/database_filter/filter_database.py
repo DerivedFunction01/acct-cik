@@ -75,6 +75,7 @@ from derivative_regex import (
     EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
+    EXCLUDE_REGEX_CONTRACTUAL,
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_REGULATION_REGEX,
@@ -751,6 +752,7 @@ def create_clean_db():
                 "hypo",
                 "planned_assets",
                 "competitor",
+                "contractual"
             ] + [
                 f"disambiguation_excision_failed_{cat}"
                 for cat in CATEGORY_CONTEXT_MAP.keys()
@@ -1633,6 +1635,9 @@ def filter_matches_with_disambiguation(
             continue
         if EXCLUDE_REGEX_FORWARD_LOOKING.search(match):
             all_discarded.append((url, match, "forward_looking"))
+            continue
+        if EXCLUDE_REGEX_CONTRACTUAL.search(match):
+            all_discarded.append((url, match, "contractual"))
             continue
 
         # ═══════════════════════════════════════════════════════════
