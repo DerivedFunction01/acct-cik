@@ -41,6 +41,7 @@ SOURCE_DB_PATH = "active_nonzero_data.db"
 FINAL_DB_PATH = "verified_active_data.db"
 
 from derivative_regex import (
+    ALL_REGEX,
     ENTITY_TOKEN,
     GEN_REGEX,
     MIN_SENTENCE_LENGTH,
@@ -128,7 +129,8 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
     Analyzes sentence for evidence of active usage.
     Returns: (is_kept: bool, reason_code: str)
     """
-
+    # Sub out phrases
+    sentence = ALL_REGEX.sub(" ", sentence)
     # 1. QUANTITATIVE CHECK (The Ultimate Salvager)
     if QUANT_REGEX.search(sentence):
         return True, "kept_quantitative_indicator"
