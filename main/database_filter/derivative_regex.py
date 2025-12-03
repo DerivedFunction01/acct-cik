@@ -2186,7 +2186,7 @@ FORWARD_LOOKING_KEYWORDS = [
     # 1. The Headers/Titles
     r"cautionary\s+(?:note|statement|language)\s+(?:regarding|concerning|about)",
     r"forward[- ]looking\s+statements?",
-    r"safe\s+harbor\s+statement",
+    r"safe\s+harbor",
     
     # 2. Legal Acts/Sections (The smoking gun for boilerplate)
     r"private\s+securities\s+litigation\s+reform\s+act",
