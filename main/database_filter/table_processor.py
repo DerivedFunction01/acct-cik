@@ -290,11 +290,11 @@ class TableToTextConverter:
 
                 if "notional" in base_type or row_implies_notional:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of {clean_val}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of ${clean_val}."
                     )
                 elif "fair_value" in base_type or "value" == base_type:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a fair value of {clean_val}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a fair value of ${clean_val}."
                     )
 
         return sentences
