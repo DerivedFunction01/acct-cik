@@ -1847,6 +1847,17 @@ CONTRACTUAL_MECHANICS_KEYWORDS = [
     r"\bNoteholders?\b",
     r"\bGrantors?\b",  # Added based on your previous examples
     r"\bPledgors?\b",
+    r"\bTrustees?\b",
+    r"\bRegistrars?\b",
+    r"\bPaying\s+Agents?\b",
+    r"\bTransfer\s+Agents?\b",
+    r"\bCustodians?\b",
+    r"\bDepositaries?\b",
+    r"\bAssignees?\b",
+    r"\bIndemnitees?\b",
+    r"\bLiquidators?\b",
+    r"\bReceivers?\b",
+    r"\bSuccessors?(?:\s+and\s+Assigns?)?\b",
     # 2. The Actions (Existing + Expanded)
     r"\bhereby\b",  # AGGRESSIVE: "Hereby" is the hallmark of a contract, not a disclosure.
     r"acknowledge(?:s|d)?\s+and\s+agree(?:s|d)?",
