@@ -231,16 +231,24 @@ class TableToTextConverter:
         # Strip parentheses
         stripped = clean_val.strip("()")
         try:
-            num = float(stripped.replace(",", ""))
+            norm_num = float(stripped.replace(",", ""))
+            num = abs(norm_num)
+
             # Conditional formatting
             if num == 0:
                 return "$0"
-            elif num > 1000:
-                # Keep whole number with commas, no decimals
-                return f"${int(num):,}"
             else:
-                # Format with 2 decimals for smaller values
-                return f"${num:.2f}"
+                # format with parentheses if negative
+                formatted = "$(__)" if norm_num < 0 else "$__"
+
+                # >1000 → whole number, else → two decimals
+                if num > 1000:
+                    num_str = "{:,.0f}".format(num)
+                else:
+                    num_str = "{:,.2f}".format(num)
+
+                return formatted.replace("__", num_str)
+
         except ValueError:
             # If not numeric, assume it's already a currency string
             return clean_val
