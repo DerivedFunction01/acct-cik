@@ -642,7 +642,7 @@ CHUNK_SIZE = 50  # Larger chunks reduce task submission overhead — tune this
 SOURCE_DB_PATH = "web_data.db"
 CLEAN_DB_PATH = "prepared_data.db"
 # How many sentences forward can we look?
-MAX_FORWARD_EXPANSION = 3
+MAX_FORWARD_EXPANSION = 5
 
 # In-memory buffers (protected by main process only)
 result_buffer = []  # List of (url, matches, cik, year)
