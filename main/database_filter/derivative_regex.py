@@ -1840,7 +1840,9 @@ CONTRACTUAL_MECHANICS_KEYWORDS = [
     r"\b(?:Co-)?Lenders?\b",
     r"Agents?",
     r"\b(?:Co-)?Borrowers?\b",
-    r"Persons?",
+    r"\b(?:any|such|no|each|another)\s+Person\b",
+    r"\bSurviving\s+Person\b",
+    r"\bSuccessor\s+Person\b",
     r"\bGuarantors?\b",
     r"\bIssuing\s+Banks?\b",
     r"\bSwingline\s+Lenders?\b",
@@ -1889,6 +1891,10 @@ CONTRACTUAL_MECHANICS_KEYWORDS = [
     r"under\s+the\s+Loan\s+Documents",
     r"under\s+the\s+Guarantee",
     r"terms\s+defined\s+in\s+the\s+Credit\s+Agreement",
+    r"\bSupplemental\s+Indenture\b",
+    r"\bOfficer['’]s\s+Certificate\b",
+    r"\bGlobal\s+Notes?\b",  # "Global Note" is usually the physical paper certificate
+    r"\bDefinitive\s+Notes?\b",
 ]
 
 # Section 3: Accounting Standards
