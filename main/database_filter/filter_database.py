@@ -424,7 +424,18 @@ class TextCleaner:
         self.max_match_length = max_match_length
         self.TITLE_KEYWORDS_REPORTING = set(self.TITLE_KEYWORDS_REPORTING)
         self.TITLE_KEYWORDS_DERIV = set(self.TITLE_KEYWORDS_DERIV)
-
+    # Helper: Check for numerics (excluding years)
+    def has_strict_quant(self, s: str) -> bool:
+        # 1. Strip years first (e.g. 1998, 2024) to avoid false positives
+        s_no_year = YEAR_REGEX.sub("", s)
+        # Strip out references too
+        s_no_year = STANDARD_ID_REGEX.sub(" ", s_no_year)
+        s_no_year = DATE_MD_REGEX.sub(" ", s_no_year)
+        s_no_year = DATE_DM_REGEX.sub(" ", s_no_year)
+        s_no_year = self.bullet_pattern.sub(" ", s_no_year)
+        s_no_year = self.dashed_pattern.sub(" ", s_no_year)
+        # 2. Check for numerical amounts
+        return bool(QUANT_REGEX.search(s_no_year))
     def _safe_sub(self, pattern: re.Pattern, replacement: str, text: str) -> str:
         """
         Performs a regex substitution ONLY if the match length is within limits.
@@ -467,7 +478,10 @@ class TextCleaner:
         """
         Removes noise references like "See Note 5" or "Table below".
         """
-        return REFERENCE_CLEANUP_REGEX.sub(" ", text)
+        if REFERENCE_CLEANUP_REGEX.search(text):
+            if self.has_strict_quant(text):
+                return REFERENCE_CLEANUP_REGEX.sub(" ", text)
+        return "" # The whole thing talks about a table
 
     def clean_information(self, text: str) -> str:
         """
@@ -498,19 +512,6 @@ class TextCleaner:
         if TABLE_ANCHOR in text:
             return text
 
-        # Helper: Check for numerics (excluding years)
-        def has_strict_quant(s: str) -> bool:
-            # 1. Strip years first (e.g. 1998, 2024) to avoid false positives
-            s_no_year = YEAR_REGEX.sub("", s)
-            # Strip out references too
-            s_no_year = STANDARD_ID_REGEX.sub(" ", s_no_year)
-            s_no_year = DATE_MD_REGEX.sub(" ", s_no_year)
-            s_no_year = DATE_DM_REGEX.sub(" ", s_no_year)
-            s_no_year = self.bullet_pattern.sub(" ", s_no_year)
-            s_no_year = self.dashed_pattern.sub(" ", s_no_year)
-            # 2. Check for numerical amounts
-            return bool(QUANT_REGEX.search(s_no_year))
-
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
         kept_sentences = []
 
@@ -530,7 +531,7 @@ class TextCleaner:
             # 3. QUANTITATIVE FILTER (Content Check)
             # If it's a standard ref, it needs numbers to survive.
             if has_std_ref:
-                if not has_strict_quant(clean_sent):
+                if not self.has_strict_quant(clean_sent):
                     continue  # Discard just this sentence, continue to next
 
             # 4. Title Cleaning (Aggressive vs Conservative)
@@ -593,7 +594,7 @@ class TextCleaner:
         # So we target digit-dash-digit specifically.
 
         text = self.dashed_pattern.sub(" ", text)
-        
+
         # Discard month day indicators for safety with a dummy one
         text = DATE_DM_REGEX.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
