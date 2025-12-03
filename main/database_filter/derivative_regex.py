@@ -1832,24 +1832,48 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"corrective\s+actions?",
     r"breach(?:es|ed)?",
 ]
+# ... inside derivative_regex.py ...
+
 CONTRACTUAL_MECHANICS_KEYWORDS = [
-    # 1. The Roles (Capitalized usually, but regex handles case)
+    # 1. The Roles (Existing)
     r"\b(?:Administrative|Collateral|Syndication|Documentation)?\s*Agents?\b",
     r"\b(?:Co-)?Lenders?\b",
+    r"Agents?",
     r"\b(?:Co-)?Borrowers?\b",
+    r"Persons?",
     r"\bGuarantors?\b",
     r"\bIssuing\s+Banks?\b",
     r"\bSwingline\s+Lenders?\b",
     r"\bNoteholders?\b",
-    # 2. The Actions (Affirmation/Agreement boilerplate)
-    r"hereby\s+(?:acknowledge|affirm|reaffirm|ratify|consent|agree)",
+    r"\bGrantors?\b",  # Added based on your previous examples
+    r"\bPledgors?\b",
+    # 2. The Actions (Existing + Expanded)
+    r"\bhereby\b",  # AGGRESSIVE: "Hereby" is the hallmark of a contract, not a disclosure.
     r"acknowledge(?:s|d)?\s+and\s+agree(?:s|d)?",
     r"reaffirm(?:s|ed|ing)?\s+(?:its|their|the)\s+obligations",
     r"ratif(?:y|ies|ied)\s+and\s+confirm(?:s|ed)?",
     r"constitute\s+valid\s+and\s+subsisting\s+obligations",
     r"waive(?:s|d)?\s+any\s+(?:defense|claim|offset)",
     r"operat(?:e|es|ed)\s+to\s+reduce\s+or\s+discharge",
-    # 3. The Object (Agreement Definitions)
+    # 3. "Consent" Patterns (Targeted)
+    r"prior\s+written\s+consent",
+    r"consent\s+of\s+the\s+(?:Administrative\s+Agent|Lenders?|Banks?)",
+    r"without\s+the\s+consent\s+of",
+    # 4. "Evidenced" Patterns (Targeted against Accounting Evidence)
+    # Matches: "evidenced by a Note", "evidenced by the Credit Agreement"
+    # Does NOT match: "evidence of effectiveness"
+    r"evidenced\s+(?:or\s+represented\s+)?by\s+(?:a|an|the|any)\s+(?:Note|Certificate|Instrument|Agreement|Contract)",
+    # 5. "Foregoing" Structural Pointers
+    r"the\s+foregoing\s+(?:recitals|definitions|provisions|conditions|covenants)",
+    # 6. Legal Archaism / Boilerplate (The "Other" Category)
+    r"\bWITNESSETH\b",
+    r"\bWHEREAS\b",
+    r"\bNOW\s*,?\s*THEREFORE\b",
+    r"mutatis\s+mutandis",
+    r"inter\s+alia",
+    r"inure\s+to\s+the\s+benefit",
+    r"successors\s+and\s+assigns",
+    # 7. Agreement Object Pointers
     r"under\s+the\s+Credit\s+Agreement",
     r"under\s+the\s+Loan\s+Documents",
     r"under\s+the\s+Guarantee",
