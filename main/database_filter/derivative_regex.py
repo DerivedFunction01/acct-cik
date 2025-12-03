@@ -1583,6 +1583,10 @@ def build_soft_gen_regex() -> re.Pattern:
         r"exposures?",
         r"derivatives?",
         r"accounting",
+        r"items?",
+        r"horizons?",
+        r"document(?:s|ations?)",
+        r"terms?",
     ]
     hedge_phrases = build_alternation(hedging_terms, sort_longest_first=True)
     accounting_phrases = [

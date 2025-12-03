@@ -1735,10 +1735,12 @@ def filter_matches_with_disambiguation(
 
             if len(sentence) < MIN_SENTENCE_LENGTH:
                 all_discarded.append((url, sentence, "too_short"))
+                used_indices.add(sent_idx)
                 continue
             if len(sentence) > MAX_SENTENCE_LENGTH and ALL_REGEX.search(sentence): # an unwrapped table: convert it back
                 sentence = "<TABLE>" +  sentence + "</TABLE>"
                 final_paragraphs.append((sentence, 'table'))
+                used_indices.add(sent_idx)
                 continue
 
             if DEFINITION_INDICATORS.search(sentence):
@@ -1750,11 +1752,13 @@ def filter_matches_with_disambiguation(
             if TRADING_STATEMENTS_REGEX.search(sentence):
                 deleted_text = " ".join(m.group(0) for m in TRADING_STATEMENTS_REGEX.finditer(sentence))
                 all_discarded.append((url, sentence, "trading_statements_full_delete"))
+                used_indices.add(sent_idx)
                 continue
 
             # AOCI removal
             if NON_POSITION_INDICATORS.search(sentence):
                 all_discarded.append((url, sentence, "aoci_or_pnl_only"))
+                used_indices.add(sent_idx)
                 continue
 
             # PnL-only removal (with partial salvage)
@@ -1769,9 +1773,11 @@ def filter_matches_with_disambiguation(
                     sentence = cleanup_fragment(sentence)
 
                     if not sentence:
+                        used_indices.add(sent_idx)
                         continue
                 else:
                     all_discarded.append((url, sentence, "pnl_only_no_position"))
+                    used_indices.add(sent_idx)
                     continue
 
             # No derivative match
@@ -1780,9 +1786,10 @@ def filter_matches_with_disambiguation(
                 continue
             if CP_REGEX.search(sentence):
                 # Check for NPNS / Commercial Exemptions
-                if EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(sentence):
+                if EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(sentence):    
                     # This is a physical supply contract, not a financial derivative
                     all_discarded.append((url, sentence, "commercial_contract_exemption"))
+                    used_indices.add(sent_idx)
                     continue
 
             # ═══════════════════════════════════════════════════════════
