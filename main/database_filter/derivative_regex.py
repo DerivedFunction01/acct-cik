@@ -2752,14 +2752,9 @@ def cleanup_fragment(sentence: str) -> str:
     return sentence if len(sentence) > 10 else ""
 
 
-# ... existing code ...
 # =============================================================================
 # LINGUISTIC INTENT & FILTERING PATTERNS
 # =============================================================================
-
-# --------------------------------------------------------------------------- #
-# 1. HELPER LISTS
-# --------------------------------------------------------------------------- #
 
 # Transaction verbs (Action)
 _TRANSACTION_VERBS = [r"enter", r"engage", r"transact"]
@@ -2816,9 +2811,6 @@ _ABSENCE_NOUNS = [
 ]
 
 # Termination Verbs
-# In termination_filter.py (or wherever you define this list)
-
-# 1. DEFINE SAFEGUARDS (Words that make "Settlement/Closing" active)
 # If these appear before "settled", it's likely a description of mechanics, not termination.
 SETTLEMENT_MODIFIERS = [
     "cash", "net", "daily", "monthly", "physically", "final", "mandatory", "annually", "weekly"
@@ -3014,8 +3006,7 @@ def build_did_not_hold_regex() -> re.Pattern:
 def build_termination_regex() -> re.Pattern:
     """Matches: "expired", "matured", "unwound" """
     return re.compile(rf"\b{build_alternation(TERMINATION_VERBS)}\b", re.IGNORECASE)
-# Ensure you have HEDGING_CONTEXT_REGEX available in the function's scope
-# (It is likely already imported or defined in derivative_regex.py)
+
 
 def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     from table_processor import TABLE_ANCHOR
