@@ -1832,6 +1832,29 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"corrective\s+actions?",
     r"breach(?:es|ed)?",
 ]
+CONTRACTUAL_MECHANICS_KEYWORDS = [
+    # 1. The Roles (Capitalized usually, but regex handles case)
+    r"\b(?:Administrative|Collateral|Syndication|Documentation)?\s*Agents?\b",
+    r"\b(?:Co-)?Lenders?\b",
+    r"\b(?:Co-)?Borrowers?\b",
+    r"\bGuarantors?\b",
+    r"\bIssuing\s+Banks?\b",
+    r"\bSwingline\s+Lenders?\b",
+    r"\bNoteholders?\b",
+    # 2. The Actions (Affirmation/Agreement boilerplate)
+    r"hereby\s+(?:acknowledge|affirm|reaffirm|ratify|consent|agree)",
+    r"acknowledge(?:s|d)?\s+and\s+agree(?:s|d)?",
+    r"reaffirm(?:s|ed|ing)?\s+(?:its|their|the)\s+obligations",
+    r"ratif(?:y|ies|ied)\s+and\s+confirm(?:s|ed)?",
+    r"constitute\s+valid\s+and\s+subsisting\s+obligations",
+    r"waive(?:s|d)?\s+any\s+(?:defense|claim|offset)",
+    r"operat(?:e|es|ed)\s+to\s+reduce\s+or\s+discharge",
+    # 3. The Object (Agreement Definitions)
+    r"under\s+the\s+Credit\s+Agreement",
+    r"under\s+the\s+Loan\s+Documents",
+    r"under\s+the\s+Guarantee",
+    r"terms\s+defined\s+in\s+the\s+Credit\s+Agreement",
+]
 
 # Section 3: Accounting Standards
 # === FASB ISSUANCE & ADOPTION ONLY ===
@@ -2295,7 +2318,7 @@ EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
 EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
 EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
-
+EXCLUDE_REGEX_CONTRACTUAL = build_exclude_regex(CONTRACTUAL_MECHANICS_KEYWORDS)
 SUBJECTS = [
     # Simple pronouns
     r"we",
@@ -2779,6 +2802,7 @@ SPECULATIVE_PHRASES = [
     r"believes?",
     r"(?:may|might)\s+consider",
     r"when\s+(?:deemed\s+)?necessary",
+    r"expects?\s+that",
 ]
 
 # Potential / Hypothetical Modals & Phrases
