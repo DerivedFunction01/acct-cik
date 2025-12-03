@@ -53,6 +53,7 @@ from table_processor import TABLE_ANCHOR, TableToTextConverter
 # Import all derivative regexes
 
 from derivative_regex import (
+    ABSENCE_REGEX,
     ACCOUNTING_STANDARDS_STRICT_REGEX,
     ACTIVE_STATE_REGEX,
     ALL_BASE_TYPES,
@@ -64,6 +65,7 @@ from derivative_regex import (
     CR_SOFT_REGEX,
     DEFINITION_INDICATORS,
     DER_STD_REGEX,
+    DID_NOT_HOLD_REGEX,
     ENTITY_TOKEN,
     EQ_SOFT_REGEX,
     EXCLUDE_COMPETITOR_REGEX,
@@ -85,7 +87,9 @@ from derivative_regex import (
     IR_SOFT_REGEX,
     LOOSE_GEN_REGEX,
     MORE_INFO_REGEX,
+    NEGATIVE_INTENT_REGEX,
     POSITION_CONTEXT_INDICATORS,
+    POTENTIAL_REGEX,
     REFERENCE_CLEANUP_REGEX,
     SOFT_CATEGORY_REGEX,
     SOFT_GEN_REGEX,
@@ -1436,8 +1440,31 @@ def process_resolved_sentence(
 
     return paragraphs, discards
 
+def is_paragraph_salvageable(paragraph: str, year: Optional[int]) -> bool:
+    """
+    'Speedruns' the late-stage checks (Phase 6/7) to see if a paragraph 
+    marked for aggressive deletion actually contains hard evidence we must keep.
+    """
+    # 1. Must have Quantitative Evidence (Phase 6)
+    #    (e.g., "$10 million", "50 contracts")
+    has_quant = bool(QUANT_REGEX.search(paragraph))
+    
+    # 2. Must be Current (Phase 3)
+    #    If we know the reporting year, the paragraph must mention it.
+    #    If we don't know the year, we trust the quant signal (conservative).
+    is_current = True
+    if year:
+        # Simple string check is usually sufficient for "2005"
+        is_current = str(year) in paragraph
+        
+    # 3. Must NOT be purely termination (Phase 5)
+    #    If it's just "expired" or "settled", it's not active usage.
+    #    (Optional: depends on how strict you want to be here)
+    
+    return has_quant and is_current
+
 def filter_matches_with_disambiguation(
-    matches_json: str, url: str = ""
+    matches_json: str, url: str = "", year: Optional[int] = None
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str, str]]]:
     """
     Advanced filtering system implementing category-based sentence disambiguation
@@ -1516,6 +1543,28 @@ def filter_matches_with_disambiguation(
         if EXCLUDE_REGEX_FORWARD_LOOKING.search(match):
             all_discarded.append((url, match, "forward_looking"))
             continue
+
+        # ═══════════════════════════════════════════════════════════
+        # AGGRESSIVE INTENT FILTER (Paragraph Level)
+        # ═══════════════════════════════════════════════════════════
+        # If the paragraph explicitly states "Potential Use" and "Non-Use" together, then it is a risk management paragraph
+        is_potential = POTENTIAL_REGEX.search(match)
+        has_negative_signal = (
+            NEGATIVE_INTENT_REGEX.search(match)
+            or ABSENCE_REGEX.search(match)
+            or DID_NOT_HOLD_REGEX.search(match)
+        )
+
+        if is_potential or has_negative_signal:
+            # SPEEDRUN: Check if it survives Phase 6/7 logic immediately
+            if is_paragraph_salvageable(match, year):
+                # It has hard numbers for the current year. 
+                # Keep it, but rely on later sentence-level splitting to clean it up.
+                pass 
+            else:
+                # No hard evidence + Negative Intent = Safe to kill the whole block
+                all_discarded.append((url, match, "aggressive_paragraph_intent"))
+                continue
 
         # Remove equity compensation boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_EQUITY_COMP.search(match):
@@ -1985,13 +2034,10 @@ def process_item_buffered(
 ) -> Optional[Tuple]:
     url, matches_json = item
     try:
-        # NEW: use ML-enhanced version
-        strict_matches, discarded = filter_matches_with_disambiguation(matches_json, url)
-
-        # if not strict_matches:
-        #     return None
-
         cik, year = report_data_map.get(url, (None, None))
+        # NEW: use ML-enhanced version
+        strict_matches, discarded = filter_matches_with_disambiguation(matches_json, url, year)
+
         return (url, strict_matches, cik, year, discarded)
     except Exception as e:
         logging.error(f"Error processing {url}: {e}")
