@@ -1895,6 +1895,29 @@ CONTRACTUAL_MECHANICS_KEYWORDS = [
     r"\bOfficer['’]s\s+Certificate\b",
     r"\bGlobal\s+Notes?\b",  # "Global Note" is usually the physical paper certificate
     r"\bDefinitive\s+Notes?\b",
+    # Matches: "Article IV", "Article 9 of the UCC", "Article 5 hereof"
+    # Avoids: "newspaper article", "articles of incorporation" (generic)
+    r"\bArticles?\s+(?:[IVXLCDM]+|\d+)\s+(?:hereof|thereof|of\s+the\s+(?:Credit|Loan|Indenture|Agreement))\b",
+    r"\bArticles?\s+[IVXLCDM]+\b",  # Roman Numerals are almost always legal headers
+    
+    # 2. SECTIONS (Target Decimal numbering or "Hereof")
+    # Matches: "Section 5.02", "Section 9.1(b)", "Section 2 hereof"
+    # Avoids: "In this section, we discuss..." (Generic narrative)
+    r"\bSections?\s+\d+\.\d+(?:\([a-z]\))?\b",  # Decimal sections (5.01) are distinctly legal
+    r"\bSections?\s+(?:[IVXLCDM]+|\d+)\s+(?:hereof|thereof|therein|thereunder)\b",
+
+    # 3. RECITALS & SCHEDULES (Target Capitalized specific references)
+    r"\bRecitals?\b",
+    r"\bSchedules?\s+(?:\d+|[A-Z])\b",  # "Schedule 1", "Schedule A"
+    r"\bExhibits?\s+(?:\d+|[A-Z])\b",    # "Exhibit B"
+    r"\bAnnex(?:es)?\s+(?:\d+|[A-Z])\b", # "Annex I"
+
+    # 4. LEGAL ADVERBS (The "Here/There" family)
+    # These are highly distinctive of contracts.
+    r"\bhereof\b",
+    r"\bthereof\b",
+    r"\bthereunder\b", 
+    r"\bhereunder\b",
 ]
 
 # Section 3: Accounting Standards
@@ -3413,6 +3436,8 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         r"\bETFs?\b",
         r"money\s+market\s+funds?",
         r"pension\s+funds?",  # Reinforces Plan Asset exclusion
+        r"Uniform Commercial Code",
+        r"UCC"
     ] + ISSUER_TERMS
 
     # --- 6. Dynamic Fund Pattern (Your existing logic) ---
