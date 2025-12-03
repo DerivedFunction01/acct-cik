@@ -2582,10 +2582,15 @@ def build_trading_denial_pattern() -> re.Pattern:
         rf"(?:for\s+)?(?:{TRAD})(?:\s+(?:{PURP}))?\b"
     )
 
-    # Clause 6: "No trading or speculative purposes"
-    CLAUSE_6 = (
-        rf"\b(?:no|for)\s+(?:{TRAD})(?:\s+or\s+(?:{TRAD}))?(?:\s+(?:{PURP}))?\b"
-    )
+    # Clause 6: "No trading [word word word ]or speculative purposes"
+    CLAUSE_6 = rf"""
+        \b(?:no|for)\s+                
+        (?:{TRAD})(?:\s+\S+){{0,4}}    
+        (?:\s+or\s+(?:{TRAD}|{PURP}))? 
+        (?:\s+(?:{PURP}))?     
+        \b
+    """
+
     CLAUSE_7 = (
         rf"\b(?:{SUBJ}|derivatives?|instruments?|contracts?)\s+"
         rf"(?:are|is|were|was)\s+not\s+"
