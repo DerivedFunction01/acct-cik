@@ -545,6 +545,7 @@ def build_fx_context_terms_advanced() -> List[str]:
         r"local\s+currenc(?:y|ies)",
         r"foreign\s+currenc(?:y|ies)",
         r"remeasurements?",
+        r"(?:currency|foreign)\s+exchanges?",
         r"exchange\s+rates?",
         r"translation\s+adjustments?",
         rf"exchange\s+rate\s+{_RISK_ALTERNATION}",
@@ -560,12 +561,12 @@ def build_fx_context_terms_advanced() -> List[str]:
         # 3. Specific FX Instruments Keywords
         r"spot\s+rate",
         r"non[- ]deliverable",
-        r"foreign\s+(?:debts?|loans?|borrowings?|bonds?|notes?)",
-        r"foreign\s+currency\s+(?:debts?|loans?|borrowings?|bonds?|notes?)",
+        rf"foreign\s+{_DEBT_TERMS}",
+        rf"foreign\s+currency\s+{_DEBT_TERMS}",
         # 1. Catch "Euro-denominated debt"
-        r"(?:[a-z]+[- ])?denominated\s+(?:debts?|loans?|borrowings?|bonds?|notes?)",
+        rf"(?:[a-z]+[- ])?denominated\s+{_DEBT_TERMS}",
         # 2. Catch "Debt denominated in..." (CRITICAL for preventing IR false positives)
-        r"(?:debts?|loans?|borrowings?|bonds?|notes?)\s+denominated\s+(?:in|by)",
+        rf"{_DEBT_TERMS}\s+denominated\s+(?:in|by)",
     ]
 
     return currency_specific_terms + generic_fx_terms
@@ -2774,7 +2775,7 @@ POTENTIAL_INDICATORS = [
 ]
 
 # Negative Intent Components
-NEGATIVE_AUXILIARY = [r"do", r"does", r"did", r"will", r"would", r"can", r"could", r"shall", r"should", r"have"]
+NEGATIVE_AUXILIARY = [r"do", r"does", r"did", r"will", r"would", r"can", r"could", r"shall", r"should", r"have", r"has"]
 NEGATIVE_INTENT_VERBS = [r"seek", r"intend", r"plan", r"expect", r"continue"]
 
 # Absence Indicators
@@ -2906,6 +2907,7 @@ NEGATIVE_CONTRACTIONS = [
     r"should[nN]['’]?[tT]",  # shouldn't
     r"sha[nN]['’]?[tT]",  # shan't
     r"have[nN]['’]?[tT]",  # haven't
+    r"has[nN]['’]?[tT]",
 ]
 def build_negation_prefix_pattern() -> str:
     """
@@ -2974,14 +2976,14 @@ def build_did_not_hold_regex() -> re.Pattern:
     _neg_prefix = build_negation_prefix_pattern()
     
     _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
-    _fillers = (
-        r"(?:such\s+|any\s+|" rf"{MATERIAL_PATTERN}\s+|" rf"{ACTIVE_STATE_PATTERN}\s+)*"
-    )
+    # _fillers = (
+    #     r"(?:such\s+|any\s+|" rf"{MATERIAL_PATTERN}\s+|" rf"{ACTIVE_STATE_PATTERN}\s+)*"
+    # )
 
     return re.compile(
         # Replace the hardcoded (did|does...) with the unified prefix
         rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+"
-        rf"{_fillers}"
+        r"{0,6}"
         rf"{_instrument_object}\b",
         re.IGNORECASE,
     )
