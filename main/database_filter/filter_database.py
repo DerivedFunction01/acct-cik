@@ -407,6 +407,8 @@ class TextCleaner:
         "derivative", "hedging", "hedge", "swap", "option", 
         "future", "forward", "instrument", "financial", "risk"
     }
+    bullet_pattern = re.compile(r"(?<![\$€£¥])\b(?:\(?\d+\)|\d+\.)", re.IGNORECASE)
+    dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
     def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH):
         """
         Args:
@@ -564,6 +566,29 @@ class TextCleaner:
 
         return " ".join(kept_sentences)
 
+    def clean_numerics(self, text: str) -> str:
+        """
+        Removes numeric noise:
+        1. Bullet points (e.g. "1)", "(1)", "1.") IF not preceded by currency.
+        2. Dashed numerics (e.g. "11-11", "2023-2024") which are usually dates/pages.
+        """
+
+        # 1. BULLET POINTS
+        # Logic: Match numeric bullets NOT preceded by currency symbols
+        # Matches: "1)", "(1)", "1." at start of line or after whitespace
+        # Lookbehind (?<!...) ensures we don't delete "$1)" or "€(1)"
+
+        text = self.bullet_pattern.sub(" ", text)
+
+        # 2. DASHED NUMERICS
+        # Logic: Remove "12-31", "10-K", "2023-2024"
+        # We need to be careful not to delete "cross-currency" or "risk-free"
+        # So we target digit-dash-digit specifically.
+
+        text = self.dashed_pattern.sub(" ", text)
+
+        return text
+
     def process(self, text: str) -> str:
         """
         Main pipeline execution.
@@ -575,6 +600,10 @@ class TextCleaner:
         text = self.clean_information(text)
         text = self.clean_standards(text)
         text = self.clean_entities(text)
+
+        # NEW: Numeric Cleanup
+        text = self.clean_numerics(text)
+
         text = self.normalize_whitespace(text)
         text = self.clean_structure(text)
 

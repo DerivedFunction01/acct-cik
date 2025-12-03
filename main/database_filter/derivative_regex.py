@@ -3140,9 +3140,9 @@ def build_reference_patterns() -> re.Pattern:
     patterns = [
         # --- NOTE REFERENCES ---
         # 1. See Note X
-        r"[Ss]ee\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?(?:\s*\(s\))?",
+        r"[Ss]ee\s+(?:Note|NOTE)?\s+(?:No\.\s+)?\d+[A-Z]?(?:\s*\(s\))?",
         # 2. Refer to Note X
-        r"(?:[Rr]efer(?:ence)?\s+(?:to|is\s+made\s+to|is\s+hereby\s+made\s+to))\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?",
+        r"(?:[Rr]efer(?:ence)?\s+(?:to|is\s+made\s+to|is\s+hereby\s+made\s+to))\s+(?:Note|NOTE)?\s+(?:No\.\s+)?\d+[A-Z]?",
         # 3. In Note X (Start of fragment or sentence)
         r"\b[Ii]n\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?",
         # 4. Note X provides/details...
