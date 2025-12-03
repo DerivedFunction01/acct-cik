@@ -2774,7 +2774,7 @@ POTENTIAL_INDICATORS = [
 ]
 
 # Negative Intent Components
-NEGATIVE_AUXILIARY = [r"do", r"does", r"did", r"will", r"would", r"can", r"could", r"shall", r"should"]
+NEGATIVE_AUXILIARY = [r"do", r"does", r"did", r"will", r"would", r"can", r"could", r"shall", r"should", r"have"]
 NEGATIVE_INTENT_VERBS = [r"seek", r"intend", r"plan", r"expect", r"continue"]
 
 # Absence Indicators
@@ -2905,6 +2905,7 @@ NEGATIVE_CONTRACTIONS = [
     r"could[nN]['’]?[tT]",  # couldn't
     r"should[nN]['’]?[tT]",  # shouldn't
     r"sha[nN]['’]?[tT]",  # shan't
+    r"have[nN]['’]?[tT]",  # haven't
 ]
 def build_negation_prefix_pattern() -> str:
     """
