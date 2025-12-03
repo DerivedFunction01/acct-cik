@@ -3174,34 +3174,36 @@ def build_reference_patterns() -> re.Pattern:
     """
 
     # The "Tail" - Consumes everything until a sentence boundary or end of string
-    # We use non-greedy lookahead or simply a negated character class
-    # [^.?!]* matches anything that isn't a period, question mark, or exclamation.
     SENTENCE_TAIL = r"[^.?!:]*"
 
-    # Base patterns (from your list)
+    # Base patterns
     patterns = [
         # --- NOTE REFERENCES ---
         # 1. See Note X
         r"[Ss]ee\s+(?:Note|NOTE)?\s+(?:No\.\s+)?\d+[A-Z]?(?:\s*\(s\))?",
         # 2. Refer to Note X
         r"(?:[Rr]efer(?:ence)?\s+(?:to|is\s+made\s+to|is\s+hereby\s+made\s+to))\s+(?:Note|NOTE)?\s+(?:No\.\s+)?\d+[A-Z]?",
-        # 3. In Note X (Start of fragment or sentence)
+        # 3. In Note X
         r"\b[Ii]n\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?",
-        # 4. Note X provides/details...
+        # 4. Note X provides...
         r"\b(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?\s+(?:provides?|details?|discloses?|discusses?)",
-        # --- TABLE / SCHEDULE REFERENCES ---
-        # 5. The table/schedule below/above...
-        r"[Tt]he\s+(?:following\s+)?(?:table|schedule|exhibit|note)?\s+(?:below|above|following|accompanying)?\s*(?:[Rr]efers\s+to|[Pp]rovides\s+details\s+on|[Pp]resents|[Ss]hows|[Ss]ummarizes|[Dd]etails|[Ii]s\s+presented)",
-        # 6. As shown in the table...
-        r"(?:[Aa]s\s+(?:shown|provided|detailed|presented|summarized|disclosed|set\s+forth)?\s+in\s+the\s+(?:table|schedule|exhibit|note))",
-        # 7. In the table below...
-        r"[Ii]n\s+(?:the\s+)?(?:table|schedule|exhibit|note)\s+(?:below|above|following)",
-        # 8. Punctuation + Table No. X (Very specific tail noise)
+        # --- RELAXED TABLE / POINTER REFERENCES ---
+        # 5. The [Noun] [Verb] OR The [Following] [Verb]
+        # Matches: "The following presents...", "The table below summarizes..."
+        # Change: Enforced that we must have either a noun (table) OR "following" to avoid matching "The company presents".
+        r"[Tt]he\s+(?:following|table|schedule|exhibit|note)\s+(?:below|above|following|accompanying)?\s*(?:[Rr]efers\s+to|[Pp]rovides\s+details\s+on|[Pp]resents|[Ss]hows|[Ss]ummarizes|[Dd]etails|[Ii]s\s+presented)",
+        # 6. As shown [Noun] OR As shown [Direction]
+        # Matches: "As shown in the table...", "As discussed below...", "As detailed herein..."
+        # Change: Added 'below|above|herein' as a valid alternative to 'in the table'.
+        r"(?:[Aa]s\s+(?:shown|provided|detailed|presented|summarized|disclosed|set\s+forth|discussed)(?:\s+in\s+the\s+(?:table|schedule|exhibit|note)|\s+(?:below|above|herein)))",
+        # 7. In the [Noun] OR In the [Following]
+        # Matches: "In the table below...", "In the following..."
+        r"[Ii]n\s+(?:the\s+)?(?:following|table|schedule|exhibit|note)\s+(?:below|above|following)?",
+        # 8. Punctuation + Table No. X
         r"(?:[.,;:\-\s]|\s+and\s+)\s*(?:table|schedule|exhibit|note)\s+No\.\s+\d+",
     ]
 
     # Combine: (Pattern) + (Tail)
-    # We allow the regex to consume the rest of the sentence.
     combined = [f"(?:{p}){SENTENCE_TAIL}" for p in patterns]
 
     return re.compile(r"|".join(combined), re.IGNORECASE | re.DOTALL)
