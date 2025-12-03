@@ -3169,44 +3169,42 @@ TERMINATION_REGEX = build_termination_regex()
 
 def build_reference_patterns() -> re.Pattern:
     """
-    Builds a regex that catches 'See Note X' references and consumes
-    the rest of the sentence to clean up tail noise.
+    Builds a regex that catches navigational pointers (e.g., 'See Note X', 'Table below')
+    WITHOUT consuming the rest of the sentence. This preserves context when the 
+    reference is embedded in a valid sentence (e.g., "The swaps shown in the table below are active").
     """
-
-    # The "Tail" - Consumes everything until a sentence boundary or end of string
-    SENTENCE_TAIL = r"[^.?!:]*"
-
-    # Base patterns
+    
     patterns = [
-        # --- NOTE REFERENCES ---
-        # 1. See Note X
-        r"[Ss]ee\s+(?:Note|NOTE)?\s+(?:No\.\s+)?\d+[A-Z]?(?:\s*\(s\))?",
-        # 2. Refer to Note X
-        r"(?:[Rr]efer(?:ence)?\s+(?:to|is\s+made\s+to|is\s+hereby\s+made\s+to))\s+(?:Note|NOTE)?\s+(?:No\.\s+)?\d+[A-Z]?",
-        # 3. In Note X
-        r"\b[Ii]n\s+(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?",
-        # 4. Note X provides...
-        r"\b(?:Note|NOTE)\s+(?:No\.\s+)?\d+[A-Z]?\s+(?:provides?|details?|discloses?|discusses?)",
-        # --- RELAXED TABLE / POINTER REFERENCES ---
-        # 5. The [Noun] [Verb] OR The [Following] [Verb]
-        # Matches: "The following presents...", "The table below summarizes..."
-        # Change: Enforced that we must have either a noun (table) OR "following" to avoid matching "The company presents".
-        r"[Tt]he\s+(?:following|table|schedule|exhibit|note)\s+(?:below|above|following|accompanying)?\s*(?:[Rr]efers\s+to|[Pp]rovides\s+details\s+on|[Pp]resents|[Ss]hows|[Ss]ummarizes|[Dd]etails|[Ii]s\s+presented)",
-        # 6. As shown [Noun] OR As shown [Direction]
-        # Matches: "As shown in the table...", "As discussed below...", "As detailed herein..."
-        # Change: Added 'below|above|herein' as a valid alternative to 'in the table'.
-        r"(?:[Aa]s\s+(?:shown|provided|detailed|presented|summarized|disclosed|set\s+forth|discussed)(?:\s+in\s+the\s+(?:table|schedule|exhibit|note)|\s+(?:below|above|herein)))",
-        # 7. In the [Noun] OR In the [Following]
-        # Matches: "In the table below...", "In the following..."
-        r"[Ii]n\s+(?:the\s+)?(?:following|table|schedule|exhibit|note)\s+(?:below|above|following)?",
-        # 8. Punctuation + Table No. X
+        # --- 1. Explicit Note/Section References ---
+        # Matches: "See Note 5", "Refer to Note 5", "In Note 5"
+        r"(?:[Ss]ee|[Rr]efer(?:ence)?\s+(?:to|is\s+made\s+to)|[Ii]n)\s+(?:Note|NOTE|Section)\s+(?:No\.\s+)?\d+[A-Z]?(?:\s*\(s\))?",
+        
+        # --- 2. Descriptive Note References ---
+        # Matches: "Note 5 provides...", "Note 10 discusses..."
+        r"\b(?:Note|NOTE|Section)\s+(?:No\.\s+)?\d+[A-Z]?\s+(?:provides?|details?|discloses?|discusses?|presents?)",
+
+        # --- 3. Table/Schedule Pointers (Directional) ---
+        # Matches: "The table below", "The following schedule", "The accompanying exhibit"
+        # Logic: Noun + Direction OR "Following" + Noun
+        r"[Tt]he\s+(?:following\s+)?(?:table|schedule|exhibit|note|chart|graph)\s+(?:below|above|following|accompanying|herein)",
+        r"[Tt]he\s+(?:following|accompanying)\s+(?:table|schedule|exhibit|note|chart|graph)",
+
+        # --- 4. Passive Pointers ---
+        # Matches: "As shown in the table", "As discussed below"
+        r"[Aa]s\s+(?:shown|provided|detailed|presented|summarized|disclosed|set\s+forth|discussed|reflected)\s+(?:in\s+the\s+(?:table|schedule|exhibit|note)|below|above|herein)",
+
+        # --- 5. Embedded Locators ---
+        # Matches: "presented in the table below", "included in the following table"
+        # This catches your specific example case.
+        r"(?:presented|included|summarized|set\s+forth|reflected)\s+in\s+(?:the\s+)?(?:following\s+)?(?:table|schedule|exhibit|note)\s+(?:below|above|following)?",
+        
+        # --- 6. Trailing Identifiers ---
+        # Matches: "...(Table 1)", "...- Schedule II"
         r"(?:[.,;:\-\s]|\s+and\s+)\s*(?:table|schedule|exhibit|note)\s+No\.\s+\d+",
     ]
 
-    # Combine: (Pattern) + (Tail)
-    combined = [f"(?:{p}){SENTENCE_TAIL}" for p in patterns]
-
-    return re.compile(r"|".join(combined), re.IGNORECASE | re.DOTALL)
+    # No SENTENCE_TAIL. We rely on text cleaning to scrub the debris.
+    return re.compile(r"|".join(patterns), re.IGNORECASE)
 
 
 def build_information_reference_regex() -> re.Pattern:
