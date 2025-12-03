@@ -508,8 +508,7 @@ class TextCleaner:
             s_no_year = DATE_DM_REGEX.sub(" ", s_no_year)
             s_no_year = self.bullet_pattern.sub(" ", s_no_year)
             s_no_year = self.dashed_pattern.sub(" ", s_no_year)
-            # 2. Check for digits or currency/percent symbols
-            # Matches "50", "$", "%", "0.5"
+            # 2. Check for numerical amounts
             return bool(QUANT_REGEX.search(s_no_year))
 
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
