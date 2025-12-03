@@ -35,12 +35,15 @@ SECTION_KEYWORDS = re.compile(
 TABLE_ANCHOR = " T_ "
 
 class TableToTextConverter:
-    def __init__(self, table_text: str):
+
+    def __init__(self, table_text: str, narrative_context: str = ""):
         self.raw_text = table_text
+        self.narrative_context = narrative_context
 
         # 1. Extract & Analyze Caption (New)
         self.caption = self._extract_caption(table_text)
-        self.table_default_type = self._analyze_caption_context(self.caption)
+        full_context = f"{self.caption} {self.narrative_context}"
+        self.table_default_type = self._analyze_caption_context(full_context)
 
         # 2. Extract Data
         self.headers, self.data = extract_table_content(table_text)
@@ -241,7 +244,6 @@ class TableToTextConverter:
         except ValueError:
             # If not numeric, assume it's already a currency string
             return clean_val
-
 
     def process(self) -> List[str]:
         sentences = []
