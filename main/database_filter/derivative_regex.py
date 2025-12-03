@@ -2257,8 +2257,7 @@ COMPETITOR_KEYWORDS = [
 
 def build_exclude_regex(keywords: list) -> re.Pattern:
     """Build regex for excluding noise keywords."""
-    escaped_keywords = [re.escape(kw) for kw in keywords]
-    pattern = r"|".join(escaped_keywords)
+    pattern = r"|".join(keywords)
     return re.compile(pattern, re.IGNORECASE)
 
 
