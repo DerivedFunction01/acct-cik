@@ -1387,6 +1387,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"embedded\s+conversion\s+(?:{option}|features?|{derivative})",
         rf"conversion\s+option\s+{liability}",
         rf"bifurcated\s+conversion\s+{option}",
+        rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))\s+hedges?",
         rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     ]
 
