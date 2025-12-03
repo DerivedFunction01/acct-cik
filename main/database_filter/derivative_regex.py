@@ -1376,12 +1376,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     strict_core_terms = [
         r"equity",
         r"equity[- ](?:based|related|linked|index)",
-        r"share\s+price",
-        r"stock\s+price",
         r"market\s+index",
-        r"S&P\s+500",
-        r"Nasdaq",
-        r"Dow\s+Jones",
     ]
     strict_core_alternation = build_alternation(strict_core_terms, True)
 
@@ -1752,6 +1747,7 @@ EQUITY_COMP_KEYWORDS = [
     "severance",
     "common shares?",
     "treasury stocks?",
+    "exercise",
 ]
 
 PLAN_ASSETS_KEYWORDS = [
