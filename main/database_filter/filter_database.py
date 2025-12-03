@@ -63,6 +63,7 @@ from derivative_regex import (
     CR_REGEX,
     CR_SOFT_REGEX,
     DEFINITION_INDICATORS,
+    DER_STD_REGEX,
     ENTITY_TOKEN,
     EQ_SOFT_REGEX,
     EXCLUDE_COMPETITOR_REGEX,
@@ -1542,11 +1543,9 @@ def filter_matches_with_disambiguation(
                     text.append(sentence)
                 # "Stock Options" or "Swaps" could be compensation.
                 # We require Strict Accounting proof ("hedge accounting", "derivative liability").
-                elif EQ_SOFT_REGEX.search(sentence) or LOOSE_GEN_REGEX.search(sentence):
-
-                    if SOFT_GEN_REGEX.search(sentence):
+                elif EQ_SOFT_REGEX.search(sentence):
+                    if SOFT_GEN_REGEX.search(sentence) or DER_STD_REGEX.search(sentence):
                         text.append(sentence)
-
                 else:
                     discard.append(sentence)
             discarded_text = " ".join(discard)
@@ -1732,7 +1731,7 @@ def filter_matches_with_disambiguation(
     # ═════════════════════════════════════════════════════════════════
     # If a generic sentence follows a specific one (skipping intervening tables),
     # it inherits the specific category. This heals paragraphs split by data tables.
-    
+
     for i in range(1, len(sentence_metadata)):
         curr = sentence_metadata[i]
 
