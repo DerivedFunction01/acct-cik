@@ -1573,6 +1573,17 @@ def build_soft_gen_regex() -> re.Pattern:
         r"(?:gain|loss) on derivatives?",
         r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
         r"hedging instruments?",
+    ]
+
+    all_patterns = accounting_phrases
+
+    # Combine and prioritize based on length/specificity
+    pattern = build_alternation(all_patterns)
+
+    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+
+def build_derivative_standards() -> re.Pattern:
+    stds = [
         # US GAAP - Derivatives & Hedging
         r"ASC\s+815",  # The big one (Derivatives and Hedging)
         r"SFAS\s+133",  # The legacy big one
@@ -1597,14 +1608,9 @@ def build_soft_gen_regex() -> re.Pattern:
         # EITF 00-19 was codified into ASC 815-40 "Contracts in Entity's Own Equity"
         r"ASC\s+815[-–—\s]?40",
     ]
-
-    all_patterns = accounting_phrases
-
-    # Combine and prioritize based on length/specificity
-    pattern = build_alternation(all_patterns)
-
+    pattern = build_alternation(stds)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
+DER_STD_REGEX = build_derivative_standards()
 
 def build_loose_gen_regex() -> re.Pattern:
     pattern = build_alternation(ALL_BASE_TYPES + ALL_SUFFIXES + ["warrants"])
@@ -1726,10 +1732,11 @@ EQUITY_COMP_KEYWORDS = [
     "ESPP",  # Employee Stock Purchase Plan
     "SARs?",  # Stock Appreciation Rights
     "stock appreciation rights?",
-    "phantom stock",
-    "employee stock",
+    "phantom stocks?",
+    "employee stocks?",
+    "employees?",
     # 2. Plan/HR Terminology
-    "compensation",
+    "compensations?",
     "benefit plans?",
     "incentive plans?",
     "share-based payment",

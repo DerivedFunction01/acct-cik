@@ -108,6 +108,7 @@ def get_system_config():
 from derivative_regex import (
     ALL_REGEX,
     BASE_REGEX,
+    DER_STD_REGEX,
     STRICT_REGEX,  # <--- NEW: The "Strict Instrument" Savior
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
@@ -748,7 +749,11 @@ def filter_by_keywords(content: str) -> list[str]:
                     # THE SAVIOR CHECK:
                     # STRICT_REGEX now contains "Equity Swaps" but NOT "Equity Options".
                     # So "Equity Options" (without hedge accounting) will fail this check and be discarded.
-                    if not (STRICT_REGEX.search(para) or SOFT_GEN_REGEX.search(para)):
+                    if not (
+                        STRICT_REGEX.search(para)
+                        or SOFT_GEN_REGEX.search(para)
+                        or DER_STD_REGEX.search(para)
+                        ):
                         i += 1
                         continue
 
