@@ -99,6 +99,7 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
     STRICT_REGEX,
+    TERMINATION_REGEX,
     TITLE_CLEANER_REGEX,
     TRADING_STATEMENTS_REGEX,
     VERB_REGEX,
@@ -1475,9 +1476,10 @@ def is_paragraph_salvageable(paragraph: str, year: Optional[int]) -> bool:
     marked for aggressive deletion actually contains hard evidence we must keep.
     """
     # 1. Must have Quantitative Evidence (Phase 6)
-    #    (e.g., "$10 million", "50 contracts")
+    #    (e.g., "$10 million")
     has_quant = bool(QUANT_REGEX.search(paragraph))
-    
+    if not has_quant: # We may use... We do not have any outstanding. Therefore, no quant, no point of salvaging
+        return False
     # 2. Must be Current (Phase 3)
     #    If we know the reporting year, the paragraph must mention it.
     #    If we don't know the year, we trust the quant signal (conservative).
@@ -1485,10 +1487,6 @@ def is_paragraph_salvageable(paragraph: str, year: Optional[int]) -> bool:
     if year:
         # Simple string check is usually sufficient for "2005"
         is_current = str(year) in paragraph
-        
-    # 3. Must NOT be purely termination (Phase 5)
-    #    If it's just "expired" or "settled", it's not active usage.
-    #    (Optional: depends on how strict you want to be here)
     
     return has_quant and is_current
 
@@ -1577,21 +1575,41 @@ def filter_matches_with_disambiguation(
         # AGGRESSIVE INTENT FILTER (Paragraph Level)
         # ═══════════════════════════════════════════════════════════
         # If the paragraph explicitly states "Potential Use" and "Non-Use" together, then it is a risk management paragraph most of the time
+        # ═══════════════════════════════════════════════════════════
+        # AGGRESSIVE INTENT FILTER (Paragraph Level)
+        # ═══════════════════════════════════════════════════════════
+
         is_potential = POTENTIAL_REGEX.search(match)
-        has_negative_signal = (
+
+        # Group 1: The "Hard" Negatives (Absence / Denial)
+        is_absence = (
             NEGATIVE_INTENT_REGEX.search(match)
             or ABSENCE_REGEX.search(match)
             or DID_NOT_HOLD_REGEX.search(match)
         )
 
-        if is_potential or has_negative_signal:
+        # Group 2: The "Soft" Negative (Termination)
+        is_termination = TERMINATION_REGEX.search(match)
+
+        # CASE 1: Contradiction Check (Potential + Absence)
+        # "We might use them" AND "We don't have them".
+        # This is almost always boilerplate noise. Kill it safely.
+        if is_potential and is_absence:
+            all_discarded.append((url, match, "aggressive_paragraph_contradiction"))
+            continue
+
+        # CASE 2: General Negative Check
+        # If we have any negative signal (Absence OR Termination), we check for salvation.
+        if is_potential or is_absence or is_termination:
+
             # SPEEDRUN: Check if it survives Phase 6/7 logic immediately
+            # (Must have QUANT + CURRENT YEAR)
             if is_paragraph_salvageable(match, year):
-                # It has hard numbers for the current year. 
-                # Keep it, but rely on later sentence-level splitting to clean it up.
-                pass 
+                # It has hard numbers for the current year. Keep it.
+                # (Even if it had "Termination", the hard numbers imply active rolling)
+                pass
             else:
-                # No hard evidence + Negative Intent = Safe to kill the whole block
+                # No hard evidence + Negative/Potential = Safe to kill
                 all_discarded.append((url, match, "aggressive_paragraph_intent"))
                 continue
 
