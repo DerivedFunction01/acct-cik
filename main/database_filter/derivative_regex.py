@@ -2513,11 +2513,13 @@ def build_trading_denial_pattern() -> re.Pattern:
     ACTIONS = [
         r"use(?:d|s)?",
         r"using",
+        r"utiliz(?:e|es|ed|ing)",
         r"enter(?:ed|s)?\s+into",
         r"entering\s+into",
         r"engage(?:d|s)?\s+in",
         r"engaging\s+in",
         r"hold(?:s)?",
+        r"have",
         r"held",
         r"holding",
         r"conduct(?:ed|s)?",
