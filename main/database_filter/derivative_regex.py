@@ -1829,7 +1829,8 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"petitions?",
     r"defenses?",
     r"corrections?",
-    r"corrective\s+actions?"
+    r"corrective\s+actions?",
+    r"breach(?:es|ed)?",
 ]
 
 # Section 3: Accounting Standards
