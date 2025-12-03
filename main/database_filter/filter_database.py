@@ -1564,7 +1564,33 @@ def filter_matches_with_disambiguation(
             # 1. Attempt to convert valid numeric tables into "Active User" sentences
             # e.g. "Table Disclosure: The Company held IR Swaps with fair value of $50."
             try:
-                converter = TableToTextConverter(match)
+                # CONTEXT EXTRACTION FOR TABLE PROCESSING
+                # We check previous and next paragraphs for pointers like "The table below presents..."
+                table_context = ""
+
+                # Check Previous Paragraph
+                if para_idx > 0:
+                    prev_text = matches[para_idx - 1]
+                    # We use REFERENCE_CLEANUP_REGEX to detect the structure,
+                    # and explicit keywords to ensure it refers to a table/schedule (not just a Note)
+                    if REFERENCE_CLEANUP_REGEX.search(prev_text):
+                        if any(
+                            kw in prev_text.lower()
+                            for kw in ["table", "schedule", "exhibit"]
+                        ):
+                            table_context += " " + prev_text
+
+                # Check Next Paragraph (e.g. "The table above shows...")
+                if para_idx < len(matches) - 1:
+                    next_text = matches[para_idx + 1]
+                    if REFERENCE_CLEANUP_REGEX.search(next_text):
+                        if any(
+                            kw in next_text.lower()
+                            for kw in ["table", "schedule", "exhibit"]
+                        ):
+                            table_context += " " + next_text
+
+                converter = TableToTextConverter(match, narrative_context=table_context)
                 extracted_sentences = converter.process()
 
                 if extracted_sentences:
