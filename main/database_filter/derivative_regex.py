@@ -1827,6 +1827,9 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"shareholder\s+derivative",
     r"courts?",
     r"petitions?",
+    r"defenses?",
+    r"corrections?",
+    r"corrective\s+actions?"
 ]
 
 # Section 3: Accounting Standards
