@@ -1612,7 +1612,7 @@ def build_soft_gen_regex() -> re.Pattern:
 
 
 def build_loose_gen_regex() -> re.Pattern:
-    pattern = build_alternation(ALL_BASE_TYPES + ALL_SUFFIXES)
+    pattern = build_alternation(ALL_BASE_TYPES + ALL_SUFFIXES + ["warrants"])
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 # =============================================================================
