@@ -2972,21 +2972,21 @@ def build_negative_intent_regex() -> re.Pattern:
 def build_absence_regex() -> re.Pattern:
     """
     Matches: "no interest rate swaps", "no such outstanding positions"
-    Uses master object pattern + state/materiality fillers
+    
+    Updated to be flexible: Allows up to 12 arbitrary tokens between 'no' and the instrument.
+    This captures complex phrasings like: "There were no 'exchange, interest rate swap or' outstanding..."
     """
     # Create master object pattern
     _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
 
-    # Fillers: "such", "any", plus our new Material/State patterns
-    # Matches: "no [material] [outstanding] swaps"
-    _fillers = (
-        r"(?:such\s+|any\s+|" rf"{MATERIAL_PATTERN}\s+|" rf"{ACTIVE_STATE_PATTERN}\s+)*"
-    )
+    # Relaxed Fillers: Allow up to 12 arbitrary words/tokens (non-whitespace chunks)
+    # Matches: "such", "material", "exchange,", "outstanding", etc.
+    _arbitrary_gap = r"(?:\S+\s+){0,12}"
 
     return re.compile(
         rf"\b{build_alternation(ABSENCE_INDICATORS)}\s+"  # No/None
-        rf"{_fillers}"  # Optional fillers
-        rf"{_instrument_object}\b",  # The Object
+        rf"{_arbitrary_gap}"  # Flexible N-word gap
+        rf"{_instrument_object}\b",  # The Instrument
         re.IGNORECASE,
     )
 
