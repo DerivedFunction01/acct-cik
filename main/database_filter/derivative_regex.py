@@ -1564,17 +1564,37 @@ STRICT_GEN_REGEX = re.compile(
 
 def build_soft_gen_regex() -> re.Pattern:
     # 1. Phrases explicitly related to derivative accounting treatment (PNL/Classification)
+    hedging_terms = [
+        r"relationship",
+        r"strateg(?:y|ies)",
+        r"activit(?:y|ies)",
+        r"programs?",
+        r"positions?",
+        r"assets?",
+        r"liabilit(?:y|ies)",
+        r"polic(?:y|ies)",
+        r"transactions?",
+        r"designations?",
+        r"effectiveness",
+        r"ineffectiveness",
+        r"objectives?",
+        r"instruments?",
+        r"arrangements?",
+        r"exposures?",
+        r"derivatives?",
+        r"accounting",
+    ]
+    hedge_phrases = build_alternation(hedging_terms, sort_longest_first=True)
     accounting_phrases = [
         r"(?:instruments?|contracts?) are designated",
         r"ineffective portions?",
-        r"hedging relationship",
-        r"hedge accounting",
+        # Expanded Hedging Noun Contexts (Strategy, Activity, Program, etc.)
+        rf"hedg(?:es?|ing)\s+{hedge_phrases}",
         r"change in fair value of derivatives?",
         r"derivative expenses?",
-        r"designated as (?:a )?hedges?",
+        r"designated as (?:a )?hedg(?:es?|ing)",
         r"(?:gain|loss) on derivatives?",
         r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
-        r"hedging instruments?",
     ]
 
     all_patterns = accounting_phrases
