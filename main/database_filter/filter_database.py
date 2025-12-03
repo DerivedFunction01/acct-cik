@@ -48,7 +48,8 @@ import sqlite3
 from itertools import groupby
 import uuid
 from final_verification import QUANT_REGEX
-from main.database_filter.notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
+from year_deletion import has_current_year_mention
+from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX, check_is_quantitative_zero
 from table_processor import TABLE_ANCHOR, TableToTextConverter
 
 # Import all derivative regexes
@@ -91,6 +92,7 @@ from derivative_regex import (
     NEGATIVE_INTENT_REGEX,
     POSITION_CONTEXT_INDICATORS,
     POTENTIAL_REGEX,
+    PRIOR_PATTERN,
     REFERENCE_CLEANUP_REGEX,
     SOFT_CATEGORY_REGEX,
     SOFT_GEN_REGEX,
@@ -1479,27 +1481,62 @@ def process_resolved_sentence(
 
     return paragraphs, discards
 
+from derivative_regex import (
+    extract_years,
+    has_current_year_mention,
+    PRIOR_PATTERN,
+    SENTENCE_SPLIT_PATTERN,
+)
+from notional_filter import check_is_quantitative_zero
+from final_verification import QUANT_REGEX
+
+
 def is_paragraph_salvageable(paragraph: str, year: Optional[int]) -> bool:
     """
-    'Speedruns' the late-stage checks (Phase 6/7) to see if a paragraph 
+    'Speedruns' the late-stage checks (Phase 6/7) to see if a paragraph
     marked for aggressive deletion actually contains hard evidence we must keep.
     """
-    # 0. Clean the paragraph and remove noise
+    # 0. Clean the paragraph locally to ensure accurate regex matching
     paragraph = CLEANER.process(paragraph)
+
     # 1. Must have Quantitative Evidence (Phase 6)
-    #    (e.g., "$10 million")
-    has_quant = bool(QUANT_REGEX.search(paragraph))
-    if not has_quant: # We may use... We do not have any outstanding. Therefore, no quant, no point of salvaging
+    quant_matches = list(QUANT_REGEX.finditer(paragraph))
+    if not quant_matches:
         return False
-    # 2. Must be Current (Phase 3)
-    #    If we know the reporting year, the paragraph must mention it.
-    #    If we don't know the year, we trust the quant signal (conservative).
-    is_current = True
-    if year:
-        # Simple string check is usually sufficient for "2005"
-        is_current = str(year) in paragraph
-    
-    return has_quant and is_current
+
+    # ZERO CHECK: Discard if the only numbers found are "0", "0.0", etc.
+    has_nonzero_quant = any(re.search(r"[1-9]", m.group()) for m in quant_matches)
+    if not has_nonzero_quant:
+        return False
+
+    # 2. PARAGRAPH TIME CHECK (The Gatekeeper)
+    # The paragraph MUST mention the reporting year (or future).
+    if not has_current_year_mention(paragraph, year):
+        return False
+
+    # 3. SENTENCE VALIDATION
+    sentences = SENTENCE_SPLIT_PATTERN.split(paragraph)
+
+    for sentence in sentences:
+        # A. Filter out "Prior Year" clauses ("In the prior period...")
+        if PRIOR_PATTERN.search(sentence):
+            continue
+
+        # B. Filter out explicit past years (The "Mixed Year" Fix)
+        # If the sentence mentions "2004" but not "2005", skip it.
+        # (If it mentions NO years, we assume it refers to the paragraph context)
+        sent_years = extract_years(sentence)
+        if year and sent_years:
+            if max(sent_years) < year:
+                continue
+
+        # C. Check for Non-Zero Quant (Phase 6 Logic)
+        # If this returns False (Keep), it means we found a valid non-zero amount.
+        if not check_is_quantitative_zero(sentence, year if year else 0):
+            return True
+
+    return False
+
 
 def filter_matches_with_disambiguation(
     matches_json: str, url: str = "", year: Optional[int] = None

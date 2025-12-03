@@ -170,7 +170,24 @@ def write_batch_to_db(batch: List[Tuple]):
 # =============================================================================
 # FILTERING LOGIC
 # =============================================================================
+def extract_years(text: str) -> List[int]:
+    """Extracts all 4-digit years (1980-2049) from text."""
+    return [int(y) for y in YEAR_REGEX.findall(text) if y]
 
+
+def has_current_year_mention(text: str, reporting_year: Optional[int]) -> bool:
+    """
+    Checks if the text explicitly mentions the reporting year or a future year.
+    Used for 'Salvation' logic: strict requirement for explicit year mention.
+    """
+    if not reporting_year:
+        return True  # Cannot filter without a year
+
+    years = extract_years(text)
+    if not years:
+        return False  # No year mentioned -> Fails strict salvation check
+
+    return max(years) >= reporting_year
 
 def filter_item_by_year(
     item: Tuple[str, str, str], metadata_map: Dict[str, Tuple[int, int]]
@@ -220,7 +237,7 @@ def filter_item_by_year(
 
         for sentence in atomic_sentences:
             original_sentence = sentence
-            extracted_years = [int(y) for y in YEAR_REGEX.findall(sentence) if y]
+            extracted_years = extract_years(sentence)
 
             # -------------------------------------------------------
             # CASE A: No explicit year mentioned
@@ -250,7 +267,6 @@ def filter_item_by_year(
 
                     # If content remains (e.g. "but currently we use swaps"), use it
                     sentence = cleaned_sentence
-                
 
                 # Keep the (potentially cleaned) sentence
                 kept_atomic_sentences.append(sentence)
