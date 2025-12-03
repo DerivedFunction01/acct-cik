@@ -2809,9 +2809,9 @@ _ABSENCE_NOUNS = [
     r"positions?",
     r"exposures?",
     r"obligations?",
-    r"hedge",  # "no such hedge" (generic)
-    r"activity",  # "no derivative activity"
-    r"involvement",  # "no involvement with derivatives"
+    r"hedges?",  # "no such hedge" (generic)
+    r"activit(?:ies|y)",  # "no derivative activity"
+    r"involvements?",  # "no involvement with derivatives"
     r"holdings?",  # "no holdings"
 ]
 
