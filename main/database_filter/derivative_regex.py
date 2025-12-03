@@ -1916,6 +1916,21 @@ CONTRACTUAL_KEYWORDS_LOOSE = [
     r"under\s+the\s+Loan\s+Documents",
     r"under\s+the\s+Guarantee",
     r"terms\s+defined\s+in\s+the\s+Credit\s+Agreement",
+    
+    r"certificate\s+of\s+incorporation",
+    r"articles\s+of\s+incorporation",
+    r"certificate\s+of\s+designation",
+    r"by[- ]?laws",
+    r"organizational\s+documents",
+    # 2. State Law / Jurisdiction (Common in Risk Factors)
+    r"delaware\s+law",
+    r"general\s+corporation\s+law",
+    r"DGCL",  # Delaware General Corporation Law
+    # 3. Specific "Anti-Takeover" phrasing
+    r"anti[- ]takeover",
+    r"change\s+of\s+control\s+provisions?",
+    r"stockholder\s+rights\s+plan",
+    r"poison\s+pill",
 ]
 
 
@@ -2880,6 +2895,7 @@ SPECULATIVE_PHRASES = [
     r"(?:may|might)\s+consider",
     r"when\s+(?:deemed\s+)?necessary",
     r"expects?\s+that",
+    r"(?!not )prevent",
 ]
 
 # Potential / Hypothetical Modals & Phrases
