@@ -2757,7 +2757,7 @@ def cleanup_fragment(sentence: str) -> str:
 # =============================================================================
 
 # Transaction verbs (Action)
-_TRANSACTION_VERBS = [r"enter", r"engage", r"transact"]
+_TRANSACTION_VERBS = [r"enter", r"engage", r"transact", r"perform"]
 _TRANSACTION_PATTERN = build_alternation(_TRANSACTION_VERBS)
 
 # Combined intent verbs: standard (hold, use, hedge) + transaction (enter, engage)
@@ -2964,9 +2964,10 @@ def build_negative_intent_regex() -> re.Pattern:
 def build_absence_regex() -> re.Pattern:
     """
     Matches: "no interest rate swaps", "no such outstanding positions"
-    
+
     Updated to be flexible: Allows up to 12 arbitrary tokens between 'no' and the instrument.
     This captures complex phrasings like: "There were no 'exchange, interest rate swap or' outstanding..."
+    Note: if the sentence mentions that it doesn't have something, then we don't need the sentence anyways.
     """
     # Create master object pattern
     _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
@@ -2985,6 +2986,7 @@ def build_absence_regex() -> re.Pattern:
 def build_did_not_hold_regex() -> re.Pattern:
     """
     Matches: "did not hold", "didn't enter", "couldn't engage"
+    Note: if the sentence mentions that it can't do something, then we don't need the sentence anyways.
     """
     # Use the same unified prefix
     _neg_prefix = build_negation_prefix_pattern()
@@ -2996,7 +2998,7 @@ def build_did_not_hold_regex() -> re.Pattern:
 
     return re.compile(
         # Replace the hardcoded (did|does...) with the unified prefix
-        rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+{{0,6}}\s+"
+        rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+(?:\S+\s+){{0,12}}"
         rf"{_instrument_object}\b",
         re.IGNORECASE,
     )
