@@ -395,26 +395,59 @@ class TextCleaner:
     # If a title contains these, it's about the paperwork, not the position.
     TITLE_KEYWORDS_REPORTING = {
         # Generic Nouns
-        "disclosure", "accounting", "reporting", "measurement", "recognition", 
-        "presentation", "guidance", "objective", "strategy", "policy", "activity", 
-        "summary", "information", "impact", "overview", "note", "table",
-        
+        "disclosure",
+        "accounting",
+        "reporting",
+        "measurement",
+        "recognition",
+        "presentation",
+        "guidance",
+        "objective",
+        "strategy",
+        "policy",
+        "activity",
+        "summary",
+        "information",
+        "impact",
+        "overview",
+        "note",
+        "table",
         # Regulatory Actions
-        "amendment", "deferral", "interpretation", "position", "adoption", "transition",
-        
+        "amendment",
+        "deferral",
+        "interpretation",
+        "position",
+        "adoption",
+        "transition",
         # Specific Guidance Types (Your new list)
-        "standard", "statement", "provision", "regulation", "abstract", 
-        "opinion", "codification", "bulletin", "release"
+        "standard",
+        "statement",
+        "provision",
+        "regulation",
+        "abstract",
+        "opinion",
+        "codification",
+        "bulletin",
+        "release",
     }
 
     # 2. Derivative Keywords (The Target)
     # The title must ALSO contain one of these to be deleted.
     TITLE_KEYWORDS_DERIV = {
-        "derivative", "hedging", "hedge", "swap", "option", 
-        "future", "forward", "instrument", "financial", "risk"
+        "derivative",
+        "hedging",
+        "hedge",
+        "swap",
+        "option",
+        "future",
+        "forward",
+        "instrument",
+        "financial",
+        "risk",
     }
     bullet_pattern = re.compile(r"(?<![\$€£¥])\b(?:\(?\d+\)|\d+\.)", re.IGNORECASE)
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
+
     def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH):
         """
         Args:
@@ -426,6 +459,7 @@ class TextCleaner:
         self.max_match_length = max_match_length
         self.TITLE_KEYWORDS_REPORTING = set(self.TITLE_KEYWORDS_REPORTING)
         self.TITLE_KEYWORDS_DERIV = set(self.TITLE_KEYWORDS_DERIV)
+
     # Helper: Check for numerics (excluding years)
     def has_strict_quant(self, s: str) -> bool:
         # 1. Strip years first (e.g. 1998, 2024) to avoid false positives
@@ -438,6 +472,7 @@ class TextCleaner:
         s_no_year = self.dashed_pattern.sub(" ", s_no_year)
         # 2. Check for numerical amounts
         return bool(QUANT_REGEX.search(s_no_year))
+
     def _safe_sub(self, pattern: re.Pattern, replacement: str, text: str) -> str:
         """
         Performs a regex substitution ONLY if the match length is within limits.
@@ -476,20 +511,52 @@ class TextCleaner:
             cleaned_text = self._safe_sub(pattern, replacement, cleaned_text)
         return cleaned_text
 
+    def _clean_text_per_sentence(self, text: str, trigger_regex: re.Pattern) -> str:
+        """
+        Generic per-sentence cleaner: if a sentence matches trigger_regex,
+        remove from the match until the end of that sentence.
+
+        Args:
+            text: The input text
+            trigger_regex: Pattern to search for within sentences
+
+        Returns:
+            Text with matching sentences cleaned from trigger point to end.
+        """
+        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
+        kept_sentences = []
+
+        for sent in sentences:
+            match = trigger_regex.search(sent)
+            if match:
+                # Keep text before the match, remove from match to end of sentence
+                cleaned_sent = sent[: match.start()].strip()
+                if cleaned_sent:
+                    kept_sentences.append(cleaned_sent)
+            else:
+                kept_sentences.append(sent)
+
+        return " ".join(kept_sentences)
+
     def clean_references(self, text: str) -> str:
         """
         Removes noise references like "See Note 5" or "Table below".
+        Cleans from the trigger point to the end of the sentence.
         """
-        if REFERENCE_CLEANUP_REGEX.search(text):
-            if self.has_strict_quant(text):
-                return REFERENCE_CLEANUP_REGEX.sub(" ", text)
-        return "" # The whole thing talks about a table
+        if not REFERENCE_CLEANUP_REGEX.search(text):
+            return text
+
+        if self.has_strict_quant(text):
+            return self._clean_text_per_sentence(text, REFERENCE_CLEANUP_REGEX)
+
+        return ""  # The whole thing talks about a table
 
     def clean_information(self, text: str) -> str:
         """
-        Remove "for furthur information"
+        Remove "for further information" statements.
+        Cleans from the trigger point to the end of the sentence.
         """
-        return MORE_INFO_REGEX.sub(" ", text)
+        return self._clean_text_per_sentence(text, MORE_INFO_REGEX)
 
     def normalize_whitespace(self, text: str) -> str:
         """
@@ -501,42 +568,61 @@ class TextCleaner:
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
 
-    def clean_standards(self, text: str) -> str:
+    def _find_strict_context_endpoint(self, sentences: list[str]) -> int:
         """
-        Surgically removes accounting standard references.
+        Finds the endpoint where strict regex context begins.
 
-        New Logic:
-        1. atomic split: Process sentence by sentence.
-        2. Content Filter: Discard citation sentences lacking strict numerics.
-        3. Toxic Tail: If an "Issuer Statement" (FASB Issued/Adopted) is found,
-           we assume the REST of the paragraph is regulatory boilerplate and discard it.
+        If an "Issuer Statement" (FASB Issued/Adopted) is found, we assume the
+        REST of the paragraph is regulatory boilerplate and discard it.
+
+        Args:
+            sentences: List of sentence strings
+
+        Returns:
+            Index of the first sentence containing strict context (endpoint).
+            If no strict context is found, returns len(sentences) (keep all).
         """
-        if TABLE_ANCHOR in text:
-            return text
+        for idx, sent in enumerate(sentences):
+            if ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
+                return idx
+        return len(sentences)
 
-        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
+    def _clean_kept_sentences(self, sentences: list[str], endpoint: int) -> str:
+        """
+        Cleans and filters sentences up to the endpoint.
+
+        Processing includes:
+        1. Detect accounting standard references
+        2. Clean the standard IDs
+        3. Apply quantitative filter (standard refs need numbers to survive)
+        4. Apply title cleaning (aggressive vs conservative)
+
+        Args:
+            sentences: List of sentence strings
+            endpoint: Index up to which to process (exclusive)
+
+        Returns:
+            Cleaned and joined text from kept sentences.
+        """
         kept_sentences = []
 
-        for sent in sentences:
-            # Use the strict regex if available, otherwise fallback to standard
-            is_strict_context = ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent)
-            if is_strict_context:
-                break
+        for idx in range(endpoint):
+            sent = sentences[idx]
 
-            # 1. Detect Context
+            # Detect standard reference
             has_std_ref = EXCLUDE_REGEX_ACCOUNTING_STD.search(sent)
 
-            # 2. Clean the IDs (unconditional cleanup)
+            # Clean the IDs (unconditional cleanup)
             clean_sent = EXCLUDE_REGEX_ACCOUNTING_STD.sub(" ", sent)
             clean_sent = STANDARD_ID_REGEX.sub(" ", clean_sent)
 
-            # 3. QUANTITATIVE FILTER (Content Check)
+            # QUANTITATIVE FILTER (Content Check)
             # If it's a standard ref, it needs numbers to survive.
             if has_std_ref:
                 if not self.has_strict_quant(clean_sent):
                     continue  # Discard just this sentence, continue to next
 
-            # 4. Title Cleaning (Aggressive vs Conservative)
+            # Title Cleaning (Aggressive vs Conservative)
             def title_replacer(match):
                 match_text = match.group(0)
                 lower_text = match_text.lower()
@@ -558,12 +644,7 @@ class TextCleaner:
                 )
                 has_deriv = any(kw in lower_text for kw in self.TITLE_KEYWORDS_DERIV)
 
-                # Aggressive Mode for Strict Context
-                if is_strict_context and not is_sentence_start:
-                    if has_deriv:
-                        return " " * len(match_text)
-
-                # Scenario 2: Standard (Context is General)
+                # Conservative mode (general context)
                 if has_reporting and has_deriv:
                     return " " * len(match_text)
 
@@ -575,6 +656,28 @@ class TextCleaner:
                 kept_sentences.append(final_sent)
 
         return " ".join(kept_sentences)
+
+    def clean_standards(self, text: str) -> str:
+        """
+        Surgically removes accounting standard references.
+
+        Pipeline:
+        1. Find the endpoint where strict context begins
+        2. Clean and filter sentences up to that endpoint
+        3. Return the cleaned result
+        """
+        if TABLE_ANCHOR in text:
+            return text
+
+        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
+
+        # Find where strict context starts (return point for discarded content)
+        endpoint = self._find_strict_context_endpoint(sentences)
+
+        # Clean the kept sentences up to endpoint
+        cleaned_text = self._clean_kept_sentences(sentences, endpoint)
+
+        return cleaned_text
 
     def clean_numerics(self, text: str) -> str:
         """
@@ -623,6 +726,7 @@ class TextCleaner:
 
         text = cleanup_fragment(text)
         return text
+
 
 CLEANER = TextCleaner()
 
