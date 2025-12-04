@@ -1679,7 +1679,6 @@ def filter_matches_with_disambiguation(
         # This is classic boilerplate. Kill it.
         if para_potential and para_absence:
             all_discarded.append((url, match, "aggressive_paragraph_contradiction"))
-            print(match)
             continue
 
         # Remove equity compensation boilerplate (salvage derivative mentions)
@@ -1970,7 +1969,7 @@ def filter_matches_with_disambiguation(
     # ═════════════════════════════════════════════════════════════════
 
     final_paragraphs_all = []
-    all_discarded_final = []
+    all_discarded_final = all_discarded
     used_indices_global = set()
 
     by_paragraph = {}
