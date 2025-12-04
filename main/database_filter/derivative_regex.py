@@ -719,34 +719,28 @@ _CR_LINKED_DEBT = rf"credit[- ]linked\s+{_DEBT_TERMS}"
 
 CR_CONTEXT_TERMS = [
     # --- A. Explicit Instruments (Broad Match) ---
-    r"credit[- ]default",          # Matches "credit default swap/option/risk"
-    r"total[- ]return",            # Matches "total return swap" (predominantly credit)
-    _CR_LINKED_DEBT,               # Use the variable!
-    r"basket[- ]default",
-    r"first[- ]to[- ]default",
-    rf"credit[- ]{_RISK_ALTERNATION}"
-    
-    # --- B. Indices (Highly Specific) ---
+    r"credit[- ]default",  # Matches "credit default swap" (Safe)
+    r"total[- ]return",  # Matches "total return swap" (Safe)
+    _CR_LINKED_DEBT,  # "credit-linked notes" (Safe)
+    r"basket[- ]default",  # "basket default swap" (Safe)
+    r"first[- ]to[- ]default",  # (Safe)
+    # REPLACEMENT FOR RISK ALTERNATION:
+    # "Credit Protection" implies a transfer of risk (derivative/insurance), whereas "Credit Risk" just implies exposure.
+    r"credit[- ](?:protections?|derivatives?|linked|slope|curve|tranche)",
+    # --- B. Indices (Highly Specific - Keep these) ---
     r"CDX",
     r"iTraxx",
     r"Markit\s+CDX",
     r"credit\s+indices",
     r"credit\s+index",
-    
-    # --- C. Mechanics & Roles (The "Smoking Gun" terms) ---
-    # These imply a derivative contract structure, not just a loan.
-    r"reference\s+(?:entit(?:y|ies)|obligations?|assets?)",
+    # --- C. Mechanics (Refined) ---
+    # "Reference Entity" is the specific legal term in a CDS contract.
+    r"reference\s+(?:entit(?:y|ies)|obligations?)",
+    # "Protection Seller/Buyer" is unambiguous CDS terminology.
     r"protection\s+(?:buyer|seller|sold|bought)",
-    r"credit\s+protection\s+(?:sold|bought|held)",
-    r"credit\s+events?",          # Specific ISDA term (bankruptcy, restructuring)
-    r"recovery\s+rates?",
-    r"credit\s+spreads?",         # "Spreads" usually implies trading/hedging context
-    r"spread\s+duration",
-    r"par\s+value",               # Common in CDS context
-    
-    # --- D. General (Use with caution, but usually safe in this regex) ---
-    r"credit\s+derivatives?",
-    r"credit\s+linked",           # Catch-all for "Credit linked deposits", etc.
+    # "Credit Event" is the ISDA trigger (Bankruptcy, Failure to Pay).
+    r"credit\s+events?",
+    r"recovery\s+rates?",  # Specific to CDS valuation
 ]
 
 # Compile the Regex
