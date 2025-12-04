@@ -1484,51 +1484,51 @@ def process_resolved_sentence(
 
     return paragraphs, discards
 
-def is_paragraph_salvageable(paragraph: str, year: Optional[int]) -> bool:
-    """
-    'Speedruns' the late-stage checks (Phase 6/7) to see if a paragraph
-    marked for aggressive deletion actually contains hard evidence we must keep.
-    """
-    # 0. Clean the paragraph locally to ensure accurate regex matching
-    paragraph = CLEANER.process(paragraph)
+# def is_paragraph_salvageable(paragraph: str, year: Optional[int]) -> bool:
+#     """
+#     'Speedruns' the late-stage checks (Phase 6/7) to see if a paragraph
+#     marked for aggressive deletion actually contains hard evidence we must keep. Doesn't work as intended.
+#     """
+#     # 0. Clean the paragraph locally to ensure accurate regex matching
+#     paragraph = CLEANER.process(paragraph)
 
-    # 1. Must have Quantitative Evidence (Phase 6)
-    quant_matches = list(QUANT_REGEX.finditer(paragraph))
-    if not quant_matches:
-        return False
+#     # 1. Must have Quantitative Evidence (Phase 6)
+#     quant_matches = list(QUANT_REGEX.finditer(paragraph))
+#     if not quant_matches:
+#         return False
 
-    # ZERO CHECK: Discard if the only numbers found are "0", "0.0", etc.
-    has_nonzero_quant = any(re.search(r"[1-9]", m.group()) for m in quant_matches)
-    if not has_nonzero_quant:
-        return False
+#     # ZERO CHECK: Discard if the only numbers found are "0", "0.0", etc.
+#     has_nonzero_quant = any(re.search(r"[1-9]", m.group()) for m in quant_matches)
+#     if not has_nonzero_quant:
+#         return False
 
-    # 2. PARAGRAPH TIME CHECK (The Gatekeeper)
-    # The paragraph MUST mention the reporting year (or future).
-    if not has_current_year_mention(paragraph, year):
-        return False
+#     # 2. PARAGRAPH TIME CHECK (The Gatekeeper)
+#     # The paragraph MUST mention the reporting year (or future).
+#     if not has_current_year_mention(paragraph, year):
+#         return False
 
-    # 3. SENTENCE VALIDATION
-    sentences = SENTENCE_SPLIT_PATTERN.split(paragraph)
+#     # 3. SENTENCE VALIDATION
+#     sentences = SENTENCE_SPLIT_PATTERN.split(paragraph)
 
-    for sentence in sentences:
-        # A. Filter out "Prior Year" clauses ("In the prior period...")
-        if PRIOR_PATTERN.search(sentence):
-            continue
+#     for sentence in sentences:
+#         # A. Filter out "Prior Year" clauses ("In the prior period...")
+#         if PRIOR_PATTERN.search(sentence):
+#             continue
 
-        # B. Filter out explicit past years (The "Mixed Year" Fix)
-        # If the sentence mentions "2004" but not "2005", skip it.
-        # (If it mentions NO years, we assume it refers to the paragraph context)
-        sent_years = extract_years(sentence)
-        if year and sent_years:
-            if max(sent_years) < year:
-                continue
+#         # B. Filter out explicit past years (The "Mixed Year" Fix)
+#         # If the sentence mentions "2004" but not "2005", skip it.
+#         # (If it mentions NO years, we assume it refers to the paragraph context)
+#         sent_years = extract_years(sentence)
+#         if year and sent_years:
+#             if max(sent_years) < year:
+#                 continue
 
-        # C. Check for Non-Zero Quant (Phase 6 Logic)
-        # If this returns False (Keep), it means we found a valid non-zero amount.
-        if not check_is_quantitative_zero(sentence, year if year else 0):
-            return True
+#         # C. Check for Non-Zero Quant (Phase 6 Logic)
+#         # If this returns False (Keep), it means we found a valid non-zero amount.
+#         if not check_is_quantitative_zero(sentence, year if year else 0):
+#             return True
 
-    return False
+#     return False
 
 
 def filter_matches_with_disambiguation(
@@ -1653,7 +1653,6 @@ def filter_matches_with_disambiguation(
         
         para_potential = False
         para_absence = False
-        para_termination = False
         
         for s in sentences:
             # OPTIMIZATION: Only check intent in sentences that actually discuss derivatives.
@@ -1669,10 +1668,6 @@ def filter_matches_with_disambiguation(
                     or ABSENCE_REGEX.search(s) 
                     or DID_NOT_HOLD_REGEX.search(s)):
                     para_absence = True
-                
-                # 3. Termination ("Expired", "Matured")
-                if TERMINATION_REGEX.search(s):
-                    para_termination = True
 
         # ═══════════════════════════════════════════════════════════
         # DECISION: KEEP OR KILL PARAGRAPH
@@ -1682,20 +1677,8 @@ def filter_matches_with_disambiguation(
         # This is classic boilerplate. Kill it.
         if para_potential and para_absence:
             all_discarded.append((url, match, "aggressive_paragraph_contradiction"))
+            print(match)
             continue
-
-        # CASE 2: Negative Signal Check
-        # If any negative/speculative signal exists, we require PROOF (Quant + Current Year) to keep it.
-        if para_potential or para_absence or para_termination:
-            # "Speedrun" the salvage check on the FULL paragraph text
-            if is_paragraph_salvageable(match, year):
-                # It has hard numbers ($50m, 2023). Keep active context.
-                pass 
-            else:
-                # It talks about "may use" or "no holdings" but has no current numbers.
-                # Safe to discard the whole block.
-                all_discarded.append((url, match, "aggressive_paragraph_intent"))
-                continue
 
         # Remove equity compensation boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_EQUITY_COMP.search(match):
@@ -1987,11 +1970,6 @@ def filter_matches_with_disambiguation(
     final_paragraphs_all = []
     all_discarded_final = []
     used_indices_global = set()
-
-    # Group metadata by paragraph for context incorporation
-    # --- PASS 3: POST-PROCESSING (Modified for Resurrection) ---
-    final_paragraphs_all = []
-    all_discarded_final = []
 
     by_paragraph = {}
     for meta in sentence_metadata:
