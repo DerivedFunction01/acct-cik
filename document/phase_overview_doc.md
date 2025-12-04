@@ -49,13 +49,6 @@ Raw Filing Text
 │ - Discard if reporting year = $0                            │
 └─────────────────────────────────────────────────────────────┘
       ↓
-┌─────────────────────────────────────────────────────────────┐
-│ PHASE 7: STRONG SIGNAL ENFORCEMENT                          │
-│ - Verify action verbs present (use, hold, maintain)         │
-│ - Verify quantitative evidence OR active state              │
-│ - Remove passive boilerplate (methodology, policy)          │
-└─────────────────────────────────────────────────────────────┘
-      ↓
 Active User Classifications
 (IR, FX, CP, EQ, CR, or Inactive)
 ```
@@ -443,95 +436,6 @@ for sentence in text:
 
 ---
 
-### PHASE 7: Strong Signal Enforcement
-
-**File:** `final_verification.py`
-
-**Goal:** Remove passive boilerplate; keep only strong evidence of position.
-
-**Key Actions:**
-
-1. **Action Verb Verification**
-   ```
-   VERB_REGEX checks for: "use", "hold", "maintain", "enter", 
-                          "engage", "transact", "designate", "hedge"
-   
-   Before: "The fair value of derivatives is determined quarterly."
-   Signal: NO action verb (passive: "is determined")
-   Action: DISCARD (methodology, not position)
-   
-   Before: "We maintain interest rate swaps."
-   Signal: YES action verb ("maintain")
-   Action: KEEP
-   ```
-
-2. **Quantitative Evidence**
-   ```
-   Check for: "$100M", "notional amount", "fair value", "1,000 contracts"
-   
-   QUANT_REGEX matches: $USD symbols, percentages, amounts
-   CURRENCY_SYMBOL_PATTERN matches: $, €, £, ¥
-   
-   If found → KEEP (strong evidence)
-   ```
-
-3. **Active State Verification**
-   ```
-   ACTIVE_STATE_REGEX checks: "outstanding", "active", "remaining", "open"
-   
-   Before: "These derivatives remain active at year-end."
-   Signal: YES active state ("remain active")
-   Action: KEEP
-   ```
-
-4. **Trap Detection: The "Level" Trap**
-   ```
-   LEVEL_REGEX matches: "Level 1", "Level 2", "Level 3" valuation
-   
-   Problem: "The derivatives are valued at Level 2 inputs."
-   Context: Pure methodology, NO position evidence
-   
-   Check: If ONLY "Level X" + NO quantitative amount → DISCARD
-   Check: If "Level X" + "Fair value $50M" → KEEP
-   ```
-
-5. **Trap Detection: The "Policy" Trap**
-   ```
-   POLICY_REGEX matches: "hedge documentation", "designated as hedge",
-                         "formally documented", "effectiveness assessed"
-   
-   Problem: "We formally document all derivative hedges."
-   Context: Accounting process, not position
-   
-   Check: If ONLY policy language + NO quantitative → DISCARD
-   Check: If policy + "$50M notional" → KEEP
-   ```
-
-**Input:** Quantitatively-verified pairs from Phase 6  
-**Output:** Strong-signal pairs (final classification)  
-**Attrition:** ~10-20%
-
-**Code Flow:**
-```python
-for sentence in text:
-    has_action_verb = VERB_REGEX.search(sentence)
-    has_quant = QUANT_REGEX.search(sentence)
-    has_active_state = ACTIVE_STATE_REGEX.search(sentence)
-    
-    # Trap checks
-    if LEVEL_REGEX.search(sentence) and not has_quant:
-        continue  # DISCARD (Level trap)
-    
-    if POLICY_REGEX.search(sentence) and not has_quant:
-        continue  # DISCARD (Policy trap)
-    
-    # Strong signal check
-    if has_action_verb or has_quant or has_active_state:
-        output.append(sentence)
-```
-
----
-
 ## Overall System Metrics
 
 ### Attrition by Phase
@@ -545,24 +449,6 @@ for sentence in text:
 | Phase 4 | Linguistic intent | 5% | 78.4% |
 | Phase 5 | Termination | 5% | 80.1% |
 | Phase 6 | Zero quantitative | 3% | 80.7% |
-| Phase 7 | Strong signal | 15% | 81.9% |
-| Output | Active user evidence | — | **18.1% of original text** |
-
-### Quality Trade-off
-
-```
-Phases 1-3: Remove obvious noise
-  Precision ↑↑, Recall ↑↑
-  
-Phases 4-5: Remove potential/hypothetical/expired
-  Precision ↑↑↑, Recall ↓ (stricter)
-  
-Phases 6-7: Enforce quantitative + action signals
-  Precision ↑↑↑↑, Recall ↓↓ (very strict)
-  
-Result: ~95%+ Precision, ~70-80% Recall
-  (vs. Campbell: ~80% Precision, ~90% Recall)
-```
 
 ---
 
@@ -590,56 +476,9 @@ Phases 3-7: Distributed filtering
 
 ---
 
-## Validation & Auditing
-
-### Audit Trails
-
-Each phase maintains a `discarded_sentences` table:
-
-```sql
-SELECT discard_reason, COUNT(*) 
-FROM discarded_sentences 
-GROUP BY discard_reason 
-ORDER BY COUNT(*) DESC;
-
-Results:
-| Reason | Count |
-|--------|-------|
-| adoption | 450,000 |
-| equity_comp | 380,000 |
-| legal | 190,000 |
-| trading_statements | 85,000 |
-| aoci | 120,000 |
-| ...
-```
-
-### Quality Checks
-
-```python
-# After all phases complete:
-
-1. Category Distribution Check
-   - IR users: 25% (expect 20-30%)
-   - FX users: 35% (expect 30-40%)
-   - CP users: 15% (expect 10-20%)
-   - EQ users: 18% (expect 15-25%)
-   - CR users: 7% (expect 5-10%)
-
-2. Activity Distribution Check
-   - Active: 45% of all companies (expect 40-55%)
-   - Inactive: 55% of all companies
-
-3. Quantitative Evidence Check
-   - Avg sentences per company: 3.2 (expect 2-5)
-   - Sentences with quantities: 78% (expect 70-85%)
-   - Sentences with action verbs: 91% (expect 85-95%)
-```
-
----
-
 ## Summary
 
-The 7-phase system achieves **high precision** through sequential filtering:
+The 6-phase system achieves **high precision** through sequential filtering:
 
 1. **Phase 1:** Remove noise and extract candidate text
 2. **Phase 2:** Assign precise categories
@@ -647,7 +486,4 @@ The 7-phase system achieves **high precision** through sequential filtering:
 4. **Phase 4:** Remove hypothetical language
 5. **Phase 5:** Remove expired positions
 6. **Phase 6:** Verify quantitative exposure
-7. **Phase 7:** Enforce strong action/signal evidence
-
-**Result:** Highly reliable classifications suitable for academic research and investment analysis.
 
