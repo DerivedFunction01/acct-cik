@@ -209,6 +209,32 @@ class TableToTextConverter:
         merged = row[:]
         fragment_pattern = re.compile(r"^[()$€£¥%—\-\s]+$")
         value_pattern = re.compile(r"\d")
+        
+        # NEW: First pass - merge fragments WITH their values (forward)
+        i = 0
+        while i < len(merged):
+            cell = merged[i].strip()
+            
+            # If this cell is a pure fragment, look ahead for digits
+            if cell and fragment_pattern.match(cell):
+                # Scan forward for a digit
+                j = i + 1
+                while j < len(merged) and j < i + 3:  # Look up to 2 cells ahead
+                    next_cell = merged[j].strip()
+                    if value_pattern.search(next_cell):
+                        # Found a digit! Merge backward
+                        merged[j] = cell + merged[j]
+                        merged[i] = ""
+                        break
+                    elif fragment_pattern.match(next_cell):
+                        # Another fragment, keep scanning
+                        j += 1
+                    else:
+                        # Non-fragment, non-digit - stop
+                        break
+            i += 1
+        
+        # ORIGINAL: Second pass - merge fragments TOWARD values (backward)
         for i in range(len(merged)):
             cell = merged[i].strip()
             if value_pattern.search(cell) and not fragment_pattern.match(cell):
@@ -225,8 +251,8 @@ class TableToTextConverter:
                     if right and fragment_pattern.match(right):
                         merged[i] = merged[i] + right
                         merged[i + 1] = ""
+        
         return merged
-
     def normalize_value(self, clean_val: str):
         # Strip parentheses
         stripped = clean_val.strip("()")
