@@ -41,6 +41,7 @@ from derivative_regex import (
     NEGATIVE_INTENT_REGEX,
     ABSENCE_REGEX,
     DID_NOT_HOLD_REGEX,
+    aggregate_discards,
     validate_instrument_retention,
     NON_DERIVATIVE_REGEX,
 )
@@ -262,7 +263,7 @@ def process_item(item):
             json.dumps(final_categories),
             cik,
             year,
-            discards,
+            aggregate_discards(discards),
         )
 
     return (url, "[]", "[]", cik, year, discards) if discards else None

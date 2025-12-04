@@ -24,6 +24,7 @@ from derivative_regex import (
     ACTIVE_STATE_REGEX,
     ACTIVE_INDICATORS,
     USAGE_VERBS,
+    aggregate_discards,
     check_for_instrument,
     validate_instrument_retention,
     build_alternation,
@@ -232,7 +233,7 @@ def process_company(item):
             discards,
         )
 
-    return (url, "[]", "[]", cik, year, discards) if discards else None
+    return (url, "[]", "[]", cik, year, aggregate_discards(discards)) if discards else None
 
 
 # =============================================================================

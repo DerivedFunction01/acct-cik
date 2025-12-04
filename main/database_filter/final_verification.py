@@ -49,6 +49,7 @@ from derivative_regex import (
     CURRENCY_SYMBOL_PATTERN,
     STRONG_VERB_PATTERN,
     VALUATION_MODELS,
+    aggregate_discards,
     build_alternation,
     ACTIVE_STATE_REGEX,
     validate_instrument_retention,
@@ -246,7 +247,7 @@ def process_company(item):
             json.dumps(final_categories),
             cik,
             year,
-            discards,
+            aggregate_discards(discards),
         )
 
     return (url, "[]", "[]", cik, year, discards) if discards else None

@@ -36,6 +36,7 @@ from derivative_regex import (
     YEAR_REGEX,
     PRIOR_PATTERN,
     SENTENCE_SPLIT_PATTERN,
+    aggregate_discards,
     check_for_instrument,  # Ensure this is imported
     cleanup_fragment,
     validate_instrument_retention,
@@ -308,7 +309,7 @@ def filter_item_by_year(
             json.dumps(final_categories),
             cik,
             reporting_year,
-            discards,
+            aggregate_discards(discards),
         )
 
     return (url, "[]", "[]", cik, reporting_year, discards) if discards else None
