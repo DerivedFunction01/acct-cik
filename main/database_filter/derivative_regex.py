@@ -3108,7 +3108,7 @@ def build_absence_regex() -> re.Pattern:
     _arbitrary_gap = r"(?:\S+\s+){0,12}"
 
     return re.compile(
-        rf"\b{build_alternation(ABSENCE_INDICATORS)}\s+"  # No/None
+        rf"\b{build_alternation(ABSENCE_INDICATORS)}\b\s+"  # No/None
         rf"{_arbitrary_gap}"  # Flexible N-word gap
         rf"{_instrument_object}\b",  # The Instrument
         re.IGNORECASE,
