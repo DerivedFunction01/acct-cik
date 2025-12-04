@@ -1150,16 +1150,14 @@ def build_fx_dynamic_pattern() -> str:
         rf"(?:{word1})[- ](?:{word1})[- ](?:{compound})[- ](?:{word2_alt})[- ]{word3}", # forward foreign cross currency exchange rate
         rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})[- ]{word3}",  # forward foreign exchange rate
         # Shorter, common combinations
-        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}", # forward exchange rate
+        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}", # forward/foreign currency/exchange rate
         rf"(?:{compound})[- ](?:{word2_alt})[- ]{word3}",  # cross currency exchange rate
-        rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})",  # forward foreign exchange
-        rf"(?:{word1})[- ](?:{word2_alt})",
-        rf"(?:{compound})[- ](?:{word2_alt})",
+        rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})",  # forward foreign exchange/currency
+        rf"(?:{compound})[- ](?:{word2_alt})",  # cross currency exchange
         # Two-word descriptive terms
-        rf"(?:{word1})[- ](?:{word2_alt})",
-        rf"(?:{compound})",
+        rf"(?:{word1})[- ](?:{word2_alt})", # forward exchange, foreign currency
+        rf"(?:{compound})", # cross currency
         # Single-word descriptive terms (low priority, included for completeness)
-        compound,
         r"FX",
         r"forex",
     ]
