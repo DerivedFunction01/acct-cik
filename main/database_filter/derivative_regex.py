@@ -2901,6 +2901,7 @@ SPECULATIVE_PHRASES = [
     r"previously",
     r"occasionally",
     r"in\s+the\s+future",
+    r"in\s+future\s+periods",
     r"upon\s+occurrence",
     r"believes?",
     r"(?:may|might)\s+consider",
