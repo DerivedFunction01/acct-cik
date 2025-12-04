@@ -392,23 +392,61 @@ def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
 class TextCleaner:
     MAX_CLEANUP_MATCH_LENGTH = 500
     TITLE_KEYWORDS_REPORTING = {
-        "disclosure", "accounting", "reporting", "measurement", "recognition", 
-        "presentation", "guidance", "objective", "strategy", "policy", "activity", 
-        "summary", "information", "impact", "overview", "note", "table",
-        "amendment", "deferral", "interpretation", "position", "adoption", "transition",
-        "standard", "statement", "provision", "regulation", "abstract", 
-        "opinion", "codification", "bulletin", "release"
+        "disclosure",
+        "accounting",
+        "reporting",
+        "measurement",
+        "recognition",
+        "presentation",
+        "guidance",
+        "objective",
+        "strategy",
+        "policy",
+        "activity",
+        "summary",
+        "information",
+        "impact",
+        "overview",
+        "note",
+        "table",
+        "amendment",
+        "deferral",
+        "interpretation",
+        "position",
+        "adoption",
+        "transition",
+        "standard",
+        "statement",
+        "provision",
+        "regulation",
+        "abstract",
+        "opinion",
+        "codification",
+        "bulletin",
+        "release",
     }
 
     TITLE_KEYWORDS_DERIV = {
-        "derivative", "hedging", "hedge", "swap", "option", 
-        "future", "forward", "instrument", "financial", "risk"
+        "derivative",
+        "hedging",
+        "hedge",
+        "swap",
+        "option",
+        "future",
+        "forward",
+        "instrument",
+        "financial",
+        "risk",
     }
-    
+
     bullet_pattern = re.compile(r"(?<![\$€£¥])\b(?:\(?\d+\)|\d+\.)", re.IGNORECASE)
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
 
-    def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH, track_discards: bool = False):
+    def __init__(
+        self,
+        max_match_length: int = MAX_CLEANUP_MATCH_LENGTH,
+        track_discards: bool = False,
+    ):
         """
         Args:
             max_match_length: The safety threshold for regex matches.
@@ -418,12 +456,13 @@ class TextCleaner:
         self.TITLE_KEYWORDS_REPORTING = set(self.TITLE_KEYWORDS_REPORTING)
         self.TITLE_KEYWORDS_DERIV = set(self.TITLE_KEYWORDS_DERIV)
         self.track_discards = track_discards
-        self.discards = []  # List of (removed_text, reason)
+        self.discards = []  # List of (url, removed_text, reason)
+        self.current_url = None
 
     def _record_discard(self, removed_text: str, reason: str):
         """Records removed content for auditing."""
         if self.track_discards and removed_text.strip():
-            self.discards.append((removed_text, reason))
+            self.discards.append((self.current_url, removed_text, reason))
 
     def has_strict_quant(self, s: str) -> bool:
         s_no_year = YEAR_REGEX.sub("", s)
@@ -438,6 +477,7 @@ class TextCleaner:
         """
         Performs a regex substitution ONLY if the match length is within limits.
         """
+
         def replacement_callback(match):
             match_len = len(match.group(0))
             if match_len > self.max_match_length:
@@ -464,7 +504,9 @@ class TextCleaner:
             cleaned_text = self._safe_sub(pattern, replacement, cleaned_text)
         return cleaned_text
 
-    def _clean_text_per_sentence(self, text: str, trigger_regex: re.Pattern, reason: str) -> str:
+    def _clean_text_per_sentence(
+        self, text: str, trigger_regex: re.Pattern, reason: str
+    ) -> str:
         """
         Generic per-sentence cleaner: if a sentence matches trigger_regex,
         remove from the match until the end of that sentence.
@@ -485,10 +527,10 @@ class TextCleaner:
             if match:
                 # Keep text before the match, remove from match to end of sentence
                 cleaned_sent = sent[: match.start()].strip()
-                removed_text = sent[match.start():].strip()
-                
+                removed_text = sent[match.start() :].strip()
+
                 self._record_discard(removed_text, reason)
-                
+
                 if cleaned_sent:
                     kept_sentences.append(cleaned_sent)
             else:
@@ -505,7 +547,9 @@ class TextCleaner:
             return text
 
         if self.has_strict_quant(text):
-            return self._clean_text_per_sentence(text, REFERENCE_CLEANUP_REGEX, "reference_cleanup")
+            return self._clean_text_per_sentence(
+                text, REFERENCE_CLEANUP_REGEX, "reference_cleanup"
+            )
 
         self._record_discard(text, "reference_entire_paragraph_no_quant")
         return ""  # The whole thing talks about a table
@@ -515,7 +559,9 @@ class TextCleaner:
         Remove "for further information" statements.
         Cleans from the trigger point to the end of the sentence.
         """
-        return self._clean_text_per_sentence(text, MORE_INFO_REGEX, "information_cleanup")
+        return self._clean_text_per_sentence(
+            text, MORE_INFO_REGEX, "information_cleanup"
+        )
 
     def normalize_whitespace(self, text: str) -> str:
         """
@@ -528,7 +574,7 @@ class TextCleaner:
     def _find_strict_context_endpoint(self, sentences: list[str]) -> int:
         """
         Finds the endpoint where strict regex context begins.
-        
+
         Returns:
             Index of the first sentence containing strict context (endpoint).
             If no strict context is found, returns len(sentences) (keep all).
@@ -559,7 +605,7 @@ class TextCleaner:
 
         for idx in range(endpoint):
             sent = sentences[idx]
-            
+
             # Detect standard reference
             has_std_ref = EXCLUDE_REGEX_ACCOUNTING_STD.search(sent)
 
@@ -607,7 +653,9 @@ class TextCleaner:
             if final_sent.strip():
                 kept_sentences.append(final_sent)
             else:
-                self._record_discard(sent, "accounting_standard_title_cleaning_destroyed")
+                self._record_discard(
+                    sent, "accounting_standard_title_cleaning_destroyed"
+                )
 
         return " ".join(kept_sentences)
 
@@ -624,17 +672,19 @@ class TextCleaner:
             return text
 
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
-        
+
         # Find where strict context starts (return point for discarded content)
         endpoint = self._find_strict_context_endpoint(sentences)
-        
+
         # Record discarded sentences from endpoint onward
         for idx in range(endpoint, len(sentences)):
-            self._record_discard(sentences[idx], "accounting_standard_strict_context_cutoff")
-        
+            self._record_discard(
+                sentences[idx], "accounting_standard_strict_context_cutoff"
+            )
+
         # Clean the kept sentences up to endpoint
         cleaned_text = self._clean_kept_sentences(sentences, endpoint)
-        
+
         return cleaned_text
 
     def clean_numerics(self, text: str) -> str:
@@ -648,10 +698,19 @@ class TextCleaner:
         text = DATE_MD_REGEX.sub(" ", text)
         return text
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, url: Optional[str] = None) -> str:
         """
         Main pipeline execution.
+
+        Args:
+            text: The text to clean
+            url: Optional URL to associate with discards (auto-clears previous URL's discards)
         """
+        # Auto-clear when processing new URL
+        if url is not None and url != self.current_url:
+            self.clear_discards()
+            self.current_url = url
+
         if not text:
             return ""
 
@@ -665,73 +724,19 @@ class TextCleaner:
         text = cleanup_fragment(text)
         return text
 
-    def get_discards(self) -> list[tuple[str, str]]:
+    def get_discards(self) -> list[tuple[str, str, str]]:
         """
-        Returns list of (removed_text, reason) tuples.
+        Returns list of (url, removed_text, reason) tuples.
         Only populated if track_discards=True was set at initialization.
         """
         return self.discards
-
-    def get_discards_aggregated(self) -> dict[str, list[str]]:
-        """
-        Returns discards aggregated by reason.
-        Format: {reason: [removed_text_1, removed_text_2, ...]}
-        
-        Example:
-            {
-                'reference_cleanup': ['See Note 5', 'Table below'],
-                'accounting_standard_no_quant': ['ASC 815 derivative...', 'FASB guidance...']
-            }
-        """
-        from collections import defaultdict
-        aggregated = defaultdict(list)
-        for removed_text, reason in self.discards:
-            aggregated[reason].append(removed_text)
-        return dict(aggregated)
-
-    def print_discards_summary(self):
-        """
-        Prints a human-readable summary of discards grouped by reason.
-        """
-        aggregated = self.get_discards_aggregated()
-        
-        if not aggregated:
-            print("No discards recorded.")
-            return
-        
-        print("\n" + "=" * 80)
-        print("📊 DISCARD SUMMARY BY REASON")
-        print("=" * 80)
-        
-        for reason, items in sorted(aggregated.items(), key=lambda x: len(x[1]), reverse=True):
-            count = len(items)
-            total_chars = sum(len(text) for text in items)
-            reason_display = reason.replace("_", " ").title()
-            
-            print(f"\n  {reason_display}: {count} items ({total_chars:,} chars)")
-            
-            # Show first 3 examples (truncated to 60 chars each)
-            for i, item in enumerate(items[:3]):
-                preview = item[:60].replace("\n", " ").strip()
-                if len(item) > 60:
-                    preview += "..."
-                print(f"    • {preview}")
-            
-            if count > 3:
-                print(f"    • ... and {count - 3} more")
-        
-        print("\n" + "=" * 80)
-        total_items = sum(len(items) for items in aggregated.values())
-        total_chars = sum(len(text) for items in aggregated.values() for text in items)
-        print(f"Total discarded: {total_items} items | {total_chars:,} characters")
-        print("=" * 80 + "\n")
 
     def clear_discards(self):
         """Clears the discard history."""
         self.discards = []
 
 
-CLEANER = TextCleaner()
+CLEANER = TextCleaner(track_discards=True)
 
 # ---------------------------------------------------------------------
 def get_worker_count():
@@ -854,7 +859,12 @@ def create_clean_db():
                 "pnl_only_no_position",
                 "pnl_only_removed",
                 "definition_boilerplate",
-                "adoption",
+                "reference_cleanup",
+                "reference_entire_paragraph_no_quant",
+                "information_cleanup",
+                "accounting_standard_no_quant",
+                "accounting_standard_strict_context_cutoff",
+                "accounting_standard_title_cleaning_destroyed",
                 "lost_instrument_reference",
                 "regulation",
                 "hypo",
@@ -1750,26 +1760,26 @@ def filter_matches_with_disambiguation(
 
         # Split into sentences
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
-        
+
         # ═══════════════════════════════════════════════════════════
         # PRE-SCAN: PARAGRAPH INTENT ANALYSIS
         # ═══════════════════════════════════════════════════════════
         # We check specific sentences for "Potential", "Absence", or "Termination" flags.
         # If the paragraph is overwhelmingly "Risk Management" (Non-use/Hypothetical),
         # we discard the WHOLE thing to prevent leaving behind orphan sentences.
-        
+
         para_potential = False
         para_absence = False
-        
+
         for s in sentences:
             # OPTIMIZATION: Only check intent in sentences that actually discuss derivatives.
             # This prevents "We may acquire new companies" (Potential) from triggering the filter.
             if BOTH_CATEGORY_REGEX.search(s) or GEN_REGEX.search(s):
-                
+
                 # 1. Potential ("May use", "Expect to enter")
                 if POTENTIAL_REGEX.search(s):
                     para_potential = True
-                
+
                 # 2. Absence ("Do not hold", "No outstanding")
                 if (NEGATIVE_INTENT_REGEX.search(s) 
                     or ABSENCE_REGEX.search(s) 
@@ -1781,7 +1791,7 @@ def filter_matches_with_disambiguation(
         # ═══════════════════════════════════════════════════════════
         # DECISION: KEEP OR KILL PARAGRAPH
         # ═══════════════════════════════════════════════════════════
-        
+
         # CASE 1: Contradiction (Potential + Absence) -> "We may use... we do not have."
         # This is classic boilerplate. Kill it.
         if para_potential and para_absence:
@@ -1827,7 +1837,8 @@ def filter_matches_with_disambiguation(
                 continue
 
         # Run the text cleaner
-        match = CLEANER.process(match)
+        match = CLEANER.process(match, url=url)
+
         if not match:
             continue
         # Split into sentences
@@ -2074,7 +2085,7 @@ def filter_matches_with_disambiguation(
     # ═════════════════════════════════════════════════════════════════
     # PASS 3: POST-RESOLUTION PROCESSING
     # ═════════════════════════════════════════════════════════════════
-
+    all_discarded.extend(CLEANER.get_discards())
     final_paragraphs_all = []
     all_discarded_final = all_discarded
     used_indices_global = set()
