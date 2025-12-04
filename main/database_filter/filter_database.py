@@ -391,102 +391,57 @@ def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
 
 class TextCleaner:
     MAX_CLEANUP_MATCH_LENGTH = 500
-    # 1. Reporting Keywords (The Safety Anchor)
-    # If a title contains these, it's about the paperwork, not the position.
     TITLE_KEYWORDS_REPORTING = {
-        # Generic Nouns
-        "disclosure",
-        "accounting",
-        "reporting",
-        "measurement",
-        "recognition",
-        "presentation",
-        "guidance",
-        "objective",
-        "strategy",
-        "policy",
-        "activity",
-        "summary",
-        "information",
-        "impact",
-        "overview",
-        "note",
-        "table",
-        # Regulatory Actions
-        "amendment",
-        "deferral",
-        "interpretation",
-        "position",
-        "adoption",
-        "transition",
-        # Specific Guidance Types (Your new list)
-        "standard",
-        "statement",
-        "provision",
-        "regulation",
-        "abstract",
-        "opinion",
-        "codification",
-        "bulletin",
-        "release",
+        "disclosure", "accounting", "reporting", "measurement", "recognition", 
+        "presentation", "guidance", "objective", "strategy", "policy", "activity", 
+        "summary", "information", "impact", "overview", "note", "table",
+        "amendment", "deferral", "interpretation", "position", "adoption", "transition",
+        "standard", "statement", "provision", "regulation", "abstract", 
+        "opinion", "codification", "bulletin", "release"
     }
 
-    # 2. Derivative Keywords (The Target)
-    # The title must ALSO contain one of these to be deleted.
     TITLE_KEYWORDS_DERIV = {
-        "derivative",
-        "hedging",
-        "hedge",
-        "swap",
-        "option",
-        "future",
-        "forward",
-        "instrument",
-        "financial",
-        "risk",
+        "derivative", "hedging", "hedge", "swap", "option", 
+        "future", "forward", "instrument", "financial", "risk"
     }
+    
     bullet_pattern = re.compile(r"(?<![\$€£¥])\b(?:\(?\d+\)|\d+\.)", re.IGNORECASE)
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
 
-    def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH):
+    def __init__(self, max_match_length: int = MAX_CLEANUP_MATCH_LENGTH, track_discards: bool = False):
         """
         Args:
-            max_match_length: The safety threshold. If a regex match exceeds this
-                              length (in characters), it is assumed to be a false
-                              positive (e.g., matching a whole paragraph instead of
-                              a header) and is NOT removed.
+            max_match_length: The safety threshold for regex matches.
+            track_discards: If True, track what content was removed and why.
         """
         self.max_match_length = max_match_length
         self.TITLE_KEYWORDS_REPORTING = set(self.TITLE_KEYWORDS_REPORTING)
         self.TITLE_KEYWORDS_DERIV = set(self.TITLE_KEYWORDS_DERIV)
+        self.track_discards = track_discards
+        self.discards = []  # List of (removed_text, reason)
 
-    # Helper: Check for numerics (excluding years)
+    def _record_discard(self, removed_text: str, reason: str):
+        """Records removed content for auditing."""
+        if self.track_discards and removed_text.strip():
+            self.discards.append((removed_text, reason))
+
     def has_strict_quant(self, s: str) -> bool:
-        # 1. Strip years first (e.g. 1998, 2024) to avoid false positives
         s_no_year = YEAR_REGEX.sub("", s)
-        # Strip out references too
         s_no_year = STANDARD_ID_REGEX.sub(" ", s_no_year)
         s_no_year = DATE_MD_REGEX.sub(" ", s_no_year)
         s_no_year = DATE_DM_REGEX.sub(" ", s_no_year)
         s_no_year = self.bullet_pattern.sub(" ", s_no_year)
         s_no_year = self.dashed_pattern.sub(" ", s_no_year)
-        # 2. Check for numerical amounts
         return bool(QUANT_REGEX.search(s_no_year))
 
     def _safe_sub(self, pattern: re.Pattern, replacement: str, text: str) -> str:
         """
         Performs a regex substitution ONLY if the match length is within limits.
         """
-
         def replacement_callback(match):
             match_len = len(match.group(0))
-
-            # SAFEGUARD: If the match is too huge, assume the regex got greedy
-            # and matched meaningful content. Keep original text.
             if match_len > self.max_match_length:
-                # logger.warning(f"Skipped cleanup for match of length {match_len} (Threshold: {self.max_match_length})")
                 return match.group(0)
-
             return replacement
 
         return pattern.sub(replacement_callback, text)
@@ -495,7 +450,6 @@ class TextCleaner:
         """
         Removes official entity names that contain derivative keywords.
         """
-        # Replace with __entity__ for final use
         return self._safe_sub(ENTITY_EXCLUSION_REGEX, f" {ENTITY_TOKEN} ", text)
 
     def clean_structure(self, text: str) -> str:
@@ -506,12 +460,11 @@ class TextCleaner:
             return text
         cleaned_text = text
         for pattern, replacement in HEADER_CLEANUP_PATTERNS:
-            # Run twice to handle nested or adjacent artifacts
             cleaned_text = self._safe_sub(pattern, replacement, cleaned_text)
             cleaned_text = self._safe_sub(pattern, replacement, cleaned_text)
         return cleaned_text
 
-    def _clean_text_per_sentence(self, text: str, trigger_regex: re.Pattern) -> str:
+    def _clean_text_per_sentence(self, text: str, trigger_regex: re.Pattern, reason: str) -> str:
         """
         Generic per-sentence cleaner: if a sentence matches trigger_regex,
         remove from the match until the end of that sentence.
@@ -519,6 +472,7 @@ class TextCleaner:
         Args:
             text: The input text
             trigger_regex: Pattern to search for within sentences
+            reason: Reason for removal (for audit trail)
 
         Returns:
             Text with matching sentences cleaned from trigger point to end.
@@ -531,6 +485,10 @@ class TextCleaner:
             if match:
                 # Keep text before the match, remove from match to end of sentence
                 cleaned_sent = sent[: match.start()].strip()
+                removed_text = sent[match.start():].strip()
+                
+                self._record_discard(removed_text, reason)
+                
                 if cleaned_sent:
                     kept_sentences.append(cleaned_sent)
             else:
@@ -547,8 +505,9 @@ class TextCleaner:
             return text
 
         if self.has_strict_quant(text):
-            return self._clean_text_per_sentence(text, REFERENCE_CLEANUP_REGEX)
+            return self._clean_text_per_sentence(text, REFERENCE_CLEANUP_REGEX, "reference_cleanup")
 
+        self._record_discard(text, "reference_entire_paragraph_no_quant")
         return ""  # The whole thing talks about a table
 
     def clean_information(self, text: str) -> str:
@@ -556,28 +515,20 @@ class TextCleaner:
         Remove "for further information" statements.
         Cleans from the trigger point to the end of the sentence.
         """
-        return self._clean_text_per_sentence(text, MORE_INFO_REGEX)
+        return self._clean_text_per_sentence(text, MORE_INFO_REGEX, "information_cleanup")
 
     def normalize_whitespace(self, text: str) -> str:
         """
         Collapses multiple spaces/newlines into single units.
         """
-        # Collapse multiple spaces into one
         text = re.sub(r"[ \t]+", " ", text)
-        # Collapse 3+ newlines into 2 (paragraph breaks)
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
 
     def _find_strict_context_endpoint(self, sentences: list[str]) -> int:
         """
         Finds the endpoint where strict regex context begins.
-
-        If an "Issuer Statement" (FASB Issued/Adopted) is found, we assume the
-        REST of the paragraph is regulatory boilerplate and discard it.
-
-        Args:
-            sentences: List of sentence strings
-
+        
         Returns:
             Index of the first sentence containing strict context (endpoint).
             If no strict context is found, returns len(sentences) (keep all).
@@ -608,7 +559,7 @@ class TextCleaner:
 
         for idx in range(endpoint):
             sent = sentences[idx]
-
+            
             # Detect standard reference
             has_std_ref = EXCLUDE_REGEX_ACCOUNTING_STD.search(sent)
 
@@ -620,6 +571,7 @@ class TextCleaner:
             # If it's a standard ref, it needs numbers to survive.
             if has_std_ref:
                 if not self.has_strict_quant(clean_sent):
+                    self._record_discard(sent, "accounting_standard_no_quant")
                     continue  # Discard just this sentence, continue to next
 
             # Title Cleaning (Aggressive vs Conservative)
@@ -654,6 +606,8 @@ class TextCleaner:
 
             if final_sent.strip():
                 kept_sentences.append(final_sent)
+            else:
+                self._record_discard(sent, "accounting_standard_title_cleaning_destroyed")
 
         return " ".join(kept_sentences)
 
@@ -670,40 +624,28 @@ class TextCleaner:
             return text
 
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
-
+        
         # Find where strict context starts (return point for discarded content)
         endpoint = self._find_strict_context_endpoint(sentences)
-
+        
+        # Record discarded sentences from endpoint onward
+        for idx in range(endpoint, len(sentences)):
+            self._record_discard(sentences[idx], "accounting_standard_strict_context_cutoff")
+        
         # Clean the kept sentences up to endpoint
         cleaned_text = self._clean_kept_sentences(sentences, endpoint)
-
+        
         return cleaned_text
 
     def clean_numerics(self, text: str) -> str:
         """
-        Removes numeric noise:
-        1. Bullet points (e.g. "1)", "(1)", "1.") IF not preceded by currency.
-        2. Dashed numerics (e.g. "11-11", "2023-2024") which are usually dates/pages.
+        Removes numeric noise (bullets, dashed numerics, dates).
+        Note: Does NOT track discards for numeric cleanup as these are minor artifacts.
         """
-
-        # 1. BULLET POINTS
-        # Logic: Match numeric bullets NOT preceded by currency symbols
-        # Matches: "1)", "(1)", "1." at start of line or after whitespace
-        # Lookbehind (?<!...) ensures we don't delete "$1)" or "€(1)"
-
         text = self.bullet_pattern.sub(" ", text)
-
-        # 2. DASHED NUMERICS
-        # Logic: Remove "12-31", "10-K", "2023-2024"
-        # We need to be careful not to delete "cross-currency" or "risk-free"
-        # So we target digit-dash-digit specifically.
-
         text = self.dashed_pattern.sub(" ", text)
-
-        # Discard month day indicators for safety with a dummy one
         text = DATE_DM_REGEX.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
-
         return text
 
     def process(self, text: str) -> str:
@@ -717,15 +659,76 @@ class TextCleaner:
         text = self.clean_information(text)
         text = self.clean_standards(text)
         text = self.clean_entities(text)
-
-        # NEW: Numeric Cleanup
         text = self.clean_numerics(text)
-
         text = self.normalize_whitespace(text)
         text = self.clean_structure(text)
-
         text = cleanup_fragment(text)
         return text
+
+    def get_discards(self) -> list[tuple[str, str]]:
+        """
+        Returns list of (removed_text, reason) tuples.
+        Only populated if track_discards=True was set at initialization.
+        """
+        return self.discards
+
+    def get_discards_aggregated(self) -> dict[str, list[str]]:
+        """
+        Returns discards aggregated by reason.
+        Format: {reason: [removed_text_1, removed_text_2, ...]}
+        
+        Example:
+            {
+                'reference_cleanup': ['See Note 5', 'Table below'],
+                'accounting_standard_no_quant': ['ASC 815 derivative...', 'FASB guidance...']
+            }
+        """
+        from collections import defaultdict
+        aggregated = defaultdict(list)
+        for removed_text, reason in self.discards:
+            aggregated[reason].append(removed_text)
+        return dict(aggregated)
+
+    def print_discards_summary(self):
+        """
+        Prints a human-readable summary of discards grouped by reason.
+        """
+        aggregated = self.get_discards_aggregated()
+        
+        if not aggregated:
+            print("No discards recorded.")
+            return
+        
+        print("\n" + "=" * 80)
+        print("📊 DISCARD SUMMARY BY REASON")
+        print("=" * 80)
+        
+        for reason, items in sorted(aggregated.items(), key=lambda x: len(x[1]), reverse=True):
+            count = len(items)
+            total_chars = sum(len(text) for text in items)
+            reason_display = reason.replace("_", " ").title()
+            
+            print(f"\n  {reason_display}: {count} items ({total_chars:,} chars)")
+            
+            # Show first 3 examples (truncated to 60 chars each)
+            for i, item in enumerate(items[:3]):
+                preview = item[:60].replace("\n", " ").strip()
+                if len(item) > 60:
+                    preview += "..."
+                print(f"    • {preview}")
+            
+            if count > 3:
+                print(f"    • ... and {count - 3} more")
+        
+        print("\n" + "=" * 80)
+        total_items = sum(len(items) for items in aggregated.values())
+        total_chars = sum(len(text) for items in aggregated.values() for text in items)
+        print(f"Total discarded: {total_items} items | {total_chars:,} characters")
+        print("=" * 80 + "\n")
+
+    def clear_discards(self):
+        """Clears the discard history."""
+        self.discards = []
 
 
 CLEANER = TextCleaner()
