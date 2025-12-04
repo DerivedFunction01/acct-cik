@@ -1668,6 +1668,8 @@ def filter_matches_with_disambiguation(
                     or ABSENCE_REGEX.search(s) 
                     or DID_NOT_HOLD_REGEX.search(s)):
                     para_absence = True
+            if para_potential and para_absence:
+                break
 
         # ═══════════════════════════════════════════════════════════
         # DECISION: KEEP OR KILL PARAGRAPH
