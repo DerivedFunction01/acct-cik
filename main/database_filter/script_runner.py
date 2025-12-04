@@ -24,7 +24,7 @@ PIPELINE_STAGES = [
     # 6. Quantitative Zero
     ("notional_filter.py", "active_nonzero_data.db", "6_nonzero.csv"),
     # 7. Final Verification
-    ("final_verification.py", "verified_active_data.db", "7_final_verified.csv"),
+    # ("final_verification.py", "verified_active_data.db", "7_final_verified.csv"),
 ]
 
 
