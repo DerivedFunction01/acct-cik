@@ -80,6 +80,7 @@ from derivative_regex import (
     EXCLUDE_REGULATION_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
     FX_SOFT_REGEX,
+    GEN_REGEX,
     HEADER_CLEANUP_PATTERNS,
     HEDGING_CONTEXT_REGEX,
     IR_REGEX,
@@ -1640,42 +1641,59 @@ def filter_matches_with_disambiguation(
             all_discarded.append((url, match, "contractual"))
             continue
 
+        # Split into sentences
+        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
+        
         # ═══════════════════════════════════════════════════════════
-        # AGGRESSIVE INTENT FILTER (Paragraph Level)
+        # PRE-SCAN: PARAGRAPH INTENT ANALYSIS
         # ═══════════════════════════════════════════════════════════
-        # If the paragraph explicitly states "Potential Use" and "Non-Use" together, then it is a risk management paragraph most of the time
+        # We check specific sentences for "Potential", "Absence", or "Termination" flags.
+        # If the paragraph is overwhelmingly "Risk Management" (Non-use/Hypothetical),
+        # we discard the WHOLE thing to prevent leaving behind orphan sentences.
+        
+        para_potential = False
+        para_absence = False
+        para_termination = False
+        
+        for s in sentences:
+            # OPTIMIZATION: Only check intent in sentences that actually discuss derivatives.
+            # This prevents "We may acquire new companies" (Potential) from triggering the filter.
+            if BOTH_CATEGORY_REGEX.search(s) or GEN_REGEX.search(s):
+                
+                # 1. Potential ("May use", "Expect to enter")
+                if POTENTIAL_REGEX.search(s):
+                    para_potential = True
+                
+                # 2. Absence ("Do not hold", "No outstanding")
+                if (NEGATIVE_INTENT_REGEX.search(s) 
+                    or ABSENCE_REGEX.search(s) 
+                    or DID_NOT_HOLD_REGEX.search(s)):
+                    para_absence = True
+                
+                # 3. Termination ("Expired", "Matured")
+                if TERMINATION_REGEX.search(s):
+                    para_termination = True
 
-        is_potential = POTENTIAL_REGEX.search(match)
-
-        # Group 1: The "Hard" Negatives (Absence / Denial)
-        is_absence = (
-            NEGATIVE_INTENT_REGEX.search(match)
-            or ABSENCE_REGEX.search(match)
-            or DID_NOT_HOLD_REGEX.search(match)
-        )
-
-        # Group 2: The "Soft" Negative (Termination)
-        is_termination = TERMINATION_REGEX.search(match)
-
-        # CASE 1: Contradiction Check (Potential + Absence)
-        # "We might use them" AND "We don't have them".
-        # This is almost always boilerplate noise. Kill it safely.
-        if is_potential and is_absence:
+        # ═══════════════════════════════════════════════════════════
+        # DECISION: KEEP OR KILL PARAGRAPH
+        # ═══════════════════════════════════════════════════════════
+        
+        # CASE 1: Contradiction (Potential + Absence) -> "We may use... we do not have."
+        # This is classic boilerplate. Kill it.
+        if para_potential and para_absence:
             all_discarded.append((url, match, "aggressive_paragraph_contradiction"))
             continue
 
-        # CASE 2: General Negative Check
-        # If we have any negative signal (Absence OR Termination), we check for salvation.
-        if is_potential or is_absence or is_termination:
-
-            # SPEEDRUN: Check if it survives Phase 6/7 logic immediately
-            # (Must have QUANT + CURRENT YEAR)
+        # CASE 2: Negative Signal Check
+        # If any negative/speculative signal exists, we require PROOF (Quant + Current Year) to keep it.
+        if para_potential or para_absence or para_termination:
+            # "Speedrun" the salvage check on the FULL paragraph text
             if is_paragraph_salvageable(match, year):
-                # It has hard numbers for the current year. Keep it.
-                # (Even if it had "Termination", the hard numbers imply active rolling)
-                pass
+                # It has hard numbers ($50m, 2023). Keep active context.
+                pass 
             else:
-                # No hard evidence + Negative/Potential = Safe to kill
+                # It talks about "may use" or "no holdings" but has no current numbers.
+                # Safe to discard the whole block.
                 all_discarded.append((url, match, "aggressive_paragraph_intent"))
                 continue
 
