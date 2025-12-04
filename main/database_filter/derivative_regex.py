@@ -3484,14 +3484,14 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
     # Matches: "United States Commodity Index Fund", "Oil Derivatives Trust"
     triggers = r"(?:Commodity|Oil|Gas|Energy|Derivatives?|Futures?|Options?|Swaps?)"
     suffixes = r"(?:Fund|Trust|ETF|LP|L\.P\.|Holdings?|Portfolio|Group|Capital)"
-    fund_pattern = rf"(?:[A-Z][a-z]+\s+)*{triggers}(?:\s+[A-Z][a-z]+)*\s+{suffixes}"
+    fund_pattern = rf"\b(?:[A-Z][a-z]+\s+)*{triggers}(?:\s+[A-Z][a-z]+)*\s+{suffixes}\b"
 
     all_patterns = entities + [fund_pattern]
 
     # Use build_alternation to ensure longest matches (e.g., full name) are prioritized
     # Note: We enforce word boundaries \b for short acronyms inside the list above
     pattern = build_alternation(all_patterns)
-    return re.compile(rf"\b{pattern}\b"), "E_"
+    return re.compile(pattern), "E_"
 
 
 # Compile and Export
