@@ -118,6 +118,7 @@ STRONG_ACTION_VERBS = ACTION_VERBS + [
     r"convert(?:s|ed|ing)?",
     r"continue\s+to",
     r"secured",
+    r"participat(?:e|es|ed|ing)",
 ]  # NEW: For embedded derivatives/warrants, but separate against "FASB issued"
 VERB_USE_REGEX = re.compile(r"\b" + build_alternation(ACTION_VERBS) +r"\b", re.IGNORECASE)
 # WEAK / PASSIVE: Legal or Accounting states that *imply* existence
