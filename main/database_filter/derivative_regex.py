@@ -2343,7 +2343,6 @@ REGULATORY_KEYWORDS = [
     # 1. General Regulatory Terms
     r"regulations?",
     r"regulatory\s+(?:requirements?|compliance|authorit(?:y|ies)|bod(?:y|ies)|agenc(?:y|ies)|frameworks?|matters?|reforms?)",
-    r"compliance\s+with",
     r"subject\s+to\s+(?:regulation|oversight|regulatory)",
     r"governmental\s+regulations?",
     # 2. Specific Laws & Acts (The big noise makers)
