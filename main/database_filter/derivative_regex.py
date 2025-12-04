@@ -2388,8 +2388,9 @@ COMPETITOR_KEYWORDS = [
 
 def build_exclude_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
     """Build regex for excluding noise keywords."""
-    pattern = r"|".join(keywords)
-    return re.compile(pattern, re.IGNORECASE if ignore_case else 0)
+    # Add word boundaries (\b) around each keyword to prevent partial matches
+    pattern = build_alternation(keywords)
+    return re.compile(r"\b"+ pattern + r"\b", re.IGNORECASE if ignore_case else 0)
 
 
 EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
@@ -3419,53 +3420,53 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
     entities = [
         # --- 1. Regulators & Standard Setters ---
         r"(?:U\.?S\.?\s+)?Commodity\s+Futures\s+Trading\s+Commission",
-        r"\bCFTC\b",
+        r"CFTC",
         r"National\s+Futures\s+Association",
-        r"\bNFA\b",
-        r"Securities\s+(?:and|&)\s+Exchange\s+Commission",
-        r"\bSEC\b",
+        r"NFA",
+        r"Securities\s+(?:[Aa]nd|&)\s+Exchange\s+Commission",
+        r"SEC",
         r"Public\s+Company\s+Accounting\s+Oversight\s+Board",
-        r"\bPCAOB\b",
+        r"PCAOB",
         r"Federal\s+Energy\s+Regulatory\s+Commission",
-        r"\bFERC\b",
+        r"FERC",
         r"Prudential\s+Regulators?",  # Generic but common in bank filings
         # --- 2. Associations (Master Agreements) ---
-        r"International\s+Swaps\s+(?:and|&)\s+Derivatives\s+Association",
-        r"\bISDA\b",
+        r"International\s+Swaps\s+(?:[Aa]nd|&)\s+Derivatives\s+Association",
+        r"ISDA",
         r"Futures\s+Industry\s+Association",
-        r"\bFIA\b",
-        r"Securities\s+Industry\s+(?:and|&)\s+Financial\s+Markets\s+Association",
-        r"\bSIFMA\b",
+        r"FIA",
+        r"Securities\s+Industry\s+(?:[Aa]nd|&)\s+Financial\s+Markets\s+Association",
+        r"SIFMA",
         # --- 3. Exchanges (The "Option/Future/Swap" Triggers) ---
         # Chicago Group
         r"Chicago\s+Board\s+Options\s+Exchange",
-        r"\bCBOE\b",
+        r"CBOE",
         r"Chicago\s+Mercantile\s+Exchange",
-        r"\bCME\b",
+        r"CME",
         r"Chicago\s+Board\s+of\s+Trade",
-        r"\bCBOT\b",
+        r"CBOT",
         # New York / ICE Group
         r"New\s+York\s+Stock\s+Exchange",
-        r"\bNYSE\b",
+        r"NYSE",
         r"New\s+York\s+Mercantile\s+Exchange",
-        r"\bNYMEX\b",
+        r"NYMEX",
         r"Commodity\s+Exchange(?:,?\s+Inc\.?)?",
-        r"\bCOMEX\b",
+        r"COMEX",
         r"Intercontinental\s+Exchange",
-        r"\bICE\b",
+        r"ICE",
         # International / Other
         r"London\s+Metal\s+Exchange",
-        r"\bLME\b",
+        r"LME",
         r"London\s+Stock\s+Exchange",
-        r"\bLSE\b",
+        r"LSE",
         r"Philadelphia\s+Stock\s+Exchange",
-        r"\bPHLX\b",
+        r"PHLX",
         r"Eurex",
         # --- 4. Clearing Houses (Critical for "Cleared Swaps" noise) ---
         r"Options\s+Clearing\s+Corporation",
-        r"\bOCC\b",
+        r"OCC",
         r"London\s+Clearing\s+House",
-        r"\bLCH\b",
+        r"LCH",
         r"CME\s+Clearing",
         r"ICE\s+Clear",
         # --- 5. Generic / Investment Vehicles ---
@@ -3473,11 +3474,11 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         r"mutual\s+funds?",
         r"index\s+funds?",
         r"exchange[- ]traded\s+funds?",
-        r"\bETFs?\b",
+        r"ETFs?",
         r"money\s+market\s+funds?",
         r"pension\s+funds?",  # Reinforces Plan Asset exclusion
         r"Uniform Commercial Code",
-        r"UCC"
+        r"UCC",
     ] + ISSUER_TERMS
 
     # --- 6. Dynamic Fund Pattern (Your existing logic) ---
