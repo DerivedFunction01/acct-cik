@@ -2225,16 +2225,9 @@ ACCOUNTING_STANDARDS_STRICT = [
     # Issuance Verb + Standard ID ("Adopted SFAS 157...")
     rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,10}}\s+{STANDARD_ID_PATTERN}",
     
-    # ID + Title ("ASC 815 Derivatives and Hedging")
-    rf"{STANDARD_ID_PATTERN}(?:\s+,\s+)?{CAPITALIZED_TITLE_PATTERN}",
-    
     # Standard Descriptions ("ASC 820 defines...")
     rf"{STANDARD_ID_PATTERN}\s+{DESCRIPTION_VERBS_FRAGMENT}",
     
-    # Pure References ("Pursuant to ASC 815")
-    rf"pursuant\s+to\s+{STANDARD_ID_PATTERN}",
-    rf"defined\s+in\s+{STANDARD_ID_PATTERN}",
-    rf"accordance\s+with\s+{STANDARD_ID_PATTERN}",
     
     # Explicit Adoption ("Adoption of the new guidance")
     rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+{STANDARD_ID_PATTERN}",
@@ -2258,7 +2251,6 @@ ACCOUNTING_STANDARDS_STRICT = [
     rf"^In\s+{MONTHS_FRAGMENT}.*{ISSUER_FRAGMENT}",
     
     # Specific Terms
-    r"accounting\s+standards?\s+update",
     rf"recently\s+(?:issued|updated|released|published|announced)\s+(?:accounting\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
     
     # Disclosures explicitly mandated by an ID
@@ -2271,14 +2263,17 @@ ACCOUNTING_STANDARDS_STRICT = [
 ACCOUNTING_STANDARDS_SOFT = [
     # Standalone accounting phrases (risk of collision with commercial terms)
     STANDALONE_PHRASES_FRAGMENT,
-    
     # Generic impact assessment ("Evaluating the impact of...")
     IMPACT_PHRASES_FRAGMENT,
-    
     # Disclosure improvement language (could be general)
     rf"improve\s+disclosures?\s+(?:about|regarding|on)[^.?!]*",
     rf"requiring\s+(?:more|additional)\s+information[^.?!]*",
-    
+    # Pure References ("Pursuant to ASC 815")
+    rf"pursuant\s+to\s+{STANDARD_ID_PATTERN}",
+    rf"defined\s+in\s+{STANDARD_ID_PATTERN}",
+    rf"accordance\s+with\s+{STANDARD_ID_PATTERN}",
+     # ID + Title ("ASC 815 Derivatives and Hedging")
+    rf"{STANDARD_ID_PATTERN}(?:\s+,\s+)?{CAPITALIZED_TITLE_PATTERN}",
     # Indirect references
     rf"disclosures?\s+(?:about|regarding)\s+(?:the\s+)?(?:adoption|application|impact)\s+of[^.?!]*",
     rf"(?:intended|designed)\s+to\s+(?:improve|expand|enhance)\s+disclosures?[^.?!]*",
