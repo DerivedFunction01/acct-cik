@@ -1,3 +1,4 @@
+from collections import defaultdict
 from dataclasses import dataclass
 import re
 from typing import List, Optional, Tuple
@@ -3570,6 +3571,7 @@ CP_STRICT_TERMS = [
 
 # ... (IR_STRICT_TERMS, FX_STRICT_TERMS, etc. remain the same) ...
 
+
 # 4. EQUITY (Strict)
 # Focus: Convertibles, Warrants, and Valuation Models
 # 4. EQUITY (Strict)
@@ -3606,57 +3608,31 @@ STRICT_CONTEXT_MAP = {
     "eq": re.compile(r"\b" + build_alternation(EQ_STRICT_TERMS) + r"\b", re.IGNORECASE),
     "cr": CR_CONTEXT_REGEX
 }
+def aggregate_discards(
+    discards: List[Tuple[str, str, str]],
+) -> List[Tuple[str, str, str]]:
+    """
+    Groups multiple discards with the same URL and reason into a single row.
+    Concatenates the texts with a separator for auditing.
 
-__all__ = [
-    "SENTENCE_SPLIT_PATTERN",
-    "MIN_SENTENCE_LENGTH",
-    "IR_REGEX",
-    "FX_REGEX",
-    "CP_REGEX",
-    "EQ_REGEX",
-    "STRICT_GEN_REGEX",
-    "SOFT_GEN_REGEX",
-    "STRICT_REGEX",
-    "ALL_REGEX",
-    "COMBINED_REGEX",
-    "COMMON_COMMODITIES",
-    "EQUITY_COMP_KEYWORDS",
-    "LEGAL_LITIGATION_KEYWORDS",
-    "ACCOUNTING_STANDARDS_KEYWORDS",
-    "EXCLUDE_REGEX_EQUITY_COMP",
-    "EXCLUDE_REGEX_LEGAL_LITIGATION",
-    "EXCLUDE_REGEX_ACCOUNTING_STD",
-    "TRADING_STATEMENTS_REGEX",
-    "YEAR_REGEX",
-    "cleanup_fragment",
-    "PRIOR_PATTERN",
-    "IR_CONTEXT_REGEX",
-    "FX_CONTEXT_REGEX",
-    "CP_CONTEXT_REGEX",
-    "EQ_CONTEXT_REGEX",
-    "HEDGING_CONTEXT_REGEX",
-    "CATEGORY_CONTEXT_MAP",
-    "NON_POSITION_INDICATORS",
-    "PNL_ONLY_NO_POSITION",
-    "DEFINITION_INDICATORS",
-    "GEN_REGEX",
-    "POTENTIAL_REGEX",
-    "VAGUE_TIMING_REGEX",
-    "NEGATIVE_INTENT_REGEX",
-    "ABSENCE_REGEX",
-    "DID_NOT_HOLD_REGEX",
-    "TERMINATION_REGEX",
-    "CURRENCY_SYMBOL_PATTERN",
-    "VERB_REGEX",
-    "STRONG_VERB_PATTERN",
-    "WEAK_VERB_PATTERN",
-    "ACTIVE_STATE_REGEX",
-    "validate_instrument_retention",
-    "HIGH_PRECISION_SUFFIXES",
-    "BASE_REGEX",
-    "VERB_USE_REGEX",
-    "NON_DERIVATIVE_REGEX",
-    "ENTITY_EXCLUSION_REGEX",
-    "HEADER_CLEANUP_PATTERNS",
-    "STRICT_CONTEXT_MAP"
-]
+    Args:
+        discards: List of (url, sentence, discard_reason)
+
+    Returns:
+        Aggregated list where multiple discards with same (url, reason) are combined
+    """
+
+    grouped = defaultdict(list)
+
+    # Group by (url, reason)
+    for url, sentence, reason in discards:
+        grouped[(url, reason)].append(sentence)
+
+    # Reconstruct as single rows with concatenated text
+    result = []
+    for (url, reason), sentences in grouped.items():
+        # Join multiple sentences with a separator for readability
+        combined_text = " ||| ".join(sentences)
+        result.append((url, combined_text, reason))
+
+    return result

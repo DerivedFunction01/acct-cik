@@ -121,6 +121,7 @@ from derivative_regex import (
     ANCHOR_TAG,
     STRICT_CONTEXT_MAP,
     ENTITY_EXCLUSION_REGEX,
+    aggregate_discards
 )
 
 # =============================================================================
@@ -2130,7 +2131,9 @@ def filter_matches_with_disambiguation(
 
         all_discarded_final.extend(validation_discards)
 
-    return final_paragraphs_all, all_discarded_final
+    return final_paragraphs_all, aggregate_discards(all_discarded_final)
+
+
 
 
 def resolve_generic_reference(
