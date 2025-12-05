@@ -103,6 +103,7 @@ from derivative_regex import (
     STRICT_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     MIN_SENTENCE_LENGTH,
+    STRICT_NOTIONAL_REGEX,
     STRICT_REGEX,
     TERMINATION_REGEX,
     TITLE_CLEANER_REGEX,
@@ -507,7 +508,7 @@ class TextCleaner:
         return cleaned_text
 
     def _clean_text_per_sentence(
-        self, text: str, trigger_regex: re.Pattern, reason: str, override_regex: Optional[re.Pattern] = None
+        self, text: str, trigger_regex: re.Pattern, reason: str, override_regex: Optional[List[re.Pattern]] = None
     ) -> str:
         """
         Generic per-sentence cleaner: if a sentence matches trigger_regex,
@@ -528,7 +529,7 @@ class TextCleaner:
             match = trigger_regex.search(sent)
             if match: 
                 # Override prevents the match from getting cleaned
-                if not (override_regex and override_regex.search(sent)):
+                if not (override_regex and any(regex.search(sent) for regex in override_regex)):
                     # Keep text before the match, remove from match to end of sentence
                     cleaned_sent = sent[: match.start()].strip()
                     removed_text = sent[match.start() :].strip()
@@ -706,7 +707,13 @@ class TextCleaner:
         return text
 
     def clean_loan_features(self, text: str):
-        return self._clean_text_per_sentence(text, EMBEDDED_CAP_FLOOR_REGEX, "loan_features")
+        salvation_regex = [
+            HEDGING_CONTEXT_REGEX,
+            STRICT_NOTIONAL_REGEX,
+            SOFT_GEN_REGEX,
+            STANDARD_ID_REGEX,
+        ]
+        return self._clean_text_per_sentence(text, EMBEDDED_CAP_FLOOR_REGEX, "loan_features", salvation_regex)
         
     def process(self, text: str, url: Optional[str] = None) -> str:
         """
@@ -723,7 +730,7 @@ class TextCleaner:
 
         if not text:
             return ""
-
+        text = self.clean_loan_features(text)
         text = self.clean_references(text)
         text = self.clean_information(text)
         text = self.clean_standards(text)
