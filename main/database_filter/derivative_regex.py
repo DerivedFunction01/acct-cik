@@ -3690,3 +3690,46 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
 
 # Export this
 EMBEDDED_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
+
+def create_fair_value_regex() -> re.Pattern:
+    """
+    captures strong indicators of Fair Value / Derivative Accounting.
+    Used for:
+    1. Global Sophistication Flag (Is this filer doing complex accounting?)
+    2. Local Salvation (Does this sentence prove the instrument is a derivative?)
+    """
+    
+    # 1. Valuation Models (The "Gold Standard" for Warrants/Embeds)
+    # Matches: Black-Scholes, Monte Carlo, Binomial Lattice
+    model_pattern = r"Black[- ]Scholes|Monte[- ]Carlo|Binomial|Lattice"
+
+    # 2. Fair Value Specifics
+    fv_terms = [
+        r"(?<!not\s)bifurcat(?:ed|ion|ing)", # Negative lookbehind handled in logic, but safe here too
+        r"derivative",
+        r"fair\s+value",
+        r"mark[- ]to[- ]market",
+        
+        # 3. Qualified Liability (Fixes the "Current Liability" bug)
+        r"(?:derivative|warrant|embedded)\s+liability",
+        r"liability\s+for\s+(?:warrants?|conversion|options?)",
+        
+        # 4. Trading / P&L
+        r"changes?\s+in\s+fair\s+value",
+        r"unrealized\s+(?:gain|loss)",
+        
+        # 5. Hierarchy (Strong Global Signal, weaker Local Signal)
+        # Matches: "Level 3 inputs", "Level 2 valuation"
+        r"Level\s+[123]", 
+        
+        # 6. Models
+        model_pattern,
+    ]
+    
+    # Combine (Max Munch sorting is good practice, though less critical here)
+    # We can use your build_alternation helper if available, or simple join
+    pattern = "|".join(fv_terms)
+    
+    return re.compile(pattern, re.IGNORECASE)
+
+FV_REGEX = create_fair_value_regex()

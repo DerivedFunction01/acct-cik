@@ -80,6 +80,7 @@ from derivative_regex import (
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_REGULATION_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
+    FV_REGEX,
     FX_SOFT_REGEX,
     GEN_REGEX,
     HEADER_CLEANUP_PATTERNS,
@@ -1632,8 +1633,10 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
             continue
 
         has_signal = SOFT_GEN_REGEX.search(match) or STRICT_REGEX.search(match)
-
+        
         if not has_signal:
+            if SOFT_CATEGORY_REGEX.search(match) and FV_REGEX.search(match):
+                return True
             continue
 
         # 2. Safety Check: Is this signal actually just noise?
