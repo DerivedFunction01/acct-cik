@@ -2417,7 +2417,7 @@ EXCLUDE_REGEX_CONTRACTUAL_LOOSE = build_exclude_regex(
 )
 
 
-def is_contractual_noise(text: str, loose_threshold: int = 3) -> bool:
+def is_contractual_noise(text: str, loose_threshold: int = 2) -> bool:
     """
     Determines if text is contractual boilerplate.
     
@@ -2428,14 +2428,11 @@ def is_contractual_noise(text: str, loose_threshold: int = 3) -> bool:
     """
     # 1. STRICT: Keep as-is (Zero Tolerance)
     # These words (like "Recitals", "Article IV") are distinct enough to kill immediately.
-    if EXCLUDE_REGEX_CONTRACTUAL_STRICT.search(text):
+    if len(EXCLUDE_REGEX_CONTRACTUAL_STRICT.findall(text)) > loose_threshold:
         return True
 
     # 2. LOOSE: Enforce Density Check
-    # We use .findall() to count how many times these words appear.
-    matches = EXCLUDE_REGEX_CONTRACTUAL_LOOSE.findall(text)
-    
-    if len(matches) >= loose_threshold:
+    if len(EXCLUDE_REGEX_CONTRACTUAL_LOOSE.findall(text)) >= loose_threshold * 2:
         return True
     return False
 

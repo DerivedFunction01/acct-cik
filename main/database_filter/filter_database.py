@@ -1833,6 +1833,9 @@ def filter_matches_with_disambiguation(
         if EXCLUDE_REGEX_FILING.search(match):
             all_discarded.append((url, match, "filing"))
             continue
+        if is_contractual_noise(match):
+            all_discarded.append((url, match, "contractual"))
+            continue
 
         # Split into sentences
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
