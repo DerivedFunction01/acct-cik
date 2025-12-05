@@ -2401,14 +2401,14 @@ EXCLUDE_REGEX_CONTRACTUAL_LOOSE = build_exclude_regex(
 )
 
 
-def is_contractual_noise(text: str, loose_threshold: int = 2) -> bool:
+def is_contractual_noise(text: str, loose_threshold: int = 3) -> bool:
     """
     Determines if text is contractual boilerplate.
     
     Args:
         text: The paragraph to check.
         loose_threshold: Minimum number of 'loose' keywords required to trigger a discard.
-                         Defaults to 2 to prevent single words like 'thereof' from killing valid text.
+                         Defaults to 3 to prevent single words like 'thereof' from killing valid text.
     """
     # 1. STRICT: Keep as-is (Zero Tolerance)
     # These words (like "Recitals", "Article IV") are distinct enough to kill immediately.
@@ -3578,12 +3578,6 @@ CP_STRICT_TERMS = [
     rf"{_RISK_ALTERNATION}\s+of\s+(?:{_COMMODITY_NAMES})",
 ]
 
-# ... (IR_STRICT_TERMS, FX_STRICT_TERMS, etc. remain the same) ...
-
-
-# 4. EQUITY (Strict)
-# Focus: Convertibles, Warrants, and Valuation Models
-# 4. EQUITY (Strict)
 # Focus: Convertibles, Warrants, Valuation Models, and Equity Risk
 EQ_STRICT_TERMS = [
     # 1. Risk & Price Contexts (Expanded with _RISK_ALTERNATION)
