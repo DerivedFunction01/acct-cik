@@ -77,6 +77,7 @@ from derivative_regex import (
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_ACCOUNTING_STD,
     EXCLUDE_REGEX_EQUITY_COMP,
+    EXCLUDE_REGEX_FILING,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_REGULATION_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
@@ -1828,8 +1829,8 @@ def filter_matches_with_disambiguation(
         if EXCLUDE_REGEX_FORWARD_LOOKING.search(match):
             all_discarded.append((url, match, "forward_looking"))
             continue
-        if is_contractual_noise(match):
-            all_discarded.append((url, match, "contractual"))
+        if EXCLUDE_REGEX_FILING.search(match):
+            all_discarded.append((url, match, "filing"))
             continue
 
         # Split into sentences
@@ -1985,7 +1986,7 @@ def filter_matches_with_disambiguation(
                     all_discarded.append((url, sentence, "commercial_contract_exemption"))
                     used_indices.add(sent_idx)
                     continue
-            
+
             if EQ_SOFT_REGEX.search(sentence) and not EQ_REGEX.search(sentence):
                 if "convertible" in sentence.lower() or "warrants" in sentence.lower():
                     if not is_derivative:
