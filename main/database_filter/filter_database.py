@@ -1618,6 +1618,38 @@ def process_resolved_sentence(
 
     return paragraphs, discards
 
+def get_global_sophistication_flag(matches: List[str]) -> bool:
+    """
+    Scans the document for 'Sophisticated' derivative terminology (FAS 133, Hedge Accounting).
+    CRITICAL: Validates that the signal is NOT inside noise (Litigation, Risk Factors, Forward-Looking).
+    """
+    for match in matches:
+        # 1. Quick Check: Does this paragraph even contain a sophistication signal?
+        # (This is fast; filters out 90% of paragraphs immediately)
+        has_signal = DER_STD_REGEX.search(match) or SOFT_GEN_REGEX.search(match)
+
+        if not has_signal:
+            continue
+
+        # 2. Safety Check: Is this signal actually just noise?
+        # We reuse the exclusion regexes from derivative_regex.py
+        if EXCLUDE_REGEX_FORWARD_LOOKING.search(match):
+            continue
+        if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
+            continue
+        if EXCLUDE_COMPETITOR_REGEX.search(match):
+            continue
+        # Note: We don't check "Contractual" here because "FAS 133" in a contract
+        # definition still implies they know what they are doing.
+
+        # 3. If we survived the checks, this is a VALID sophistication signal.
+        # We trust this filer.
+        return True
+
+    # If we scanned everything and found no valid signal
+    return False
+
+
 # def is_paragraph_salvageable(paragraph: str, year: Optional[int]) -> bool:
 #     """
 #     'Speedruns' the late-stage checks (Phase 6/7) to see if a paragraph
@@ -1816,11 +1848,14 @@ def filter_matches_with_disambiguation(
             continue
 
         gl_eq_der_check = EQ_SOFT_REGEX.search(match) and "convertible" in match.lower()
-        if gl_eq_der_check:
+        if gl_eq_der_check and not derivative_tracker["eq"]:
             if not SOFT_GEN_REGEX.search(match) or not DER_STD_REGEX.search(match):
                 pass
             else:
                 gl_eq_der_check = False # No need to check
+                derivative_tracker["eq"] = True
+        else:
+            gl_eq_der_check = False
         # Remove equity compensation boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_EQUITY_COMP.search(match):
             sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
@@ -1968,7 +2003,7 @@ def filter_matches_with_disambiguation(
                 "final_category": None,
                 "confidence": None,
                 "resolution_method": None,
-                "convertible_check": gl_eq_der_check,
+                "convertible_check": gl_eq_der_check, # Check the global indicator later.
             }
 
             if not specific_cats:
