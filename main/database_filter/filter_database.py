@@ -1623,7 +1623,9 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
     """
     Scans the document for 'Sophisticated' derivative terminology (FAS 133, Hedge Accounting).
     CRITICAL: Validates that the signal is NOT inside noise (Litigation, Risk Factors, Forward-Looking).
-    Meant for BioTech like firms that only uses equity derivatives (convertible debt, warrants)
+    Meant for BioTech like firms that only uses equity derivatives (convertible debt, warrants).
+    Not a need for 100% accuracy or edge cases just good enough for most firms that only ever mention 
+    a convertible debt once and no other mentions
     """
     # We must iterate to see if there is a mention, but have to ignore accounting standards or else there is a false flag
     for match in matches:
@@ -1632,7 +1634,7 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(match): # Filter out issuance
             continue
 
-        has_signal = SOFT_GEN_REGEX.search(match) or STRICT_REGEX.search(match)
+        has_signal = SOFT_GEN_REGEX.search(match) or STRICT_REGEX.search(match) # embedded derivative, hedge accounting, swaps, etc
         
         if not has_signal:
             if SOFT_CATEGORY_REGEX.search(match) and FV_REGEX.search(match):
