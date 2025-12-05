@@ -1771,7 +1771,7 @@ def filter_matches_with_disambiguation(
                         ):
                             table_context += " " + next_text
 
-                converter = TableToTextConverter(match, narrative_context=table_context)
+                converter = TableToTextConverter(match, narrative_context=table_context, is_sophisticated=is_derivative)
                 extracted_sentences = converter.process()
 
                 if extracted_sentences:
