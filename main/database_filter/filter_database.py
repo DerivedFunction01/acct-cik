@@ -1626,6 +1626,9 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
     for match in matches:
         # 1. Quick Check: Does this paragraph even contain a sophistication signal?
         # (This is fast; filters out 90% of paragraphs immediately)
+        if ACCOUNTING_STANDARDS_STRICT_REGEX.search(match): # Filter out issuance
+            continue
+
         has_signal = DER_STD_REGEX.search(match) or SOFT_GEN_REGEX.search(match)
 
         if not has_signal:
