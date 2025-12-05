@@ -1689,6 +1689,7 @@ def filter_matches_with_disambiguation(
     sentence_metadata = []
     generic_buffer = []
     tracker = GlobalInstrumentTracker()
+    derivative_tracker = {"eq": False} # Track if there are
 
     # ═════════════════════════════════════════════════════════════════
     # PASS 1: SEGMENTATION, VALIDATION, NOISE REDUCTION
