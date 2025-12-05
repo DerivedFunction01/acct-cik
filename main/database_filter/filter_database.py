@@ -1638,7 +1638,7 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
         # Note: eq_regex strict doesn't have barebones convertible debt, needs "derivative or hedge after it"
         
         if not has_signal:
-            if SOFT_CATEGORY_REGEX.search(match) and FV_REGEX.search(match):
+            if (SOFT_CATEGORY_REGEX.search(match) or "warrants" in match) and FV_REGEX.search(match):
                 return True
             continue
 
