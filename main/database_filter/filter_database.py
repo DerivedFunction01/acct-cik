@@ -1804,8 +1804,7 @@ def filter_matches_with_disambiguation(
                     or DID_NOT_HOLD_REGEX.search(s)):
                     para_absence = True
             if para_potential and para_absence:
-                break
-
+                break               
         # ═══════════════════════════════════════════════════════════
         # DECISION: KEEP OR KILL PARAGRAPH
         # ═══════════════════════════════════════════════════════════
@@ -1816,6 +1815,12 @@ def filter_matches_with_disambiguation(
             all_discarded.append((url, match, "aggressive_paragraph_contradiction"))
             continue
 
+        gl_eq_der_check = EQ_SOFT_REGEX.search(match) and "convertible" in match.lower()
+        if gl_eq_der_check:
+            if not SOFT_GEN_REGEX.search(match) or not DER_STD_REGEX.search(match):
+                pass
+            else:
+                gl_eq_der_check = False # No need to check
         # Remove equity compensation boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_EQUITY_COMP.search(match):
             sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
@@ -1853,7 +1858,6 @@ def filter_matches_with_disambiguation(
             match = " ".join(text)
             if not match.strip():
                 continue
-
         # Run the text cleaner
         match = CLEANER.process(match, url=url)
 
@@ -1964,6 +1968,7 @@ def filter_matches_with_disambiguation(
                 "final_category": None,
                 "confidence": None,
                 "resolution_method": None,
+                "convertible_check": gl_eq_der_check,
             }
 
             if not specific_cats:
