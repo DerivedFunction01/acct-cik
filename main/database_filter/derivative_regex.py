@@ -53,7 +53,6 @@ def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
 # =============================================================================
 # SHARED COMPONENTS (moved from filter_database.py)
 # =============================================================================
-# In derivative_regex.py (add to your existing patterns)
 # Comparison verbs phrases
 comparison_phrases = [
     "compared to",
@@ -1937,9 +1936,6 @@ CONTRACTUAL_KEYWORDS_LOOSE = [
 
 # Section 3: Accounting Standards
 # === FASB ISSUANCE & ADOPTION ONLY ===
-
-# --- ISSUING BODIES ---
-# --- ISSUING BODIES ---
 ISSUER_TERMS = [
     r"\bFASB\b",
     r"\bFinancial Accounting Standards Board\b",
@@ -2403,10 +2399,27 @@ EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(
 EXCLUDE_REGEX_CONTRACTUAL_LOOSE = build_exclude_regex(
     CONTRACTUAL_KEYWORDS_LOOSE, ignore_case=True
 )
-def is_contractual_noise(text: str) -> bool:
+
+
+def is_contractual_noise(text: str, loose_threshold: int = 2) -> bool:
+    """
+    Determines if text is contractual boilerplate.
+    
+    Args:
+        text: The paragraph to check.
+        loose_threshold: Minimum number of 'loose' keywords required to trigger a discard.
+                         Defaults to 2 to prevent single words like 'thereof' from killing valid text.
+    """
+    # 1. STRICT: Keep as-is (Zero Tolerance)
+    # These words (like "Recitals", "Article IV") are distinct enough to kill immediately.
     if EXCLUDE_REGEX_CONTRACTUAL_STRICT.search(text):
         return True
-    if EXCLUDE_REGEX_CONTRACTUAL_LOOSE.search(text):
+
+    # 2. LOOSE: Enforce Density Check
+    # We use .findall() to count how many times these words appear.
+    matches = EXCLUDE_REGEX_CONTRACTUAL_LOOSE.findall(text)
+    
+    if len(matches) >= loose_threshold:
         return True
     return False
 
