@@ -1382,8 +1382,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"embedded\s+conversion\s+(?:{option}|features?|{derivative})",
         rf"conversion\s+option\s+{liability}",
         rf"bifurcated\s+conversion\s+{option}",
-        rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))\s+hedges?",
-        rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
+        rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))\s+(?:hedges?|derivatives?)",
     ]
 
     # Warrant liabilities (Financial Warrants only)
@@ -1436,9 +1435,12 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     soft_instrument_fragment = expand_instruments(unsafe=True)
 
     soft_pattern = build_smart_regex(
-        [strict_core_alternation], 
-        soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
-        sorted_specific_phrases, 
+        [strict_core_alternation],
+        soft_instrument_fragment
+        ,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
+        sorted_specific_phrases + [
+            rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
+        ],
     )
     soft_eq_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
 
