@@ -2401,14 +2401,14 @@ EXCLUDE_REGEX_CONTRACTUAL_LOOSE = build_exclude_regex(
 )
 
 
-def is_contractual_noise(text: str, loose_threshold: int = 2) -> bool:
+def is_contractual_noise(text: str, loose_threshold: int = 1) -> bool:
     """
     Determines if text is contractual boilerplate.
     
     Args:
         text: The paragraph to check.
         loose_threshold: Minimum number of 'loose' keywords required to trigger a discard.
-                         Defaults to 3 to prevent single words like 'thereof' from killing valid text.
+                         Defaults to 1 to prevent single words like 'thereof' from killing valid text.
     """
     # 1. STRICT: Keep as-is (Zero Tolerance)
     # These words (like "Recitals", "Article IV") are distinct enough to kill immediately.
