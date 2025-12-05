@@ -443,7 +443,7 @@ class TextCleaner:
         "risk",
     }
 
-    bullet_pattern = re.compile(r"(?<![\$€£¥])\b(?:\(?\d+\)|\d+\.)", re.IGNORECASE)
+    bullet_pattern = re.compile(r"(?<![\$€£¥]\s)\b(?:\(?\d+\)|\d+\.)", re.IGNORECASE)
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
 
     def __init__(
@@ -715,7 +715,7 @@ class TextCleaner:
             STANDARD_ID_REGEX,
         ]
         return self._clean_text_per_sentence(text, EMBEDDED_CAP_FLOOR_REGEX, "loan_features", salvation_regex)
-        
+
     def process(self, text: str, url: Optional[str] = None) -> str:
         """
         Main pipeline execution.
