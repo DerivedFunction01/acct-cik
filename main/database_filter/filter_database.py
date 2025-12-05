@@ -1622,14 +1622,16 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
     """
     Scans the document for 'Sophisticated' derivative terminology (FAS 133, Hedge Accounting).
     CRITICAL: Validates that the signal is NOT inside noise (Litigation, Risk Factors, Forward-Looking).
+    Meant for BioTech like firms that only uses equity derivatives (convertible debt, warrants)
     """
+    # We must iterate to see if there is a mention, but have to ignore accounting standards or else there is a false flag
     for match in matches:
         # 1. Quick Check: Does this paragraph even contain a sophistication signal?
         # (This is fast; filters out 90% of paragraphs immediately)
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(match): # Filter out issuance
             continue
 
-        has_signal = DER_STD_REGEX.search(match) or SOFT_GEN_REGEX.search(match)
+        has_signal = SOFT_GEN_REGEX.search(match) or STRICT_REGEX.search(match)
 
         if not has_signal:
             continue
@@ -1649,7 +1651,7 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
         # We trust this filer.
         return True
 
-    # If we scanned everything and found no valid signal
+    # If we scanned everything and found no valid signal, we will manually check
     return False
 
 
@@ -1724,7 +1726,7 @@ def filter_matches_with_disambiguation(
     sentence_metadata = []
     generic_buffer = []
     tracker = GlobalInstrumentTracker()
-    derivative_tracker = {"eq": False} # Track if there are
+    is_derivative = get_global_sophistication_flag(matches)
 
     # ═════════════════════════════════════════════════════════════════
     # PASS 1: SEGMENTATION, VALIDATION, NOISE REDUCTION
@@ -1850,15 +1852,6 @@ def filter_matches_with_disambiguation(
             all_discarded.append((url, match, "aggressive_paragraph_contradiction"))
             continue
 
-        gl_eq_der_check = EQ_SOFT_REGEX.search(match) and "convertible" in match.lower()
-        if gl_eq_der_check and not derivative_tracker["eq"]:
-            if not SOFT_GEN_REGEX.search(match) or not DER_STD_REGEX.search(match):
-                pass
-            else:
-                gl_eq_der_check = False # No need to check
-                derivative_tracker["eq"] = True
-        else:
-            gl_eq_der_check = False
         # Remove equity compensation boilerplate (salvage derivative mentions)
         if EXCLUDE_REGEX_EQUITY_COMP.search(match):
             sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
@@ -1962,7 +1955,7 @@ def filter_matches_with_disambiguation(
 
             # No derivative match
             if not SOFT_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
-                if not QUANT_REGEX.search(sentence) and LOOSE_GEN_REGEX.search(sentence):
+                if not (QUANT_REGEX.search(sentence) and LOOSE_GEN_REGEX.search(sentence)):
                     all_discarded.append((url, sentence, "no_match"))
                     used_indices.add(sent_idx)
                 continue
@@ -1973,7 +1966,12 @@ def filter_matches_with_disambiguation(
                     all_discarded.append((url, sentence, "commercial_contract_exemption"))
                     used_indices.add(sent_idx)
                     continue
-
+            
+            if EQ_SOFT_REGEX.search(sentence) and not EQ_REGEX.search(sentence):
+                if "convertible" in sentence.lower() or "warrants" in sentence.lower():
+                    if not is_derivative:
+                        used_indices.add(sent_idx)
+                        continue
             # ═══════════════════════════════════════════════════════════
             # CATEGORY DETECTION
             # ═══════════════════════════════════════════════════════════
@@ -2006,7 +2004,6 @@ def filter_matches_with_disambiguation(
                 "final_category": None,
                 "confidence": None,
                 "resolution_method": None,
-                "convertible_check": gl_eq_der_check, # Check the global indicator later.
             }
 
             if not specific_cats:
