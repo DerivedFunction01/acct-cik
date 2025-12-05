@@ -2249,6 +2249,7 @@ ACCOUNTING_STANDARDS_STRICT = [
     
     # Specific Terms
     rf"recently\s+(?:issued|updated|released|published|announced)\s+(?:accounting\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
+    r"accounting standards update",
     
     # Disclosures explicitly mandated by an ID
     rf"disclosures?\s+(?:required|mandated)\s+by\s+{STANDARD_ID_PATTERN}[^.?!]*",
