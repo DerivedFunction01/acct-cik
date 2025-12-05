@@ -457,6 +457,12 @@ class TextCleaner:
     )
 
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
+    loan_salvation_regex = [
+        HEDGING_CONTEXT_REGEX,
+        STRICT_NOTIONAL_REGEX,
+        SOFT_GEN_REGEX,
+        STANDARD_ID_REGEX,
+    ]
 
     def __init__(
         self,
@@ -720,13 +726,8 @@ class TextCleaner:
         return text
 
     def clean_loan_features(self, text: str):
-        salvation_regex = [
-            HEDGING_CONTEXT_REGEX,
-            STRICT_NOTIONAL_REGEX,
-            SOFT_GEN_REGEX,
-            STANDARD_ID_REGEX,
-        ]
-        return self._clean_text_per_sentence(text, EMBEDDED_CAP_FLOOR_REGEX, "loan_features", salvation_regex)
+        
+        return self._clean_text_per_sentence(text, EMBEDDED_CAP_FLOOR_REGEX, "loan_features", self.loan_salvation_regex)
 
     def process(self, text: str, url: Optional[str] = None) -> str:
         """
