@@ -2376,6 +2376,21 @@ COMPETITOR_KEYWORDS = [
     r"industry\s+practice",
     r"peer\s+group",
 ]
+FILING_KEYWORDS = [
+    "10-K",
+    "10-KT",
+    "20-F",
+    "40-F",
+    "10-K405",
+    "10KSB",
+    "10KSB40",
+    "8-K",
+    "Incorporated by",
+    "filed on",
+    r"(?:annual|quarterly)\s+report",
+    r"\bSEC\b\s+File",
+    
+]
 
 def build_exclude_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
     """Build regex for excluding noise keywords."""
@@ -2392,6 +2407,7 @@ EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
 EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
 EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
+EXCLUDE_REGEX_FILING = build_exclude_regex(FILING_KEYWORDS)
 # Compile separately
 EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(
     CONTRACTUAL_KEYWORDS_STRICT, ignore_case=False
