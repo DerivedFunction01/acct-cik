@@ -3627,3 +3627,48 @@ def aggregate_discards(
         result.append((url, combined_text, reason))
 
     return result
+
+def build_embedded_cap_floor_regex() -> re.Pattern:
+    # 1. Connectors (The "Filler")
+    connectors = [
+        r"subject\s+to",
+        r"contain(?:s|ed|ing)?",
+        r"include(?:s|d|ing)?",
+        r"have",
+        r"has",
+        r"had",
+        r"with",
+        r"bears?\s+interest",
+        r"feature", # "Debt has a cap feature"
+        r"provision",
+    ]
+    conn_pat = build_alternation(connectors)
+
+    # 2. Targets
+    targets = [
+        r"interest\s+rate\s+(?:caps?|floors?|collars?)", 
+        r"caps?", 
+        r"floors?"
+    ]
+    target_pat = build_alternation(targets)
+
+    # 3. Pattern A: Debt... [gap] ... Cap/Floor
+    # Gap 1 (Debt -> Conn): Up to 10 words. Handles "Debt issued in 2002 contains..."
+    # Gap 2 (Conn -> Target): Up to 3 words. Handles "contains an embedded..."
+    pat_a = (
+        rf"\b{_DEBT_TERMS}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat}\b"
+    )
+
+    # 4. Pattern B: Cap/Floor... [gap] ... Percentage
+    # We tighten the gap slightly to avoid jumping across sentence clauses if punctuation is missing.
+    # Matches: "Cap of 5%", "Cap at 5%", "Cap equal to 5%"
+    percent_pat = r"\d+(?:\.\d+)?\s*(?:%|percent|bps|basis\s+points)"
+    pat_b = rf"\b{target_pat}\s+(?:\S+\s+){{0,3}}{percent_pat}\b"
+
+    # "Feature" is the safe one.
+    pat_c = rf"\b{target_pat}\s+(?:feature|provision)\b"
+
+    return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
+
+# Export this
+EMBEDDED_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()

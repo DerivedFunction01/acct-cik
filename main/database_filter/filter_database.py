@@ -68,6 +68,7 @@ from derivative_regex import (
     DEFINITION_INDICATORS,
     DER_STD_REGEX,
     DID_NOT_HOLD_REGEX,
+    EMBEDDED_CAP_FLOOR_REGEX,
     ENTITY_TOKEN,
     EQ_SOFT_REGEX,
     EXCLUDE_COMPETITOR_REGEX,
@@ -506,7 +507,7 @@ class TextCleaner:
         return cleaned_text
 
     def _clean_text_per_sentence(
-        self, text: str, trigger_regex: re.Pattern, reason: str
+        self, text: str, trigger_regex: re.Pattern, reason: str, override_regex: Optional[re.Pattern] = None
     ) -> str:
         """
         Generic per-sentence cleaner: if a sentence matches trigger_regex,
@@ -525,15 +526,20 @@ class TextCleaner:
 
         for sent in sentences:
             match = trigger_regex.search(sent)
-            if match:
-                # Keep text before the match, remove from match to end of sentence
-                cleaned_sent = sent[: match.start()].strip()
-                removed_text = sent[match.start() :].strip()
+            if match: 
+                # Override prevents the match from getting cleaned
+                if not (override_regex and override_regex.search(sent)):
+                    # Keep text before the match, remove from match to end of sentence
+                    cleaned_sent = sent[: match.start()].strip()
+                    removed_text = sent[match.start() :].strip()
 
-                self._record_discard(removed_text, reason)
+                    self._record_discard(removed_text, reason)
 
-                if cleaned_sent:
-                    kept_sentences.append(cleaned_sent)
+                    if cleaned_sent:
+                        kept_sentences.append(cleaned_sent)
+                else:
+                    kept_sentences.append(sent)
+                    self._record_discard(sent, "overide_discarded_" + reason)
             else:
                 kept_sentences.append(sent)
 
@@ -699,6 +705,9 @@ class TextCleaner:
         text = DATE_MD_REGEX.sub(" ", text)
         return text
 
+    def clean_loan_features(self, text: str):
+        return self._clean_text_per_sentence(text, EMBEDDED_CAP_FLOOR_REGEX, "loan_features")
+        
     def process(self, text: str, url: Optional[str] = None) -> str:
         """
         Main pipeline execution.
@@ -2133,8 +2142,6 @@ def filter_matches_with_disambiguation(
         all_discarded_final.extend(validation_discards)
 
     return final_paragraphs_all, aggregate_discards(all_discarded_final)
-
-
 
 
 def resolve_generic_reference(
