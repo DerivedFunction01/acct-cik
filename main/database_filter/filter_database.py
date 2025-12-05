@@ -1974,7 +1974,7 @@ def filter_matches_with_disambiguation(
 
             # No derivative match
             if not SOFT_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
-                if not (QUANT_REGEX.search(sentence) and LOOSE_GEN_REGEX.search(sentence)):
+                if not (QUANT_REGEX.search(sentence) and LOOSE_GEN_REGEX.search(sentence)) or FV_REGEX.search(sentence):
                     all_discarded.append((url, sentence, "no_match"))
                     used_indices.add(sent_idx)
                 continue
