@@ -1834,8 +1834,36 @@ def filter_matches_with_disambiguation(
             all_discarded.append((url, match, "filing"))
             continue
         if is_contractual_noise(match):
-            all_discarded.append((url, match, "contractual"))
-            continue
+            sentences_temp = SENTENCE_SPLIT_PATTERN.split(match)
+            kept_text = []
+            discarded_parts = []
+
+            for sentence in sentences_temp:
+                # SALVATION LOGIC:
+                # 1. Must mention a derivative (SOFT_REGEX)
+                # 2. Must have Hedging Context (e.g. "hedge", "manage risk", "exposure")
+                # This distinguishes "We use swaps to hedge..." (Keep)
+                # from "Swap Agreement shall mean..." (Discard)
+                if STRICT_REGEX.search(sentence):
+                    kept_text.append(sentence)
+                elif SOFT_REGEX.search(sentence) and HEDGING_CONTEXT_REGEX.search(
+                    sentence
+                ):
+                    kept_text.append(sentence)
+                else:
+                    discarded_parts.append(sentence)
+
+            # 1. Log the discards
+            discarded_str = " ".join(discarded_parts)
+            if discarded_str.strip():
+                all_discarded.append((url, discarded_str, "contractual"))
+
+            # 2. Check if anything survived
+            match = " ".join(kept_text).strip()
+
+            # 3. If the whole paragraph was definitions, kill it.
+            if not match:
+                continue
 
         # Split into sentences
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(match)]
