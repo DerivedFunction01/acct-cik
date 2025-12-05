@@ -575,6 +575,45 @@ def build_fx_context_terms_advanced() -> List[str]:
 
 CURRENCY_SYMBOL_PATTERN = build_currency_symbol_pattern()
 # Generic hedging context (required for generic matches)
+hedging_terms = [
+    r"relationship",
+    r"strateg(?:y|ies)",
+    r"activit(?:y|ies)",
+    r"programs?",
+    r"positions?",
+    r"assets?",
+    r"liabilit(?:y|ies)",
+    r"polic(?:y|ies)",
+    r"transactions?",
+    r"designations?",
+    r"effectiveness",
+    r"ineffectiveness",
+    r"objectives?",
+    r"instruments?",
+    r"arrangements?",
+    r"exposures?",
+    r"derivatives?",
+    r"accounting",
+    r"items?",
+    r"horizons?",
+    r"document(?:s|ations?)",
+    r"terms?",
+    r"accounting",
+]
+hedge_phrases = build_alternation(hedging_terms, sort_longest_first=True)
+SOFT_GEN_TERMS = [
+    r"(?:instruments?|contracts?) are designated",
+    r"(?:ineffective|effective) portions?",
+    # Expanded Hedging Noun Contexts (Strategy, Activity, Program, etc.)
+    rf"hedg(?:es?|ing)\s+{hedge_phrases}",
+    r"change in fair value of derivatives?",
+    r"derivative expenses?",
+    r"designated as (?:a )?hedg(?:es?|ing)",
+    r"(?:gain|loss) on derivatives?",
+    r"derivative\s+assets?|derivative\s+liabilit(?:y|ies)",
+    r"fair\s+value\s+hedges?",
+    r"cash\s+flow\s+hedges?",
+]
 HEDGING_CONTEXT_TERMS = [
     r"hedge(?:s|d|ing)?",
     r"mitigat(?:e|es|ed|ing)",
@@ -583,26 +622,11 @@ HEDGING_CONTEXT_TERMS = [
     r"exposures?",
     r"risk\s+management",
     rf"economic\s+{_RISK_ALTERNATION}",
-    # --- ADD THESE BACK (Safe for Phase 1 Contextual Capture) ---
+    # --- Safe for Phase 1 Contextual Capture ---
     rf"(?:market|rate|currency|credit|counterparty|equity)[ -]{_RISK_ALTERNATION}",
-    r"fluctuations?",  # e.g., "protect against fluctuations"
-    r"volatility",  # e.g., "manage volatility"
-    # ------------------------------------------------------------
-    r"fair\s+value\s+hedges?",
-    r"cash\s+flow\s+hedges?",
-    r"designated\s+as\s+(?:a\s+)?hedge",
-    r"hedge\s+effectiveness",
-    r"hedge\s+accounting",
-    r"(?:instruments?|contracts?) are designated",
-    r"ineffective portion",
-    r"hedging relationship",
-    r"hedge accounting",
-    r"change in fair value of derivatives?",
-    r"derivative expense",
-    r"designated as (?:a )?hedges?",
-    r"(?:gain|loss) on derivatives?",
-    r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
-]
+    r"fluctuations?",   # e.g., "protect against fluctuations"
+    r"volatility",      # e.g., "manage volatility"
+] + SOFT_GEN_TERMS
 
 CP_CONTEXT_TERMS = (
     [
@@ -1559,48 +1583,8 @@ STRICT_GEN_REGEX = re.compile(
 
 
 def build_soft_gen_regex() -> re.Pattern:
-    # 1. Phrases explicitly related to derivative accounting treatment (PNL/Classification)
-    hedging_terms = [
-        r"relationship",
-        r"strateg(?:y|ies)",
-        r"activit(?:y|ies)",
-        r"programs?",
-        r"positions?",
-        r"assets?",
-        r"liabilit(?:y|ies)",
-        r"polic(?:y|ies)",
-        r"transactions?",
-        r"designations?",
-        r"effectiveness",
-        r"ineffectiveness",
-        r"objectives?",
-        r"instruments?",
-        r"arrangements?",
-        r"exposures?",
-        r"derivatives?",
-        r"accounting",
-        r"items?",
-        r"horizons?",
-        r"document(?:s|ations?)",
-        r"terms?",
-    ]
-    hedge_phrases = build_alternation(hedging_terms, sort_longest_first=True)
-    accounting_phrases = [
-        r"(?:instruments?|contracts?) are designated",
-        r"(?:ineffective|effective) portions?",
-        # Expanded Hedging Noun Contexts (Strategy, Activity, Program, etc.)
-        rf"hedg(?:es?|ing)\s+{hedge_phrases}",
-        r"change in fair value of derivatives?",
-        r"derivative expenses?",
-        r"designated as (?:a )?hedg(?:es?|ing)",
-        r"(?:gain|loss) on derivatives?",
-        r"derivative\s+asset|derivative\s+liabilit(?:y|ies)",
-    ]
-
-    all_patterns = accounting_phrases
-
     # Combine and prioritize based on length/specificity
-    pattern = build_alternation(all_patterns)
+    pattern = build_alternation(SOFT_GEN_TERMS)
 
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
