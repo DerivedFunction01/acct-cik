@@ -458,6 +458,13 @@ class TextCleaner:
     )
 
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
+    exhibit_pattern = re.compile(
+        r"\b(?:exhibit|reference|note|appendix|schedule|article|section|subsection|statement)\b"   # keyword
+        r"(?:\s*No\.?)?"                                      # optional "No." (with or without dot)
+        r"\s*\d{1,3}\b",                                      # number (1–3 digits)
+        re.IGNORECASE
+    )
+
     loan_salvation_regex = [
         HEDGING_CONTEXT_REGEX,
         STRICT_NOTIONAL_REGEX,
@@ -724,10 +731,11 @@ class TextCleaner:
         text = self.dashed_pattern.sub(" ", text)
         text = DATE_DM_REGEX.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
+        text = self.exhibit_pattern.sub(" ", text)
         return text
 
     def clean_loan_features(self, text: str):
-        
+
         return self._clean_text_per_sentence(text, EMBEDDED_CAP_FLOOR_REGEX, "loan_features", self.loan_salvation_regex)
 
     def process(self, text: str, url: Optional[str] = None) -> str:
