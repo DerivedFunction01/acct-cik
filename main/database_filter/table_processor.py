@@ -31,14 +31,20 @@ SECTION_KEYWORDS = re.compile(
     r"embedded|offsetting|trading|non[- ]?trading|held for|financial instruments",
     re.IGNORECASE,
 )
+# NEW: Specific regex for the sophisticated exception
+# Matches "Convertible", "Warrant", "Embedded Conversion"
+SOPHISTICATED_TARGETS = re.compile(
+    r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
+)
 
 TABLE_ANCHOR = " T_ "
 
 class TableToTextConverter:
 
-    def __init__(self, table_text: str, narrative_context: str = ""):
+    def __init__(self, table_text: str, narrative_context: str = "", is_sophisticated: bool = False):
         self.raw_text = table_text
         self.narrative_context = narrative_context
+        self.is_sophisticated = is_sophisticated # meant specifically for warrants and convertibles, not for equity options or gold contracts
 
         # 1. Extract & Analyze Caption (New)
         self.caption = self._extract_caption(table_text)
@@ -209,12 +215,12 @@ class TableToTextConverter:
         merged = row[:]
         fragment_pattern = re.compile(r"^[()$€£¥%—\-\s]+$")
         value_pattern = re.compile(r"\d")
-        
+
         # NEW: First pass - merge fragments WITH their values (forward)
         i = 0
         while i < len(merged):
             cell = merged[i].strip()
-            
+
             # If this cell is a pure fragment, look ahead for digits
             if cell and fragment_pattern.match(cell):
                 # Scan forward for a digit
@@ -233,7 +239,7 @@ class TableToTextConverter:
                         # Non-fragment, non-digit - stop
                         break
             i += 1
-        
+
         # ORIGINAL: Second pass - merge fragments TOWARD values (backward)
         for i in range(len(merged)):
             cell = merged[i].strip()
@@ -251,7 +257,7 @@ class TableToTextConverter:
                     if right and fragment_pattern.match(right):
                         merged[i] = merged[i] + right
                         merged[i + 1] = ""
-        
+
         return merged
     def normalize_value(self, clean_val: str):
         # Strip parentheses
@@ -351,16 +357,28 @@ class TableToTextConverter:
 
         # --- PASS 2: GENERATE SENTENCES ---
         for cand in candidate_rows:
+            # Calculate the Sophistication Exception for this specific row
+            is_sophisticated_exception = (
+                self.is_sophisticated and SOPHISTICATED_TARGETS.search(cand["name"])
+            )
             # FILTER LOGIC:
             # 1. Strong matches are always kept.
             # 2. Soft matches are kept ONLY if the table is anchored.
+            # 3. Soft matches are kept IF they match the Sophistication Exception (Convertibles/Warrants only).
             if cand["is_strong"]:
-                pass  # Keep
-            elif cand["is_soft"] and table_is_anchored:
-                pass  # Keep
+                should_keep = True
+            elif cand["is_soft"]:
+                if table_is_anchored:
+                    should_keep = True
+                elif is_sophisticated_exception:
+                    should_keep = True # <--- The Safe Harbor
+                else:
+                    should_keep = False
             else:
                 continue  # Discard (Noise or unanchored soft match)
-
+            if not should_keep:
+                continue
+            
             # Extract Values
             row = cand["row"]
             full_instrument_name = cand["name"]
