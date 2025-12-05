@@ -1634,7 +1634,8 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(match): # Filter out issuance
             continue
 
-        has_signal = SOFT_GEN_REGEX.search(match) or STRICT_REGEX.search(match) # embedded derivative, hedge accounting, swaps, etc
+        has_signal = SOFT_GEN_REGEX.search(match) or STRICT_REGEX.search(match) # embedded derivative, hedge accounting, swaps, etc. 
+        # Note: eq_regex strict doesn't have barebones convertible debt, needs "derivative or hedge after it"
         
         if not has_signal:
             if SOFT_CATEGORY_REGEX.search(match) and FV_REGEX.search(match):
