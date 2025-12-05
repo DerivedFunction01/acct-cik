@@ -1852,6 +1852,9 @@ def filter_matches_with_disambiguation(
                 # 2. Must have Hedging Context (e.g. "hedge", "manage risk", "exposure")
                 # This distinguishes "We use swaps to hedge..." (Keep)
                 # from "Swap Agreement shall mean..." (Discard)
+                if is_contractual_noise(sentence):
+                    discarded_parts.append(sentence)
+                    continue
                 if STRICT_REGEX.search(sentence):
                     kept_text.append(sentence)
                 elif SOFT_REGEX.search(sentence) and HEDGING_CONTEXT_REGEX.search(
