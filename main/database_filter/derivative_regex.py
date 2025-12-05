@@ -3639,34 +3639,50 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
         r"had",
         r"with",
         r"bears?\s+interest",
-        r"feature", # "Debt has a cap feature"
-        r"provision",
+        r"features?",
+        r"sets?",
+        r"provisions?",
+        r"terms?",
     ]
     conn_pat = build_alternation(connectors)
 
-    # 2. Targets
+    # 2. Build Suffix Logic
+    # ALL_SUFFIXES includes: agreements, contracts, commitments, instruments, arrangements, options
+    
+    # A. Full Suffix List (For Long-Form Instruments)
+    # "Interest Rate Cap Agreement" -> SAFE (Excluded from match)
+    full_suffix_alt = build_alternation(ALL_SUFFIXES)
+
+    # B. Safe Suffix List (For Short-Form Instruments)
+    # Remove "agreement" so "Cap Agreement" is caught and checked for debt context.
+    # We explicitly keep strong terms like "Contract" and "Option".
+    safe_list = set(ALL_SUFFIXES) - {"agreements?", "arrangements?"} # Arrangements also vague
+    safe_suffix_alt = build_alternation(list(safe_list))
+
+    # 3. Targets (Caps/Floors only)
     targets = [
-        r"interest\s+rate\s+(?:caps?|floors?|collars?)", 
-        r"caps?", 
-        r"floors?"
+        # Long Form: Trust ALL suffixes (Agreements included)
+        rf"interest\s+rate\s+(?:caps?|floors?|collars?)(?!\s+{full_suffix_alt})", 
+        
+        # Short Form: Trust only STRONG suffixes (Contracts/Options)
+        # "Cap Agreement" or "Cap Arrangement" will MATCH here (and risk discard)
+        rf"caps?(?!\s+{safe_suffix_alt})", 
+        rf"floors?(?!\s+{safe_suffix_alt})",
     ]
     target_pat = build_alternation(targets)
 
-    # 3. Pattern A: Debt... [gap] ... Cap/Floor
-    # Gap 1 (Debt -> Conn): Up to 10 words. Handles "Debt issued in 2002 contains..."
-    # Gap 2 (Conn -> Target): Up to 3 words. Handles "contains an embedded..."
+    # 4. Pattern A: Debt... [gap] ... Cap/Floor
     pat_a = (
         rf"\b{_DEBT_TERMS}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat}\b"
     )
 
-    # 4. Pattern B: Cap/Floor... [gap] ... Percentage
-    # We tighten the gap slightly to avoid jumping across sentence clauses if punctuation is missing.
-    # Matches: "Cap of 5%", "Cap at 5%", "Cap equal to 5%"
+    # 5. Pattern B: Cap/Floor... [gap] ... Percentage
     percent_pat = r"\d+(?:\.\d+)?\s*(?:%|percent|bps|basis\s+points)"
     pat_b = rf"\b{target_pat}\s+(?:\S+\s+){{0,3}}{percent_pat}\b"
 
-    # "Feature" is the safe one.
-    pat_c = rf"\b{target_pat}\s+(?:feature|provision)\b"
+    # 6. Pattern C: Explicit "Feature" Nouns
+    noun_indicators = r"(?:features?|provisions?|terms?)" 
+    pat_c = rf"\b{target_pat}\s+{noun_indicators}\b"
 
     return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
 
