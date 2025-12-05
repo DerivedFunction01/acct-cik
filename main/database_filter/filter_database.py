@@ -443,7 +443,19 @@ class TextCleaner:
         "risk",
     }
 
-    bullet_pattern = re.compile(r"(?<![\$€£¥]\s)\b(?:\(?\d+\)|\d+\.)", re.IGNORECASE)
+    # Updated bullet_pattern definition inside TextCleaner class (or module level)
+
+    bullet_pattern = re.compile(
+        r"(?<![\$€£¥])"        # 1. Safety: Not preceded by currency symbols
+        r"(?:(?<=^)|(?<=\s))"  # 2. Anchor: Start of line OR preceded by whitespace (Fixes \b bug)
+        r"(?:"
+            r"\(?\d+\)|"       # 3. Matches (1), 1), or 1 (if enclosed)
+            r"\d+\."           # 4. Matches 1.
+        r")"
+        r"(?=\s)",             # 5. Safety: Must be followed by whitespace (Protects "Note 5.")
+        re.IGNORECASE
+    )
+
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
 
     def __init__(
