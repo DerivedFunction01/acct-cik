@@ -2963,6 +2963,7 @@ TERMINATION_VERBS = [
     r"matur(?:e(?:d|s)?|ing)",  # Matches: mature, matured, maturing.  STOPS: maturity
     r"terminat(?:e(?:d|s)?|ing)",  # Matches: terminate, terminated.      STOPS: termination
     r"ceas(?:e(?:d|s)?|ing)",  # Matches: cease, ceased
+    r"retir(?:e(?:d|s)?|ing)",  # Matches: retire, retired.
     r"clos(?:e(?:d|s)?|ing)(?!\s+(?:price|rate|date|balance|value))",
     r"unwound",
     r"unwind",
