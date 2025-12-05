@@ -1647,15 +1647,8 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
         # (This is fast; filters out 90% of paragraphs immediately)
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(match): # Filter out issuance
             continue
-
-        has_signal = SOFT_GEN_REGEX.search(match) or STRICT_REGEX.search(match) # embedded derivative, hedge accounting, swaps, etc. 
-        # Note: eq_regex strict doesn't have barebones convertible debt, needs "derivative or hedge after it"
-        
-        if not has_signal:
-            if FV_REGEX.search(match):
-                return True
+        if EXCLUDE_REGEX_FILING.search(match):
             continue
-
         # 2. Safety Check: Is this signal actually just noise?
         # We reuse the exclusion regexes from derivative_regex.py
         if EXCLUDE_REGEX_FORWARD_LOOKING.search(match):
@@ -1663,6 +1656,14 @@ def get_global_sophistication_flag(matches: List[str]) -> bool:
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(match):
             continue
         if EXCLUDE_COMPETITOR_REGEX.search(match):
+            continue
+
+        has_signal = SOFT_GEN_REGEX.search(match) or STRICT_REGEX.search(match) # embedded derivative, hedge accounting, swaps, etc. 
+        # Note: eq_regex strict doesn't have barebones convertible debt, needs "derivative or hedge after it"
+        
+        if not has_signal:
+            if FV_REGEX.search(match):
+                return True
             continue
         # Note: We don't check "Contractual" here because "FAS 133" in a contract
         # definition still implies they know what they are doing.
