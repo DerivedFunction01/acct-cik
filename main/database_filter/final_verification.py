@@ -19,7 +19,6 @@
 # context sentences (Level 2, Policy) within that paragraph are PRESERVED
 # if they mention an instrument, even if they lack a verb/number themselves.
 # =============================================================================
-
 import sqlite3
 import json
 import re
@@ -27,7 +26,8 @@ import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
-from typing import Tuple
+from typing import Tuple, List, Dict
+from collections import defaultdict
 
 from table_processor import TABLE_ANCHOR
 
@@ -39,6 +39,10 @@ NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 1000
 SOURCE_DB_PATH = "active_nonzero_data.db"
 FINAL_DB_PATH = "verified_active_data.db"
+
+# LLM Configuration
+ENABLE_LLM_CHECK = False  # Set to True to enable actual API calls
+LLM_MODEL = "gpt-4-turbo"  # or local model
 
 from derivative_regex import (
     ALL_REGEX,
@@ -53,37 +57,66 @@ from derivative_regex import (
     build_alternation,
     ACTIVE_STATE_REGEX,
     validate_instrument_retention,
-    CATEGORY_REGEX,  # <--- NEW IMPORT for Safety Check
+    CATEGORY_REGEX,
+    HEDGING_CONTEXT_REGEX,  # Import the Group Checker
 )
 
 # =============================================================================
-# VERIFICATION REGEXES
+# 1. STRICT QUANTITATIVE DEFINITIONS
 # =============================================================================
 
-VERB_REGEX = re.compile(rf"\b(?:{STRONG_VERB_PATTERN}|consists?\s+of)\b", re.IGNORECASE)
-LEVEL_REGEX = re.compile(r"\b(?:Level\s+[123]|observable|record(?:s|ed)?|recogniz(?:ed?|ing|es))\b", re.IGNORECASE)
-VALUATION_MODEL_REGEX = re.compile(
-    r"\b" + build_alternation(VALUATION_MODELS) + r"\b", re.IGNORECASE
-)
-
-# 2. QUANTITATIVE INDICATORS (Money & Metrics)
-# Matches: "$100", "5%", "Notional", "Fair Value"
-# We assume if they give a number or mention "Fair Value", they have the instrument.
-QUANT_TERMS = [
+# Valid financial metrics that justify keeping a number
+VALID_QUANT_TERMS = [
     r"notional",
     r"fair\s+value",
     r"carrying\s+(?:amount|value)",
     r"market\s+value",
     r"weighted\s+average",
+    r"gains?",
+    r"loss(?:es)?",
+    r"earnings",
+    r"income",
+    r"assets?",
+    r"liabilit(?:y|ies)",
+    r"receivables?",
+    r"payables?",
+    r"net\s+investment",
+    r"accumulated\s+other\s+comprehensive",
+    r"AOCI",
+    r"cash\s+flow",
 ]
-# Looks for Currency Symbols or defined terms
+
+# Excluded indicators (If these are the ONLY context for a number, discard)
+# e.g. "Spot price was $50" -> Discard. "Spot price was $50 used for fair value" -> Keep (caught by above).
+INVALID_QUANT_CONTEXT = [
+    r"spot\s+(?:price|rate)",
+    r"exchange\s+rates?",
+    r"market\s+(?:price|rate)",
+    r"strike\s+(?:price|rate)",
+    r"exercise\s+price",
+]
+
+VALID_QUANT_CONTEXT_REGEX = re.compile(
+    r"\b" + build_alternation(VALID_QUANT_TERMS) + r"\b", re.IGNORECASE
+)
+
+# Reuse existing regexes
 QUANT_REGEX = re.compile(
-    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*(?:0\.\d+|[1-9]\d*(?:\.\d+)?)|"  # Prefix: $0.50, $100.00
-    rf"(?:0\.\d+|[1-9]\d*(?:\.\d+)?)\s*(?:{CURRENCY_SYMBOL_PATTERN})|"  # Suffix: 0.50 USD, 100 USD
-    r"\d+(?:\.\d+)?\s+(?:million|billion|trillion|thousand)",  # Magnitude: 0.5 million, 10.5 billion
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*(?:0\.\d+|[1-9]\d*(?:\.\d+)?)|"
+    rf"(?:0\.\d+|[1-9]\d*(?:\.\d+)?)\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
+    r"\d+(?:\.\d+)?\s+(?:million|billion|trillion|thousand)",
     re.IGNORECASE,
 )
-ENTITY_TOKENS = [ENTITY_TOKEN]
+
+VERB_REGEX = re.compile(rf"\b(?:{STRONG_VERB_PATTERN}|consists?\s+of)\b", re.IGNORECASE)
+LEVEL_REGEX = re.compile(
+    r"\b(?:Level\s+[123]|observable|record(?:s|ed)?|recogniz(?:ed?|ing|es))\b",
+    re.IGNORECASE,
+)
+VALUATION_MODEL_REGEX = re.compile(
+    r"\b" + build_alternation(VALUATION_MODELS) + r"\b", re.IGNORECASE
+)
+
 POLICY_TERMS = [
     r"formally\s+document",
     r"hedge\s+documentation",
@@ -97,9 +130,9 @@ POLICY_TERMS = [
     r"economic\s+relationship",
 ]
 POLICY_REGEX = re.compile(
-    r"\b" + build_alternation(POLICY_TERMS + ENTITY_TOKENS) + r"\b", re.IGNORECASE
+    r"\b" + build_alternation(POLICY_TERMS + [ENTITY_TOKEN]) + r"\b", re.IGNORECASE
 )
-# Targets: "We transact with highly rated institutions", "Subject to master netting
+
 COUNTERPARTY_POLICY_TERMS = [
     r"credit\s+risk",
     r"counterpart(?:y|ies)",
@@ -115,51 +148,42 @@ COUNTERPARTY_POLICY_TERMS = [
     r"non[- ]performance",
     r"nonperformance",
 ]
-
 COUNTERPARTY_REGEX = re.compile(
     r"\b" + build_alternation(COUNTERPARTY_POLICY_TERMS) + r"\b", re.IGNORECASE
 )
 
+
 # =============================================================================
-# LOGIC
+# 2. ANALYSIS LOGIC
 # =============================================================================
 
 
 def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, str]:
     """
     Analyzes sentence for evidence of active usage.
-    Returns: (is_kept: bool, reason_code: str)
     """
-    # Sub out phrases
-    sentence = ALL_REGEX.sub(" ", sentence)
-    # 1. QUANTITATIVE CHECK (The Ultimate Salvager)
+    # 1. QUANTITATIVE CHECK (STRICTER NOW)
+    # Must have a number AND a valid financial metric (Fair Value, Notional, etc.)
+    # This filters out "Spot price was $50" or "Stock price is $10".
     if QUANT_REGEX.search(sentence):
-        return True, "kept_quantitative_indicator"
+        if VALID_QUANT_CONTEXT_REGEX.search(sentence) or TABLE_ANCHOR in sentence:
+            return True, "kept_quantitative_indicator"
+        else:
+            # It has a number, but no valid context (likely spot price/exchange rate noise)
+            # We treat this as "No Signal" and let it fall through to other checks
+            pass
 
-    # -----------------------------------------------------------
-    # TRAP 1: THE LEVEL TRAP
-    # "Fair value determined using Level 2 inputs" -> No position evidence
-    # -----------------------------------------------------------
+    # 2. TRAPS (Boilerplate Removal)
     if LEVEL_REGEX.search(sentence):
-        # FIX: Only discard if NO global signal AND no instrument name.
-        # If the paragraph has a number, and this sentence says "Interest Rate Swaps are Level 2", keep it.
         if has_quant and CATEGORY_REGEX.search(sentence):
             return True, "kept_context_via_global_quant"
         return False, "discarded_fair_value_hierarchy_boilerplate"
 
-    # -----------------------------------------------------------
-    # TRAP 2: THE MODEL TRAP
-    # "Valued using Black-Scholes model" -> Methodology, not holding
-    # -----------------------------------------------------------
     if VALUATION_MODEL_REGEX.search(sentence):
         if has_quant and CATEGORY_REGEX.search(sentence):
             return True, "kept_context_via_global_quant"
         return False, "discarded_valuation_methodology"
 
-    # -----------------------------------------------------------
-    # TRAP 3: THE POLICY TRAP
-    # "We formally document all hedges" -> Accounting policy, not holding
-    # -----------------------------------------------------------
     if POLICY_REGEX.search(sentence):
         if has_quant and CATEGORY_REGEX.search(sentence):
             return True, "kept_context_via_global_quant"
@@ -170,26 +194,19 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
             return True, "kept_context_via_global_quant"
         return False, "discarded_counterparty_risk_boilerplate"
 
-    # -----------------------------------------------------------
-    # STANDARD CHECKS (If survived traps)
-    # -----------------------------------------------------------
-
-    # Action Verbs ("We use", "We hold")
+    # 3. ACTION / STATE CHECKS
     if VERB_REGEX.search(sentence):
         return True, "kept_action_verb"
 
-    # Active State ("Outstanding", "Open")
     if ACTIVE_STATE_REGEX.search(sentence):
         return True, "kept_active_state_descriptor"
 
-    # Weak Evidence / Passive Voice fallback
-    # If we have a global quant signal, we are more lenient with passive sentences
-    # provided they mention the instrument name.
-    if has_quant and CATEGORY_REGEX.search(sentence) or GEN_REGEX.search(sentence):
+    # 4. WEAK EVIDENCE FALLBACK
+    # If we have global quant signal, we are lenient with passive sentences containing the instrument
+    if has_quant and (CATEGORY_REGEX.search(sentence) or GEN_REGEX.search(sentence)):
         return True, "kept_passive_context_via_global_quant"
 
-    # If we get here, the sentence lacks any verb, number, or state to prove it exists.
-    return False, "discarded_weak_evidence_no_verb_or_quant"
+    return False, "discarded_weak_evidence_no_verb_or_valid_quant"
 
 
 def process_company(item):
@@ -201,45 +218,68 @@ def process_company(item):
     except:
         return None
 
-    final_paragraphs = []
-    final_categories = []
+    # -- AGGREGATION STRUCTURE --
+    # Group sentences by category to create "Mega Windows"
+    # Key: Category (e.g., 'ir'), Value: List of sentences
+    category_blocks = defaultdict(list)
     discards = []
 
+    # 1. PROCESS SENTENCES (Filtering)
     for paragraph, category in zip(paragraphs, categories):
-        # Atomic split is crucial here - we validate sentence by sentence
+        # Paragraph-level flag for immunity
+        has_quant = bool(QUANT_REGEX.search(paragraph)) or TABLE_ANCHOR in paragraph
+
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
-        kept_atomic = []
-
-        # 1. Calculate Global Signal for Paragraph
-        # If this flag is True, we activate "Immunity Mode" for context sentences
-        has_quant = bool(QUANT_REGEX.search(paragraph)) or TABLE_ANCHOR in paragraph
 
         for sent in atomic_sentences:
-            # --- VERIFICATION CHECK ---
             is_kept, reason = check_signal_status(sent, has_quant=has_quant)
-
             if is_kept:
-                kept_atomic.append(sent)
+                # Add to the category bucket
+                category_blocks[category].append(sent)
             else:
                 discards.append((url, sent, reason))
 
-        if kept_atomic:
-            final_paragraphs.append(
-                " ".join([k for k in kept_atomic if len(k) > MIN_SENTENCE_LENGTH])
-            )
+    # 2. GROUP CHECK & LLM PREP
+    final_paragraphs = []
+    final_categories = []
+
+    for category, sentences in category_blocks.items():
+        if not sentences:
+            continue
+
+        # Create the Mega Window
+        mega_window = " ".join(sentences)
+
+        # -- CHECK A: GROUP HEDGING CONTEXT --
+        # Does the *combined* text mention hedging/risk management/designation?
+        # This saves "We hold swaps." (No hedge mentioned) if another sentence says "to hedge risk".
+        has_group_context = HEDGING_CONTEXT_REGEX.search(mega_window)
+
+        # Exception: Tables usually imply context by existence, or simple "Active User" statements
+        is_strong_usage = VERB_REGEX.search(mega_window) or TABLE_ANCHOR in mega_window
+
+        if has_group_context or is_strong_usage:
+
+            # -- CHECK B: LLM VERIFICATION (Optional/Stub) --
+            # Currently disabled by flag, but this is where you insert the call.
+            if ENABLE_LLM_CHECK:
+                # llm_decision = call_llm_active_check(mega_window, category)
+                # if not llm_decision: continue
+                pass
+
+            # If passed checks, reconstruct paragraphs (or keep as one big block)
+            # For DB consistency, we usually store the block.
+            final_paragraphs.append(mega_window)
             final_categories.append(category)
 
-    # 4. Final Validation Helper (Anchor Check)
-    final_paragraphs, final_categories, validation_discards = (
-        validate_instrument_retention(
-            final_paragraphs, final_categories, url, strict=False
-        )
-    )
+        else:
+            discards.append(
+                (url, mega_window, "discarded_group_check_no_hedging_context")
+            )
 
-    discards.extend(validation_discards)
-
+    # 3. DB FORMATTING
     if final_paragraphs:
         return (
             url,
@@ -253,9 +293,7 @@ def process_company(item):
     return (url, "[]", "[]", cik, year, discards) if discards else None
 
 
-# =============================================================================
-# DB HELPERS (Unchanged)
-# =============================================================================
+# ... (Rest of DB Helpers and Main block remain unchanged) ...
 
 
 def setup_db():
