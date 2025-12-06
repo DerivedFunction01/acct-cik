@@ -1552,7 +1552,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "hedging liabilit(?:y|ies)",  # <-- NEW
         
         # Explicit "Safe" Variants for Ambiguous Bases
-        "forward contracts",
+        "forward contracts?",
         "forward agreements?",        # <-- NEW
         "option contracts?",          # <-- NEW
     ]
