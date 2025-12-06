@@ -1873,7 +1873,6 @@ CONTRACTUAL_KEYWORDS_SINGLE = [
     r"\bwitnesseth\b",
     r"\bwhereas\b",
     r"\bhereto\b",
-    r"\bforegoing\b",
 ]
 
 # 3. LOOSE PHRASE: Legal Actions & Boilerplate (Medium Confidence)
