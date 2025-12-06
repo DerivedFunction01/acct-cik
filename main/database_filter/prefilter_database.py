@@ -30,6 +30,7 @@ from derivative_regex import (
     EXCLUDE_HYPOTHETICAL_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
     HEDGING_CONTEXT_REGEX,
+    LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     SOFT_GEN_REGEX,
     SOFT_REGEX,
@@ -163,7 +164,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     clean_paragraphs = []
     local_discards = []
-    for p in paragraphs:
+    for i, p in enumerate(paragraphs):
         # 1. Skip Tables (Pass them through for the Table Processor in next stage)
         # Or you can choose to filter noise WITHIN tables here if you want.
         # For now, we pass them safely.
@@ -264,6 +265,8 @@ def find_hedging_context(paragraph: str) -> bool:
     elif SOFT_GEN_REGEX.search(paragraph):
         return True
     elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
+        return True
+    elif DER_STD_REGEX.search(paragraph) and LOOSE_GEN_REGEX.search(paragraph):
         return True
     return False
 
