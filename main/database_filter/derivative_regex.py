@@ -1913,6 +1913,19 @@ CONTRACTUAL_KEYWORDS_PHRASE = [
     r"change\s+of\s+control\s+provisions?",
     r"stockholder\s+rights\s+plan",
     r"poison\s+pill",
+    
+    # Definition indicators
+    # 1. "Shall mean" (The classic legal definition)
+    r"shall\s+(?:mean|refers?)",
+    
+    # 2. "Have the meaning ascribed"
+    r"have\s+the\s+meanings?\s+(?:ascribed|assigned|given|set\s+forth)",
+    
+    # 3. "As defined in/under" (Pointer to definition)
+    r"(?:as|is|are|were|was)\s+defined\s+(?:in|under|by|as)",
+    # 5. Anchored Term Definition: "The term 'X' means"
+    # This is safe because it requires "The term" anchor.
+    r"[Tt]he\s+term\s+[\"“].*?[\"”]\s+(?:means?|refers?)",
 ]
 
 
