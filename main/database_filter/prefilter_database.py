@@ -113,17 +113,19 @@ def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
     return table_text, []
 
 
-def strip_table_formatting(table_text: str) -> str:
+def strip_table_formatting(table_text: str) -> Tuple[str, List[Tuple[str, str, str]]]:
     """
     1. Removes HTML tags.
     2. Filters out 'Poison Rows' using shared exclusion logic.
     3. Merges surviving rows into a single text block.
+    4. Returns cleaned text AND list of (row_text, discard_reason) tuples for excluded rows.
     """
     # Remove all HTML-style tags
     text = TAG_PATTERN.sub("", table_text)
 
     lines = text.split("\n")
     cleaned_lines = []
+    excluded_rows = []
 
     for line in lines:
         stripped = line.strip()
@@ -133,15 +135,18 @@ def strip_table_formatting(table_text: str) -> str:
             continue
 
         # FILTER POISON ROWS
-        # If a row triggers a hard exclusion, drop ONLY that row.
-        if check_hard_exclusions(stripped):
+        exclusion_reason = check_hard_exclusions(stripped)
+        if exclusion_reason:
+            excluded_rows.append((stripped, exclusion_reason))
             continue
 
         cleaned_lines.append(stripped)
 
     # Merge
     result = " ".join(cleaned_lines)
-    return re.sub(r"\s+", " ", result).strip()
+    result = re.sub(r"\s+", " ", result).strip()
+
+    return result, excluded_rows
 
 
 def is_text_container_table(table_text: str, footnotes: List[str]) -> bool:
@@ -229,7 +234,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 # --- FLATTEN PATH ---
                 # It is a text container. Flatten it to a string.
                 # It will now fall through to the Standard Text Filters below.
-                p = strip_table_formatting(cleaned_table)
+                p, excluded_rows = strip_table_formatting(cleaned_table)
+
+                # LOG EXCLUDED ROWS (already in (url, row_text, reason) format)
+                local_discards.extend(excluded_rows)
 
                 # Append footnotes to the flattened text so they get checked together
                 if footnotes:
@@ -241,7 +249,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
         # 0. Clean Entities First
         p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
-        
+
         # 2. EXCLUSION FILTERS (Applies to Text AND Flattened Tables)
         exclusion_reason = check_hard_exclusions(p)
         if exclusion_reason:
