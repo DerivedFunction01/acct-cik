@@ -593,7 +593,6 @@ hedging_terms = [
     r"arrangements?",
     r"exposures?",
     r"derivatives?",
-    r"accounting",
     r"items?",
     r"horizons?",
     r"document(?:s|ations?)",
