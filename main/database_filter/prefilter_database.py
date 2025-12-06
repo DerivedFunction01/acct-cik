@@ -223,11 +223,12 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     except:
         return None
 
-    clean_paragraphs = []  # Standard Buffer
+    # BUFFER STRUCTURE: List of (index, text) tuples
+    clean_buffer = []          # Standard Buffer
     sophisticated_buffer = []  # Warrant/Convertible Buffer
     local_discards = []
 
-    for p in paragraphs:
+    for idx, p in enumerate(paragraphs): # <-- Track Index
         # Accounting Standards (runs first to avoid subbing FASB with an entity token)
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
             kept = []
@@ -235,7 +236,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             for sent in sentences:
                 if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
                     kept.append(sent)
-                else: # Discard the remaining text
+                else:  # Discard the remaining text
                     break
             if kept:
                 salvaged_p = " ".join(kept)
@@ -244,7 +245,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
                     sophisticated_buffer.append(salvaged_p)
                 else:
-                    clean_paragraphs.append(salvaged_p)
+                    clean_buffer.append((idx, salvaged_p))
 
             discarded_text = " ".join(set(sentences) - set(kept))
             if discarded_text:
@@ -266,13 +267,13 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 is_context = SOPHISTICATED_CONTEXT_REGEX.search(cleaned_table)
 
                 if is_target or is_context:
-                    sophisticated_buffer.append(cleaned_table)
-                    clean_paragraphs.append(cleaned_table)
+                    sophisticated_buffer.append((idx, cleaned_table))
+                    clean_buffer.append((idx, cleaned_table))
                 else:
-                    clean_paragraphs.append(cleaned_table)
+                    clean_buffer.append((idx, cleaned_table))
 
                 if footnotes:
-                    clean_paragraphs.extend(footnotes)
+                    clean_buffer.extend([(idx, fn) for fn in footnotes])
                 continue
             else:
                 p, excluded_rows = strip_table_formatting(cleaned_table, url)
@@ -331,9 +332,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 if SOPHISTICATED_TARGETS.search(
                     salvaged_p
                 ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
-                    sophisticated_buffer.append(salvaged_p)
+                    sophisticated_buffer.append((idx, salvaged_p))
                 else:
-                    clean_paragraphs.append(salvaged_p)
+                    clean_buffer.append((idx, salvaged_p))
 
             discarded_text = " ".join(set(sentences) - set(kept))
             if discarded_text:
@@ -343,32 +344,47 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         # 4. DISTRIBUTION (Standard Paragraphs)
         # Append to sophisticated buffer if it matches Target OR Context
         if SOPHISTICATED_TARGETS.search(p) or SOPHISTICATED_CONTEXT_REGEX.search(p):
-            sophisticated_buffer.append(p)
+            sophisticated_buffer.append((idx, p))
         else:
-            clean_paragraphs.append(p)
+            clean_buffer.append((idx, p))
 
     # 5. FINAL GATEKEEPERS
-    final_paragraphs = []
+    final_results = []  # List of (index, text)
 
     # A. Validate Standard Buffer
-    if any(find_hedging_context(p) for p in clean_paragraphs):
-        final_paragraphs.extend(clean_paragraphs)
+    # Extract text only for validation
+    std_texts = [text for i, text in clean_buffer]
+    if any(find_hedging_context(p) for p in std_texts):
+        final_results.extend(clean_buffer)
     else:
-        if clean_paragraphs:
-            local_discards.append((url, "\n\n".join(clean_paragraphs), "standard_check_failed"))
+        if clean_buffer:
+            local_discards.append((url, "\n\n".join(clean_buffer), "standard_check_failed"))
 
     # B. Validate Sophisticated Buffer
-    if validate_sophisticated_buffer(sophisticated_buffer, clean_paragraphs):
-        final_paragraphs.extend(sophisticated_buffer)
+    # Extract text only for validation
+    soph_texts = [text for i, text in sophisticated_buffer]
+    # Pass text lists to validator
+    if validate_sophisticated_buffer(soph_texts, std_texts):
+        final_results.extend(sophisticated_buffer)
     else:
         if sophisticated_buffer:
             local_discards.append(
                 (url, "\n\n".join(sophisticated_buffer), "sophisticated_check_failed")
             )
 
-    # Deduplicate and Return
-    if final_paragraphs:
-        unique_paragraphs = list(set(final_paragraphs))
+    # C. RECONSTRUCT & SORT
+    if final_results:
+        # Sort by original index to restore narrative flow
+        final_results.sort(key=lambda x: x[0])
+
+        # Extract text and deduplicate (preserving order)
+        seen = set()
+        unique_paragraphs = []
+        for _, text in final_results:
+            if text not in seen:
+                unique_paragraphs.append(text)
+                seen.add(text)
+
         return (
             url,
             json.dumps(unique_paragraphs),
