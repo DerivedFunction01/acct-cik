@@ -426,12 +426,13 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     try:
         # B. Validate Sophisticated Buffer
-        # Pass full buffers (with tuples) to validator - it will extract text internally
-        if validate_sophisticated_buffer(sophisticated_buffer, clean_buffer):
+        # Extract text from (index, text) tuples for validation
+        soph_texts = [text for _, text in sophisticated_buffer]
+        std_texts = [text for _, text in clean_buffer]
+        if validate_sophisticated_buffer(soph_texts, std_texts):
             final_results.extend(sophisticated_buffer)
         else:
             if sophisticated_buffer:
-                soph_texts = [text for _, text in sophisticated_buffer]
                 discarded = "\n\n".join(soph_texts)
                 local_discards.append((url, discarded, "sophisticated_check_failed"))
     except Exception as e:
