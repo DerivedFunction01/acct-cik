@@ -376,9 +376,7 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
 
             # unpack
             url, clean_json, cik, year, discards = result
-
-            if clean_json != "[]":
-                buffer.append((url, clean_json, cik, year))
+            buffer.append((url, clean_json, cik, year))
 
             if discards:
                 discards_buffer.extend(discards)
