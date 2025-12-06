@@ -341,13 +341,26 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 local_discards.append((url, discarded_text, "comp"))
             continue
 
-        # 4. DISTRIBUTION (Standard Paragraphs)
-        # Append to sophisticated buffer if it matches Target OR Context
-        if SOPHISTICATED_TARGETS.search(p) or SOPHISTICATED_CONTEXT_REGEX.search(p):
-            sophisticated_buffer.append((idx, p))
-        else:
-            clean_buffer.append((idx, p))
+        # 4. DISTRIBUTION (Standard vs. Sophisticated)
+        is_soph_target = SOPHISTICATED_TARGETS.search(p)
+        is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(p)
 
+        if is_soph_target:
+            # A. TARGETS: Exclusive to Sophisticated Buffer
+            # We keep Warrants/Convertibles OUT of the standard buffer so they
+            # don't trigger false positives or rely on standard hedging logic.
+            sophisticated_buffer.append((idx, p))
+
+        elif is_soph_context:
+            # B. CONTEXT: Shared to BOTH Buffers
+            # Terms like "Black-Scholes", "Embedded", "Fair Value Option" are valid
+            # validation signals for BOTH Warrants (Sophisticated) and Options (Standard).
+            sophisticated_buffer.append((idx, p))
+            clean_buffer.append((idx, p))
+        else:
+            # C. STANDARD: Exclusive to Standard Buffer
+            clean_buffer.append((idx, p))
+            
     # 5. FINAL GATEKEEPERS
     final_results = []  # List of (index, text)
 
