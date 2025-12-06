@@ -248,8 +248,23 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 # If empty after flattening, skip
                 if not p.strip():
                     continue
+                
+        # Accounting Standards
+        if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
+            kept = []
+            sentences = SENTENCE_SPLIT_PATTERN.split(p)
+            for sent in sentences:
+                if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
+                    kept.append(sent)
 
-        # 0. Clean Entities First
+            if kept:
+                clean_paragraphs.append(" ".join(kept))
+
+            discarded_text = " ".join(set(sentences) - set(kept))
+            if discarded_text:
+                local_discards.append((url, discarded_text, "accounting_standards"))
+            continue
+        # 0. Clean Entities after the accounting standards
         p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
         # 2. EXCLUSION FILTERS (Applies to Text AND Flattened Tables)
@@ -289,22 +304,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             discarded_text = " ".join(set(sentences) - set(kept))
             if discarded_text:
                 local_discards.append((url, discarded_text, "comp"))
-            continue
-
-        # Accounting Standards
-        if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
-            kept = []
-            sentences = SENTENCE_SPLIT_PATTERN.split(p)
-            for sent in sentences:
-                if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
-                    kept.append(sent)
-
-            if kept:
-                clean_paragraphs.append(" ".join(kept))
-
-            discarded_text = " ".join(set(sentences) - set(kept))
-            if discarded_text:
-                local_discards.append((url, discarded_text, "accounting_standards"))
             continue
 
         # 4. KEEP SURVIVOR
