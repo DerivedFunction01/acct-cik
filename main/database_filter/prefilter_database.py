@@ -215,196 +215,253 @@ def validate_sophisticated_buffer(
 
     return False
 
+
 def process_item(item: Tuple) -> Optional[Tuple]:
-    url, matches_json, cik, year = item
+    try:
+        url, matches_json, cik, year = item
+    except (ValueError, TypeError) as e:
+        print(f"❌ Error unpacking item: {e}")
+        print(f"   Item: {item}")
+        return None
 
     try:
         paragraphs = json.loads(matches_json)
-    except:
+    except (json.JSONDecodeError, TypeError) as e:
+        print(f"❌ Error parsing JSON for {url}: {e}")
         return None
 
     # BUFFER STRUCTURE: List of (index, text) tuples
-    clean_buffer = []          # Standard Buffer
+    clean_buffer = []  # Standard Buffer
     sophisticated_buffer = []  # Warrant/Convertible Buffer
     local_discards = []
 
-    for idx, p in enumerate(paragraphs): # <-- Track Index
-        # Accounting Standards (runs first to avoid subbing FASB with an entity token)
-        if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
-            kept = []
-            sentences = SENTENCE_SPLIT_PATTERN.split(p)
-            for sent in sentences:
-                if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
-                    kept.append(sent)
-                else:  # Discard the remaining text
-                    break
-            if kept:
-                salvaged_p = " ".join(kept)
-                if SOPHISTICATED_TARGETS.search(
-                    salvaged_p
-                ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
-                    sophisticated_buffer.append(salvaged_p)
-                else:
-                    clean_buffer.append((idx, salvaged_p))
-
-            discarded_text = " ".join(set(sentences) - set(kept))
-            if discarded_text:
-                local_discards.append((url, discarded_text, "accounting_standards"))
-            continue
-
-        # 1. TABLE HANDLING
-        if "<TABLE>" in p.upper():
-            cleaned_table, footnotes = extract_and_separate_footnotes(p)
-            is_container = is_text_container_table(cleaned_table, footnotes)
-
-            if not is_container:
-                if EXCLUDE_REGEX_LEGAL_LITIGATION.search(cleaned_table):
-                    local_discards.append((url, "<table>...", "legal_table"))
-                    continue
-
-                # Check where to send this table
-                is_target = SOPHISTICATED_TARGETS.search(cleaned_table)
-                is_context = SOPHISTICATED_CONTEXT_REGEX.search(cleaned_table)
-
-                if is_target or is_context:
-                    sophisticated_buffer.append((idx, cleaned_table))
-                    clean_buffer.append((idx, cleaned_table))
-                else:
-                    clean_buffer.append((idx, cleaned_table))
-
-                if footnotes:
-                    clean_buffer.extend([(idx, fn) for fn in footnotes])
-                continue
-            else:
-                p, excluded_rows = strip_table_formatting(cleaned_table, url)
-                local_discards.extend(excluded_rows)
-                if footnotes:
-                    p += " " + " ".join(footnotes)
-                if not p.strip():
-                    continue
-        p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
-        # 2. EXCLUSIONS
-        exclusion_reason = check_hard_exclusions(p)
-        if exclusion_reason:
-            local_discards.append((url, p, exclusion_reason))
-            continue
-
-        # 3. SALVAGE LOGIC
-        # Hypothetical
-        if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
-            has_std = STRICT_REGEX.search(p) or (
-                SOFT_REGEX.search(p) and HEDGING_CONTEXT_REGEX.search(p)
-            )
-            has_soph = SOPHISTICATED_TARGETS.search(
-                p
-            ) or SOPHISTICATED_CONTEXT_REGEX.search(p)
-
-            if has_std or has_soph:
-                # Flow through to distribution
-                pass
-            else:
-                local_discards.append((url, p, "hypothetical_sensitivity_methodology"))
-                continue
-
-        # Equity Comp (Logic modified to populate buffers)
-        if EXCLUDE_REGEX_EQUITY_COMP.search(p):
-            kept = []
-            sentences = SENTENCE_SPLIT_PATTERN.split(p)
-            for sent in sentences:
-                if EQ_REGEX.search(sent):
-                    kept.append(sent)
-                elif EQ_SOFT_REGEX.search(sent):
-                    # Standard Context
-                    has_hedging_context = SOFT_GEN_REGEX.search(
-                        sent
-                    ) or DER_STD_REGEX.search(sent)
-                    # Sophisticated Targets (Buffer even without context)
-                    is_buffered_target = SOPHISTICATED_TARGETS.search(sent)
-                    # Sophisticated Context (New Trigger)
-                    is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(sent)
-
-                    if has_hedging_context or is_buffered_target or is_soph_context:
+    for idx, p in enumerate(paragraphs):
+        try:
+            # Accounting Standards (runs first to avoid subbing FASB with an entity token)
+            if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
+                kept = []
+                sentences = SENTENCE_SPLIT_PATTERN.split(p)
+                for sent in sentences:
+                    if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
                         kept.append(sent)
+                    else:  # Discard the remaining text
+                        break
+                if kept:
+                    salvaged_p = " ".join(kept)
+                    if SOPHISTICATED_TARGETS.search(
+                        salvaged_p
+                    ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
+                        sophisticated_buffer.append(salvaged_p)
+                    else:
+                        clean_buffer.append((idx, salvaged_p))
 
-            if kept:
-                salvaged_p = " ".join(kept)
-                # Distribution
-                if SOPHISTICATED_TARGETS.search(
-                    salvaged_p
-                ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
-                    sophisticated_buffer.append((idx, salvaged_p))
+                discarded_text = " ".join(set(sentences) - set(kept))
+                if discarded_text:
+                    local_discards.append((url, discarded_text, "accounting_standards"))
+                continue
+
+            # 1. TABLE HANDLING
+            if "<TABLE>" in p.upper():
+                try:
+                    cleaned_table, footnotes = extract_and_separate_footnotes(p)
+                except Exception as e:
+                    print(f"⚠️ Error extracting footnotes from table in {url}: {e}")
+                    local_discards.append(
+                        (url, p[:100], "table_footnote_extraction_failed")
+                    )
+                    continue
+
+                try:
+                    is_container = is_text_container_table(cleaned_table, footnotes)
+                except Exception as e:
+                    print(f"⚠️ Error validating table in {url}: {e}")
+                    is_container = True  # Default to treating as container on error
+
+                if not is_container:
+                    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(cleaned_table):
+                        local_discards.append((url, "<table>...", "legal_table"))
+                        continue
+
+                    # Check where to send this table
+                    is_target = SOPHISTICATED_TARGETS.search(cleaned_table)
+                    is_context = SOPHISTICATED_CONTEXT_REGEX.search(cleaned_table)
+
+                    if is_target or is_context:
+                        sophisticated_buffer.append((idx, cleaned_table))
+                        clean_buffer.append((idx, cleaned_table))
+                    else:
+                        clean_buffer.append((idx, cleaned_table))
+
+                    if footnotes:
+                        clean_buffer.extend([(idx, fn) for fn in footnotes])
+                    continue
                 else:
-                    clean_buffer.append((idx, salvaged_p))
+                    try:
+                        p, excluded_rows = strip_table_formatting(cleaned_table, url)
+                        local_discards.extend(excluded_rows)
+                    except Exception as e:
+                        print(f"⚠️ Error stripping table formatting in {url}: {e}")
+                        local_discards.append(
+                            (url, p[:100], "table_formatting_strip_failed")
+                        )
+                        continue
 
-            discarded_text = " ".join(set(sentences) - set(kept))
-            if discarded_text:
-                local_discards.append((url, discarded_text, "comp"))
+                    if footnotes:
+                        p += " " + " ".join(footnotes)
+                    if not p.strip():
+                        continue
+
+            try:
+                p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+            except Exception as e:
+                print(f"⚠️ Error applying entity exclusion regex in {url}: {e}")
+                # Continue without this substitution
+
+            # 2. EXCLUSIONS
+            exclusion_reason = check_hard_exclusions(p)
+            if exclusion_reason:
+                local_discards.append((url, p, exclusion_reason))
+                continue
+
+            # 3. SALVAGE LOGIC
+            # Hypothetical
+            if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
+                has_std = STRICT_REGEX.search(p) or (
+                    SOFT_REGEX.search(p) and HEDGING_CONTEXT_REGEX.search(p)
+                )
+                has_soph = SOPHISTICATED_TARGETS.search(
+                    p
+                ) or SOPHISTICATED_CONTEXT_REGEX.search(p)
+
+                if has_std or has_soph:
+                    # Flow through to distribution
+                    pass
+                else:
+                    local_discards.append(
+                        (url, p, "hypothetical_sensitivity_methodology")
+                    )
+                    continue
+
+            # Equity Comp (Logic modified to populate buffers)
+            if EXCLUDE_REGEX_EQUITY_COMP.search(p):
+                try:
+                    kept = []
+                    sentences = SENTENCE_SPLIT_PATTERN.split(p)
+                    for sent in sentences:
+                        if EQ_REGEX.search(sent):
+                            kept.append(sent)
+                        elif EQ_SOFT_REGEX.search(sent):
+                            # Standard Context
+                            has_hedging_context = SOFT_GEN_REGEX.search(
+                                sent
+                            ) or DER_STD_REGEX.search(sent)
+                            # Sophisticated Targets (Buffer even without context)
+                            is_buffered_target = SOPHISTICATED_TARGETS.search(sent)
+                            # Sophisticated Context (New Trigger)
+                            is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(sent)
+
+                            if (
+                                has_hedging_context
+                                or is_buffered_target
+                                or is_soph_context
+                            ):
+                                kept.append(sent)
+
+                    if kept:
+                        salvaged_p = " ".join(kept)
+                        # Distribution
+                        if SOPHISTICATED_TARGETS.search(
+                            salvaged_p
+                        ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
+                            sophisticated_buffer.append((idx, salvaged_p))
+                        else:
+                            clean_buffer.append((idx, salvaged_p))
+
+                    discarded_text = " ".join(set(sentences) - set(kept))
+                    if discarded_text:
+                        local_discards.append((url, discarded_text, "comp"))
+                except Exception as e:
+                    print(f"⚠️ Error in equity comp salvage logic for {url}: {e}")
+                    local_discards.append((url, p[:100], "equity_comp_salvage_failed"))
+                continue
+
+            # 4. DISTRIBUTION (Standard vs. Sophisticated)
+            is_soph_target = SOPHISTICATED_TARGETS.search(p)
+            is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(p)
+
+            if is_soph_target:
+                # A. TARGETS: Exclusive to Sophisticated Buffer
+                sophisticated_buffer.append((idx, p))
+
+            elif is_soph_context:
+                # B. CONTEXT: Shared to BOTH Buffers
+                sophisticated_buffer.append((idx, p))
+                clean_buffer.append((idx, p))
+            else:
+                # C. STANDARD: Exclusive to Standard Buffer
+                clean_buffer.append((idx, p))
+
+        except Exception as e:
+            print(f"❌ Unexpected error processing paragraph {idx} in {url}: {e}")
+            local_discards.append(
+                (url, str(p)[:100], f"processing_error_{type(e).__name__}")
+            )
             continue
-
-        # 4. DISTRIBUTION (Standard vs. Sophisticated)
-        is_soph_target = SOPHISTICATED_TARGETS.search(p)
-        is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(p)
-
-        if is_soph_target:
-            # A. TARGETS: Exclusive to Sophisticated Buffer
-            # We keep Warrants/Convertibles OUT of the standard buffer so they
-            # don't trigger false positives or rely on standard hedging logic.
-            sophisticated_buffer.append((idx, p))
-
-        elif is_soph_context:
-            # B. CONTEXT: Shared to BOTH Buffers
-            # Terms like "Black-Scholes", "Embedded", "Fair Value Option" are valid
-            # validation signals for BOTH Warrants (Sophisticated) and Options (Standard).
-            sophisticated_buffer.append((idx, p))
-            clean_buffer.append((idx, p))
-        else:
-            # C. STANDARD: Exclusive to Standard Buffer
-            clean_buffer.append((idx, p))
 
     # 5. FINAL GATEKEEPERS
     final_results = []  # List of (index, text)
 
-    # A. Validate Standard Buffer
-    # Extract text only for validation
-    std_texts = [text for _, text in clean_buffer]
-    if any(find_hedging_context(p) for p in std_texts):
-        final_results.extend(clean_buffer)
-    else:
-        if clean_buffer:
-            discarded = "\n\n".join(std_texts)
-            local_discards.append((url, discarded, "standard_check_failed"))
+    try:
+        # A. Validate Standard Buffer
+        # Extract text only for validation
+        std_texts = [text for _, text in clean_buffer]
+        if any(find_hedging_context(p) for p in std_texts):
+            final_results.extend(clean_buffer)
+        else:
+            if clean_buffer:
+                discarded = "\n\n".join(std_texts)
+                local_discards.append((url, discarded, "standard_check_failed"))
+    except Exception as e:
+        print(f"⚠️ Error validating standard buffer for {url}: {e}")
 
-    # B. Validate Sophisticated Buffer
-    # Extract text only for validation
-    soph_texts = [text for _, text in sophisticated_buffer]
-    # Pass text lists to validator
-    if validate_sophisticated_buffer(soph_texts, std_texts):
-        final_results.extend(sophisticated_buffer)
-    else:
-        if sophisticated_buffer:
-            discarded = "\n\n".join(soph_texts)
-            local_discards.append((url, discarded, "sophisticated_check_failed"))
+    try:
+        # B. Validate Sophisticated Buffer
+        # Extract text only for validation
+        soph_texts = [text for _, text in sophisticated_buffer]
+        # Pass text lists to validator
+        if validate_sophisticated_buffer(soph_texts, std_texts):
+            final_results.extend(sophisticated_buffer)
+        else:
+            if sophisticated_buffer:
+                discarded = "\n\n".join(soph_texts)
+                local_discards.append((url, discarded, "sophisticated_check_failed"))
+    except Exception as e:
+        print(f"⚠️ Error validating sophisticated buffer for {url}: {e}")
 
     # C. RECONSTRUCT & SORT
-    if final_results:
-        # Sort by original index to restore narrative flow
-        final_results.sort(key=lambda x: x[0])
+    try:
+        if final_results:
+            # Sort by original index to restore narrative flow
+            final_results.sort(key=lambda x: x[0])
 
-        # Extract text and deduplicate (preserving order)
-        seen = set()
-        unique_paragraphs = []
-        for _, text in final_results:
-            if text not in seen:
-                unique_paragraphs.append(text)
-                seen.add(text)
+            # Extract text and deduplicate (preserving order)
+            seen = set()
+            unique_paragraphs = []
+            for _, text in final_results:
+                if text not in seen:
+                    unique_paragraphs.append(text)
+                    seen.add(text)
 
-        return (
-            url,
-            json.dumps(unique_paragraphs),
-            cik,
-            year,
-            aggregate_discards(local_discards),
-        )
+            return (
+                url,
+                json.dumps(unique_paragraphs),
+                cik,
+                year,
+                aggregate_discards(local_discards),
+            )
+    except Exception as e:
+        print(f"❌ Error reconstructing final results for {url}: {e}")
+        return (url, "[]", cik, year, aggregate_discards(local_discards))
 
     return (url, "[]", cik, year, aggregate_discards(local_discards))
 
@@ -490,22 +547,44 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
             buffer.clear()
             discards_buffer.clear()
         except Exception as e:
-            print(f"❌ Writer Error: {e}")
+            print(f"❌ Writer Flush Error: {e}")
             conn.rollback()
 
     while not stop_event.is_set() or not queue.empty():
         try:
             result = queue.get(timeout=1)
-            url, matches, cik, year, discards = result  # Explicit unpacking
-            buffer.append((url, matches, cik, year))
-            if discards:
-                discards_buffer.extend(discards)
-            if len(buffer) >= BATCH_SIZE:
-                flush()
         except Empty:
             continue
+
+        try:
+            # Unpack result with explicit error handling
+            if not isinstance(result, tuple) or len(result) != 5:
+                print(
+                    f"❌ Invalid result format: expected 5-tuple, got {type(result)} with length {len(result) if isinstance(result, tuple) else 'N/A'}"
+                )
+                print(f"   Result: {result}")
+                continue
+
+            url, matches, cik, year, discards = result
+            buffer.append((url, matches, cik, year))
+
+            if discards:
+                try:
+                    discards_buffer.extend(discards)
+                except TypeError as e:
+                    print(f"❌ Error extending discards buffer: {e}")
+                    print(f"   Discards type: {type(discards)}, value: {discards}")
+
+            if len(buffer) >= BATCH_SIZE:
+                flush()
+
+        except (ValueError, TypeError) as e:
+            print(f"❌ Error unpacking result in writer_task: {e}")
+            print(f"   Result: {result}")
+            continue
         except Exception as e:
-            print(f"❌ Writer Error: {e}")
+            print(f"❌ Unexpected error in writer_task: {e}")
+            continue
 
     flush()
     conn.close()
