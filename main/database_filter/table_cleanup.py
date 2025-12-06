@@ -20,9 +20,11 @@ DB_PATH = "web_data.db"
 DEBUG = False
 BATCH_SIZE = 2500  # Process database in batches
 NUM_WORKERS = mp.cpu_count() - 1 if mp.cpu_count() > 1 else 1  # Leave one core free
+import re
+from typing import List, Tuple, Optional
 
 # =============================================================================
-# TABLE CLASSIFICATION PATTERNS
+# TABLE PATTERNS (Extraction Only)
 # =============================================================================
 
 # Pattern to extract footnotes from tables
@@ -33,104 +35,61 @@ INDIVIDUAL_FOOTNOTE_PATTERN = re.compile(
     r"<F\s+(\d+)>\s*(.*?)(?=<F\s+\d+>|$)", re.DOTALL
 )
 
-# Pattern to find separator lines
-SEPARATOR_PATTERN = re.compile(r"^[\s\-]+$", re.MULTILINE)
-
 # Pattern to find any <TAG> or </TAG>
 TAG_PATTERN = re.compile(r"<[^>]+>")
 
-STRONG_HEADER_PATTERN = re.compile(
-    r"\b(?:notional|fair\s+value|carrying\s+(?:amount|value)|principal|contract\s+amount|asset|liability)\b",
-    re.IGNORECASE,
-)
-
-# Patterns that indicate a table is just a text container
-TEXT_CONTAINER_INDICATORS = [
-    # Very long unbroken text (>200 chars without line breaks)
-    re.compile(r".{200,}", re.DOTALL),
-    # Multiple sentences in a single cell (indicates paragraph text)
-    re.compile(r"[.!?]\s+[A-Z].*[.!?]\s+[A-Z]", re.DOTALL),
-]
-
-# Patterns that indicate a real numeric table
-NUMERIC_TABLE_INDICATORS = [
-    # Currency symbols
-    re.compile(r"[\$£€¥]"),
-    # Numbers with commas (1,000)
-    re.compile(r"\d{1,3}(,\d{3})+"),
-    # Percentages
-    re.compile(r"\d+\.?\d*\s*%"),
-    # Parenthetical numbers (accounting notation for negatives)
-    re.compile(r"\(\s*\d+[,\d]*\.?\d*\s*\)"),
-    # Numbers in thousands/millions notation
-    re.compile(r"\d+\.?\d*\s*(thousand|million|billion|k|m|b)", re.IGNORECASE),
-]
-
-# Financial/numeric keywords that suggest a real table
-FINANCIAL_KEYWORDS = {
-    "assets",
-    "liabilities",
-    "revenue",
-    "income",
-    "expense",
-    "profit",
-    "loss",
-    "balance",
-    "cash",
-    "debt",
-    "equity",
-    "principal",
-    "interest",
-    "rate",
-    "cost",
-    "value",
-    "fair value",
-    "amount",
-    "total",
-    "net",
-    "gross",
-    "payable",
-    "receivable",
-    "inventory",
-    "goodwill",
-    "depreciation",
-    "amortization",
-    "tax",
-    "deferred",
-    "current",
-    "non-current",
-    "fiscal year",
-    "quarter",
-    "year ended",
-    "december",
-    "january",
-    "derivative",
-    "swap",
-    "forward",
-    "option",
-    "notional",
-    "maturity",
-}
-
-# Column header patterns for real tables
-NUMERIC_HEADER_PATTERNS = [
-    re.compile(r"^\s*\d{4}\s*$"),  # Year columns (2023, 2022, etc.)
-    re.compile(r"^\s*(in\s+)?(thousands|millions|billions)\s*$", re.IGNORECASE),
-    re.compile(r"^\s*amount\s*$", re.IGNORECASE),
-    re.compile(r"^\s*(fair\s+)?value\s*$", re.IGNORECASE),
-]
-
 # =============================================================================
-# TABLE PARSING AND ANALYSIS
+# CORE EXTRACTION (Used by table_processor.py)
 # =============================================================================
+
+
+def extract_table_content(table_text: str) -> Tuple[List[List[str]], List[List[str]]]:
+    """
+    Parses a raw <TABLE> string into headers and data rows.
+    Used by TableToTextConverter.
+    """
+    lines = table_text.split("\n")
+    rows = []
+
+    # 1. Row Extraction
+    for line in lines:
+        line = line.strip()
+        if "<TABLE>" in line or "<CAPTION>" in line or "</TABLE>" in line:
+            continue
+        if "<S>" in line or "<C>" in line:  # SEC Formatting tags
+            continue
+        if line.startswith("-") or not line:  # Separators or empty
+            continue
+        if line:
+            rows.append(line)
+
+    # 2. Header vs Data Split
+    headers = []
+    data = []
+
+    # Heuristic: First 2 rows are headers if table is long enough
+    if len(rows) > 2:
+        headers = rows[:2]
+        data = rows[2:]
+    elif rows:
+        headers = rows[:1]
+        data = rows[1:]
+
+    # 3. Cell Parsing (Split by 2+ spaces)
+    def parse_row(row: str) -> List[str]:
+        # Split on 2+ spaces to separate columns
+        cells = re.split(r"\s{2,}", row.strip())
+        return [c.strip() for c in cells if c.strip()]
+
+    header_cells = [parse_row(h) for h in headers]
+    data_cells = [parse_row(d) for d in data]
+
+    return header_cells, data_cells
 
 
 def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
     """
     Extract footnotes from a table and return cleaned table + footnotes as paragraphs.
-
-    Returns:
-        (cleaned_table_text, list_of_footnote_paragraphs)
     """
     footnotes = []
 
@@ -144,138 +103,22 @@ def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
         individual_fns = INDIVIDUAL_FOOTNOTE_PATTERN.findall(fn_content)
 
         for fn_num, fn_text in individual_fns:
-            # Clean up the footnote text
             cleaned = fn_text.strip()
-            # Remove excessive whitespace
             cleaned = re.sub(r"\s+", " ", cleaned)
-
             if cleaned:
                 footnotes.append(f"Footnote {fn_num}: {cleaned}")
 
-        # Remove the footnote block from the table
+        # Remove the footnote block from the table text so it doesn't mess up row parsing
         cleaned_table = FOOTNOTE_PATTERN.sub("</TABLE>", table_text)
-
         return cleaned_table, footnotes
 
     return table_text, []
 
 
-def extract_table_content(table_text: str) -> Tuple[List[str], List[List[str]]]:
-    """
-    Extract rows from a <TABLE> block.
-    Returns (header_rows, data_rows)
-    """
-    lines = table_text.split("\n")
-    rows = []
-
-    for line in lines:
-        line = line.strip()
-        if "<TABLE>" in line or "<CAPTION>" in line or "</TABLE>" in line:
-            continue
-        if "<S>" in line or "<C>" in line:
-            continue
-        if line.startswith("-") or not line:
-            continue
-        if line:
-            rows.append(line)
-
-    # Try to identify header vs data rows
-    headers = []
-    data = []
-
-    # Simple heuristic: first 1-2 rows are headers, rest is data
-    if len(rows) > 2:
-        headers = rows[:2]
-        data = rows[2:]
-    elif rows:
-        headers = rows[:1]
-        data = rows[1:]
-
-    # Parse rows into cells (split by multiple spaces)
-    def parse_row(row: str) -> List[str]:
-        # Split on 2+ spaces to separate columns
-        cells = re.split(r"\s{2,}", row.strip())
-        return [c.strip() for c in cells if c.strip()]
-
-    header_cells = [parse_row(h) for h in headers]
-    data_cells = [parse_row(d) for d in data]
-
-    return header_cells, data_cells
-
-
-def count_numeric_cells(rows: List[List[str]]) -> int:
-    """Count cells that contain numbers"""
-    count = 0
-    for row in rows:
-        for cell in row:
-            if re.search(r"\d", cell):
-                count += 1
-    return count
-
-
-def count_financial_keywords(rows: List[List[str]]) -> int:
-    """Count financial keywords in cells"""
-    count = 0
-    for row in rows:
-        for cell in row:
-            cell_lower = cell.lower()
-            for keyword in FINANCIAL_KEYWORDS:
-                if keyword in cell_lower:
-                    count += 1
-                    break
-    return count
-
-
-def has_numeric_headers(headers: List[List[str]]) -> bool:
-    """Check if headers suggest a numeric table"""
-    for header_row in headers:
-        for cell in header_row:
-            for pattern in NUMERIC_HEADER_PATTERNS:
-                if pattern.match(cell):
-                    return True
-    return False
-
-
-def calculate_text_density(rows: List[List[str]]) -> float:
-    """
-    Calculate average text length per cell.
-    High values suggest paragraph text, low values suggest structured data.
-    """
-    if not rows:
-        return 0.0
-
-    total_chars = 0
-    total_cells = 0
-
-    for row in rows:
-        for cell in row:
-            total_chars += len(cell)
-            total_cells += 1
-
-    return total_chars / total_cells if total_cells > 0 else 0.0
-
-
-def check_separator_length(table_text: str) -> int:
-    """
-    Find the longest separator line in the table.
-    Returns the length of the longest separator (line of dashes/spaces).
-    """
-    lines = table_text.split("\n")
-    max_separator_len = 0
-
-    for line in lines:
-        stripped = line.strip()
-        if stripped and all(c in "-\t " for c in stripped):
-            dash_count = stripped.count("-")
-            if dash_count > max_separator_len:
-                max_separator_len = dash_count
-
-    return max_separator_len
-
-
 def strip_table_formatting(table_text: str) -> str:
     """
     Strip table formatting tags and separators, converting to plain paragraphs.
+    Used when we decide a table is 'bad' and want to treat it as text.
     """
     # Remove all HTML-style tags
     text = TAG_PATTERN.sub("", table_text)
@@ -297,129 +140,60 @@ def strip_table_formatting(table_text: str) -> str:
     return result
 
 
-def is_text_container_table(table_text: str, verbose: bool = False) -> bool:
+# =============================================================================
+# VALIDATION LOGIC (The New Brain)
+# =============================================================================
+
+
+def is_text_container_table(
+    table_text: str, footnotes: List[str], verbose: bool = False
+) -> bool:
     """
-    Determine if a table is just a text container (not a real numeric table).
+    Determines if a table is useful by trying to process it.
 
-    Returns True if the table should be REMOVED, False if it should be kept.
+    Returns True -> It is a text container (Discard/Flatten).
+    Returns False -> It is a valid numeric table (Keep).
     """
-    # 1. Extract content first
-    headers, data = extract_table_content(table_text)
-    all_rows = headers + data
 
-    if not all_rows:
-        return True  # Empty
-
-    # ---------------------------------------------------------
-    # THE "GOLDEN COLUMN" SAFEGUARD (New Logic)
-    # ---------------------------------------------------------
-    # Check 1: Do we have a strong financial header?
-    has_strong_header = False
-    strong_col_indices = []
-
-    # Check headers (usually top 2 rows)
-    for row_idx, row in enumerate(headers):
-        for col_idx, cell in enumerate(row):
-            if STRONG_HEADER_PATTERN.search(cell):
-                has_strong_header = True
-                strong_col_indices.append(col_idx)
-
-    # Check 2: Do the columns under those headers contain numbers?
-    # We require at least 2 numeric cells in the "Strong" columns to confirm it's real data.
-    valid_numeric_data = 0
-    if has_strong_header:
-        for row in data:
-            for col_idx in strong_col_indices:
-                if col_idx < len(row):
-                    # Check for digits (ignoring parens/currency)
-                    if re.search(r"\d", row[col_idx]):
-                        valid_numeric_data += 1
-
-    # DECISION: If Strong Header + Numeric Data -> KEEP IT.
-    # Bypass all text density/sentence checks.
-    if has_strong_header and valid_numeric_data >= 2:
-        if verbose:
-            print(
-                f"  ✅ SAFEGUARD: Found Strong Headers + Data ({valid_numeric_data} numeric cells). Keeping."
-            )
-        return False  # False = Do Not Remove
-    # Check separator length first
-    max_separator = check_separator_length(table_text)
-    if max_separator > 700:
-        if verbose:
-            print(f"  ❌ Long separator ({max_separator} chars) - removing")
+    # 1. Late Import to avoid Circular Dependency
+    # table_processor imports extract_table_content from THIS file.
+    try:
+        from table_processor import TableToTextConverter
+    except ImportError:
+        # Fallback if running standalone or path issues (shouldn't happen in pipeline)
         return True
 
-    # Check for very long text in cells
-    has_long_text = False
-    for row in all_rows:
-        for cell in row:
-            if len(cell) > 400 and "\n" not in cell[:200]:
-                has_long_text = True
-                break
-        if has_long_text:
-            break
+    # 2. Prepare Context
+    # We join footnotes and pass them as narrative context.
+    # This allows the processor to find keywords like "Notional" in the footnotes
+    # to anchor the table.
+    context_str = " ".join(footnotes) + " notional "
 
-    if has_long_text:
+    # 3. Run the Processor (High Recall Mode)
+    # We set is_sophisticated=True so that if the table contains 'Soft' mentions
+    # (like "Commodity Contracts") without a strict "Swap" keyword, we still try to read it.
+    # If the table has NO numbers, the processor returns [] anyway.
+    try:
+        converter = TableToTextConverter(
+            table_text, narrative_context=context_str, is_sophisticated=True
+        )
+
+        sentences = converter.process()
+
+        # 4. The Verdict
+        if sentences:
+            if verbose:
+                print(f"  ✅ Table Validated: Generated {len(sentences)} sentences.")
+            return False  # It is NOT just a text container; it's a valid table.
+        else:
+            if verbose:
+                print(f"  ❌ Table Invalid: Processor produced no output.")
+            return True  # It IS a text container (or useless data).
+
+    except Exception as e:
         if verbose:
-            print(f"  ❌ Long text in cells - removing")
-        return True
-
-    # Count sentences
-    sentence_count = 0
-    for row in all_rows:
-        for cell in row:
-            sentences = re.findall(r"[.!?]\s+[A-Z]", cell)
-            if len(sentences) > 3:
-                sentence_count += 1
-
-    if sentence_count > len(all_rows) * 0.3:
-        if verbose:
-            print(f"  ❌ Too many sentences ({sentence_count} cells) - removing")
-        return True
-
-    # Calculate indicators
-    num_numeric_cells = count_numeric_cells(all_rows)
-    num_financial_keywords = count_financial_keywords(all_rows)
-    text_density = calculate_text_density(all_rows)
-    has_num_headers = has_numeric_headers(headers)
-
-    numeric_indicator_count = sum(
-        len(pattern.findall(table_text)) for pattern in NUMERIC_TABLE_INDICATORS
-    )
-
-    # Scoring
-    score = 0
-
-    if num_numeric_cells > 3:
-        score += 2
-    if num_financial_keywords > 2:
-        score += 2
-    if has_num_headers:
-        score += 3
-    if numeric_indicator_count > 5:
-        score += 2
-    if text_density < 50:
-        score += 1
-
-    if text_density > 150:
-        score -= 2
-    if num_numeric_cells < 2:
-        score -= 2
-    if len(all_rows) < 3:
-        score -= 1
-
-    if verbose:
-        print(f"  📊 Score: {score}")
-        print(f"     - Separator: {max_separator} chars")
-        print(f"     - Numeric cells: {num_numeric_cells}")
-        print(f"     - Financial keywords: {num_financial_keywords}")
-        print(f"     - Text density: {text_density:.1f}")
-        print(f"     - Numeric headers: {has_num_headers}")
-        print(f"     - Numeric indicators: {numeric_indicator_count}")
-        print(f"  {'✅ KEEPING' if score > 0 else '❌ REMOVING'}")
-
-    return score <= 0
+            print(f"  ⚠️ Processor Error: {e}")
+        return True  # Default to flattening if processing fails
 
 
 def clean_matches(matches: List[str], verbose: bool = False) -> List[str]:
@@ -431,37 +205,37 @@ def clean_matches(matches: List[str], verbose: bool = False) -> List[str]:
     for i, match in enumerate(matches):
         if "<TABLE>" in match.upper():
             if verbose:
-                print(f"\n🔍 Table {i+1}:")
+                print(f"\n🔍 Analyzing Table {i+1}...")
 
-            # Extract footnotes
+            # 1. Extract footnotes first
             cleaned_table, footnotes = extract_and_separate_footnotes(match)
 
-            # Check if numeric
-            if not is_text_container_table(cleaned_table, verbose):
+            # 2. Check if numeric/useful using the Processor
+            is_container = is_text_container_table(cleaned_table, footnotes, verbose)
+
+            if not is_container:
+                # KEEP: It's a real table
                 cleaned.append(cleaned_table)
+                # Append extracted footnotes as text paragraphs after the table
                 cleaned.extend(footnotes)
-                if verbose and not footnotes:
-                    print(f"  ✅ Kept table (no footnotes)")
-                elif verbose:
-                    print(f"  ✅ Kept table + {len(footnotes)} footnotes")
             else:
-                # Convert to plain text
+                # FLATTEN: It's just text or garbage
                 plain_text = strip_table_formatting(cleaned_table)
 
+                # Only keep if meaningful content remains
                 if plain_text and len(plain_text) > 50:
                     cleaned.append(plain_text)
                     if verbose:
-                        print(f"  🔄 Converted to paragraph ({len(plain_text)} chars)")
+                        print(f"  🔄 Converted to paragraph text.")
 
-                if footnotes:
-                    cleaned.extend(footnotes)
-                    if verbose:
-                        print(f"  📝 Kept {len(footnotes)} footnotes")
+                # Keep footnotes as text too
+                cleaned.extend(footnotes)
+
         else:
+            # It's already text, keep it
             cleaned.append(match)
 
     return cleaned
-
 
 # =============================================================================
 # PARALLEL PROCESSING
