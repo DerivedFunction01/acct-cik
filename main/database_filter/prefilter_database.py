@@ -69,15 +69,15 @@ WARRANT_CATCHER = re.compile(r"\bwarrants?\b", re.IGNORECASE)
 # Used to validate the sophisticated buffer.
 SOPHISTICATED_CONTEXT_TERMS = [
     # REFINED: "embedded" must be followed by a relevant noun to be a self-validating signal
-    r"embedded\s+(?:derivative|conversion|feature|option|liabilit(?:y|ies))",
+    r"embedded\s+(?:derivatives?|conversions?|features?|options?|liabilit(?:y|ies))",
     r"bifurcat(?:e|ion|ed)",
     r"derivative\s+liabilit(?:y|ies)",
-    r"host\s+contract",
-    r"conversion\s+(?:option|feature|price|rate)",
-    r"cash\s+conversion",
+    r"host\s+contracts?",
+    r"conversion\s+(?:options?|features?|prices?|rates?)",
+    r"cash\s+conversions?",
     r"make[- ]whole",
     r"fundamental\s+change",
-    r"fair\s+value\s+option",
+    r"fair\s+value\s+options?",
 ] + VALUATION_MODELS  # Black-Scholes, Monte Carlo, etc.
 
 SOPHISTICATED_CONTEXT_REGEX = re.compile(
