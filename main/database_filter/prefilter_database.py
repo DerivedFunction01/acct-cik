@@ -496,13 +496,16 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
     while not stop_event.is_set() or not queue.empty():
         try:
             result = queue.get(timeout=1)
-            buffer.append((result[0], result[1], result[2], result[3]))
-            if result[4]:
-                discards_buffer.extend(result[4])
+            url, matches, cik, year, discards = result  # Explicit unpacking
+            buffer.append((url, matches, cik, year))
+            if discards:
+                discards_buffer.extend(discards)
             if len(buffer) >= BATCH_SIZE:
                 flush()
         except Empty:
             continue
+        except Exception as e:
+            print(f"❌ Writer Error: {e}")
 
     flush()
     conn.close()
