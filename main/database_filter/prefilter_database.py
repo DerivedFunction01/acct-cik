@@ -113,12 +113,14 @@ def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
     return table_text, []
 
 
-def strip_table_formatting(table_text: str) -> Tuple[str, List[Tuple[str, str, str]]]:
+def strip_table_formatting(
+    table_text: str, url: str
+) -> Tuple[str, List[Tuple[str, str, str]]]:
     """
     1. Removes HTML tags.
     2. Filters out 'Poison Rows' using shared exclusion logic.
     3. Merges surviving rows into a single text block.
-    4. Returns cleaned text AND list of (row_text, discard_reason) tuples for excluded rows.
+    4. Returns cleaned text AND list of (url, row_text, discard_reason) tuples for excluded rows.
     """
     # Remove all HTML-style tags
     text = TAG_PATTERN.sub("", table_text)
@@ -137,7 +139,7 @@ def strip_table_formatting(table_text: str) -> Tuple[str, List[Tuple[str, str, s
         # FILTER POISON ROWS
         exclusion_reason = check_hard_exclusions(stripped)
         if exclusion_reason:
-            excluded_rows.append((stripped, exclusion_reason))
+            excluded_rows.append((url, stripped, exclusion_reason))
             continue
 
         cleaned_lines.append(stripped)
@@ -234,7 +236,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 # --- FLATTEN PATH ---
                 # It is a text container. Flatten it to a string.
                 # It will now fall through to the Standard Text Filters below.
-                p, excluded_rows = strip_table_formatting(cleaned_table)
+                p, excluded_rows = strip_table_formatting(cleaned_table, url)
 
                 # LOG EXCLUDED ROWS (already in (url, row_text, reason) format)
                 local_discards.extend(excluded_rows)
