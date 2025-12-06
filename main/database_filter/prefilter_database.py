@@ -18,6 +18,10 @@ TARGET_DB_PATH = "prefiltered_data.db"  # Clean Input for Categorizer
 # Import only the exclusion regexes
 from derivative_regex import (
     ACCOUNTING_STANDARDS_STRICT_REGEX,
+    DER_STD_REGEX,
+    EQ_REGEX,
+    EQ_SOFT_REGEX,
+    EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_FILING,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_COMPETITOR_REGEX,
@@ -25,7 +29,11 @@ from derivative_regex import (
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_HYPOTHETICAL_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
+    HEDGING_CONTEXT_REGEX,
     SENTENCE_SPLIT_PATTERN,
+    SOFT_GEN_REGEX,
+    SOFT_REGEX,
+    STRICT_REGEX,
     aggregate_discards,
     is_contractual_noise,
 )
@@ -155,7 +163,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     clean_paragraphs = []
     local_discards = []
-
     for p in paragraphs:
         # 1. Skip Tables (Pass them through for the Table Processor in next stage)
         # Or you can choose to filter noise WITHIN tables here if you want.
@@ -197,15 +204,39 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         if is_contractual_noise(p, loose_threshold=2):
             local_discards.append((url, p, "contractual_noise"))
             continue
+        if EXCLUDE_REGEX_EQUITY_COMP.search(p):
+            kept = []
+            sentences = SENTENCE_SPLIT_PATTERN.split(p)
+            for idx, sent in enumerate(sentences):
+                if EQ_REGEX.search(sent):
+                    kept.append(sent)
+                elif EQ_SOFT_REGEX.search(sent):
+                    has_hedging_context = SOFT_GEN_REGEX.search(sent) or DER_STD_REGEX.search(sent)
+                    if has_hedging_context:
+                        kept.append(sent)
+                else:
+                    continue
+            # Join whatever is left
+            p = " ".join(kept)
+            # Join whatever is not in kept (using set)
+            discarded = " ".join(list(set(sentences) - set(kept)))
+            local_discards.append((url, discarded, "comp"))
+            clean_paragraphs.append(p)
+            continue
+
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
             kept = []
-            for idx, sent in enumerate(SENTENCE_SPLIT_PATTERN.split(p)):
+            sentences = SENTENCE_SPLIT_PATTERN.split(p)
+            for idx, sent in enumerate(sentences):
                 if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
                     kept.append(sent)
                 else:
                     break
             # Join whatever is left
             p = " ".join(kept)
+            # Join whatever is not in kept (using set)
+            discarded = " ".join(list(set(sentences) - set(kept)))
+            local_discards.append((url, discarded, "accounting_standards"))
             clean_paragraphs.append(p)
             continue
 
@@ -226,6 +257,15 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         return (url, "[]", cik, year, aggregate_discards(local_discards))
 
     return None
+
+def find_hedging_context(paragraph: str) -> bool:
+    if STRICT_REGEX.search(paragraph):
+        return True
+    elif SOFT_GEN_REGEX.search(paragraph):
+        return True
+    elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
+        return True
+    return False
 
 
 # =============================================================================
