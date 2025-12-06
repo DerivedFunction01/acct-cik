@@ -80,6 +80,9 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     return None
 
+SOPHISTICATED_TARGETS = re.compile(
+    r"\b(?:convertibles?|warrants|conversion)\b", re.IGNORECASE
+)
 
 # We need the processor to validate tables
 from table_processor import TableToTextConverter
@@ -249,14 +252,15 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 if not p.strip():
                     continue
                 
-        # Accounting Standards
+        # Accounting Standards (runs first so that we don't sub out FASB on accident)
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
             kept = []
             sentences = SENTENCE_SPLIT_PATTERN.split(p)
             for sent in sentences:
                 if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
                     kept.append(sent)
-
+                else:
+                    break
             if kept:
                 clean_paragraphs.append(" ".join(kept))
 
@@ -297,6 +301,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     ) or DER_STD_REGEX.search(sent)
                     if has_hedging_context:
                         kept.append(sent)
+                elif SOPHISTICATED_TARGETS.search(sent):
+                    kept.append(sent)
+                else:
+                    break
 
             if kept:
                 clean_paragraphs.append(" ".join(kept))
