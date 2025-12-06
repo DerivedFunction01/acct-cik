@@ -197,8 +197,18 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             continue
 
         if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
-            local_discards.append((url, p, "hypothetical_sensitivity"))
-            continue
+            # Sensitivity analysis often mentions ACTUAL instruments.
+            # We only discard if it's purely generic methodology without naming names.
+
+            # If it mentions a specific instrument (Strict) or Soft+Context, KEEP IT.
+            if STRICT_REGEX.search(p) or (
+                SOFT_REGEX.search(p) and HEDGING_CONTEXT_REGEX.search(p)
+            ):
+                clean_paragraphs.append(p)
+                continue
+            else:
+                local_discards.append((url, p, "hypothetical_sensitivity_methodology"))
+                continue
         if EXCLUDE_REGEX_FILING.search(p):
             local_discards.append((url, p, "filing"))
             continue
