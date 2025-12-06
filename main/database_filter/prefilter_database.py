@@ -39,6 +39,7 @@ from derivative_regex import (
     SOFT_GEN_REGEX,
     SOFT_REGEX,
     STRICT_REGEX,
+    TABLE_REGEX,
     aggregate_discards,
     is_contractual_noise,
 )
@@ -125,9 +126,8 @@ def find_hedging_context(paragraph: str) -> bool:
         return True
     elif WARRANT_CATCHER.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
         return True
-
     # Tables are self-validating if they survived the TableToText check
-    if "<TABLE>" in paragraph.upper():
+    if "<TABLE>" in paragraph.upper() and TABLE_REGEX.search(paragraph):
         return True
 
     return False
