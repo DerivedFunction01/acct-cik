@@ -3701,45 +3701,38 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
 # Export this
 EMBEDDED_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
 
-def create_fair_value_regex() -> re.Pattern:
+def create_strict_fair_value_regex() -> re.Pattern:
     """
-    captures strong indicators of Fair Value / Derivative Accounting.
-    Used for:
-    1. Global Sophistication Flag (Is this filer doing complex accounting?)
-    2. Local Salvation (Does this sentence prove the instrument is a derivative?)
+    Captures ONLY 'Sophisticated' Fair Value usage.
+    Excludes standard 'Fair Value of Financial Instruments' disclosures.
     """
     
-    # 1. Valuation Models (The "Gold Standard" for Warrants/Embeds)
-    # Matches: Black-Scholes, Monte Carlo, Binomial Lattice
+    # 1. Models (Unambiguous)
     model_pattern = r"Black[- ]Scholes|Monte[- ]Carlo|Binomial|Lattice"
 
-    # 2. Fair Value Specifics
-    fv_terms = [
-        r"(?<!not\s)bifurcat(?:ed|ion|ing)", # Negative lookbehind handled in logic, but safe here too
-        r"derivative",
-        r"fair\s+value",
+    strict_terms = [
+        # Actionable Fair Value (Implies Trading/Derivatives)
         r"mark[- ]to[- ]market",
+        r"changes?\s+in\s+fair\s+value",  # "Change in" implies income statement recognition
+        r"fair\s+value\s+option",         # Specific election (FVO)
+        r"carried\s+at\s+fair\s+value",   # "Carried at" implies recurring measurement
+        r"measured\s+at\s+fair\s+value",
         
-        # 3. Qualified Liability (Fixes the "Current Liability" bug)
-        r"(?:derivative|warrant|embedded)\s+liability",
-        r"liability\s+for\s+(?:warrants?|conversion|options?)",
+        # Specific Complex Liabilities
+        r"derivative\s+liability",
+        r"warrant\s+liability",
+        r"embedded\s+derivative",
+        r"(?<!not\s)bifurcat(?:ed|ion|ing)",
         
-        # 4. Trading / P&L
-        r"changes?\s+in\s+fair\s+value",
-        r"unrealized\s+(?:gain|loss)",
+        # Hierarchy (Strong signal of complex assets)
+        r"Level\s+3",  # Level 1/2 are too common (Cash equivalents), Level 3 is rare/complex
         
-        # 5. Hierarchy (Strong Global Signal, weaker Local Signal)
-        # Matches: "Level 3 inputs", "Level 2 valuation"
-        r"Level\s+[123]", 
-        
-        # 6. Models
-        model_pattern,
+        # Valuation Models
+        model_pattern
     ]
     
-    # Combine (Max Munch sorting is good practice, though less critical here)
-    # We can use your build_alternation helper if available, or simple join
-    pattern = "|".join(fv_terms)
-    
+    pattern = "|".join(strict_terms)
     return re.compile(pattern, re.IGNORECASE)
 
-FV_REGEX = create_fair_value_regex()
+# Export this
+STRICT_FV_INDICATOR_REGEX = create_strict_fair_value_regex()
