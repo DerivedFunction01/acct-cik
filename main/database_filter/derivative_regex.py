@@ -900,6 +900,8 @@ def build_table_regex() -> re.Pattern:
         "swaptions",
         "derivatives",
         "swaps",
+        "puts", 
+        "calls",
     ] + SPECIAL_BASE
     plural_pattern = build_alternation(table_safe_plurals, sort_longest_first=True)
 
