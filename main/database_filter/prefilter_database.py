@@ -355,7 +355,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         final_paragraphs.extend(clean_paragraphs)
     else:
         if clean_paragraphs:
-            local_discards.append((url, "Multiple paragraphs", "standard_check_failed"))
+            local_discards.append((url, "\n\n".join(clean_paragraphs), "standard_check_failed"))
 
     # B. Validate Sophisticated Buffer
     if validate_sophisticated_buffer(sophisticated_buffer, clean_paragraphs):
@@ -363,7 +363,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     else:
         if sophisticated_buffer:
             local_discards.append(
-                (url, "Multiple paragraphs", "sophisticated_check_failed")
+                (url, "\n\n".join(sophisticated_buffer), "sophisticated_check_failed")
             )
 
     # Deduplicate and Return
