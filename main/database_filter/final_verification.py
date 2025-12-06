@@ -41,8 +41,8 @@ SOURCE_DB_PATH = "active_nonzero_data.db"
 FINAL_DB_PATH = "verified_active_data.db"
 
 # LLM Configuration
-ENABLE_LLM_CHECK = False  # Set to True to enable actual API calls
-LLM_MODEL = "gpt-4-turbo"  # or local model
+ENABLE_LLM_CHECK = False  # Set True to enable the salvage logic
+LLM_MODEL = "gpt-4-turbo"
 
 from derivative_regex import (
     ALL_REGEX,
@@ -58,14 +58,13 @@ from derivative_regex import (
     ACTIVE_STATE_REGEX,
     validate_instrument_retention,
     CATEGORY_REGEX,
-    HEDGING_CONTEXT_REGEX,  # Import the Group Checker
+    HEDGING_CONTEXT_REGEX,
 )
 
 # =============================================================================
 # 1. STRICT QUANTITATIVE DEFINITIONS
 # =============================================================================
 
-# Valid financial metrics that justify keeping a number
 VALID_QUANT_TERMS = [
     r"notional",
     r"fair\s+value",
@@ -86,21 +85,10 @@ VALID_QUANT_TERMS = [
     r"cash\s+flow",
 ]
 
-# Excluded indicators (If these are the ONLY context for a number, discard)
-# e.g. "Spot price was $50" -> Discard. "Spot price was $50 used for fair value" -> Keep (caught by above).
-INVALID_QUANT_CONTEXT = [
-    r"spot\s+(?:price|rate)",
-    r"exchange\s+rates?",
-    r"market\s+(?:price|rate)",
-    r"strike\s+(?:price|rate)",
-    r"exercise\s+price",
-]
-
 VALID_QUANT_CONTEXT_REGEX = re.compile(
     r"\b" + build_alternation(VALID_QUANT_TERMS) + r"\b", re.IGNORECASE
 )
 
-# Reuse existing regexes
 QUANT_REGEX = re.compile(
     rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*(?:0\.\d+|[1-9]\d*(?:\.\d+)?)|"
     rf"(?:0\.\d+|[1-9]\d*(?:\.\d+)?)\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
@@ -161,17 +149,12 @@ COUNTERPARTY_REGEX = re.compile(
 def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, str]:
     """
     Analyzes sentence for evidence of active usage.
+    Returns: (is_kept, reason_code)
     """
-    # 1. QUANTITATIVE CHECK (STRICTER NOW)
-    # Must have a number AND a valid financial metric (Fair Value, Notional, etc.)
-    # This filters out "Spot price was $50" or "Stock price is $10".
+    # 1. QUANTITATIVE CHECK (Strongest Signal)
     if QUANT_REGEX.search(sentence):
         if VALID_QUANT_CONTEXT_REGEX.search(sentence) or TABLE_ANCHOR in sentence:
             return True, "kept_quantitative_indicator"
-        else:
-            # It has a number, but no valid context (likely spot price/exchange rate noise)
-            # We treat this as "No Signal" and let it fall through to other checks
-            pass
 
     # 2. TRAPS (Boilerplate Removal)
     if LEVEL_REGEX.search(sentence):
@@ -194,15 +177,14 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
             return True, "kept_context_via_global_quant"
         return False, "discarded_counterparty_risk_boilerplate"
 
-    # 3. ACTION / STATE CHECKS
+    # 3. ACTION / STATE CHECKS (Strong Signals)
     if VERB_REGEX.search(sentence):
         return True, "kept_action_verb"
 
     if ACTIVE_STATE_REGEX.search(sentence):
         return True, "kept_active_state_descriptor"
 
-    # 4. WEAK EVIDENCE FALLBACK
-    # If we have global quant signal, we are lenient with passive sentences containing the instrument
+    # 4. WEAK EVIDENCE FALLBACK (Requires Validation)
     if has_quant and (CATEGORY_REGEX.search(sentence) or GEN_REGEX.search(sentence)):
         return True, "kept_passive_context_via_global_quant"
 
@@ -218,30 +200,36 @@ def process_company(item):
     except:
         return None
 
-    # -- AGGREGATION STRUCTURE --
-    # Group sentences by category to create "Mega Windows"
-    # Key: Category (e.g., 'ir'), Value: List of sentences
+    # -- AGGREGATION & METADATA STRUCTURE --
+    # category_signals: Tracks if the block has a "Golden Ticket" (Strong Signal)
     category_blocks = defaultdict(list)
+    category_signals = defaultdict(bool)
     discards = []
 
     # 1. PROCESS SENTENCES (Filtering)
     for paragraph, category in zip(paragraphs, categories):
-        # Paragraph-level flag for immunity
         has_quant = bool(QUANT_REGEX.search(paragraph)) or TABLE_ANCHOR in paragraph
-
         atomic_sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(paragraph) if s.strip()
         ]
 
         for sent in atomic_sentences:
             is_kept, reason = check_signal_status(sent, has_quant=has_quant)
+
             if is_kept:
-                # Add to the category bucket
                 category_blocks[category].append(sent)
+
+                # CHECK FOR GOLDEN TICKETS (Bypass LLM)
+                if reason in {
+                    "kept_quantitative_indicator",
+                    "kept_action_verb",
+                    "kept_active_state_descriptor",
+                }:
+                    category_signals[category] = True
             else:
                 discards.append((url, sent, reason))
 
-    # 2. GROUP CHECK & LLM PREP
+    # 2. GROUP DECISION LOGIC
     final_paragraphs = []
     final_categories = []
 
@@ -249,35 +237,36 @@ def process_company(item):
         if not sentences:
             continue
 
-        # Create the Mega Window
         mega_window = " ".join(sentences)
 
-        # -- CHECK A: GROUP HEDGING CONTEXT --
-        # Does the *combined* text mention hedging/risk management/designation?
-        # This saves "We hold swaps." (No hedge mentioned) if another sentence says "to hedge risk".
-        has_group_context = HEDGING_CONTEXT_REGEX.search(mega_window)
-
-        # Exception: Tables usually imply context by existence, or simple "Active User" statements
-        is_strong_usage = VERB_REGEX.search(mega_window) or TABLE_ANCHOR in mega_window
-
-        if has_group_context or is_strong_usage:
-
-            # -- CHECK B: LLM VERIFICATION (Optional/Stub) --
-            # Currently disabled by flag, but this is where you insert the call.
-            if ENABLE_LLM_CHECK:
-                # llm_decision = call_llm_active_check(mega_window, category)
-                # if not llm_decision: continue
-                pass
-
-            # If passed checks, reconstruct paragraphs (or keep as one big block)
-            # For DB consistency, we usually store the block.
+        # --- PATH A: FAST PASS (Strong Signal) ---
+        if category_signals[category]:
             final_paragraphs.append(mega_window)
             final_categories.append(category)
+            continue
 
+        # --- PATH B: AMBIGUOUS (Weak Signal + Context Check) ---
+        # If we are here, we only have passive context or weak indicators.
+        # We perform a group-level check for Hedging Context.
+        has_group_context = HEDGING_CONTEXT_REGEX.search(mega_window)
+
+        if has_group_context:
+            # CANDIDATE FOR LLM SALVAGE
+            if ENABLE_LLM_CHECK:
+                # Stub for LLM Call
+                # is_valid = call_llm_active_check(mega_window, category)
+                # if is_valid:
+                #     final_paragraphs.append(mega_window)
+                #     final_categories.append(category)
+                pass
+            else:
+                # If LLM disabled, we might have to discard or keep based on risk appetite.
+                # Currently: Discard because previous logic proved too weak without LLM validation.
+                discards.append(
+                    (url, mega_window, "discarded_weak_signal_requires_llm")
+                )
         else:
-            discards.append(
-                (url, mega_window, "discarded_group_check_no_hedging_context")
-            )
+            discards.append((url, mega_window, "discarded_no_signal_no_context"))
 
     # 3. DB FORMATTING
     if final_paragraphs:
@@ -291,10 +280,6 @@ def process_company(item):
         )
 
     return (url, "[]", "[]", cik, year, discards) if discards else None
-
-
-# ... (Rest of DB Helpers and Main block remain unchanged) ...
-
 
 def setup_db():
     if Path(FINAL_DB_PATH).exists():
