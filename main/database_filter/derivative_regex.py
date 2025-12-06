@@ -613,6 +613,19 @@ SOFT_GEN_TERMS = [
     r"fair\s+value\s+hedges?",
     r"cash\s+flow\s+hedges?",
 ]
+VALUATION_MODELS = [
+    # The Gold Standard for Equity Options/Warrants
+    r"Black[- ]Scholes(?:[- ]Merton)?",
+    r"\bBSM\b",  # Abbreviation for Black-Scholes-Merton
+    # Used for path-dependent equity features (e.g., Market conditions, TSR awards)
+    r"Monte[- ]Carlo(?:[- ]simulations?)?",
+    # Used for American options (exercisable early) and Convertibles
+    r"Binomial(?:[- ]Lattice)?\s+models?",
+    r"Lattice\s+models?",
+    # General descriptive
+    r"option[- ]pricing\s+models?",
+]
+
 HEDGING_CONTEXT_TERMS = [
     r"hedge(?:s|d|ing)?",
     r"mitigat(?:e|es|ed|ing)",
@@ -626,7 +639,7 @@ HEDGING_CONTEXT_TERMS = [
     r"fluctuations?",   # e.g., "protect against fluctuations"
     r"volatility",      # e.g., "manage volatility"
     r"bifurcat(?:ed|ion|ing)",
-] + SOFT_GEN_TERMS
+] + SOFT_GEN_TERMS + VALUATION_MODELS
 
 CP_CONTEXT_TERMS = (
     [
@@ -696,18 +709,7 @@ CP_CONTEXT_TERMS = (
     ]
     + COMMON_COMMODITIES
 )
-VALUATION_MODELS = [
-    # The Gold Standard for Equity Options/Warrants
-    r"Black[- ]Scholes(?:[- ]Merton)?",
-    r"BSM",  # Abbreviation for Black-Scholes-Merton
-    # Used for path-dependent equity features (e.g., Market conditions, TSR awards)
-    r"Monte[- ]Carlo(?:[- ]simulations?)?",
-    # Used for American options (exercisable early) and Convertibles
-    r"Binomial(?:[- ]Lattice)?\s+models?",
-    r"Lattice\s+models?",
-    # General descriptive
-    r"option[- ]pricing\s+models?",
-]
+
 EQ_CONTEXT_TERMS = [
     # --- A. Core Prices & Markets ---
     r"stock\s+prices?",
