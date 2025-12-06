@@ -228,14 +228,14 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     local_discards = []
 
     for p in paragraphs:
-        # Accounting Standards
+        # Accounting Standards (runs first to avoid subbing FASB with an entity token)
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
             kept = []
             sentences = SENTENCE_SPLIT_PATTERN.split(p)
             for sent in sentences:
                 if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
                     kept.append(sent)
-                else:
+                else: # Discard the remaining text
                     break
             if kept:
                 salvaged_p = " ".join(kept)
