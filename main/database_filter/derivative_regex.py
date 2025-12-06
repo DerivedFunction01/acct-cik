@@ -846,14 +846,10 @@ SPECIAL_BASE = [
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
     rf"forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
-    "caps?",
-    "floors?",
     "collars?",
     "derivatives?",
     "hedges",  # plural form
-    "locks",  # plural form
     "futures",  # plural form
- 
 ] + SPECIAL_BASE
 
 AMBIGUOUS_BASE_TYPES = [
@@ -861,6 +857,8 @@ AMBIGUOUS_BASE_TYPES = [
     "options?",
     "hedging",
     "locks?",
+    "caps?",
+    "floors?",
     "hedges?",
     "puts?",
     "calls?",
