@@ -17,7 +17,6 @@ QUEUE_SIZE = NUM_WORKERS * 50
 SOURCE_DB_PATH = "web_data.db"
 TARGET_DB_PATH = "prefiltered_data.db"
 
-
 # --- IMPORTS ---
 from derivative_regex import (
     ACCOUNTING_STANDARDS_STRICT_REGEX,
@@ -41,54 +40,52 @@ from derivative_regex import (
     SOFT_REGEX,
     STRICT_REGEX,
     TABLE_REGEX,
+    VALUATION_MODELS,
     aggregate_discards,
+    build_alternation,
     is_contractual_noise,
 )
 
-def check_hard_exclusions(text: str) -> Optional[str]:
-    """
-    Checks text against 'Dead Weight' filters.
-    Returns the discard reason string if matched, otherwise None.
-    """
-    # 1. Litigation / Legal (Highest Priority)
-    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
-        return "legal_litigation"
-
-    # 2. Forward Looking Statements
-    if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
-        return "forward_looking"
-
-    # 3. Competitors / Peers
-    if EXCLUDE_COMPETITOR_REGEX.search(text):
-        return "competitor_analysis"
-
-    # 4. Regulatory Boilerplate
-    if EXCLUDE_REGULATION_REGEX.search(text):
-        return "regulatory_boilerplate"
-
-    # 5. Plan Assets / Pensions
-    if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
-        return "pension_plan_assets"
-
-    # 6. Filing Meta-text
-    if EXCLUDE_REGEX_FILING.search(text):
-        return "filing"
-
-    # 7. Contractual Noise (Glossary/Definitions)
-    if is_contractual_noise(text):
-        return "contractual_noise"
-
-    return None
-
-SOPHISTICATED_TARGETS = re.compile(
-    r"\b(?:convertibles?|warrants|conversion)\b", re.IGNORECASE
-)
-
 # We need the processor to validate tables
-from table_processor import TableToTextConverter
+try:
+    from table_processor import TableToTextConverter
+except ImportError:
+    print(
+        "⚠️ Warning: Could not import TableToTextConverter. Table validation will default to True."
+    )
+    TableToTextConverter = None
 
 # =============================================================================
-# TABLE CLEANUP HELPERS (Integrated)
+# SOPHISTICATED CONTEXT DEFINITIONS
+# =============================================================================
+
+# 1. Target Instruments (The "What")
+SOPHISTICATED_TARGETS = re.compile(
+    r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
+)
+WARRANT_CATCHER = re.compile(r"\bwarrants?\b", re.IGNORECASE)
+
+# 2. Sophisticated Context (The "Why/How")
+# Used to validate the sophisticated buffer.
+SOPHISTICATED_CONTEXT_TERMS = [
+    # REFINED: "embedded" must be followed by a relevant noun to be a self-validating signal
+    r"embedded\s+(?:derivative|conversion|feature|option|liabilit(?:y|ies))",
+    r"bifurcat(?:e|ion|ed)",
+    r"derivative\s+liabilit(?:y|ies)",
+    r"host\s+contract",
+    r"conversion\s+(?:option|feature|price|rate)",
+    r"cash\s+conversion",
+    r"make[- ]whole",
+    r"fundamental\s+change",
+    r"fair\s+value\s+option",
+] + VALUATION_MODELS  # Black-Scholes, Monte Carlo, etc.
+
+SOPHISTICATED_CONTEXT_REGEX = re.compile(
+    r"\b" + build_alternation(SOPHISTICATED_CONTEXT_TERMS) + r"\b", re.IGNORECASE
+)
+
+# =============================================================================
+# TABLE CLEANUP HELPERS
 # =============================================================================
 
 FOOTNOTE_PATTERN = re.compile(r"<FN>(.*?)</FN>\s*</TABLE>", re.DOTALL | re.IGNORECASE)
@@ -96,11 +93,29 @@ INDIVIDUAL_FOOTNOTE_PATTERN = re.compile(
     r"<F\s+(\d+)>\s*(.*?)(?=<F\s+\d+>|$)", re.DOTALL
 )
 TAG_PATTERN = re.compile(r"<[^>]+>")
-WARRANT_CATCHER = re.compile(r"\bwarrants?\b", re.IGNORECASE)
+
+
+def check_hard_exclusions(text: str) -> Optional[str]:
+    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
+        return "legal_litigation"
+    if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
+        return "forward_looking"
+    if EXCLUDE_COMPETITOR_REGEX.search(text):
+        return "competitor_analysis"
+    if EXCLUDE_REGULATION_REGEX.search(text):
+        return "regulatory_boilerplate"
+    if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
+        return "pension_plan_assets"
+    if EXCLUDE_REGEX_FILING.search(text):
+        return "filing"
+    # is_contractual_noise is run later or separately depending on logic,
+    # but here we include it as a hard exclusion check.
+    if is_contractual_noise(text):
+        return "contractual_noise"
+    return None
 
 
 def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
-    """Extract footnotes from a table and return cleaned table + footnotes list."""
     footnotes = []
     fn_match = FOOTNOTE_PATTERN.search(table_text)
     if fn_match:
@@ -119,27 +134,16 @@ def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
 def strip_table_formatting(
     table_text: str, url: str
 ) -> Tuple[str, List[Tuple[str, str, str]]]:
-    """
-    1. Removes HTML tags.
-    2. Filters out 'Poison Rows' using shared exclusion logic.
-    3. Merges surviving rows into a single text block.
-    4. Returns cleaned text AND list of (url, row_text, discard_reason) tuples for excluded rows.
-    """
-    # Remove all HTML-style tags
     text = TAG_PATTERN.sub("", table_text)
-
     lines = text.split("\n")
     cleaned_lines = []
     excluded_rows = []
 
     for line in lines:
         stripped = line.strip()
-
-        # Skip empty/separator lines
         if not stripped or all(c in "-\t " for c in stripped):
             continue
 
-        # FILTER POISON ROWS
         exclusion_reason = check_hard_exclusions(stripped)
         if exclusion_reason:
             excluded_rows.append((url, stripped, exclusion_reason))
@@ -147,32 +151,22 @@ def strip_table_formatting(
 
         cleaned_lines.append(stripped)
 
-    # Merge
     result = " ".join(cleaned_lines)
-    result = re.sub(r"\s+", " ", result).strip()
-
-    return result, excluded_rows
+    return re.sub(r"\s+", " ", result).strip(), excluded_rows
 
 
 def is_text_container_table(table_text: str, footnotes: List[str]) -> bool:
-    """
-    Returns True if table is just text (should be flattened).
-    Returns False if table is valid numeric data (should be kept as table).
-    """
     if not TableToTextConverter:
         return True
-
-    # Inject 'Notional' to force High Recall on Soft Matches (e.g. Gold Contracts)
     context_str = " ".join(footnotes) + " Notional"
-
     try:
         converter = TableToTextConverter(
             table_text, narrative_context=context_str, is_sophisticated=True
         )
         sentences = converter.process()
-        return len(sentences) == 0  # No sentences = Garbage/Text -> True
+        return len(sentences) == 0
     except Exception:
-        return True  # On error, treat as text container
+        return True
 
 
 # =============================================================================
@@ -181,6 +175,7 @@ def is_text_container_table(table_text: str, footnotes: List[str]) -> bool:
 
 
 def find_hedging_context(paragraph: str) -> bool:
+    """Standard Gatekeeper for regular derivatives."""
     if STRICT_REGEX.search(paragraph):
         return True
     elif SOFT_GEN_REGEX.search(paragraph):
@@ -191,8 +186,31 @@ def find_hedging_context(paragraph: str) -> bool:
         return True
     elif WARRANT_CATCHER.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
         return True
-    # Tables are self-validating if they survived the TableToText check
     if "<TABLE>" in paragraph.upper() and TABLE_REGEX.search(paragraph):
+        return True
+    return False
+
+def validate_sophisticated_buffer(
+    sophisticated_buffer: List[str], clean_paragraphs: List[str]
+) -> bool:
+    """
+    Independent validation for Convertibles/Warrants.
+    """
+    if not sophisticated_buffer:
+        return False
+
+    # 1. Check for Free Pass (Strict Anchor in standard text)
+    for p in clean_paragraphs:
+        if EQ_REGEX.search(p) and SOPHISTICATED_TARGETS.search(p):
+            return True
+        if find_hedging_context(p) and SOPHISTICATED_TARGETS.search(p):
+            return True
+
+    # 2. Check for Internal Sophisticated Context
+    # Since we now append paragraphs with Context to the buffer, this will succeed
+    # if any paragraph in the buffer has the required keywords.
+    combined_text = " ".join(sophisticated_buffer)
+    if SOPHISTICATED_CONTEXT_REGEX.search(combined_text):
         return True
 
     return False
@@ -205,54 +223,12 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     except:
         return None
 
-    clean_paragraphs = []
+    clean_paragraphs = []  # Standard Buffer
+    sophisticated_buffer = []  # Warrant/Convertible Buffer
     local_discards = []
 
     for p in paragraphs:
-
-        # 1. INTELLIGENT TABLE HANDLING
-        if "<TABLE>" in p.upper():
-            # A. Extract components
-            cleaned_table, footnotes = extract_and_separate_footnotes(p)
-
-            # B. Validate Structure
-            is_container = is_text_container_table(cleaned_table, footnotes)
-
-            if not is_container:
-                # --- VALID TABLE PATH ---
-                # It contains numbers/derivatives. Keep it structure.
-
-                # Check for Hard Legal Exclusions inside the table text
-                if EXCLUDE_REGEX_LEGAL_LITIGATION.search(cleaned_table):
-                    local_discards.append((url, "<table>...", "legal_table"))
-                    continue
-
-                # Append Table
-                clean_paragraphs.append(cleaned_table)
-                # Append Footnotes as text (processed in next loop? No, footnotes are text)
-                # We add footnotes to the output immediately
-                if footnotes:
-                    clean_paragraphs.extend(footnotes)
-
-                continue  # Done with this paragraph
-            else:
-                # --- FLATTEN PATH ---
-                # It is a text container. Flatten it to a string.
-                # It will now fall through to the Standard Text Filters below.
-                p, excluded_rows = strip_table_formatting(cleaned_table, url)
-
-                # LOG EXCLUDED ROWS (already in (url, row_text, reason) format)
-                local_discards.extend(excluded_rows)
-
-                # Append footnotes to the flattened text so they get checked together
-                if footnotes:
-                    p += " " + " ".join(footnotes)
-
-                # If empty after flattening, skip
-                if not p.strip():
-                    continue
-                
-        # Accounting Standards (runs first so that we don't sub out FASB on accident)
+        # Accounting Standards
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
             kept = []
             sentences = SENTENCE_SPLIT_PATTERN.split(p)
@@ -262,33 +238,74 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 else:
                     break
             if kept:
-                clean_paragraphs.append(" ".join(kept))
+                salvaged_p = " ".join(kept)
+                if SOPHISTICATED_TARGETS.search(
+                    salvaged_p
+                ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
+                    sophisticated_buffer.append(salvaged_p)
+                else:
+                    clean_paragraphs.append(salvaged_p)
 
             discarded_text = " ".join(set(sentences) - set(kept))
             if discarded_text:
                 local_discards.append((url, discarded_text, "accounting_standards"))
             continue
-        # 0. Clean Entities after the accounting standards
-        p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
-        # 2. EXCLUSION FILTERS (Applies to Text AND Flattened Tables)
+        # 1. TABLE HANDLING
+        if "<TABLE>" in p.upper():
+            cleaned_table, footnotes = extract_and_separate_footnotes(p)
+            is_container = is_text_container_table(cleaned_table, footnotes)
+
+            if not is_container:
+                if EXCLUDE_REGEX_LEGAL_LITIGATION.search(cleaned_table):
+                    local_discards.append((url, "<table>...", "legal_table"))
+                    continue
+
+                # Check where to send this table
+                is_target = SOPHISTICATED_TARGETS.search(cleaned_table)
+                is_context = SOPHISTICATED_CONTEXT_REGEX.search(cleaned_table)
+
+                if is_target or is_context:
+                    sophisticated_buffer.append(cleaned_table)
+                    clean_paragraphs.append(cleaned_table)
+                else:
+                    clean_paragraphs.append(cleaned_table)
+
+                if footnotes:
+                    clean_paragraphs.extend(footnotes)
+                continue
+            else:
+                p, excluded_rows = strip_table_formatting(cleaned_table, url)
+                local_discards.extend(excluded_rows)
+                if footnotes:
+                    p += " " + " ".join(footnotes)
+                if not p.strip():
+                    continue
+        p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+        # 2. EXCLUSIONS
         exclusion_reason = check_hard_exclusions(p)
         if exclusion_reason:
             local_discards.append((url, p, exclusion_reason))
             continue
+
         # 3. SALVAGE LOGIC
         # Hypothetical
         if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
-            if STRICT_REGEX.search(p) or (
+            has_std = STRICT_REGEX.search(p) or (
                 SOFT_REGEX.search(p) and HEDGING_CONTEXT_REGEX.search(p)
-            ):
-                clean_paragraphs.append(p)
-                continue
+            )
+            has_soph = SOPHISTICATED_TARGETS.search(
+                p
+            ) or SOPHISTICATED_CONTEXT_REGEX.search(p)
+
+            if has_std or has_soph:
+                # Flow through to distribution
+                pass
             else:
                 local_discards.append((url, p, "hypothetical_sensitivity_methodology"))
                 continue
 
-        # Equity Comp
+        # Equity Comp (Logic modified to populate buffers)
         if EXCLUDE_REGEX_EQUITY_COMP.search(p):
             kept = []
             sentences = SENTENCE_SPLIT_PATTERN.split(p)
@@ -296,58 +313,81 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 if EQ_REGEX.search(sent):
                     kept.append(sent)
                 elif EQ_SOFT_REGEX.search(sent):
+                    # Standard Context
                     has_hedging_context = SOFT_GEN_REGEX.search(
                         sent
                     ) or DER_STD_REGEX.search(sent)
-                    if has_hedging_context:
+                    # Sophisticated Targets (Buffer even without context)
+                    is_buffered_target = SOPHISTICATED_TARGETS.search(sent)
+                    # Sophisticated Context (New Trigger)
+                    is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(sent)
+
+                    if has_hedging_context or is_buffered_target or is_soph_context:
                         kept.append(sent)
-                elif SOPHISTICATED_TARGETS.search(sent):
-                    kept.append(sent)
-                else:
-                    break
 
             if kept:
-                clean_paragraphs.append(" ".join(kept))
+                salvaged_p = " ".join(kept)
+                # Distribution
+                if SOPHISTICATED_TARGETS.search(
+                    salvaged_p
+                ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
+                    sophisticated_buffer.append(salvaged_p)
+                else:
+                    clean_paragraphs.append(salvaged_p)
 
             discarded_text = " ".join(set(sentences) - set(kept))
             if discarded_text:
                 local_discards.append((url, discarded_text, "comp"))
             continue
 
-        # 4. KEEP SURVIVOR
-        clean_paragraphs.append(p)
+        # 4. DISTRIBUTION (Standard Paragraphs)
+        # Append to sophisticated buffer if it matches Target OR Context
+        if SOPHISTICATED_TARGETS.search(p) or SOPHISTICATED_CONTEXT_REGEX.search(p):
+            sophisticated_buffer.append(p)
+        else:
+            clean_paragraphs.append(p)
 
-    # 5. FINAL GATEKEEPER
-    if clean_paragraphs:
-        should_keep = any(find_hedging_context(p) for p in clean_paragraphs)
-        if not should_keep:
+    # 5. FINAL GATEKEEPERS
+    final_paragraphs = []
+
+    # A. Validate Standard Buffer
+    if any(find_hedging_context(p) for p in clean_paragraphs):
+        final_paragraphs.extend(clean_paragraphs)
+    else:
+        if clean_paragraphs:
+            local_discards.append((url, "Multiple paragraphs", "standard_check_failed"))
+
+    # B. Validate Sophisticated Buffer
+    if validate_sophisticated_buffer(sophisticated_buffer, clean_paragraphs):
+        final_paragraphs.extend(sophisticated_buffer)
+    else:
+        if sophisticated_buffer:
             local_discards.append(
-                (url, "\n\n".join(clean_paragraphs), "no_hedging_context")
+                (url, "Multiple paragraphs", "sophisticated_check_failed")
             )
-            return None
 
+    # Deduplicate and Return
+    if final_paragraphs:
+        unique_paragraphs = list(set(final_paragraphs))
         return (
             url,
-            json.dumps(clean_paragraphs),
+            json.dumps(unique_paragraphs),
             cik,
             year,
             aggregate_discards(local_discards),
         )
 
-    # Save empty to mark progress
     return (url, "[]", cik, year, aggregate_discards(local_discards))
 
 
 # =============================================================================
-# QUEUE PROCESSES
+# QUEUE PROCESSES (Unchanged)
 # =============================================================================
-
-
+# ... (producer_task, worker_task, writer_task, setup_target_db, etc.) ...
 def producer_task(queue: mp.Queue, db_path: str, processed_urls: Set[str]):
     print("🔌 Producer started...")
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    # Fetch all, filtering happens in loop
     c.execute(
         "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
@@ -382,7 +422,7 @@ def worker_task(in_queue: mp.Queue, out_queue: mp.Queue):
             print(f"⚠️ Worker error: {e}")
 
 
-def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value): # type: ignore
+def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value):
     print("💾 Writer started...")
     setup_target_db(db_path)
     conn = sqlite3.connect(db_path, timeout=60)
@@ -415,7 +455,6 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
                     discards_buffer,
                 )
             conn.commit()
-
             with counter.get_lock():
                 counter.value += len(buffer)
             total_written += len(buffer)
@@ -428,7 +467,6 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
     while not stop_event.is_set() or not queue.empty():
         try:
             result = queue.get(timeout=1)
-            # Always append (even empty []) to ensure resume works
             buffer.append((result[0], result[1], result[2], result[3]))
             if result[4]:
                 discards_buffer.extend(result[4])
@@ -440,11 +478,6 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
     flush()
     conn.close()
     print(f"💾 Writer finished. Total saved: {total_written:,}")
-
-
-# =============================================================================
-# SETUP & MAIN
-# =============================================================================
 
 
 def setup_target_db(path):
@@ -487,7 +520,6 @@ def get_total_count(path):
 
 if __name__ == "__main__":
     print(f"🚀 Starting Merged Pre-Filter ({NUM_WORKERS} workers)")
-
     processed_urls = get_processed_urls(TARGET_DB_PATH)
     total_items = get_total_count(SOURCE_DB_PATH)
 
