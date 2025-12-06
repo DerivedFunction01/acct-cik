@@ -625,6 +625,7 @@ HEDGING_CONTEXT_TERMS = [
     rf"(?:market|rate|currency|credit|counterparty|equity)[ -]{_RISK_ALTERNATION}",
     r"fluctuations?",   # e.g., "protect against fluctuations"
     r"volatility",      # e.g., "manage volatility"
+    r"bifurcat(?:ed|ion|ing)",
 ] + SOFT_GEN_TERMS
 
 CP_CONTEXT_TERMS = (
