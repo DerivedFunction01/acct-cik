@@ -360,30 +360,30 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         else:
             # C. STANDARD: Exclusive to Standard Buffer
             clean_buffer.append((idx, p))
-            
+
     # 5. FINAL GATEKEEPERS
     final_results = []  # List of (index, text)
 
     # A. Validate Standard Buffer
     # Extract text only for validation
-    std_texts = [text for i, text in clean_buffer]
+    std_texts = [text for _, text in clean_buffer]
     if any(find_hedging_context(p) for p in std_texts):
         final_results.extend(clean_buffer)
     else:
         if clean_buffer:
-            local_discards.append((url, "\n\n".join(clean_buffer), "standard_check_failed"))
+            discarded = "\n\n".join(std_texts)
+            local_discards.append((url, discarded, "standard_check_failed"))
 
     # B. Validate Sophisticated Buffer
     # Extract text only for validation
-    soph_texts = [text for i, text in sophisticated_buffer]
+    soph_texts = [text for _, text in sophisticated_buffer]
     # Pass text lists to validator
     if validate_sophisticated_buffer(soph_texts, std_texts):
         final_results.extend(sophisticated_buffer)
     else:
         if sophisticated_buffer:
-            local_discards.append(
-                (url, "\n\n".join(sophisticated_buffer), "sophisticated_check_failed")
-            )
+            discarded = "\n\n".join(soph_texts)
+            local_discards.append((url, discarded, "sophisticated_check_failed"))
 
     # C. RECONSTRUCT & SORT
     if final_results:
