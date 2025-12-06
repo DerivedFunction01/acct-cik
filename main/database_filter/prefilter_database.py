@@ -3,19 +3,24 @@ import json
 import multiprocessing as mp
 import time
 from pathlib import Path
+from queue import Empty
+import logging
+from typing import Optional, Tuple
+
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor
-from typing import List, Tuple, Optional
+
+logging.basicConfig(level=logging.INFO)
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
-BATCH_SIZE = 1000
-SOURCE_DB_PATH = "web_data.db"  # Raw Input
-TARGET_DB_PATH = "prefiltered_data.db"  # Clean Input for Categorizer
+BATCH_SIZE = 1000  # Transaction size for writer
+QUEUE_SIZE = NUM_WORKERS * 50  # Buffer size to keep memory stable
+SOURCE_DB_PATH = "web_data.db"
+TARGET_DB_PATH = "prefiltered_data.db"
 
-# Import only the exclusion regexes
+# Import exclusions
 from derivative_regex import (
     ACCOUNTING_STANDARDS_STRICT_REGEX,
     DER_STD_REGEX,
@@ -41,122 +46,25 @@ from derivative_regex import (
     is_contractual_noise,
 )
 
-
 # =============================================================================
-# DATABASE SETUP
+# WORKER LOGIC
 # =============================================================================
-def setup_target_db():
-    """Creates the intermediate pre-filtered database."""
-    if Path(TARGET_DB_PATH).exists():
-        Path(TARGET_DB_PATH).unlink()
-
-    conn = sqlite3.connect(TARGET_DB_PATH)
-    c = conn.cursor()
-
-    # Simple Schema: URL + JSON Matches + Metadata
-    # We keep it compatible with what filter_database expects
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS webpage_result (
-            url TEXT PRIMARY KEY,
-            matches TEXT NOT NULL  -- JSON array of clean paragraphs
-        )
-    """
-    )
-
-    # Metadata table (Pass-through)
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS report_data (
-            url TEXT PRIMARY KEY,
-            cik INTEGER,
-            year INTEGER,
-            FOREIGN KEY (url) REFERENCES webpage_result(url)
-        )
-    """
-    )
-
-    # Discard tracking (Essential for auditing the noise removal)
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS discarded_sentences (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT,
-            sentence TEXT,
-            discard_reason TEXT
-        )
-    """
-    )
-
-    c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
-    c.execute("PRAGMA journal_mode=WAL")
-    conn.commit()
-    conn.close()
 
 
-def get_source_data() -> List[Tuple]:
-    """Fetch raw data from web_data.db"""
-    conn = sqlite3.connect(SOURCE_DB_PATH)
-    c = conn.cursor()
-    try:
-        # Join with report_data to pass metadata through
-        c.execute(
-            """
-            SELECT w.url, w.matches, r.cik, r.year 
-            FROM webpage_result w
-            LEFT JOIN report_data r ON w.url = r.url
-            WHERE w.matches IS NOT NULL
-        """
-        )
-        return c.fetchall()
-    except Exception as e:
-        print(f"❌ Error reading source DB: {e}")
-        return []
-    finally:
-        conn.close()
+def find_hedging_context(paragraph: str) -> bool:
+    if STRICT_REGEX.search(paragraph):
+        return True
+    elif SOFT_GEN_REGEX.search(paragraph):
+        return True
+    elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
+        return True
+    elif DER_STD_REGEX.search(paragraph) and LOOSE_GEN_REGEX.search(paragraph):
+        return True
+    return False
 
 
-def write_batch(buffer: List[Tuple], discards: List[Tuple]):
-    if not buffer and not discards:
-        return
-
-    conn = sqlite3.connect(TARGET_DB_PATH, timeout=60)
-    conn.execute("PRAGMA journal_mode=WAL")
-    c = conn.cursor()
-    try:
-        c.execute("BEGIN TRANSACTION")
-
-        if buffer:
-            # 1. Write Clean Matches
-            c.executemany(
-                "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
-                [(row[0], row[1]) for row in buffer],
-            )
-            # 2. Write Metadata
-            c.executemany(
-                "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-                [(row[0], row[2], row[3]) for row in buffer],
-            )
-
-        if discards:
-            # 3. Write Discards
-            c.executemany(
-                "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
-                discards,
-            )
-
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        print(f"❌ Write failed: {e}")
-    finally:
-        conn.close()
-
-
-# =============================================================================
-# FILTER LOGIC
-# =============================================================================
 def process_item(item: Tuple) -> Optional[Tuple]:
+    # Unpack based on query: url, matches, cik, year
     url, matches_json, cik, year = item
 
     try:
@@ -166,24 +74,22 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     clean_paragraphs = []
     local_discards = []
-    for i, p in enumerate(paragraphs):
+
+    for p in paragraphs:
+        # 0. Clean Entities First
         p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
-        # 1. Skip Tables (Pass them through for the Table Processor in next stage)
-        # Or you can choose to filter noise WITHIN tables here if you want.
-        # For now, we pass them safely.
+
+        # 1. Skip Tables (Pass-through for later processing)
         if "<TABLE>" in p.upper():
             clean_paragraphs.append(p)
             continue
 
-        # 2. Paragraph-Level Exclusion Filters
-        # These are the "Obvious Deadweights"
-
+        # 2. Exclusion Filters
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(p):
             local_discards.append((url, p, "legal_litigation"))
             continue
 
         if EXCLUDE_REGEX_FORWARD_LOOKING.search(p):
-            # Forward looking is high volume, so we discard it early
             local_discards.append((url, p, "forward_looking"))
             continue
 
@@ -199,11 +105,17 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             local_discards.append((url, p, "pension_plan_assets"))
             continue
 
-        if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
-            # Sensitivity analysis often mentions ACTUAL instruments.
-            # We only discard if it's purely generic methodology without naming names.
+        if EXCLUDE_REGEX_FILING.search(p):
+            local_discards.append((url, p, "filing"))
+            continue
 
-            # If it mentions a specific instrument (Strict) or Soft+Context, KEEP IT.
+        if is_contractual_noise(p, loose_threshold=2):
+            local_discards.append((url, p, "contractual_noise"))
+            continue
+
+        # Hypothetical: Salvage Logic
+        if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
+            # If explicit instrument OR soft+context found, keep it.
             if STRICT_REGEX.search(p) or (
                 SOFT_REGEX.search(p) and HEDGING_CONTEXT_REGEX.search(p)
             ):
@@ -212,57 +124,60 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             else:
                 local_discards.append((url, p, "hypothetical_sensitivity_methodology"))
                 continue
-        if EXCLUDE_REGEX_FILING.search(p):
-            local_discards.append((url, p, "filing"))
-            continue
-        if is_contractual_noise(p, loose_threshold=2):
-            local_discards.append((url, p, "contractual_noise"))
-            continue
+
+        # Equity Comp: Salvage Logic
         if EXCLUDE_REGEX_EQUITY_COMP.search(p):
             kept = []
             sentences = SENTENCE_SPLIT_PATTERN.split(p)
-            for idx, sent in enumerate(sentences):
+            for sent in sentences:
                 if EQ_REGEX.search(sent):
                     kept.append(sent)
                 elif EQ_SOFT_REGEX.search(sent):
-                    has_hedging_context = SOFT_GEN_REGEX.search(sent) or DER_STD_REGEX.search(sent)
+                    has_hedging_context = SOFT_GEN_REGEX.search(
+                        sent
+                    ) or DER_STD_REGEX.search(sent)
                     if has_hedging_context:
                         kept.append(sent)
-                else:
-                    continue
-            # Join whatever is left
-            p = " ".join(kept)
-            # Join whatever is not in kept (using set)
-            discarded = " ".join(list(set(sentences) - set(kept)))
-            local_discards.append((url, discarded, "comp"))
-            clean_paragraphs.append(p)
+
+            # Reconstruct
+            if kept:
+                clean_paragraphs.append(" ".join(kept))
+
+            # Log discard (approximate)
+            discarded_text = " ".join(set(sentences) - set(kept))
+            if discarded_text:
+                local_discards.append((url, discarded_text, "comp"))
             continue
 
+        # Accounting Standards: Salvage Logic
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
             kept = []
             sentences = SENTENCE_SPLIT_PATTERN.split(p)
-            for idx, sent in enumerate(sentences):
+            for sent in sentences:
                 if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
                     kept.append(sent)
-                else:
-                    break
-            # Join whatever is left
-            p = " ".join(kept)
-            # Join whatever is not in kept (using set)
-            discarded = " ".join(list(set(sentences) - set(kept)))
-            local_discards.append((url, discarded, "accounting_standards"))
-            clean_paragraphs.append(p)
+
+            if kept:
+                clean_paragraphs.append(" ".join(kept))
+
+            discarded_text = " ".join(set(sentences) - set(kept))
+            if discarded_text:
+                local_discards.append((url, discarded_text, "accounting_standards"))
             continue
 
-        # 3. If it survives, keep it
+        # 3. Keep Survivor
         clean_paragraphs.append(p)
 
-    # 4. Return result if we have content left
+    # 4. Final Gatekeeper (Hedging Context)
     if clean_paragraphs:
+        # Check if *any* remaining paragraph has context
         should_keep = any(find_hedging_context(p) for p in clean_paragraphs)
         if not should_keep:
-            local_discards.append((url, "\n\n".join(clean_paragraphs), "no_hedging_context"))
+            local_discards.append(
+                (url, "\n\n".join(clean_paragraphs), "no_hedging_context")
+            )
             return None
+
         return (
             url,
             json.dumps(clean_paragraphs),
@@ -271,60 +186,245 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             aggregate_discards(local_discards),
         )
     elif local_discards:
-        # If everything was filtered, we still want to log the discards
+        # Log purely discarded items
         return (url, "[]", cik, year, aggregate_discards(local_discards))
 
     return None
 
-def find_hedging_context(paragraph: str) -> bool:
-    if STRICT_REGEX.search(paragraph):
-        return True
-    elif SOFT_GEN_REGEX.search(paragraph):
-        return True
-    elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
-        return True
-    elif DER_STD_REGEX.search(paragraph) and LOOSE_GEN_REGEX.search(paragraph):
-        return True
-    return False
+
+# =============================================================================
+# QUEUE PROCESSES
+# =============================================================================
+
+
+def producer_task(queue: mp.Queue, db_path: str):
+    """Reads raw data and feeds the queue."""
+    print("🔌 Producer started...")
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute(
+        "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
+    )
+
+    count = 0
+    while True:
+        # Fetch in chunks to keep memory low
+        rows = c.fetchmany(1000)
+        if not rows:
+            break
+        for row in rows:
+            queue.put(row)
+            count += 1
+
+    conn.close()
+    print(f"🔌 Producer finished. Queued {count:,} items.")
+
+
+def worker_task(in_queue: mp.Queue, out_queue: mp.Queue):
+    """Consumes raw items, processes them, sends to writer."""
+    while True:
+        item = in_queue.get()
+        if item is None:  # Sentinel
+            break
+
+        try:
+            result = process_item(item)
+            if result:
+                out_queue.put(result)
+        except Exception as e:
+            print(f"⚠️ Worker error: {e}")
+
+
+def setup_target_db(path):
+    if Path(path).exists():
+        Path(path).unlink()
+    conn = sqlite3.connect(path)
+    c = conn.cursor()
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, matches TEXT NOT NULL)"
+    )
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER, FOREIGN KEY (url) REFERENCES webpage_result(url))"
+    )
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS discarded_sentences (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, sentence TEXT, discard_reason TEXT)"
+    )
+    c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
+    conn.commit()
+    conn.close()
 
 
 # =============================================================================
 # MAIN
 # =============================================================================
-if __name__ == "__main__":
-    print(f"🚀 Starting Pre-Filter (Noise Removal)...")
-    setup_target_db()
+def get_total_count(db_path):
+    """Counts valid rows in source DB for progress bar."""
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    # Matches the WHERE clause in producer_task
+    cursor.execute("SELECT COUNT(*) FROM webpage_result WHERE matches IS NOT NULL")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
 
-    data = get_source_data()
-    print(f"📊 Processing {len(data):,} items...")
 
-    batch_buffer = []
-    discard_buffer = []
+def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value):
+    """Batches writes to the database and updates shared progress counter."""
+    print("💾 Writer started...")
+    setup_target_db(db_path)
 
-    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        results = executor.map(process_item, data, chunksize=50)
+    conn = sqlite3.connect(db_path, timeout=60)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    c = conn.cursor()
 
-        for res in tqdm(results, total=len(data)):
-            if not res:
-                continue
+    buffer = []
+    discards_buffer = []
+    total_written = 0
 
-            # Unpack
-            url, clean_json, cik, year, discards = res
+    def flush():
+        nonlocal buffer, discards_buffer, total_written
+        if not buffer and not discards_buffer:
+            return
 
-            # Add to buffers
+        try:
+            c.execute("BEGIN TRANSACTION")
+            if buffer:
+                c.executemany(
+                    "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
+                    [(r[0], r[1]) for r in buffer],
+                )
+                c.executemany(
+                    "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
+                    [(r[0], r[2], r[3]) for r in buffer],
+                )
+
+            if discards_buffer:
+                c.executemany(
+                    "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
+                    discards_buffer,
+                )
+
+            conn.commit()
+
+            # UPDATE PROGRESS
+            batch_len = len(buffer)
+            with counter.get_lock():
+                counter.value += batch_len
+
+            total_written += batch_len
+            buffer.clear()
+            discards_buffer.clear()
+        except Exception as e:
+            print(f"❌ Writer Error: {e}")
+            conn.rollback()
+
+    while not stop_event.is_set() or not queue.empty():
+        try:
+            result = queue.get(timeout=1)
+
+            # unpack
+            url, clean_json, cik, year, discards = result
+
             if clean_json != "[]":
-                batch_buffer.append((url, clean_json, cik, year))
+                buffer.append((url, clean_json, cik, year))
 
-            discard_buffer.extend(discards)
+            if discards:
+                discards_buffer.extend(discards)
 
-            # Flush if full
-            if len(batch_buffer) >= BATCH_SIZE:
-                write_batch(batch_buffer, discard_buffer)
-                batch_buffer = []
-                discard_buffer = []
+            if len(buffer) >= BATCH_SIZE or len(discards_buffer) >= BATCH_SIZE * 5:
+                flush()
 
-    # Final Flush
-    if batch_buffer or discard_buffer:
-        write_batch(batch_buffer, discard_buffer)
+        except Empty:
+            continue
 
-    print(f"✅ Done. Clean data saved to: {TARGET_DB_PATH}")
+    # Final flush
+    flush()
+    conn.close()
+    print(f"💾 Writer finished. Total saved: {total_written:,}")
+
+if __name__ == "__main__":
+    print(f"🚀 Starting Multi-Process Pre-Filter ({NUM_WORKERS} workers)")
+
+    # 0. Get Total for Progress Bar
+    total_items = get_total_count(SOURCE_DB_PATH)
+    print(f"📊 Total items to process: {total_items:,}")
+
+    # 1. Queues & Shared Counter
+    task_queue = mp.Queue(maxsize=QUEUE_SIZE)
+    result_queue = mp.Queue(maxsize=QUEUE_SIZE)
+    stop_event = mp.Event()
+    processed_counter = mp.Value("i", 0)
+
+    # 2. Start Writer (Pass the counter)
+    writer_p = mp.Process(
+        target=writer_task,
+        args=(result_queue, TARGET_DB_PATH, stop_event, processed_counter),
+    )
+    writer_p.start()
+
+    # 3. Start Workers
+    workers = []
+    for _ in range(NUM_WORKERS):
+        p = mp.Process(target=worker_task, args=(task_queue, result_queue))
+        p.start()
+        workers.append(p)
+
+    # 4. Start Producer (In separate process so we can monitor)
+    producer_p = mp.Process(target=producer_task, args=(task_queue, SOURCE_DB_PATH))
+    producer_p.start()
+
+    # 5. Monitoring Loop
+    try:
+        with tqdm(total=total_items, unit="docs", smoothing=0.1) as pbar:
+            while True:
+                time.sleep(1)
+
+                # Update Progress
+                current = processed_counter.value
+                pbar.n = current
+                pbar.refresh()
+
+                # Visual Indicators for Queues
+                # (qsize is reliable on Linux/Windows, can be iffy on Mac)
+                try:
+                    in_q = task_queue.qsize()
+                    out_q = result_queue.qsize()
+                except NotImplementedError:
+                    in_q = "N/A"
+                    out_q = "N/A"
+
+                pbar.set_postfix(in_queue=f"{in_q}/{QUEUE_SIZE}", out_queue=f"{out_q}")
+
+                # Exit Condition: All done OR (Producer done + Workers done + Queues empty)
+                if current >= total_items:
+                    break
+
+                # Check if everyone died unexpectedly
+                if (
+                    not any(p.is_alive() for p in workers)
+                    and not producer_p.is_alive()
+                    and task_queue.empty()
+                    and result_queue.empty()
+                ):
+                    break
+
+    except KeyboardInterrupt:
+        print("\n⚠️ Stopping...")
+
+    # 6. Shutdown
+    print("Shutting down workers...")
+    for _ in range(NUM_WORKERS):
+        try:
+            task_queue.put_nowait(None)
+        except:
+            pass
+
+    producer_p.join()
+    for p in workers:
+        p.join()
+
+    stop_event.set()
+    writer_p.join()
+
+    print("✅ Processing Complete.")
