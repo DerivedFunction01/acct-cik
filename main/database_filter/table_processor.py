@@ -1,7 +1,13 @@
 import re
 from typing import List, Dict, Optional, Tuple
 from table_cleanup import extract_table_content
-from derivative_regex import SOFT_REGEX, TABLE_REGEX, YEAR_REGEX, STRICT_REGEX
+from derivative_regex import (
+    SOFT_REGEX,
+    TABLE_REGEX,
+    YEAR_REGEX,
+    STRICT_REGEX,
+    SOFT_GEN_REGEX,  # Imported for caption analysis
+)
 
 # --- 1. EXPANDED HEADER DEFINITIONS ---
 CONTEXT_HEADERS = re.compile(
@@ -32,22 +38,34 @@ SECTION_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 # NEW: Specific regex for the sophisticated exception
-# Matches "Convertible", "Warrant", "Embedded Conversion"
 SOPHISTICATED_TARGETS = re.compile(
     r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
 )
 
 TABLE_ANCHOR = " T_ "
 
+
 class TableToTextConverter:
 
-    def __init__(self, table_text: str, narrative_context: str = "", is_sophisticated: bool = False):
+    def __init__(
+        self,
+        table_text: str,
+        narrative_context: str = "",
+        is_sophisticated: bool = False,
+    ):
         self.raw_text = table_text
         self.narrative_context = narrative_context
-        self.is_sophisticated = is_sophisticated # meant specifically for warrants and convertibles, not for equity options or gold contracts
+        self.is_sophisticated = is_sophisticated
 
-        # 1. Extract & Analyze Caption (New)
+        # 1. Extract & Analyze Caption
         self.caption = self._extract_caption(table_text)
+
+        # NEW: Check Caption for Strong Signal immediately
+        # If caption says "Derivative Instruments" or "Hedging Activities", the whole table is safe.
+        self.caption_is_strong = bool(
+            STRICT_REGEX.search(self.caption) or SOFT_GEN_REGEX.search(self.caption)
+        )
+
         full_context = f"{self.caption} {self.narrative_context}"
         self.table_default_type = self._analyze_caption_context(full_context)
 
@@ -55,7 +73,7 @@ class TableToTextConverter:
         self.headers, self.data = extract_table_content(table_text)
         self.flattened_headers = self._flatten_headers()
 
-        # 3. Classify Columns (using caption context)
+        # 3. Classify Columns
         self.col_map = {
             i: self._classify_column(h) for i, h in enumerate(self.flattened_headers)
         }
@@ -64,30 +82,23 @@ class TableToTextConverter:
         self._resolve_offsetting_conflicts()
 
     def _extract_caption(self, text: str) -> str:
-        """
-        Extracts text following the <caption> tag up to the newline.
-        Format: <table>\n<caption> My Table Title\n...
-        """
+        """Extracts text following the <caption> tag."""
         match = re.search(r"<caption>\s*(.*)", text, re.IGNORECASE)
         if match:
             return match.group(1).strip()
         return ""
 
     def _analyze_caption_context(self, caption: str) -> Optional[str]:
-        """
-        Determines the default value type for the table based on the caption.
-        Useful when headers are just years (e.g. '2023' | '2022').
-        """
+        """Determines default value type from caption."""
         if not caption:
             return None
 
         caption_lower = caption.lower()
 
-        # Check specific types
         if NOTIONAL_HEADERS.search(caption_lower):
             return "notional"
         if VAR_HEADERS.search(caption_lower):
-            return "fair_value"  # VaR is treated as FV risk metric
+            return "fair_value"
         if VALUE_HEADERS.search(caption_lower):
             return "fair_value"
         if GAIN_LOSS_HEADERS.search(caption_lower):
@@ -115,11 +126,9 @@ class TableToTextConverter:
         if NOISE_HEADERS.search(header):
             return None
 
-        # 1. EXTRACT YEAR FIRST
         year_match = YEAR_REGEX.search(header)
         year_suffix = f"_{year_match.group(0)}" if year_match else ""
 
-        # 2. Identify Type (Header Override)
         col_type = None
         if CONTEXT_HEADERS.search(header):
             return "context_text"
@@ -141,16 +150,12 @@ class TableToTextConverter:
             else:
                 col_type = "fair_value"
 
-        # 3. Fallback to Caption Context
-        # If we found a year but no specific type in the header, look at the caption.
-        # e.g. Header="2024", Caption="Notional Amounts" -> Type="notional"
         if not col_type and year_suffix:
             if self.table_default_type:
                 col_type = self.table_default_type
             else:
-                col_type = "value"  # Generic fallback
+                col_type = "value"
 
-        # 4. Combine
         if col_type:
             return f"{col_type}{year_suffix}"
 
@@ -216,31 +221,23 @@ class TableToTextConverter:
         fragment_pattern = re.compile(r"^[()$€£¥%—\-\s]+$")
         value_pattern = re.compile(r"\d")
 
-        # NEW: First pass - merge fragments WITH their values (forward)
         i = 0
         while i < len(merged):
             cell = merged[i].strip()
-
-            # If this cell is a pure fragment, look ahead for digits
             if cell and fragment_pattern.match(cell):
-                # Scan forward for a digit
                 j = i + 1
-                while j < len(merged) and j < i + 3:  # Look up to 2 cells ahead
+                while j < len(merged) and j < i + 3:
                     next_cell = merged[j].strip()
                     if value_pattern.search(next_cell):
-                        # Found a digit! Merge backward
                         merged[j] = cell + merged[j]
                         merged[i] = ""
                         break
                     elif fragment_pattern.match(next_cell):
-                        # Another fragment, keep scanning
                         j += 1
                     else:
-                        # Non-fragment, non-digit - stop
                         break
             i += 1
 
-        # ORIGINAL: Second pass - merge fragments TOWARD values (backward)
         for i in range(len(merged)):
             cell = merged[i].strip()
             if value_pattern.search(cell) and not fragment_pattern.match(cell):
@@ -257,49 +254,36 @@ class TableToTextConverter:
                     if right and fragment_pattern.match(right):
                         merged[i] = merged[i] + right
                         merged[i + 1] = ""
-
         return merged
+
     def normalize_value(self, clean_val: str):
-        # Strip parentheses
         stripped = clean_val.strip("()")
         try:
             norm_num = float(stripped.replace(",", ""))
             num = abs(norm_num)
-
-            # Conditional formatting
             if num == 0:
                 return "$0"
             else:
-                # format with parentheses if negative
                 formatted = "$(__)" if norm_num < 0 else "$__"
-
-                # >1000 → whole number, else → two decimals
                 if num > 1000:
                     num_str = "{:,.0f}".format(num)
                 else:
                     num_str = "{:,.2f}".format(num)
-
                 return formatted.replace("__", num_str)
-
         except ValueError:
-            # If not numeric, assume it's already a currency string
             return clean_val
 
     def process(self) -> List[str]:
         sentences = []
 
         # --- PASS 1: SCAN FOR STRONG SIGNALS ---
-        # We need to determine if this table is definitively about derivatives
-        # before we accept "Soft" matches (like "Natural Gas" or "Options").
-
-        # 1. Check for Notional Columns (Strongest Signal)
         table_has_notional_col = any(
             "notional" in str(v) for v in self.col_map.values()
         ) or (self.table_default_type == "notional")
 
-        table_has_strong_row = False
         candidate_rows = []
         active_context = []
+        table_has_strong_row = False
 
         for row in self.data:
             if not row:
@@ -313,10 +297,8 @@ class TableToTextConverter:
             if not row_label or "total" in row_label.lower():
                 continue
 
-            # Merge values (currency symbols etc)
             row = self._merge_row_values(row)
 
-            # Build Name
             row_context_str = ""
             for i, cell_val in enumerate(row[1:], start=1):
                 if self.col_map.get(i) == "context_text":
@@ -328,17 +310,14 @@ class TableToTextConverter:
                 f"{' '.join(active_context)} {row_label}{row_context_str}"
             )
 
-            # Classification
             row_implies_notional = bool(NOTIONAL_HEADERS.search(full_instrument_name))
             is_strict = bool(STRICT_REGEX.search(full_instrument_name))
             is_table_safe = bool(TABLE_REGEX.search(full_instrument_name))
             is_soft = bool(SOFT_REGEX.search(full_instrument_name))
 
-            # Update Table-Level Signal
             if is_strict or is_table_safe or row_implies_notional:
                 table_has_strong_row = True
 
-            # Store for Pass 2
             candidate_rows.append(
                 {
                     "row": row,
@@ -350,36 +329,35 @@ class TableToTextConverter:
             )
 
         # --- GLOBAL SIGNAL CHECK ---
-        # A table is valid for Soft matches IF:
-        # 1. It has at least one Strict/Safe row (e.g. "Swaps")
-        # 2. OR it has explicit Notional columns/rows
-        table_is_anchored = table_has_strong_row or table_has_notional_col
+        # 1. Row/Column Anchors
+        # 2. Caption Anchor (NEW: If caption says "Derivatives", the table is safe)
+        table_is_anchored = (
+            table_has_strong_row or table_has_notional_col or self.caption_is_strong
+        )
 
         # --- PASS 2: GENERATE SENTENCES ---
         for cand in candidate_rows:
-            # Calculate the Sophistication Exception for this specific row
+
+            # Exception Logic (Convertibles/Warrants for sophisticated firms)
             is_sophisticated_exception = (
                 self.is_sophisticated and SOPHISTICATED_TARGETS.search(cand["name"])
             )
-            # FILTER LOGIC:
-            # 1. Strong matches are always kept.
-            # 2. Soft matches are kept ONLY if the table is anchored.
-            # 3. Soft matches are kept IF they match the Sophistication Exception (Convertibles/Warrants only).
+
+            # FILTER LOGIC
+            should_keep = False
+
             if cand["is_strong"]:
                 should_keep = True
             elif cand["is_soft"]:
                 if table_is_anchored:
                     should_keep = True
                 elif is_sophisticated_exception:
-                    should_keep = True # <--- The Safe Harbor
-                else:
-                    should_keep = False
-            else:
-                continue  # Discard (Noise or unanchored soft match)
+                    should_keep = True
+
             if not should_keep:
                 continue
-            
-            # Extract Values
+
+            # Extract Values & Generate Sentences
             row = cand["row"]
             full_instrument_name = cand["name"]
             row_implies_notional = cand["implies_notional"]
@@ -396,7 +374,6 @@ class TableToTextConverter:
                 clean_val = self._cleanup_spaced_value(cell_val)
                 if "(" in clean_val and ")" in clean_val:
                     clean_val = "-" + clean_val.replace("(", "").replace(")", "")
-
                 clean_val = clean_val.replace("$", "").replace(",", "").strip()
 
                 parts = col_type.split("_")
@@ -405,9 +382,8 @@ class TableToTextConverter:
                     year_str = f"in {parts.pop()} "
 
                 base_type = "_".join(parts)
-                # Strip the clean_val of parenthesis and attempt to convert it to a number. If it fails, it has a currency symbol
                 value = self.normalize_value(clean_val)
-                # Generate Sentence
+
                 if "notional" in base_type or row_implies_notional:
                     sentences.append(
                         f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of {value}."
