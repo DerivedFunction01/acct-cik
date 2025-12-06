@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import json
 import multiprocessing as mp
@@ -50,20 +51,32 @@ from derivative_regex import (
 # WORKER LOGIC
 # =============================================================================
 
+WARRANT_CATCHER = re.compile(r"\bwarrants?\b", re.IGNORECASE)
 
 def find_hedging_context(paragraph: str) -> bool:
+    # 1. Strict Instruments (e.g. "Interest Rate Swap") -> Automatic Pass
     if STRICT_REGEX.search(paragraph):
         return True
+
+    # 2. Strong Accounting Signals (e.g. "Cash Flow Hedge") -> Automatic Pass
     elif SOFT_GEN_REGEX.search(paragraph):
         return True
+
+    # 3. Soft Instrument + Context (e.g. "Equity Option" + "Risk Mgmt")
     elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
         return True
+
+    # 4. Standard + Generic (e.g. "ASC 815" + "Contracts")
     elif DER_STD_REGEX.search(paragraph) and LOOSE_GEN_REGEX.search(paragraph):
         return True
-    elif "warrants" in paragraph.lower() and HEDGING_CONTEXT_REGEX.search(paragraph): # soft regex does not have warrantss
-        return True
-    return False
 
+    # 5. The "Warrant" Safety Net
+    # Captures "warrant" or "warrants" IF combined with Valuation/Risk context.
+    # We use regex to avoid partial matches (though 'warrants' is fairly unique).
+    elif WARRANT_CATCHER.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
+        return True
+
+    return False
 
 def process_item(item: Tuple) -> Optional[Tuple]:
     # Unpack based on query: url, matches, cik, year
