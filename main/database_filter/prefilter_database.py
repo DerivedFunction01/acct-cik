@@ -60,6 +60,8 @@ def find_hedging_context(paragraph: str) -> bool:
         return True
     elif DER_STD_REGEX.search(paragraph) and LOOSE_GEN_REGEX.search(paragraph):
         return True
+    elif "warrants" in paragraph.lower() and HEDGING_CONTEXT_REGEX.search(paragraph): # soft regex does not have warrantss
+        return True
     return False
 
 
