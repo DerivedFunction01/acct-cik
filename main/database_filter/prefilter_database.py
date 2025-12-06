@@ -51,7 +51,7 @@ from derivative_regex import (
 # WORKER LOGIC
 # =============================================================================
 
-WARRANT_CATCHER = re.compile(r"\bwarrants?\b", re.IGNORECASE)
+WARRANT_CATCHER = re.compile(r"\bwarrants\b", re.IGNORECASE)
 
 def find_hedging_context(paragraph: str) -> bool:
     # 1. Strict Instruments (e.g. "Interest Rate Swap") -> Automatic Pass
