@@ -17,6 +17,7 @@ QUEUE_SIZE = NUM_WORKERS * 50
 SOURCE_DB_PATH = "web_data.db"
 TARGET_DB_PATH = "prefiltered_data.db"
 
+
 # --- IMPORTS ---
 from derivative_regex import (
     ACCOUNTING_STANDARDS_STRICT_REGEX,
@@ -43,6 +44,42 @@ from derivative_regex import (
     aggregate_discards,
     is_contractual_noise,
 )
+
+def check_hard_exclusions(text: str) -> Optional[str]:
+    """
+    Checks text against 'Dead Weight' filters.
+    Returns the discard reason string if matched, otherwise None.
+    """
+    # 1. Litigation / Legal (Highest Priority)
+    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
+        return "legal_litigation"
+
+    # 2. Forward Looking Statements
+    if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
+        return "forward_looking"
+
+    # 3. Competitors / Peers
+    if EXCLUDE_COMPETITOR_REGEX.search(text):
+        return "competitor_analysis"
+
+    # 4. Regulatory Boilerplate
+    if EXCLUDE_REGULATION_REGEX.search(text):
+        return "regulatory_boilerplate"
+
+    # 5. Plan Assets / Pensions
+    if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
+        return "pension_plan_assets"
+
+    # 6. Filing Meta-text
+    if EXCLUDE_REGEX_FILING.search(text):
+        return "filing"
+
+    # 7. Contractual Noise (Glossary/Definitions)
+    if is_contractual_noise(text):
+        return "contractual_noise"
+
+    return None
+
 
 # We need the processor to validate tables
 from table_processor import TableToTextConverter
@@ -77,14 +114,32 @@ def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
 
 
 def strip_table_formatting(table_text: str) -> str:
-    """Flatten a table into plain text (for containers/garbage)."""
+    """
+    1. Removes HTML tags.
+    2. Filters out 'Poison Rows' using shared exclusion logic.
+    3. Merges surviving rows into a single text block.
+    """
+    # Remove all HTML-style tags
     text = TAG_PATTERN.sub("", table_text)
+
     lines = text.split("\n")
     cleaned_lines = []
+
     for line in lines:
         stripped = line.strip()
-        if stripped and not all(c in "-\t " for c in stripped):
-            cleaned_lines.append(stripped)
+
+        # Skip empty/separator lines
+        if not stripped or all(c in "-\t " for c in stripped):
+            continue
+
+        # FILTER POISON ROWS
+        # If a row triggers a hard exclusion, drop ONLY that row.
+        if check_hard_exclusions(stripped):
+            continue
+
+        cleaned_lines.append(stripped)
+
+    # Merge
     result = " ".join(cleaned_lines)
     return re.sub(r"\s+", " ", result).strip()
 
@@ -183,40 +238,16 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 # If empty after flattening, skip
                 if not p.strip():
                     continue
-                
+
         # 0. Clean Entities First
         p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+        
         # 2. EXCLUSION FILTERS (Applies to Text AND Flattened Tables)
-        if EXCLUDE_REGEX_LEGAL_LITIGATION.search(p):
-            local_discards.append((url, p, "legal_litigation"))
+        exclusion_reason = check_hard_exclusions(p)
+        if exclusion_reason:
+            local_discards.append((url, p, exclusion_reason))
             continue
-
-        if EXCLUDE_REGEX_FORWARD_LOOKING.search(p):
-            local_discards.append((url, p, "forward_looking"))
-            continue
-
-        if EXCLUDE_COMPETITOR_REGEX.search(p):
-            local_discards.append((url, p, "competitor_analysis"))
-            continue
-
-        if EXCLUDE_REGULATION_REGEX.search(p):
-            local_discards.append((url, p, "regulatory_boilerplate"))
-            continue
-
-        if EXCLUDE_PLAN_ASSETS_REGEX.search(p):
-            local_discards.append((url, p, "pension_plan_assets"))
-            continue
-
-        if EXCLUDE_REGEX_FILING.search(p):
-            local_discards.append((url, p, "filing"))
-            continue
-
-        if is_contractual_noise(p):
-            local_discards.append((url, p, "contractual_noise"))
-            continue
-
         # 3. SALVAGE LOGIC
-
         # Hypothetical
         if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
             if STRICT_REGEX.search(p) or (
