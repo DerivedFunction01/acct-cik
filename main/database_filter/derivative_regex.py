@@ -616,7 +616,7 @@ SOFT_GEN_TERMS = [
 VALUATION_MODELS = [
     # The Gold Standard for Equity Options/Warrants
     r"Black[- ]Scholes(?:[- ]Merton)?",
-    r"\bBSM\b",  # Abbreviation for Black-Scholes-Merton
+    r"\bBSM",  # Abbreviation for Black-Scholes-Merton
     # Used for path-dependent equity features (e.g., Market conditions, TSR awards)
     r"Monte[- ]Carlo(?:[- ]simulations?)?",
     # Used for American options (exercisable early) and Convertibles
@@ -625,7 +625,6 @@ VALUATION_MODELS = [
     # General descriptive
     r"option[- ]pricing\s+models?",
 ]
-
 HEDGING_CONTEXT_TERMS = [
     r"hedge(?:s|d|ing)?",
     r"mitigat(?:e|es|ed|ing)",
@@ -2837,7 +2836,7 @@ NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
     
     # Unconditional Obligations (ASC 440)
     r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
-    r"take[- ]or[- ]pay",g
+    r"take[- ]or[- ]pay",
     r"throughput\s+agreements?",
     
     # General Supply Chain (If not caught by Physical Inventory)
