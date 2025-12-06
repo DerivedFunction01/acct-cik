@@ -1816,9 +1816,14 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"corrective\s+actions?",
     r"breach(?:es|ed)?",
 ]
-# ... inside derivative_regex.py ...
+# =============================================================================
+# CONTRACTUAL NOISE LISTS (SPLIT)
+# =============================================================================
+
+# 1. STRICT: Capitalized Definitions & Structural Headers (High Confidence)
+# Single match is usually sufficient to identify a contract/indenture.
 CONTRACTUAL_KEYWORDS_STRICT = [
-    # 1. ROLES (Capitalized matches "Lenders" but ignores generic "lenders")
+    # ROLES
     r"\b(?:Administrative|Collateral|Syndication|Documentation)?\s*Agents?\b",
     r"\b(?:Co-)?Lenders?\b",
     r"\b(?:Co-)?Borrowers?\b",
@@ -1839,78 +1844,72 @@ CONTRACTUAL_KEYWORDS_STRICT = [
     r"\bLiquidators?\b",
     r"\bReceivers?\b",
     r"\bSuccessors?(?:\s+and\s+Assigns?)?\b",
-    # 2. LEGAL IDIOMS WITH CAPITALIZATION
-    # "Person" is a specific legal entity in contracts. Lowercase "person" is generic.
+    # IDIOMS
     r"\b(?:any|such|no|each|another)\s+Person\b",
     r"\bSurviving\s+Person\b",
     r"\bSuccessor\s+Person\b",
-    # 3. DOCUMENT OBJECTS
-    # Capitalized "Note" usually refers to the legal instrument.
+    # DOCUMENTS
     r"\bGlobal\s+Notes?\b",
     r"\bDefinitive\s+Notes?\b",
     r"\bSupplemental\s+Indenture\b",
     r"\bOfficer['’]s\s+Certificate\b",
-    # 4. STRUCTURAL HEADERS (Roman Numerals & Capitalized Sections)
-    # Matches: "Article IV", "Section 5.01"
-    # Ignores: "newspaper article", "in this section"
+    # STRUCTURE
     r"\bArticles?\s+(?:[IVXLCDM]+|\d+)\s+(?:hereof|thereof|of\s+the\s+(?:Credit|Loan|Indenture|Agreement))\b",
     r"\bArticles?\s+[IVXLCDM]+\b",
     r"\bSections?\s+\d+\.\d+(?:\([a-z]\))?\b",
-    # 5. LISTS (Capitalized)
     r"\bRecitals?\b",
     r"\bSchedules?\s+(?:\d+|[A-Z])\b",
     r"\bExhibits?\s+(?:\d+|[A-Z])\b",
     r"\bAnnex(?:es)?\s+(?:\d+|[A-Z])\b",
 ]
 
-# =============================================================================
-# LIST 2: CASE-INSENSITIVE (LOOSE)
-# Target: Archaic Adverbs, Actions, and Distinctive Legal Phrasing
-# =============================================================================
-CONTRACTUAL_KEYWORDS_LOOSE = [
-    # 1. LEGAL ADVERBS (Never used in normal financial narrative)
+# 2. LOOSE SINGLE: Archaic Adverbs (High Risk of False Positive)
+# These require high density (>3) or combination with phrases to trigger discard.
+CONTRACTUAL_KEYWORDS_SINGLE = [
     r"\bhereby\b",
     r"\bhereof\b",
     r"\bthereof\b",
     r"\bthereunder\b",
     r"\bhereunder\b",
-    r"\bmutatis\s+mutandis\b",
-    r"\binter\s+alia\b",
     r"\bwitnesseth\b",
     r"\bwhereas\b",
+    r"\bhereto\b",
+]
+
+# 3. LOOSE PHRASE: Legal Actions & Boilerplate (Medium Confidence)
+CONTRACTUAL_KEYWORDS_PHRASE = [
+    # Latin/Legal Idioms
+    r"\bmutatis\s+mutandis\b",
+    r"\binter\s+alia\b",
     r"\binure\s+to\s+the\s+benefit\b",
     r"\bnow\s*,?\s*therefore\b",
-    # 2. CONTRACTUAL ACTIONS
+    # Actions
     r"acknowledge(?:s|d)?\s+and\s+agree(?:s|d)?",
     r"reaffirm(?:s|ed|ing)?\s+(?:its|their|the)\s+obligations",
     r"ratif(?:y|ies|ied)\s+and\s+confirm(?:s|ed)?",
     r"constitute\s+valid\s+and\s+subsisting\s+obligations",
     r"waive(?:s|d)?\s+any\s+(?:defense|claim|offset)",
     r"operat(?:e|es|ed)\s+to\s+reduce\s+or\s+discharge",
-    # 3. CONSENT & EVIDENCE
+    # Consent/Evidence
     r"prior\s+written\s+consent",
     r"consent\s+of\s+the\s+(?:Administrative\s+Agent|Lenders?|Banks?)",
     r"without\s+the\s+consent\s+of",
-    # Note: "Note/Agreement" kept strict-ish via regex structure, but safe to check loosely
-    # because "evidenced by" is the trigger.
     r"evidenced\s+(?:or\s+represented\s+)?by\s+(?:a|an|the|any)\s+(?:Note|Certificate|Instrument|Agreement|Contract)",
-    # 4. POINTERS
+    # Pointers
     r"the\s+foregoing\s+(?:recitals|definitions|provisions|conditions|covenants)",
     r"under\s+the\s+Credit\s+Agreement",
     r"under\s+the\s+Loan\s+Documents",
     r"under\s+the\s+Guarantee",
     r"terms\s+defined\s+in\s+the\s+Credit\s+Agreement",
-    
+    # Governance
     r"certificate\s+of\s+incorporation",
     r"articles\s+of\s+incorporation",
     r"certificate\s+of\s+designation",
     r"by[- ]?laws",
     r"organizational\s+documents",
-    # 2. State Law / Jurisdiction (Common in Risk Factors)
     r"delaware\s+law",
     r"general\s+corporation\s+law",
-    r"DGCL",  # Delaware General Corporation Law
-    # 3. Specific "Anti-Takeover" phrasing
+    r"DGCL",
     r"anti[- ]takeover",
     r"change\s+of\s+control\s+provisions?",
     r"stockholder\s+rights\s+plan",
@@ -2398,33 +2397,42 @@ EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
 EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
 EXCLUDE_REGEX_FILING = build_exclude_regex(FILING_KEYWORDS)
-# Compile separately
-EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(
-    CONTRACTUAL_KEYWORDS_STRICT, ignore_case=False
-)
-EXCLUDE_REGEX_CONTRACTUAL_LOOSE = build_exclude_regex(
-    CONTRACTUAL_KEYWORDS_LOOSE, ignore_case=True
-)
+
+EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(CONTRACTUAL_KEYWORDS_STRICT, ignore_case=False)
+EXCLUDE_REGEX_CONTRACTUAL_SINGLE = build_exclude_regex(CONTRACTUAL_KEYWORDS_SINGLE, ignore_case=True)
+EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(CONTRACTUAL_KEYWORDS_PHRASE, ignore_case=True)
 
 
-def is_contractual_noise(text: str, loose_threshold: int = 1) -> bool:
+def is_contractual_noise(text: str, threshold: int = 4) -> bool:
     """
-    Determines if text is contractual boilerplate.
-    
-    Args:
-        text: The paragraph to check.
-        loose_threshold: Minimum number of 'loose' keywords required to trigger a discard.
-                         Defaults to 1 to prevent single words like 'thereof' from killing valid text.
-    """
-    # 1. STRICT: Keep as-is (Zero Tolerance)
-    # These words (like "Recitals", "Article IV") are distinct enough to kill immediately.
-    if len(EXCLUDE_REGEX_CONTRACTUAL_STRICT.findall(text)) > loose_threshold:
-        return True
+    Determines if text is contractual boilerplate using a scoring system.
 
-    # 2. LOOSE: Enforce Density Check
-    if len(EXCLUDE_REGEX_CONTRACTUAL_LOOSE.findall(text)) >= loose_threshold * 2:
-        return True
-    return False
+    Scoring Logic (Threshold = 4):
+    - Strict Matches (Capitalized definitions): 2 points each (2 hits = Discard)
+    - Phrases (Legal actions): 2 points each (2 hits = Discard)
+    - Single Words (Archaic adverbs): 1 point each (4 hits = Discard)
+
+    Combinations work automatically:
+    - 1 Phrase (2pts) + 2 Singles (2pts) = 4pts -> Discard
+    """
+
+    # 1. DEFINE WEIGHTS
+    W_STRICT = 2
+    W_PHRASE = 2
+    W_SINGLE = 1
+
+    # 2. COUNT MATCHES
+    # Note: We use findall to get the count of occurrences
+    strict_hits = len(EXCLUDE_REGEX_CONTRACTUAL_STRICT.findall(text))
+    phrase_hits = len(EXCLUDE_REGEX_CONTRACTUAL_PHRASE.findall(text))
+    single_hits = len(EXCLUDE_REGEX_CONTRACTUAL_SINGLE.findall(text))
+
+    # 3. CALCULATE SCORE
+    score = (
+        (strict_hits * W_STRICT) + (phrase_hits * W_PHRASE) + (single_hits * W_SINGLE)
+    )
+
+    return score >= threshold
 
 
 SUBJECTS = [
