@@ -246,6 +246,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     # 4. Return result if we have content left
     if clean_paragraphs:
+        should_keep = any(find_hedging_context(p) for p in clean_paragraphs)
+        if not should_keep:
+            local_discards.append((url, "\n\n".join(clean_paragraphs), "no_hedging_context"))
+            return None
         return (
             url,
             json.dumps(clean_paragraphs),
