@@ -109,10 +109,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             local_discards.append((url, p, "filing"))
             continue
 
-        if is_contractual_noise(p):
-            local_discards.append((url, p, "contractual_noise"))
-            continue
-
         # Hypothetical: Salvage Logic
         if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
             # If explicit instrument OR soft+context found, keep it.
@@ -163,6 +159,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             discarded_text = " ".join(set(sentences) - set(kept))
             if discarded_text:
                 local_discards.append((url, discarded_text, "accounting_standards"))
+            continue
+
+        if is_contractual_noise(p):
+            local_discards.append((url, p, "contractual_noise"))
             continue
 
         # 3. Keep Survivor

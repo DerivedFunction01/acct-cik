@@ -2362,7 +2362,7 @@ HYPOTHETICAL_KEYWORDS = [
     r"measure(?:s|d|ment)\s+of\s+market\s+risk",
     r"confidence\s+(?:level|interval)",
     r"statistical\s+(?:measure|model)",
-    r"hypothetical\s+(?:change|loss|shift|scenario|stress)", # Added 'stress'
+    r"hypothetical\s+(?:change|loss|shift|scenario|stress|derivative)", # Added 'stress'
     r"parallel\s+shift",
     r"simulation\s+model\s+that\s+estimates",
     r"sensitivity\s+analysis",
