@@ -1138,13 +1138,19 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     ]
 
     # --- 5. Final Build and Compile ---
-    soft_pattern = build_smart_regex(
+    strict_pattern = build_smart_regex(
         core_terms,
-        expand_instruments(unsafe=True, additional_bases=["protection"]), # IR is highly unambiguous
+        expand_instruments(unsafe=False, additional_bases=["protection"]), # IR caps, locks, floors is not included without the word contract, etc
         specific_phrases,
     )
-    regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-    return regex, regex # return the same thing as a tuple for consistency
+    soft_pattern = build_smart_regex(
+        core_terms,
+        expand_instruments(unsafe=True, additional_bases=["protection"]), # IR caps, locks, floors
+        specific_phrases,
+    )
+    strict_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
+    soft_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+    return strict_regex, soft_regex  # return the same thing as a tuple for consistency
 
 
 def build_fx_dynamic_pattern() -> str:
