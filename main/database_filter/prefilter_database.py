@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from queue import Empty
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Set
 
 from tqdm import tqdm
 
@@ -197,27 +197,37 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 # =============================================================================
 
 
-def producer_task(queue: mp.Queue, db_path: str):
-    """Reads raw data and feeds the queue."""
+def producer_task(queue: mp.Queue, db_path: str, processed_urls: Set[str]):
+    """Reads raw data and feeds the queue, skipping already processed URLs."""
     print("🔌 Producer started...")
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
+    # Note: We fetch everything valid from source, filtering is done in Python
+    # (faster than attaching DBs for this use case usually)
     c.execute(
         "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
 
     count = 0
+    skipped = 0
     while True:
-        # Fetch in chunks to keep memory low
         rows = c.fetchmany(1000)
         if not rows:
             break
+
         for row in rows:
+            url = row[0]
+            if url in processed_urls:
+                skipped += 1
+                continue
+
             queue.put(row)
             count += 1
 
     conn.close()
-    print(f"🔌 Producer finished. Queued {count:,} items.")
+    print(
+        f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,} already done)."
+    )
 
 
 def worker_task(in_queue: mp.Queue, out_queue: mp.Queue):
@@ -236,10 +246,10 @@ def worker_task(in_queue: mp.Queue, out_queue: mp.Queue):
 
 
 def setup_target_db(path):
-    if Path(path).exists():
-        Path(path).unlink()
+    """Creates the DB if it doesn't exist, ensures schema if it does."""
     conn = sqlite3.connect(path)
     c = conn.cursor()
+    # Using IF NOT EXISTS preserves data if the file is already there
     c.execute(
         "CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, matches TEXT NOT NULL)"
     )
@@ -254,6 +264,26 @@ def setup_target_db(path):
     conn.close()
 
 
+def get_processed_urls(target_db_path: str) -> Set[str]:
+    """Retrieves set of URLs that have already been processed into the target DB."""
+    if not Path(target_db_path).exists():
+        return set()
+
+    print("🔍 Checking for existing progress...")
+    try:
+        conn = sqlite3.connect(target_db_path)
+        c = conn.cursor()
+        # We need to check both successes and failures/empty results to avoid re-processing
+        # Assuming webpage_result stores both valid matches and empty lists "[]"
+        c.execute("SELECT url FROM webpage_result")
+        urls = {row[0] for row in c.fetchall()}
+        conn.close()
+        return urls
+    except sqlite3.OperationalError:
+        # Table might not exist yet
+        return set()
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -261,7 +291,6 @@ def get_total_count(db_path):
     """Counts valid rows in source DB for progress bar."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    # Matches the WHERE clause in producer_task
     cursor.execute("SELECT COUNT(*) FROM webpage_result WHERE matches IS NOT NULL")
     count = cursor.fetchone()[0]
     conn.close()
@@ -271,6 +300,7 @@ def get_total_count(db_path):
 def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value):
     """Batches writes to the database and updates shared progress counter."""
     print("💾 Writer started...")
+    # Ensure schema exists (safe to call multiple times)
     setup_target_db(db_path)
 
     conn = sqlite3.connect(db_path, timeout=60)
@@ -308,6 +338,11 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
             conn.commit()
 
             # UPDATE PROGRESS
+            # Note: We update based on buffer size, which corresponds to successful processing
+            # But the progress bar tracks Total Input Items.
+            # To sync correctly, the writer should arguably not control the main progress bar
+            # if we want to track items *processed* (including filtered/skipped).
+            # However, for a simple resume, updating here is fine as long as we add the initial offset.
             batch_len = len(buffer)
             with counter.get_lock():
                 counter.value += batch_len
@@ -343,40 +378,56 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
     conn.close()
     print(f"💾 Writer finished. Total saved: {total_written:,}")
 
+
 if __name__ == "__main__":
     print(f"🚀 Starting Multi-Process Pre-Filter ({NUM_WORKERS} workers)")
 
-    # 0. Get Total for Progress Bar
-    total_items = get_total_count(SOURCE_DB_PATH)
-    print(f"📊 Total items to process: {total_items:,}")
+    # 0. Check for Resume
+    processed_urls = get_processed_urls(TARGET_DB_PATH)
+    processed_count = len(processed_urls)
 
-    # 1. Queues & Shared Counter
+    # 1. Get Total for Progress Bar
+    total_items = get_total_count(SOURCE_DB_PATH)
+    remaining_items = total_items - processed_count
+
+    print(f"📊 Total items: {total_items:,}")
+    print(f"♻️  Already done: {processed_count:,}")
+    print(f"⏳ Remaining:    {remaining_items:,}")
+
+    # 2. Queues & Shared Counter
     task_queue = mp.Queue(maxsize=QUEUE_SIZE)
     result_queue = mp.Queue(maxsize=QUEUE_SIZE)
     stop_event = mp.Event()
-    processed_counter = mp.Value("i", 0)
 
-    # 2. Start Writer (Pass the counter)
+    # Initialize counter with what we already have
+    processed_counter = mp.Value("i", processed_count)
+
+    # 3. Start Writer
     writer_p = mp.Process(
         target=writer_task,
         args=(result_queue, TARGET_DB_PATH, stop_event, processed_counter),
     )
     writer_p.start()
 
-    # 3. Start Workers
+    # 4. Start Workers
     workers = []
     for _ in range(NUM_WORKERS):
         p = mp.Process(target=worker_task, args=(task_queue, result_queue))
         p.start()
         workers.append(p)
 
-    # 4. Start Producer (In separate process so we can monitor)
-    producer_p = mp.Process(target=producer_task, args=(task_queue, SOURCE_DB_PATH))
+    # 5. Start Producer (Passing the processed set to skip them)
+    producer_p = mp.Process(
+        target=producer_task, args=(task_queue, SOURCE_DB_PATH, processed_urls)
+    )
     producer_p.start()
 
-    # 5. Monitoring Loop
+    # 6. Monitoring Loop
     try:
-        with tqdm(total=total_items, unit="docs", smoothing=0.1) as pbar:
+        # Initialize tqdm with total and initial value
+        with tqdm(
+            total=total_items, initial=processed_count, unit="docs", smoothing=0.1
+        ) as pbar:
             while True:
                 time.sleep(1)
 
@@ -386,7 +437,6 @@ if __name__ == "__main__":
                 pbar.refresh()
 
                 # Visual Indicators for Queues
-                # (qsize is reliable on Linux/Windows, can be iffy on Mac)
                 try:
                     in_q = task_queue.qsize()
                     out_q = result_queue.qsize()
@@ -396,23 +446,23 @@ if __name__ == "__main__":
 
                 pbar.set_postfix(in_queue=f"{in_q}/{QUEUE_SIZE}", out_queue=f"{out_q}")
 
-                # Exit Condition: All done OR (Producer done + Workers done + Queues empty)
-                if current >= total_items:
-                    break
-
-                # Check if everyone died unexpectedly
+                # Exit Condition
+                # We are done when the producer finishes AND workers finish AND queues empty
                 if (
-                    not any(p.is_alive() for p in workers)
-                    and not producer_p.is_alive()
+                    not producer_p.is_alive()
                     and task_queue.empty()
+                    and not any(p.is_alive() for p in workers)
                     and result_queue.empty()
                 ):
                     break
 
+                # Alternate exit: if we reached total count (sometimes unreliable if discards happen silently)
+                # Ideally rely on process liveness check above
+
     except KeyboardInterrupt:
         print("\n⚠️ Stopping...")
 
-    # 6. Shutdown
+    # 7. Shutdown
     print("Shutting down workers...")
     for _ in range(NUM_WORKERS):
         try:
