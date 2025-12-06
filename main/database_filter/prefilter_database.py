@@ -19,6 +19,8 @@ TARGET_DB_PATH = "prefiltered_data.db"  # Clean Input for Categorizer
 from derivative_regex import (
     ACCOUNTING_STANDARDS_STRICT_REGEX,
     DER_STD_REGEX,
+    ENTITY_EXCLUSION_REGEX,
+    ENTITY_TOKEN,
     EQ_REGEX,
     EQ_SOFT_REGEX,
     EXCLUDE_REGEX_EQUITY_COMP,
@@ -165,6 +167,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     clean_paragraphs = []
     local_discards = []
     for i, p in enumerate(paragraphs):
+        p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
         # 1. Skip Tables (Pass them through for the Table Processor in next stage)
         # Or you can choose to filter noise WITHIN tables here if you want.
         # For now, we pass them safely.
