@@ -2322,6 +2322,9 @@ REGULATORY_KEYWORDS = [
     r"regulatory\s+(?:requirements?|compliance|authorit(?:y|ies)|bod(?:y|ies)|agenc(?:y|ies)|frameworks?|matters?|reforms?)",
     r"subject\s+to\s+(?:regulation|oversight|regulatory)",
     r"governmental\s+regulations?",
+    r"govern(?:ing|ed|s)?",
+    r"penalt(?:y|ies)",
+    r"(?:state|local|federal|international)\s+laws?",
     # 2. Specific Laws & Acts (The big noise makers)
     r"Dodd[- ]Frank",
     r"Volcker\s+Rule",
