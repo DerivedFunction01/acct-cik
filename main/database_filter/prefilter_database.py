@@ -108,6 +108,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         if EXCLUDE_REGEX_FILING.search(p):
             local_discards.append((url, p, "filing"))
             continue
+        # Do not want to have later stages try to salvage contractual noise
+        if is_contractual_noise(p):
+            local_discards.append((url, p, "contractual_noise"))
+            continue
 
         # Hypothetical: Salvage Logic
         if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
@@ -161,9 +165,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 local_discards.append((url, discarded_text, "accounting_standards"))
             continue
 
-        if is_contractual_noise(p):
-            local_discards.append((url, p, "contractual_noise"))
-            continue
 
         # 3. Keep Survivor
         clean_paragraphs.append(p)
