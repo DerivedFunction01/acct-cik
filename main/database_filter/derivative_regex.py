@@ -1611,6 +1611,8 @@ def build_derivative_standards() -> re.Pattern:
         # --- NEW: The Codified Version (ASC 815-40) ---
         # EITF 00-19 was codified into ASC 815-40 "Contracts in Entity's Own Equity"
         r"ASC\s+815[-–—\s]?40",
+        # Just adding this here 
+        r"bifurcat(?:ed|ion|ing)",
     ]
     pattern = build_alternation(stds)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
