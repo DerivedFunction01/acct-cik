@@ -48,7 +48,7 @@ import sqlite3
 from itertools import groupby
 import uuid
 from final_verification import QUANT_REGEX
-from text_cleaner import TextCleaner
+from main.database_filter.text_cleaner import TextCleaner
 from year_deletion import extract_years, has_current_year_mention
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX, check_is_quantitative_zero
 from table_processor import TABLE_ANCHOR, TableToTextConverter

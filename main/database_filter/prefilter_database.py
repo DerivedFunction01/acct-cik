@@ -109,7 +109,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             local_discards.append((url, p, "filing"))
             continue
 
-        if is_contractual_noise(p, loose_threshold=2):
+        if is_contractual_noise(p, threshold=2):
             local_discards.append((url, p, "contractual_noise"))
             continue
 

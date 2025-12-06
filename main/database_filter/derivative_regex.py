@@ -1824,10 +1824,11 @@ LEGAL_LITIGATION_KEYWORDS = [
 # Single match is usually sufficient to identify a contract/indenture.
 CONTRACTUAL_KEYWORDS_STRICT = [
     # ROLES
-    r"\b(?:Administrative|Collateral|Syndication|Documentation)?\s*Agents?\b",
+    r"\bAgents?\b",
     r"\b(?:Co-)?Lenders?\b",
     r"\b(?:Co-)?Borrowers?\b",
     r"\bGuarantors?\b",
+    r"\bPersons?\b",
     r"\bIssuing\s+Banks?\b",
     r"\bSwingline\s+Lenders?\b",
     r"\bNoteholders?\b",
@@ -1835,8 +1836,6 @@ CONTRACTUAL_KEYWORDS_STRICT = [
     r"\bPledgors?\b",
     r"\bTrustees?\b",
     r"\bRegistrars?\b",
-    r"\bPaying\s+Agents?\b",
-    r"\bTransfer\s+Agents?\b",
     r"\bCustodians?\b",
     r"\bDepositaries?\b",
     r"\bAssignees?\b",
@@ -1874,6 +1873,7 @@ CONTRACTUAL_KEYWORDS_SINGLE = [
     r"\bwitnesseth\b",
     r"\bwhereas\b",
     r"\bhereto\b",
+    r"\bforegoing\b",
 ]
 
 # 3. LOOSE PHRASE: Legal Actions & Boilerplate (Medium Confidence)
@@ -2823,7 +2823,7 @@ NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
     
     # Unconditional Obligations (ASC 440)
     r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
-    r"take[- ]or[- ]pay",
+    r"take[- ]or[- ]pay",g
     r"throughput\s+agreements?",
     
     # General Supply Chain (If not caught by Physical Inventory)
