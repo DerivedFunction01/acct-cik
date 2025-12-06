@@ -2123,7 +2123,7 @@ GUIDANCE_OBJECT_TYPES = [
     r"Statements?",
     r"Provisions?",
     r"Regulations?",
-    r"Abstract",
+    r"Abstracts?",
     r"Opinions?",
     r"Codifications?",
     r"Pronouncements?",
@@ -2132,6 +2132,9 @@ GUIDANCE_OBJECT_TYPES = [
     r"Frameworks?",
     r"Concept\s+Statements?",
     r"Clarifications?",
+    r"Rules?",
+    r"Principals?",
+    r"Principles?"
 ]
 
 # --- STANDALONE PHRASES (context-specific, non-generic) ---
@@ -2209,7 +2212,7 @@ ACCOUNTING_STANDARDS_STRICT = [
     
     # Explicit Adoption ("Adoption of the new guidance")
     rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+{STANDARD_ID_PATTERN}",
-    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:the\s+)?(?:new\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
+    rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:\S+\s+){{0,10}}{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
     
     # Future Adoption ("We plan to adopt...")
     rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
@@ -3735,4 +3738,4 @@ def create_strict_fair_value_regex() -> re.Pattern:
     return re.compile(pattern, re.IGNORECASE)
 
 # Export this
-STRICT_FV_INDICATOR_REGEX = create_strict_fair_value_regex()
+FV_REGEX = create_strict_fair_value_regex()
