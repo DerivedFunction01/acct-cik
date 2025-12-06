@@ -1,27 +1,23 @@
-import re
 import sqlite3
 import json
+import re
 import multiprocessing as mp
 import time
 from pathlib import Path
 from queue import Empty
-import logging
-from typing import Optional, Tuple, Set
-
+from typing import List, Tuple, Optional, Set
 from tqdm import tqdm
-
-logging.basicConfig(level=logging.INFO)
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
-BATCH_SIZE = 1000  # Transaction size for writer
-QUEUE_SIZE = NUM_WORKERS * 50  # Buffer size to keep memory stable
+BATCH_SIZE = 1000
+QUEUE_SIZE = NUM_WORKERS * 50
 SOURCE_DB_PATH = "web_data.db"
 TARGET_DB_PATH = "prefiltered_data.db"
 
-# Import exclusions
+# --- IMPORTS ---
 from derivative_regex import (
     ACCOUNTING_STANDARDS_STRICT_REGEX,
     DER_STD_REGEX,
@@ -47,39 +43,96 @@ from derivative_regex import (
     is_contractual_noise,
 )
 
+# We need the processor to validate tables
+from table_processor import TableToTextConverter
+
+# =============================================================================
+# TABLE CLEANUP HELPERS (Integrated)
+# =============================================================================
+
+FOOTNOTE_PATTERN = re.compile(r"<FN>(.*?)</FN>\s*</TABLE>", re.DOTALL | re.IGNORECASE)
+INDIVIDUAL_FOOTNOTE_PATTERN = re.compile(
+    r"<F\s+(\d+)>\s*(.*?)(?=<F\s+\d+>|$)", re.DOTALL
+)
+TAG_PATTERN = re.compile(r"<[^>]+>")
+WARRANT_CATCHER = re.compile(r"\bwarrants?\b", re.IGNORECASE)
+
+
+def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
+    """Extract footnotes from a table and return cleaned table + footnotes list."""
+    footnotes = []
+    fn_match = FOOTNOTE_PATTERN.search(table_text)
+    if fn_match:
+        fn_content = fn_match.group(1)
+        individual_fns = INDIVIDUAL_FOOTNOTE_PATTERN.findall(fn_content)
+        for fn_num, fn_text in individual_fns:
+            cleaned = fn_text.strip()
+            cleaned = re.sub(r"\s+", " ", cleaned)
+            if cleaned:
+                footnotes.append(f"Footnote {fn_num}: {cleaned}")
+        cleaned_table = FOOTNOTE_PATTERN.sub("</TABLE>", table_text)
+        return cleaned_table, footnotes
+    return table_text, []
+
+
+def strip_table_formatting(table_text: str) -> str:
+    """Flatten a table into plain text (for containers/garbage)."""
+    text = TAG_PATTERN.sub("", table_text)
+    lines = text.split("\n")
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not all(c in "-\t " for c in stripped):
+            cleaned_lines.append(stripped)
+    result = " ".join(cleaned_lines)
+    return re.sub(r"\s+", " ", result).strip()
+
+
+def is_text_container_table(table_text: str, footnotes: List[str]) -> bool:
+    """
+    Returns True if table is just text (should be flattened).
+    Returns False if table is valid numeric data (should be kept as table).
+    """
+    if not TableToTextConverter:
+        return True
+
+    # Inject 'Notional' to force High Recall on Soft Matches (e.g. Gold Contracts)
+    context_str = " ".join(footnotes) + " Notional"
+
+    try:
+        converter = TableToTextConverter(
+            table_text, narrative_context=context_str, is_sophisticated=True
+        )
+        sentences = converter.process()
+        return len(sentences) == 0  # No sentences = Garbage/Text -> True
+    except Exception:
+        return True  # On error, treat as text container
+
+
 # =============================================================================
 # WORKER LOGIC
 # =============================================================================
 
-WARRANT_CATCHER = re.compile(r"\bwarrants\b", re.IGNORECASE)
 
 def find_hedging_context(paragraph: str) -> bool:
-    # 1. Strict Instruments (e.g. "Interest Rate Swap") -> Automatic Pass
     if STRICT_REGEX.search(paragraph):
         return True
-
-    # 2. Strong Accounting Signals (e.g. "Cash Flow Hedge") -> Automatic Pass
     elif SOFT_GEN_REGEX.search(paragraph):
         return True
-
-    # 3. Soft Instrument + Context (e.g. "Equity Option" + "Risk Mgmt")
     elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
         return True
-
-    # 4. Standard + Generic (e.g. "ASC 815" + "Contracts")
     elif DER_STD_REGEX.search(paragraph) and LOOSE_GEN_REGEX.search(paragraph):
         return True
-
-    # 5. The "Warrant" Safety Net
-    # Captures "warrant" or "warrants" IF combined with Valuation/Risk context.
-    # We use regex to avoid partial matches (though 'warrants' is fairly unique).
     elif WARRANT_CATCHER.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
+        return True
+
+    # Tables are self-validating if they survived the TableToText check
+    if "<TABLE>" in paragraph.upper():
         return True
 
     return False
 
 def process_item(item: Tuple) -> Optional[Tuple]:
-    # Unpack based on query: url, matches, cik, year
     url, matches_json, cik, year = item
 
     try:
@@ -91,15 +144,49 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     local_discards = []
 
     for p in paragraphs:
+
+        # 1. INTELLIGENT TABLE HANDLING
+        if "<TABLE>" in p.upper():
+            # A. Extract components
+            cleaned_table, footnotes = extract_and_separate_footnotes(p)
+
+            # B. Validate Structure
+            is_container = is_text_container_table(cleaned_table, footnotes)
+
+            if not is_container:
+                # --- VALID TABLE PATH ---
+                # It contains numbers/derivatives. Keep it structure.
+
+                # Check for Hard Legal Exclusions inside the table text
+                if EXCLUDE_REGEX_LEGAL_LITIGATION.search(cleaned_table):
+                    local_discards.append((url, "<table>...", "legal_table"))
+                    continue
+
+                # Append Table
+                clean_paragraphs.append(cleaned_table)
+                # Append Footnotes as text (processed in next loop? No, footnotes are text)
+                # We add footnotes to the output immediately
+                if footnotes:
+                    clean_paragraphs.extend(footnotes)
+
+                continue  # Done with this paragraph
+            else:
+                # --- FLATTEN PATH ---
+                # It is a text container. Flatten it to a string.
+                # It will now fall through to the Standard Text Filters below.
+                p = strip_table_formatting(cleaned_table)
+
+                # Append footnotes to the flattened text so they get checked together
+                if footnotes:
+                    p += " " + " ".join(footnotes)
+
+                # If empty after flattening, skip
+                if not p.strip():
+                    continue
+                
         # 0. Clean Entities First
         p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
-
-        # 1. Skip Tables (Pass-through for later processing)
-        if "<TABLE>" in p.upper():
-            clean_paragraphs.append(p)
-            continue
-
-        # 2. Exclusion Filters
+        # 2. EXCLUSION FILTERS (Applies to Text AND Flattened Tables)
         if EXCLUDE_REGEX_LEGAL_LITIGATION.search(p):
             local_discards.append((url, p, "legal_litigation"))
             continue
@@ -123,14 +210,15 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         if EXCLUDE_REGEX_FILING.search(p):
             local_discards.append((url, p, "filing"))
             continue
-        # Do not want to have later stages try to salvage contractual noise
+
         if is_contractual_noise(p):
             local_discards.append((url, p, "contractual_noise"))
             continue
 
-        # Hypothetical: Salvage Logic
+        # 3. SALVAGE LOGIC
+
+        # Hypothetical
         if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
-            # If explicit instrument OR soft+context found, keep it.
             if STRICT_REGEX.search(p) or (
                 SOFT_REGEX.search(p) and HEDGING_CONTEXT_REGEX.search(p)
             ):
@@ -140,7 +228,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 local_discards.append((url, p, "hypothetical_sensitivity_methodology"))
                 continue
 
-        # Equity Comp: Salvage Logic
+        # Equity Comp
         if EXCLUDE_REGEX_EQUITY_COMP.search(p):
             kept = []
             sentences = SENTENCE_SPLIT_PATTERN.split(p)
@@ -154,17 +242,15 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     if has_hedging_context:
                         kept.append(sent)
 
-            # Reconstruct
             if kept:
                 clean_paragraphs.append(" ".join(kept))
 
-            # Log discard (approximate)
             discarded_text = " ".join(set(sentences) - set(kept))
             if discarded_text:
                 local_discards.append((url, discarded_text, "comp"))
             continue
 
-        # Accounting Standards: Salvage Logic
+        # Accounting Standards
         if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
             kept = []
             sentences = SENTENCE_SPLIT_PATTERN.split(p)
@@ -180,13 +266,11 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 local_discards.append((url, discarded_text, "accounting_standards"))
             continue
 
-
-        # 3. Keep Survivor
+        # 4. KEEP SURVIVOR
         clean_paragraphs.append(p)
 
-    # 4. Final Gatekeeper (Hedging Context)
+    # 5. FINAL GATEKEEPER
     if clean_paragraphs:
-        # Check if *any* remaining paragraph has context
         should_keep = any(find_hedging_context(p) for p in clean_paragraphs)
         if not should_keep:
             local_discards.append(
@@ -201,11 +285,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             year,
             aggregate_discards(local_discards),
         )
-    elif local_discards:
-        # Log purely discarded items
-        return (url, "[]", cik, year, aggregate_discards(local_discards))
 
-    return None
+    # Save empty to mark progress
+    return (url, "[]", cik, year, aggregate_discards(local_discards))
 
 
 # =============================================================================
@@ -214,12 +296,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
 
 def producer_task(queue: mp.Queue, db_path: str, processed_urls: Set[str]):
-    """Reads raw data and feeds the queue, skipping already processed URLs."""
     print("🔌 Producer started...")
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    # Note: We fetch everything valid from source, filtering is done in Python
-    # (faster than attaching DBs for this use case usually)
+    # Fetch all, filtering happens in loop
     c.execute(
         "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
@@ -230,29 +310,22 @@ def producer_task(queue: mp.Queue, db_path: str, processed_urls: Set[str]):
         rows = c.fetchmany(1000)
         if not rows:
             break
-
         for row in rows:
-            url = row[0]
-            if url in processed_urls:
+            if row[0] in processed_urls:
                 skipped += 1
                 continue
-
             queue.put(row)
             count += 1
 
     conn.close()
-    print(
-        f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,} already done)."
-    )
+    print(f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,}).")
 
 
 def worker_task(in_queue: mp.Queue, out_queue: mp.Queue):
-    """Consumes raw items, processes them, sends to writer."""
     while True:
         item = in_queue.get()
-        if item is None:  # Sentinel
+        if item is None:
             break
-
         try:
             result = process_item(item)
             if result:
@@ -261,11 +334,74 @@ def worker_task(in_queue: mp.Queue, out_queue: mp.Queue):
             print(f"⚠️ Worker error: {e}")
 
 
+def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value):
+    print("💾 Writer started...")
+    setup_target_db(db_path)
+    conn = sqlite3.connect(db_path, timeout=60)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    c = conn.cursor()
+
+    buffer = []
+    discards_buffer = []
+    total_written = 0
+
+    def flush():
+        nonlocal buffer, discards_buffer, total_written
+        if not buffer and not discards_buffer:
+            return
+        try:
+            c.execute("BEGIN TRANSACTION")
+            if buffer:
+                c.executemany(
+                    "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
+                    [(r[0], r[1]) for r in buffer],
+                )
+                c.executemany(
+                    "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
+                    [(r[0], r[2], r[3]) for r in buffer],
+                )
+            if discards_buffer:
+                c.executemany(
+                    "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
+                    discards_buffer,
+                )
+            conn.commit()
+
+            with counter.get_lock():
+                counter.value += len(buffer)
+            total_written += len(buffer)
+            buffer.clear()
+            discards_buffer.clear()
+        except Exception as e:
+            print(f"❌ Writer Error: {e}")
+            conn.rollback()
+
+    while not stop_event.is_set() or not queue.empty():
+        try:
+            result = queue.get(timeout=1)
+            # Always append (even empty []) to ensure resume works
+            buffer.append((result[0], result[1], result[2], result[3]))
+            if result[4]:
+                discards_buffer.extend(result[4])
+            if len(buffer) >= BATCH_SIZE:
+                flush()
+        except Empty:
+            continue
+
+    flush()
+    conn.close()
+    print(f"💾 Writer finished. Total saved: {total_written:,}")
+
+
+# =============================================================================
+# SETUP & MAIN
+# =============================================================================
+
+
 def setup_target_db(path):
-    """Creates the DB if it doesn't exist, ensures schema if it does."""
     conn = sqlite3.connect(path)
     c = conn.cursor()
-    # Using IF NOT EXISTS preserves data if the file is already there
     c.execute(
         "CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, matches TEXT NOT NULL)"
     )
@@ -280,188 +416,64 @@ def setup_target_db(path):
     conn.close()
 
 
-def get_processed_urls(target_db_path: str) -> Set[str]:
-    """Retrieves set of URLs that have already been processed into the target DB."""
-    if not Path(target_db_path).exists():
+def get_processed_urls(path):
+    if not Path(path).exists():
         return set()
-
-    print("🔍 Checking for existing progress...")
+    conn = sqlite3.connect(path)
+    c = conn.cursor()
     try:
-        conn = sqlite3.connect(target_db_path)
-        c = conn.cursor()
-        # We need to check both successes and failures/empty results to avoid re-processing
-        # Assuming webpage_result stores both valid matches and empty lists "[]"
         c.execute("SELECT url FROM webpage_result")
-        urls = {row[0] for row in c.fetchall()}
-        conn.close()
-        return urls
-    except sqlite3.OperationalError:
-        # Table might not exist yet
+        return {row[0] for row in c.fetchall()}
+    except:
         return set()
 
 
-# =============================================================================
-# MAIN
-# =============================================================================
-def get_total_count(db_path):
-    """Counts valid rows in source DB for progress bar."""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM webpage_result WHERE matches IS NOT NULL")
-    count = cursor.fetchone()[0]
+def get_total_count(path):
+    conn = sqlite3.connect(path)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM webpage_result WHERE matches IS NOT NULL")
+    count = c.fetchone()[0]
     conn.close()
     return count
 
 
-def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value):
-    """Batches writes to the database and updates shared progress counter."""
-    print("💾 Writer started...")
-    # Ensure schema exists (safe to call multiple times)
-    setup_target_db(db_path)
-
-    conn = sqlite3.connect(db_path, timeout=60)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    c = conn.cursor()
-
-    buffer = []
-    discards_buffer = []
-    total_written = 0
-
-    def flush():
-        nonlocal buffer, discards_buffer, total_written
-        if not buffer and not discards_buffer:
-            return
-
-        try:
-            c.execute("BEGIN TRANSACTION")
-            if buffer:
-                c.executemany(
-                    "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
-                    [(r[0], r[1]) for r in buffer],
-                )
-                c.executemany(
-                    "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-                    [(r[0], r[2], r[3]) for r in buffer],
-                )
-
-            if discards_buffer:
-                c.executemany(
-                    "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
-                    discards_buffer,
-                )
-
-            conn.commit()
-
-            # UPDATE PROGRESS
-            # Note: We update based on buffer size, which corresponds to successful processing
-            # But the progress bar tracks Total Input Items.
-            # To sync correctly, the writer should arguably not control the main progress bar
-            # if we want to track items *processed* (including filtered/skipped).
-            # However, for a simple resume, updating here is fine as long as we add the initial offset.
-            batch_len = len(buffer)
-            with counter.get_lock():
-                counter.value += batch_len
-
-            total_written += batch_len
-            buffer.clear()
-            discards_buffer.clear()
-        except Exception as e:
-            print(f"❌ Writer Error: {e}")
-            conn.rollback()
-
-    while not stop_event.is_set() or not queue.empty():
-        try:
-            result = queue.get(timeout=1)
-
-            # unpack
-            url, clean_json, cik, year, discards = result
-            buffer.append((url, clean_json, cik, year))
-
-            if discards:
-                discards_buffer.extend(discards)
-
-            if len(buffer) >= BATCH_SIZE or len(discards_buffer) >= BATCH_SIZE * 5:
-                flush()
-
-        except Empty:
-            continue
-
-    # Final flush
-    flush()
-    conn.close()
-    print(f"💾 Writer finished. Total saved: {total_written:,}")
-
-
 if __name__ == "__main__":
-    print(f"🚀 Starting Multi-Process Pre-Filter ({NUM_WORKERS} workers)")
+    print(f"🚀 Starting Merged Pre-Filter ({NUM_WORKERS} workers)")
 
-    # 0. Check for Resume
     processed_urls = get_processed_urls(TARGET_DB_PATH)
-    processed_count = len(processed_urls)
-
-    # 1. Get Total for Progress Bar
     total_items = get_total_count(SOURCE_DB_PATH)
-    remaining_items = total_items - processed_count
 
-    print(f"📊 Total items: {total_items:,}")
-    print(f"♻️  Already done: {processed_count:,}")
-    print(f"⏳ Remaining:    {remaining_items:,}")
-
-    # 2. Queues & Shared Counter
     task_queue = mp.Queue(maxsize=QUEUE_SIZE)
     result_queue = mp.Queue(maxsize=QUEUE_SIZE)
     stop_event = mp.Event()
+    processed_counter = mp.Value("i", len(processed_urls))
 
-    # Initialize counter with what we already have
-    processed_counter = mp.Value("i", processed_count)
-
-    # 3. Start Writer
     writer_p = mp.Process(
         target=writer_task,
         args=(result_queue, TARGET_DB_PATH, stop_event, processed_counter),
     )
     writer_p.start()
 
-    # 4. Start Workers
-    workers = []
-    for _ in range(NUM_WORKERS):
-        p = mp.Process(target=worker_task, args=(task_queue, result_queue))
+    workers = [
+        mp.Process(target=worker_task, args=(task_queue, result_queue))
+        for _ in range(NUM_WORKERS)
+    ]
+    for p in workers:
         p.start()
-        workers.append(p)
 
-    # 5. Start Producer (Passing the processed set to skip them)
     producer_p = mp.Process(
         target=producer_task, args=(task_queue, SOURCE_DB_PATH, processed_urls)
     )
     producer_p.start()
 
-    # 6. Monitoring Loop
     try:
-        # Initialize tqdm with total and initial value
         with tqdm(
-            total=total_items, initial=processed_count, unit="docs", smoothing=0.1
+            total=total_items, initial=len(processed_urls), unit="docs", smoothing=0.1
         ) as pbar:
             while True:
                 time.sleep(1)
-
-                # Update Progress
-                current = processed_counter.value
-                pbar.n = current
+                pbar.n = processed_counter.value
                 pbar.refresh()
-
-                # Visual Indicators for Queues
-                try:
-                    in_q = task_queue.qsize()
-                    out_q = result_queue.qsize()
-                except NotImplementedError:
-                    in_q = "N/A"
-                    out_q = "N/A"
-
-                pbar.set_postfix(in_queue=f"{in_q}/{QUEUE_SIZE}", out_queue=f"{out_q}")
-
-                # Exit Condition
-                # We are done when the producer finishes AND workers finish AND queues empty
                 if (
                     not producer_p.is_alive()
                     and task_queue.empty()
@@ -469,26 +481,17 @@ if __name__ == "__main__":
                     and result_queue.empty()
                 ):
                     break
-
-                # Alternate exit: if we reached total count (sometimes unreliable if discards happen silently)
-                # Ideally rely on process liveness check above
-
     except KeyboardInterrupt:
         print("\n⚠️ Stopping...")
 
-    # 7. Shutdown
-    print("Shutting down workers...")
     for _ in range(NUM_WORKERS):
         try:
             task_queue.put_nowait(None)
         except:
             pass
-
     producer_p.join()
     for p in workers:
         p.join()
-
     stop_event.set()
     writer_p.join()
-
-    print("✅ Processing Complete.")
+    print("✅ Complete.")
