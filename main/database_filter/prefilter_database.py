@@ -649,9 +649,7 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
 
     def flush():
         nonlocal buffer, discards_buffer, total_written, last_flush_time
-        if not buffer and not discards_buffer:
-            last_flush_time = time.time()
-            return
+        last_flush_time = time.time()
         try:
             c.execute("BEGIN TRANSACTION")
             if buffer:
@@ -674,7 +672,6 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
             total_written += len(buffer)
             buffer.clear()
             discards_buffer.clear()
-            last_flush_time = time.time()
         except Exception as e:
             print(f"❌ Writer Flush Error: {e}")
             conn.rollback()
