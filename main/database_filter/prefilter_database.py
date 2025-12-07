@@ -302,20 +302,28 @@ def validate_sophisticated_buffer(
 ) -> bool:
     """
     Independent validation for Convertibles/Warrants.
+    Now uses is_sophisticated_target() and is_sophisticated_content() for consistency.
+
+    Args:
+        sophisticated_buffer: List of masked texts from sophisticated buffer
+        clean_paragraphs: List of masked texts from standard buffer
+
+    Returns:
+        True if sophisticated buffer passes validation, False otherwise
     """
     if not sophisticated_buffer:
         return False
 
-    # 1. Check for Free Pass (Strict Anchor in standard text)
+    # 1. Check for Free Pass (Gated Target in standard text)
+    # Use is_sophisticated_target() to ensure equity context
     for p in clean_paragraphs:
-        if EQ_REGEX.search(p) and SOPHISTICATED_TARGETS.search(p):
+        if EQ_REGEX.search(p) and is_sophisticated_target(p):
             return True
-        if find_hedging_context(p) and SOPHISTICATED_TARGETS.search(p):
+        if find_hedging_context(p) and is_sophisticated_target(p):
             return True
 
     # 2. Check for Internal Sophisticated Context
-    # Since we now append paragraphs with Context to the buffer, this will succeed
-    # if any paragraph in the buffer has the required keywords.
+    # Combined text from all sophisticated paragraphs
     combined_text = " ".join(sophisticated_buffer)
     if SOPHISTICATED_CONTEXT_REGEX.search(combined_text):
         return True
@@ -495,13 +503,18 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             continue
 
     # 5. FINAL GATEKEEPERS
-    final_results = []  # List of (index, text)
+    final_results = []
 
     try:
         # A. Validate Standard Buffer
         std_texts = [text for _, text in clean_buffer]
-        if any(find_hedging_context(p) for p in std_texts):
-            final_results.extend(clean_buffer)
+        # Mask all texts for consistent validation
+        std_texts_masked = [
+            ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text) for text in std_texts
+        ]
+
+        if any(find_hedging_context(p) for p in std_texts_masked):  # Validate on masked
+            final_results.extend(clean_buffer)  # But keep original for output
         else:
             if clean_buffer:
                 discarded = "\n\n".join(std_texts)
@@ -512,38 +525,24 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     try:
         # B. Validate Sophisticated Buffer
         soph_texts = [text for _, text in sophisticated_buffer]
+        # A. Validate Standard Buffer
         std_texts = [text for _, text in clean_buffer]
+        # Mask all texts for consistent validation
+        std_texts_masked = [
+            ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text) for text in std_texts
+        ]
+        soph_texts_masked = [
+            ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text) for text in soph_texts
+        ]
 
-        if validate_sophisticated_buffer(soph_texts, std_texts):
-            final_results.extend(sophisticated_buffer)
+        if validate_sophisticated_buffer(soph_texts_masked, std_texts_masked):
+            final_results.extend(sophisticated_buffer)  # Keep original for output
         else:
             if sophisticated_buffer:
                 discarded = "\n\n".join(soph_texts)
                 local_discards.append((url, discarded, "sophisticated_check_failed"))
     except Exception as e:
         print(f"⚠️ Error validating sophisticated buffer for {url}: {e}")
-
-    # C. RECONSTRUCT & SORT
-    try:
-        if final_results:
-            final_results.sort(key=lambda x: x[0])
-            seen = set()
-            unique_paragraphs = []
-            for _, text in final_results:
-                if text not in seen:
-                    unique_paragraphs.append(text)
-                    seen.add(text)
-
-            return (
-                url,
-                json.dumps(unique_paragraphs),
-                cik,
-                year,
-                aggregate_discards(local_discards),
-            )
-    except Exception as e:
-        print(f"❌ Error reconstructing final results for {url}: {e}")
-        return (url, "[]", cik, year, aggregate_discards(local_discards))
 
     return (url, "[]", cik, year, aggregate_discards(local_discards))
 
