@@ -26,7 +26,6 @@ from derivative_regex import (
     ACTIVE_STATE_REGEX,
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
-    EXCLUDE_HYPOTHETICAL_REGEX,
     LOOSE_GEN_REGEX,
     NON_POSITION_INDICATORS,
     PNL_ONLY_NO_POSITION,
@@ -323,71 +322,42 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 
 
 def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Optional[str]:
-    """
-    Identifies paragraphs that are purely "Administrative" or "Historical" noise.
 
-    Safe Drop Criteria (The Paragraph is discarded if...):
-    1. It is purely Historical (All years < Reporting Year).
-    2. It is purely AOCI/PnL (Gain/Loss lists without position context).
-    3. It is purely Policy/Methodology (Documentation, Effectiveness, Fair Value Hierarchy).
-    4. It is purely Risk Management (Counterparty credit, generic risk statements).
-    5. It is purely Hypothetical (Sensitivity analysis).
+    # --- 1. HARD KILLS (Run BEFORE Verbs) ---
 
-    SAFEGUARD:
-    - If the paragraph contains a MEANINGFUL QUANTITY (Active Position Value),
-      it is KEPT regardless of the above (except maybe historical).
-    - If it contains a STRONG ACTION VERB ("We hold"), it is KEPT.
-    """
-
-    # AOCI reclassification does not indicate an active user
+    # A. AOCI / PnL Lists
     if NON_POSITION_INDICATORS.search(text):
-        return "aoci_pnl_reclassification" 
-    # --- 1. THE ULTIMATE SAFEGUARDS ---
-    # A. Quantitative Check (Phase 6 Logic)
-    # If it says "$50 million", we assume it's relevant unless proven historical.
-    if is_meaningful_quant(text, year):
-        # Exception: If it's purely historical quant ("In 2018, value was $50M"), catch it below.
-        pass
+        return "aoci_pnl_reclassification"
 
-    # --- 3. HISTORICAL CHECK (The "Ghost" Killer) ---
-    # If the paragraph ONLY mentions past years, it is deadweight.
-    # Logic: All years found must be < reporting_year.
+    # B. Historical Check
     if year:
         all_years = [int(y) for y in YEAR_REGEX.findall(text)]
-        if all_years:
-            if all(y < year for y in all_years):
-                # Check for "Current" keywords that might override the year
-                # e.g., "In 2020 we adopted this, and currently we..."
-                if not ACTIVE_STATE_REGEX.search(text):
-                    return "pure_historical_narrative"
+        if all_years and all(y < year for y in all_years):
+            if not ACTIVE_STATE_REGEX.search(text):
+                return "pure_historical_narrative"
 
-    # --- 4. POLICY & METHODOLOGY CHECK ---
-    # Matches: "We formally document...", "Derivatives are measured at fair value..."
-    if POLICY_REGEX.search(text):
-        # We already checked for Quants.
-        # If we are here, it's likely pure boilerplate.
-        return "accounting_policy_boilerplate"
+    # --- 2. SAFEGUARDS (The "Active User" Signals) ---
 
-    # --- 5. COUNTERPARTY / CREDIT RISK CHECK ---
-    # Matches: "We monitor counterparty credit risk...", "Subject to master netting..."
-    if COUNTERPARTY_REGEX.search(text):
-        return "credit_risk_management"
+    # A. Quantitative Check
+    if is_meaningful_quant(text, year):
+        return None
 
-    # --- 6. HYPOTHETICAL / SENSITIVITY CHECK ---
-    # Matches: "Hypothetical loss...", "Sensitivity analysis shows..."
-    if EXCLUDE_HYPOTHETICAL_REGEX.search(text):
-        # Safeguard: Does it mention the specific instrument we hold?
-        # Usually hypotheticals mention "our interest rate swaps", but
-        # if there are no Quants, it's just the sensitivity table header/footer.
-        return "sensitivity_analysis_boilerplate"
-    
-    # B. Active Action Check (Phase 7 Logic)
-    # "We hold", "We maintain", "We entered into"
-    # If these exist, it's not just "Policy" or "Risk".
+    # B. Active Action Check
+    # Saves "We hold swaps to hedge hypothetical risks"
     if VERB_REGEX.search(text):
         return None
 
-    return None  # Keep it
+    # --- 3. SOFT KILLS (Run AFTER Verbs) ---
+
+    # A. Policy & Methodology
+    if POLICY_REGEX.search(text):
+        return "accounting_policy_boilerplate"
+
+    # C. Counterparty / Credit Risk
+    if COUNTERPARTY_REGEX.search(text):
+        return "credit_risk_management"
+
+    return None
 
 
 # =============================================================================
