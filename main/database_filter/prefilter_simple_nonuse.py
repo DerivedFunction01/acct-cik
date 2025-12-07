@@ -266,13 +266,10 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             # Only count if it's not JUST a termination sentence
             if not (TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent)):
                 has_current_year_activity = True
-
-        # NEW: Use Phase 6 quantitative logic with meaningful check
-        if QUANT_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
-            has_quant = True
-            # Check if the quantity is actually meaningful (positive) for the reporting year
-            if is_meaningful_quant(sent, year):
-                has_meaningful_quant = True
+                
+        # Check if the quantity is actually meaningful (positive) for the reporting year
+        if is_meaningful_quant(sent, year):
+            has_meaningful_quant = True
 
         if TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
             has_termination = True
