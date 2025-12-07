@@ -4073,7 +4073,6 @@ NON_FINANCIAL_KEYWORDS = [
     r"metabolites?",
     r"synthesis",
     r"biosimilars?",
-    r"hydrocarbons?",
     # 3. Mathematics (Calculus context)
     r"integrals?",
     r"calculus",
