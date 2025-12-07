@@ -80,6 +80,7 @@ class HTMLTableConverter:
     """
     Converts a 2D list of strings (from a parsed HTML table) into a GenericTable.
     """
+
     grid: List[List[str]]
     title: str = ""
     header_row_count: int = 1
@@ -100,26 +101,34 @@ class HTMLTableConverter:
         widths = [max(1, w) for w in widths]
 
         # Default alignment: left for first column, right for others
-        alignments = ['l'] + ['r'] * (num_cols - 1)
+        alignments = ["l"] + ["r"] * (num_cols - 1)
         return widths, alignments
 
     def to_generic_table(self) -> GenericTable:
         if not self.grid:
-            return GenericTable(headers=[], data_rows=[], widths=[], alignments=[], title=self.title)
+            return GenericTable(
+                headers=[], data_rows=[], widths=[], alignments=[], title=self.title
+            )
 
-        # FIX: Slice based on the detected count, not hardcoded [0]
+        # --- UPDATE: Fallback Logic ---
+        # If header_row_count is 0, default to 1 so the first row becomes the header.
+        # Otherwise, use the detected count.
+        effective_header_count = (
+            self.header_row_count if self.header_row_count > 0 else 1
+        )
+
         # Safety check: ensure we don't slice beyond the grid
-        split_idx = min(self.header_row_count, len(self.grid))
-        
+        split_idx = min(effective_header_count, len(self.grid))
+
         headers = self.grid[:split_idx]  # Captures ALL header rows
         data_rows = self.grid[split_idx:]
-        
+
         widths, alignments = self._calculate_widths_and_alignments()
-        
+
         return GenericTable(
             headers=headers,
             data_rows=data_rows,
             widths=widths,
             alignments=alignments,
-            title=self.title
+            title=self.title,
         )
