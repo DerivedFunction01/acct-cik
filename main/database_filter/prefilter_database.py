@@ -224,6 +224,61 @@ def is_text_container_table(table_text: str, footnotes: List[str]) -> bool:
 # =============================================================================
 # WORKER LOGIC
 # =============================================================================
+def process_accounting_standards_paragraph(
+    paragraph: str, url: str
+) -> Tuple[List[str], List[Tuple[str, str, str]]]:
+    """
+    Process a paragraph that contains accounting standards boilerplate.
+
+    Logic:
+    1. Keep all sentences BEFORE the first boilerplate trigger
+    2. Once we hit boilerplate, only keep sentences with quantifiable amounts
+    3. Also keep sentences that precede quantifiable sentences (lookahead)
+
+    Args:
+        paragraph: Full original paragraph text
+        url: Document URL (for discard logging)
+
+    Returns:
+        (kept_sentences: List[str], discards: List[(url, text, reason)])
+    """
+    kept = []
+    sentences = SENTENCE_SPLIT_PATTERN.split(paragraph)
+    in_accounting_boilerplate = False
+
+    for sent_idx, sent in enumerate(sentences):
+        if not in_accounting_boilerplate:
+            # Haven't hit boilerplate yet - keep all non-boilerplate sentences
+            if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
+                kept.append(sent)
+            else:
+                # We've entered the accounting standards zone
+                in_accounting_boilerplate = True
+                # Check if this sentence has quantifiable amounts
+                if QUANT_REGEX.search(sent):
+                    kept.append(sent)
+                # else: discard it, and everything after
+        else:
+            # Already in boilerplate zone
+            if QUANT_REGEX.search(sent):
+                # Current sentence is quantifiable - keep it
+                kept.append(sent)
+            elif sent_idx + 1 < len(sentences):
+                # Look ahead: keep this sentence if next sentence is quantifiable
+                # and not another boilerplate trigger
+                next_sent = sentences[sent_idx + 1]
+                if QUANT_REGEX.search(
+                    next_sent
+                ) and not ACCOUNTING_STANDARDS_STRICT_REGEX.search(next_sent):
+                    kept.append(sent)
+
+    # Process discards
+    discards = []
+    discarded_text = " ".join(set(sentences) - set(kept))
+    if discarded_text:
+        discards.append((url, discarded_text, "accounting_standards"))
+
+    return kept, discards
 
 
 def find_hedging_context(paragraph: str) -> bool:
@@ -288,51 +343,23 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     for idx, p in enumerate(paragraphs):
         try:
+            # 1. CREATE MASKED VERSION FOR DECISION LOGIC ONLY
+            # We use this to check for noise/targets without triggering false positives
+            p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+
             # Accounting Standards (runs first to avoid subbing FASB with an entity token)
             if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
-                kept = []
-                sentences = SENTENCE_SPLIT_PATTERN.split(p)
-                in_accounting_boilerplate = (
-                    False  # Track when we enter boilerplate zone
-                )
+                kept, acc_std_discards = process_accounting_standards_paragraph(p, url)
+                local_discards.extend(acc_std_discards)
 
-                for idx, sent in enumerate(sentences):
-                    if not in_accounting_boilerplate:
-                        # Haven't hit boilerplate yet - keep all non-boilerplate sentences
-                        if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
-                            kept.append(sent)
-                        else:
-                            # We've entered the accounting standards zone
-                            in_accounting_boilerplate = True
-                            # Check if this sentence has quantifiable amounts
-                            if QUANT_REGEX.search(sent):
-                                kept.append(sent)
-                            # else: discard it, and everything after
-                    else:
-                        # Already in boilerplate zone
-                        if QUANT_REGEX.search(sent):
-                            # Current sentence is quantifiable - keep it
-                            kept.append(sent)
-                        elif idx + 1 < len(sentences):
-                            # Look ahead: keep this sentence if next sentence is quantifiable
-                            # and not another boilerplate trigger
-                            next_sent = sentences[idx + 1]
-                            if QUANT_REGEX.search(
-                                next_sent
-                            ) and not ACCOUNTING_STANDARDS_STRICT_REGEX.search(
-                                next_sent
-                            ):
-                                kept.append(sent)
                 if kept:
                     salvaged_p = " ".join(kept)
-                    if is_sophisticated_content(salvaged_p):
+                    p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, salvaged_p)
+
+                    if is_sophisticated_content(p_masked):
                         sophisticated_buffer.append((idx, salvaged_p))
                     else:
                         clean_buffer.append((idx, salvaged_p))
-
-                discarded_text = " ".join(set(sentences) - set(kept))
-                if discarded_text:
-                    local_discards.append((url, discarded_text, "accounting_standards"))
                 continue
 
             # 1. TABLE HANDLING
@@ -351,13 +378,13 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     is_container = True
 
                 if not is_container:
-                    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(cleaned_table):
+                    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, cleaned_table)):
                         local_discards.append((url, "<table>...", "legal_table"))
                         continue
 
                     # FIXED: Use is_sophisticated_target() for tables too
-                    is_target = is_sophisticated_target(cleaned_table)
-                    is_context = SOPHISTICATED_CONTEXT_REGEX.search(cleaned_table)
+                    is_target = is_sophisticated_target(ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, cleaned_table))
+                    is_context = SOPHISTICATED_CONTEXT_REGEX.search(ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, cleaned_table))
 
                     if is_target or is_context:
                         sophisticated_buffer.append((idx, cleaned_table))
@@ -388,19 +415,17 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # 2. EXCLUSIONS
             exclusion_reason = check_hard_exclusions(p)
             if exclusion_reason:
-                local_discards.append((url, p, exclusion_reason))
+                local_discards.append((url, p, exclusion_reason)) # Log original for readability
                 continue
-            
-            p  = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
             # 3. SALVAGE LOGIC
             # Hypothetical
-            if EXCLUDE_HYPOTHETICAL_REGEX.search(p):
-                has_std = STRICT_REGEX.search(p) or (
-                    SOFT_REGEX.search(p) and HEDGING_CONTEXT_REGEX.search(p)
+            if EXCLUDE_HYPOTHETICAL_REGEX.search(p_masked):
+                has_std = STRICT_REGEX.search(p_masked) or (
+                    SOFT_REGEX.search(p_masked) and HEDGING_CONTEXT_REGEX.search(p_masked)
                 )
                 # FIXED: Use is_sophisticated_content() instead of raw checks
-                has_soph = is_sophisticated_content(p)
+                has_soph = is_sophisticated_content(p_masked)
 
                 if has_std or has_soph:
                     pass
@@ -411,7 +436,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     continue
 
             # Equity Comp
-            if EXCLUDE_REGEX_EQUITY_COMP.search(p):
+            if EXCLUDE_REGEX_EQUITY_COMP.search(p_masked):
                 try:
                     kept = []
                     sentences = SENTENCE_SPLIT_PATTERN.split(p)
@@ -419,11 +444,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                         if STRICT_REGEX.search(sent):
                             kept.append(sent)
                         elif SOFT_REGEX.search(sent):
-                            has_hedging_context = SOFT_GEN_REGEX.search(
-                                sent
-                            ) or DER_STD_REGEX.search(sent)
-                            is_buffered_target = is_sophisticated_target(sent)  # FIXED
-                            is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(sent)
+                            sent_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, sent)
+                            has_hedging_context = SOFT_GEN_REGEX.search(sent_masked) or DER_STD_REGEX.search(sent_masked)
+                            is_buffered_target = is_sophisticated_target(sent_masked)  # FIXED
+                            is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(sent_masked)
 
                             if (
                                 has_hedging_context
@@ -435,7 +459,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     if kept:
                         salvaged_p = " ".join(kept)
                         # FIXED: Use is_sophisticated_content()
-                        if is_sophisticated_content(salvaged_p):
+                        if is_sophisticated_content(ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, salvaged_p)):
                             sophisticated_buffer.append((idx, salvaged_p))
                         else:
                             clean_buffer.append((idx, salvaged_p))
@@ -448,20 +472,20 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 continue
 
             # 4. DISTRIBUTION (Standard vs. Sophisticated)
-            is_soph_target = is_sophisticated_target(p)
-            is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(p)
+            is_soph_target = is_sophisticated_target(p_masked)
+            is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(p_masked)
 
             if is_soph_target:
                 # A. TARGETS: Exclusive to Sophisticated Buffer
-                sophisticated_buffer.append((idx, p))
+                sophisticated_buffer.append((idx, p)) # <-- SAVE ORIGINAL 'p'
 
             elif is_soph_context:
                 # B. CONTEXT: Shared to BOTH Buffers
-                sophisticated_buffer.append((idx, p))
-                clean_buffer.append((idx, p))
+                sophisticated_buffer.append((idx, p)) # <-- SAVE ORIGINAL 'p'
+                clean_buffer.append((idx, p))         # <-- SAVE ORIGINAL 'p'
             else:
                 # C. STANDARD: Exclusive to Standard Buffer
-                clean_buffer.append((idx, p))
+                clean_buffer.append((idx, p))         # <-- SAVE ORIGINAL 'p'
 
         except Exception as e:
             print(f"❌ Unexpected error processing paragraph {idx} in {url}: {e}")
