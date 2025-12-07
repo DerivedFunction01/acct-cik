@@ -794,15 +794,14 @@ if __name__ == "__main__":
             last_progress = processed_counter.value
             stall_count = 0
             while not task_queue.empty() or any(p.is_alive() for p in workers):
-                time.sleep(0.5)
+                time.sleep(1)
                 current_progress = processed_counter.value
                 pbar.n = current_progress
                 pbar.refresh()
                 
-                # Detect stalls: if no progress for 10+ seconds, force shutdown
                 if current_progress == last_progress:
                     stall_count += 1
-                    if stall_count > 120:  # 60 seconds of no progress
+                    if stall_count > 300:  # 300 seconds of no progress
                         print("\n⚠️ Stall detected! Force-stopping workers...")
                         break
                 else:
