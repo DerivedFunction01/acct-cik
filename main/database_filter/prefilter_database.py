@@ -45,6 +45,7 @@ from derivative_regex import (
     build_alternation,
     is_contractual_noise,
 )
+from final_verification import QUANT_REGEX
 
 # We need the processor to validate tables
 try:
@@ -277,18 +278,26 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
                 kept = []
                 sentences = SENTENCE_SPLIT_PATTERN.split(p)
+                in_accounting_boilerplate = (
+                    False  # Track when we enter boilerplate zone
+                )
+                
                 for sent in sentences:
-                    if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
-                        kept.append(sent)
-                    else:  # Discard the remaining text
-                        break
-                if kept:
-                    salvaged_p = " ".join(kept)
-                    # FIXED: Use is_sophisticated_content() instead of compound check
-                    if is_sophisticated_content(salvaged_p):
-                        sophisticated_buffer.append((idx, salvaged_p))
+                    if not in_accounting_boilerplate:
+                        # Haven't hit boilerplate yet
+                        if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
+                            kept.append(sent)
+                        else:
+                            # We've entered the accounting standards zone
+                            in_accounting_boilerplate = True
+                            # Check if this sentence has quantifiable amounts
+                            if QUANT_REGEX.search(sent):
+                                kept.append(sent)
+                            # else: discard it, and everything after
                     else:
-                        clean_buffer.append((idx, salvaged_p))
+                        # Already in boilerplate zone - only keep if quantifiable
+                        if QUANT_REGEX.search(sent):
+                            kept.append(sent)
 
                 discarded_text = " ".join(set(sentences) - set(kept))
                 if discarded_text:
