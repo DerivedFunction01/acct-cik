@@ -123,6 +123,10 @@ class HTMLTableConverter:
         headers = self.grid[:split_idx]  # Captures ALL header rows
         data_rows = self.grid[split_idx:]
 
+        # Fallback: If headers is empty but data_rows exist, promote first data row to header
+        if not headers and data_rows:
+            headers = [data_rows.pop(0)]
+
         widths, alignments = self._calculate_widths_and_alignments()
 
         return GenericTable(
