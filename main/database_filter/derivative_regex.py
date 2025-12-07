@@ -2336,34 +2336,6 @@ FORWARD_LOOKING_KEYWORDS = [
 ]
 
 
-# Section 4: Regulatory & Compliance (New)
-REGULATORY_KEYWORDS = [
-    # 1. General Regulatory Terms
-    r"regulations?",
-    r"regulatory\s+(?:requirements?|compliance|authorit(?:y|ies)|bod(?:y|ies)|agenc(?:y|ies)|frameworks?|matters?|reforms?)",
-    r"subject\s+to\s+(?:regulation|oversight|regulatory)",
-    r"governmental\s+regulations?",
-    r"govern(?:ing|ed|s)?",
-    r"penalt(?:y|ies)",
-    r"(?:state|local|federal|international)\s+laws?",
-    # 2. Specific Laws & Acts (The big noise makers)
-    r"Dodd[- ]Frank",
-    r"Volcker\s+Rule",
-    r"Basel\s+(?:I|II|III|IV)",
-    r"EMIR",  # European Market Infrastructure Regulation
-    r"MiFID",  # Markets in Financial Instruments Directive
-    r"Commodity\s+Exchange\s+Act",
-    r"Securities\s+Exchange\s+Act",
-    r"SEC",
-    r"Sarbanes[- ]Oxley",
-    r"JOBS\s+Act",
-    r"CARES\s+Act",
-    r"Regulation\s+AB",
-    # 3. Capital & Liquidity (Banking Regs)
-    r"capital\s+adequacy",
-    r"liquidity\s+coverage\s+ratio",
-    r"regulatory\s+capital",
-]
 
 HYPOTHETICAL_KEYWORDS = [
     r"measure(?:s|d|ment)\s+of\s+market\s+risk",
@@ -2399,6 +2371,55 @@ FILING_KEYWORDS = [
     r"\bSEC\b\s+File",
     
 ]
+# =============================================================================
+# REGULATORY NOISE LISTS (SPLIT)
+# =============================================================================
+
+# 1. STRICT: Specific Acts, Laws, & Banking Metrics
+# Value: 2 Points Each
+# Reasoning: Naming a specific Act usually implies a "Regulatory Environment" section.
+REGULATORY_KEYWORDS_STRICT = [
+    # Specific US Acts
+    r"Dodd[- ]Frank",
+    r"Volcker\s+Rule",
+    r"Sarbanes[- ]Oxley",
+    r"JOBS\s+Act",
+    r"CARES\s+Act",
+    r"Commodity\s+Exchange\s+Act",
+    r"Securities\s+Exchange\s+Act",
+    r"Regulation\s+AB",
+    
+    # International / Banking Standards
+    r"Basel\s+(?:I|II|III|IV)",
+    r"EMIR",   # European Market Infrastructure Regulation
+    r"MiFID",  # Markets in Financial Instruments Directive
+    r"Solvency\s+II",
+    
+    # Specific Banking Metrics (High likelihood of capital adequacy sections)
+    r"capital\s+adequacy",
+    r"liquidity\s+coverage\s+ratio",
+    r"regulatory\s+capital",
+    r"risk[- ]weighted\s+assets?", # RWA
+]
+
+# 2. LOOSE: General Compliance Terminology
+# Value: 1 Point Each
+# Reasoning: "Regulations" or "SEC" can appear in valid context ("Filed with SEC").
+# Requires density to trigger discard.
+REGULATORY_KEYWORDS_LOOSE = [
+    r"regulations?",
+    r"regulatory\s+(?:requirements?|compliance|authorit(?:y|ies)|bod(?:y|ies)|agenc(?:y|ies)|frameworks?|matters?|reforms?)",
+    r"subject\s+to\s+(?:regulation|oversight|regulatory)",
+    r"governmental\s+regulations?",
+    r"govern(?:ing|ed|s)?",
+    r"penalt(?:y|ies)",
+    r"(?:state|local|federal|international|government)\s+laws?",
+    r"statutes?",
+    r"oversight",
+    r"\bSEC\b", # Securities and Exchange Commission
+    r"\bCFTC\b", # Commodity Futures Trading Commission
+    r"\bFCA\b", # Financial Conduct Authority
+]
 
 def build_exclude_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
     """Build regex for excluding noise keywords."""
@@ -2410,12 +2431,14 @@ def build_exclude_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
 EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
 EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
 EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS)
-EXCLUDE_REGULATION_REGEX = build_exclude_regex(REGULATORY_KEYWORDS)
 EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
 EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
 EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
 EXCLUDE_REGEX_FILING = build_exclude_regex(FILING_KEYWORDS)
+
+EXCLUDE_REGEX_REGULATORY_STRICT = build_exclude_regex(REGULATORY_KEYWORDS_STRICT, ignore_case=True)
+EXCLUDE_REGEX_REGULATORY_LOOSE = build_exclude_regex(REGULATORY_KEYWORDS_LOOSE, ignore_case=True)
 
 EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(CONTRACTUAL_KEYWORDS_STRICT, ignore_case=False)
 EXCLUDE_REGEX_CONTRACTUAL_SINGLE = build_exclude_regex(CONTRACTUAL_KEYWORDS_SINGLE, ignore_case=True)
@@ -2453,6 +2476,32 @@ def is_contractual_noise(text: str, threshold: int = 4) -> bool:
 
     return score >= threshold
 
+def is_regulatory_noise(text: str, threshold: int = 4) -> bool:
+    """
+    Determines if text is regulatory boilerplate using a scoring system.
+    
+    Scoring Logic (Threshold = 4):
+    - Strict Matches (Specific Acts like Dodd-Frank): 2 points
+    - Loose Matches (General words like 'Regulation'): 1 point
+    
+    Examples:
+    - "We comply with Dodd-Frank (2) and EMIR (2)." -> 4 pts -> Discard.
+    - "Subject to regulation (1) by the SEC (1)." -> 2 pts -> Keep (Valid Context).
+    - "Governmental regulations (1) governing (1) the SEC (1) oversight (1)." -> 4 pts -> Discard.
+    """
+    
+    # 1. DEFINE WEIGHTS
+    W_STRICT = 2
+    W_LOOSE = 1
+    
+    # 2. COUNT MATCHES
+    strict_hits = len(EXCLUDE_REGEX_REGULATORY_STRICT.findall(text))
+    loose_hits = len(EXCLUDE_REGEX_REGULATORY_LOOSE.findall(text))
+    
+    # 3. CALCULATE SCORE
+    score = (strict_hits * W_STRICT) + (loose_hits * W_LOOSE)
+    
+    return score >= threshold
 
 SUBJECTS = [
     # Simple pronouns
