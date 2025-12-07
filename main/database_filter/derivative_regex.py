@@ -77,7 +77,7 @@ COMPARISON_PHRASES = [
     r"yet",
 ]
 # State Descriptors (New)
-ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open", "current"]
+ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open", "current(?:ly)?"]
 
 ACTIVE_STATE_PATTERN = build_alternation(ACTIVE_STATE_DESCRIPTORS)
 RISK_TERMS = [
