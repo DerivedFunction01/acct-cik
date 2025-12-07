@@ -388,9 +388,18 @@ class TableToTextConverter:
                     sentences.append(
                         f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of {value}."
                     )
-                elif "fair_value" in base_type or "value" == base_type:
+                elif "fair_value" in base_type:
                     sentences.append(
                         f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a fair value of {value}."
+                    )
+                elif base_type == "value":
+                    sentences.append(
+                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a value of {value}."
+                    )
+                else:
+                    # Fallback: use generic "amount"
+                    sentences.append(
+                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with an amount of {value}."
                     )
 
         return sentences
