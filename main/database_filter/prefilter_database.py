@@ -692,6 +692,9 @@ def write_batch(conn, buffer, discards):
 # MAIN LOGIC
 # =============================================================================
 
+from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm
+
 if __name__ == "__main__":
     print(f"🚀 Starting Executor-Based Prefilter ({NUM_WORKERS} workers)")
 
@@ -710,31 +713,24 @@ if __name__ == "__main__":
     discards_buffer = []
     count = 0
 
-    # Use map with chunksize for efficiency + memory safety
-    # The generator yields items, map distributes them, we iterate results
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-
         # Create iterator (does not load all to RAM)
-        source_iter = data_generator(SOURCE_DB_PATH, processed_urls)
+        source_iter = list(data_generator(SOURCE_DB_PATH, processed_urls))
+        total_items = len(source_iter)
 
-        # executor.map yields results in order as they finish (or close to it)
-        # chunksize=20 means workers grab 20 items at a time (reduces overhead)
+        # executor.map yields results in order
         results_iter = executor.map(process_item, source_iter, chunksize=CHUNK_SIZE)
 
-        # Iterate over results in main thread
-        for result in tqdm(results_iter, desc="Processing"):
+        # Wrap in tqdm with total
+        for result in tqdm(results_iter, desc="Processing", total=total_items):
             if not result:
                 continue
 
-            # Unpack
             url, matches, cik, year, discards = result
-
-            # Add to buffers
             buffer.append((url, matches, cik, year))
             if discards:
                 discards_buffer.extend(discards)
 
-            # Periodic Write
             if len(buffer) >= BATCH_SIZE:
                 write_batch(target_conn, buffer, discards_buffer)
                 buffer = []
