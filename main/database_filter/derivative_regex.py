@@ -67,10 +67,10 @@ COMPARISON_PHRASES = [
     r"as opposed to",
     r"vis-à-vis",
     r"when compared with",
-    r"from",  # "decreased to $X from $Y"
+    r"from", # "decreased to $X from $Y"
     r"but",
     r"however",
-    r"whereas",
+    r"whereas", 
     r"although",
     r"though",
     r"while",
