@@ -436,12 +436,10 @@ def extract_content(data: str, asHTML=True) -> str:
             if table.caption:
                 title = table.caption.get_text(strip=True)
 
-            prev_text = table.find_previous(string=True)
-            prev_string = prev_text.strip() if prev_text else ""
-
-            str_len = len(prev_string)
-            if prev_string and str_len > 20 and str_len < 500:
-                if TABLE_HINT_PATTERN.search(prev_string, re.IGNORECASE):
+            prev_text = table.find_previous(string=lambda s: s.strip() and len(s.strip()) > 20) # type: ignore
+            if prev_text:
+                prev_string = prev_text.strip()
+                if len(prev_string) < 500 and TABLE_HINT_PATTERN.search(prev_string):
                     prologue_text = prev_string
             if title and prologue_text:
                 title = f"{prologue_text} | {title}"
