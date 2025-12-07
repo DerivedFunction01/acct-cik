@@ -128,8 +128,6 @@ TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
 def check_hard_exclusions(text: str) -> Optional[str]:
-    if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
-        return "non_financial"
     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
         return "legal_litigation"
     if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
@@ -138,6 +136,8 @@ def check_hard_exclusions(text: str) -> Optional[str]:
         return "competitor_analysis"
     if is_regulatory_noise(text):
         return "regulatory_boilerplate"
+    if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
+        return "non_financial"
     if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
         return "pension_plan_assets"
     if EXCLUDE_REGEX_FILING.search(text):
