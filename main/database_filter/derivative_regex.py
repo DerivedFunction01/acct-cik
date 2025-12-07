@@ -2615,7 +2615,7 @@ EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(
     CONTRACTUAL_KEYWORDS_PHRASE, ignore_case=True
 )
 
-def is_hypothetical_noise(text: str, threshold: int = 4, is_sophisticated: bool = False) -> Tuple[bool, bool]:
+def is_hypothetical_noise(text: str, threshold: int = 4) -> Tuple[bool, bool]:
     """
     Determines if text is Hypothetical/Methodology boilerplate using a scoring system.
 
