@@ -216,7 +216,6 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     has_absence = False
     has_trading_denial = False
     has_termination = False
-    has_quant = False
     has_meaningful_quant = (
         False  # NEW: tracks if ANY sentence has real positive numbers
     )
