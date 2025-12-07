@@ -637,8 +637,11 @@ def producer_task(
                 empty_matched += 1
                 empty_buffer.append((url, "[]", cik, year))
 
+                # Report progress for empty items (they're still "processed")
+                progress_queue.put(("producer_progress", 1))
+
                 # Flush empty buffer periodically
-                if len(empty_buffer) >= BATCH_SIZE:
+                if len(empty_buffer) >= 1000:
                     target_c.executemany(
                         "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
                         [(u, m) for u, m, _, _ in empty_buffer],
@@ -897,6 +900,8 @@ if __name__ == "__main__":
                     if msg_type == "worker_progress":
                         pbar.update(msg_data)
                     elif msg_type == "writer_progress":
+                        pbar.update(msg_data)
+                    elif msg_type == "producer_progress":
                         pbar.update(msg_data)
                     elif msg_type == "producer_done":
                         producer_done = True
