@@ -713,8 +713,8 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
                     print(f"❌ Error extending discards buffer: {e}")
                     print(f"   Discards type: {type(discards)}, value: {discards}")
 
-            # Flush on BATCH_SIZE
-            if len(buffer) >= BATCH_SIZE:
+            # Flush on BATCH_SIZE (either buffer or discards reaches threshold)
+            if len(buffer) >= BATCH_SIZE or len(discards_buffer) >= BATCH_SIZE:
                 flush()
 
         except (ValueError, TypeError) as e:
