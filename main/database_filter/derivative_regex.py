@@ -2387,18 +2387,28 @@ REGULATORY_KEYWORDS_STRICT = [
     r"Commodity\s+Exchange\s+Act",
     r"Securities\s+Exchange\s+Act",
     r"Regulation\s+AB",
-    
+    # --- NEW: Energy & Environmental Acts ---
+    r"Energy\s+Policy\s+Act",
+    r"Clean\s+Air\s+Act",
+    r"Clean\s+Water\s+Act",
+    r"Oil\s+Pollution\s+Act",
+    r"\bCERCLA\b",  # Superfund
+    r"\bRCRA\b",  # Resource Conservation and Recovery Act
+    r"\bNEPA\b",  # National Environmental Policy Act
     # International / Banking Standards
     r"Basel\s+(?:I|II|III|IV)",
-    r"EMIR",   # European Market Infrastructure Regulation
+    r"EMIR",  # European Market Infrastructure Regulation
     r"MiFID",  # Markets in Financial Instruments Directive
     r"Solvency\s+II",
-    
     # Specific Banking Metrics (High likelihood of capital adequacy sections)
     r"capital\s+adequacy",
     r"liquidity\s+coverage\s+ratio",
     r"regulatory\s+capital",
-    r"risk[- ]weighted\s+assets?", # RWA
+    r"risk[- ]weighted\s+assets?",  # RWA
+    # --- Agencies (If not already caught by Entity Exclusion) ---
+    r"\bEPA\b",  # Environmental Protection Agency
+    r"\bFERC\b",  # Federal Energy Regulatory Commission
+    r"\bDOT\b",  # Department of Transportation (Pipeline regs)
 ]
 
 # 2. LOOSE: General Compliance Terminology
@@ -2415,9 +2425,20 @@ REGULATORY_KEYWORDS_LOOSE = [
     r"(?:state|local|federal|international|government)\s+laws?",
     r"statutes?",
     r"oversight",
-    r"\bSEC\b", # Securities and Exchange Commission
-    r"\bCFTC\b", # Commodity Futures Trading Commission
-    r"\bFCA\b", # Financial Conduct Authority
+    r"\bSEC\b",  # Securities and Exchange Commission
+    r"\bCFTC\b",  # Commodity Futures Trading Commission
+    r"\bFCA\b",  # Financial Conduct Authority
+    # --- NEW: Environmental Compliance ---
+    r"environmental\s+(?:laws?|regulations?|matters?|compliance|protection)",
+    r"greenhouse\s+gas(?:es)?",
+    r"carbon\s+dioxide",
+    r"emissions?",
+    r"discharges?",
+    r"hazardous\s+(?:substances?|wastes?|materials?)",
+    r"remediat(?:ion|ing|e)",
+    r"spill\s+prevention",
+    r"contamination",
+    r"pollutants?",
 ]
 
 def build_exclude_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
