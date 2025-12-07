@@ -595,32 +595,90 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 # =============================================================================
 # QUEUE PROCESSES
 # =============================================================================
-def producer_task(queue: mp.Queue, db_path: str, processed_urls: Set[str]):
+def producer_task(
+    queue: mp.Queue,
+    source_db: str,
+    target_db: str,
+    processed_urls: Set[str],
+    progress_queue: mp.Queue,
+):
+    """Producer: reads from source DB and queues items, marks empty ones as processed"""
     print("🔌 Producer started...")
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.execute(
+
+    source_conn = sqlite3.connect(source_db)
+    source_c = source_conn.cursor()
+    source_c.execute(
         "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
 
+    # Separate connection for marking empty items as processed
+    target_conn = sqlite3.connect(target_db)
+    target_c = target_conn.cursor()
+
+    empty_buffer = []
     count = 0
     skipped = 0
+    empty_matched = 0
+
     while True:
-        rows = c.fetchmany(1000)
+        rows = source_c.fetchmany(1000)
         if not rows:
             break
         for row in rows:
-            if row[0] in processed_urls:
+            url, matches_json, cik, year = row
+
+            # Skip already processed
+            if url in processed_urls:
                 skipped += 1
                 continue
+
+            # If matches is empty JSON array, mark as processed but don't queue
+            if matches_json == "[]":
+                empty_matched += 1
+                empty_buffer.append((url, "[]", cik, year))
+
+                # Flush empty buffer periodically
+                if len(empty_buffer) >= BATCH_SIZE:
+                    target_c.executemany(
+                        "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
+                        [(u, m) for u, m, _, _ in empty_buffer],
+                    )
+                    target_c.executemany(
+                        "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
+                        [(u, c, y) for u, _, c, y in empty_buffer],
+                    )
+                    target_conn.commit()
+                    empty_buffer.clear()
+                continue
+
             queue.put(row)
             count += 1
 
-    conn.close()
-    print(f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,}).")
+    # Final flush of empty items
+    if empty_buffer:
+        target_c.executemany(
+            "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
+            [(u, m) for u, m, _, _ in empty_buffer],
+        )
+        target_c.executemany(
+            "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
+            [(u, c, y) for u, _, c, y in empty_buffer],
+        )
+        target_conn.commit()
+
+    source_conn.close()
+    target_conn.close()
+    print(
+        f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,} processed, {empty_matched:,} empty marked)."
+    )
+    progress_queue.put(("producer_done", None))
 
 
-def worker_task(in_queue: mp.Queue, out_queue: mp.Queue, worker_id: int):
+def worker_task(
+    in_queue: mp.Queue, out_queue: mp.Queue, progress_queue: mp.Queue, worker_id: int
+):
+    """Worker: processes items and sends results to output queue"""
+    items_processed = 0
     while True:
         item = in_queue.get()
         if item is None:  # Sentinel value to exit
@@ -629,11 +687,18 @@ def worker_task(in_queue: mp.Queue, out_queue: mp.Queue, worker_id: int):
             result = process_item(item)
             if result:
                 out_queue.put(result)
+            items_processed += 1
+            # Report progress every 10 items
+            if items_processed % 10 == 0:
+                progress_queue.put(("worker_progress", items_processed))
         except Exception as e:
             print(f"⚠️ Worker {worker_id} error: {e}")
 
 
-def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value):  # type: ignore
+def writer_task(
+    queue: mp.Queue, db_path: str, stop_event: mp.Event, progress_queue: mp.Queue
+):
+    """Writer: writes results to database and reports progress"""
     print("💾 Writer started...")
     setup_target_db(db_path)
     conn = sqlite3.connect(db_path, timeout=60)
@@ -645,7 +710,7 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
     discards_buffer = []
     total_written = 0
     last_flush_time = time.time()
-    FLUSH_TIMEOUT = 30  # Flush every 30 seconds if queue is slow
+    FLUSH_TIMEOUT = 30
 
     def flush():
         nonlocal buffer, discards_buffer, total_written, last_flush_time
@@ -667,14 +732,15 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
                     discards_buffer,
                 )
             conn.commit()
-            with counter.get_lock():
-                counter.value += len(buffer)
-            total_written += len(buffer)
+            flushed = len(buffer)
+            total_written += flushed
             buffer.clear()
             discards_buffer.clear()
+            return flushed
         except Exception as e:
             print(f"❌ Writer Flush Error: {e}")
             conn.rollback()
+            return 0
 
     while not stop_event.is_set() or not queue.empty():
         try:
@@ -685,19 +751,14 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
             if (buffer or discards_buffer) and (
                 current_time - last_flush_time
             ) >= FLUSH_TIMEOUT:
-                print(
-                    f"⏱️  Flushing {len(buffer)} rows + {len(discards_buffer)} discards (timeout after {FLUSH_TIMEOUT}s)..."
-                )
-                flush()
+                flushed = flush()
+                if flushed > 0:
+                    progress_queue.put(("writer_progress", flushed))
             continue
 
         try:
-            # Unpack result with explicit error handling
             if not isinstance(result, tuple) or len(result) != 5:
-                print(
-                    f"❌ Invalid result format: expected 5-tuple, got {type(result)} with length {len(result) if isinstance(result, tuple) else 'N/A'}"
-                )
-                print(f"   Result: {result}")
+                print(f"❌ Invalid result format: expected 5-tuple, got {type(result)}")
                 continue
 
             url, matches, cik, year, discards = result
@@ -708,27 +769,31 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
                     discards_buffer.extend(discards)
                 except TypeError as e:
                     print(f"❌ Error extending discards buffer: {e}")
-                    print(f"   Discards type: {type(discards)}, value: {discards}")
 
-            # Flush on BATCH_SIZE (either buffer or discards reaches threshold)
+            # Flush on BATCH_SIZE
             if len(buffer) >= BATCH_SIZE or len(discards_buffer) >= BATCH_SIZE:
-                flush()
+                flushed = flush()
+                if flushed > 0:
+                    progress_queue.put(("writer_progress", flushed))
 
-        except (ValueError, TypeError) as e:
-            print(f"❌ Error unpacking result in writer_task: {e}")
-            print(f"   Result: {result}")
-            continue
         except Exception as e:
             print(f"❌ Unexpected error in writer_task: {e}")
             continue
 
     # Final flush on shutdown
     if buffer or discards_buffer:
-        print(f"💾 Final flush: {len(buffer)} items...")
-        flush()
+        flushed = flush()
+        if flushed > 0:
+            progress_queue.put(("writer_progress", flushed))
 
     conn.close()
     print(f"💾 Writer finished. Total saved: {total_written:,}")
+    progress_queue.put(("writer_done", None))
+
+
+# =============================================================================
+# DATABASE HELPERS
+# =============================================================================
 
 
 def setup_target_db(path):
@@ -769,92 +834,112 @@ def get_total_count(path):
     return count
 
 
+# =============================================================================
+# MAIN
+# =============================================================================
+
 if __name__ == "__main__":
     print(f"🚀 Starting Merged Pre-Filter ({NUM_WORKERS} workers)")
     processed_urls = get_processed_urls(TARGET_DB_PATH)
+    print(f"📋 Found {len(processed_urls)} already processed URLs")
+
     total_items = get_total_count(SOURCE_DB_PATH)
+    remaining_items = total_items - len(processed_urls)
+    print(f"📦 Total in source: {total_items:,} | Remaining: {remaining_items:,}")
+
+    if remaining_items == 0:
+        print("✅ All documents already processed!")
+        exit(0)
 
     task_queue = mp.Queue(maxsize=QUEUE_SIZE)
     result_queue = mp.Queue(maxsize=QUEUE_SIZE)
+    progress_queue = mp.Queue()
     stop_event = mp.Event()
-    processed_counter = mp.Value("i", len(processed_urls))
 
     writer_p = mp.Process(
         target=writer_task,
-        args=(result_queue, TARGET_DB_PATH, stop_event, processed_counter),
+        args=(result_queue, TARGET_DB_PATH, stop_event, progress_queue),
     )
     writer_p.start()
 
     workers = [
-        mp.Process(target=worker_task, args=(task_queue, result_queue, i))
+        mp.Process(
+            target=worker_task, args=(task_queue, result_queue, progress_queue, i)
+        )
         for i in range(NUM_WORKERS)
     ]
     for p in workers:
         p.start()
 
     producer_p = mp.Process(
-        target=producer_task, args=(task_queue, SOURCE_DB_PATH, processed_urls)
+        target=producer_task,
+        args=(
+            task_queue,
+            SOURCE_DB_PATH,
+            TARGET_DB_PATH,
+            processed_urls,
+            progress_queue,
+        ),
     )
     producer_p.start()
 
     try:
         with tqdm(
-            total=total_items, initial=len(processed_urls), unit="docs", smoothing=0.1
+            total=remaining_items, unit="docs", smoothing=0.1, desc="Processing"
         ) as pbar:
-            # Wait for producer to finish queuing
-            producer_p.join()
-            print("✅ Producer finished. Waiting for workers to process queue...")
-            
-            # Wait for task queue to empty AND all workers to finish
-            last_progress = processed_counter.value
-            stall_count = 0
-            while not task_queue.empty() or any(p.is_alive() for p in workers):
-                time.sleep(1)
-                current_progress = processed_counter.value
-                pbar.n = current_progress
-                pbar.refresh()
-                
-                if current_progress == last_progress:
-                    stall_count += 1
-                    if stall_count > 300:  # 300 seconds of no progress
-                        print("\n⚠️ Stall detected! Force-stopping workers...")
-                        break
-                else:
-                    stall_count = 0
-                    last_progress = current_progress
-            
-            # Send sentinel values to stop workers gracefully
+            producer_done = False
+            writer_done = False
+
+            while not (producer_done and writer_done):
+                try:
+                    msg_type, msg_data = progress_queue.get(timeout=2)
+
+                    if msg_type == "worker_progress":
+                        pbar.update(msg_data)
+                    elif msg_type == "writer_progress":
+                        pbar.update(msg_data)
+                    elif msg_type == "producer_done":
+                        producer_done = True
+                    elif msg_type == "writer_done":
+                        writer_done = True
+                except:
+                    # Timeout - just continue
+                    pass
+
+            print("✅ Producer finished. Waiting for workers...")
+
+            # Send sentinel values to stop workers
             for _ in range(NUM_WORKERS):
                 try:
                     task_queue.put(None)
                 except:
                     pass
-            
+
             # Join all workers
             for p in workers:
-                p.join(timeout=5)
+                p.join(timeout=10)
                 if p.is_alive():
                     p.terminate()
-            
+
             # Signal writer to stop and wait
             stop_event.set()
             writer_p.join(timeout=10)
             if writer_p.is_alive():
                 writer_p.terminate()
                 writer_p.join()
-            
+
             print("✅ Complete.")
+
     except KeyboardInterrupt:
         print("\n⚠️ Stopping...")
+        stop_event.set()
+        producer_p.terminate()
+        for p in workers:
+            p.terminate()
+        writer_p.terminate()
 
-    for _ in range(NUM_WORKERS):
-        try:
-            task_queue.put_nowait(None)
-        except:
-            pass
     producer_p.join()
     for p in workers:
         p.join()
-    stop_event.set()
     writer_p.join()
     print("✅ Complete.")
