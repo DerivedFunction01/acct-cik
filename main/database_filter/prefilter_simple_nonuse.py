@@ -47,6 +47,10 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 
     TEMPORAL AWARENESS: Filters account for reporting year to distinguish
     current vs. historical statements.
+
+    HISTORIC ACTIVITY DETECTION: Identifies paragraphs that only discuss
+    past years + terminations (e.g., "In 2022 we terminated all swaps")
+    without current year activity.
     """
 
     def has_instrument(text: str) -> bool:
@@ -70,12 +74,31 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 
         return False
 
+    def has_only_past_years(text: str, reporting_year: Optional[int]) -> bool:
+        """
+        Returns True if text mentions ONLY past years (no current/future).
+        Returns False if no years mentioned or any year >= reporting_year.
+        """
+        if not reporting_year:
+            return False  # No year to compare against
+
+        all_years = extract_years(text)
+
+        if not all_years:
+            return False  # No years mentioned = ambiguous, not "only past"
+
+        # True only if ALL years are < reporting_year
+        return all(y < reporting_year for y in all_years)
+
     has_potential = False
     has_absence = False
     has_trading_denial = False
     has_termination = False
     has_quant = False
     is_strictly_generic = True
+    has_current_year_activity = (
+        False  # NEW: tracks if current year is explicitly mentioned
+    )
 
     if SOFT_CATEGORY_REGEX.search(text):
         is_strictly_generic = False
@@ -93,6 +116,12 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
                 sent
             ) and not TRADING_STATEMENTS_REGEX.search(sent):
                 has_absence = True
+
+        # Check if sentence mentions current year (excluding termination context)
+        if is_current_or_no_year(sent, year):
+            # Only count if it's not JUST a termination sentence
+            if not (TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent)):
+                has_current_year_activity = True
 
         if QUANT_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
             if is_current_or_no_year(sent, year):
@@ -119,6 +148,15 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             return "generic_potential_with_trading_denial"
 
     else:
+        # NEW: Historic activity filter
+        # "In 2022 did something. In 2024 we terminated swaps" (only past years + termination, no current activity)
+        if (
+            has_termination
+            and not has_current_year_activity
+            and has_only_past_years(text, year)
+        ):
+            return "historic_activity_with_termination"
+
         if has_trading_denial and is_strictly_generic and not has_quant:
             return "generic_policy_no_trade"
 
