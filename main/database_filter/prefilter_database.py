@@ -20,6 +20,7 @@ TARGET_DB_PATH = "prefiltered_data.db"
 
 # --- IMPORTS ---
 from derivative_regex import (
+    ACCOUNTING_STANDARDS_SOFT_REGEX,
     ACCOUNTING_STANDARDS_STRICT_REGEX,
     DER_STD_REGEX,
     ENTITY_EXCLUSION_REGEX,
@@ -250,7 +251,10 @@ def process_accounting_standards_paragraph(
     for sent_idx, sent in enumerate(sentences):
         if not in_accounting_boilerplate:
             # Haven't hit boilerplate yet - keep all non-boilerplate sentences
-            if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
+            if (
+                not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent)
+                or ACCOUNTING_STANDARDS_SOFT_REGEX.search(sent)
+            ):
                 kept.append(sent)
             else:
                 # We've entered the accounting standards zone
@@ -270,7 +274,7 @@ def process_accounting_standards_paragraph(
                 next_sent = sentences[sent_idx + 1]
                 if QUANT_REGEX.search(
                     next_sent
-                ) and not ACCOUNTING_STANDARDS_STRICT_REGEX.search(next_sent):
+                ) and not ACCOUNTING_STANDARDS_STRICT_REGEX.search(next_sent) or ACCOUNTING_STANDARDS_SOFT_REGEX.search(sent):
                     kept.append(sent)
 
     # Process discards
