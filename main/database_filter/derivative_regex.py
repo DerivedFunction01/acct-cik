@@ -2447,6 +2447,20 @@ HYPOTHETICAL_PHRASES = [
     r"stress\s+testing",
     r"simulation\s+model",
     r"market\s+risk\s+measurement",
+    # Matches "hypothetical" + (0-5 words) + "increase/decrease/change/shift"
+    r"hypothetical(?:\s+\S+){0,5}\s+(?:increase|decrease|change|shift|loss|impact|effect)",
+    r"rate\s+shocks?",
+    r"yield\s+curve\s+shifts?",
+    r"immediate\s+(?:and\s+sustained\s+)?shift",
+    r"instantaneous\s+(?:parallel\s+)?shift",
+    r"weakening\s+or\s+strengthening",
+    r"regression\s+analysis",
+    r"unobservable\s+inputs?",
+    r"internally\s+developed\s+models?",
+    r"prospective(?:ly)?\s+(?:basis|test|assessment)",
+    r"retrospective(?:ly)?\s+(?:basis|test|assessment)",
+    # Safe Basis Point Check
+    r"\d+\s+basis\s+point\s+(?:increase|decrease|shift|shock|change)",
 ]
 
 # TIER 3: LOOSE INDICATORS (The Context Fillers)
@@ -2461,7 +2475,9 @@ HYPOTHETICAL_SINGLES = [
     r"assumption",
     r"parameter",
     r"holding\s+constant",
-    r"10\%\s+change",  # Specific sensitivity boilerplate
+    r"baseline",
+    r"variance",
+    r"unobservable",
 ]
 
 # --- BUILDERS ---
