@@ -632,7 +632,7 @@ SOFT_GEN_TERMS = [
 VALUATION_MODELS = [
     # The Gold Standard for Equity Options/Warrants
     r"Black[- ]Scholes(?:[- ]Merton)?",
-    r"\bBSM",  # Abbreviation for Black-Scholes-Merton
+    r"\bBSM\b",  # Abbreviation for Black-Scholes-Merton
     # Used for path-dependent equity features (e.g., Market conditions, TSR awards)
     r"Monte[- ]Carlo(?:[- ]simulations?)?",
     # Used for American options (exercisable early) and Convertibles
@@ -641,6 +641,9 @@ VALUATION_MODELS = [
     # General descriptive
     r"option[- ]pricing\s+models?",
 ]
+VALUATION_MODELS_REGEX = re.compile(
+    r"\b" + build_alternation(VALUATION_MODELS) + r"\b", re.IGNORECASE
+)
 HEDGING_CONTEXT_TERMS = (
     [
         r"hedge(?:s|d|ing)?",
@@ -2419,17 +2422,59 @@ FORWARD_LOOKING_KEYWORDS = [
     r"risk\s+factors\s+described\s+in",
 ]
 
+# --- HYPOTHETICAL SCORING COMPONENTS ---
 
-HYPOTHETICAL_KEYWORDS = [
-    r"measure(?:s|d|ment)\s+of\s+market\s+risk",
-    r"confidence\s+(?:level|interval)",
-    r"statistical\s+(?:measure|model)",
-    r"hypothetical\s+(?:changes?|loss(?:es)?|shifts?|scenarios?|stress(?:es)?|derivatives?|hedges?)",  # Added 'stress'
-    rf"hypothetical\s+{EFFECT_FRAGMENT}",
-    r"parallel\s+shift",
-    r"simulation\s+model\s+that\s+estimates",
-    r"sensitivity\s+analysis",
+# TIER 1: STRICT ARTIFACTS (The "Fake" Instruments)
+# These do not exist in the real world. Finding one is almost certainly methodology.
+# Weight: High (Immediate Kill or near-kill)
+HYPOTHETICAL_STRICT = [
+    r"hypothetical\s+derivatives?",
+    r"hypothetical\s+positions?",
+    r"hypothetical\s+trades?",
+    r"hypothetical\s+instruments?",
+    r"hypothetical\s+hedges?",
 ]
+
+# TIER 2: METHODOLOGY PHRASES (The "Stats Class" Lingo)
+# Strong indicators of modeling context.
+# Weight: Medium (2 hits = Discard)
+HYPOTHETICAL_PHRASES = [
+    r"sensitivity\s+analysis",
+    r"value[- ]at[- ]risk",
+    r"confidence\s+(?:level|interval)",
+    r"statistical\s+(?:measure|model|analysis)",
+    r"parallel\s+shift",
+    r"stress\s+testing",
+    r"simulation\s+model",
+    r"market\s+risk\s+measurement",
+]
+
+# TIER 3: LOOSE INDICATORS (The Context Fillers)
+# Common words in sensitivity sections, but safe on their own.
+# Accumulation (density) creates the signal.
+# Weight: Low (Need 3-4 hits to Discard)
+HYPOTHETICAL_SINGLES = [
+    r"hypothetical",  # Standalone word
+    r"simulation",
+    r"statistical",
+    r"probability",
+    r"variable",
+    r"assumption",
+    r"parameter",
+    r"holding\s+constant",
+    r"10\%\s+change",  # Specific sensitivity boilerplate
+]
+
+# --- BUILDERS ---
+HYP_STRICT_REGEX = re.compile(
+    r"\b" + build_alternation(HYPOTHETICAL_STRICT) + r"\b", re.IGNORECASE
+)
+HYP_PHRASE_REGEX = re.compile(
+    r"\b" + build_alternation(HYPOTHETICAL_PHRASES) + r"\b", re.IGNORECASE
+)
+HYP_SINGLE_REGEX = re.compile(
+    r"\b" + build_alternation(HYPOTHETICAL_SINGLES) + r"\b", re.IGNORECASE
+)
 COMPETITOR_KEYWORDS = [
     r"competitors?",
     r"competition",
@@ -2549,7 +2594,6 @@ EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
 EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
 EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS)
 EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
-EXCLUDE_HYPOTHETICAL_REGEX = build_exclude_regex(HYPOTHETICAL_KEYWORDS)
 EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
 EXCLUDE_REGEX_FILING = build_exclude_regex(FILING_KEYWORDS)
@@ -2571,6 +2615,44 @@ EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(
     CONTRACTUAL_KEYWORDS_PHRASE, ignore_case=True
 )
 
+def is_hypothetical_noise(text: str, threshold: int = 4, is_sophisticated: bool = False) -> bool:
+    """
+    Determines if text is Hypothetical/Methodology boilerplate using a scoring system.
+
+    Scoring Logic (Threshold = 4):
+    - Strict (Fake Instruments): 4 points (1 hit = Immediate Discard)
+    - Phrases (Methodology): 2 points (2 hits = Discard)
+    - Singles (Jargon): 1 point (4 hits = Discard)
+
+    Examples:
+    - "We use hypothetical derivatives." -> Score 4 (Discard)
+    - "Sensitivity analysis using Monte Carlo models." -> Score 2+2=4 (Discard)
+    - "We use swaps. The sensitivity is low." -> Score 1 ("sensitivity" matched as single/part of phrase) -> Keep.
+    """
+
+    # 1. DEFINE WEIGHTS
+    W_STRICT = 4
+    W_PHRASE = 2
+    W_SINGLE = 1
+
+    # 2. COUNT MATCHES
+    # findall returns a list of all non-overlapping matches
+    strict_count = len(HYP_STRICT_REGEX.findall(text))
+    phrase_count = len(HYP_PHRASE_REGEX.findall(text))
+    single_count = len(HYP_SINGLE_REGEX.findall(text))
+
+    # 3. CALCULATE SCORE
+    score = (
+        (strict_count * W_STRICT)
+        + (phrase_count * W_PHRASE)
+        + (single_count * W_SINGLE)
+    )
+    if is_sophisticated:
+        # Make sure we are not discarding valuation models
+        if VALUATION_MODELS_REGEX.search(text):
+            return False
+
+    return score >= threshold
 
 def is_contractual_noise(text: str, threshold: int = 4) -> bool:
     """
