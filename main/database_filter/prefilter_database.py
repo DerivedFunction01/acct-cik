@@ -12,7 +12,7 @@ from tqdm import tqdm
 # CONFIGURATION
 # =============================================================================
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
-BATCH_SIZE = 1000
+BATCH_SIZE = 250
 QUEUE_SIZE = NUM_WORKERS * 50
 SOURCE_DB_PATH = "web_data.db"
 TARGET_DB_PATH = "prefiltered_data.db"
@@ -633,7 +633,7 @@ def worker_task(in_queue: mp.Queue, out_queue: mp.Queue, worker_id: int):
             print(f"⚠️ Worker {worker_id} error: {e}")
 
 
-def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value): # type: ignore
+def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value):  # type: ignore
     print("💾 Writer started...")
     setup_target_db(db_path)
     conn = sqlite3.connect(db_path, timeout=60)
@@ -644,10 +644,13 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
     buffer = []
     discards_buffer = []
     total_written = 0
+    last_flush_time = time.time()
+    FLUSH_TIMEOUT = 30  # Flush every 30 seconds if queue is slow
 
     def flush():
-        nonlocal buffer, discards_buffer, total_written
+        nonlocal buffer, discards_buffer, total_written, last_flush_time
         if not buffer and not discards_buffer:
+            last_flush_time = time.time()
             return
         try:
             c.execute("BEGIN TRANSACTION")
@@ -671,6 +674,7 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
             total_written += len(buffer)
             buffer.clear()
             discards_buffer.clear()
+            last_flush_time = time.time()
         except Exception as e:
             print(f"❌ Writer Flush Error: {e}")
             conn.rollback()
@@ -679,6 +683,12 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
         try:
             result = queue.get(timeout=1)
         except Empty:
+            # Timeout occurred - check if we should flush based on time
+            if buffer and (time.time() - last_flush_time) >= FLUSH_TIMEOUT:
+                print(
+                    f"⏱️  Flushing {len(buffer)} buffered items (timeout after {FLUSH_TIMEOUT}s)..."
+                )
+                flush()
             continue
 
         try:
@@ -700,7 +710,13 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
                     print(f"❌ Error extending discards buffer: {e}")
                     print(f"   Discards type: {type(discards)}, value: {discards}")
 
+            # Flush on BATCH_SIZE OR timeout
             if len(buffer) >= BATCH_SIZE:
+                flush()
+            elif buffer and (time.time() - last_flush_time) >= FLUSH_TIMEOUT:
+                print(
+                    f"⏱️  Flushing {len(buffer)} buffered items (timeout after {FLUSH_TIMEOUT}s)..."
+                )
                 flush()
 
         except (ValueError, TypeError) as e:
@@ -711,7 +727,11 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
             print(f"❌ Unexpected error in writer_task: {e}")
             continue
 
-    flush()
+    # Final flush on shutdown
+    if buffer or discards_buffer:
+        print(f"💾 Final flush: {len(buffer)} items...")
+        flush()
+
     conn.close()
     print(f"💾 Writer finished. Total saved: {total_written:,}")
 
