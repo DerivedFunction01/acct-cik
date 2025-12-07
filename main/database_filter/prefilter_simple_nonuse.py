@@ -204,7 +204,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # Case B: Deadweight. Append token to make it an 'Anchor'.
             # Downstream logic will see this token and know:
             # "Don't score this, but don't delete it either."
-            modified_paragraphs.append(f"{p}{ANCHOR_TOKEN}")
+            modified_paragraphs.append(f"{DEADWEIGHT_TOKEN}{p}")
 
             # Log reason temporarily; only used if we return the "failure" tuple below
             all_discards_log.append((url, p, reason))
