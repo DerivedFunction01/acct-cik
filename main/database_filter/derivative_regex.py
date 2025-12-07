@@ -2478,6 +2478,7 @@ HYPOTHETICAL_SINGLES = [
     r"baseline",
     r"variance",
     r"unobservable",
+    r"estimate",
 ]
 
 # --- BUILDERS ---
