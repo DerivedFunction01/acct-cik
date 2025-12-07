@@ -620,17 +620,17 @@ def producer_task(queue: mp.Queue, db_path: str, processed_urls: Set[str]):
     print(f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,}).")
 
 
-def worker_task(in_queue: mp.Queue, out_queue: mp.Queue):
+def worker_task(in_queue: mp.Queue, out_queue: mp.Queue, worker_id: int):
     while True:
         item = in_queue.get()
-        if item is None:
+        if item is None:  # Sentinel value to exit
             break
         try:
             result = process_item(item)
             if result:
                 out_queue.put(result)
         except Exception as e:
-            print(f"⚠️ Worker error: {e}")
+            print(f"⚠️ Worker {worker_id} error: {e}")
 
 
 def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value): # type: ignore
@@ -771,8 +771,8 @@ if __name__ == "__main__":
     writer_p.start()
 
     workers = [
-        mp.Process(target=worker_task, args=(task_queue, result_queue))
-        for _ in range(NUM_WORKERS)
+        mp.Process(target=worker_task, args=(task_queue, result_queue, i))
+        for i in range(NUM_WORKERS)
     ]
     for p in workers:
         p.start()
@@ -786,14 +786,50 @@ if __name__ == "__main__":
         with tqdm(
             total=total_items, initial=len(processed_urls), unit="docs", smoothing=0.1
         ) as pbar:
-            while True:
-                time.sleep(1)
-                pbar.n = processed_counter.value
+            # Wait for producer to finish queuing
+            producer_p.join()
+            print("✅ Producer finished. Waiting for workers to process queue...")
+            
+            # Wait for task queue to empty AND all workers to finish
+            last_progress = processed_counter.value
+            stall_count = 0
+            while not task_queue.empty() or any(p.is_alive() for p in workers):
+                time.sleep(0.5)
+                current_progress = processed_counter.value
+                pbar.n = current_progress
                 pbar.refresh()
-                if not producer_p.is_alive() and task_queue.empty():
-                    # Wait a moment to ensure workers have pulled the last items
-                    if task_queue.empty():
+                
+                # Detect stalls: if no progress for 10+ seconds, force shutdown
+                if current_progress == last_progress:
+                    stall_count += 1
+                    if stall_count > 120:  # 60 seconds of no progress
+                        print("\n⚠️ Stall detected! Force-stopping workers...")
                         break
+                else:
+                    stall_count = 0
+                    last_progress = current_progress
+            
+            # Send sentinel values to stop workers gracefully
+            for _ in range(NUM_WORKERS):
+                try:
+                    task_queue.put(None)
+                except:
+                    pass
+            
+            # Join all workers
+            for p in workers:
+                p.join(timeout=5)
+                if p.is_alive():
+                    p.terminate()
+            
+            # Signal writer to stop and wait
+            stop_event.set()
+            writer_p.join(timeout=10)
+            if writer_p.is_alive():
+                writer_p.terminate()
+                writer_p.join()
+            
+            print("✅ Complete.")
     except KeyboardInterrupt:
         print("\n⚠️ Stopping...")
 
