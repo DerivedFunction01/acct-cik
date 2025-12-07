@@ -33,7 +33,6 @@ from derivative_regex import (
     EXCLUDE_COMPETITOR_REGEX,
     EXCLUDE_NON_FINANCIAL_REGEX,
     EXCLUDE_PLAN_ASSETS_REGEX,
-    EXCLUDE_HYPOTHETICAL_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
     HEDGING_CONTEXT_REGEX,
     LOOSE_GEN_REGEX,
@@ -46,6 +45,7 @@ from derivative_regex import (
     aggregate_discards,
     build_alternation,
     is_contractual_noise,
+    is_hypothetical_noise,
     is_regulatory_noise,
 )
 
@@ -166,6 +166,9 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     if is_contractual_noise(text):
         return "contractual_noise"
+    
+    if is_hypothetical_noise(text):
+        return "hypothetical_noise"
     return None
 
 
@@ -456,21 +459,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             if exclusion_reason:
                 local_discards.append((url, p, exclusion_reason))
                 continue
-
-            # === SALVAGE: HYPOTHETICAL ===
-            if EXCLUDE_HYPOTHETICAL_REGEX.search(p_masked):
-                has_std = STRICT_REGEX.search(p_masked) or (
-                    SOFT_REGEX.search(p_masked)
-                    and HEDGING_CONTEXT_REGEX.search(p_masked)
-                )
-                has_soph = is_sophisticated_content(p_masked)
-
-                if not (has_std or has_soph):
-                    local_discards.append(
-                        (url, p, "hypothetical_sensitivity_methodology")
-                    )
-                    continue
-
+            
             # === SALVAGE: EQUITY COMP ===
             if EXCLUDE_REGEX_EQUITY_COMP.search(p_masked):
                 try:

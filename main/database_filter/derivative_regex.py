@@ -2458,7 +2458,6 @@ HYPOTHETICAL_SINGLES = [
     r"simulation",
     r"statistical",
     r"probability",
-    r"variable",
     r"assumption",
     r"parameter",
     r"holding\s+constant",
