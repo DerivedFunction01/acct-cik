@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 import sqlite3
 import json
 import re
@@ -13,7 +14,7 @@ from tqdm import tqdm
 # =============================================================================
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 250
-QUEUE_SIZE = NUM_WORKERS * 50
+CHUNK_SIZE = 20
 SOURCE_DB_PATH = "web_data.db"
 TARGET_DB_PATH = "prefiltered_data.db"
 
@@ -595,181 +596,12 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 # =============================================================================
 # QUEUE PROCESSES
 # =============================================================================
-def producer_task(
-    queue: mp.Queue,
-    source_db: str,
-    processed_urls: Set[str],
-    progress_queue: mp.Queue,
-):
-    """Producer: reads from source DB and queues items"""
-    print("🔌 Producer started...")
-
-    source_conn = sqlite3.connect(source_db)
-    source_c = source_conn.cursor()
-    # Only select what we need
-    source_c.execute(
-        "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
-    )
-
-    count = 0
-    skipped = 0
-
-    while True:
-        rows = source_c.fetchmany(1000)
-        if not rows:
-            break
-        for row in rows:
-            url, matches_json, cik, year = row
-
-            # Skip already processed
-            if url in processed_urls:
-                skipped += 1
-                continue
-
-            # If matches is empty, just queue it immediately as "[]"
-            # The writer will handle saving it.
-            if matches_json == "[]":
-                queue.put((url, "[]", cik, year, []))  # Pass empty list for discards
-                # Note: We send a 5-tuple to match the writer's expected format
-                # OR we send raw row and let writer process.
-                # Let's actually just send the raw row to the task queue
-                # and let the worker/writer handle it naturally.
-                # However, since we want to skip the worker for empty items:
-                # We can put a specific flag or just let the worker process it quickly.
-
-                # OPTIMIZED APPROACH:
-                # To save CPU, we can send a "Pre-Processed" result directly to the result_queue?
-                # No, the architecture expects Producer -> TaskQ -> Worker -> ResultQ.
-                # Let's just send it to the task queue. The worker will see it's empty and return fast.
-
-            queue.put(row)
-            count += 1
-
-    source_conn.close()
-    print(f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,}).")
-    progress_queue.put(("producer_done", None))
-
-
-def worker_task(
-    in_queue: mp.Queue, out_queue: mp.Queue, progress_queue: mp.Queue, worker_id: int
-):
-    while True:
-        item = in_queue.get()
-        if item is None:
-            break
-
-        # --- NEW: Fast Pass for Empty Items ---
-        # If the item is already a tuple of 5 (url, matches, cik, year, discards),
-        # it came from the Producer's "empty" block. Pass it through.
-        if len(item) == 5 and isinstance(item[4], list):
-            out_queue.put(item)
-            continue
-
-        # Normal processing
-        try:
-            result = process_item(item)
-            if result:
-                out_queue.put(result)
-        except Exception as e:
-            print(f"⚠️ Worker {worker_id} error: {e}")
-
-
-def writer_task(
-    queue: mp.Queue, db_path: str, stop_event: mp.Event, progress_queue: mp.Queue
-):
-    print("💾 Writer started...")
-    setup_target_db(db_path)
-
-    conn = sqlite3.connect(db_path, timeout=60)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    c = conn.cursor()
-
-    buffer = []
-    discards_buffer = []
-    total_written = 0
-    last_flush_time = time.time()
-    FLUSH_TIMEOUT = 5.0  # Seconds
-
-    def flush():
-        nonlocal buffer, discards_buffer, total_written, last_flush_time
-        if not buffer and not discards_buffer:
-            return 0
-
-        try:
-            c.execute("BEGIN TRANSACTION")
-            if buffer:
-                c.executemany(
-                    "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
-                    [(r[0], r[1]) for r in buffer],
-                )
-                c.executemany(
-                    "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-                    [(r[0], r[2], r[3]) for r in buffer],
-                )
-            if discards_buffer:
-                c.executemany(
-                    "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
-                    discards_buffer,
-                )
-            conn.commit()
-
-            count = len(buffer)
-            total_written += count
-            buffer.clear()
-            discards_buffer.clear()
-            last_flush_time = time.time()
-            return count
-        except Exception as e:
-            print(f"❌ Writer Flush Error: {e}")
-            try:
-                conn.rollback()
-            except:
-                pass
-            return 0
-
-    while not stop_event.is_set() or not queue.empty():
-        try:
-            # Short timeout to ensure we hit the flush check frequently
-            result = queue.get(timeout=0.5)
-
-            url, matches, cik, year, discards = result
-            buffer.append((url, matches, cik, year))
-            if discards:
-                discards_buffer.extend(discards)
-
-        except Empty:
-            pass  # Just continue to flush check
-
-        # Check Flush Conditions
-        current_time = time.time()
-        is_full = len(buffer) >= BATCH_SIZE
-        is_stale = (len(buffer) > 0) and (
-            current_time - last_flush_time > FLUSH_TIMEOUT
-        )
-
-        if is_full or is_stale:
-            flushed = flush()
-            if flushed > 0:
-                progress_queue.put(("writer_progress", flushed))
-
-    # Final flush
-    if buffer or discards_buffer:
-        flushed = flush()
-        if flushed > 0:
-            progress_queue.put(("writer_progress", flushed))
-
-    conn.close()
-    print(f"💾 Writer finished. Total saved: {total_written:,}")
-    progress_queue.put(("writer_done", None))
-
-
-# =============================================================================
-# DATABASE HELPERS
-# =============================================================================
-
-
 def setup_target_db(path):
+    if Path(path).exists():
+        # Optional: Delete if you want a fresh start, or keep to append
+        # Path(path).unlink()
+        pass
+
     conn = sqlite3.connect(path)
     c = conn.cursor()
     c.execute(
@@ -798,145 +630,121 @@ def get_processed_urls(path):
         return set()
 
 
-def get_total_count(path):
-    conn = sqlite3.connect(path)
+def data_generator(source_db, processed_urls, batch_size=BATCH_SIZE):
+    """
+    Yields rows one by one. This prevents loading 250k rows into RAM.
+    """
+    conn = sqlite3.connect(source_db)
     c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM webpage_result WHERE matches IS NOT NULL")
-    count = c.fetchone()[0]
+    c.execute(
+        "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
+    )
+
+    while True:
+        rows = c.fetchmany(batch_size)
+        if not rows:
+            break
+
+        for row in rows:
+            url = row[0]
+            if url in processed_urls:
+                continue
+
+            # OPTIONAL: Handle empty matches early to save worker overhead
+            if row[1] == "[]":
+                # Yield a special flag or just process it normally (it's fast)
+                yield row
+            else:
+                yield row
+
     conn.close()
-    return count
+
+
+def write_batch(conn, buffer, discards):
+    if not buffer and not discards:
+        return
+
+    c = conn.cursor()
+    try:
+        c.execute("BEGIN TRANSACTION")
+        if buffer:
+            # Buffer is list of (url, matches, cik, year)
+            c.executemany(
+                "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
+                [(r[0], r[1]) for r in buffer],
+            )
+            c.executemany(
+                "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
+                [(r[0], r[2], r[3]) for r in buffer],
+            )
+        if discards:
+            c.executemany(
+                "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
+                discards,
+            )
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Write Error: {e}")
+        conn.rollback()
 
 
 # =============================================================================
-# MAIN
+# MAIN LOGIC
 # =============================================================================
 
 if __name__ == "__main__":
-    print(f"🚀 Starting Merged Pre-Filter ({NUM_WORKERS} workers)")
+    print(f"🚀 Starting Executor-Based Prefilter ({NUM_WORKERS} workers)")
+
+    # 1. Setup
+    setup_target_db(TARGET_DB_PATH)
     processed_urls = get_processed_urls(TARGET_DB_PATH)
-    print(f"📋 Found {len(processed_urls)} already processed URLs")
+    print(f"📋 Found {len(processed_urls)} processed URLs.")
 
-    total_items = get_total_count(SOURCE_DB_PATH)
-    remaining_items = total_items - len(processed_urls)
-    print(f"📦 Total in source: {total_items:,} | Remaining: {remaining_items:,}")
+    # 2. Connect Writer DB (Main Thread Only)
+    target_conn = sqlite3.connect(TARGET_DB_PATH, timeout=60)
+    target_conn.execute("PRAGMA journal_mode=WAL")
+    target_conn.execute("PRAGMA synchronous=NORMAL")
 
-    if remaining_items == 0:
-        print("✅ All documents already processed!")
-        exit(0)
+    # 3. Processing Loop
+    buffer = []
+    discards_buffer = []
+    count = 0
 
-    task_queue = mp.Queue(maxsize=QUEUE_SIZE)
-    result_queue = mp.Queue(maxsize=QUEUE_SIZE)
-    progress_queue = mp.Queue()
-    stop_event = mp.Event()
+    # Use map with chunksize for efficiency + memory safety
+    # The generator yields items, map distributes them, we iterate results
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
 
-    writer_p = mp.Process(
-        target=writer_task,
-        args=(result_queue, TARGET_DB_PATH, stop_event, progress_queue),
-    )
-    writer_p.start()
+        # Create iterator (does not load all to RAM)
+        source_iter = data_generator(SOURCE_DB_PATH, processed_urls)
 
-    workers = [
-        mp.Process(
-            target=worker_task, args=(task_queue, result_queue, progress_queue, i)
-        )
-        for i in range(NUM_WORKERS)
-    ]
-    for p in workers:
-        p.start()
+        # executor.map yields results in order as they finish (or close to it)
+        # chunksize=20 means workers grab 20 items at a time (reduces overhead)
+        results_iter = executor.map(process_item, source_iter, chunksize=CHUNK_SIZE)
 
-    producer_p = mp.Process(
-        target=producer_task,
-        args=(
-            task_queue,
-            SOURCE_DB_PATH,
-            processed_urls,
-            progress_queue,
-        ),
-    )
-    producer_p.start()
+        # Iterate over results in main thread
+        for result in tqdm(results_iter, desc="Processing"):
+            if not result:
+                continue
 
-    try:
-        with tqdm(
-            total=remaining_items, unit="docs", smoothing=0.1, desc="Processing"
-        ) as pbar:
-            producer_done = False
-            writer_done = False
-            last_update = time.time()
+            # Unpack
+            url, matches, cik, year, discards = result
 
-            while not (producer_done and writer_done):
-                try:
-                    msg_type, msg_data = progress_queue.get(timeout=1)
+            # Add to buffers
+            buffer.append((url, matches, cik, year))
+            if discards:
+                discards_buffer.extend(discards)
 
-                    if msg_type == "writer_progress":
-                        pbar.update(msg_data)
-                    elif msg_type == "producer_done":
-                        producer_done = True
-                    elif msg_type == "writer_done":
-                        writer_done = True
+            # Periodic Write
+            if len(buffer) >= BATCH_SIZE:
+                write_batch(target_conn, buffer, discards_buffer)
+                buffer = []
+                discards_buffer = []
 
-                    last_update = time.time()
-                except:
-                    # Timeout - update postfix with current queue status
-                    pass
+            count += 1
 
-                # Update postfix every 2 seconds with queue stats
-                if time.time() - last_update > 2 or producer_done or writer_done:
-                    try:
-                        task_q_size = (
-                            task_queue.qsize()
-                            if hasattr(task_queue, "qsize")
-                            else "N/A"
-                        )
-                        result_q_size = (
-                            result_queue.qsize()
-                            if hasattr(result_queue, "qsize")
-                            else "N/A"
-                        )
+    # 4. Final Flush
+    if buffer or discards_buffer:
+        write_batch(target_conn, buffer, discards_buffer)
 
-                        pbar.set_postfix(
-                            task_q=task_q_size,
-                            result_q=result_q_size,
-                            producer="✓" if producer_done else "⏳",
-                            writer="✓" if writer_done else "⏳",
-                        )
-                    except:
-                        pass
-                    last_update = time.time()
-
-            print("✅ Producer & Writer finished. Waiting for workers...")
-
-            # Send sentinel values to stop workers
-            for _ in range(NUM_WORKERS):
-                try:
-                    task_queue.put(None)
-                except:
-                    pass
-
-            # Join all workers
-            for p in workers:
-                p.join(timeout=10)
-                if p.is_alive():
-                    p.terminate()
-
-            # Signal writer to stop and wait
-            stop_event.set()
-            writer_p.join(timeout=10)
-            if writer_p.is_alive():
-                writer_p.terminate()
-                writer_p.join()
-
-            print("✅ Complete.")
-
-    except KeyboardInterrupt:
-        print("\n⚠️ Stopping...")
-        stop_event.set()
-        producer_p.terminate()
-        for p in workers:
-            p.terminate()
-        writer_p.terminate()
-
-    producer_p.join()
-    for p in workers:
-        p.join()
-    writer_p.join()
-    print("✅ Complete.")
+    target_conn.close()
+    print(f"✅ Complete. Processed {count} documents.")
