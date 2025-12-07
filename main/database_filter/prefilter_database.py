@@ -598,27 +598,21 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 def producer_task(
     queue: mp.Queue,
     source_db: str,
-    target_db: str,
     processed_urls: Set[str],
     progress_queue: mp.Queue,
 ):
-    """Producer: reads from source DB and queues items, marks empty ones as processed"""
+    """Producer: reads from source DB and queues items"""
     print("🔌 Producer started...")
 
     source_conn = sqlite3.connect(source_db)
     source_c = source_conn.cursor()
+    # Only select what we need
     source_c.execute(
         "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
 
-    # Separate connection for marking empty items as processed
-    target_conn = sqlite3.connect(target_db)
-    target_c = target_conn.cursor()
-
-    empty_buffer = []
     count = 0
     skipped = 0
-    empty_matched = 0
 
     while True:
         rows = source_c.fetchmany(1000)
@@ -632,48 +626,27 @@ def producer_task(
                 skipped += 1
                 continue
 
-            # If matches is empty JSON array, mark as processed but don't queue
+            # If matches is empty, just queue it immediately as "[]"
+            # The writer will handle saving it.
             if matches_json == "[]":
-                empty_matched += 1
-                empty_buffer.append((url, "[]", cik, year))
+                queue.put((url, "[]", cik, year, []))  # Pass empty list for discards
+                # Note: We send a 5-tuple to match the writer's expected format
+                # OR we send raw row and let writer process.
+                # Let's actually just send the raw row to the task queue
+                # and let the worker/writer handle it naturally.
+                # However, since we want to skip the worker for empty items:
+                # We can put a specific flag or just let the worker process it quickly.
 
-                # Flush empty buffer periodically
-                if len(empty_buffer) >= 1000:
-                    target_c.executemany(
-                        "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
-                        [(u, m) for u, m, _, _ in empty_buffer],
-                    )
-                    target_c.executemany(
-                        "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-                        [(u, c, y) for u, _, c, y in empty_buffer],
-                    )
-                    target_conn.commit()
-                    # Report these as processed to writer
-                    progress_queue.put(("writer_progress", len(empty_buffer)))
-                    empty_buffer.clear()
-                continue
+                # OPTIMIZED APPROACH:
+                # To save CPU, we can send a "Pre-Processed" result directly to the result_queue?
+                # No, the architecture expects Producer -> TaskQ -> Worker -> ResultQ.
+                # Let's just send it to the task queue. The worker will see it's empty and return fast.
 
             queue.put(row)
             count += 1
 
-    # Final flush of empty items
-    if empty_buffer:
-        target_c.executemany(
-            "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
-            [(u, m) for u, m, _, _ in empty_buffer],
-        )
-        target_c.executemany(
-            "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-            [(u, c, y) for u, _, c, y in empty_buffer],
-        )
-        target_conn.commit()
-        progress_queue.put(("writer_progress", len(empty_buffer)))
-
     source_conn.close()
-    target_conn.close()
-    print(
-        f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,} processed, {empty_matched:,} empty marked)."
-    )
+    print(f"🔌 Producer finished. Queued {count:,} items (Skipped {skipped:,}).")
     progress_queue.put(("producer_done", None))
 
 
@@ -700,6 +673,8 @@ def writer_task(
     """Writer: writes results to database and reports progress"""
     print("💾 Writer started...")
     setup_target_db(db_path)
+
+    # timeout=60 is good, keeping WAL mode is essential
     conn = sqlite3.connect(db_path, timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -709,11 +684,14 @@ def writer_task(
     discards_buffer = []
     total_written = 0
     last_flush_time = time.time()
-    FLUSH_TIMEOUT = 30
+    FLUSH_TIMEOUT = 10  # Flush every 10 seconds even if batch isn't full
 
     def flush():
         nonlocal buffer, discards_buffer, total_written, last_flush_time
-        last_flush_time = time.time()
+        if not buffer and not discards_buffer:
+            last_flush_time = time.time()  # Reset timer even if empty
+            return 0
+
         try:
             c.execute("BEGIN TRANSACTION")
             if buffer:
@@ -731,53 +709,55 @@ def writer_task(
                     discards_buffer,
                 )
             conn.commit()
-            flushed = len(buffer)
-            total_written += flushed
+
+            flushed_count = len(buffer)
+            total_written += flushed_count
+
+            # Clear buffers
             buffer.clear()
             discards_buffer.clear()
-            return flushed
+            last_flush_time = time.time()
+            return flushed_count
+
         except Exception as e:
             print(f"❌ Writer Flush Error: {e}")
-            conn.rollback()
+            try:
+                conn.rollback()
+            except:
+                pass
             return 0
 
+    # Main Loop
     while not stop_event.is_set() or not queue.empty():
         try:
-            result = queue.get(timeout=1)
-        except Empty:
-            # Timeout occurred - check if we should flush based on time
-            current_time = time.time()
-            if (buffer or discards_buffer) and (
-                current_time - last_flush_time
-            ) >= FLUSH_TIMEOUT:
-                flushed = flush()
-                if flushed > 0:
-                    progress_queue.put(("writer_progress", flushed))
-            continue
+            # Short timeout to allow frequently checking the time-based flush
+            result = queue.get(timeout=0.1)
 
-        try:
             if not isinstance(result, tuple) or len(result) != 5:
-                print(f"❌ Invalid result format: expected 5-tuple, got {type(result)}")
+                print(f"❌ Invalid result format: {type(result)}")
                 continue
 
             url, matches, cik, year, discards = result
             buffer.append((url, matches, cik, year))
 
             if discards:
-                try:
-                    discards_buffer.extend(discards)
-                except TypeError as e:
-                    print(f"❌ Error extending discards buffer: {e}")
+                discards_buffer.extend(discards)
 
-            # Flush on BATCH_SIZE
-            if len(buffer) >= BATCH_SIZE or len(discards_buffer) >= BATCH_SIZE:
-                flushed = flush()
-                if flushed > 0:
-                    progress_queue.put(("writer_progress", flushed))
+        except Empty:
+            pass  # Just continue to the flush check
 
-        except Exception as e:
-            print(f"❌ Unexpected error in writer_task: {e}")
-            continue
+        # === UNIVERSAL FLUSH CHECK ===
+        # This runs every loop, regardless of whether we got an item or not
+        current_time = time.time()
+        is_batch_full = len(buffer) >= BATCH_SIZE or len(discards_buffer) >= BATCH_SIZE
+        is_time_up = (buffer or discards_buffer) and (
+            current_time - last_flush_time >= FLUSH_TIMEOUT
+        )
+
+        if is_batch_full or is_time_up:
+            flushed = flush()
+            if flushed > 0:
+                progress_queue.put(("writer_progress", flushed))
 
     # Final flush on shutdown
     if buffer or discards_buffer:
@@ -875,7 +855,6 @@ if __name__ == "__main__":
         args=(
             task_queue,
             SOURCE_DB_PATH,
-            TARGET_DB_PATH,
             processed_urls,
             progress_queue,
         ),
