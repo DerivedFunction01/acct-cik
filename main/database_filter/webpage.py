@@ -437,43 +437,18 @@ def extract_content(data: str, asHTML=True) -> str:
             if table.caption:
                 title = table.caption.get_text(strip=True)
 
-            # 2. Check for preceding text node or paragraph (the boilerplate)
-            # Find the element immediately preceding the table that is likely text (e.g., a <p> or just a text node).
-            # We use find_previous(['p', 'div']) or just check the previous sibling for text.
-
             prev_text = table.find_previous(string=True)
             prev_string = prev_text.strip() if prev_text else ""
 
             str_len = len(prev_string)
-            if (
-                prev_string and str_len > 20 and str_len < 500
-            ):  # Must be long enough to be a sentence, but not too long to be a paragraph
-                # Check if the text node itself contains a table introduction keyword
+            if prev_string and str_len > 20 and str_len < 500:
                 if TABLE_HINT_PATTERN.search(prev_string, re.IGNORECASE):
                     prologue_text = prev_string
-            # Combine the captured prologue with the caption title
             if title and prologue_text:
                 title = f"{prologue_text} | {title}"
             elif prologue_text:
                 title = prologue_text
-            # OPTIMIZATION: Avoid re-parsing with pd.read_html.
-            # Extract rows directly from the BeautifulSoup table object.
-            header_count = 0
-            thead = table.find("thead")
-            if thead:
-                header_count = len(thead.find_all("tr"))
 
-            # Fallback: Count rows containing <th> (Legacy HTML)
-            if header_count == 0:
-                for tr in table.find_all("tr"):
-                    if tr.find("th"):
-                        header_count += 1
-                    else:
-                        # Stop at the first row that is NOT a header
-                        break
-
-            # Default to 1 if detection failed but table exists
-            header_count = max(1, header_count)
             rows = []
             col_count = 0
             try:
@@ -481,18 +456,12 @@ def extract_content(data: str, asHTML=True) -> str:
                     row_cells = []
                     for cell in tr.find_all(["td", "th"]):
                         text = cell.get_text(strip=True)
-
-                        # CAPTURE COLSPAN
-                        # Default to 1 if attribute is missing or invalid
                         try:
-                            colspan = int(cell.get("colspan", 1)) # type: ignore
+                            colspan = int(cell.get("colspan", 1))
                         except (ValueError, TypeError):
                             colspan = 1
 
-                        # Add the actual text
                         row_cells.append(text)
-
-                        # PADDING: Add empty strings to reserve space for the span
                         if colspan > 1:
                             row_cells.extend([""] * (colspan - 1))
 
@@ -502,11 +471,71 @@ def extract_content(data: str, asHTML=True) -> str:
             except Exception as e:
                 debug_print(f"⚠️  Table extraction failed: {e}")
 
+            # IMPROVED HEADER DETECTION
+            # Look for rows that are mostly empty or contain only formatting rows
+            header_count = 0
+            if rows:
+                for i, row in enumerate(rows):
+                    # Check if row is mostly empty (spacing/separator row)
+                    non_empty_cells = sum(1 for cell in row if cell.strip())
+                    if non_empty_cells == 0:
+                        # Empty row - likely a spacer
+                        continue
+
+                    # Check if row contains bold text or typical header patterns
+                    row_text = " ".join(row)
+                    has_bold = any(
+                        "<b>" in str(cell) or "<strong>" in str(cell)
+                        for cell in table.find_all("tr")[i].find_all(["td", "th"])
+                    )
+
+                    # If we've found data rows, stop counting headers
+                    # A data row typically has numbers or specific patterns
+                    # For now, use heuristic: if row is sparse in content or has formatting, it's likely a header
+                    is_likely_header = (
+                        has_bold
+                        or non_empty_cells < len(row) * 0.5  # Less than 50% filled
+                        or any(
+                            keyword in row_text.lower()
+                            for keyword in [
+                                "amount",
+                                "rate",
+                                "expiration",
+                                "period",
+                                "per annum",
+                            ]
+                        )
+                    )
+
+                    if is_likely_header:
+                        header_count += 1
+                    else:
+                        # Stop when we hit first real data row
+                        break
+
+            # Fallback to detecting <thead> or <th> elements
+            if header_count == 0:
+                thead = table.find("thead")
+                if thead:
+                    header_count = len(thead.find_all("tr"))
+
+                if header_count == 0:
+                    for tr in table.find_all("tr"):
+                        if tr.find("th"):
+                            header_count += 1
+                        else:
+                            break
+
+            # Default to 1 if detection still failed
+            header_count = max(1, header_count)
+
             # Only convert if there is at least one row and two cols
             if len(rows) > 1 and col_count > 1:
-                converter = HTMLTableConverter(grid=rows, title=title, header_row_count=header_count)
+                converter = HTMLTableConverter(
+                    grid=rows, title=title, header_row_count=header_count
+                )
                 generic_table = converter.to_generic_table()
-                table_text = generic_table.build()  
+                table_text = generic_table.build()
                 pre_tag = soup.new_tag("pre")
                 pre_tag.string = table_text
                 table.replace_with(pre_tag)
@@ -525,20 +554,18 @@ def extract_content(data: str, asHTML=True) -> str:
         for header in soup(["h1", "h2", "h3", "h4", "h5", "h6"]):
             header.decompose()
         # Use html2text to convert remaining HTML to text
-        # This handles complex nested structures without recursion issues
         h = html2text.HTML2Text()
         h.ignore_links = True
         h.ignore_images = True
-        h.ignore_emphasis = False  # Keep bold/italic formatting
-        h.body_width = 0  # Don't wrap text
-        h.unicode_snob = True  # Use unicode characters
+        h.ignore_emphasis = False
+        h.body_width = 0
+        h.unicode_snob = True
 
         try:
             soup_str = str(soup)
             text = h.handle(soup_str)
         except Exception as e:
             print(f"⚠️  html2text conversion failed: {e}")
-            # Fallback to simple text extraction
             text = soup.get_text(separator="\n", strip=True)
 
     else:
@@ -563,16 +590,12 @@ def extract_content(data: str, asHTML=True) -> str:
         text = "".join(processed_parts)
 
     for pattern, replacement in HEADER_CLEANUP_PATTERNS:
-        # Run twice for robustness against nested or overlapping headers
         text = pattern.sub(replacement, text)
         text = pattern.sub(replacement, text)
-    # Apply crunched text patterns
     for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
         text = pattern.sub(replacement, text)
 
-    # Normalize unicode
     text = normalize_unicode(text)
-
     return text
 
 
@@ -625,7 +648,7 @@ def process_url(url: str):
         debug_print(f"Error fetching {url}: No text found")
         return ""
 
-    if url.endswith("htm"):
+    if url.endswith("htm") or raw_text.lower().find("html") != -1:
         debug_print("Processing as html")
         content = extract_content(raw_text, True)
     else:
