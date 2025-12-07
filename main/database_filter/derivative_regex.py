@@ -2164,7 +2164,7 @@ EFFECT_NOUNS = [
     r"consequences?",
     r"repercussions?",
     r"ramifications?",
-    r"influence",
+    r"influences?",
     r"significance",
     r"aftermath",
     r"corollaries?",
@@ -2424,7 +2424,8 @@ HYPOTHETICAL_KEYWORDS = [
     r"measure(?:s|d|ment)\s+of\s+market\s+risk",
     r"confidence\s+(?:level|interval)",
     r"statistical\s+(?:measure|model)",
-    r"hypothetical\s+(?:change|loss|shift|scenario|stress|derivative)",  # Added 'stress'
+    r"hypothetical\s+(?:changes?|loss(?:es)?|shifts?|scenarios?|stress(?:es)?|derivatives?|hedges?)",  # Added 'stress'
+    rf"hypothetical\s+{EFFECT_FRAGMENT}"
     r"parallel\s+shift",
     r"simulation\s+model\s+that\s+estimates",
     r"sensitivity\s+analysis",
