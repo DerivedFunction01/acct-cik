@@ -2615,7 +2615,7 @@ EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(
     CONTRACTUAL_KEYWORDS_PHRASE, ignore_case=True
 )
 
-def is_hypothetical_noise(text: str, threshold: int = 4, is_sophisticated: bool = False) -> bool:
+def is_hypothetical_noise(text: str, threshold: int = 4, is_sophisticated: bool = False) -> Tuple[bool, bool]:
     """
     Determines if text is Hypothetical/Methodology boilerplate using a scoring system.
 
@@ -2647,12 +2647,9 @@ def is_hypothetical_noise(text: str, threshold: int = 4, is_sophisticated: bool 
         + (phrase_count * W_PHRASE)
         + (single_count * W_SINGLE)
     )
-    if is_sophisticated:
-        # Make sure we are not discarding valuation models
-        if VALUATION_MODELS_REGEX.search(text):
-            return False
+    is_valuation_model = bool(VALUATION_MODELS_REGEX.search(text))
 
-    return score >= threshold
+    return score >= threshold, is_valuation_model
 
 def is_contractual_noise(text: str, threshold: int = 4) -> bool:
     """
