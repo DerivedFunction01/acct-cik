@@ -3579,7 +3579,7 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
     # Use build_alternation to ensure longest matches (e.g., full name) are prioritized
     # Note: We enforce word boundaries \b for short acronyms inside the list above
     pattern = build_alternation(all_patterns)
-    return re.compile(pattern), "E_"
+    return re.compile(pattern), " E_ "
 
 
 # Compile and Export

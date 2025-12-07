@@ -372,6 +372,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             if exclusion_reason:
                 local_discards.append((url, p, exclusion_reason))
                 continue
+            
+            p  = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
             # 3. SALVAGE LOGIC
             # Hypothetical
