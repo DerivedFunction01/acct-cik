@@ -128,22 +128,40 @@ TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
 def check_hard_exclusions(text: str) -> Optional[str]:
-    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
-        return "legal_litigation"
-    if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
-        return "forward_looking"
-    if EXCLUDE_COMPETITOR_REGEX.search(text):
-        return "competitor_analysis"
-    if is_regulatory_noise(text):
-        return "regulatory_boilerplate"
-    if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
-        return "non_financial"
-    if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
-        return "pension_plan_assets"
+    """
+    Checks text against 'Dead Weight' filters.
+    Returns the discard reason string if matched, otherwise None.
+
+    Order optimized for performance:
+    1. Structural/Boilerplate (High frequency)
+    2. Specific Topic Filters (Simple Regex)
+    3. Scoring Logic (Most expensive, run last)
+    """
+
+    # --- TIER 1: HIGH FREQUENCY BOILERPLATE ---
     if EXCLUDE_REGEX_FILING.search(text):
         return "filing"
-    # is_contractual_noise is run later or separately depending on logic,
-    # but here we include it as a hard exclusion check.
+
+    if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
+        return "forward_looking"
+
+    # --- TIER 2: SPECIFIC TOPIC FILTERS ---
+    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
+        return "legal_litigation"
+
+    if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
+        return "pension_plan_assets"
+
+    if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
+        return "non_financial"
+
+    if EXCLUDE_COMPETITOR_REGEX.search(text):
+        return "competitor_analysis"
+
+    # --- TIER 3: SCORING / DENSITY CHECKS (Heavier Ops) ---
+    if is_regulatory_noise(text):
+        return "regulatory_boilerplate"
+
     if is_contractual_noise(text):
         return "contractual_noise"
     return None
