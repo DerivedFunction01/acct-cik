@@ -210,7 +210,7 @@ def strip_table_formatting(
 def is_text_container_table(table_text: str, footnotes: List[str]) -> bool:
     if not TableToTextConverter:
         return True
-    context_str = " ".join(footnotes) + " Notional"
+    context_str = " ".join(footnotes)
     try:
         converter = TableToTextConverter(
             table_text, narrative_context=context_str, is_sophisticated=True
