@@ -2085,18 +2085,16 @@ ADOPTION_VERBS_FUTURE = [
 
 # --- ADOPTION VERBS: GENERAL ACTION ---
 ADOPTION_VERBS_GENERAL = [
-    r"adopt(?:ing|ed)?",
-    r"early\s+adopt(?:ed|ing|ion)?",
-    r"application\s+of",
-    r"implement(?:ing|ed|ation)",
-    r"transition(?:ing|ed)?",
-    r"compliance\s+with",
-    r"conform(?:ing|ed|ity)\s+to",
-    r"following",
-    r"(?:early\s+)?application",
-    r"effective\s+(?:upon|date)",
-    r"retroactive\s+(?:application|adoption)",
-    r"prospective\s+(?:application|adoption)",
+    r"adopt(?:ing|ed)?",                           # ✓ Direct adoption
+    r"early\s+adopt(?:ed|ing|ion)?",               # ✓ Early adoption (accounting-specific)
+    r"application\s+of",                           # ✓ "Application of ASC 815" (accounting context)
+    r"implement(?:ing|ed|ation)",                  # ✓ Implementation (accounting standards)
+    r"transition(?:ing|ed)?",                      # ✓ Transition (accounting-specific in this context)
+    r"compliance\s+with",               
+    r"conform(?:ing|ed|ity)\s+to",      
+    r"(?:early\s+)?application",      
+    r"retroactive\s+(?:application|adoption)",     # ✓ Retroactive adoption (accounting-specific)
+    r"prospective\s+(?:application|adoption)",     # ✓ Prospective adoption (accounting-specific)
 ]
 
 # --- EFFECTIVE DATE PHRASES ---
@@ -3619,7 +3617,7 @@ EQ_STRICT_TERMS = [
     rf"share\s+(?:price|{_RISK_ALTERNATION})",
     # 2. Convertible Instruments
     rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
-    # 3. Embedded Features (REMOVED: "derivative" as requested)
+    # 3. Embedded Features ("derivative" as requested)
     # Only matches specific features now, reducing noise.
     r"embedded\s+(?:conversion|option)",
     # 4. Specific Instruments
