@@ -54,18 +54,20 @@ def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
 # SHARED COMPONENTS (moved from filter_database.py)
 # =============================================================================
 # Comparison verbs phrases
-comparison_phrases = [
-    "compared to",
-    "versus",
-    "as against",
-    "in comparison with",
-    "whereas",
-    "compared with",
-    "relative to",
-    "in contrast to",
-    "as opposed to",
-    "vis-à-vis",
-    "when compared with",
+COMPARISON_PHRASES = [
+    r"compared to",
+    r"versus",
+    r"vs\.?",  # Abbreviated version
+    r"as against",
+    r"in comparison with",
+    r"whereas",
+    r"compared with",
+    r"relative to",
+    r"in contrast to",
+    r"as opposed to",
+    r"vis-à-vis",
+    r"when compared with",
+    r"from", # "decreased to $X from $Y"
 ]
 # State Descriptors (New)
 ACTIVE_STATE_DESCRIPTORS = ["outstanding", "active", "remaining", "open"]
