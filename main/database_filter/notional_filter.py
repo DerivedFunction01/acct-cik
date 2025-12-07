@@ -188,9 +188,7 @@ def check_is_quantitative_zero(sentence: str, reporting_year: int) -> bool:
         # it means this sentence is about other years. Safe to Keep (or Discard?).
         # Usually, if a sentence is purely about 2022, we might want to discard it
         # if we are strictly looking for 2024 data.
-        # But to be safe (avoid False Positives), we usually Keep unless it's explicitly zero.
-        # However, for a "Zero Filter", we usually only discard if we are SURE it's zero.
-        return False
+        return True
 
     # --- STEP 3: Tier 2 - The Splitter (Conditional Fallback) ---
     # We only reach here if there was a mismatch.
