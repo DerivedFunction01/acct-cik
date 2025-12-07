@@ -726,7 +726,7 @@ EQ_CONTEXT_TERMS = [
     r"dividend\s+yields?",
     r"(?:preferred|common)\s+stock",
     # --- D. Structures & Events ---
-    r"warrants?",
+    r"stock\s+warrants?",
     rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     r"initial\s+public\s+offering|IPO",
     r"primary\s+market|secondary\s+market",
