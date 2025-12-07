@@ -2425,7 +2425,7 @@ HYPOTHETICAL_KEYWORDS = [
     r"confidence\s+(?:level|interval)",
     r"statistical\s+(?:measure|model)",
     r"hypothetical\s+(?:changes?|loss(?:es)?|shifts?|scenarios?|stress(?:es)?|derivatives?|hedges?)",  # Added 'stress'
-    rf"hypothetical\s+{EFFECT_FRAGMENT}"
+    rf"hypothetical\s+{EFFECT_FRAGMENT}",
     r"parallel\s+shift",
     r"simulation\s+model\s+that\s+estimates",
     r"sensitivity\s+analysis",
