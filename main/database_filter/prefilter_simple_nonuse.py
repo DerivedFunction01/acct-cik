@@ -139,9 +139,6 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             return "risk_boilerplate_nonuse"
         if has_termination: 
             return "potential_future_but_terminated"
-
-        if has_trading_denial and not has_quant:
-            return "potential_with_trading_denial_no_explicit_use"
     else:
         # NEW: Historic activity filter
         # "In 2022 did something. In 2024 we terminated swaps" (only past years + termination, no current activity)
