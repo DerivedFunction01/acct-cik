@@ -2370,6 +2370,10 @@ ACCOUNTING_STANDARDS_STRICT_REGEX = re.compile(
     r"|".join(ACCOUNTING_STANDARDS_STRICT), re.IGNORECASE
 )
 
+ACCOUNTING_STANDARDS_SOFT_REGEX = re.compile(
+    r"|".join(ACCOUNTING_STANDARDS_SOFT), re.IGNORECASE
+)
+
 
 def build_capitalized_title_cleaner() -> re.Pattern:
     """
