@@ -15,9 +15,10 @@ BATCH_SIZE = 1000
 SOURCE_DB_PATH = "prefiltered_data.db"  # Output from Step 1
 TARGET_DB_PATH = "refined_data.db"  # Input for Step 3
 
+# The token to append to deadweight paragraphs.
+DEADWEIGHT_TOKEN = " _D "
 # --- REGEX IMPORTS ---
 from derivative_regex import (
-    CATEGORY_REGEX,
     LOOSE_GEN_REGEX,
     POTENTIAL_REGEX,
     NEGATIVE_INTENT_REGEX,
@@ -26,7 +27,6 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN,
     SOFT_CATEGORY_REGEX,
     SOFT_REGEX,
-    STRICT_REGEX,
     TRADING_STATEMENTS_REGEX,
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
@@ -85,7 +85,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
         if has_instrument(sent):
             if POTENTIAL_REGEX.search(sent) or VAGUE_TIMING_REGEX.search(sent):
                 has_potential = True
-            if ABSENCE_REGEX.search(sent):
+            if ABSENCE_REGEX.search(sent) or DID_NOT_HOLD_REGEX.search(sent):
                 has_absence = True
             if TRADING_STATEMENTS_REGEX.search(sent):
                 has_trading_denial = True
@@ -136,10 +136,13 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 
 def process_item(item: Tuple) -> Optional[Tuple]:
     """
-    Firm-Level Filter:
-    Reads a row. If AT LEAST ONE paragraph is valid (not deadweight),
-    keeps the entire original list of paragraphs.
-    If ALL paragraphs are deadweight, drops the firm.
+    Firm-Level Filter with Token Injection:
+
+    1. Scans paragraphs.
+    2. If a paragraph is 'Deadweight', append an ANCHOR token to it.
+    3. If a paragraph is Valid, keep as is.
+    4. If at least one Valid paragraph exists, return the modified list (Valids + Anchors).
+    5. If ALL are Deadweight, discard the firm.
     """
     url, matches_json, cik, year = item
 
@@ -148,28 +151,36 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     except:
         return None
 
+    modified_paragraphs = []
     has_valid_signal = False
-    all_discards_log = []
+    all_discards_log = []  # We still track reasons in case we drop the firm entirely
 
-    # 1. Scan the firm to see if it has ANY life
     for p in paragraphs:
         reason = check_refinement_exclusions(p, year)
 
         if reason is None:
-            # We found a "Keeper"!
+            # Case A: Valid Signal. Keep text exactly as is.
             has_valid_signal = True
+            modified_paragraphs.append(p)
         else:
-            # Track why this specific paragraph was bad
+            # Case B: Deadweight. Append token to make it an 'Anchor'.
+            # Downstream logic will see this token and know:
+            # "Don't score this, but don't delete it either."
+            modified_paragraphs.append(f"{p}{ANCHOR_TOKEN}")
+
+            # Log reason temporarily; only used if we return the "failure" tuple below
             all_discards_log.append((url, p, reason))
 
-    # 2. The Firm-Level Decision
+    # Firm-Level Decision
     if has_valid_signal:
-        # CONDITION MET: At least one valid paragraph exists.
-        # Keep EVERYTHING as-is (original full list).
-        return (url, json.dumps(paragraphs), cik, year, [])
+        # CONDITION MET: Firm has at least one strong signal.
+        # Return the MODIFIED list. Valid paragraphs are clean;
+        # Weak paragraphs now have " <ANCHOR>" at the end.
+        return (url, json.dumps(modified_paragraphs), cik, year, [])
+
     else:
-        # CONDITION FAILED: Every single paragraph was "Deadweight".
-        # Drop the entire firm and log why.
+        # CONDITION FAILED: No valid signal found.
+        # Drop the firm entirely.
         return (url, json.dumps([]), cik, year, all_discards_log)
 
 
