@@ -44,6 +44,7 @@ from derivative_regex import (
     aggregate_discards,
     build_alternation,
     is_contractual_noise,
+    is_regulatory_noise,
 )
 
 from final_verification import QUANT_REGEX
@@ -133,7 +134,7 @@ def check_hard_exclusions(text: str) -> Optional[str]:
         return "forward_looking"
     if EXCLUDE_COMPETITOR_REGEX.search(text):
         return "competitor_analysis"
-    if EXCLUDE_REGULATION_REGEX.search(text):
+    if is_regulatory_noise(text):
         return "regulatory_boilerplate"
     if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
         return "pension_plan_assets"
@@ -363,11 +364,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                         p += " " + " ".join(footnotes)
                     if not p.strip():
                         continue
-
-            try:
-                p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
-            except Exception as e:
-                pass
 
             # 2. EXCLUSIONS
             exclusion_reason = check_hard_exclusions(p)
