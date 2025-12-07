@@ -22,6 +22,8 @@ DEADWEIGHT_TOKEN = " _D "
 from year_deletion import extract_years
 
 from derivative_regex import (
+    ENTITY_EXCLUSION_REGEX,
+    ENTITY_TOKEN,
     LOOSE_GEN_REGEX,
     POTENTIAL_REGEX,
     NEGATIVE_INTENT_REGEX,
@@ -314,15 +316,21 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     return None
 
 
+# =============================================================================
+# WORKER LOGIC
+# =============================================================================
+
+
 def process_item(item: Tuple) -> Optional[Tuple]:
     """
-    Firm-Level Filter with Token Injection:
+    Firm-Level Filter with Token Injection & Entity Masking:
 
     1. Scans paragraphs.
-    2. If a paragraph is 'Deadweight', append an ANCHOR token to it.
-    3. If a paragraph is Valid, keep as is.
-    4. If at least one Valid paragraph exists, return the modified list (Valids + Anchors).
-    5. If ALL are Deadweight, discard the firm.
+    2. MASKS entities (e.g. 'CFTC', 'Chicago Mercantile Exchange') before logic checks.
+    3. If a paragraph is 'Deadweight' (based on masked text), append ANCHOR token to ORIGINAL text.
+    4. If a paragraph is Valid (based on masked text), keep ORIGINAL text as is.
+    5. If at least one Valid paragraph exists, return the modified list.
+    6. If ALL are Deadweight, discard the firm.
     """
     url, matches_json, cik, year = item
 
@@ -333,34 +341,33 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     modified_paragraphs = []
     has_valid_signal = False
-    all_discards_log = []  # We still track reasons in case we drop the firm entirely
+    all_discards_log = []
 
     for p in paragraphs:
-        reason = check_refinement_exclusions(p, year)
+        # --- PARALLEL COPIES STRATEGY ---
+        # 1. Create Masked Copy for Logic (The "Judge")
+        #    This prevents "Commodity Futures Trading Commission" from triggering "Futures" detection.
+        p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
+        # 2. Run Logic on Masked Copy
+        reason = check_refinement_exclusions(p_masked, year)
+
+        # 3. Store Original Copy (The "Record")
         if reason is None:
-            # Case A: Valid Signal. Keep text exactly as is.
+            # Case A: Valid Signal. Keep original text exactly as is.
             has_valid_signal = True
             modified_paragraphs.append(p)
         else:
-            # Case B: Deadweight. Append token to make it an 'Anchor'.
-            # Downstream logic will see this token and know:
-            # "Don't score this, but don't delete it either."
+            # Case B: Deadweight. Append token to original text.
             modified_paragraphs.append(f"{DEADWEIGHT_TOKEN}{p}")
 
-            # Log reason temporarily; only used if we return the "failure" tuple below
+            # Log reason (using masked text for context if debugging, or original)
             all_discards_log.append((url, p, reason))
 
     # Firm-Level Decision
     if has_valid_signal:
-        # CONDITION MET: Firm has at least one strong signal.
-        # Return the MODIFIED list. Valid paragraphs are clean;
-        # Weak paragraphs now have " <ANCHOR>" at the end.
         return (url, json.dumps(modified_paragraphs), cik, year, [])
-
     else:
-        # CONDITION FAILED: No valid signal found.
-        # Drop the firm entirely.
         return (url, json.dumps([]), cik, year, all_discards_log)
 
 
