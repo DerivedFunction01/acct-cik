@@ -565,7 +565,7 @@ def worker_task(in_queue: mp.Queue, out_queue: mp.Queue):
             print(f"⚠️ Worker error: {e}")
 
 
-def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value):
+def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp.Value): # type: ignore
     print("💾 Writer started...")
     setup_target_db(db_path)
     conn = sqlite3.connect(db_path, timeout=60)
