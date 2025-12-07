@@ -13,7 +13,7 @@ sys.setrecursionlimit(5000)
 import pandas as pd
 import requests
 import time
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 import json
 from io import StringIO
 import sqlite3
@@ -427,6 +427,9 @@ def extract_content(data: str, asHTML=True) -> str:
             style=re.compile(r"display:\s*none|visibility:\s*hidden", re.IGNORECASE)
         ):
             element.decompose()
+            
+        for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
+            comment.extract()
 
         # Process tables FIRST before converting to text
         tables = soup.find_all("table")
