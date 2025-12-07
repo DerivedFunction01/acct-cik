@@ -42,6 +42,7 @@ from derivative_regex import (
     STRICT_REGEX,
     TABLE_REGEX,
     VALUATION_MODELS,
+    VALUATION_MODELS_REGEX,
     aggregate_discards,
     build_alternation,
     is_contractual_noise,
@@ -159,14 +160,14 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     if EXCLUDE_COMPETITOR_REGEX.search(text):
         return "competitor_analysis"
-
+    
+    if VALUATION_MODELS_REGEX.search(text): # To save for convertibles
+        return None
     # --- TIER 3: SCORING / DENSITY CHECKS (Heavier Ops) ---
     if is_regulatory_noise(text):
         return "regulatory_boilerplate"
-
     if is_contractual_noise(text):
         return "contractual_noise"
-    
     if is_hypothetical_noise(text):
         return "hypothetical_noise"
     return None
