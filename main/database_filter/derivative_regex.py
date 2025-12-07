@@ -2615,7 +2615,7 @@ EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(
 )
 
 
-def is_hypothetical_noise(text: str, threshold: int = 6) -> bool:
+def is_hypothetical_noise(text: str, threshold: int = 5) -> bool:
     # 1. Weights
     W_STRICT = 10  # KILL SHOT: "Hypothetical derivatives" (Instant >= 8)
     W_PHRASE = 2  # "Sensitivity analysis", "Value at Risk"
