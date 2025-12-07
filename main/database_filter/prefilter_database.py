@@ -56,13 +56,21 @@ except ImportError:
     TableToTextConverter = None
 
 # =============================================================================
-# SOPHISTICATED CONTEXT DEFINITIONS
+# SOPHISTICATED CONTEXT DEFINITIONS (UPDATED)
 # =============================================================================
-
-# 1. Target Instruments (The "What")
+# 1. Target Instruments (The "What") - NOW REQUIRES EQ CONTEXT
+# Instead of just matching "convertible" or "warrant" standalone,
+# we require them to co-occur with equity derivative signals
 SOPHISTICATED_TARGETS = re.compile(
     r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
 )
+
+# NEW: Gate for Sophisticated Targets
+# Ensures we only flag convertibles/warrants that are ACTUALLY equity derivatives
+SOPHISTICATED_TARGET_GATE = re.compile(
+    rf"(?:{EQ_REGEX.pattern}|{EQ_SOFT_REGEX.pattern})", re.IGNORECASE
+)
+
 WARRANT_CATCHER = re.compile(r"\bwarrants?\b", re.IGNORECASE)
 
 # 2. Sophisticated Context (The "Why/How")
@@ -83,6 +91,35 @@ SOPHISTICATED_CONTEXT_TERMS = [
 SOPHISTICATED_CONTEXT_REGEX = re.compile(
     r"\b" + build_alternation(SOPHISTICATED_CONTEXT_TERMS) + r"\b", re.IGNORECASE
 )
+
+
+def is_sophisticated_target(text: str) -> bool:
+    """
+    Returns True if text contains a sophisticated target (convertible/warrant/conversion)
+    AND has equity derivative context (EQ_REGEX or EQ_SOFT_REGEX).
+
+    This prevents false positives from unrelated mentions of "warrant" or "convertible".
+    """
+    # Quick exit: no target word present
+    if not SOPHISTICATED_TARGETS.search(text):
+        return False
+
+    # Required: target must have equity context
+    if SOPHISTICATED_TARGET_GATE.search(text):
+        return True
+
+    return False
+
+
+def is_sophisticated_content(text: str) -> bool:
+    """
+    Returns True if text is sophisticated derivative content.
+    Checks: (Target + EQ context) OR (Sophisticated context terms)
+
+    Used throughout to gate sophisticated buffer routing.
+    """
+    return is_sophisticated_target(text) or bool(SOPHISTICATED_CONTEXT_REGEX.search(text))
+
 
 # =============================================================================
 # TABLE CLEANUP HELPERS
@@ -221,7 +258,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         url, matches_json, cik, year = item
     except (ValueError, TypeError) as e:
         print(f"❌ Error unpacking item: {e}")
-        print(f"   Item: {item}")
         return None
 
     try:
@@ -248,10 +284,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                         break
                 if kept:
                     salvaged_p = " ".join(kept)
-                    if SOPHISTICATED_TARGETS.search(
-                        salvaged_p
-                    ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
-                        sophisticated_buffer.append(salvaged_p)
+                    # FIXED: Use is_sophisticated_content() instead of compound check
+                    if is_sophisticated_content(salvaged_p):
+                        sophisticated_buffer.append((idx, salvaged_p))
                     else:
                         clean_buffer.append((idx, salvaged_p))
 
@@ -265,7 +300,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 try:
                     cleaned_table, footnotes = extract_and_separate_footnotes(p)
                 except Exception as e:
-                    print(f"⚠️ Error extracting footnotes from table in {url}: {e}")
                     local_discards.append(
                         (url, p[:100], "table_footnote_extraction_failed")
                     )
@@ -274,21 +308,22 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 try:
                     is_container = is_text_container_table(cleaned_table, footnotes)
                 except Exception as e:
-                    print(f"⚠️ Error validating table in {url}: {e}")
-                    is_container = True  # Default to treating as container on error
+                    is_container = True
 
                 if not is_container:
                     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(cleaned_table):
                         local_discards.append((url, "<table>...", "legal_table"))
                         continue
 
-                    # Check where to send this table
-                    is_target = SOPHISTICATED_TARGETS.search(cleaned_table)
+                    # FIXED: Use is_sophisticated_target() for tables too
+                    is_target = is_sophisticated_target(cleaned_table)
                     is_context = SOPHISTICATED_CONTEXT_REGEX.search(cleaned_table)
 
                     if is_target or is_context:
                         sophisticated_buffer.append((idx, cleaned_table))
-                        clean_buffer.append((idx, cleaned_table))
+                        # Also add to clean buffer if context is present, to help standard matches
+                        if is_context:
+                            clean_buffer.append((idx, cleaned_table))
                     else:
                         clean_buffer.append((idx, cleaned_table))
 
@@ -300,7 +335,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                         p, excluded_rows = strip_table_formatting(cleaned_table, url)
                         local_discards.extend(excluded_rows)
                     except Exception as e:
-                        print(f"⚠️ Error stripping table formatting in {url}: {e}")
                         local_discards.append(
                             (url, p[:100], "table_formatting_strip_failed")
                         )
@@ -314,8 +348,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             try:
                 p = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
             except Exception as e:
-                print(f"⚠️ Error applying entity exclusion regex in {url}: {e}")
-                # Continue without this substitution
+                pass
 
             # 2. EXCLUSIONS
             exclusion_reason = check_hard_exclusions(p)
@@ -329,12 +362,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 has_std = STRICT_REGEX.search(p) or (
                     SOFT_REGEX.search(p) and HEDGING_CONTEXT_REGEX.search(p)
                 )
-                has_soph = SOPHISTICATED_TARGETS.search(
-                    p
-                ) or SOPHISTICATED_CONTEXT_REGEX.search(p)
+                # FIXED: Use is_sophisticated_content() instead of raw checks
+                has_soph = is_sophisticated_content(p)
 
                 if has_std or has_soph:
-                    # Flow through to distribution
                     pass
                 else:
                     local_discards.append(
@@ -342,7 +373,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     )
                     continue
 
-            # Equity Comp (Logic modified to populate buffers)
+            # Equity Comp
             if EXCLUDE_REGEX_EQUITY_COMP.search(p):
                 try:
                     kept = []
@@ -351,13 +382,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                         if EQ_REGEX.search(sent):
                             kept.append(sent)
                         elif EQ_SOFT_REGEX.search(sent):
-                            # Standard Context
                             has_hedging_context = SOFT_GEN_REGEX.search(
                                 sent
                             ) or DER_STD_REGEX.search(sent)
-                            # Sophisticated Targets (Buffer even without context)
-                            is_buffered_target = SOPHISTICATED_TARGETS.search(sent)
-                            # Sophisticated Context (New Trigger)
+                            is_buffered_target = is_sophisticated_target(sent)  # FIXED
                             is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(sent)
 
                             if (
@@ -369,10 +397,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
                     if kept:
                         salvaged_p = " ".join(kept)
-                        # Distribution
-                        if SOPHISTICATED_TARGETS.search(
-                            salvaged_p
-                        ) or SOPHISTICATED_CONTEXT_REGEX.search(salvaged_p):
+                        # FIXED: Use is_sophisticated_content()
+                        if is_sophisticated_content(salvaged_p):
                             sophisticated_buffer.append((idx, salvaged_p))
                         else:
                             clean_buffer.append((idx, salvaged_p))
@@ -381,12 +407,11 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     if discarded_text:
                         local_discards.append((url, discarded_text, "comp"))
                 except Exception as e:
-                    print(f"⚠️ Error in equity comp salvage logic for {url}: {e}")
                     local_discards.append((url, p[:100], "equity_comp_salvage_failed"))
                 continue
 
             # 4. DISTRIBUTION (Standard vs. Sophisticated)
-            is_soph_target = SOPHISTICATED_TARGETS.search(p)
+            is_soph_target = is_sophisticated_target(p)
             is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(p)
 
             if is_soph_target:
@@ -413,7 +438,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     try:
         # A. Validate Standard Buffer
-        # Extract text only for validation
         std_texts = [text for _, text in clean_buffer]
         if any(find_hedging_context(p) for p in std_texts):
             final_results.extend(clean_buffer)
@@ -426,9 +450,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     try:
         # B. Validate Sophisticated Buffer
-        # Extract text from (index, text) tuples for validation
         soph_texts = [text for _, text in sophisticated_buffer]
         std_texts = [text for _, text in clean_buffer]
+
         if validate_sophisticated_buffer(soph_texts, std_texts):
             final_results.extend(sophisticated_buffer)
         else:
@@ -441,10 +465,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     # C. RECONSTRUCT & SORT
     try:
         if final_results:
-            # Sort by original index to restore narrative flow
             final_results.sort(key=lambda x: x[0])
-
-            # Extract text and deduplicate (preserving order)
             seen = set()
             unique_paragraphs = []
             for _, text in final_results:
