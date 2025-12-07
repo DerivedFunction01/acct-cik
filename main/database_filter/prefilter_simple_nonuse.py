@@ -324,7 +324,8 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Optional[str]:
 
     # --- 1. HARD KILLS (Run BEFORE Verbs) ---
-
+    if DEADWEIGHT_TOKEN in text:
+        return "deadweight"
     # A. AOCI / PnL Lists
     if NON_POSITION_INDICATORS.search(text):
         return "aoci_pnl_reclassification"
@@ -406,6 +407,17 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # Append Anchor Token
             modified_paragraphs.append(f"{DEADWEIGHT_TOKEN}{p}")
             all_discards_log.append((url, p, reason))
+    # Firm-Level Decision
+    if has_valid_signal:
+        # CONDITION MET: Firm has at least one strong signal.
+        # Return the MODIFIED list. Valid paragraphs are clean;
+        # Weak paragraphs now have " <ANCHOR>" at the end.
+        return (url, json.dumps(modified_paragraphs), cik, year, [])
+
+    else:
+        # CONDITION FAILED: No valid signal found.
+        # Drop the firm entirely.
+        return (url, json.dumps([]), cik, year, all_discards_log)
 
 
 def setup_target_db(path):
