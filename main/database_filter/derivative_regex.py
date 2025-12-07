@@ -1488,7 +1488,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
 
     # SAFE BASES: Low false-positive risk
-    safe_bases = ["swaps", "derivatives", "futures"]
+    safe_bases = ["swaps", r"(?<!\bits\s)derivatives", "futures"]
 
     # UNSAFE STANDALONE: Require suffix
     unsafe_alone = [
