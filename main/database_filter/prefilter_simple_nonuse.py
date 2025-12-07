@@ -90,7 +90,6 @@ class MinimalTextCleaner:
         text = DATE_DM_REGEX.sub(" ", text)
         text = self.exhibit_pattern.sub(" ", text)
         text = self.standard_id_pattern.sub(" ", text)
-        text = YEAR_REGEX.sub(" ", text)  # Remove years to avoid confusion with values
         return text
 
     def normalize_whitespace(self, text: str) -> str:
