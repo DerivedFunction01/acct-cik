@@ -45,19 +45,12 @@ from derivative_regex import (
     build_alternation,
     is_contractual_noise,
 )
-from final_verification import QUANT_REGEX
 
-# We need the processor to validate tables
-try:
-    from table_processor import TableToTextConverter
-except ImportError:
-    print(
-        "⚠️ Warning: Could not import TableToTextConverter. Table validation will default to True."
-    )
-    TableToTextConverter = None
+from final_verification import QUANT_REGEX
+from table_processor import TableToTextConverter
 
 # =============================================================================
-# SOPHISTICATED CONTEXT DEFINITIONS (UPDATED)
+# SOPHISTICATED CONTEXT DEFINITIONS
 # =============================================================================
 # 1. Target Instruments (The "What") - NOW REQUIRES EQ CONTEXT
 # Instead of just matching "convertible" or "warrant" standalone,
@@ -514,9 +507,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
 
 # =============================================================================
-# QUEUE PROCESSES (Unchanged)
+# QUEUE PROCESSES
 # =============================================================================
-# ... (producer_task, worker_task, writer_task, setup_target_db, etc.) ...
 def producer_task(queue: mp.Queue, db_path: str, processed_urls: Set[str]):
     print("🔌 Producer started...")
     conn = sqlite3.connect(db_path)
