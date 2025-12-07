@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 import sqlite3
 import json
 import re
@@ -9,7 +10,8 @@ from tqdm import tqdm
 
 # --- CONFIGURATION ---
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
-BATCH_SIZE = 1000
+BATCH_SIZE = 250
+CHUNK_SIZE = 20
 SOURCE_DB_PATH = "prefiltered_data.db"  # Output from Step 1
 TARGET_DB_PATH = "refined_data.db"  # Input for Step 3
 
@@ -362,9 +364,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         return (url, json.dumps([]), cik, year, all_discards_log)
 
 
-# --- DATABASE HELPERS ---
-
-
 def setup_target_db(path):
     conn = sqlite3.connect(path)
     c = conn.cursor()
@@ -382,10 +381,8 @@ def setup_target_db(path):
 
 
 def get_processed_urls(path: str) -> Set[str]:
-    """Get all URLs already processed in target DB"""
     if not Path(path).exists():
         return set()
-
     try:
         conn = sqlite3.connect(path)
         c = conn.cursor()
@@ -393,12 +390,11 @@ def get_processed_urls(path: str) -> Set[str]:
         urls = {row[0] for row in c.fetchall()}
         conn.close()
         return urls
-    except:
+    except Exception:
         return set()
 
 
-def get_source_data(source_path: str, processed_urls: Set[str]):
-    """Get unprocessed data from source DB"""
+def get_source_data(source_path: str, processed_urls: Set[str]) -> List[Tuple]:
     conn = sqlite3.connect(source_path)
     c = conn.cursor()
     c.execute(
@@ -407,78 +403,17 @@ def get_source_data(source_path: str, processed_urls: Set[str]):
         FROM webpage_result w 
         LEFT JOIN report_data r ON w.url = r.url
         WHERE w.matches IS NOT NULL
-    """
+        """
     )
     data = c.fetchall()
     conn.close()
-
-    # Filter to only unprocessed URLs
-    unprocessed = [row for row in data if row[0] not in processed_urls]
-    return unprocessed
+    return [row for row in data if row[0] not in processed_urls]
 
 
-# --- WORKER LOOP ---
-
-
-def worker(data_chunk, out_queue):
-    for item in data_chunk:
-        res = process_item(item)
-        if res:
-            out_queue.put(res)
-    out_queue.put(None)  # Signal done
-
-
-def listener(queue, db_path, total_count):
-    conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
+# --- NEW: Buffer flush helper ---
+def flush_buffers(conn, buffer_res, buffer_disc):
+    """Write buffered results and discards to DB, then clear buffers."""
     c = conn.cursor()
-
-    count = 0
-    buffer_res = []
-    buffer_disc = []
-
-    with tqdm(total=total_count, unit="docs", desc="Processing") as pbar:
-        workers_done = 0
-        while workers_done < NUM_WORKERS:
-            msg = queue.get()
-            if msg is None:
-                workers_done += 1
-                continue
-
-            url, matches, cik, year, discards = msg
-
-            # Insert result (empty matches means firm was dropped, but we still mark it processed)
-            buffer_res.append((url, matches, cik, year))
-
-            if discards:
-                buffer_disc.extend(discards)
-
-            count += 1
-            pbar.update(1)
-
-            # Flush results when buffer is full
-            if len(buffer_res) >= 1000:
-                c.executemany(
-                    "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)",
-                    [(x[0], x[1]) for x in buffer_res],
-                )
-                c.executemany(
-                    "INSERT OR REPLACE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-                    [(x[0], x[2], x[3]) for x in buffer_res],
-                )
-                buffer_res = []
-                conn.commit()
-
-            # Flush discards when buffer is full
-            if len(buffer_disc) >= 1000:
-                c.executemany(
-                    "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
-                    buffer_disc,
-                )
-                buffer_disc = []
-                conn.commit()
-
-    # Final flush
     if buffer_res:
         c.executemany(
             "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)",
@@ -488,51 +423,61 @@ def listener(queue, db_path, total_count):
             "INSERT OR REPLACE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
             [(x[0], x[2], x[3]) for x in buffer_res],
         )
+        buffer_res.clear()
+
     if buffer_disc:
         c.executemany(
             "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
             buffer_disc,
         )
+        buffer_disc.clear()
 
     conn.commit()
-    conn.close()
-    print(f"✅ Processed {count} documents")
 
 
 # --- MAIN ---
-
 if __name__ == "__main__":
     print(f"🚀 Starting Refinement Script ({NUM_WORKERS} workers)...")
     setup_target_db(TARGET_DB_PATH)
 
-    # Get already-processed URLs
     processed_urls = get_processed_urls(TARGET_DB_PATH)
     print(f"📋 Found {len(processed_urls)} already processed URLs")
 
-    # Get unprocessed data
     data = get_source_data(SOURCE_DB_PATH, processed_urls)
     print(f"📦 Loaded {len(data)} unprocessed documents from {SOURCE_DB_PATH}")
 
-    if len(data) == 0:
+    if not data:
         print("✅ All documents already processed!")
         exit(0)
 
-    # Chunk data for workers
-    chunk_size = max(1, len(data) // NUM_WORKERS)
-    chunks = [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
+    conn = sqlite3.connect(TARGET_DB_PATH, timeout=60)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
 
-    queue = mp.Queue()
-    workers = []
+    buffer_res, buffer_disc = [], []
+    count = 0
 
-    for chunk in chunks:
-        p = mp.Process(target=worker, args=(chunk, queue))
-        p.start()
-        workers.append(p)
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+        results_iter = executor.map(process_item, data, chunksize=CHUNK_SIZE)
 
-    # Start listener in main process
-    listener(queue, TARGET_DB_PATH, len(data))
+        for result in tqdm(
+            results_iter, total=len(data), unit="docs", desc="Processing"
+        ):
+            if not result:
+                continue
 
-    for p in workers:
-        p.join()
+            url, matches, cik, year, discards = result
+            buffer_res.append((url, matches, cik, year))
+            if discards:
+                buffer_disc.extend(discards)
 
-    print("✅ Refinement complete!")
+            if len(buffer_res) >= BATCH_SIZE or len(buffer_disc) >= BATCH_SIZE:
+                flush_buffers(conn, buffer_res, buffer_disc)
+
+            count += 1
+
+    # Final flush
+    flush_buffers(conn, buffer_res, buffer_disc)
+
+    conn.close()
+    print(f"✅ Complete. Processed {count} documents.")
