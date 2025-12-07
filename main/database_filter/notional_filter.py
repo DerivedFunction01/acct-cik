@@ -31,6 +31,7 @@ from derivative_regex import (
     YEAR_REGEX,
     check_for_instrument,
     validate_instrument_retention,
+    COMPARISON_PATTERN,
 )
 
 # =============================================================================
@@ -72,7 +73,7 @@ DATE_MD_REGEX = re.compile(
 DATE_DM_REGEX = re.compile(
     rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{MONTHS_PATTERN})\b", re.IGNORECASE
 )
-
+COMPARISON_REGEX = re.compile(rf"\b{COMPARISON_PATTERN}\b")
 
 # =============================================================================
 # LOGIC
@@ -138,29 +139,101 @@ def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
 
     return years, value_tokens
 
-
 def check_is_quantitative_zero(sentence: str, reporting_year: int) -> bool:
+    """
+    Determines if a sentence indicates ZERO exposure for the reporting year.
+    Returns True if Discard (Zero/Nil).
+    Returns False if Keep (Positive/Ambiguous).
+    """
+
+    # --- STEP 1: Extract Data ---
+    # We use the cleaner inside extract_values_and_years
     years, values = extract_values_and_years(sentence)
 
-    # --- STRATEGY 1: Implicit Parallel Mapping ---
-    if len(years) > 0 and len(years) == len(values):
+    # If no values at all, check for "notional" boilerplate
+    if not values:
+        if (
+            "notional" in sentence.lower() or "fair value" in sentence.lower()
+        ) and not years:
+            return True  # Discard (Boilerplate)
+        return False  # Keep (Qualitative)
+
+    # --- STEP 2: Tier 1 - Strict Mapping (The Happy Path) ---
+    # If we have a perfect 1-to-1 match, we trust the order.
+    # We also trust it if Years > Values (e.g. "2022 and 2023: $50m"),
+    # provided we can map the reporting year strictly.
+
+    has_mismatch = False
+
+    # Check for mismatch conditions
+    if len(years) != len(values):
+        has_mismatch = True
+
+    # Special Case: If Years > Values, it implies one value covers multiple years
+    # (e.g. "In 2022 and 2023, value was $50m").
+    # Strict mapping fails here because we run out of values.
+    # However, if Values > Years, it's definitely a mismatch (dangling numbers).
+    if len(values) > len(years):
+        has_mismatch = True
+
+    if not has_mismatch:
+        # PERFECT ALIGNMENT: Map 1-to-1
         year_value_map = dict(zip(years, values))
+
         if reporting_year in year_value_map:
+            # We found our specific year! Return its status.
             return year_value_map[reporting_year]["is_zero"]
 
-    # --- STRATEGY 2: Fallback (All Zero) ---
-    if not values:
-        # Safeguard: If "notional" exists but NO numbers, it's likely a definition/boilerplate.
-        if ("notional" in sentence.lower() or "fair value" in sentence.lower()) and not years:
-            return True  # Discard
-        return False  # Keep (Qualitative active statement)
-
-    # If ANY value is positive -> Keep
-    if any(not v["is_zero"] for v in values):
+        # If reporting year is NOT in the map, but the map was perfect,
+        # it means this sentence is about other years. Safe to Keep (or Discard?).
+        # Usually, if a sentence is purely about 2022, we might want to discard it
+        # if we are strictly looking for 2024 data.
+        # But to be safe (avoid False Positives), we usually Keep unless it's explicitly zero.
+        # However, for a "Zero Filter", we usually only discard if we are SURE it's zero.
         return False
 
-    # If ALL values are zero -> Discard
-    return True
+    # --- STEP 3: Tier 2 - The Splitter (Conditional Fallback) ---
+    # We only reach here if there was a mismatch.
+    # Try to resolve the mismatch by breaking the sentence on "versus"/"compared to".
+
+    if COMPARISON_REGEX.search(sentence):
+        # Split into sub-segments
+        segments = [s for s in COMPARISON_REGEX.split(sentence) if s.strip()]
+
+        # Analyze each segment independently
+        for seg in segments:
+            # Recurse!
+            # We check if THIS segment is a "clean match" for our reporting year.
+            # Note: We can't just call check_is_quantitative_zero recursively blindly,
+            # because we need to know if *any* segment validates the year.
+
+            s_years, s_values = extract_values_and_years(seg)
+
+            # If this segment mentions our year AND has a value...
+            if reporting_year in s_years and s_values:
+                # ...and it's a Clean Match within this segment...
+                if len(s_years) == len(s_values):
+                    s_map = dict(zip(s_years, s_values))
+                    # We trust this specific segment!
+                    if not s_map[reporting_year]["is_zero"]:
+                        return (
+                            False  # Found a POSITIVE for 2024. Keep the whole sentence.
+                        )
+                    else:
+                        # Found a ZERO for 2024.
+                        # We continue checking other segments?
+                        # Unlikely a sentence says "2024 was 0 vs 2024 was 100".
+                        # But to be safe, we can flag it.
+                        return True
+
+    # --- STEP 4: Tier 3 - "Bag of Numbers" (Ultimate Safety Net) ---
+    # If we are here, Strict Mapping failed AND Splitting didn't give a definitive answer.
+    # We fall back to: "Is there ANY positive number in this mess?"
+
+    if any(not v["is_zero"] for v in values):
+        return False  # Found a positive number somewhere. Keep it.
+
+    return True  # All numbers are zero. Discard.
 
 
 def process_company(item):
