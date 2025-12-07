@@ -35,24 +35,12 @@ from derivative_regex import (
     YEAR_REGEX,
 )
 
-from final_verification import QUANT_REGEX
-
 from notional_filter import (
     extract_values_and_years,
     check_is_quantitative_zero,
     DATE_DM_REGEX,
     DATE_MD_REGEX,
 )
-
-import re
-from typing import Optional
-from derivative_regex import (
-    STANDARD_ID_REGEX,
-    SENTENCE_SPLIT_PATTERN,
-    YEAR_REGEX,
-)
-from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
-from final_verification import QUANT_REGEX
 
 
 class MinimalTextCleaner:
@@ -266,7 +254,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             # Only count if it's not JUST a termination sentence
             if not (TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent)):
                 has_current_year_activity = True
-                
+
         # Check if the quantity is actually meaningful (positive) for the reporting year
         if is_meaningful_quant(sent, year):
             has_meaningful_quant = True
@@ -275,7 +263,8 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             has_termination = True
 
     # === SAFE REMOVAL COMBINATIONS ===
-
+    if has_meaningful_quant:
+        return None
     # All hedging sentences have negative indicators = pure boilerplate
     if (
         hedging_sentence_count == hedging_sentences_with_indicators
@@ -293,7 +282,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
         if has_termination:
             # "we may use but we terminated" = pure hypothetical
             return "potential_future_but_terminated"
-        if has_trading_denial and not has_meaningful_quant:
+        if has_trading_denial:
             # "may use" + "don't trade" but no real positive numbers = cautious talk
             return "potential_with_trading_denial_no_explicit_use"
     else:
@@ -306,7 +295,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
                 return "historic_absence_no_current_activity"
 
         # Generic policy with no meaningful numbers
-        if has_trading_denial and is_strictly_generic and not has_meaningful_quant:
+        if has_trading_denial and is_strictly_generic:
             return "generic_policy_no_trade"
 
         # Terminated + no outstanding = pure historical
@@ -314,7 +303,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             return "terminated_none_outstanding"
 
         # No derivatives held + no meaningful numbers = clear statement
-        if has_absence and not has_meaningful_quant:
+        if has_absence:
             return "stated_absence_no_active_signal"
 
         # Don't trade policy + have none = policy + fact
