@@ -19,12 +19,17 @@ TARGET_DB_PATH = "refined_data.db"  # Input for Step 3
 DEADWEIGHT_TOKEN = " _D "
 
 # --- MODULE IMPORTS ---
+from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
 from year_deletion import extract_years
 
 from derivative_regex import (
+    ACTIVE_STATE_REGEX,
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
+    EXCLUDE_HYPOTHETICAL_REGEX,
     LOOSE_GEN_REGEX,
+    NON_POSITION_INDICATORS,
+    PNL_ONLY_NO_POSITION,
     POTENTIAL_REGEX,
     NEGATIVE_INTENT_REGEX,
     ABSENCE_REGEX,
@@ -36,6 +41,8 @@ from derivative_regex import (
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
     STANDARD_ID_REGEX,
+    VERB_REGEX,
+    VERB_USE_REGEX,
     YEAR_REGEX,
 )
 
@@ -315,6 +322,74 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     return None
 
 
+def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Optional[str]:
+    """
+    Identifies paragraphs that are purely "Administrative" or "Historical" noise.
+
+    Safe Drop Criteria (The Paragraph is discarded if...):
+    1. It is purely Historical (All years < Reporting Year).
+    2. It is purely AOCI/PnL (Gain/Loss lists without position context).
+    3. It is purely Policy/Methodology (Documentation, Effectiveness, Fair Value Hierarchy).
+    4. It is purely Risk Management (Counterparty credit, generic risk statements).
+    5. It is purely Hypothetical (Sensitivity analysis).
+
+    SAFEGUARD:
+    - If the paragraph contains a MEANINGFUL QUANTITY (Active Position Value),
+      it is KEPT regardless of the above (except maybe historical).
+    - If it contains a STRONG ACTION VERB ("We hold"), it is KEPT.
+    """
+
+    # AOCI reclassification does not indicate an active user
+    if NON_POSITION_INDICATORS.search(text):
+        return "aoci_pnl_reclassification" 
+    # --- 1. THE ULTIMATE SAFEGUARDS ---
+    # A. Quantitative Check (Phase 6 Logic)
+    # If it says "$50 million", we assume it's relevant unless proven historical.
+    if is_meaningful_quant(text, year):
+        # Exception: If it's purely historical quant ("In 2018, value was $50M"), catch it below.
+        pass
+
+    # --- 3. HISTORICAL CHECK (The "Ghost" Killer) ---
+    # If the paragraph ONLY mentions past years, it is deadweight.
+    # Logic: All years found must be < reporting_year.
+    if year:
+        all_years = [int(y) for y in YEAR_REGEX.findall(text)]
+        if all_years:
+            if all(y < year for y in all_years):
+                # Check for "Current" keywords that might override the year
+                # e.g., "In 2020 we adopted this, and currently we..."
+                if not ACTIVE_STATE_REGEX.search(text):
+                    return "pure_historical_narrative"
+
+    # --- 4. POLICY & METHODOLOGY CHECK ---
+    # Matches: "We formally document...", "Derivatives are measured at fair value..."
+    if POLICY_REGEX.search(text):
+        # We already checked for Quants.
+        # If we are here, it's likely pure boilerplate.
+        return "accounting_policy_boilerplate"
+
+    # --- 5. COUNTERPARTY / CREDIT RISK CHECK ---
+    # Matches: "We monitor counterparty credit risk...", "Subject to master netting..."
+    if COUNTERPARTY_REGEX.search(text):
+        return "credit_risk_management"
+
+    # --- 6. HYPOTHETICAL / SENSITIVITY CHECK ---
+    # Matches: "Hypothetical loss...", "Sensitivity analysis shows..."
+    if EXCLUDE_HYPOTHETICAL_REGEX.search(text):
+        # Safeguard: Does it mention the specific instrument we hold?
+        # Usually hypotheticals mention "our interest rate swaps", but
+        # if there are no Quants, it's just the sensitivity table header/footer.
+        return "sensitivity_analysis_boilerplate"
+    
+    # B. Active Action Check (Phase 7 Logic)
+    # "We hold", "We maintain", "We entered into"
+    # If these exist, it's not just "Policy" or "Risk".
+    if VERB_REGEX.search(text):
+        return None
+
+    return None  # Keep it
+
+
 # =============================================================================
 # WORKER LOGIC
 # =============================================================================
@@ -343,31 +418,24 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     all_discards_log = []
 
     for p in paragraphs:
-        # --- PARALLEL COPIES STRATEGY ---
-        # 1. Create Masked Copy for Logic (The "Judge")
-        #    This prevents "Commodity Futures Trading Commission" from triggering "Futures" detection.
+        # 1. Masking
         p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
-        # 2. Run Logic on Masked Copy
+        # 2. Level 2 Filter (Refinement - Linguistic Ambiguity)
         reason = check_refinement_exclusions(p_masked, year)
 
-        # 3. Store Original Copy (The "Record")
+        # 3. Level 3 Filter (Deadweight - Policy/History/Risk)
+        # Only run if Level 2 didn't already flag it
         if reason is None:
-            # Case A: Valid Signal. Keep original text exactly as is.
+            reason = check_deadweight_exclusions(p_masked, year)
+
+        if reason is None:
             has_valid_signal = True
             modified_paragraphs.append(p)
         else:
-            # Case B: Deadweight. Append token to original text.
+            # Append Anchor Token
             modified_paragraphs.append(f"{DEADWEIGHT_TOKEN}{p}")
-
-            # Log reason (using masked text for context if debugging, or original)
             all_discards_log.append((url, p, reason))
-
-    # Firm-Level Decision
-    if has_valid_signal:
-        return (url, json.dumps(modified_paragraphs), cik, year, [])
-    else:
-        return (url, json.dumps([]), cik, year, all_discards_log)
 
 
 def setup_target_db(path):

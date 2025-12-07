@@ -67,10 +67,10 @@ COMPARISON_PHRASES = [
     r"as opposed to",
     r"vis-à-vis",
     r"when compared with",
-    r"from", # "decreased to $X from $Y"
+    r"from",  # "decreased to $X from $Y"
     r"but",
     r"however",
-    r"whereas", 
+    r"whereas",
     r"although",
     r"though",
     r"while",
@@ -92,7 +92,7 @@ RISK_TERMS = [
     "costs?",
     "prices?",
     "hedges?",
-    "hedging?"
+    "hedging?",
 ]
 _RISK_ALTERNATION = build_alternation(RISK_TERMS)
 
@@ -128,15 +128,17 @@ STRONG_ACTION_VERBS = ACTION_VERBS + [
     r"secured",
     r"participat(?:e|es|ed|ing)",
 ]  # NEW: For embedded derivatives/warrants, but separate against "FASB issued"
-VERB_USE_REGEX = re.compile(r"\b" + build_alternation(ACTION_VERBS) +r"\b", re.IGNORECASE)
+VERB_USE_REGEX = re.compile(
+    r"\b" + build_alternation(ACTION_VERBS) + r"\b", re.IGNORECASE
+)
 # WEAK / PASSIVE: Legal or Accounting states that *imply* existence
 # We include these because "carrying at fair value" implies you have it.
 PASSIVE_STATE_VERBS = [
-    r"appl(?:y|ies|ied|ying)",   # "We apply hedge accounting"
-    r"carr(?:y|ies|ied|ying)",   # "Carries at fair value"
+    r"appl(?:y|ies|ied|ying)",  # "We apply hedge accounting"
+    r"carr(?:y|ies|ied|ying)",  # "Carries at fair value"
     r"designat(?:e|es|ed|ing)",  # "Designated as a hedge"
-    r"be\s+a\s+party\s+to",      # "Is a party to interest rate swaps"
-    rf"remained?\s+{ACTIVE_STATE_PATTERN}", # "remained active/open/outstanding"
+    r"be\s+a\s+party\s+to",  # "Is a party to interest rate swaps"
+    rf"remained?\s+{ACTIVE_STATE_PATTERN}",  # "remained active/open/outstanding"
 ]
 
 SENTENCE_SPLIT_PATTERN = re.compile(
@@ -178,7 +180,7 @@ COMMON_COMMODITIES = [
     "soybean",
     "sugar",
     "wool",
-# ⛽ Energy & Fuels
+    # ⛽ Energy & Fuels
     "biodiesel",
     "biomass",
     "bunker fuel",
@@ -277,7 +279,9 @@ COMMON_COMMODITIES = [
 
 # Minimum sentence length to consider (we use swaps is 12 chars and rarely ever occurs)
 MIN_SENTENCE_LENGTH = 15
-MAX_SENTENCE_LENGTH = 800 # A very long sentence is probably a table that became a sentence
+MAX_SENTENCE_LENGTH = (
+    800  # A very long sentence is probably a table that became a sentence
+)
 
 # 1. Complex Debt Term (Requires Lookbehind)
 # Helper for the base terms to avoid repetition
@@ -416,6 +420,7 @@ all_currencies = (
     + other_currencies
 )
 
+
 def build_currency_patterns() -> List[str]:
     """
     Generates regex patterns derived specifically from the Currency class objects.
@@ -451,10 +456,11 @@ def build_currency_patterns() -> List[str]:
                 code + r"[- ]denominated",
                 code + r"[/]" + r"[A-Z]{3}",  # USD/EUR, GBP/JPY
                 r"[A-Z]{3}" + r"[/]" + code,  # EUR/USD, JPY/GBP
-            ] 
+            ]
         )
     terms.extend(["foreign[- ]denominated"])
     return terms
+
 
 def build_currency_iso_pattern() -> str:
     """
@@ -582,6 +588,7 @@ def build_fx_context_terms_advanced() -> List[str]:
 
     return currency_specific_terms + generic_fx_terms
 
+
 CURRENCY_SYMBOL_PATTERN = build_currency_symbol_pattern()
 # Generic hedging context (required for generic matches)
 hedging_terms = [
@@ -634,89 +641,94 @@ VALUATION_MODELS = [
     # General descriptive
     r"option[- ]pricing\s+models?",
 ]
-HEDGING_CONTEXT_TERMS = [
-    r"hedge(?:s|d|ing)?",
-    r"mitigat(?:e|es|ed|ing)",
-    r"protect(?:s|ed|ing)?",
-    r"manage(?:s|d|ing)?",
-    r"exposures?",
-    r"risk\s+management",
-    rf"economic\s+{_RISK_ALTERNATION}",
-    # --- Safe for Phase 1 Contextual Capture ---
-    rf"(?:market|rate|currency|credit|counterparty|equity)[ -]{_RISK_ALTERNATION}",
-    r"fluctuations?",   # e.g., "protect against fluctuations"
-    r"volatility",      # e.g., "manage volatility"
-    r"bifurcat(?:ed|ion|ing)",
-] + SOFT_GEN_TERMS + VALUATION_MODELS
-
-CP_CONTEXT_TERMS = (
+HEDGING_CONTEXT_TERMS = (
     [
-        # Physical quantity units
-        "barrels",
-        "bbl",
-        "bbl/d",
-        "btu",
-        "gj",
-        "mmbtu",
-        "mmbtu/h",
-        "mwh",
-        "bushels",
-        "cwt",
-        "hundredweights",
-        "pecks",
-        "ounces",
-        "pounds",
-        "tons",
-        "tonne",
-        "long tons",
-        "short tons",
-        "joules",
-        "gigajoules",
-        "mcf",
-        "mmcf",
-        "bcf",  # thousand/million/billion cubic feet
-        "therm",
-        "therms",
-        "dth",
-        "dekatherms",
-        # Power Grids / ISOs (Strongest context for "power swaps")
-        "PJM",
-        "ERCOT",
-        "MISO",
-        "SPP",
-        "CAISO",
-        "NYISO",
-        "ISO-NE",
-        # Load Types
-        "baseload",
-        "peak load",
-        "off-peak",
-        "on-peak",
-        "capacity",
-        "power generation",
-        "power assets",
-        # Gas/NGL Hubs & Benchmarks
-        "Henry Hub",
-        "WTI",
-        "West Texas Intermediate",
-        "Cushing",
-        "Mont Belvieu",
-        "TTF",
-        "JKM",
-        "Dominion South",
-        "Platts",
-        "Argus",
-        "OPIS",  # Pricing reporting agencies
-        "Brent"
-        # Exchanges
-        # Exchanges
-        "LME", "London Metal Exchange",
-        "CBOT", "Chicago Board of Trade",
-        "ICE Futures", "Intercontinental Exchange",
-        "COMEX", "NYMEX",
+        r"hedge(?:s|d|ing)?",
+        r"mitigat(?:e|es|ed|ing)",
+        r"protect(?:s|ed|ing)?",
+        r"manage(?:s|d|ing)?",
+        r"exposures?",
+        r"risk\s+management",
+        rf"economic\s+{_RISK_ALTERNATION}",
+        # --- Safe for Phase 1 Contextual Capture ---
+        rf"(?:market|rate|currency|credit|counterparty|equity)[ -]{_RISK_ALTERNATION}",
+        r"fluctuations?",  # e.g., "protect against fluctuations"
+        r"volatility",  # e.g., "manage volatility"
+        r"bifurcat(?:ed|ion|ing)",
     ]
-    + COMMON_COMMODITIES
+    + SOFT_GEN_TERMS
+    + VALUATION_MODELS
 )
+
+CP_CONTEXT_TERMS = [
+    # Physical quantity units
+    "barrels",
+    "bbl",
+    "bbl/d",
+    "btu",
+    "gj",
+    "mmbtu",
+    "mmbtu/h",
+    "mwh",
+    "bushels",
+    "cwt",
+    "hundredweights",
+    "pecks",
+    "ounces",
+    "pounds",
+    "tons",
+    "tonne",
+    "long tons",
+    "short tons",
+    "joules",
+    "gigajoules",
+    "mcf",
+    "mmcf",
+    "bcf",  # thousand/million/billion cubic feet
+    "therm",
+    "therms",
+    "dth",
+    "dekatherms",
+    # Power Grids / ISOs (Strongest context for "power swaps")
+    "PJM",
+    "ERCOT",
+    "MISO",
+    "SPP",
+    "CAISO",
+    "NYISO",
+    "ISO-NE",
+    # Load Types
+    "baseload",
+    "peak load",
+    "off-peak",
+    "on-peak",
+    "capacity",
+    "power generation",
+    "power assets",
+    # Gas/NGL Hubs & Benchmarks
+    "Henry Hub",
+    "WTI",
+    "West Texas Intermediate",
+    "Cushing",
+    "Mont Belvieu",
+    "TTF",
+    "JKM",
+    "Dominion South",
+    "Platts",
+    "Argus",
+    "OPIS",  # Pricing reporting agencies
+    "Brent"
+    # Exchanges
+    # Exchanges
+    "LME",
+    "London Metal Exchange",
+    "CBOT",
+    "Chicago Board of Trade",
+    "ICE Futures",
+    "Intercontinental Exchange",
+    "COMEX",
+    "NYMEX",
+] + COMMON_COMMODITIES
 
 EQ_CONTEXT_TERMS = [
     # --- A. Core Prices & Markets ---
@@ -781,9 +793,7 @@ CR_CONTEXT_REGEX = re.compile(
     r"\b" + build_alternation(CR_CONTEXT_TERMS) + r"\b", re.IGNORECASE
 )
 
-IR_CONTEXT_REGEX = re.compile(
-    r"\b" + IR_CONTEXT + r"\b", re.IGNORECASE
-)
+IR_CONTEXT_REGEX = re.compile(r"\b" + IR_CONTEXT + r"\b", re.IGNORECASE)
 
 FX_CONTEXT_REGEX = re.compile(
     r"\b" + build_alternation(build_fx_context_terms_advanced()) + r"\b", re.IGNORECASE
@@ -824,17 +834,15 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     "shipment",
     "receipt",
     "inventory",
-    "liability", # Forward liability
+    "liability",  # Forward liability
     "stock",
-    "looking", # Just added it here against forward-looking
+    "looking",  # Just added it here against forward-looking
 ]
 PHYSICAL_DELIVERY_PATTERN = build_alternation(
     PHYSICAL_COMMERCIAL_TERMS, sort_longest_first=True
 )
 
-PHYSICAL_INVENTORY_TERMS = [ # "capacity forward contract?"
-    
-]
+PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
 
 # Negative lookahead: forward NOT followed by physical keywords
 FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
@@ -852,7 +860,7 @@ SPECIAL_BASE = [
     "basket options?",  # Generic multi-asset
     "rainbow options?",  # Generic multi-asset
     "lookback options?",
-    'exotic options?',
+    "exotic options?",
 ]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
@@ -873,13 +881,14 @@ AMBIGUOUS_BASE_TYPES = [
     "hedges?",
     "puts?",
     "calls?",
-    "straddles?"
-    "strangles?"
+    "straddles?" "strangles?",
 ]
 
 
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
-HIGH_PRECISION_SUFFIXES = re.compile(r"\b" + build_alternation(UNAMBIGUOUS_BASE_TYPES) + r"\b", re.IGNORECASE)
+HIGH_PRECISION_SUFFIXES = re.compile(
+    r"\b" + build_alternation(UNAMBIGUOUS_BASE_TYPES) + r"\b", re.IGNORECASE
+)
 ALL_SUFFIXES = [
     "agreements?",
     "contracts?",
@@ -888,6 +897,8 @@ ALL_SUFFIXES = [
     "arrangements?",
     "options?",
 ]
+
+
 # =============================================================================
 # TABLE SPECIFIC REGEX
 # =============================================================================
@@ -908,17 +919,17 @@ def build_table_regex() -> re.Pattern:
         "swaptions",
         "derivatives",
         "swaps",
-        "puts", 
+        "puts",
         "calls",
     ] + SPECIAL_BASE
     plural_pattern = build_alternation(table_safe_plurals, sort_longest_first=True)
 
-    return re.compile(
-        rf"\b{plural_pattern}\b", re.IGNORECASE
-    )
+    return re.compile(rf"\b{plural_pattern}\b", re.IGNORECASE)
 
 
 TABLE_REGEX = build_table_regex()
+
+
 def build_smart_regex(
     core_terms: List[str],
     context_terms: str,
@@ -932,9 +943,9 @@ def build_smart_regex(
 
     # Core + suffix: "interest rate" + "-" + "swap"
     pattern1 = (
-        rf"(?:{core_pattern})"           # e.g., "interest rate"
-        r"[- ]"                          # MANDATORY separator (space or hyphen)
-        rf"(?:{context_terms})"          # MANDATORY: base or (base + suffix)
+        rf"(?:{core_pattern})"  # e.g., "interest rate"
+        r"[- ]"  # MANDATORY separator (space or hyphen)
+        rf"(?:{context_terms})"  # MANDATORY: base or (base + suffix)
     )
 
     # Specific phrases like "zero coupon swaps"
@@ -1035,10 +1046,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     # --- 2. Specific Instrument Phrases (Max Munch) ---
     cln_pattern = rf"credit[- ]linked\s+{_DEBT_TERMS}"
-    specific_phrases = [ # None for this one
-        cln_pattern,
-        "credit swaps"
-    ]
+    specific_phrases = [cln_pattern, "credit swaps"]  # None for this one
 
     sorted_specific_phrases = sorted(
         specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"))
@@ -1087,10 +1095,20 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     ] + RATE_TYPES
 
     BENCHMARK_RATES = [
-        "SOFR", "SONIA", "LIBOR", "EURIBOR",
-        "ESTR", "EONIA", "TONAR", "BBSW",
-        "CIBOR", "STIBOR", "HIBOR", "TIBOR",
-        "PRIBOR", "MOSPRIME"
+        "SOFR",
+        "SONIA",
+        "LIBOR",
+        "EURIBOR",
+        "ESTR",
+        "EONIA",
+        "TONAR",
+        "BBSW",
+        "CIBOR",
+        "STIBOR",
+        "HIBOR",
+        "TIBOR",
+        "PRIBOR",
+        "MOSPRIME",
     ]
 
     def build_pay_receive_structure() -> str:
@@ -1150,12 +1168,16 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 5. Final Build and Compile ---
     strict_pattern = build_smart_regex(
         core_terms,
-        expand_instruments(unsafe=False, additional_bases=["protection"]), # IR caps, locks, floors is not included without the word contract, etc
+        expand_instruments(
+            unsafe=False, additional_bases=["protection"]
+        ),  # IR caps, locks, floors is not included without the word contract, etc
         specific_phrases,
     )
     soft_pattern = build_smart_regex(
         core_terms,
-        expand_instruments(unsafe=True, additional_bases=["protection"]), # IR caps, locks, floors
+        expand_instruments(
+            unsafe=True, additional_bases=["protection"]
+        ),  # IR caps, locks, floors
         specific_phrases,
     )
     strict_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
@@ -1182,16 +1204,16 @@ def build_fx_dynamic_pattern() -> str:
     # List all necessary descriptive fragments/combinations
     patterns = [
         # Longest and most specific combinations
-        rf"(?:{word1})[- ](?:{word1})[- ](?:{compound})[- ](?:{word2_alt})[- ]{word3}", # forward foreign cross currency exchange rate
+        rf"(?:{word1})[- ](?:{word1})[- ](?:{compound})[- ](?:{word2_alt})[- ]{word3}",  # forward foreign cross currency exchange rate
         rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})[- ]{word3}",  # forward foreign exchange rate
         # Shorter, common combinations
-        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}", # forward/foreign currency/exchange rate
+        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}",  # forward/foreign currency/exchange rate
         rf"(?:{compound})[- ](?:{word2_alt})[- ]{word3}",  # cross currency exchange rate
         rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})",  # forward foreign exchange/currency
         rf"(?:{compound})[- ](?:{word2_alt})",  # cross currency exchange
         # Two-word descriptive terms
-        rf"(?:{word1})[- ](?:{word2_alt})", # forward exchange, foreign currency
-        rf"(?:{compound})", # cross currency
+        rf"(?:{word1})[- ](?:{word2_alt})",  # forward exchange, foreign currency
+        rf"(?:{compound})",  # cross currency
         # Single-word descriptive terms (low priority, included for completeness)
         r"FX",
         r"forex",
@@ -1202,9 +1224,12 @@ def build_fx_dynamic_pattern() -> str:
     return build_alternation(patterns, sort_longest_first=True)
 
 
-def _replace_dynamic_placeholder(phrases: List[str], replacement_fragment: str) -> List[str]:
+def _replace_dynamic_placeholder(
+    phrases: List[str], replacement_fragment: str
+) -> List[str]:
     """Replaces the '__DYNAMIC__' placeholder in a list of phrase templates."""
     return [p.replace(r"__DYNAMIC__", replacement_fragment) for p in phrases]
+
 
 def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
@@ -1233,7 +1258,9 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         "deliverable",
         "deal[- ]contingent",
     ]
-    forward_types_alternation = build_alternation(forward_types, sort_longest_first=True)
+    forward_types_alternation = build_alternation(
+        forward_types, sort_longest_first=True
+    )
 
     # -------------------------------------------------------------------------
     # --- A. UNIFIED TEMPLATE PHRASES ---
@@ -1261,23 +1288,31 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # -------------------------------------------------------------------------
 
     # Fragment for dynamic replacement: safe bases only (no suffixes as standalones, but include safe ones)
-    strict_dynamic_fragment = expand_instruments(unsafe=False, exclude_standalone_suffixes=True, additional_standalone_suffixes=["contracts?", "options?"])
+    strict_dynamic_fragment = expand_instruments(
+        unsafe=False,
+        exclude_standalone_suffixes=True,
+        additional_standalone_suffixes=["contracts?", "options?"],
+    )
 
     # 1. Substitute the dynamic fragment into the templates
-    strict_dynamic_phrases = _replace_dynamic_placeholder(dynamic_templates, strict_dynamic_fragment)
+    strict_dynamic_phrases = _replace_dynamic_placeholder(
+        dynamic_templates, strict_dynamic_fragment
+    )
 
     # 2. Combine and sort all specific phrases
     strict_specific_phrases = sorted(
         strict_dynamic_phrases + fixed_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
     )
 
     # 3. Final pattern build
-    strict_instrument_fragment = expand_instruments(unsafe=False) # Safe standalone bases allowed here
+    strict_instrument_fragment = expand_instruments(
+        unsafe=False
+    )  # Safe standalone bases allowed here
     strict_pattern = build_smart_regex(
-        strict_core_terms,                   # Precise prefixes
-        strict_instrument_fragment,          # Safe bases only
-        strict_specific_phrases,             # Final list of specific phrases
+        strict_core_terms,  # Precise prefixes
+        strict_instrument_fragment,  # Safe bases only
+        strict_specific_phrases,  # Final list of specific phrases
     )
     strict_fx_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
 
@@ -1286,23 +1321,29 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     # -------------------------------------------------------------------------
 
     # Fragment for dynamic replacement: includes all instrument bases (unsafe=True, exclude standalones)
-    soft_dynamic_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=True)
+    soft_dynamic_fragment = expand_instruments(
+        unsafe=True, exclude_standalone_suffixes=True
+    )
 
     # 1. Substitute the dynamic fragment into the templates
-    soft_dynamic_phrases = _replace_dynamic_placeholder(dynamic_templates, soft_dynamic_fragment)
+    soft_dynamic_phrases = _replace_dynamic_placeholder(
+        dynamic_templates, soft_dynamic_fragment
+    )
 
     # 2. Combine and sort all specific phrases
     soft_specific_phrases = sorted(
         soft_dynamic_phrases + fixed_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
     )
 
     # 3. Final pattern build
-    soft_instrument_fragment = expand_instruments(unsafe=True) # Unsafe standalone bases allowed here
+    soft_instrument_fragment = expand_instruments(
+        unsafe=True
+    )  # Unsafe standalone bases allowed here
     soft_pattern = build_smart_regex(
-        [soft_core_alternation],             # Broad prefixes
-        soft_instrument_fragment,            # Unsafe bases included
-        soft_specific_phrases,               # Final list of specific phrases
+        [soft_core_alternation],  # Broad prefixes
+        soft_instrument_fragment,  # Unsafe bases included
+        soft_specific_phrases,  # Final list of specific phrases
     )
     soft_fx_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
 
@@ -1336,7 +1377,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         "capacity",
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
-    
+
     # 2. Generate Core Terms (Prefixes) for STRICT pattern
 
     # Optimized Core: Commodity Name + Modifier (e.g., Crude Oil[- ]price)
@@ -1346,25 +1387,26 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"(?:{commodity_alternation})[- ](?:{modifier_alternation})",
         rf"(?:{commodity_alternation})",
     ]
-    strict_core_alternation = build_alternation(strict_core_patterns, sort_longest_first=True)
+    strict_core_alternation = build_alternation(
+        strict_core_patterns, sort_longest_first=True
+    )
 
     # 3. Unified Specific Phrases
     # These contain the max-munch phrases and apply to both strict and soft.
     specific_phrases = [
-        r"weather derivatives?", # raw string for regex
-        r"power purchase agreements?",               # raw string for regex
+        r"weather derivatives?",  # raw string for regex
+        r"power purchase agreements?",  # raw string for regex
         # LONGEST FIRST: spreads with suffix (uses standalone_alternation for bases/suffixes)
         rf"(?:{spread_types_alternation})\s+spreads?\s+(?:{standalone_alternation})",
         # SHORTER: spreads alone
         rf"(?:{spread_types_alternation})\s+spreads?",
-        r"virtual power purchase agreements?",       # raw string for regex
+        r"virtual power purchase agreements?",  # raw string for regex
         r"virtual PPA",
     ]
 
     # Pre-sort longest-first for Max Munch precedence
     sorted_specific_phrases = sorted(
-        specific_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:" ))
+        specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
     )
 
     # -------------------------------------------------------------------------
@@ -1373,12 +1415,14 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     # Fragment used for attachment to core terms: Requires an instrument base, excludes standalones.
     # This maintains the high precision of the original function's core logic.
-    strict_attachment_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=True)
+    strict_attachment_fragment = expand_instruments(
+        unsafe=True, exclude_standalone_suffixes=True
+    )
 
     strict_pattern = build_smart_regex(
-        [strict_core_alternation],               # Highly precise core prefixes
-        strict_attachment_fragment,              # Must attach a derivative base (e.g., 'swap' or 'future')
-        sorted_specific_phrases,                 # All high-priority explicit phrases
+        [strict_core_alternation],  # Highly precise core prefixes
+        strict_attachment_fragment,  # Must attach a derivative base (e.g., 'swap' or 'future')
+        sorted_specific_phrases,  # All high-priority explicit phrases
     )
     strict_cp_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
 
@@ -1391,14 +1435,15 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     # Soft pattern combines simple prefixes ('commodity', 'CP') with the full range of instrument terms.
     soft_pattern = build_smart_regex(
-        [strict_core_alternation],                 # Simple prefixes
-        soft_instrument_fragment,                # Full range of instruments (e.g., 'options', 'futures')
-        sorted_specific_phrases,                 # All high-priority explicit phrases
+        [strict_core_alternation],  # Simple prefixes
+        soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'futures')
+        sorted_specific_phrases,  # All high-priority explicit phrases
     )
     soft_cp_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
 
     # Return the tuple of (strict, soft)
     return strict_cp_regex, soft_cp_regex
+
 
 def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     # --- 1. Build Core Terms (Prefixes) ---
@@ -1474,9 +1519,9 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     soft_pattern = build_smart_regex(
         [strict_core_alternation],
-        soft_instrument_fragment
-        ,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
-        sorted_specific_phrases + [
+        soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
+        sorted_specific_phrases
+        + [
             rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
         ],
     )
@@ -1550,21 +1595,18 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "over[- ]the[- ]counter derivatives?",
         "derivative financial instruments?",
         "financial derivatives?",
-        
         # Derivative/Swap Balance Sheet Items
         "derivative assets?",
         "derivative liabilit(?:y|ies)",
         "swap liabilit(?:y|ies)",
         "swap assets?",  # <-- NEW
-        
         # Hedging Balance Sheet Items
-        "hedging assets?",            # <-- NEW
+        "hedging assets?",  # <-- NEW
         "hedging liabilit(?:y|ies)",  # <-- NEW
-        
         # Explicit "Safe" Variants for Ambiguous Bases
         "forward contracts?",
-        "forward agreements?",        # <-- NEW
-        "option contracts?",          # <-- NEW
+        "forward agreements?",  # <-- NEW
+        "option contracts?",  # <-- NEW
     ]
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
@@ -1603,6 +1645,7 @@ def build_soft_gen_regex() -> re.Pattern:
 
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
+
 def build_derivative_standards() -> re.Pattern:
     stds = [
         # US GAAP - Derivatives & Hedging
@@ -1628,16 +1671,20 @@ def build_derivative_standards() -> re.Pattern:
         # --- NEW: The Codified Version (ASC 815-40) ---
         # EITF 00-19 was codified into ASC 815-40 "Contracts in Entity's Own Equity"
         r"ASC\s+815[-–—\s]?40",
-        # Just adding this here 
+        # Just adding this here
         r"bifurcat(?:ed|ion|ing)",
     ]
     pattern = build_alternation(stds)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+
+
 DER_STD_REGEX = build_derivative_standards()
+
 
 def build_loose_gen_regex() -> re.Pattern:
     pattern = build_alternation(ALL_BASE_TYPES + ALL_SUFFIXES + ["warrants"])
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+
 
 # =============================================================================
 # COMPILED REGEXES (exported)
@@ -1673,7 +1720,7 @@ SOFT_CATEGORY_REGEX = re.compile(
     re.IGNORECASE,
 )
 BOTH_CATEGORY_REGEX = re.compile(
-     r"|".join(
+    r"|".join(
         [
             IR_SOFT_REGEX.pattern,
             FX_SOFT_REGEX.pattern,
@@ -1684,7 +1731,7 @@ BOTH_CATEGORY_REGEX = re.compile(
             FX_REGEX.pattern,
             CP_REGEX.pattern,
             EQ_REGEX.pattern,
-            CR_REGEX.pattern
+            CR_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,
@@ -1718,7 +1765,6 @@ ALL_REGEX = re.compile(
             EQ_REGEX.pattern,
             IR_REGEX.pattern,
             CR_REGEX.pattern,
-            
             FX_SOFT_REGEX.pattern,
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
@@ -1727,7 +1773,6 @@ ALL_REGEX = re.compile(
             GEN_REGEX.pattern,
             SOFT_GEN_REGEX.pattern,
             STRICT_NOTIONAL_REGEX.pattern,
-           
         ]
     ),
     re.IGNORECASE,
@@ -1929,14 +1974,11 @@ CONTRACTUAL_KEYWORDS_PHRASE = [
     r"change\s+of\s+control\s+provisions?",
     r"stockholder\s+rights\s+plan",
     r"poison\s+pill",
-    
     # Definition indicators
     # 1. "Shall mean" (The classic legal definition)
     r"shall\s+(?:mean|refers?)",
-    
     # 2. "Have the meaning ascribed"
     r"have\s+the\s+meanings?\s+(?:ascribed|assigned|given|set\s+forth)",
-    
     # 3. "As defined in/under" (Pointer to definition)
     r"(?:as|is|are|were|was)\s+defined\s+(?:in|under|by|as)",
     # 5. Anchored Term Definition: "The term 'X' means"
@@ -2092,16 +2134,16 @@ ADOPTION_VERBS_FUTURE = [
 
 # --- ADOPTION VERBS: GENERAL ACTION ---
 ADOPTION_VERBS_GENERAL = [
-    r"adopt(?:ing|ed)?",                           # ✓ Direct adoption
-    r"early\s+adopt(?:ed|ing|ion)?",               # ✓ Early adoption (accounting-specific)
-    r"application\s+of",                           # ✓ "Application of ASC 815" (accounting context)
-    r"implement(?:ing|ed|ation)",                  # ✓ Implementation (accounting standards)
-    r"transition(?:ing|ed)?",                      # ✓ Transition (accounting-specific in this context)
-    r"compliance\s+with",               
-    r"conform(?:ing|ed|ity)\s+to",      
-    r"(?:early\s+)?application",      
-    r"retroactive\s+(?:application|adoption)",     # ✓ Retroactive adoption (accounting-specific)
-    r"prospective\s+(?:application|adoption)",     # ✓ Prospective adoption (accounting-specific)
+    r"adopt(?:ing|ed)?",  # ✓ Direct adoption
+    r"early\s+adopt(?:ed|ing|ion)?",  # ✓ Early adoption (accounting-specific)
+    r"application\s+of",  # ✓ "Application of ASC 815" (accounting context)
+    r"implement(?:ing|ed|ation)",  # ✓ Implementation (accounting standards)
+    r"transition(?:ing|ed)?",  # ✓ Transition (accounting-specific in this context)
+    r"compliance\s+with",
+    r"conform(?:ing|ed|ity)\s+to",
+    r"(?:early\s+)?application",
+    r"retroactive\s+(?:application|adoption)",  # ✓ Retroactive adoption (accounting-specific)
+    r"prospective\s+(?:application|adoption)",  # ✓ Prospective adoption (accounting-specific)
 ]
 
 # --- EFFECTIVE DATE PHRASES ---
@@ -2113,20 +2155,65 @@ EFFECTIVE_DATE_PHRASES = [
     rf"(?:ending|beginning)\s+after\s+{MONTHS_FRAGMENT}",
 ]
 
+EFFECT_NOUNS = [
+    r"impacts?",
+    r"effects?",
+    r"implications?",
+    r"outcomes?",
+    r"results?",
+    r"consequences?",
+    r"repercussions?",
+    r"ramifications?",
+    r"influence",
+    r"significance",
+    r"aftermath",
+    r"corollaries?",
+    r"byproducts?",
+]
+ASSESSMENT_VERBS = [
+    r"assess(?:es|ed|ing)?",
+    r"(?:re)?evaluate(?:s|d|ing)?",
+    r"review(?:s|ed|ing)?",
+    r"test(?:s|ed|ing)?",
+    r"monitor(?:s|ed|ing)?",
+    r"analyz(?:e|es|ed|ing)",
+    r"apprais(?:e|es|ed|ing)",
+    r"audit(?:s|ed|ing)?",
+    r"examin(?:e|es|ed|ing)",
+    r"inspect(?:s|ed|ing)?",
+    r"scrutiniz(?:e|es|ed|ing)",
+    r"stud(?:y|ies|ied|ying)",
+    r"investigat(?:e|es|ed|ing)",
+    r"consider(?:s|ed|ing)?",
+    r"validat(?:e|es|ed|ing)",
+    r"verif(?:y|ies|ied|ying)",
+    r"check(?:s|ed|ing)?",
+    r"measur(?:e|es|ed|ing)",
+    r"weigh(?:s|ed|ing)?",
+]
+
+
+EFFECT_FRAGMENT = build_alternation(EFFECT_NOUNS)
+ASSESSMENT_FRAGMENT = build_alternation(ASSESSMENT_VERBS)
+
 # --- IMPACT ASSESSMENT PHRASES ---
 IMPACT_PHRASES = [
-    r"evaluat(?:ing|ed|e|es)\s+(?:the\s+)?(?:impact|effect)\s+of",
-    r"assess(?:ing|ed|es)\s+the\s+(?:impact|effect)\s+of",
-    r"currently\s+(?:evaluating|assessing)",
-    r"continu(?:ing|es)\s+to\s+evaluate",
-    r"impact\s+on\s+(?:our|the)\s+consolidated\s+financial\s+statements",
+    # Generic evaluation/assessment of effects
+    rf"{ASSESSMENT_FRAGMENT}\s+(?:the\s+)?{EFFECT_FRAGMENT}\s+of",
+    # Ongoing evaluation/assessment
+    rf"currently\s+{ASSESSMENT_FRAGMENT}",
+    rf"continu(?:ing|es)\s+to\s+{ASSESSMENT_FRAGMENT}",
+    # Specific financial reporting context
 ]
 
 # --- IMPACT RESULT PHRASES ---
 IMPACT_RESULT_PHRASES = [
-    r"(?:not\s+)?expected\s+to\s+have\s+a\s+material\s+(?:impact|effect)",
-    r"no\s+material\s+(?:impact|effect)",
-    r"immaterial\s+(?:impact|effect)",
+    # Expected materiality with up to 3 intervening words
+    rf"(?:not\s+)?expected\s+to\s+have\s+a\s+material(?:\s+\w+){{0,3}}\s+{EFFECT_FRAGMENT}",
+    # Explicit immateriality with flexibility
+    rf"no\s+material(?:\s+\w+){{0,3}}\s+{EFFECT_FRAGMENT}",
+    rf"immaterial(?:\s+\w+){{0,3}}\s+{EFFECT_FRAGMENT}",
+    rf"{EFFECT_FRAGMENT}\s+on(?:\s+\w+){{0,3}}\s+statements",
 ]
 
 # --- ADOPTION PERMISSIBILITY PHRASES ---
@@ -2160,7 +2247,7 @@ GUIDANCE_OBJECT_TYPES = [
     r"Clarifications?",
     r"Rules?",
     r"Principals?",
-    r"Principles?"
+    r"Principles?",
 ]
 
 # --- STANDALONE PHRASES (context-specific, non-generic) ---
@@ -2225,42 +2312,31 @@ ACCOUNTING_STANDARDS_STRICT = [
     rf"{MONTHS_FRAGMENT}\s+\d{{4}}.*{ISSUER_FRAGMENT}\s+{ISSUANCE_VERBS_FRAGMENT}",
     # Issuer + Issuance ("FASB issued...")
     rf"{ISSUER_FRAGMENT}\s+(?:in\s+{MONTHS_FRAGMENT}\s+\d{{4}}.*)?{ISSUANCE_VERBS_FRAGMENT}(?:\s+in\s+{MONTHS_FRAGMENT}\s+(?:\d{{4}})?)?",
-    
     # Standard ID + Issuance ("ASU 2016-13 was issued...")
     rf"{STANDARD_ID_PATTERN}\s+(?:was|is)\s+{ISSUANCE_VERBS_FRAGMENT}",
-    
     # Issuance Verb + Standard ID ("Adopted SFAS 157...")
     rf"{ISSUANCE_VERBS_FRAGMENT}(?:\s+\w+){{1,10}}\s+{STANDARD_ID_PATTERN}",
-    
     # Standard Descriptions ("ASC 820 defines...")
     rf"{STANDARD_ID_PATTERN}\s+{DESCRIPTION_VERBS_FRAGMENT}",
-    
-    
     # Explicit Adoption ("Adoption of the new guidance")
     rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+{STANDARD_ID_PATTERN}",
     rf"{ADOPTION_VERBS_GENERAL_FRAGMENT}\s+(?:\S+\s+){{0,10}}{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
-    
     # Future Adoption ("We plan to adopt...")
     rf"{ADOPTION_VERBS_FUTURE_FRAGMENT}",
-    
     # Effective Dates ("Effective for fiscal years...")
     rf"{STANDARD_ID_PATTERN}\s+should\s+be\s+applied",
     rf"{STANDARD_ID_PATTERN}\s+(?:is|was|becomes)\s+effective",
     EFFECTIVE_DATE_PHRASES_FRAGMENT,
     ADOPTION_PERMISSION_PHRASES_FRAGMENT,
-    
     # Explicit "No Material Impact" statements (Classic boilerplate)
     IMPACT_RESULT_PHRASES_FRAGMENT,
-    
     # Anchored Headers ("In March 2024...")
     rf"^{STANDARD_ID_PATTERN}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
     rf"^{ISSUER_FRAGMENT}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
     rf"^In\s+{MONTHS_FRAGMENT}.*{ISSUER_FRAGMENT}",
-    
     # Specific Terms
     rf"recently\s+(?:issued|updated|released|published|announced)\s+(?:accounting\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
     r"accounting standards update",
-    
     # Disclosures explicitly mandated by an ID
     rf"disclosures?\s+(?:required|mandated)\s+by\s+{STANDARD_ID_PATTERN}[^.?!]*",
 ]
@@ -2280,7 +2356,7 @@ ACCOUNTING_STANDARDS_SOFT = [
     rf"pursuant\s+to\s+{STANDARD_ID_PATTERN}",
     rf"defined\s+in\s+{STANDARD_ID_PATTERN}",
     rf"accordance\s+with\s+{STANDARD_ID_PATTERN}",
-     # ID + Title ("ASC 815 Derivatives and Hedging")
+    # ID + Title ("ASC 815 Derivatives and Hedging")
     rf"{STANDARD_ID_PATTERN}(?:\s+,\s+)?{CAPITALIZED_TITLE_PATTERN}",
     # Indirect references
     rf"disclosures?\s+(?:about|regarding)\s+(?:the\s+)?(?:adoption|application|impact)\s+of[^.?!]*",
@@ -2294,6 +2370,7 @@ ACCOUNTING_STANDARDS_STRICT_REGEX = re.compile(
     r"|".join(ACCOUNTING_STANDARDS_STRICT), re.IGNORECASE
 )
 
+
 def build_capitalized_title_cleaner() -> re.Pattern:
     """
     Matches a sequence of Title Case words separated by common connectors.
@@ -2301,19 +2378,18 @@ def build_capitalized_title_cleaner() -> re.Pattern:
     """
     # Expanded list of lowercase connectors found in accounting titles
     connectors = r"of|for|and|to|in|on|with|the|about|regarding|as|an"
-    
+
     return re.compile(
         # 1. Start with optional chunks of "Word + Connector"
         # Matches: "Disclosures about ", "Amendment of "
         rf"(?!^)\b(?:[A-Z][a-z0-9-]*\s+(?:{connectors})\s+)*"
-        
         # 2. Match the mandatory final Capitalized Word
         r"[A-Z][a-z0-9-]*"
-        
         # 3. Allow trailing "Connector + Word" sequences (Greedy)
         # Matches: "...Derivative Instruments and Hedging Activities"
         rf"(?:\s+(?:[A-Z][a-z0-9-]*|{connectors}))*\b"
     )
+
 
 TITLE_CLEANER_REGEX = build_capitalized_title_cleaner()
 
@@ -2325,18 +2401,15 @@ FORWARD_LOOKING_KEYWORDS = [
     r"cautionary\s+(?:note|statement|language)\s+(?:regarding|concerning|about)",
     r"forward[- ]looking\s+statements?",
     r"safe\s+harbor",
-    
     # 2. Legal Acts/Sections (The smoking gun for boilerplate)
     r"private\s+securities\s+litigation\s+reform\s+act",
     r"section\s+27a\s+of\s+the\s+securities\s+act",
     r"section\s+21e\s+of\s+the\s+securities\s+exchange\s+act",
-    
     # 3. Boilerplate Definitions
     r"statements\s+that\s+are\s+not\s+historical\s+facts",
     r"words\s+such\s+as\s+(?:expect|anticipate|intend|plan|believe|seek|see|will|would|target)",
     r"results\s+(?:could|may|might)\s+differ\s+materially",
     r"undertake\s+no\s+obligation\s+to\s+update",
-    
     # 4. Specific Risk Factors boilerplate (careful not to delete actual risk mgmt)
     r"refer\s+to\s+(?:item|section)\s+1a\.?\s+risk\s+factors",
     r"risk\s+factors\s+described\s+in",
@@ -2347,7 +2420,7 @@ HYPOTHETICAL_KEYWORDS = [
     r"measure(?:s|d|ment)\s+of\s+market\s+risk",
     r"confidence\s+(?:level|interval)",
     r"statistical\s+(?:measure|model)",
-    r"hypothetical\s+(?:change|loss|shift|scenario|stress|derivative)", # Added 'stress'
+    r"hypothetical\s+(?:change|loss|shift|scenario|stress|derivative)",  # Added 'stress'
     r"parallel\s+shift",
     r"simulation\s+model\s+that\s+estimates",
     r"sensitivity\s+analysis",
@@ -2375,7 +2448,6 @@ FILING_KEYWORDS = [
     "filed on",
     r"(?:annual|quarterly)\s+report",
     r"\bSEC\b\s+File",
-    
 ]
 # =============================================================================
 # REGULATORY NOISE LISTS (SPLIT)
@@ -2435,7 +2507,6 @@ REGULATORY_KEYWORDS_LOOSE = [
     r"\bSEC\b",  # Securities and Exchange Commission
     r"\bCFTC\b",  # Commodity Futures Trading Commission
     r"\bFCA\b",  # Financial Conduct Authority
-    
     # --- NEW: Environmental Compliance ---
     r"civil\s+(?:penalt(?:y|ies)|fines?|sanctions?|actions?|proceedings?)",
     r"criminal\s+(?:penalt(?:y|ies)|fines?|sanctions?|actions?|proceedings?)",
@@ -2461,11 +2532,12 @@ REGULATORY_KEYWORDS_LOOSE = [
     r"pollutants?",
 ]
 
+
 def build_exclude_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
     """Build regex for excluding noise keywords."""
     # Add word boundaries (\b) around each keyword to prevent partial matches
     pattern = build_alternation(keywords)
-    return re.compile(r"\b"+ pattern + r"\b", re.IGNORECASE if ignore_case else 0)
+    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE if ignore_case else 0)
 
 
 EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
@@ -2477,12 +2549,22 @@ EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
 EXCLUDE_REGEX_FILING = build_exclude_regex(FILING_KEYWORDS)
 
-EXCLUDE_REGEX_REGULATORY_STRICT = build_exclude_regex(REGULATORY_KEYWORDS_STRICT, ignore_case=True)
-EXCLUDE_REGEX_REGULATORY_LOOSE = build_exclude_regex(REGULATORY_KEYWORDS_LOOSE, ignore_case=True)
+EXCLUDE_REGEX_REGULATORY_STRICT = build_exclude_regex(
+    REGULATORY_KEYWORDS_STRICT, ignore_case=True
+)
+EXCLUDE_REGEX_REGULATORY_LOOSE = build_exclude_regex(
+    REGULATORY_KEYWORDS_LOOSE, ignore_case=True
+)
 
-EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(CONTRACTUAL_KEYWORDS_STRICT, ignore_case=False)
-EXCLUDE_REGEX_CONTRACTUAL_SINGLE = build_exclude_regex(CONTRACTUAL_KEYWORDS_SINGLE, ignore_case=True)
-EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(CONTRACTUAL_KEYWORDS_PHRASE, ignore_case=True)
+EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(
+    CONTRACTUAL_KEYWORDS_STRICT, ignore_case=False
+)
+EXCLUDE_REGEX_CONTRACTUAL_SINGLE = build_exclude_regex(
+    CONTRACTUAL_KEYWORDS_SINGLE, ignore_case=True
+)
+EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(
+    CONTRACTUAL_KEYWORDS_PHRASE, ignore_case=True
+)
 
 
 def is_contractual_noise(text: str, threshold: int = 4) -> bool:
@@ -2516,32 +2598,34 @@ def is_contractual_noise(text: str, threshold: int = 4) -> bool:
 
     return score >= threshold
 
+
 def is_regulatory_noise(text: str, threshold: int = 4) -> bool:
     """
     Determines if text is regulatory boilerplate using a scoring system.
-    
+
     Scoring Logic (Threshold = 4):
     - Strict Matches (Specific Acts like Dodd-Frank): 2 points
     - Loose Matches (General words like 'Regulation'): 1 point
-    
+
     Examples:
     - "We comply with Dodd-Frank (2) and EMIR (2)." -> 4 pts -> Discard.
     - "Subject to regulation (1) by the SEC (1)." -> 2 pts -> Keep (Valid Context).
     - "Governmental regulations (1) governing (1) the SEC (1) oversight (1)." -> 4 pts -> Discard.
     """
-    
+
     # 1. DEFINE WEIGHTS
     W_STRICT = 2
     W_LOOSE = 1
-    
+
     # 2. COUNT MATCHES
     strict_hits = len(EXCLUDE_REGEX_REGULATORY_STRICT.findall(text))
     loose_hits = len(EXCLUDE_REGEX_REGULATORY_LOOSE.findall(text))
-    
+
     # 3. CALCULATE SCORE
     score = (strict_hits * W_STRICT) + (loose_hits * W_LOOSE)
-    
+
     return score >= threshold
+
 
 SUBJECTS = [
     # Simple pronouns
@@ -2622,6 +2706,8 @@ STRONG_VERB_PATTERN = build_alternation(STRONG_ACTION_VERBS)
 WEAK_VERB_PATTERN = build_alternation(PASSIVE_STATE_VERBS)
 VERB_PATTERN = "|".join([STRONG_VERB_PATTERN, WEAK_VERB_PATTERN])
 VERB_REGEX = re.compile(rf"\b(?:{VERB_PATTERN})\b", re.IGNORECASE)
+
+
 def build_trading_denial_pattern() -> re.Pattern:
     """Build regex pattern for detecting trading denial statements to remove/mask them."""
 
@@ -2662,7 +2748,9 @@ def build_trading_denial_pattern() -> re.Pattern:
         r"maintain(?:ed|s)?",
     ]
 
-    OBJ = STRICT_REGEX.pattern # Not needed, we already had caught them in intial filtering
+    OBJ = (
+        STRICT_REGEX.pattern
+    )  # Not needed, we already had caught them in intial filtering
 
     TRADING_WORDS = [
         r"trading",
@@ -2748,60 +2836,61 @@ TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 # DEFINITION DETECTION (Isolated boilerplate)
 # =============================================================================
 
+
 def build_definition_regex() -> re.Pattern:
     """
     Matches definition boilerplate safely.
     Consumes the full sentence tail to prevent debris.
     """
-    
+
     # 1. Setup Components
     instr = f"(?:{CATEGORY_REGEX.pattern})"
     subject = SUBJ  # From derivative_regex.py
     SENTENCE_TAIL = r"[^.?!]*"
-    
+
     # 2. Key Verbs Grouped by Safety
-    
+
     # SAFE: Legal terms that rarely appear in narrative flow
     LEGAL_VERBS = r"(?:shall\s+mean|is\s+defined\s+as|definitions?\s+of)"
-    
+
     # RISKY: Common verbs that need specific subjects (Quotes, "The term", Instrument names)
-    COMMON_VERBS = r"(?:means?|represents?|refers?\s+to|considered\s+as|\:)" # Add colon
-    
+    COMMON_VERBS = (
+        r"(?:means?|represents?|refers?\s+to|considered\s+as|\:)"  # Add colon
+    )
+
     # SPECIFIC: Accounting nouns allowed for "represents"
-    ACCT_NOUNS = r"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value)"
+    ACCT_NOUNS = (
+        r"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value)"
+    )
 
     pattern_list = [
         # --- 1. The "Legal Hammer" (Safe to be broad) ---
         # Matches: "Swaps shall mean...", "Hedging is defined as..."
         # We allow broad subjects here because "shall mean" is distinct.
         rf".*?\s+{LEGAL_VERBS}\s+.*{SENTENCE_TAIL}",
-
         # --- 2. Anchored "Means/Refers" (Strict Subjects Only) ---
         # Matches: "The term 'Swap' means...", "'Derivatives' refers to..."
         # Logic: Must start with "The term", "This caption", or a Quoted String.
         rf"(?:[Tt]he\s+term\s+|[Tt]his\s+(?:caption|account)\s+|[\"“].*?[\"”]\s+){COMMON_VERBS}{SENTENCE_TAIL}",
-
         # --- 3. Instrument-Subject Definitions ---
         # Matches: "Interest Rate Swaps means...", "Options are considered as..."
         # Logic: Subject MUST be a detected instrument category.
         rf"(?:a\s+)?{instr}\s+(?:{COMMON_VERBS}){SENTENCE_TAIL}",
-
         # --- 4. Accounting Specifics ---
         # Matches: "Notional value represents..."
         rf"{ACCT_NOUNS}\s+(?:represents?|means?){SENTENCE_TAIL}",
-        
         # --- 5. Corporate Definitions ---
         # Matches: "The Company defines...", "Management considers..."
         rf"(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{instr}.*as{SENTENCE_TAIL}",
-        
         # --- 6. Inverted Definitions ---
         # Matches: "...is the definition of..."
         rf".*?\s+is\s+the\s+definition\s+of{SENTENCE_TAIL}",
     ]
 
     combined = "|".join(f"(?:{p})" for p in pattern_list)
-    
+
     return re.compile(combined, re.IGNORECASE | re.VERBOSE)
+
 
 def build_non_derivative_classification_regex() -> re.Pattern:
     """
@@ -2818,12 +2907,12 @@ def build_non_derivative_classification_regex() -> re.Pattern:
         r"defined",
         r"viewed",
     ]
-    
+
     # The classification target (singular or plural)
     targets = [
         r"derivatives?",
         r"derivative\s+instruments?",
-        r"financial\s+instruments?", # optional, but common in this context
+        r"financial\s+instruments?",  # optional, but common in this context
     ]
 
     verb_pat = build_alternation(verbs)
@@ -2835,14 +2924,16 @@ def build_non_derivative_classification_regex() -> re.Pattern:
         rf"{verb_pat}\s+"
         rf"(?:as\s+)?(?:a\s+|an\s+)?"
         rf"{target_pat}\b",
-        re.IGNORECASE
+        re.IGNORECASE,
     )
+
 
 # Compile and Export
 NON_DERIVATIVE_REGEX = build_non_derivative_classification_regex()
 
 # Compile at module load
 DEFINITION_INDICATORS = build_definition_regex()
+
 
 def build_prior_statement_pattern() -> re.Pattern:
     """
@@ -2901,6 +2992,8 @@ def build_prior_statement_pattern() -> re.Pattern:
     full_pattern = f"({pattern1}|{pattern2}|{pattern3}){BOUNDARY}"
 
     return re.compile(full_pattern, re.IGNORECASE | re.VERBOSE)
+
+
 PRIOR_PATTERN = build_prior_statement_pattern()
 
 # =============================================================================
@@ -2928,12 +3021,10 @@ NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
     r"normal\s+purchases?\s+(?:and|&)\s+(?:normal\s+)?sales?",
     r"NPNS",
     r"own[- ]use\s+exemption",
-    
     # Unconditional Obligations (ASC 440)
     r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
     r"take[- ]or[- ]pay",
     r"throughput\s+agreements?",
-    
     # General Supply Chain (If not caught by Physical Inventory)
     r"supply\s+arrangements?",
     r"procurement\s+contracts?",
@@ -3052,7 +3143,19 @@ POTENTIAL_INDICATORS = [
 ]
 
 # Negative Intent Components
-NEGATIVE_AUXILIARY = [r"do", r"does", r"did", r"will", r"would", r"can", r"could", r"shall", r"should", r"have", r"has"]
+NEGATIVE_AUXILIARY = [
+    r"do",
+    r"does",
+    r"did",
+    r"will",
+    r"would",
+    r"can",
+    r"could",
+    r"shall",
+    r"should",
+    r"have",
+    r"has",
+]
 NEGATIVE_INTENT_VERBS = [r"seek", r"intend", r"plan", r"expect", r"continue"]
 
 # Absence Indicators
@@ -3073,7 +3176,15 @@ _ABSENCE_NOUNS = [
 # Termination Verbs
 # If these appear before "settled", it's likely a description of mechanics, not termination.
 SETTLEMENT_MODIFIERS = [
-    "cash", "net", "daily", "monthly", "physically", "final", "mandatory", "annually", "weekly"
+    "cash",
+    "net",
+    "daily",
+    "monthly",
+    "physically",
+    "final",
+    "mandatory",
+    "annually",
+    "weekly",
 ]
 _settle_lookbehind = "".join([rf"(?<!\b{word}\s)" for word in SETTLEMENT_MODIFIERS])
 # In termination_filter.py
@@ -3169,6 +3280,7 @@ def build_vague_timing_regex() -> re.Pattern:
     """Matches: "from time to time", "in the future" """
     return re.compile(rf"\b{build_alternation(SPECULATIVE_PHRASES)}\b", re.IGNORECASE)
 
+
 # Add this alongside your other lists
 NEGATIVE_CONTRACTIONS = [
     r"do[nN]['’]?[tT]",  # don't
@@ -3184,6 +3296,8 @@ NEGATIVE_CONTRACTIONS = [
     r"have[nN]['’]?[tT]",  # haven't
     r"has[nN]['’]?[tT]",
 ]
+
+
 def build_negation_prefix_pattern() -> str:
     """
     Returns a regex string matching:
@@ -3244,6 +3358,7 @@ def build_absence_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
+
 def build_did_not_hold_regex() -> re.Pattern:
     """
     Matches: "did not hold", "didn't enter", "couldn't engage"
@@ -3251,7 +3366,7 @@ def build_did_not_hold_regex() -> re.Pattern:
     """
     # Use the same unified prefix
     _neg_prefix = build_negation_prefix_pattern()
-    
+
     _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
     # _fillers = (
     #     r"(?:such\s+|any\s+|" rf"{MATERIAL_PATTERN}\s+|" rf"{ACTIVE_STATE_PATTERN}\s+)*"
@@ -3272,12 +3387,15 @@ def build_termination_regex() -> re.Pattern:
 
 def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     from table_processor import TABLE_ANCHOR
+
     """
     Determines if the instrument name is still present in the paragraph/sentence.
     """
-    # Check for length 
-    if len(sentence) < MIN_SENTENCE_LENGTH: return False
-    if TABLE_ANCHOR in sentence: return True
+    # Check for length
+    if len(sentence) < MIN_SENTENCE_LENGTH:
+        return False
+    if TABLE_ANCHOR in sentence:
+        return True
     # 1. SPECIFIC MATCHES (The Only Safe Harbor for Orphans)
     # If it says "Interest Rate Swap", it survives ANY filter.
     if CATEGORY_REGEX.search(sentence):
@@ -3304,21 +3422,24 @@ def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     # Requires Context (Anchor) AND Hedging Keywords.
     if not strict:
         if LOOSE_GEN_REGEX.search(sentence):
-            if HEDGING_CONTEXT_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
+            if HEDGING_CONTEXT_REGEX.search(sentence) or SOFT_GEN_REGEX.search(
+                sentence
+            ):
                 return True
 
     return False
 
+
 def validate_instrument_retention(
-    paragraphs: List[str], 
-    categories: List[str], 
-    url: str, 
-    strict: bool = False, 
-    year: Optional[int] = None
+    paragraphs: List[str],
+    categories: List[str],
+    url: str,
+    strict: bool = False,
+    year: Optional[int] = None,
 ) -> Tuple[List[str], List[str], List[Tuple[str, str, str]]]:
     """
     Final safety check with Dependency Anchoring and Year-Based Promotion.
-    
+
     Logic:
     1. Anchor Present: Validate the whole block (Context survives).
     2. Anchor Missing (Orphans):
@@ -3332,14 +3453,16 @@ def validate_instrument_retention(
 
     for text, cat in zip(paragraphs, categories):
         has_anchor = ANCHOR_TAG in text
-        
+
         # --- STRATEGY: SPLIT ORPHANS IF YEAR CHECKING IS ACTIVE ---
         # We only split if:
         # 1. We are in a Year-Check phase (year is not None)
         # 2. The Anchor is missing (If the Anchor is there, the context is valid, so keep the block)
         if year and not has_anchor:
             # Split the orphaned block back into atomic components
-            sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()]
+            sentences = [
+                s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
+            ]
         else:
             # Treat as a single unit (Standard behavior)
             sentences = [text]
@@ -3347,7 +3470,7 @@ def validate_instrument_retention(
         for unit in sentences:
             # Clean the tag for regex checking
             clean_unit = unit.replace(ANCHOR_TAG, " ")
-            
+
             # Determine Mode
             effective_strict = strict
             promoted_to_anchor = False
@@ -3355,7 +3478,7 @@ def validate_instrument_retention(
             if not has_anchor:
                 # Default: Kill orphans
                 effective_strict = True
-                
+
                 # Salvation: Year-Based Promotion
                 if year:
                     years_found = [int(y) for y in YEAR_REGEX.findall(clean_unit)]
@@ -3371,7 +3494,7 @@ def validate_instrument_retention(
                     final_text = ANCHOR_TAG + unit.lstrip()
                 else:
                     final_text = unit
-                
+
                 validated_paragraphs.append(final_text)
                 validated_categories.append(cat)
             else:
@@ -3382,7 +3505,7 @@ def validate_instrument_retention(
                     reason = "orphaned_but_current_failed_check"
                 else:
                     reason = "lost_anchor_context"
-                
+
                 discards.append((url, clean_unit, reason))
 
     return validated_paragraphs, validated_categories, discards
@@ -3403,34 +3526,29 @@ TERMINATION_REGEX = build_termination_regex()
 def build_reference_patterns() -> re.Pattern:
     """
     Builds a regex that catches navigational pointers (e.g., 'See Note X', 'Table below')
-    WITHOUT consuming the rest of the sentence. This preserves context when the 
+    WITHOUT consuming the rest of the sentence. This preserves context when the
     reference is embedded in a valid sentence (e.g., "The swaps shown in the table below are active").
     """
-    
+
     patterns = [
         # --- 1. Explicit Note/Section References ---
         # Matches: "See Note 5", "Refer to Note 5", "In Note 5"
         r"(?:[Ss]ee|[Rr]efer(?:ence)?\s+(?:to|is\s+made\s+to)|[Ii]n)\s+(?:Note|NOTE|Section)\s+(?:No\.\s+)?\d+[A-Z]?(?:\s*\(s\))?",
-        
         # --- 2. Descriptive Note References ---
         # Matches: "Note 5 provides...", "Note 10 discusses..."
         r"\b(?:Note|NOTE|Section)\s+(?:No\.\s+)?\d+[A-Z]?\s+(?:provides?|details?|discloses?|discusses?|presents?)",
-
         # --- 3. Table/Schedule Pointers (Directional) ---
         # Matches: "The table below", "The following schedule", "The accompanying exhibit"
         # Logic: Noun + Direction OR "Following" + Noun
         r"[Tt]he\s+(?:following\s+)?(?:table|schedule|exhibit|note|chart|graph)\s+(?:below|above|following|accompanying|herein)",
         r"[Tt]he\s+(?:following|accompanying)\s+(?:table|schedule|exhibit|note|chart|graph)",
-
         # --- 4. Passive Pointers ---
         # Matches: "As shown in the table", "As discussed below"
         r"[Aa]s\s+(?:shown|provided|detailed|presented|summarized|disclosed|set\s+forth|discussed|reflected)\s+(?:in\s+the\s+(?:table|schedule|exhibit|note)|below|above|herein)",
-
         # --- 5. Embedded Locators ---
         # Matches: "presented in the table below", "included in the following table"
         # This catches your specific example case.
         r"(?:presented|included|summarized|set\s+forth|reflected)\s+in\s+(?:the\s+)?(?:following\s+)?(?:table|schedule|exhibit|note)\s+(?:below|above|following)?",
-        
         # --- 6. Trailing Identifiers ---
         # Matches: "...(Table 1)", "...- Schedule II"
         r"(?:[.,;:\-\s]|\s+and\s+)\s*(?:table|schedule|exhibit|note)\s+No\.\s+\d+",
@@ -3507,12 +3625,10 @@ REFERENCE_CLEANUP_REGEX = build_reference_patterns()
 HEADER_CLEANUP_PATTERNS = [
     # 1. Markdown Headers: Targets # Title # and similar structure
     (re.compile(r"\n\#+\s*.*?\#*\n", re.IGNORECASE), "\n\n"),
-    
     # 2. Markdown Bold/Italics Emphasis: Targets **Title** or *Title* or _Title_
     # Replaces with space to separate merged text fragments
     (re.compile(r"\*{1,}.*?\*{1,}", re.IGNORECASE), " "),
     (re.compile(r"\_[^\s_].*?[^\s_]\_", re.IGNORECASE), " "),
-    
     # 3. ALL-CAPS DERIVATIVE HEADER DELETION
     # Targets long, non-narrative all-caps sequences containing key terms
     (
@@ -3526,16 +3642,15 @@ HEADER_CLEANUP_PATTERNS = [
         re.compile(r"^\s*[^a-z\n]*?(?:DERIVATIVES?|HEDGING)[^a-z\n]*?$", re.MULTILINE),
         "\n\n",
     ),
-
     # 4. QUOTED HEADER DELETION (NEW)
     # Targets lines like: "Hedging Activities", "Derivative Instruments"
     # Logic: Start of line + Quote + (Key Terms) + Quote + End of line
     (
         re.compile(
-            r'^\s*["“][^"”\n]*?(?:Derivatives?|Hedging|Fair\s+Value|Financial\s+Instruments)[^"”\n]*?["”]\s*$', 
-            re.MULTILINE | re.IGNORECASE
+            r'^\s*["“][^"”\n]*?(?:Derivatives?|Hedging|Fair\s+Value|Financial\s+Instruments)[^"”\n]*?["”]\s*$',
+            re.MULTILINE | re.IGNORECASE,
         ),
-        "\n\n"
+        "\n\n",
     ),
 ]
 
@@ -3729,8 +3844,10 @@ STRICT_CONTEXT_MAP = {
     "fx": re.compile(r"\b" + build_alternation(FX_STRICT_TERMS) + r"\b", re.IGNORECASE),
     "cp": re.compile(r"\b" + build_alternation(CP_STRICT_TERMS) + r"\b", re.IGNORECASE),
     "eq": re.compile(r"\b" + build_alternation(EQ_STRICT_TERMS) + r"\b", re.IGNORECASE),
-    "cr": CR_CONTEXT_REGEX
+    "cr": CR_CONTEXT_REGEX,
 }
+
+
 def aggregate_discards(
     discards: List[Tuple[str, str, str]],
 ) -> List[Tuple[str, str, str]]:
@@ -3760,6 +3877,7 @@ def aggregate_discards(
 
     return result
 
+
 def build_embedded_cap_floor_regex() -> re.Pattern:
     # 1. Connectors (The "Filler")
     connectors = [
@@ -3780,7 +3898,7 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
 
     # 2. Build Suffix Logic
     # ALL_SUFFIXES includes: agreements, contracts, commitments, instruments, arrangements, options
-    
+
     # A. Full Suffix List (For Long-Form Instruments)
     # "Interest Rate Cap Agreement" -> SAFE (Excluded from match)
     full_suffix_alt = build_alternation(ALL_SUFFIXES)
@@ -3788,45 +3906,47 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
     # B. Safe Suffix List (For Short-Form Instruments)
     # Remove "agreement" so "Cap Agreement" is caught and checked for debt context.
     # We explicitly keep strong terms like "Contract" and "Option".
-    safe_list = set(ALL_SUFFIXES) - {"agreements?", "arrangements?"} # Arrangements also vague
+    safe_list = set(ALL_SUFFIXES) - {
+        "agreements?",
+        "arrangements?",
+    }  # Arrangements also vague
     safe_suffix_alt = build_alternation(list(safe_list))
 
     # 3. Targets (Caps/Floors only)
     targets = [
         # Long Form: Trust ALL suffixes (Agreements included)
-        rf"interest\s+rate\s+(?:caps?|floors?|collars?)(?!\s+{full_suffix_alt})", 
-        
+        rf"interest\s+rate\s+(?:caps?|floors?|collars?)(?!\s+{full_suffix_alt})",
         # Short Form: Trust only STRONG suffixes (Contracts/Options)
         # "Cap Agreement" or "Cap Arrangement" will MATCH here (and risk discard)
-        rf"caps?(?!\s+{safe_suffix_alt})", 
+        rf"caps?(?!\s+{safe_suffix_alt})",
         rf"floors?(?!\s+{safe_suffix_alt})",
     ]
     target_pat = build_alternation(targets)
 
     # 4. Pattern A: Debt... [gap] ... Cap/Floor
-    pat_a = (
-        rf"\b{_DEBT_TERMS}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat}\b"
-    )
+    pat_a = rf"\b{_DEBT_TERMS}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat}\b"
 
     # 5. Pattern B: Cap/Floor... [gap] ... Percentage
     percent_pat = r"\d+(?:\.\d+)?\s*(?:%|percent|bps|basis\s+points)"
     pat_b = rf"\b{target_pat}\s+(?:\S+\s+){{0,3}}{percent_pat}\b"
 
     # 6. Pattern C: Explicit "Feature" Nouns
-    noun_indicators = r"(?:features?|provisions?|terms?)" 
+    noun_indicators = r"(?:features?|provisions?|terms?)"
     pat_c = rf"\b{target_pat}\s+{noun_indicators}\b"
 
     return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
 
+
 # Export this
 EMBEDDED_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
+
 
 def create_strict_fair_value_regex() -> re.Pattern:
     """
     Captures ONLY 'Sophisticated' Fair Value usage.
     Excludes standard 'Fair Value of Financial Instruments' disclosures.
     """
-    
+
     # 1. Models (Unambiguous)
     model_pattern = r"Black[- ]Scholes|Monte[- ]Carlo|Binomial|Lattice"
 
@@ -3834,25 +3954,23 @@ def create_strict_fair_value_regex() -> re.Pattern:
         # Actionable Fair Value (Implies Trading/Derivatives)
         r"mark[- ]to[- ]market",
         r"changes?\s+in\s+fair\s+value",  # "Change in" implies income statement recognition
-        r"fair\s+value\s+option",         # Specific election (FVO)
-        r"carried\s+at\s+fair\s+value",   # "Carried at" implies recurring measurement
+        r"fair\s+value\s+option",  # Specific election (FVO)
+        r"carried\s+at\s+fair\s+value",  # "Carried at" implies recurring measurement
         r"measured\s+at\s+fair\s+value",
-        
         # Specific Complex Liabilities
         r"derivative\s+liability",
         r"warrant\s+liability",
         r"embedded\s+derivative",
         r"(?<!not\s)bifurcat(?:ed|ion|ing)",
-        
         # Hierarchy (Strong signal of complex assets)
         r"Level\s+3",  # Level 1/2 are too common (Cash equivalents), Level 3 is rare/complex
-        
         # Valuation Models
-        model_pattern
+        model_pattern,
     ]
-    
+
     pattern = "|".join(strict_terms)
     return re.compile(pattern, re.IGNORECASE)
+
 
 # Export this
 FV_REGEX = create_strict_fair_value_regex()
