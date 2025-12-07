@@ -386,13 +386,17 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     is_container = True
 
                 if not is_container:
-                    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, cleaned_table)):
+                    table_masked = ENTITY_EXCLUSION_REGEX.sub(
+                        ENTITY_TOKEN, cleaned_table
+                    )
+
+                    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(table_masked):
                         local_discards.append((url, "<table>...", "legal_table"))
                         continue
 
-                    # FIXED: Use is_sophisticated_target() for tables too
-                    is_target = is_sophisticated_target(ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, cleaned_table))
-                    is_context = SOPHISTICATED_CONTEXT_REGEX.search(ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, cleaned_table))
+                    # Use gated sophisticated target checker
+                    is_target = is_sophisticated_target(table_masked)
+                    is_context = SOPHISTICATED_CONTEXT_REGEX.search(table_masked)
 
                     if is_target or is_context:
                         sophisticated_buffer.append((idx, cleaned_table))
@@ -420,19 +424,24 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     if not p.strip():
                         continue
 
+                    # Remask after table flattening
+                    p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+
             # 2. EXCLUSIONS
-            exclusion_reason = check_hard_exclusions(p)
+            # Check exclusions on the MASKED version
+            exclusion_reason = check_hard_exclusions(p_masked)
             if exclusion_reason:
-                local_discards.append((url, p, exclusion_reason)) # Log original for readability
+                local_discards.append((url, p, exclusion_reason))  # Log original
                 continue
 
             # 3. SALVAGE LOGIC
             # Hypothetical
             if EXCLUDE_HYPOTHETICAL_REGEX.search(p_masked):
                 has_std = STRICT_REGEX.search(p_masked) or (
-                    SOFT_REGEX.search(p_masked) and HEDGING_CONTEXT_REGEX.search(p_masked)
+                    SOFT_REGEX.search(p_masked)
+                    and HEDGING_CONTEXT_REGEX.search(p_masked)
                 )
-                # FIXED: Use is_sophisticated_content() instead of raw checks
+                # Use is_sophisticated_content() for consistency
                 has_soph = is_sophisticated_content(p_masked)
 
                 if has_std or has_soph:
@@ -453,9 +462,13 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                             kept.append(sent)
                         elif SOFT_REGEX.search(sent):
                             sent_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, sent)
-                            has_hedging_context = SOFT_GEN_REGEX.search(sent_masked) or DER_STD_REGEX.search(sent_masked)
-                            is_buffered_target = is_sophisticated_target(sent_masked)  # FIXED
-                            is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(sent_masked)
+                            has_hedging_context = SOFT_GEN_REGEX.search(
+                                sent_masked
+                            ) or DER_STD_REGEX.search(sent_masked)
+                            is_buffered_target = is_sophisticated_target(sent_masked)
+                            is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(
+                                sent_masked
+                            )
 
                             if (
                                 has_hedging_context
@@ -466,8 +479,11 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
                     if kept:
                         salvaged_p = " ".join(kept)
-                        # FIXED: Use is_sophisticated_content()
-                        if is_sophisticated_content(ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, salvaged_p)):
+                        salvaged_p_masked = ENTITY_EXCLUSION_REGEX.sub(
+                            ENTITY_TOKEN, salvaged_p
+                        )
+
+                        if is_sophisticated_content(salvaged_p_masked):
                             sophisticated_buffer.append((idx, salvaged_p))
                         else:
                             clean_buffer.append((idx, salvaged_p))
@@ -485,15 +501,15 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
             if is_soph_target:
                 # A. TARGETS: Exclusive to Sophisticated Buffer
-                sophisticated_buffer.append((idx, p)) # <-- SAVE ORIGINAL 'p'
+                sophisticated_buffer.append((idx, p))
 
             elif is_soph_context:
                 # B. CONTEXT: Shared to BOTH Buffers
-                sophisticated_buffer.append((idx, p)) # <-- SAVE ORIGINAL 'p'
-                clean_buffer.append((idx, p))         # <-- SAVE ORIGINAL 'p'
+                sophisticated_buffer.append((idx, p))
+                clean_buffer.append((idx, p))
             else:
                 # C. STANDARD: Exclusive to Standard Buffer
-                clean_buffer.append((idx, p))         # <-- SAVE ORIGINAL 'p'
+                clean_buffer.append((idx, p))
 
         except Exception as e:
             print(f"❌ Unexpected error processing paragraph {idx} in {url}: {e}")
@@ -508,13 +524,12 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     try:
         # A. Validate Standard Buffer
         std_texts = [text for _, text in clean_buffer]
-        # Mask all texts for consistent validation
         std_texts_masked = [
             ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text) for text in std_texts
         ]
 
-        if any(find_hedging_context(p) for p in std_texts_masked):  # Validate on masked
-            final_results.extend(clean_buffer)  # But keep original for output
+        if any(find_hedging_context(p) for p in std_texts_masked):
+            final_results.extend(clean_buffer)
         else:
             if clean_buffer:
                 discarded = "\n\n".join(std_texts)
@@ -525,24 +540,43 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     try:
         # B. Validate Sophisticated Buffer
         soph_texts = [text for _, text in sophisticated_buffer]
-        # A. Validate Standard Buffer
-        std_texts = [text for _, text in clean_buffer]
-        # Mask all texts for consistent validation
-        std_texts_masked = [
-            ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text) for text in std_texts
-        ]
         soph_texts_masked = [
             ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text) for text in soph_texts
         ]
+        std_texts = [text for _, text in clean_buffer]
+        std_texts_masked = [
+            ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text) for text in std_texts
+        ]
 
         if validate_sophisticated_buffer(soph_texts_masked, std_texts_masked):
-            final_results.extend(sophisticated_buffer)  # Keep original for output
+            final_results.extend(sophisticated_buffer)
         else:
             if sophisticated_buffer:
                 discarded = "\n\n".join(soph_texts)
                 local_discards.append((url, discarded, "sophisticated_check_failed"))
     except Exception as e:
         print(f"⚠️ Error validating sophisticated buffer for {url}: {e}")
+
+    # C. RECONSTRUCT & SORT
+    try:
+        if final_results:
+            final_results.sort(key=lambda x: x[0])
+            seen = set()
+            unique_paragraphs = []
+            for _, text in final_results:
+                if text not in seen:
+                    unique_paragraphs.append(text)
+                    seen.add(text)
+
+            return (
+                url,
+                json.dumps(unique_paragraphs),
+                cik,
+                year,
+                aggregate_discards(local_discards),
+            )
+    except Exception as e:
+        print(f"❌ Error reconstructing final results for {url}: {e}")
 
     return (url, "[]", cik, year, aggregate_discards(local_discards))
 
