@@ -379,9 +379,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     kept = []
                     sentences = SENTENCE_SPLIT_PATTERN.split(p)
                     for sent in sentences:
-                        if EQ_REGEX.search(sent):
+                        if STRICT_REGEX.search(sent):
                             kept.append(sent)
-                        elif EQ_SOFT_REGEX.search(sent):
+                        elif SOFT_REGEX.search(sent):
                             has_hedging_context = SOFT_GEN_REGEX.search(
                                 sent
                             ) or DER_STD_REGEX.search(sent)
