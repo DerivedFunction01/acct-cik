@@ -637,9 +637,6 @@ def producer_task(
                 empty_matched += 1
                 empty_buffer.append((url, "[]", cik, year))
 
-                # Report progress for empty items (they're still "processed")
-                progress_queue.put(("producer_progress", 1))
-
                 # Flush empty buffer periodically
                 if len(empty_buffer) >= 1000:
                     target_c.executemany(
@@ -651,6 +648,8 @@ def producer_task(
                         [(u, c, y) for u, _, c, y in empty_buffer],
                     )
                     target_conn.commit()
+                    # Report these as processed to writer
+                    progress_queue.put(("writer_progress", len(empty_buffer)))
                     empty_buffer.clear()
                 continue
 
@@ -668,6 +667,7 @@ def producer_task(
             [(u, c, y) for u, _, c, y in empty_buffer],
         )
         target_conn.commit()
+        progress_queue.put(("writer_progress", len(empty_buffer)))
 
     source_conn.close()
     target_conn.close()
@@ -681,7 +681,6 @@ def worker_task(
     in_queue: mp.Queue, out_queue: mp.Queue, progress_queue: mp.Queue, worker_id: int
 ):
     """Worker: processes items and sends results to output queue"""
-    items_processed = 0
     while True:
         item = in_queue.get()
         if item is None:  # Sentinel value to exit
@@ -690,10 +689,7 @@ def worker_task(
             result = process_item(item)
             if result:
                 out_queue.put(result)
-            items_processed += 1
-            # Report progress every 10 items
-            if items_processed % 10 == 0:
-                progress_queue.put(("worker_progress", items_processed))
+                # Don't report progress here - let writer handle it
         except Exception as e:
             print(f"⚠️ Worker {worker_id} error: {e}")
 
@@ -892,26 +888,49 @@ if __name__ == "__main__":
         ) as pbar:
             producer_done = False
             writer_done = False
+            last_update = time.time()
 
             while not (producer_done and writer_done):
                 try:
-                    msg_type, msg_data = progress_queue.get(timeout=2)
+                    msg_type, msg_data = progress_queue.get(timeout=1)
 
-                    if msg_type == "worker_progress":
-                        pbar.update(msg_data)
-                    elif msg_type == "writer_progress":
-                        pbar.update(msg_data)
-                    elif msg_type == "producer_progress":
+                    if msg_type == "writer_progress":
                         pbar.update(msg_data)
                     elif msg_type == "producer_done":
                         producer_done = True
                     elif msg_type == "writer_done":
                         writer_done = True
+
+                    last_update = time.time()
                 except:
-                    # Timeout - just continue
+                    # Timeout - update postfix with current queue status
                     pass
 
-            print("✅ Producer finished. Waiting for workers...")
+                # Update postfix every 2 seconds with queue stats
+                if time.time() - last_update > 2 or producer_done or writer_done:
+                    try:
+                        task_q_size = (
+                            task_queue.qsize()
+                            if hasattr(task_queue, "qsize")
+                            else "N/A"
+                        )
+                        result_q_size = (
+                            result_queue.qsize()
+                            if hasattr(result_queue, "qsize")
+                            else "N/A"
+                        )
+
+                        pbar.set_postfix(
+                            task_q=task_q_size,
+                            result_q=result_q_size,
+                            producer="✓" if producer_done else "⏳",
+                            writer="✓" if writer_done else "⏳",
+                        )
+                    except:
+                        pass
+                    last_update = time.time()
+
+            print("✅ Producer & Writer finished. Waiting for workers...")
 
             # Send sentinel values to stop workers
             for _ in range(NUM_WORKERS):
