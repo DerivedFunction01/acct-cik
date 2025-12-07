@@ -2428,8 +2428,21 @@ REGULATORY_KEYWORDS_LOOSE = [
     r"\bSEC\b",  # Securities and Exchange Commission
     r"\bCFTC\b",  # Commodity Futures Trading Commission
     r"\bFCA\b",  # Financial Conduct Authority
+    
     # --- NEW: Environmental Compliance ---
-    r"environmental\s+(?:laws?|regulations?|matters?|compliance|protection)",
+    r"civil\s+(?:penalt(?:y|ies)|fines?|sanctions?|actions?|proceedings?)",
+    r"criminal\s+(?:penalt(?:y|ies)|fines?|sanctions?|actions?|proceedings?)",
+    r"administrative\s+(?:penalt(?:y|ies)|fines?|sanctions?|proceedings?)",
+    r"enforcement\s+(?:authority|actions?|proceedings?)",
+    r"violations?\s+of",
+    r"fines?\s+and\s+penalt(?:y|ies)",
+    r"sanctions?",
+    r"disgorgement",
+    r"investigations?",
+    r"anti[- ]market\s+manipulation",
+    r"third\s+party\s+claims?",
+    # --- NEW: Environmental Compliance ---
+    r"environmental\s+(?:laws?|regulations?|matters?|compliance|protection|liabilit(?:y|ies))",
     r"greenhouse\s+gas(?:es)?",
     r"carbon\s+dioxide",
     r"emissions?",
