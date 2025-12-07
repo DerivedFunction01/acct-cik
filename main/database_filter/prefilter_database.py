@@ -653,16 +653,23 @@ def producer_task(
 def worker_task(
     in_queue: mp.Queue, out_queue: mp.Queue, progress_queue: mp.Queue, worker_id: int
 ):
-    """Worker: processes items and sends results to output queue"""
     while True:
         item = in_queue.get()
-        if item is None:  # Sentinel value to exit
+        if item is None:
             break
+
+        # --- NEW: Fast Pass for Empty Items ---
+        # If the item is already a tuple of 5 (url, matches, cik, year, discards),
+        # it came from the Producer's "empty" block. Pass it through.
+        if len(item) == 5 and isinstance(item[4], list):
+            out_queue.put(item)
+            continue
+
+        # Normal processing
         try:
             result = process_item(item)
             if result:
                 out_queue.put(result)
-                # Don't report progress here - let writer handle it
         except Exception as e:
             print(f"⚠️ Worker {worker_id} error: {e}")
 
@@ -670,11 +677,9 @@ def worker_task(
 def writer_task(
     queue: mp.Queue, db_path: str, stop_event: mp.Event, progress_queue: mp.Queue
 ):
-    """Writer: writes results to database and reports progress"""
     print("💾 Writer started...")
     setup_target_db(db_path)
 
-    # timeout=60 is good, keeping WAL mode is essential
     conn = sqlite3.connect(db_path, timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
@@ -684,12 +689,11 @@ def writer_task(
     discards_buffer = []
     total_written = 0
     last_flush_time = time.time()
-    FLUSH_TIMEOUT = 10  # Flush every 10 seconds even if batch isn't full
+    FLUSH_TIMEOUT = 5.0  # Seconds
 
     def flush():
         nonlocal buffer, discards_buffer, total_written, last_flush_time
         if not buffer and not discards_buffer:
-            last_flush_time = time.time()  # Reset timer even if empty
             return 0
 
         try:
@@ -710,15 +714,12 @@ def writer_task(
                 )
             conn.commit()
 
-            flushed_count = len(buffer)
-            total_written += flushed_count
-
-            # Clear buffers
+            count = len(buffer)
+            total_written += count
             buffer.clear()
             discards_buffer.clear()
             last_flush_time = time.time()
-            return flushed_count
-
+            return count
         except Exception as e:
             print(f"❌ Writer Flush Error: {e}")
             try:
@@ -727,39 +728,32 @@ def writer_task(
                 pass
             return 0
 
-    # Main Loop
     while not stop_event.is_set() or not queue.empty():
         try:
-            # Short timeout to allow frequently checking the time-based flush
-            result = queue.get(timeout=0.1)
-
-            if not isinstance(result, tuple) or len(result) != 5:
-                print(f"❌ Invalid result format: {type(result)}")
-                continue
+            # Short timeout to ensure we hit the flush check frequently
+            result = queue.get(timeout=0.5)
 
             url, matches, cik, year, discards = result
             buffer.append((url, matches, cik, year))
-
             if discards:
                 discards_buffer.extend(discards)
 
         except Empty:
-            pass  # Just continue to the flush check
+            pass  # Just continue to flush check
 
-        # === UNIVERSAL FLUSH CHECK ===
-        # This runs every loop, regardless of whether we got an item or not
+        # Check Flush Conditions
         current_time = time.time()
-        is_batch_full = len(buffer) >= BATCH_SIZE or len(discards_buffer) >= BATCH_SIZE
-        is_time_up = (buffer or discards_buffer) and (
-            current_time - last_flush_time >= FLUSH_TIMEOUT
+        is_full = len(buffer) >= BATCH_SIZE
+        is_stale = (len(buffer) > 0) and (
+            current_time - last_flush_time > FLUSH_TIMEOUT
         )
 
-        if is_batch_full or is_time_up:
+        if is_full or is_stale:
             flushed = flush()
             if flushed > 0:
                 progress_queue.put(("writer_progress", flushed))
 
-    # Final flush on shutdown
+    # Final flush
     if buffer or discards_buffer:
         flushed = flush()
         if flushed > 0:
