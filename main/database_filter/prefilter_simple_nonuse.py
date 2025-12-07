@@ -4,10 +4,8 @@ import re
 import multiprocessing as mp
 import time
 from pathlib import Path
-from typing import List, Tuple, Optional, Set
+from typing import List, Tuple, Optional, Set, Dict
 from tqdm import tqdm
-
-from year_deletion import extract_years
 
 # --- CONFIGURATION ---
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
@@ -17,7 +15,10 @@ TARGET_DB_PATH = "refined_data.db"  # Input for Step 3
 
 # The token to append to deadweight paragraphs.
 DEADWEIGHT_TOKEN = " _D "
-# --- REGEX IMPORTS ---
+
+# --- MODULE IMPORTS ---
+from year_deletion import extract_years
+
 from derivative_regex import (
     LOOSE_GEN_REGEX,
     POTENTIAL_REGEX,
@@ -30,9 +31,128 @@ from derivative_regex import (
     TRADING_STATEMENTS_REGEX,
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
+    STANDARD_ID_REGEX,
+    YEAR_REGEX,
 )
 
-from final_verification import COUNTERPARTY_REGEX, QUANT_REGEX
+from final_verification import QUANT_REGEX
+
+from notional_filter import (
+    extract_values_and_years,
+    check_is_quantitative_zero,
+    DATE_DM_REGEX,
+    DATE_MD_REGEX,
+)
+
+
+class MinimalTextCleaner:
+    """
+    Lightweight cleaner that prepares text for quantitative analysis.
+    Removes numeric noise that would confuse extract_values_and_years().
+    """
+
+    # Bullet pattern: matches (1), 1), 1. at line/space start
+    # Safety: Does NOT match after currency symbols (to avoid $ (100))
+    bullet_pattern = re.compile(
+        r"(?<![\$€£¥])"  # Not preceded by currency
+        r"(?<![\$€£¥]\s)"  # Not preceded by currency + space (e.g., "$ (100)")
+        r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
+        r"(?:\(?\d+\)||\d+\.)"  # (1), 1), or 1.
+        r"(?=\s)",  # Followed by whitespace
+        re.IGNORECASE,
+    )
+
+    # Dashed patterns: 1-2, 3-4 (range references)
+    dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
+
+    # Exhibit/reference patterns: "Exhibit 5", "Note 3", "Table A"
+    exhibit_pattern = re.compile(
+        r"\b(?:exhibit|reference|note|appendix|schedule|article|section|subsection|statement)\b"
+        r"(?:\s*No\.?)?"
+        r"\s*\d{1,3}\b",
+        re.IGNORECASE,
+    )
+
+    # Standard IDs: ASC 815-20, IFRS 9, etc.
+    standard_id_pattern = STANDARD_ID_REGEX
+
+    def __init__(self):
+        pass
+
+    def clean_numerics(self, text: str) -> str:
+        """
+        Remove numeric noise that confuses quantitative parsing:
+        - Bullet points (1), 1), 1.
+        - Dashed ranges (1-2)
+        - Dates (Dec 31, 31 December)
+        - Exhibit/reference markers (Note 5, Table A)
+        - Standard IDs (ASC 815, IFRS 9)
+        """
+        text = self.bullet_pattern.sub(" ", text)
+        text = self.dashed_pattern.sub(" ", text)
+        text = DATE_MD_REGEX.sub(" ", text)
+        text = DATE_DM_REGEX.sub(" ", text)
+        text = self.exhibit_pattern.sub(" ", text)
+        text = self.standard_id_pattern.sub(" ", text)
+        text = YEAR_REGEX.sub(" ", text)  # Remove years to avoid confusion with values
+        return text
+
+    def normalize_whitespace(self, text: str) -> str:
+        """Collapse multiple spaces and newlines."""
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
+
+    def clean_for_quant_analysis(self, text: str) -> str:
+        """
+        Prepare text for quantitative zero checking.
+        Removes noise that would interfere with extract_values_and_years().
+
+        Pipeline:
+        1. Clean numeric noise (bullets, dates, IDs, years)
+        2. Normalize whitespace
+        3. Return cleaned text ready for QUANT_REGEX/value extraction
+        """
+        text = self.clean_numerics(text)
+        text = self.normalize_whitespace(text)
+        return text
+
+
+# Initialize cleaner (shared instance)
+_cleaner = MinimalTextCleaner()
+
+
+def is_meaningful_quant(sentence: str, reporting_year: Optional[int]) -> bool:
+    """
+    Returns True if the sentence contains POSITIVE quantitative data.
+    Returns False if it contains NO numbers OR only Zeros/Nil/Immaterial.
+
+    Cleans the sentence first to remove numeric noise (bullets, dates, IDs)
+    that would confuse the quantitative parser.
+
+    Distinguishes between:
+    - No numbers at all -> False
+    - Only zeros/nil/immaterial -> False
+    - At least one positive number -> True
+    """
+    # Clean numeric noise first so extract_values_and_years() works correctly
+    cleaned_sent = _cleaner.clean_for_quant_analysis(sentence)
+
+    years, values = extract_values_and_years(cleaned_sent)
+
+    # No numbers at all
+    if not values:
+        return False
+
+    # Has numbers, but are they all zero?
+    is_zero_garbage = check_is_quantitative_zero(
+        cleaned_sent, reporting_year if reporting_year else 0
+    )
+    if is_zero_garbage:
+        return False
+
+    # Has numbers, and at least one is positive
+    return True
 
 
 def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Optional[str]:
@@ -51,6 +171,9 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     HISTORIC ACTIVITY DETECTION: Identifies paragraphs that only discuss
     past years + terminations (e.g., "In 2022 we terminated all swaps")
     without current year activity.
+
+    QUANTITATIVE VALIDATION: Uses Phase 6 logic to verify if quoted numbers
+    are actually non-zero for the reporting year.
     """
 
     def has_instrument(text: str) -> bool:
@@ -95,10 +218,13 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     has_trading_denial = False
     has_termination = False
     has_quant = False
-    is_strictly_generic = True
-    has_current_year_activity = (
-        False  # NEW: tracks if current year is explicitly mentioned
+    has_meaningful_quant = (
+        False  # NEW: tracks if ANY sentence has real positive numbers
     )
+    is_strictly_generic = True
+    has_current_year_activity = False
+    hedging_sentence_count = 0
+    hedging_sentences_with_indicators = 0
 
     if SOFT_CATEGORY_REGEX.search(text):
         is_strictly_generic = False
@@ -106,16 +232,26 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     sentences = SENTENCE_SPLIT_PATTERN.split(text)
     for sent in sentences:
         if has_instrument(sent):
+            hedging_sentence_count += 1
+            # Track if THIS sentence has any negative indicator
+            sent_has_indicator = False
             if POTENTIAL_REGEX.search(sent) or VAGUE_TIMING_REGEX.search(sent):
                 has_potential = True
+                sent_has_indicator = True
             if ABSENCE_REGEX.search(sent) or DID_NOT_HOLD_REGEX.search(sent):
                 has_absence = True
+                sent_has_indicator = True
             if TRADING_STATEMENTS_REGEX.search(sent):
                 has_trading_denial = True
+                sent_has_indicator = True
             if NEGATIVE_INTENT_REGEX.search(
                 sent
             ) and not TRADING_STATEMENTS_REGEX.search(sent):
                 has_absence = True
+                sent_has_indicator = True
+
+            if sent_has_indicator:
+                hedging_sentences_with_indicators += 1
 
         # Check if sentence mentions current year (excluding termination context)
         if is_current_or_no_year(sent, year):
@@ -123,41 +259,60 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             if not (TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent)):
                 has_current_year_activity = True
 
+        # NEW: Use Phase 6 quantitative logic with meaningful check
         if QUANT_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
-            if is_current_or_no_year(sent, year):
-                has_quant = True
+            has_quant = True
+            # Check if the quantity is actually meaningful (positive) for the reporting year
+            if is_meaningful_quant(sent, year):
+                has_meaningful_quant = True
 
         if TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
             has_termination = True
 
     # === SAFE REMOVAL COMBINATIONS ===
 
+    # All hedging sentences have negative indicators = pure boilerplate
+    if (
+        hedging_sentence_count == hedging_sentences_with_indicators
+        and hedging_sentence_count > 0
+    ):
+        return "full_nonuse_signal"
+
     if has_potential:
         if is_strictly_generic and has_trading_denial:
+            # "We may use" + "We do not trade" + generic language only
             return "generic_potential_with_trading_denial"
         if has_absence:
+            # "We may use" + "we have none" = pure hypothetical
             return "risk_boilerplate_nonuse"
-        if has_termination: 
+        if has_termination:
+            # "we may use but we terminated" = pure hypothetical
             return "potential_future_but_terminated"
+        if has_trading_denial and not has_meaningful_quant:
+            # "may use" + "don't trade" but no real positive numbers = cautious talk
+            return "potential_with_trading_denial_no_explicit_use"
     else:
-        # NEW: Historic activity filter
-        # "In 2022 did something. In 2024 we terminated swaps" (only past years + termination, no current activity)
-        if (
-            has_termination
-            and not has_current_year_activity
-            and has_only_past_years(text, year)
-        ):
-            return "historic_activity_with_termination"
+        # Historic activity filters (only past years, no current activity)
+        # "In 2022 we terminated swaps" - pure historic termination
+        if not has_current_year_activity and has_only_past_years(text, year):
+            if has_termination:
+                return "historic_termination_no_current_activity"
+            elif has_absence:
+                return "historic_absence_no_current_activity"
 
-        if has_trading_denial and is_strictly_generic and not has_quant:
+        # Generic policy with no meaningful numbers
+        if has_trading_denial and is_strictly_generic and not has_meaningful_quant:
             return "generic_policy_no_trade"
 
+        # Terminated + no outstanding = pure historical
         if has_termination and has_absence:
             return "terminated_none_outstanding"
 
-        if has_absence and not has_quant:
+        # No derivatives held + no meaningful numbers = clear statement
+        if has_absence and not has_meaningful_quant:
             return "stated_absence_no_active_signal"
 
+        # Don't trade policy + have none = policy + fact
         if has_trading_denial and has_absence:
             return "policy_no_use_no_trade"
 
