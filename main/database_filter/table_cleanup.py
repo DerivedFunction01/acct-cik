@@ -46,38 +46,47 @@ TAG_PATTERN = re.compile(r"<[^>]+>")
 def extract_table_content(table_text: str) -> Tuple[List[List[str]], List[List[str]]]:
     """
     Parses a raw <TABLE> string into headers and data rows.
-    Used by TableToTextConverter.
+    Uses <S> and <C> tags (present in older SEC filings) to identify where data starts.
+    Falls back to first row as header if no tags found (artificial tables).
     """
     lines = table_text.split("\n")
-    rows = []
+    content_rows = []
 
-    # 1. Row Extraction
+    # 1. Extract content rows (skip TABLE/CAPTION tags and separator rows)
     for line in lines:
         line = line.strip()
         if "<TABLE>" in line or "<CAPTION>" in line or "</TABLE>" in line:
             continue
-        if "<S>" in line or "<C>" in line:  # SEC Formatting tags
+        if not line:  # Empty lines
             continue
-        if line.startswith("-") or not line:  # Separators or empty
+        # Skip separator rows (dashes or equal signs)
+        if all(c in "- =" for c in line) and any(c in "-=" for c in line):
             continue
-        if line:
-            rows.append(line)
+        content_rows.append(line)
 
-    # 2. Header vs Data Split
-    headers = []
-    data = []
+    # 2. Find first row with <S> or <C> tags (marks data start in older filings)
+    data_start_idx = None
+    for i, row in enumerate(content_rows):
+        if "<S>" in row or "<C>" in row:
+            data_start_idx = i
+            break
 
-    # Heuristic: First 2 rows are headers if table is long enough
-    if len(rows) > 2:
-        headers = rows[:2]
-        data = rows[2:]
-    elif rows:
-        headers = rows[:1]
-        data = rows[1:]
+    # 3. Split headers and data based on tag markers
+    if data_start_idx is not None:
+        headers = content_rows[:data_start_idx]
+        data = content_rows[data_start_idx:]
+    else:
+        # No tags found - use first row as header (artificial tables)
+        if content_rows:
+            headers = [content_rows[0]]
+            data = content_rows[1:]
+        else:
+            headers = []
+            data = []
 
-    # 3. Cell Parsing (Split by 2+ spaces)
+    # 4. Cell Parsing (Split by 2+ spaces)
     def parse_row(row: str) -> List[str]:
-        # Split on 2+ spaces to separate columns
+        row = row.replace("<S>", "").replace("<C>", "")  # Remove tags
         cells = re.split(r"\s{2,}", row.strip())
         return [c.strip() for c in cells if c.strip()]
 
