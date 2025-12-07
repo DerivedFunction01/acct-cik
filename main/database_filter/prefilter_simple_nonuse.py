@@ -44,6 +44,16 @@ from notional_filter import (
     DATE_MD_REGEX,
 )
 
+import re
+from typing import Optional
+from derivative_regex import (
+    STANDARD_ID_REGEX,
+    SENTENCE_SPLIT_PATTERN,
+    YEAR_REGEX,
+)
+from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
+from final_verification import QUANT_REGEX
+
 
 class MinimalTextCleaner:
     """
@@ -52,12 +62,10 @@ class MinimalTextCleaner:
     """
 
     # Bullet pattern: matches (1), 1), 1. at line/space start
-    # Safety: Does NOT match after currency symbols (to avoid $ (100))
+    # Simplified since QUANT_REGEX will protect actual monetary values first
     bullet_pattern = re.compile(
-        r"(?<![\$€£¥])"  # Not preceded by currency
-        r"(?<![\$€£¥]\s)"  # Not preceded by currency + space (e.g., "$ (100)")
         r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
-        r"(?:\(?\d+\)||\d+\.)"  # (1), 1), or 1.
+        r"(?:\(?\d+\)|\d+\.)"  # (1), 1), or 1.
         r"(?=\s)",  # Followed by whitespace
         re.IGNORECASE,
     )
@@ -67,7 +75,7 @@ class MinimalTextCleaner:
 
     # Exhibit/reference patterns: "Exhibit 5", "Note 3", "Table A"
     exhibit_pattern = re.compile(
-        r"\b(?:exhibit|reference|note|appendix|schedule|article|section|subsection|statement)\b"
+        r"\b(?:exhibit|reference|note|appendix|schedule|article|section|subsection|statement|table|No\.)\b"
         r"(?:\s*No\.?)?"
         r"\s*\d{1,3}\b",
         re.IGNORECASE,
