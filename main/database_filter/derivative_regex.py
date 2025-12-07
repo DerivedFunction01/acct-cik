@@ -2471,7 +2471,7 @@ HYPOTHETICAL_SINGLES = [
     r"hypothetical",  # Standalone word
     r"simulation",
     r"statistical",
-    r"probability",
+    r"probabilit(?:y|ies|istic)",
     r"assumption",
     r"parameter",
     r"holding\s+constant",
