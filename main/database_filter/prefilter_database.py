@@ -281,10 +281,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 in_accounting_boilerplate = (
                     False  # Track when we enter boilerplate zone
                 )
-                
-                for sent in sentences:
+
+                for idx, sent in enumerate(sentences):
                     if not in_accounting_boilerplate:
-                        # Haven't hit boilerplate yet
+                        # Haven't hit boilerplate yet - keep all non-boilerplate sentences
                         if not ACCOUNTING_STANDARDS_STRICT_REGEX.search(sent):
                             kept.append(sent)
                         else:
@@ -295,9 +295,26 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                                 kept.append(sent)
                             # else: discard it, and everything after
                     else:
-                        # Already in boilerplate zone - only keep if quantifiable
+                        # Already in boilerplate zone
                         if QUANT_REGEX.search(sent):
+                            # Current sentence is quantifiable - keep it
                             kept.append(sent)
+                        elif idx + 1 < len(sentences):
+                            # Look ahead: keep this sentence if next sentence is quantifiable
+                            # and not another boilerplate trigger
+                            next_sent = sentences[idx + 1]
+                            if QUANT_REGEX.search(
+                                next_sent
+                            ) and not ACCOUNTING_STANDARDS_STRICT_REGEX.search(
+                                next_sent
+                            ):
+                                kept.append(sent)
+                if kept:
+                    salvaged_p = " ".join(kept)
+                    if is_sophisticated_content(salvaged_p):
+                        sophisticated_buffer.append((idx, salvaged_p))
+                    else:
+                        clean_buffer.append((idx, salvaged_p))
 
                 discarded_text = " ".join(set(sentences) - set(kept))
                 if discarded_text:
