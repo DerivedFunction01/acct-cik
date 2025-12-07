@@ -29,7 +29,7 @@ from derivative_regex import (
     EXCLUDE_REGEX_FILING,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_COMPETITOR_REGEX,
-    EXCLUDE_REGULATION_REGEX,
+    EXCLUDE_NON_FINANCIAL_REGEX,
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_HYPOTHETICAL_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
@@ -128,6 +128,8 @@ TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
 def check_hard_exclusions(text: str) -> Optional[str]:
+    if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
+        return "non_financial"
     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
         return "legal_litigation"
     if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):

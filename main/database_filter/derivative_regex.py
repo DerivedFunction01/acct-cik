@@ -2336,7 +2336,6 @@ FORWARD_LOOKING_KEYWORDS = [
 ]
 
 
-
 HYPOTHETICAL_KEYWORDS = [
     r"measure(?:s|d|ment)\s+of\s+market\s+risk",
     r"confidence\s+(?:level|interval)",
@@ -3816,3 +3815,46 @@ def create_strict_fair_value_regex() -> re.Pattern:
 
 # Export this
 FV_REGEX = create_strict_fair_value_regex()
+
+# =============================================================================
+# NON-FINANCIAL DERIVATIVE EXCLUSIONS (NEW)
+# =============================================================================
+# Targets: "Derivative Works" (IP), "Plasma Derivatives" (Bio), "Chemical Derivatives"
+NON_FINANCIAL_KEYWORDS = [
+    # 1. Intellectual Property / Software
+    r"derivative\s+works?",
+    r"open\s+source",
+    r"source\s+code",
+    r"general\s+public\s+license",
+    r"gpl",
+    r"creative\s+commons",
+    # 2. Biology / Pharma / Chemistry
+    r"plasma",
+    r"blood",
+    r"fractionation",
+    r"cellulose",
+    r"fatty\s+acids?",
+    r"proteins?",
+    r"enzymes?",
+    r"polymers?",
+    r"molecules?",
+    r"compounds?",
+    r"substances?",
+    r"isolates?",
+    r"analogs?",
+    r"homologs?",
+    r"isomers?",
+    r"metabolites?",
+    r"synthesis",
+    r"biosimilars?",
+    r"hydrocarbons?",
+    # 3. Mathematics (Calculus context)
+    r"integrals?",
+    r"calculus",
+    r"gradients?",
+    # 4. The "And Its Derivatives" Trap (Generic)
+    r"(?:and|or)\s+(?:their|its)\s+derivatives?",
+]
+
+# Compile
+EXCLUDE_NON_FINANCIAL_REGEX = build_exclude_regex(NON_FINANCIAL_KEYWORDS)
