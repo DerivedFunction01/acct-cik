@@ -429,7 +429,6 @@ def extract_content(data: str, asHTML=True) -> str:
             element.decompose()
 
         # Process tables FIRST before converting to text
-        # This preserves SEC-style formatted tables
         tables = soup.find_all("table")
         for table in tables:
             title = ""
@@ -451,8 +450,19 @@ def extract_content(data: str, asHTML=True) -> str:
 
             rows = []
             col_count = 0
+
+            # --- NEW: INTEGRATED HEADER DETECTION ---
+            header_count = 0
+            in_header_block = True  # We assume we start in the header section
+
             try:
                 for tr in table.find_all("tr"):
+                    # 1. Filter Spacers IMMEDIATELY
+                    # If the row has no visible text, skip it entirely.
+                    # This removes "Table Width" rows and empty spacing rows.
+                    if not tr.get_text(strip=True):
+                        continue
+
                     row_cells = []
                     for cell in tr.find_all(["td", "th"]):
                         text = cell.get_text(strip=True)
@@ -466,68 +476,32 @@ def extract_content(data: str, asHTML=True) -> str:
                             row_cells.extend([""] * (colspan - 1))
 
                     if row_cells:
+                        # 2. Check for Header Status (Synced with filtered rows)
+                        # Only check if we are still conceptually in the top "header block"
+                        if in_header_block:
+                            is_header = False
+
+                            # Criteria A: Explicit <th> tags
+                            if tr.find("th"):
+                                is_header = True
+                            # Criteria B: Bold text (<b> or <strong>)
+                            elif tr.find(["b", "strong"]):
+                                is_header = True
+
+                            if is_header:
+                                header_count += 1
+                            else:
+                                # The moment we hit a non-header row, the header block ends.
+                                in_header_block = False
+
                         rows.append(row_cells)
                         col_count = max(col_count, len(row_cells))
             except Exception as e:
-                debug_print(f"⚠️  Table extraction failed: {e}")
+                print(f"⚠️  Table extraction failed: {e}")
 
-            # IMPROVED HEADER DETECTION
-            # Look for rows that are mostly empty or contain only formatting rows
-            header_count = 0
-            if rows:
-                for i, row in enumerate(rows):
-                    # Check if row is mostly empty (spacing/separator row)
-                    non_empty_cells = sum(1 for cell in row if cell.strip())
-                    if non_empty_cells == 0:
-                        # Empty row - likely a spacer
-                        continue
-
-                    # Check if row contains bold text or typical header patterns
-                    row_text = " ".join(row)
-                    has_bold = any(
-                        "<b>" in str(cell) or "<strong>" in str(cell)
-                        for cell in table.find_all("tr")[i].find_all(["td", "th"])
-                    )
-
-                    # If we've found data rows, stop counting headers
-                    # A data row typically has numbers or specific patterns
-                    # For now, use heuristic: if row is sparse in content or has formatting, it's likely a header
-                    is_likely_header = (
-                        has_bold
-                        or non_empty_cells < len(row) * 0.5  # Less than 50% filled
-                        or any(
-                            keyword in row_text.lower()
-                            for keyword in [
-                                "amount",
-                                "rate",
-                                "expiration",
-                                "period",
-                                "per annum",
-                            ]
-                        )
-                    )
-
-                    if is_likely_header:
-                        header_count += 1
-                    else:
-                        # Stop when we hit first real data row
-                        break
-
-            # Fallback to detecting <thead> or <th> elements
-            if header_count == 0:
-                thead = table.find("thead")
-                if thead:
-                    header_count = len(thead.find_all("tr"))
-
-                if header_count == 0:
-                    for tr in table.find_all("tr"):
-                        if tr.find("th"):
-                            header_count += 1
-                        else:
-                            break
-
-            # Default to 1 if detection still failed
-            header_count = max(1, header_count)
+            # Fallback: If logic found 0 headers but we have data, treat first row as header
+            if header_count == 0 and rows:
+                header_count = 1
 
             # Only convert if there is at least one row and two cols
             if len(rows) > 1 and col_count > 1:
