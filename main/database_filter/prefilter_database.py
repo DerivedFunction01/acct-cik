@@ -684,9 +684,12 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
             result = queue.get(timeout=1)
         except Empty:
             # Timeout occurred - check if we should flush based on time
-            if buffer and (time.time() - last_flush_time) >= FLUSH_TIMEOUT:
+            current_time = time.time()
+            if (buffer or discards_buffer) and (
+                current_time - last_flush_time
+            ) >= FLUSH_TIMEOUT:
                 print(
-                    f"⏱️  Flushing {len(buffer)} buffered items (timeout after {FLUSH_TIMEOUT}s)..."
+                    f"⏱️  Flushing {len(buffer)} rows + {len(discards_buffer)} discards (timeout after {FLUSH_TIMEOUT}s)..."
                 )
                 flush()
             continue
@@ -710,13 +713,8 @@ def writer_task(queue: mp.Queue, db_path: str, stop_event: mp.Event, counter: mp
                     print(f"❌ Error extending discards buffer: {e}")
                     print(f"   Discards type: {type(discards)}, value: {discards}")
 
-            # Flush on BATCH_SIZE OR timeout
+            # Flush on BATCH_SIZE
             if len(buffer) >= BATCH_SIZE:
-                flush()
-            elif buffer and (time.time() - last_flush_time) >= FLUSH_TIMEOUT:
-                print(
-                    f"⏱️  Flushing {len(buffer)} buffered items (timeout after {FLUSH_TIMEOUT}s)..."
-                )
                 flush()
 
         except (ValueError, TypeError) as e:
