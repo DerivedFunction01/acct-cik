@@ -790,13 +790,10 @@ if __name__ == "__main__":
                 time.sleep(1)
                 pbar.n = processed_counter.value
                 pbar.refresh()
-                if (
-                    not producer_p.is_alive()
-                    and task_queue.empty()
-                    and not any(p.is_alive() for p in workers)
-                    and result_queue.empty()
-                ):
-                    break
+                if not producer_p.is_alive() and task_queue.empty():
+                    # Wait a moment to ensure workers have pulled the last items
+                    if task_queue.empty():
+                        break
     except KeyboardInterrupt:
         print("\n⚠️ Stopping...")
 
