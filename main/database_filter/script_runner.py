@@ -10,19 +10,21 @@ LOG_FILE = "pipeline_run.log"
 # Definition: (Script, Output_DB, Output_CSV)
 PIPELINE_STAGES = [
     # 0. Attempt to cleanup tables
-    # ("prefilter_database.py", "prefiltered_data.db", 0_prefiltered.csv),
+    ("prefilter_database.py", "prefiltered_data.db", " prefiltered.csv"),
+    # 1. Drop simple nonusers
+    ("prefilter_simple_nonuse.py", "refined_data.db", " prefiltered_refined.csv"),
     # 1. Extraction & Refinement
-    ("filter_database.py", "prepared_data.db", "1_prepared.csv"),
+    ("filter_database.py", "prepared_data.db", "prepared.csv"),
     # 2. Gatekeeper (Pass-through if using simple mode)
-    ("roberta_merge.py", "hedge_data.db", "2_merged.csv"),
+    ("roberta_merge.py", "hedge_data.db", "merged.csv"),
     # 3. Historical Cleaning
-    ("year_deletion.py", "current_data.db", "3_current_year.csv"),
+    ("year_deletion.py", "current_data.db", "current_year.csv"),
     # 4. Intent Filtering (Potential/Negative)
-    ("active_use_filter.py", "active_data.db", "4_intent_filtered.csv"),
+    ("active_use_filter.py", "active_data.db", "intent_filtered.csv"),
     # 5. Termination Logic
-    ("termination_filter.py", "active_data2.db", "5_termination_filtered.csv"),
+    ("termination_filter.py", "active_data2.db", "termination_filtered.csv"),
     # 6. Quantitative Zero
-    ("notional_filter.py", "active_nonzero_data.db", "6_nonzero.csv"),
+    ("notional_filter.py", "active_nonzero_data.db", "nonzero.csv"),
     # 7. Final Verification
     # ("final_verification.py", "verified_active_data.db", "7_final_verified.csv"),
 ]
@@ -108,14 +110,14 @@ def run_pipeline():
     # Final Summary Comparison (Start vs End)
     log("=" * 60)
     log("RUNNING FINAL SUMMARY ANALYSIS")
-    if Path("1_prepared.csv").exists() and Path("7_final_verified.csv").exists():
+    if Path("prepared.csv").exists() and Path("final_verified.csv").exists():
         run_command(
             [
                 PYTHON_EXEC,
                 "run_analysis.py",
                 "compare",
-                "1_prepared.csv",
-                "7_final_verified.csv",
+                "prepared.csv",
+                "final_verified.csv",
             ],
             "Generating Final Attrition Report (Start vs End)",
         )
