@@ -142,7 +142,7 @@ CLEANUP_PATTERNS = [
 ]
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
-TABLE_HINT_PATTERN = re.compile(r"\b(table|summary|following|below|presented|summarized)\b", re.IGNORECASE)
+TABLE_HINT_PATTERN = re.compile(r"\b(table|summary|following|below|presented|summarized|\:)\b", re.IGNORECASE)
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r'(?<!\n)\n(?!\n)')
 SPACE_PATTERN = re.compile(r'\s+')
