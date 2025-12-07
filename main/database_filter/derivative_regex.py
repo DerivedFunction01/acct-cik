@@ -1822,7 +1822,6 @@ LEGAL_LITIGATION_KEYWORDS = [
     r"defenses?",
     r"corrections?",
     r"corrective\s+actions?",
-    r"breach(?:es|ed)?",
 ]
 # =============================================================================
 # CONTRACTUAL NOISE LISTS (SPLIT)
