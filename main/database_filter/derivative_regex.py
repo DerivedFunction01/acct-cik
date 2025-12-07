@@ -2614,40 +2614,25 @@ EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(
     CONTRACTUAL_KEYWORDS_PHRASE, ignore_case=True
 )
 
-def is_hypothetical_noise(text: str, threshold: int = 4) -> bool:
-    """
-    Determines if text is Hypothetical/Methodology boilerplate using a scoring system.
 
-    Scoring Logic (Threshold = 4):
-    - Strict (Fake Instruments): 4 points (1 hit = Immediate Discard)
-    - Phrases (Methodology): 2 points (2 hits = Discard)
-    - Singles (Jargon): 1 point (4 hits = Discard)
+def is_hypothetical_noise(text: str, threshold: int = 6) -> bool:
+    # 1. Weights
+    W_STRICT = 10  # KILL SHOT: "Hypothetical derivatives" (Instant >= 8)
+    W_PHRASE = 2  # "Sensitivity analysis", "Value at Risk"
+    W_SINGLE = 1  # "Statistical", "Probability"
 
-    Examples:
-    - "We use hypothetical derivatives." -> Score 4 (Discard)
-    - "Sensitivity analysis using Monte Carlo models." -> Score 2+2=4 (Discard)
-    - "We use swaps. The sensitivity is low." -> Score 1 ("sensitivity" matched as single/part of phrase) -> Keep.
-    """
+    # 2. Count
+    strict_hits = len(HYP_STRICT_REGEX.findall(text))
+    phrase_hits = len(HYP_PHRASE_REGEX.findall(text))
+    single_hits = len(HYP_SINGLE_REGEX.findall(text))
 
-    # 1. DEFINE WEIGHTS
-    W_STRICT = 4
-    W_PHRASE = 2
-    W_SINGLE = 1
-
-    # 2. COUNT MATCHES
-    # findall returns a list of all non-overlapping matches
-    strict_count = len(HYP_STRICT_REGEX.findall(text))
-    phrase_count = len(HYP_PHRASE_REGEX.findall(text))
-    single_count = len(HYP_SINGLE_REGEX.findall(text))
-
-    # 3. CALCULATE SCORE
+    # 3. Score
     score = (
-        (strict_count * W_STRICT)
-        + (phrase_count * W_PHRASE)
-        + (single_count * W_SINGLE)
+        (strict_hits * W_STRICT) + (phrase_hits * W_PHRASE) + (single_hits * W_SINGLE)
     )
 
     return score >= threshold
+
 
 def is_contractual_noise(text: str, threshold: int = 4) -> bool:
     """

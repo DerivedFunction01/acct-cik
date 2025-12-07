@@ -9,6 +9,8 @@ from queue import Empty
 from typing import List, Tuple, Optional, Set
 from tqdm import tqdm
 
+from prefilter_simple_nonuse import DEADWEIGHT_TOKEN
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -457,10 +459,30 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
             # === EXCLUSIONS ===
             exclusion_reason = check_hard_exclusions(p_masked)
+
+            # --- HYPOTHETICAL SALVAGE LOGIC ---
+            if exclusion_reason == "hypothetical_noise":
+                # Check if this "noise" actually contains the specific instrument name.
+                # If so, we must save it as Context (Deadweight), or else we lose
+                # the definition for subsequent paragraphs (e.g. "We hold *these* contracts").
+                has_std = STRICT_REGEX.search(p_masked) or (
+                    SOFT_REGEX.search(p_masked)
+                    and HEDGING_CONTEXT_REGEX.search(p_masked)
+                )
+
+                if has_std:
+                    # SAVE AS DEADWEIGHT:
+                    # 1. Mark with token so Main Filter knows it's not active usage.
+                    # 2. Add to buffer so it provides context to neighbors.
+                    p_deadweight = f"{DEADWEIGHT_TOKEN} {p}"
+
+                    # We append to 'clean' buffer (using masked text for validation logic)
+                    append_to_buffer("clean", idx, p_deadweight, p_masked)
+                    continue
             if exclusion_reason:
                 local_discards.append((url, p, exclusion_reason))
                 continue
-            
+
             # === SALVAGE: EQUITY COMP ===
             if EXCLUDE_REGEX_EQUITY_COMP.search(p_masked):
                 try:
