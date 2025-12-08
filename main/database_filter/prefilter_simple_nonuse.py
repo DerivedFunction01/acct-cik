@@ -26,6 +26,7 @@ from derivative_regex import (
     ACTIVE_STATE_REGEX,
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
+    EXHIBIT_FRAGMENT,
     LOOSE_GEN_REGEX,
     NON_POSITION_INDICATORS,
     POTENTIAL_REGEX,
@@ -73,11 +74,8 @@ class MinimalTextCleaner:
     # Dashed patterns: 1-2, 3-4 (range references)
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
 
-    # Exhibit/reference patterns: "Exhibit 5", "Note 3", "Table A"
     exhibit_pattern = re.compile(
-        r"\b(?:exhibit|reference|note|appendix|schedule|article|section|subsection|statement|table|No\.|page|pp\.|p\.)\b"
-        r"(?:\s*No\.?)?"
-        r"\s*\d{1,3}\b",
+        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d{1,3}\b",
         re.IGNORECASE,
     )
 
@@ -111,7 +109,7 @@ class MinimalTextCleaner:
             if any(i in protected_ranges for i in range(match.start(), match.end())):
                 return match.group(0)  # Keep if protected
             return " "
-        
+
         text = text.strip()
         text = self.bullet_pattern.sub(safe_bullet_sub, text)
 
