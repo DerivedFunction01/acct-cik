@@ -119,10 +119,6 @@ ACTION_VERBS = [
 
 STRONG_ACTION_VERBS = ACTION_VERBS + [
     r"issu(?:e|es|ed|ing)?",  # Active Management
-    r"hedg(?:e|es|ed|ing)",
-    r"manag(?:e|es|ed|ing)",
-    r"mitigat(?:e|es|ed|ing)",
-    r"offset(?:s|ting)?",
     r"convert(?:s|ed|ing)?",
     r"continue\s+to",
     r"secured",
@@ -134,6 +130,10 @@ VERB_USE_REGEX = re.compile(
 # WEAK / PASSIVE: Legal or Accounting states that *imply* existence
 # We include these because "carrying at fair value" implies you have it.
 PASSIVE_STATE_VERBS = [
+    r"hedg(?:e|es|ed|ing)",
+    r"manag(?:e|es|ed|ing)",
+    r"mitigat(?:e|es|ed|ing)",
+    r"offset(?:s|ting)?",
     r"appl(?:y|ies|ied|ying)",  # "We apply hedge accounting"
     r"carr(?:y|ies|ied|ying)",  # "Carries at fair value"
     r"designat(?:e|es|ed|ing)",  # "Designated as a hedge"
