@@ -37,6 +37,7 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN,
     SOFT_CATEGORY_REGEX,
     SOFT_REGEX,
+    STRONG_POSSESSION_REGEX,
     TRADING_STATEMENTS_REGEX,
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
@@ -357,7 +358,7 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
         return None
 
     # B. Active Action Check
-    if VERB_REGEX.search(text):
+    if STRONG_POSSESSION_REGEX.search(text):
         return None
 
     # --- 3. SOFT KILLS (Run AFTER Verbs) ---
