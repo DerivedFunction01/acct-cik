@@ -3389,7 +3389,11 @@ def build_negation_prefix_pattern() -> str:
     pattern_contract = rf"\b{build_alternation(NEGATIVE_CONTRACTIONS)}\b"
 
     # 3. Absolute (The new addition)
-    pattern_absolute = r"\bnever\b"
+    abs_neg = [
+        "never",
+        "neither"
+    ]
+    pattern_absolute = rf"\b{build_alternation(abs_neg)}\b"
 
     # Combine: (did not | didn't | never)
     return rf"(?:{pattern_full}|{pattern_contract}|{pattern_absolute})"
