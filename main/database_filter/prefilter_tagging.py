@@ -24,8 +24,8 @@ from prefilter_simple_nonuse import DEADWEIGHT_TOKEN
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 250
 CHUNK_SIZE = 20
-SOURCE_DB_PATH = "prefiltered_data.db"
-TARGET_DB_PATH = "secondary_filtered_data.db"
+SOURCE_DB_PATH = "refined_data.db"
+TARGET_DB_PATH = "cleaned_data.db"
 
 # Tokens
 SKIP_TOKEN = " _S "
