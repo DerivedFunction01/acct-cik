@@ -461,9 +461,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # Append Tagged Paragraph: "_D<REASON> _S<TERM> Text..."
             modified_paragraphs.append(f"{tag} {processed_text}")
 
-            # Log it (Optional: might want to disable this if you are keeping everything
-            # to save DB space, but useful for debugging why a specific paragraph was killed)
-            all_discards_log.append((url, processed_text, tag))
+            # # Log it (Optional: might want to disable this if you are keeping everything
+            # # to save DB space, but useful for debugging why a specific paragraph was killed)
+            # all_discards_log.append((url, processed_text, tag))
 
     # Firm-Level Decision: PASS EVERYTHING
     # We return the modified list (with tags) regardless of signal count.
