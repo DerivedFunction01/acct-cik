@@ -196,7 +196,7 @@ def is_meaningful_quant(sentence: str, reporting_year: Optional[int]) -> bool:
 
 
 def check_refinement_exclusions(
-    text: str, year: Optional[int] = None
+    text_orig: str, text_masked: str, year: Optional[int] = None
 ) -> Tuple[Optional[str], str]:
     """
     Checks for 'Deadweight' paragraphs.
@@ -215,6 +215,7 @@ def check_refinement_exclusions(
         """
         if not reporting_year:
             return True
+        text = _cleaner.clean_numerics(sentence, remove_years=False)
         sent_years = extract_years(sentence)
         if not sent_years:
             return True
@@ -229,101 +230,123 @@ def check_refinement_exclusions(
         """
         if not reporting_year:
             return False
+        text = _cleaner.clean_numerics(text, remove_years=False)
         all_years = extract_years(text)
         if not all_years:
             return False
         return all(y < reporting_year for y in all_years)
 
-    # State Tracking
+    # 1. DUAL SPLIT STRATEGY
+    sentences_orig = [
+        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text_orig) if s.strip()
+    ]
+    sentences_masked = [
+        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text_masked) if s.strip()
+    ]
+
+    # Safety: If regex masking changed sentence boundaries (rare but possible),
+    # fallback to processing the original text to avoid index mismatch.
+    if len(sentences_orig) != len(sentences_masked):
+        # Fallback: We process the original text for tagging logic.
+        # Ideally, we would process masked, but alignment is critical for data integrity.
+        sentences_orig = SENTENCE_SPLIT_PATTERN.split(text_orig)
+        sentences_masked = sentences_orig  # Logic runs on unmasked as fallback
+
+    processed_sentences = []
+
+    # Logic Variables
+    hedging_sentence_count = 0
+    hedging_sentences_with_indicators = 0
     has_potential = False
     has_absence = False
     has_trading_denial = False
     has_termination = False
     has_aoci = False
     has_meaningful_quant = False
-    is_strictly_generic = True
     has_current_year_activity = False
-    hedging_sentence_count = 0
-    hedging_sentences_with_indicators = 0
 
-    if SOFT_CATEGORY_REGEX.search(text):
-        is_strictly_generic = False
+    # Check Soft Category on MASKED version (safer)
+    is_strictly_generic = not bool(SOFT_CATEGORY_REGEX.search(text_masked))
 
-    # Processing Loop
-    sentences = SENTENCE_SPLIT_PATTERN.split(text)
-    processed_sentences = []
+    # 2. PARALLEL LOOP
+    for sent_orig, sent_masked in zip(sentences_orig, sentences_masked):
 
-    for sent in sentences:
-        # 1. Apply Sentence-Level Tags (The New Feature)
-        # We modify 'sent' directly if it matches key attributes.
-        current_sent = sent
+        # We modify 'current_sent' (Original) based on 'sent_masked' (Logic)
+        current_sent = sent_orig
 
-        # A. Trading Denial Tag
-        if TRADING_STATEMENTS_REGEX.search(sent):
+        # --- A. Sentence-Level Tags ---
+        # Logic check: sent_masked
+        # Tag injection: current_sent (Original)
+
+        if TRADING_STATEMENTS_REGEX.search(sent_masked):
             has_trading_denial = True
-            # Inject Tag: " _S<TRADING> Original sentence..."
             tag = get_tag(SKIP_TOKEN, NoiseReason.TRADING)
-            if tag not in current_sent:  # Prevent double tagging
+            if tag not in current_sent:
                 current_sent = f"{tag} {current_sent}"
 
-        # B. Termination Tag
-        if TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
+        if TERMINATION_REGEX.search(sent_masked) and LOOSE_GEN_REGEX.search(
+            sent_masked
+        ):
             has_termination = True
-            # Inject Tag: " _S<TERM> Original sentence..."
             tag = get_tag(SKIP_TOKEN, NoiseReason.TERM)
             if tag not in current_sent:
                 current_sent = f"{tag} {current_sent}"
 
-        # C. Negative Intent (Optional, good for context)
-        if NEGATIVE_INTENT_REGEX.search(sent) and not TRADING_STATEMENTS_REGEX.search(
-            sent
-        ):
+        if NEGATIVE_INTENT_REGEX.search(
+            sent_masked
+        ) and not TRADING_STATEMENTS_REGEX.search(sent_masked):
             has_absence = True
             tag = get_tag(SKIP_TOKEN, NoiseReason.NEG)
             if tag not in current_sent:
                 current_sent = f"{tag} {current_sent}"
 
-        # Add modified sentence to list
-        processed_sentences.append(current_sent)
-
-        # 2. Update Logic Counters (Same as before)
-        if has_instrument(sent):
+        # --- B. Update Logic Counters (Using MASKED for safety) ---
+        if has_instrument(sent_masked):
             hedging_sentence_count += 1
             sent_has_indicator = False
 
-            if POTENTIAL_REGEX.search(sent) or VAGUE_TIMING_REGEX.search(sent):
+            if POTENTIAL_REGEX.search(sent_masked) or VAGUE_TIMING_REGEX.search(
+                sent_masked
+            ):
                 has_potential = True
                 sent_has_indicator = True
-            if ABSENCE_REGEX.search(sent) or DID_NOT_HOLD_REGEX.search(sent):
+            if ABSENCE_REGEX.search(sent_masked) or DID_NOT_HOLD_REGEX.search(
+                sent_masked
+            ):
                 has_absence = True
                 sent_has_indicator = True
-            # Trading/Negative already checked above for tagging, just set indicator
             if has_trading_denial or has_absence:
                 sent_has_indicator = True
 
             if sent_has_indicator:
                 hedging_sentences_with_indicators += 1
 
-        if is_current_or_no_year(sent, year):
-            if not (TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent)):
+        if is_current_or_no_year(sent_masked, year):
+            if not (
+                TERMINATION_REGEX.search(sent_masked)
+                and LOOSE_GEN_REGEX.search(sent_masked)
+            ):
                 has_current_year_activity = True
 
-        if is_meaningful_quant(sent, year):
+        # Note: Quant check uses its own cleaner, so we can pass either,
+        # but original is safer to preserve number formatting if masking touched it.
+        if is_meaningful_quant(sent_orig, year):
             has_meaningful_quant = True
 
-        if NON_POSITION_INDICATORS.search(sent):
+        if NON_POSITION_INDICATORS.search(sent_masked):
+            tag = get_tag(SKIP_TOKEN, NoiseReason.PNL)
+            current_sent = f"{tag} {current_sent}"
             has_aoci = True
 
-    # Reconstruct Text with Tags
-    modified_text = " ".join(processed_sentences)
+        # Add modified ORIGINAL sentence to list
+        processed_sentences.append(current_sent)
 
-    # Reconstruct text with tags
+    # Reconstruct text from ORIGINAL sentences (now containing tags)
     modified_text = " ".join(processed_sentences)
 
     # --- 2. THE GATEKEEPER (Combination Logic) ---
     # We still need this complex logic to decide IF we drop the paragraph.
     # But if we DO drop it, we just return the generic ANLZ tag.
-
     is_deadweight = False
 
     # A. Quantitative Safety (Immediate Keep)
@@ -352,7 +375,7 @@ def check_refinement_exclusions(
 
     else:
         # Historical / Policy / Absence
-        if not has_current_year_activity and has_only_past_years(text, year):
+        if not has_current_year_activity and has_only_past_years(text_orig, year):
             is_deadweight = True
         elif has_trading_denial and is_strictly_generic:
             is_deadweight = True
@@ -378,9 +401,10 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
 
     # B. Historical Check
     if year:
-        all_years = [int(y) for y in YEAR_REGEX.findall(text)]
+        temp_text = _cleaner.clean_numerics(text, remove_years=False)
+        all_years = [int(y) for y in YEAR_REGEX.findall(temp_text)]
         if all_years and all(y < year for y in all_years):
-            if not ACTIVE_STATE_REGEX.search(text):
+            if not ACTIVE_STATE_REGEX.search(temp_text):
                 return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HIST_BLOCK)
 
     # --- 2. SAFEGUARDS (The "Active User" Signals) ---
@@ -409,10 +433,6 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
 
     return None
 
-# =============================================================================
-# WORKER LOGIC
-# =============================================================================
-
 def process_item(item: Tuple) -> Optional[Tuple]:
     """
     Firm-Level Filter with Token Injection & Entity Masking.
@@ -421,57 +441,54 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     Deadweight paragraphs are tagged, but the firm is NOT dropped.
     """
     url, matches_json, cik, year = item
-
     try:
         paragraphs = json.loads(matches_json)
     except:
         return None
 
     modified_paragraphs = []
-    # has_valid_signal = False  <-- Removed, no longer needed for dropping
-    # has_historical_signal = False <-- Removed
     all_discards_log = []
 
     for p in paragraphs:
-        # 0. Pre-Check (Salvaged Deadweight from Step 1)
+        # 0. Pre-Check
         if DEADWEIGHT_TOKEN in p:
             modified_paragraphs.append(p)
             continue
 
-        # 1. Cleaning (Whitespace only)
-        p_clean = _cleaner.clean_entities(p)
+        # 1. PREPARE VERSIONS
+        # A. Normalized Original (For Final Output & Quant Checks)
+        # preserves "JPM", "Goldman", "2023"
+        p_norm = _cleaner.normalize_whitespace(p)
 
-        # 2. Level 2 Filter (Refinement - Sentence Tagging)
-        # Returns (Tag, Text_With_Sentence_Tags)
-        tag, processed_text = check_refinement_exclusions(p_clean, year)
+        # B. Masked (For Logic Checks)
+        # replaces "JPM" -> "_E", cleans layout for regex safety
+        p_masked = _cleaner.clean_entities(p)
+        # Note: clean_entities calls normalize_whitespace internally
 
-        # 3. Level 3 Filter (Deadweight - Policy/History/Risk)
+        # 2. Level 2 Filter (Pass BOTH)
+        # We logic-check p_masked, but we insert tags into p_norm
+        tag, processed_text = check_refinement_exclusions(p_norm, p_masked, year)
+
+        # 3. Level 3 Filter (Deadweight Check on MASKED)
         if tag is None:
-            tag = check_deadweight_exclusions(p_clean, year)
-            # If check_deadweight returns a tag, it applies to the whole paragraph.
-            # processed_text is just p_clean because check_refinement didn't tag it.
+            tag = check_deadweight_exclusions(p_masked, year)
+            # If tag found here, apply it to the (potentially modified) text
+            # processed_text usually matches p_norm here if no sentence tags were added above,
+            # but if check_refinement added inner tags but returned None for paragraph tag,
+            # we want to keep those inner tags.
 
         # 4. Construction
         if tag is None:
-            # Valid Signal
-            # has_valid_signal = True
+            # Valid Active Signal
             modified_paragraphs.append(processed_text)
         else:
-            # Deadweight (Boilerplate, History, Policy, etc.)
-            # Append Tagged Paragraph: "_D<REASON> _S<TERM> Text..."
+            # Deadweight (Historical / Boilerplate)
+            # Result: "_D<ANLZ> _S<TRADING> We do not trade..."
             modified_paragraphs.append(f"{tag} {processed_text}")
+            all_discards_log.append((url, processed_text, tag))
 
-            # # Log it (Optional: might want to disable this if you are keeping everything
-            # # to save DB space, but useful for debugging why a specific paragraph was killed)
-            # all_discards_log.append((url, processed_text, tag))
-
-    # Firm-Level Decision: PASS EVERYTHING
-    # We return the modified list (with tags) regardless of signal count.
-    # The Classifier will determine "Non-User" vs "Historical" based on content.
+    # PASS EVERYTHING (No dropping)
     return (url, json.dumps(modified_paragraphs), cik, year, all_discards_log)
-
-
-# ... (rest of the script: setup_target_db, data_generator, main block remain the same) ...
 
 
 def setup_target_db(path):
