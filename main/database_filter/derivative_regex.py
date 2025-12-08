@@ -3905,13 +3905,18 @@ LIBOR_TRANSITION_KEYWORDS = [
     r"interbank\s+offered\s+rates?\s+reform",
     r"IBOR\s+reform",
     # Specific Dates
-    r"after\s+June\s+30,?\s+2023",
     r"publication\s+of\s+(?:certain\s+|all\s+)?LIBOR\s+rates?",
     r"no\s+longer\s+publish(?:ed)?",
     r"cease\s+to\s+be\s+representative",
     r"synthetic\s+LIBOR",
     r"ASC\s+848",
     r"Facilitation\s+of\s+the\s+Effects\s+of\s+Reference\s+Rate\s+Reform",
+    r"publication\s+(?:of\s+)?(?:certain\s+|all\s+)?(?:USD\s+)?LIBOR.*June\s+30,?\s+2023",
+    # 2. "Cease... after June 30"
+    # Matches: "cease to be representative after June 30, 2023"
+    r"cease\s+to\s+be.*June\s+30,?\s+2023",
+    # 3. "Transition... by June 30"
+    r"transition.*by\s+June\s+30,?\s+2023",
 ] + CENTRAL_BANKS
 
 # Compile
