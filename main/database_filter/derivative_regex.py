@@ -733,7 +733,7 @@ CP_CONTEXT_TERMS = [
     "Intercontinental Exchange",
     "COMEX",
     "NYMEX",
-] + COMMON_COMMODITIES
+] + COMMON_COMMODITIES + CP_UNITS_STRICT
 
 EQ_CONTEXT_TERMS = [
     # --- A. Core Prices & Markets ---
