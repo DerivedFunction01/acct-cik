@@ -2910,8 +2910,6 @@ def build_trading_denial_pattern() -> re.Pattern:
     
     return re.compile(pattern, re.IGNORECASE | re.VERBOSE)
 
-
-TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 # =============================================================================
 # DEFINITION DETECTION (Isolated boilerplate)
 # =============================================================================
@@ -3468,6 +3466,8 @@ def build_termination_regex() -> re.Pattern:
     """Matches: "expired", "matured", "unwound" """
     return re.compile(rf"\b{build_alternation(TERMINATION_VERBS)}\b", re.IGNORECASE)
 
+
+TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 
 def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     from table_processor import TABLE_ANCHOR
