@@ -379,24 +379,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         try:
             p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
-            # === ACCOUNTING STANDARDS ===
-            if EXCLUDE_REGEX_ACCOUNTING_STD.search(p):
-                kept, acc_std_discards = process_accounting_standards_paragraph(p, url)
-                local_discards.extend(acc_std_discards)
-
-                if kept:
-                    salvaged_p = " ".join(kept)
-                    salvaged_p_masked = ENTITY_EXCLUSION_REGEX.sub(
-                        ENTITY_TOKEN, salvaged_p
-                    )
-                    buffer_type = (
-                        "sophisticated"
-                        if is_sophisticated_content(salvaged_p_masked)
-                        else "clean"
-                    )
-                    append_to_buffer(buffer_type, idx, salvaged_p, salvaged_p_masked)
-                continue
-
             # === TABLE HANDLING ===
             if "<TABLE>" in p.upper():
                 try:
@@ -454,7 +436,23 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                         continue
 
                     p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+            # === ACCOUNTING STANDARDS ===
+            if EXCLUDE_REGEX_ACCOUNTING_STD.search(p):
+                kept, acc_std_discards = process_accounting_standards_paragraph(p, url)
+                local_discards.extend(acc_std_discards)
 
+                if kept:
+                    salvaged_p = " ".join(kept)
+                    salvaged_p_masked = ENTITY_EXCLUSION_REGEX.sub(
+                        ENTITY_TOKEN, salvaged_p
+                    )
+                    buffer_type = (
+                        "sophisticated"
+                        if is_sophisticated_content(salvaged_p_masked)
+                        else "clean"
+                    )
+                    append_to_buffer(buffer_type, idx, salvaged_p, salvaged_p_masked)
+                continue
             # === EXCLUSIONS ===
             exclusion_reason = check_hard_exclusions(p_masked)
 
