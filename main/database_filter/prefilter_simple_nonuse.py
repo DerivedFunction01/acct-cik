@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import List, Tuple, Optional, Set, Dict
 from tqdm import tqdm
 
+from main.database_filter.prefilter_tagging import SKIP_TOKEN
+
 # --- CONFIGURATION ---
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 250
@@ -146,11 +148,14 @@ class MinimalTextCleaner:
         text = self.clean_numerics(text, remove_years)
         text = self.normalize_whitespace(text)
         return text
-
+    def clean_entities(self, text: str) -> str:
+        text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
+        text = self.normalize_whitespace(text)
+        return text
     def clean(self, text: str, remove_years: bool = False) -> str:
         text = self.clean_for_quant_analysis(text, remove_years)
-        text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
-        return text.strip()
+        text = self.clean_entities(text)
+        return text
 
 
 # Initialize cleaner (shared instance)
@@ -190,14 +195,16 @@ def is_meaningful_quant(sentence: str, reporting_year: Optional[int]) -> bool:
     return True
 
 
-def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Optional[str]:
+def check_refinement_exclusions(
+    text: str, year: Optional[int] = None
+) -> Tuple[Optional[str], str]:
     """
-    Checks for 'Deadweight' paragraphs that passed the hard pre-filter
-    but are semantically useless for derivative classification.
+    Checks for 'Deadweight' paragraphs.
 
-    Returns the specific DEADWEIGHT tag (e.g. " _D<HYPO>") if excluded, else None.
+    UPDATED: Now returns a Tuple (Tag, Modified_Text).
+    - Tag: The paragraph-level decision (e.g., _D<BOILER_BLOCK> or None).
+    - Modified_Text: The text with internal sentence tags applied (e.g., _S<TRADING>).
     """
-
     def has_instrument(text: str) -> bool:
         return bool(SOFT_REGEX.search(text))
 
@@ -227,6 +234,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             return False
         return all(y < reporting_year for y in all_years)
 
+    # State Tracking
     has_potential = False
     has_absence = False
     has_trading_denial = False
@@ -241,8 +249,44 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     if SOFT_CATEGORY_REGEX.search(text):
         is_strictly_generic = False
 
+    # Processing Loop
     sentences = SENTENCE_SPLIT_PATTERN.split(text)
+    processed_sentences = []
+
     for sent in sentences:
+        # 1. Apply Sentence-Level Tags (The New Feature)
+        # We modify 'sent' directly if it matches key attributes.
+        current_sent = sent
+
+        # A. Trading Denial Tag
+        if TRADING_STATEMENTS_REGEX.search(sent):
+            has_trading_denial = True
+            # Inject Tag: " _S<TRADING> Original sentence..."
+            tag = get_tag(SKIP_TOKEN, NoiseReason.TRADING)
+            if tag not in current_sent:  # Prevent double tagging
+                current_sent = f"{tag} {current_sent}"
+
+        # B. Termination Tag
+        if TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
+            has_termination = True
+            # Inject Tag: " _S<TERM> Original sentence..."
+            tag = get_tag(SKIP_TOKEN, NoiseReason.TERM)
+            if tag not in current_sent:
+                current_sent = f"{tag} {current_sent}"
+
+        # C. Negative Intent (Optional, good for context)
+        if NEGATIVE_INTENT_REGEX.search(sent) and not TRADING_STATEMENTS_REGEX.search(
+            sent
+        ):
+            has_absence = True
+            tag = get_tag(SKIP_TOKEN, NoiseReason.NEG)
+            if tag not in current_sent:
+                current_sent = f"{tag} {current_sent}"
+
+        # Add modified sentence to list
+        processed_sentences.append(current_sent)
+
+        # 2. Update Logic Counters (Same as before)
         if has_instrument(sent):
             hedging_sentence_count += 1
             sent_has_indicator = False
@@ -253,98 +297,77 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             if ABSENCE_REGEX.search(sent) or DID_NOT_HOLD_REGEX.search(sent):
                 has_absence = True
                 sent_has_indicator = True
-            if TRADING_STATEMENTS_REGEX.search(sent):
-                has_trading_denial = True
-                sent_has_indicator = True
-            if NEGATIVE_INTENT_REGEX.search(
-                sent
-            ) and not TRADING_STATEMENTS_REGEX.search(sent):
-                has_absence = True
+            # Trading/Negative already checked above for tagging, just set indicator
+            if has_trading_denial or has_absence:
                 sent_has_indicator = True
 
             if sent_has_indicator:
                 hedging_sentences_with_indicators += 1
 
-        # Check for current year
         if is_current_or_no_year(sent, year):
-            # Exclude termination-only sentences from counting as "current activity"
             if not (TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent)):
                 has_current_year_activity = True
 
-        # Check for meaningful quantities
         if is_meaningful_quant(sent, year):
             has_meaningful_quant = True
-
-        if TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
-            has_termination = True
 
         if NON_POSITION_INDICATORS.search(sent):
             has_aoci = True
 
-    # === DECISION LOGIC ===
+    # Reconstruct Text with Tags
+    modified_text = " ".join(processed_sentences)
 
-    # 1. AOCI + Termination = Historical Cleanup
-    if has_aoci and has_termination:
-        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
+    # Reconstruct text with tags
+    modified_text = " ".join(processed_sentences)
 
-    # 2. Quantitative Safety
+    # --- 2. THE GATEKEEPER (Combination Logic) ---
+    # We still need this complex logic to decide IF we drop the paragraph.
+    # But if we DO drop it, we just return the generic ANLZ tag.
+
+    is_deadweight = False
+
+    # A. Quantitative Safety (Immediate Keep)
     if has_meaningful_quant:
-        return None
+        return None, modified_text
 
-    # 3. Full Non-Use (All signal sentences have negative indicators)
-    if (
+    # B. Deadweight Combinations
+    if has_aoci and has_termination:
+        is_deadweight = True
+
+    elif (
         hedging_sentence_count == hedging_sentences_with_indicators
         and hedging_sentence_count > 0
     ):
-        # If the indicator was termination, prefer TERM tag over BOILER_BLOCK
-        if has_termination:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
-        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
+        is_deadweight = True
 
-    # 4. Termination (PRIORITIZED)
-    # Check this BEFORE Potential. If "may" and "terminate" co-exist,
-    # treating it as TERM saves the "Historical" signal.
-    if has_termination:
-        # Check safeguards: if it's "may terminate" but we haven't found valid current year activity
-        if has_potential:
-            return get_tag(
-                DEADWEIGHT_TOKEN, NoiseReason.TERM
-            )  # "May terminate" -> Historical Signal
-
-        # Standard termination logic
-        if has_absence:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
-        if not has_current_year_activity and has_only_past_years(text, year):
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
-
-    # 5. Potential / Hypothetical (Fallback)
-    if has_potential:
+    elif has_potential:
         if is_strictly_generic and has_trading_denial:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
-        if has_absence:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
-        if has_trading_denial:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
+            is_deadweight = True
+        elif has_absence:
+            is_deadweight = True
+        elif has_termination:
+            is_deadweight = True
+        elif has_trading_denial:
+            is_deadweight = True
 
-    # 6. Historical / Policy / Absence (Remaining Logic)
     else:
-        # Historic activity filters
+        # Historical / Policy / Absence
         if not has_current_year_activity and has_only_past_years(text, year):
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HIST_BLOCK)
+            is_deadweight = True
+        elif has_trading_denial and is_strictly_generic:
+            is_deadweight = True
+        elif has_termination and has_absence:
+            is_deadweight = True
+        elif has_absence:
+            is_deadweight = True
+        elif has_trading_denial and has_absence:
+            is_deadweight = True
 
-        # Generic policy with no trade
-        if has_trading_denial and is_strictly_generic:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
+    if is_deadweight:
+        # Return generic tag. The inner _S tags tell the story.
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ), modified_text
 
-        # Stated absence
-        if has_absence:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.NEG)
-
-        # Policy no use no trade
-        if has_trading_denial and has_absence:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
-
-    return None
+    return None, modified_text
 
 
 def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Optional[str]:
@@ -391,12 +414,7 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
 
 
 def process_item(item: Tuple) -> Optional[Tuple]:
-    """
-    Firm-Level Filter with Token Injection & Entity Masking.
-    Drops firms that have 0 valid paragraphs.
-    """
     url, matches_json, cik, year = item
-
     try:
         paragraphs = json.loads(matches_json)
     except:
@@ -404,52 +422,50 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     modified_paragraphs = []
     has_valid_signal = False
-    has_historical_signal = False  # <--- NEW TRACKER
+    has_historical_signal = False
     all_discards_log = []
 
     for p in paragraphs:
-        # --- 0. PRE-CHECK: Existing Deadweight ---
-        # If Step 1 already tagged this (e.g. Contractual/Regulatory "Salvage"),
-        # we treat it as deadweight (Context only, no Signal).
+        # 0. Pre-Check (Salvaged Deadweight from Step 1)
         if DEADWEIGHT_TOKEN in p:
             modified_paragraphs.append(p)
-            # Do NOT set has_valid_signal = True
             continue
 
-        # --- 1. Masking ---
-        p_masked = _cleaner.normalize_whitespace(p)
+        # 1. Cleaning (Whitespace only, preserve entities for keyword check)
+        p_clean = _cleaner.clean_entities(p)
 
-        # 2. Checks
-        tag = check_refinement_exclusions(p_masked, year)
+        tag, processed_text = check_refinement_exclusions(p_clean, year)
+
+        # 3. Level 3 Filter (Deadweight - Policy/History/Risk)
         if tag is None:
-            tag = check_deadweight_exclusions(p_masked, year)
+            tag = check_deadweight_exclusions(p_clean, year)
 
-        # 3. Decision & Signal Tracking
+        # 4. Decision
         if tag is None:
             has_valid_signal = True
-            modified_paragraphs.append(p)
+            modified_paragraphs.append(processed_text)
         else:
-            # Check if the tag indicates "Historical User" vs "Garbage"
-            # We look for: HIST_BLOCK, TIME, TERM
+            # Check for Historical Attributes in the Tag
             if any(
                 r in tag
                 for r in [
                     NoiseReason.HIST_BLOCK.value,
                     NoiseReason.TERM.value,
                     NoiseReason.TIME.value,
-                    NoiseReason.PNL.value,  # PnL often implies past usage
+                    NoiseReason.PNL.value,
+                    NoiseReason.ANLZ.value
                 ]
             ):
                 has_historical_signal = True
 
-            modified_paragraphs.append(f"{tag} {p}")
-            all_discards_log.append((url, p, tag))
+            # Append Tagged Paragraph
+            modified_paragraphs.append(f"{tag} {processed_text}")
+            all_discards_log.append((url, processed_text, tag))
 
     # Firm-Level Decision
     if has_valid_signal or has_historical_signal:
         return (url, json.dumps(modified_paragraphs), cik, year, [])
     else:
-        # Drop firm: No valid signals found (all paragraphs are Deadweight or Boilerplate)
         return (url, json.dumps([]), cik, year, all_discards_log)
 
 

@@ -4337,6 +4337,7 @@ class NoiseReason(Enum):
     # --- Paragraph Level ---
     HIST_BLOCK = "HIST_BLOCK"
     BOILER_BLOCK = "BOILER_BLOCK"
+    ANLZ = "ANLZ"  # Generic Deadweight: Requires scanning internal tags for attributes
     FILING = "FILING"  # 10-K Headers
     FORWARD = "FORWARD"  # Safe Harbor / Forward Looking
     LEGAL = "LEGAL"  # Litigation
@@ -4344,7 +4345,7 @@ class NoiseReason(Enum):
     NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
     COMP = "COMP"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
-    
+
     # --- Firm Level ---
     HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging
     NO_SOPH  = "NO_SOPH" # No indication of convertible/warrants as derivatives
