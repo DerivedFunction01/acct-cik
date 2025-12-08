@@ -442,7 +442,7 @@ def process_row(row):
                         attributes["is_historical"] = True
 
             # --- 2. Clean text for tracking (remove entities) ---
-            clean_s = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, clean_s)
+            clean_s = _cleaner.clean_entities(clean_s)
 
             # --- 3. Update context buffer (use clean) ---
             context_buffer.append(clean_s)
