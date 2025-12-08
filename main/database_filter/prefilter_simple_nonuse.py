@@ -385,14 +385,8 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
 
 def process_item(item: Tuple) -> Optional[Tuple]:
     """
-    Firm-Level Filter with Token Injection & Entity Masking:
-
-    1. Scans paragraphs.
-    2. MASKS entities before logic checks.
-    3. If a paragraph is 'Deadweight', prepends the specific _D<REASON> tag.
-    4. If a paragraph is Valid, keeps ORIGINAL text.
-    5. If at least one Valid paragraph exists, return the modified list.
-    6. If ALL are Deadweight, discard the firm.
+    Firm-Level Filter with Token Injection & Entity Masking.
+    Drops firms that have 0 valid paragraphs.
     """
     url, matches_json, cik, year = item
 
@@ -406,35 +400,40 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     all_discards_log = []
 
     for p in paragraphs:
-        # 1. Masking
+        # --- 0. PRE-CHECK: Existing Deadweight ---
+        # If Step 1 already tagged this (e.g. Contractual/Regulatory "Salvage"),
+        # we treat it as deadweight (Context only, no Signal).
+        if DEADWEIGHT_TOKEN in p:
+            modified_paragraphs.append(p)
+            # Do NOT set has_valid_signal = True
+            continue
+
+        # --- 1. Masking ---
         p_masked = _cleaner.clean(p)
-        
-        # 2. Level 2 Filter (Refinement - Linguistic Ambiguity)
-        # Returns a tag string (e.g. " _D<HYPO>") or None
+
+        # --- 2. Level 2 Filter (Refinement) ---
         tag = check_refinement_exclusions(p_masked, year)
 
-        # 3. Level 3 Filter (Deadweight - Policy/History/Risk)
-        # Only run if Level 2 didn't already flag it
+        # --- 3. Level 3 Filter (Deadweight) ---
         if tag is None:
             tag = check_deadweight_exclusions(p_masked, year)
 
+        # --- 4. Decision ---
         if tag is None:
+            # It survived! It's a valid signal.
             has_valid_signal = True
             modified_paragraphs.append(p)
         else:
-            # Prepend the specific tag to the paragraph
-            # tag is " _D<REASON>", so result is " _D<REASON> OriginalText"
-            modified_paragraphs.append(f"{tag} {p}" if tag != NoiseReason.BOILER_BLOCK.value else p) 
+            # It failed. Tag it and log it.
+            # tag is "_D<REASON>"
+            modified_paragraphs.append(f"{tag} {p}")
             all_discards_log.append((url, p, tag))
 
     # Firm-Level Decision
     if has_valid_signal:
-        # Return the MODIFIED list. Valid paragraphs are clean;
-        # Weak paragraphs now have tags at the start.
         return (url, json.dumps(modified_paragraphs), cik, year, [])
-
     else:
-        # Drop the firm entirely.
+        # Drop firm: No valid signals found (all paragraphs are Deadweight or Boilerplate)
         return (url, json.dumps([]), cik, year, all_discards_log)
 
 
