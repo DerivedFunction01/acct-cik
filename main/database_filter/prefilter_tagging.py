@@ -53,7 +53,7 @@ SOURCE_DB_PATH = "refined_data.db"
 TARGET_DB_PATH = "tagged_data.db"
 
 # Token for sentence-level skips
-SKIP_TOKEN = " _S "
+SKIP_TOKEN = " _S"
 _cleaner = MinimalTextCleaner()
 
 # =============================================================================
