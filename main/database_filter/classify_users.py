@@ -400,40 +400,22 @@ def remove_outlier_categories(
 
     return removed
 
-
-def process_row(row):
+def _process_paragraphs_and_sentences(paragraphs, attributes, doc_tracker):
     """
-    Process a single company document through classification.
+    PASS 0: Iterate through paragraphs and sentences.
+    - Parse paragraph-level (_D) and sentence-level (_S) tags.
+    - Extract attributes from tags (is_hedger, uses_hedge_accounting, etc.).
+    - Generate initial strict and soft category matches.
+    - Register to GlobalInstrumentTracker and collect initial evidence.
 
-    Maintains DUAL TEXT versions:
-    - original_s: For venue detection and evidence output
-    - clean_s: For instrument tracking and categorization
+    Returns: evidence_map, potential_map, context_buffer
     """
-    url, matches_json, cik, year = row
-    try:
-        paragraphs = json.loads(matches_json)
-    except:
-        return None
-
-    # Output structures
     evidence_map = defaultdict(list)
     potential_map = defaultdict(list)
-
-    attributes = {
-        "is_hedger": False,
-        "uses_hedge_accounting": False,
-        "has_pnl_activity": False,
-        "manages_credit_risk": False,
-        "is_hedging_sophisticated": False,
-        "is_financing_sophisticated": False,
-        "is_historical": False,
-    }
-
-    doc_tracker = GlobalInstrumentTracker()
     context_buffer = []
 
     for p in paragraphs:
-        # Initialize flags
+        original_p = p # Keep the original paragraph for context
         is_paragraph_deadweight = False
 
         # VENUE CHECK: Run on original text
@@ -442,38 +424,26 @@ def process_row(row):
 
         # --- A. Check for Paragraph-Level Tag (_D) ---
         para_match = TAG_PARSER_STRICT.match(p)
-
         if para_match:
-            tag_type = para_match.group(1)  # _D or _S
+            tag_type = para_match.group(1)
             tag_reason = para_match.group(2)
             content = para_match.group(3)
 
             if tag_type == "_D":
                 is_paragraph_deadweight = True
-
-                # Mine attributes from deadweight tag
-                if tag_reason == NoiseReason.TRADING.value:
-                    attributes["is_hedger"] = True
-                elif tag_reason == NoiseReason.POLICY.value:
-                    attributes["uses_hedge_accounting"] = True
-                elif tag_reason in {
-                    NoiseReason.HIST_BLOCK.value,
-                    NoiseReason.TERM.value,
-                }:
-                    attributes["is_historical"] = True
-
-                # UNWRAP: Process the content
-                p = content
+                # Mine attributes from deadweight tag (TRADING, POLICY, HIST)
+                if tag_reason == NoiseReason.TRADING.value: attributes["is_hedger"] = True
+                elif tag_reason == NoiseReason.POLICY.value: attributes["uses_hedge_accounting"] = True
+                elif tag_reason == NoiseReason.PNL.value: attributes["has_pnl_activity"] = True
+                elif tag_reason in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}: attributes["is_historical"] = True
+                p = content # UNWRAP: Process the content
 
         # --- B. Sentence Processing ---
-        sentences_original = [
-            s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()
-        ]
+        sentences_original = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
 
         for original_s in sentences_original:
-            # Clean text for instrument tracking
             clean_s = original_s
-            is_sentence_deadweight = False
+            is_sentence_deadweight = is_paragraph_deadweight # Inherit paragraph deadweight
 
             # --- 1. Parse Sentence-Level Tags ---
             sent_match = TAG_PARSER_STRICT.match(original_s)
@@ -484,18 +454,12 @@ def process_row(row):
 
                 if tag_type == "_S":
                     is_sentence_deadweight = True
-
-                    # Mine attributes from sentence tag
-                    if tag_reason == NoiseReason.TRADING.value:
-                        attributes["is_hedger"] = True
-                    elif tag_reason == NoiseReason.POLICY.value:
-                        attributes["uses_hedge_accounting"] = True
-                    elif tag_reason == NoiseReason.PNL.value:
-                        attributes["has_pnl_activity"] = True
-                    elif tag_reason == NoiseReason.CREDIT.value:
-                        attributes["manages_credit_risk"] = True
-                    elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
-                        attributes["is_historical"] = True
+                    # Mine attributes from sentence tag (TRADING, POLICY, PNL, CREDIT, TIME)
+                    if tag_reason == NoiseReason.TRADING.value: attributes["is_hedger"] = True
+                    elif tag_reason == NoiseReason.POLICY.value: attributes["uses_hedge_accounting"] = True
+                    elif tag_reason == NoiseReason.PNL.value: attributes["has_pnl_activity"] = True
+                    elif tag_reason == NoiseReason.CREDIT.value: attributes["manages_credit_risk"] = True
+                    elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value}: attributes["is_historical"] = True
 
             # --- 2. Clean text for tracking (remove entities) ---
             clean_s = _cleaner.clean_entities(clean_s)
@@ -506,23 +470,15 @@ def process_row(row):
                 context_buffer.pop(0)
 
             # --- 4. Register to Global Tracker (use clean) ---
-            # All strict matches registered to tracker, regardless of tag status
             strict_cats = set()
-            if IR_REGEX.search(clean_s):
-                strict_cats.add("ir")
-            if FX_REGEX.search(clean_s):
-                strict_cats.add("fx")
-            if CP_REGEX.search(clean_s):
-                strict_cats.add("cp")
-            if CR_REGEX.search(clean_s):
-                strict_cats.add("cr")
+            if IR_REGEX.search(clean_s): strict_cats.add("ir")
+            if FX_REGEX.search(clean_s): strict_cats.add("fx")
+            if CP_REGEX.search(clean_s): strict_cats.add("cp")
+            if CR_REGEX.search(clean_s): strict_cats.add("cr")
             if EQ_REGEX.search(clean_s):
-                if is_sophisticated_content(clean_s):
-                    strict_cats.add("warr")
-                else:
-                    strict_cats.add("eq")
+                if is_sophisticated_content(clean_s): strict_cats.add("warr")
+                else: strict_cats.add("eq")
 
-            # Register to tracker
             for cat in strict_cats:
                 doc_tracker.register_paragraph(clean_s, cat)
 
@@ -530,70 +486,73 @@ def process_row(row):
             if is_paragraph_deadweight or is_sentence_deadweight:
                 continue
 
-            # --- ACTIVE EVIDENCE MODE ---
-
-            # A. Strict Matches (use original for evidence output)
+            # A. Strict Matches
             if strict_cats:
                 attributes["is_hedging_sophisticated"] = True
                 if "warr" in strict_cats:
                     attributes["is_financing_sophisticated"] = True
-
                 for cat in strict_cats:
                     evidence_map[cat].append(original_s)
 
-            # B. Soft Matches (potential)
+            # B. Soft Matches
             else:
                 soft_cats = set()
-                if IR_SOFT_REGEX.search(clean_s):
-                    soft_cats.add("ir")
-                if FX_SOFT_REGEX.search(clean_s):
-                    soft_cats.add("fx")
-                if CP_SOFT_REGEX.search(clean_s):
-                    if find_hedging_context(clean_s):
-                        soft_cats.add("cp")
+                if IR_SOFT_REGEX.search(clean_s): soft_cats.add("ir")
+                if FX_SOFT_REGEX.search(clean_s): soft_cats.add("fx")
+                if CP_SOFT_REGEX.search(clean_s) and find_hedging_context(clean_s): soft_cats.add("cp")
+                if CR_SOFT_REGEX.search(clean_s): soft_cats.add("cr")
                 if EQ_SOFT_REGEX.search(clean_s):
-                    if is_sophisticated_content(clean_s):
-                        soft_cats.add("warr")
-                    else:
-                        soft_cats.add("eq")
-                if CR_SOFT_REGEX.search(clean_s):
-                    soft_cats.add("cr")
+                    if is_sophisticated_content(clean_s): soft_cats.add("warr")
+                    else: soft_cats.add("eq")
 
                 if soft_cats:
                     for cat in soft_cats:
                         potential_map[cat].append(original_s)
+
+                # C. Generic Resolution
                 else:
-                    # C. Generic Resolution
                     cats = get_sentence_categories(clean_s)
                     if "gen" in cats:
-                        # Store for later multi-pass resolution
-                        potential_map["_generic"].append(
-                            {
-                                "original": original_s,
-                                "clean": clean_s,
-                                "categories": cats,
-                                "sentence_index": len(context_buffer) - 1,
-                            }
-                        )
-    # PASS 1: Global Instrument Tracker Resolution
-    if "_generic" in potential_map:
-        generic_sentences = potential_map.pop("_generic")
+                        potential_map["_generic"].append({
+                            "original": original_s,
+                            "clean": clean_s,
+                            "categories": cats,
+                            "sentence_index": len(context_buffer) - 1,
+                        })
 
-        for gen_item in generic_sentences:
-            resolved = doc_tracker.resolve_instrument(gen_item["clean"])
+    return evidence_map, potential_map, context_buffer
 
-            if resolved and resolved not in {"gen", "other"}:
-                # Upgrade EQ to WARR if sophisticated
-                if resolved == "eq" and is_sophisticated_content(gen_item["clean"]):
-                    resolved = "warr"
-                    attributes["is_financing_sophisticated"] = True
-                else:
-                    attributes["is_hedging_sophisticated"] = True
+def _resolve_generic_passes(paragraphs, evidence_map, potential_map, attributes, doc_tracker):
+    """
+    Execute three passes for resolving generic (unclassified) sentences:
+    1. Global Instrument Tracker Resolution (using doc_tracker).
+    2. Sequential Inheritance (from nearest non-table predecessor).
+    3. Document-Level Category Inheritance (if only one category found).
 
-                evidence_map[resolved].append(gen_item["original"])
+    Updates evidence_map and attributes in place.
+    """
+    if "_generic" not in potential_map:
+        return
 
-    # PASS 2: Sequential Inheritance (skip tables, inherit from previous narrative)
-    # Track which sentences are from tables
+    generic_sentences_to_resolve = potential_map.pop("_generic")
+    unresolved_generics = []
+
+    # --- PASS 1: Global Instrument Tracker Resolution ---
+    for gen_item in generic_sentences_to_resolve:
+        resolved = doc_tracker.resolve_instrument(gen_item["clean"])
+
+        if resolved and resolved not in {"gen", "other"}:
+            # Upgrade EQ to WARR if sophisticated
+            if resolved == "eq" and is_sophisticated_content(gen_item["clean"]):
+                resolved = "warr"
+                attributes["is_financing_sophisticated"] = True
+            else:
+                attributes["is_hedging_sophisticated"] = True
+            evidence_map[resolved].append(gen_item["original"])
+        else:
+            unresolved_generics.append(gen_item)
+
+    # --- PASS 2: Sequential Inheritance ---
     sentence_list = []
     for p in paragraphs:
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
@@ -601,20 +560,17 @@ def process_row(row):
             is_table = TABLE_ANCHOR in s or "<TABLE>" in s.upper()
             sentence_list.append({"text": s, "from_table": is_table})
 
-    # Inherit categories from previous non-table sentences
+    resolved_in_pass2 = []
+    generic_originals = {g["original"] for g in unresolved_generics}
+
     for i in range(1, len(sentence_list)):
         curr = sentence_list[i]
-
-        # Only process generic sentences that aren't from tables
-        if not curr["from_table"] and curr["text"] in [
-            g["original"] for g in (potential_map.get("_generic", []))
-        ]:
-
-            # Find nearest non-table predecessor
+        # Only process sentences that were generic AND unresolved in Pass 1 AND not from tables
+        if not curr["from_table"] and curr["text"] in generic_originals:
             prev_cat = None
+            # Find nearest non-table predecessor with evidence
             for j in range(i - 1, -1, -1):
                 if not sentence_list[j]["from_table"]:
-                    # Check if this predecessor has a category in evidence_map
                     for cat, sentences in evidence_map.items():
                         if sentence_list[j]["text"] in sentences:
                             prev_cat = cat
@@ -622,12 +578,17 @@ def process_row(row):
                     if prev_cat:
                         break
 
-            # If we found a non-generic predecessor, inherit
+            # If we found a specific predecessor category, inherit
             if prev_cat and prev_cat not in {"gen", "other"}:
                 evidence_map[prev_cat].append(curr["text"])
+                resolved_in_pass2.append(curr["text"])
 
-    # PASS 3: Document-Level Category Inheritance
-    # If document has EXACTLY ONE specific category, assign generics to it
+    # Update unresolved_generics list for Pass 3
+    remaining_generics = [
+        g for g in unresolved_generics if g["original"] not in resolved_in_pass2
+    ]
+
+    # --- PASS 3: Document-Level Category Inheritance ---
     all_cats_in_evidence = {
         cat
         for cat, sents in evidence_map.items()
@@ -636,26 +597,38 @@ def process_row(row):
 
     if len(all_cats_in_evidence) == 1:
         single_cat = list(all_cats_in_evidence)[0]
+        # Assign remaining generics to the single-category
+        for gen_item in remaining_generics:
+            evidence_map[single_cat].append(gen_item["original"])
+            attributes["is_hedging_sophisticated"] = True
 
-        # Re-process remaining generics with single-category rule
-        if "_generic" in potential_map:
-            for gen_item in potential_map["_generic"]:
-                evidence_map[single_cat].append(gen_item["original"])
-                attributes["is_hedging_sophisticated"] = True
+    # If any generics remain, put them back for potential further processing (or logging)
+    if remaining_generics:
+        potential_map["_generic"] = remaining_generics
 
-    # --- 2. PROMOTION PASS ---
+
+def _promotion_and_cleanup(evidence_map, potential_map, attributes):
+    """
+    Execute the final promotion of soft matches to evidence, removal of outliers,
+    and determination of the final is_trader attribute.
+
+    Returns: removed_outliers (set)
+    """
+    removed_outliers = set()
+
+    # --- 1. PROMOTION PASS ---
     is_valid_user = (
         attributes["is_hedging_sophisticated"]
         or attributes["uses_hedge_accounting"]
         or attributes["is_financing_sophisticated"]
     )
-    removed_outliers = set()
+
     if is_valid_user:
         promoted_cats = set()
 
         # First: Promote soft matches to evidence
         for cat, sentences in potential_map.items():
-            if cat not in evidence_map:
+            if cat not in evidence_map and cat != "_generic":
                 evidence_map[cat].extend(sentences)
                 promoted_cats.add(cat)
 
@@ -664,7 +637,7 @@ def process_row(row):
             evidence_map, promoted_cats, threshold_pct=0.10, min_mentions=2
         )
 
-    # Trader Logic
+    # --- 2. TRADER LOGIC ---
     if attributes.get("mentions_venue") and not attributes["is_hedger"]:
         attributes["is_trader"] = True
     else:
@@ -673,13 +646,52 @@ def process_row(row):
     # Clean up internal flags
     attributes.pop("mentions_venue", None)
 
-    # --- 3. FINAL OUTPUT ---
+    return removed_outliers
+
+
+def process_row(row):
+    """
+    Orchestrates the multi-pass classification process for a single company document.
+    """
+    url, matches_json, cik, year = row
+    try:
+        paragraphs = json.loads(matches_json)
+    except:
+        return None
+
+    # Initialize state
+    attributes = {
+        "is_hedger": False,
+        "uses_hedge_accounting": False,
+        "has_pnl_activity": False,
+        "manages_credit_risk": False,
+        "is_hedging_sophisticated": False,
+        "is_financing_sophisticated": False,
+        "is_historical": False,
+    }
+    doc_tracker = GlobalInstrumentTracker()
+
+    # --- STEP 1: Initial Processing (Pass 0) ---
+    evidence_map, potential_map, context_buffer = _process_paragraphs_and_sentences(
+        paragraphs, attributes, doc_tracker
+    )
+
+    # --- STEP 2: Generic Resolution Passes (Passes 1, 2, 3) ---
+    _resolve_generic_passes(
+        paragraphs, evidence_map, potential_map, attributes, doc_tracker
+    )
+
+    # --- STEP 3: Promotion and Cleanup ---
+    removed_outliers = _promotion_and_cleanup(evidence_map, potential_map, attributes)
+
+    # --- STEP 4: Final Output ---
+    # Check if anything was found (attributes or evidence)
     if not evidence_map and not any(attributes.values()):
         return (url, "{}", cik, year, removed_outliers)
 
     output_data = {"evidence": evidence_map, "attributes": attributes}
 
-    # Return with outlier log for database insertion
+    # Return with outlier log
     return (url, json.dumps(output_data), cik, year, removed_outliers)
 
 
