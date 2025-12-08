@@ -401,13 +401,6 @@ def process_table(
         return False
 
     # CASE 2 & 3: Valid table (derivative or non-derivative)
-    # → Process through converter to extract sentences for NLP
-    table_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, cleaned_table)
-
-    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(table_masked):
-        local_discards.append((url, p, "legal_table"))
-        return False
-
     # Generate sentences from table
     try:
         sentences = converter.process()
