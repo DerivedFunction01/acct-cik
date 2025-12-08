@@ -197,6 +197,8 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 
     Returns the specific DEADWEIGHT tag (e.g. " _D<HYPO>") if excluded, else None.
     """
+    if DEADWEIGHT_TOKEN in text:
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
 
     def has_instrument(text: str) -> bool:
         return bool(SOFT_REGEX.search(text))
@@ -406,7 +408,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     for p in paragraphs:
         # 1. Masking
         p_masked = _cleaner.clean(p)
-
+        
         # 2. Level 2 Filter (Refinement - Linguistic Ambiguity)
         # Returns a tag string (e.g. " _D<HYPO>") or None
         tag = check_refinement_exclusions(p_masked, year)
@@ -422,7 +424,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         else:
             # Prepend the specific tag to the paragraph
             # tag is " _D<REASON>", so result is " _D<REASON> OriginalText"
-            modified_paragraphs.append(f"{tag} {p}")
+            modified_paragraphs.append(f"{tag} {p}" if tag != NoiseReason.BOILER_BLOCK.value else p) 
             all_discards_log.append((url, p, tag))
 
     # Firm-Level Decision
