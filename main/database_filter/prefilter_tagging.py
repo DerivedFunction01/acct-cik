@@ -225,7 +225,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
 # Should be:
 def mask_text(text, remove_years=False):
-    return _cleaner.clean(text, remove_years=remove_years)
+    return _cleaner.clean_for_quant_analysis(text, remove_years=remove_years)
 
 
 def process_row(row):
