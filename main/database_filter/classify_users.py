@@ -446,7 +446,7 @@ def get_sentence_categories(
 
     return specific if specific else top_cats
 
-
+_cleaner = MinimalTextCleaner()
 def process_row(row):
     url, matches_json, cik, year = row
     try:
@@ -556,7 +556,7 @@ def process_row(row):
 
             # However, we only allow it to set 'is_sophisticated' if it's NOT deadweight.
             # (We don't want a definition to trigger the "Active User" flag on its own)
-
+            clean_s = _cleaner.clean_entities(clean_s)
             strict_cats = set()
             if IR_REGEX.search(clean_s):
                 strict_cats.add("ir")
