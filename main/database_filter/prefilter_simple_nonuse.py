@@ -397,6 +397,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     modified_paragraphs = []
     has_valid_signal = False
+    has_historical_signal = False  # <--- NEW TRACKER
     all_discards_log = []
 
     for p in paragraphs:
@@ -411,26 +412,34 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         # --- 1. Masking ---
         p_masked = _cleaner.clean(p)
 
-        # --- 2. Level 2 Filter (Refinement) ---
+        # 2. Checks
         tag = check_refinement_exclusions(p_masked, year)
-
-        # --- 3. Level 3 Filter (Deadweight) ---
         if tag is None:
             tag = check_deadweight_exclusions(p_masked, year)
 
-        # --- 4. Decision ---
+        # 3. Decision & Signal Tracking
         if tag is None:
-            # It survived! It's a valid signal.
             has_valid_signal = True
             modified_paragraphs.append(p)
         else:
-            # It failed. Tag it and log it.
-            # tag is "_D<REASON>"
+            # Check if the tag indicates "Historical User" vs "Garbage"
+            # We look for: HIST_BLOCK, TIME, TERM
+            if any(
+                r in tag
+                for r in [
+                    NoiseReason.HIST_BLOCK.value,
+                    NoiseReason.TERM.value,
+                    NoiseReason.TIME.value,
+                    NoiseReason.PNL.value,  # PnL often implies past usage
+                ]
+            ):
+                has_historical_signal = True
+
             modified_paragraphs.append(f"{tag} {p}")
             all_discards_log.append((url, p, tag))
 
     # Firm-Level Decision
-    if has_valid_signal:
+    if has_valid_signal or has_historical_signal:
         return (url, json.dumps(modified_paragraphs), cik, year, [])
     else:
         # Drop firm: No valid signals found (all paragraphs are Deadweight or Boilerplate)
