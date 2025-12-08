@@ -2771,12 +2771,12 @@ CURRENT_TIME_INDICATORS = [
 NON_POSITION_INDICATORS = re.compile(
     r"""
     (?:
-        (?:accumulated\s+)?other\s+comprehensive\s+(?:income|loss)|
-        (?:AOCI|OCI)\b|
-        (?:reclassified?|reclassifi).*(?:AOCI|OCI|comprehensive)|
-        deferred\s+(?:tax\s+)?(?:gain|loss)|
-        realized\s+(?:gain|loss)|
-        unrealized\s+(?:gain|loss)
+        (?:accumulated\s+)?other\s+comprehensive\s+(?:income|loss)(?:es)?|
+        (?:AOCI|O\.?C\.?I)\b|
+        (?:reclassified?|reclassifi).{0,20}(?:AOCI|O\.?C\.?I|comprehensive)|
+        deferred\s+(?:tax\s+)?(?:gain|loss)(?:es)?|
+        realized\s+(?:gain|loss)(?:es)?|
+        unrealized\s+(?:gain|loss)(?:es)?
     )
     """,
     re.IGNORECASE | re.VERBOSE,
