@@ -9,7 +9,7 @@ from tqdm import tqdm
 from derivative_regex import (
     # Structural
     ABSENCE_REGEX,
-    CR_REGEX,
+    CR_SOFT_REGEX,
     EMBEDDED_CAP_FLOOR_REGEX,
     HEDGING_CONTEXT_REGEX,
     IS_REFERENCE_REGEX,
@@ -171,7 +171,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         # If the NEXT sentence is Usage, it survives.
         elif POLICY_REGEX.search(masked):
             is_noise = True
-        elif COUNTERPARTY_REGEX.search(masked) and not CR_REGEX.search(masked):
+        elif COUNTERPARTY_REGEX.search(masked) and not CR_SOFT_REGEX.search(masked):
             is_noise = True
 
         # --- C. Bag-of-Words Scoring ---
