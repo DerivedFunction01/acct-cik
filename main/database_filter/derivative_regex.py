@@ -137,7 +137,7 @@ PASSIVE_STATE_VERBS = [
     r"appl(?:y|ies|ied|ying)",  # "We apply hedge accounting"
     r"carr(?:y|ies|ied|ying)",  # "Carries at fair value"
     r"designat(?:e|es|ed|ing)",  # "Designated as a hedge"
-    r"be\s+a\s+party\s+to",  # "Is a party to interest rate swaps"
+    r"(?:be|is|are|was|were)\s+a\s+party\s+to",  # "Is a party to interest rate swaps"
     rf"remained?\s+{ACTIVE_STATE_PATTERN}",  # "remained active/open/outstanding"
 ]
 
