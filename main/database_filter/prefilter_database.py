@@ -1,4 +1,5 @@
 from concurrent.futures import ProcessPoolExecutor
+from enum import Enum
 import sqlite3
 import json
 import re
@@ -6,7 +7,7 @@ import multiprocessing as mp
 import time
 from pathlib import Path
 from queue import Empty
-from typing import List, Tuple, Optional, Set
+from typing import List, Literal, Tuple, Optional, Set
 from tqdm import tqdm
 
 from prefilter_simple_nonuse import DEADWEIGHT_TOKEN
@@ -509,27 +510,33 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             exclusion_reason = check_hard_exclusions(p)
 
             # --- HYPOTHETICAL SALVAGE LOGIC ---
-            if exclusion_reason == NoiseReason.HYP_SCORE.value:
-                # Check if this "noise" actually contains the specific instrument name.
-                # If so, we must save it as Context (Deadweight), or else we lose
-                # the definition for subsequent paragraphs (e.g. "We hold *these* contracts").
-                has_std = STRICT_REGEX.search(p_masked) or (
+            # Reasons we want to drop, UNLESS they contain specific definitions
+            SALVAGEABLE_REASONS = {
+                NoiseReason.HYP_SCORE.value,
+                NoiseReason.CONTRACT.value,
+                NoiseReason.REG.value,
+            }
+
+            if exclusion_reason in SALVAGEABLE_REASONS:
+                # CHECK: Does this "Noise" actually name an instrument?
+                # We use STRICT (e.g. "Interest Rate Swap") or SOFT + CONTEXT (e.g. "Hedging Contracts")
+                has_instrument = STRICT_REGEX.search(p_masked) or (
                     SOFT_REGEX.search(p_masked)
                     and HEDGING_CONTEXT_REGEX.search(p_masked)
                 )
 
-                if has_std:
-                    # SAVE AS DEADWEIGHT:
-                    # 1. Mark with token so Main Filter knows it's not active usage.
-                    # 2. Add to buffer so it provides context to neighbors.
-                    p_deadweight = f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYP_SCORE)} {p}"
+                if has_instrument:
+                    # SALVAGED: Keep it for context, but tag it as Deadweight.
+                    # This ensures Step 2 (Non-Use Filter) ignores it for "Active" counting,
+                    # but the Global Tracker (Step 4) can still read the definition.
 
-                    # We append to 'clean' buffer (using masked text for validation logic)
+                    # (Ensure get_tag helper is available or format string manually)
+                    tag_str = get_tag(DEADWEIGHT_TOKEN, exclusion_reason)
+                    p_deadweight = f"{tag_str} {p}"
+
+                    # Save to 'clean' buffer (it's legally 'clean' text, just contextually dead)
                     append_to_buffer("clean", idx, p_deadweight, p_masked)
                     continue
-            if exclusion_reason:
-                local_discards.append((url, p, exclusion_reason))
-                continue
 
             # === SALVAGE: EQUITY COMP ===
             if EXCLUDE_REGEX_EQUITY_COMP.search(p_masked):
