@@ -345,6 +345,61 @@ def get_sentence_categories(
 _cleaner = MinimalTextCleaner()
 
 
+def remove_outlier_categories(
+    evidence_map, promoted_cats, threshold_pct=0.10, min_mentions=3
+):
+    """
+    Remove categories with stray mentions (outliers).
+
+    A category is removed if EITHER:
+    1. Has < min_mentions (absolute floor)
+    2. Has < threshold_pct * max_mentions (relative to largest category)
+
+    Args:
+        evidence_map: dict of category -> [sentences]
+        promoted_cats: set of categories just added via soft promotion
+        threshold_pct: what % of max to use as threshold (default 0.10 = 10%)
+        min_mentions: minimum absolute mentions to keep (default 3)
+
+    Returns:
+        dict of removed categories with reasoning
+    """
+
+    # Count mentions per category
+    cat_counts = {cat: len(sents) for cat, sents in evidence_map.items() if sents}
+
+    if not cat_counts:
+        return {}  # No evidence to check
+
+    # Get the highest mention count
+    max_count = max(cat_counts.values())
+
+    # Calculate threshold: use whichever is higher (absolute or relative)
+    threshold = max(min_mentions, max_count * threshold_pct)
+
+    # Find outliers ONLY among newly promoted categories
+    # Don't remove hard evidence that was already there
+    removed = {}
+
+    for cat in promoted_cats:
+        if cat not in cat_counts:
+            continue  # No mentions (shouldn't happen)
+
+        count = cat_counts[cat]
+
+        if count < threshold:
+            # This is an outlier
+            removed[cat] = {
+                "count": count,
+                "threshold": threshold,
+                "max_count": max_count,
+                "reason": f"Stray mention ({count} < {threshold:.1f})",
+            }
+            del evidence_map[cat]
+
+    return removed
+
+
 def process_row(row):
     """
     Process a single company document through classification.
@@ -527,11 +582,20 @@ def process_row(row):
         or attributes["uses_hedge_accounting"]
         or attributes["is_financing_sophisticated"]
     )
-
+    removed_outliers = set()
     if is_valid_user:
+        promoted_cats = set()
+
+        # First: Promote soft matches to evidence
         for cat, sentences in potential_map.items():
             if cat not in evidence_map:
                 evidence_map[cat].extend(sentences)
+                promoted_cats.add(cat)
+
+        # Second: Remove outliers among promoted categories
+        removed_outliers = remove_outlier_categories(
+            evidence_map, promoted_cats, threshold_pct=0.10, min_mentions=2
+        )
 
     # Trader Logic
     if attributes.get("mentions_venue") and not attributes["is_hedger"]:
@@ -544,10 +608,12 @@ def process_row(row):
 
     # --- 3. FINAL OUTPUT ---
     if not evidence_map and not any(attributes.values()):
-        return (url, "{}", cik, year)
+        return (url, "{}", cik, year, removed_outliers)
 
     output_data = {"evidence": evidence_map, "attributes": attributes}
-    return (url, json.dumps(output_data), cik, year)
+
+    # Return with outlier log for database insertion
+    return (url, json.dumps(output_data), cik, year, removed_outliers)
 
 
 # =============================================================================
@@ -556,14 +622,39 @@ def process_row(row):
 
 
 def setup_target_db(path):
+    """Create target database with logging table for outlier removals."""
     conn = sqlite3.connect(path)
     c = conn.cursor()
+
+    # Existing tables
     c.execute(
         "CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, matches TEXT NOT NULL)"
     )
     c.execute(
         "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER, FOREIGN KEY (url) REFERENCES webpage_result(url))"
     )
+
+    # NEW: Outlier removal log
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS outlier_removals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT NOT NULL,
+            category TEXT NOT NULL,
+            mention_count INTEGER NOT NULL,
+            threshold REAL NOT NULL,
+            max_count INTEGER NOT NULL,
+            reason TEXT,
+            FOREIGN KEY (url) REFERENCES webpage_result(url)
+        )"""
+    )
+
+    c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
+    c.execute("CREATE INDEX IF NOT EXISTS outlier_url_idx ON outlier_removals (url)")
+    c.execute(
+        "CREATE INDEX IF NOT EXISTS outlier_cat_idx ON outlier_removals (category)"
+    )
+
+    c.execute("PRAGMA journal_mode=WAL")
     conn.commit()
     conn.close()
 
@@ -597,19 +688,53 @@ def data_generator(source_db, processed_urls, batch_size=BATCH_SIZE):
 
 
 def write_batch(conn, buffer):
+    """Write results and outlier logs to database."""
     if not buffer:
         return
+
     c = conn.cursor()
     try:
         c.execute("BEGIN TRANSACTION")
+
+        # Main results
+        webpage_data = [(r[0], r[1]) for r in buffer]
+        report_data = [(r[0], r[2], r[3]) for r in buffer]
+
         c.executemany(
             "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
-            [(r[0], r[1]) for r in buffer],
+            webpage_data,
         )
         c.executemany(
             "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-            [(r[0], r[2], r[3]) for r in buffer],
+            report_data,
         )
+
+        # NEW: Outlier logs
+        outlier_logs = []
+        for r in buffer:
+            url = r[0]
+            removed_outliers = r[4]  # The removed_outliers dict
+
+            for cat, details in removed_outliers.items():
+                outlier_logs.append(
+                    (
+                        url,
+                        cat,
+                        details["count"],
+                        details["threshold"],
+                        details["max_count"],
+                        details["reason"],
+                    )
+                )
+
+        if outlier_logs:
+            c.executemany(
+                """INSERT INTO outlier_removals 
+                   (url, category, mention_count, threshold, max_count, reason) 
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                outlier_logs,
+            )
+
         conn.commit()
     except Exception as e:
         print(f"❌ Write Error: {e}")
@@ -630,6 +755,8 @@ if __name__ == "__main__":
     conn.execute("PRAGMA journal_mode=WAL")
 
     buffer = []
+    total_removed = 0
+
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
         source = list(data_generator(SOURCE_DB_PATH, processed))
         for result in tqdm(
@@ -637,11 +764,18 @@ if __name__ == "__main__":
         ):
             if result:
                 buffer.append(result)
+                # Track removals for summary
+                if result[4]:  # removed_outliers dict
+                    total_removed += len(result[4])
+
                 if len(buffer) >= BATCH_SIZE:
                     write_batch(conn, buffer)
                     buffer = []
 
     if buffer:
         write_batch(conn, buffer)
+
     conn.close()
+
     print("✅ Classification Complete.")
+    print(f"   Total outlier categories removed: {total_removed}")
