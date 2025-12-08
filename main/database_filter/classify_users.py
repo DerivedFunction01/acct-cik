@@ -32,6 +32,8 @@ from derivative_regex import (
     STRICT_CONTEXT_MAP,
     TRADING_VENUE_REGEX,
     NoiseReason,
+    ENTITY_EXCLUSION_REGEX,
+    ENTITY_TOKEN,
 )
 from prefilter_database import is_sophisticated_content
 from prefilter_tagging import MinimalTextCleaner
@@ -45,12 +47,15 @@ BATCH_SIZE = 1000
 SOURCE_DB_PATH = "tagged_data.db"
 TARGET_DB_PATH = "classified_data.db"
 
-# Tag Parsing Regex: Captures _S<REASON> (Group 1) and Text (Group 2)
+# Tag Parsing Regex: Captures _S or _D (Group 1), REASON (Group 2), Text (Group 3)
 TAG_PARSER_STRICT = re.compile(r"^\s*(_[SD])<([^>]+)>\s+(.*)", re.DOTALL)
 PRIORTY = ["fx", "cp", "eq", "cr", "ir"]
 
 import requests
+
 log = logging.getLogger(__name__)
+
+
 class NetworkDerivativeResolver:
     """
     Client for RoBERTa-based derivative category resolution.
@@ -62,7 +67,7 @@ class NetworkDerivativeResolver:
         api_url: str = "http://localhost:5000/predict",
         confidence_threshold: float = 0.85,
         context_window_size: int = 2,
-        timeout: int = 60
+        timeout: int = 60,
     ):
         self.api_url = api_url
         self.confidence_threshold = confidence_threshold
@@ -74,45 +79,26 @@ class NetworkDerivativeResolver:
         """Verify server is reachable at startup."""
         try:
             response = requests.get(
-                self.api_url.replace("/predict", "/info"),
-                timeout=5
+                self.api_url.replace("/predict", "/info"), timeout=5
             )
             if response.ok:
                 info = response.json()
                 log.info(f"✅ Connected to RoBERTa server: {info.get('model')}")
-                log.info(f" Device: {info.get('device')}, Labels: {info.get('labels')}")
             else:
-                log.warning(f"⚠️ Server responded but not healthy: {response.status_code}")
+                log.warning(
+                    f"⚠️ Server responded but not healthy: {response.status_code}"
+                )
         except Exception as e:
             log.error(f"❌ Could not connect to resolver API: {e}")
-            log.error(f" Server must be running at {self.api_url}")
             raise ConnectionError(f"Resolver API unavailable: {e}")
 
     def build_context_window(
-        self,
-        target_sentence: str,
-        prev_sentences: List[str],
-        next_sentences: List[str]
+        self, target_sentence: str, prev_sentences: List[str], next_sentences: List[str]
     ) -> str:
-        """
-        Build formatted context window for RoBERTa.
-        Format: "prev_context [SEP] target_sentence [SEP] next_context"
-       
-        Args:
-            target_sentence: The generic sentence to classify
-            prev_sentences: Previous sentences (most recent first)
-            next_sentences: Following sentences
-       
-        Returns:
-            Formatted string ready for tokenizer
-        """
-        # Take last N previous sentences (most recent context)
-        prev_context = " ".join(prev_sentences[-self.context_window_size:])
+        """Build formatted context window for RoBERTa."""
+        prev_context = " ".join(prev_sentences[-self.context_window_size :])
+        next_context = " ".join(next_sentences[: self.context_window_size])
 
-        # Take first N next sentences
-        next_context = " ".join(next_sentences[:self.context_window_size])
-
-        # Format with [SEP] tokens (RoBERTa tokenizer handles these)
         parts = []
         if prev_context:
             parts.append(prev_context)
@@ -123,20 +109,9 @@ class NetworkDerivativeResolver:
         return " [SEP] ".join(parts)
 
     def resolve_batch(
-        self,
-        context_windows: List[str],
-        fallback_labels: Optional[List[str]] = None
+        self, context_windows: List[str], fallback_labels: Optional[List[str]] = None
     ) -> List[Tuple[str, float]]:
-        """
-        Send batch of context windows to server for classification.
-       
-        Args:
-            context_windows: List of formatted context strings
-            fallback_labels: Optional list of fallback labels if API fails
-       
-        Returns:
-            List of (label, confidence_score) tuples
-        """
+        """Send batch of context windows to server for classification."""
         if not context_windows:
             return []
 
@@ -145,16 +120,15 @@ class NetworkDerivativeResolver:
 
         try:
             response = requests.post(
-                self.api_url,
-                json={"texts": context_windows},
-                timeout=self.timeout
+                self.api_url, json={"texts": context_windows}, timeout=self.timeout
             )
             response.raise_for_status()
-
             predictions = response.json().get("predictions", [])
 
             if len(predictions) != len(context_windows):
-                log.error(f"Server returned {len(predictions)} predictions for {len(context_windows)} inputs")
+                log.error(
+                    f"Server returned {len(predictions)} predictions for {len(context_windows)} inputs"
+                )
                 return self._fallback_resolution(context_windows, fallback_labels)
 
             results = []
@@ -165,37 +139,29 @@ class NetworkDerivativeResolver:
                     results.append((fallback, 0.0))
                     continue
 
-                # pred format: {'ir': 0.95, 'fx': 0.03, 'cp': 0.01, 'eq': 0.01, 'gen': 0.00}
                 best_label = max(pred, key=pred.get)
                 best_score = pred[best_label]
 
-                # Apply confidence thresholding
                 if best_score >= self.confidence_threshold:
                     results.append((best_label, best_score))
                 else:
-                    # Low confidence → use fallback or 'gen'
                     fallback = fallback_labels[idx] if fallback_labels else "gen"
                     results.append((fallback, best_score))
-                    log.debug(f"Low confidence ({best_score:.3f}) → fallback to '{fallback}'")
 
             return results
 
         except requests.exceptions.Timeout:
             log.error(f"⏱️ API timeout after {self.timeout}s")
             return self._fallback_resolution(context_windows, fallback_labels)
-
         except requests.exceptions.RequestException as e:
             log.error(f"❌ API request failed: {e}")
             return self._fallback_resolution(context_windows, fallback_labels)
-
         except Exception as e:
             log.error(f"❌ Unexpected error in resolve_batch: {e}")
             return self._fallback_resolution(context_windows, fallback_labels)
 
     def _fallback_resolution(
-        self,
-        context_windows: List[str],
-        fallback_labels: Optional[List[str]]
+        self, context_windows: List[str], fallback_labels: Optional[List[str]]
     ) -> List[Tuple[str, float]]:
         """Return fallback labels with 0.0 confidence."""
         if fallback_labels:
@@ -207,48 +173,14 @@ class NetworkDerivativeResolver:
         target_sentence: str,
         prev_sentences: List[str] = [],
         next_sentences: List[str] = [],
-        fallback_label: str = "gen"
+        fallback_label: str = "gen",
     ) -> Tuple[str, float]:
-        """
-        Convenience method for single sentence resolution.
-        """
+        """Convenience method for single sentence resolution."""
         context_window = self.build_context_window(
-            target_sentence,
-            prev_sentences or [],
-            next_sentences or []
+            target_sentence, prev_sentences or [], next_sentences or []
         )
-
-        results = self.resolve_batch(
-            [context_window],
-            fallback_labels=[fallback_label]
-        )
-
+        results = self.resolve_batch([context_window], fallback_labels=[fallback_label])
         return results[0] if results else (fallback_label, 0.0)
-
-
-def resolve_generic_with_ml(
-    target_sentence: str, context_window: List[str], prev_valid_cat: Optional[str]
-) -> Optional[str]:
-    global RESOLVER
-    """
-    Optional: Attempts to resolve a generic sentence using RoBERTa.
-    Only runs if RESOLVER is initialized.
-    """
-    if not RESOLVER:
-        return None
-
-    # Build window: Last 3 sentences (even if they were noise/skipped)
-    # to give RoBERTa the full linguistic flow.
-    label, conf = RESOLVER.resolve_single(
-        target_sentence,
-        prev_sentences=context_window[-3:],
-        next_sentences=[],  # Sequential processing only
-    )
-
-    if conf > 0.85 and label != "gen":
-        return label
-
-    return None
 
 
 def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
@@ -261,85 +193,74 @@ def initialize_resolver(api_url: str = "http://localhost:5000/predict"):
             context_window_size=3,
             timeout=60,
         )
-        print("ML resolver initialized successfully")
+        print("🧠 ML Resolver Initialized")
     except Exception as e:
         print(
-            f"ML resolver unavailable ({e}) – will fall back to regex-only resolution"
+            f"⚠️ ML resolver unavailable ({e}) – will fall back to regex-only resolution"
         )
         RESOLVER = None
 
-# Global resolver instance (initialized once at startup)
+
 RESOLVER: Optional[NetworkDerivativeResolver] = None
 
+
 class GlobalInstrumentTracker:
+    """Tracks instrument → category mappings for resolving generic references."""
+
     def __init__(self):
         self.instrument_map = defaultdict(set)
         self.embedded_regex = re.compile(r"\bembedded\b", re.IGNORECASE)
 
     def register_paragraph(self, paragraph: str, category: str):
-        """
-        Registers high-confidence instruments to build the global map.
-        """
-        # 0. Highly specfic: embedded features. If the word embedded appears
-        # in that same sentence as the paragraph, we should register it for easier lookup
+        """Register instruments found in paragraph to category."""
         if self.embedded_regex.search(paragraph):
             self.instrument_map["embedded"].add(category)
 
-        # 1. Try to find Specific Instruments first (High Confidence)
-        # Use finditer to avoid tuple issues with capturing groups
+        # Specific matches (high confidence)
         specific_matches = [m.group(0) for m in ALL_REGEX.finditer(paragraph)]
 
         if specific_matches:
             for instr in specific_matches:
-                # Search for the base term INSIDE the specific string
                 match = BASE_REGEX.search(instr)
                 if match:
                     token = match.group(0).lower().rstrip("s")
                     self.instrument_map[token].add(category)
         else:
-            # 2. Fallback: Implicit/Soft Context (Medium Confidence)
+            # Fallback: implicit context
             base_matches = BASE_REGEX.findall(paragraph)
             for instr in base_matches:
                 instr = instr.lower()
-                # Safety: Enforce plurality for common words (e.g. "futures", "options")
-                # but allow "swap" as it is rarely a non-financial verb here.
                 if not instr.endswith("s") and instr != "swap":
                     continue
-
                 token = instr.rstrip("s")
                 self.instrument_map[token].add(category)
 
-    def resolve_instrument(self, sentence: str):
-        """
-        Returns a category if the sentence contains an unambiguous global instrument.
-        """
-        # Find potential instruments in the generic sentence
+    def resolve_instrument(self, sentence: str) -> Optional[str]:
+        """Returns category if sentence contains unambiguous global instrument."""
         matches = BASE_REGEX.findall(sentence)
-        # If the sentence contains the word "embedded", add it
         if self.embedded_regex.search(sentence):
             matches.append("embedded")
+
         candidates = set()
         for m in matches:
             token = m.lower().rstrip("s")
             if token in self.instrument_map:
                 candidates.update(self.instrument_map[token])
 
-        # Decision Logic
         if len(candidates) == 1:
-            return list(candidates)[0]  # Unambiguous (e.g., "Swap" -> IR)
-
-        return None  # Collision or Unknown -> Fallback to neighbor logic
+            return list(candidates)[0]
+        return None
 
 
 def get_sentence_categories(
     sentence: str, context_sentences: Optional[List[str]] = None
 ) -> set:
     """
-    Determines category using:
-    1. Strict Context (The Bypass) -> FX > CP > EQ > CR > IR
-    2. Instrument Detection
-    3. Priority Consumption
-    4. Soft Context Tie-Breaking
+    Determines category using multi-phase approach:
+    1. Strict Context Bypass (highest confidence)
+    2. Direct Instrument Detection
+    3. Priority Consumption (soft context)
+    4. Context Window (tie-breaker)
     """
     if context_sentences is None:
         context_sentences = []
@@ -347,25 +268,15 @@ def get_sentence_categories(
     full_text = (
         sentence + " " + " ".join(context_sentences) if context_sentences else sentence
     )
-    scores = {"ir": 0, "fx": 0, "cp": 0, "eq": 0, "cr": 0, "gen": 0}
+    scores = {"ir": 0, "fx": 0, "cp": 0, "eq": 0, "cr": 0, "warr": 0, "gen": 0}
 
-    # ═══════════════════════════════════════════════════════════
-    # PHASE 0: STRICT CONTEXT BYPASS (New)
-    # ═══════════════════════════════════════════════════════════
-    # If we find "Convertible Debt" or "Currency Risk", we know the category.
-    # We assign a massive score to skip ML.
-
-    # Check current sentence ONLY for strict context (context window is too noisy for strictness)
+    # PHASE 0: Strict Context Bypass
     strict_hits = set()
     for cat, regex in STRICT_CONTEXT_MAP.items():
         if regex.search(sentence):
             strict_hits.add(cat)
 
     if strict_hits:
-        # COLLISION LOGIC: Define the Hierarchy
-        # 1. FX overrides CP/IR (e.g. "Currency risk of corn")
-        # 2. EQ overrides IR (e.g. "Convertible debt" - debt is IR, but feature is EQ)
-
         if "fx" in strict_hits:
             scores["fx"] += 2000
         elif "eq" in strict_hits:
@@ -377,12 +288,7 @@ def get_sentence_categories(
         elif "ir" in strict_hits:
             scores["ir"] += 2000
 
-        # If we found a strict context, we can often stop here for classification purposes,
-        # BUT we still run instrument detection to capture specific headers/suffixes.
-
-    # ═══════════════════════════════════════════════════════════
-    # PHASE 1: DIRECT INSTRUMENT DETECTION
-    # ═══════════════════════════════════════════════════════════
+    # PHASE 1: Direct Instrument Detection
     for cat, regex in [
         ("fx", FX_REGEX),
         ("cp", CP_REGEX),
@@ -397,64 +303,61 @@ def get_sentence_categories(
             else:
                 scores[cat] = max(scores[cat], 100)
 
-    # ═══════════════════════════════════════════════════════════
-    # PHASE 2: PRIORITY CONSUMPTION (For Soft Context)
-    # ═══════════════════════════════════════════════════════════
-    # Only run if we have generic instrument OR no strong signals yet
+    # PHASE 2: Priority Consumption (Soft Context)
     if LOOSE_GEN_REGEX.search(sentence) or max(scores.values()) < 1000:
         scores["gen"] = max(scores["gen"], 50)
-
-        # Priority: FX -> EQ -> CP -> CR -> IR
-        # This removes "Currency" before IR sees "Rate", etc.
         priority_order = PRIORTY
         remaining_text = sentence
 
         for cat in priority_order:
-            ctx_regex = CATEGORY_CONTEXT_MAP.get(cat)  # Soft Regex
+            ctx_regex = CATEGORY_CONTEXT_MAP.get(cat)
             if ctx_regex:
                 matches = list(ctx_regex.finditer(remaining_text))
                 if matches:
                     scores[cat] += 50 * len(matches)
                     remaining_text = ctx_regex.sub(" ", remaining_text)
 
-    # ═══════════════════════════════════════════════════════════
-    # PHASE 3: CONTEXT WINDOW (Tie-Breaker)
-    # ═══════════════════════════════════════════════════════════
+    # PHASE 3: Context Window (Tie-Breaker)
     if context_sentences and max(scores.values()) < 1000:
         for cat in PRIORTY:
             context_regex = CATEGORY_CONTEXT_MAP.get(cat)
             if context_regex and context_regex.search(full_text):
-                scores[cat] += 10  # Low weight
+                scores[cat] += 10
 
-    # ═══════════════════════════════════════════════════════════
-    # WINNER DETERMINATION
-    # ═══════════════════════════════════════════════════════════
+    # Winner Determination
     active_scores = {cat: score for cat, score in scores.items() if score > 0}
     if not active_scores:
         return {"other"}
 
     max_score = max(active_scores.values())
-
-    # If Strict Context (2000) or Strict Instrument (1000) found,
-    # filter out the noise.
     threshold = 50
     if max_score >= 1000:
-        threshold = 500  # Kill soft context noise
+        threshold = 500
 
     top_cats = {cat for cat, score in active_scores.items() if score >= threshold}
     specific = top_cats - {"gen"}
 
     return specific if specific else top_cats
 
+
 _cleaner = MinimalTextCleaner()
+
+
 def process_row(row):
+    """
+    Process a single company document through classification.
+
+    Maintains DUAL TEXT versions:
+    - original_s: For venue detection and evidence output
+    - clean_s: For instrument tracking and categorization
+    """
     url, matches_json, cik, year = row
     try:
         paragraphs = json.loads(matches_json)
     except:
         return None
 
-    # --- OUTPUT STRUCTURES ---
+    # Output structures
     evidence_map = defaultdict(list)
     potential_map = defaultdict(list)
 
@@ -465,7 +368,6 @@ def process_row(row):
         "manages_credit_risk": False,
         "is_hedging_sophisticated": False,
         "is_financing_sophisticated": False,
-        "mentions_venue": False,
         "is_historical": False,
     }
 
@@ -475,12 +377,12 @@ def process_row(row):
     for p in paragraphs:
         # Initialize flags
         is_paragraph_deadweight = False
-        
+
+        # VENUE CHECK: Run on original text
         if TRADING_VENUE_REGEX.search(p):
             attributes["mentions_venue"] = True
 
         # --- A. Check for Paragraph-Level Tag (_D) ---
-        # We strip to ensure the regex matches at the start
         para_match = TAG_PARSER_STRICT.match(p)
 
         if para_match:
@@ -491,7 +393,7 @@ def process_row(row):
             if tag_type == "_D":
                 is_paragraph_deadweight = True
 
-                # Mine Attributes from the Deadweight Tag
+                # Mine attributes from deadweight tag
                 if tag_reason == NoiseReason.TRADING.value:
                     attributes["is_hedger"] = True
                 elif tag_reason == NoiseReason.POLICY.value:
@@ -502,27 +404,30 @@ def process_row(row):
                 }:
                     attributes["is_historical"] = True
 
-                # UNWRAP: We must process the content to find Definitions or inner _S tags
+                # UNWRAP: Process the content
                 p = content
 
         # --- B. Sentence Processing ---
-        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
+        sentences_original = [
+            s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()
+        ]
 
-        for s in sentences:
-            # 1. Attribute Mining & Tag Parsing
-            clean_s = s
+        for original_s in sentences_original:
+            # Clean text for instrument tracking
+            clean_s = original_s
             is_sentence_deadweight = False
 
-            sent_match = TAG_PARSER_STRICT.match(s)
+            # --- 1. Parse Sentence-Level Tags ---
+            sent_match = TAG_PARSER_STRICT.match(original_s)
             if sent_match:
-                # It's a tagged sentence (e.g. "_S<TRADING> We do not...")
                 tag_type = sent_match.group(1)
                 tag_reason = sent_match.group(2)
                 clean_s = sent_match.group(3)
 
                 if tag_type == "_S":
                     is_sentence_deadweight = True
-                    # Mine Attributes from Sentence Tag
+
+                    # Mine attributes from sentence tag
                     if tag_reason == NoiseReason.TRADING.value:
                         attributes["is_hedger"] = True
                     elif tag_reason == NoiseReason.POLICY.value:
@@ -534,30 +439,16 @@ def process_row(row):
                     elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
                         attributes["is_historical"] = True
 
-            # 2. Update Context Buffer (Always use clean text)
+            # --- 2. Clean text for tracking (remove entities) ---
+            clean_s = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, clean_s)
+
+            # --- 3. Update context buffer (use clean) ---
             context_buffer.append(clean_s)
             if len(context_buffer) > 5:
                 context_buffer.pop(0)
 
-            # 3. GLOBAL TRACKER UPDATE (Context Map)
-            # KEY CHANGE: We register definitions/instruments even if deadweight.
-            # This allows "Deadweight Definitions" to inform "Live Usage".
-
-            # Check for Definitions (Explicit _S<DEF>)
-            if sent_match and sent_match.group(2) == NoiseReason.DEF.value:
-                cats = get_sentence_categories(clean_s)
-                specific = cats - {"gen", "other"}
-                clean_s = _cleaner.clean_entities(clean_s)
-                for cat in specific:
-                    doc_tracker.register_paragraph(clean_s, cat)
-
-            # Check for Strict Matches (Implicit Definitions)
-            # Even in a "Contractual" paragraph, "Interest Rate Swaps" is a valid token to learn.
-            # We run this on ALL sentences.
-
-            # However, we only allow it to set 'is_sophisticated' if it's NOT deadweight.
-            # (We don't want a definition to trigger the "Active User" flag on its own)
-            clean_s = _cleaner.clean_entities(clean_s)
+            # --- 4. Register to Global Tracker (use clean) ---
+            # All strict matches registered to tracker, regardless of tag status
             strict_cats = set()
             if IR_REGEX.search(clean_s):
                 strict_cats.add("ir")
@@ -573,32 +464,28 @@ def process_row(row):
                 else:
                     strict_cats.add("eq")
 
-            # REGISTER TO TRACKER (Context)
+            # Register to tracker
             for cat in strict_cats:
                 doc_tracker.register_paragraph(clean_s, cat)
 
-            # 4. EVIDENCE COLLECTION (Usage Map)
-            # Only if BOTH paragraph and sentence are clean
+            # --- 5. Collect Evidence (only if NOT deadweight) ---
             if is_paragraph_deadweight or is_sentence_deadweight:
                 continue
 
-            # --- From here on, we are in "Active Evidence" mode ---
+            # --- ACTIVE EVIDENCE MODE ---
 
-            # A. Strict Matches (Anchors)
+            # A. Strict Matches (use original for evidence output)
             if strict_cats:
-                # Update Sophistication Flags
                 attributes["is_hedging_sophisticated"] = True
                 if "warr" in strict_cats:
                     attributes["is_financing_sophisticated"] = True
 
-                # Add to Evidence
                 for cat in strict_cats:
-                    evidence_map[cat].append(clean_s)  # Use original 's' to preserve tags if useful, or 'clean_s'
+                    evidence_map[cat].append(original_s)
 
-            # B. Soft Matches (Potential)
+            # B. Soft Matches (potential)
             else:
                 soft_cats = set()
-                # ... (Standard Soft Match Logic) ...
                 if IR_SOFT_REGEX.search(clean_s):
                     soft_cats.add("ir")
                 if FX_SOFT_REGEX.search(clean_s):
@@ -607,9 +494,7 @@ def process_row(row):
                     soft_cats.add("cp")
                 if EQ_SOFT_REGEX.search(clean_s):
                     if is_sophisticated_content(clean_s):
-                        evidence_map["warr"].append(clean_s)
-                        doc_tracker.register_paragraph(clean_s, "warr")
-                        attributes["is_financing_sophisticated"] = True
+                        soft_cats.add("warr")
                     else:
                         soft_cats.add("eq")
                 if CR_SOFT_REGEX.search(clean_s):
@@ -617,20 +502,27 @@ def process_row(row):
 
                 if soft_cats:
                     for cat in soft_cats:
-                        potential_map[cat].append(clean_s)
+                        potential_map[cat].append(original_s)
                 else:
-                    # C. Generic Resolution (The Payoff)
-                    # We use the tracker we populated (potentially from deadweight)
+                    # C. Generic Resolution
                     cats = get_sentence_categories(clean_s)
                     if "gen" in cats:
                         resolved = doc_tracker.resolve_instrument(clean_s)
                         if resolved and resolved not in {"gen", "other"}:
-                            evidence_map[resolved].append(s)
-                            attributes["is_hedging_sophisticated"] = True
+                            # Upgrade EQ to WARR if sophisticated
+                            if resolved == "eq" and is_sophisticated_content(clean_s):
+                                resolved = "warr"
+                                attributes["is_financing_sophisticated"] = True
+                            else:
+                                attributes["is_hedging_sophisticated"] = True
 
-    # 2. PROMOTION PASS
+                            evidence_map[resolved].append(original_s)
+
+    # --- 2. PROMOTION PASS ---
     is_valid_user = (
-        attributes["is_hedging_sophisticated"] or attributes["uses_hedge_accounting"]
+        attributes["is_hedging_sophisticated"]
+        or attributes["uses_hedge_accounting"]
+        or attributes["is_financing_sophisticated"]
     )
 
     if is_valid_user:
@@ -638,18 +530,16 @@ def process_row(row):
             if cat not in evidence_map:
                 evidence_map[cat].extend(sentences)
 
-    if attributes["is_financing_sophisticated"]:
-        if "eq" in potential_map and "eq" not in evidence_map:
-            evidence_map["eq"].extend(potential_map["eq"])
-
     # Trader Logic
-    if attributes["mentions_venue"] and not attributes["is_hedger"]:
+    if attributes.get("mentions_venue") and not attributes["is_hedger"]:
         attributes["is_trader"] = True
     else:
         attributes["is_trader"] = False
-    del attributes["mentions_venue"]
 
-    # 3. FINAL OUTPUT
+    # Clean up internal flags
+    attributes.pop("mentions_venue", None)
+
+    # --- 3. FINAL OUTPUT ---
     if not evidence_map and not any(attributes.values()):
         return (url, "{}", cik, year)
 
@@ -726,9 +616,9 @@ def write_batch(conn, buffer):
 if __name__ == "__main__":
     try:
         initialize_resolver()
-        print("🧠 ML Resolver Initialized")
     except:
         print("⚠️ ML Server skipped (Regex Only Mode)")
+
     print(f"🚀 Starting Final Classifier ({NUM_WORKERS} workers)")
     setup_target_db(TARGET_DB_PATH)
     processed = get_processed_urls(TARGET_DB_PATH)
