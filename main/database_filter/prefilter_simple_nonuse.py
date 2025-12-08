@@ -289,7 +289,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 
         if TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
             has_termination = True
-        if NON_POSITION_INDICATORS.search(sent) and LOOSE_GEN_REGEX.search(sent):
+        if NON_POSITION_INDICATORS.search(sent):
             has_aoci = True
 
     # === SAFE REMOVAL COMBINATIONS ===
