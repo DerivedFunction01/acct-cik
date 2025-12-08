@@ -4214,6 +4214,13 @@ class NoiseReason(Enum):
     # --- Paragraph Level ---
     HIST_BLOCK = "HIST_BLOCK"
     BOILER_BLOCK = "BOILER_BLOCK"
-    
-def get_tag(token_type: str, reason) -> str:
-    return f"{token_type}<{reason}>"
+    FILING = "FILING"  # 10-K Headers
+    FORWARD = "FORWARD"  # Safe Harbor / Forward Looking
+    LEGAL = "LEGAL"  # Litigation
+    PLAN = "PLAN"  # Pension Plans
+    NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
+    COMP = "COMP"  # Competitors
+    ACCT_STD = "ACCT_STD"  # Accounting Standards
+
+def get_tag(token_type: str, reason: NoiseReason) -> str:
+    return f"{token_type}<{reason.value}>"

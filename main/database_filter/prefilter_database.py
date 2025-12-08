@@ -135,46 +135,46 @@ INDIVIDUAL_FOOTNOTE_PATTERN = re.compile(
 TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
+# In main/database_filter/prefilter_database.py
+
+
 def check_hard_exclusions(text: str) -> Optional[str]:
     """
     Checks text against 'Dead Weight' filters.
-    Returns the discard reason string if matched, otherwise None.
-
-    Order optimized for performance:
-    1. Structural/Boilerplate (High frequency)
-    2. Specific Topic Filters (Simple Regex)
-    3. Scoring Logic (Most expensive, run last)
+    Returns the discard reason string (from Enum) if matched, otherwise None.
     """
 
     # --- TIER 1: HIGH FREQUENCY BOILERPLATE ---
     if EXCLUDE_REGEX_FILING.search(text):
-        return "filing"
+        return NoiseReason.FILING.value
 
     if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
-        return "forward_looking"
+        return NoiseReason.FORWARD.value
 
     # --- TIER 2: SPECIFIC TOPIC FILTERS ---
     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
-        return "legal_litigation"
+        return NoiseReason.LEGAL.value
 
     if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
-        return "pension_plan_assets"
+        return NoiseReason.PLAN.value
 
     if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
-        return "non_financial"
+        return NoiseReason.NON_FIN.value
 
     if EXCLUDE_COMPETITOR_REGEX.search(text):
-        return "competitor_analysis"
-    
-    if VALUATION_MODELS_REGEX.search(text): # To save for convertibles
+        return NoiseReason.COMP.value
+
+    if VALUATION_MODELS_REGEX.search(text):  # To save for convertibles
         return None
+
     # --- TIER 3: SCORING / DENSITY CHECKS (Heavier Ops) ---
     if is_regulatory_noise(text):
-        return "regulatory_boilerplate"
+        return NoiseReason.REG.value
     if is_contractual_noise(text):
-        return "contractual_noise"
+        return NoiseReason.CONTRACT.value
     if is_hypothetical_noise(text):
-        return "hypothetical_noise"
+        # Return the Enum value string to match process_item check
+        return NoiseReason.HYP_SCORE.value
     return None
 
 
@@ -509,7 +509,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             exclusion_reason = check_hard_exclusions(p)
 
             # --- HYPOTHETICAL SALVAGE LOGIC ---
-            if exclusion_reason == "hypothetical_noise":
+            if exclusion_reason == NoiseReason.HYP_SCORE.value:
                 # Check if this "noise" actually contains the specific instrument name.
                 # If so, we must save it as Context (Deadweight), or else we lose
                 # the definition for subsequent paragraphs (e.g. "We hold *these* contracts").
@@ -582,7 +582,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                             discarded_text = " ".join(
                                 sentences[i] for i in sorted(discarded_indices)
                             )
-                            local_discards.append((url, discarded_text, "comp"))
+                            local_discards.append((url, discarded_text, NoiseReason.COMP.value))
                 except Exception as e:
                     local_discards.append((url, p[:100], "equity_comp_salvage_failed"))
                 continue
