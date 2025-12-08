@@ -14,8 +14,6 @@ from derivative_regex import (
     ALL_REGEX,
     BASE_REGEX,
     CATEGORY_CONTEXT_MAP,
-    GEN_REGEX,
-    HEDGING_CONTEXT_REGEX,
     HIGH_PRECISION_SUFFIXES,
     LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
@@ -34,9 +32,8 @@ from derivative_regex import (
     STRICT_CONTEXT_MAP,
     TRADING_VENUE_REGEX,
     NoiseReason,
-    ENTITY_EXCLUSION_REGEX,
-    ENTITY_TOKEN,
 )
+from table_processor import TABLE_ANCHOR
 from prefilter_database import find_hedging_context, is_sophisticated_content
 from prefilter_tagging import MinimalTextCleaner
 
@@ -565,16 +562,82 @@ def process_row(row):
                     # C. Generic Resolution
                     cats = get_sentence_categories(clean_s)
                     if "gen" in cats:
-                        resolved = doc_tracker.resolve_instrument(clean_s)
-                        if resolved and resolved not in {"gen", "other"}:
-                            # Upgrade EQ to WARR if sophisticated
-                            if resolved == "eq" and is_sophisticated_content(clean_s):
-                                resolved = "warr"
-                                attributes["is_financing_sophisticated"] = True
-                            else:
-                                attributes["is_hedging_sophisticated"] = True
+                        # Store for later multi-pass resolution
+                        potential_map["_generic"].append(
+                            {
+                                "original": original_s,
+                                "clean": clean_s,
+                                "categories": cats,
+                                "sentence_index": len(context_buffer) - 1,
+                            }
+                        )
+    # PASS 1: Global Instrument Tracker Resolution
+    if "_generic" in potential_map:
+        generic_sentences = potential_map.pop("_generic")
 
-                            evidence_map[resolved].append(original_s)
+        for gen_item in generic_sentences:
+            resolved = doc_tracker.resolve_instrument(gen_item["clean"])
+
+            if resolved and resolved not in {"gen", "other"}:
+                # Upgrade EQ to WARR if sophisticated
+                if resolved == "eq" and is_sophisticated_content(gen_item["clean"]):
+                    resolved = "warr"
+                    attributes["is_financing_sophisticated"] = True
+                else:
+                    attributes["is_hedging_sophisticated"] = True
+
+                evidence_map[resolved].append(gen_item["original"])
+
+    # PASS 2: Sequential Inheritance (skip tables, inherit from previous narrative)
+    # Track which sentences are from tables
+    sentence_list = []
+    for p in paragraphs:
+        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
+        for s in sentences:
+            is_table = TABLE_ANCHOR in s or "<TABLE>" in s.upper()
+            sentence_list.append({"text": s, "from_table": is_table})
+
+    # Inherit categories from previous non-table sentences
+    for i in range(1, len(sentence_list)):
+        curr = sentence_list[i]
+
+        # Only process generic sentences that aren't from tables
+        if not curr["from_table"] and curr["text"] in [
+            g["original"] for g in (potential_map.get("_generic", []))
+        ]:
+
+            # Find nearest non-table predecessor
+            prev_cat = None
+            for j in range(i - 1, -1, -1):
+                if not sentence_list[j]["from_table"]:
+                    # Check if this predecessor has a category in evidence_map
+                    for cat, sentences in evidence_map.items():
+                        if sentence_list[j]["text"] in sentences:
+                            prev_cat = cat
+                            break
+                    if prev_cat:
+                        break
+
+            # If we found a non-generic predecessor, inherit
+            if prev_cat and prev_cat not in {"gen", "other"}:
+                evidence_map[prev_cat].append(curr["text"])
+
+    # PASS 3: Document-Level Category Inheritance
+    # If document has EXACTLY ONE specific category, assign generics to it
+    all_cats_in_evidence = {
+        cat
+        for cat, sents in evidence_map.items()
+        if sents and cat not in {"gen", "other"}
+    }
+
+    if len(all_cats_in_evidence) == 1:
+        single_cat = list(all_cats_in_evidence)[0]
+
+        # Re-process remaining generics with single-category rule
+        if "_generic" in potential_map:
+            for gen_item in potential_map["_generic"]:
+                evidence_map[single_cat].append(gen_item["original"])
+                attributes["is_hedging_sophisticated"] = True
 
     # --- 2. PROMOTION PASS ---
     is_valid_user = (
