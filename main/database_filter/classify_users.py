@@ -33,6 +33,7 @@ from derivative_regex import (
     TRADING_VENUE_REGEX,
     NoiseReason,
 )
+from main.database_filter.prefilter_database import is_sophisticated_content, is_sophisticated_target
 
 
 # =============================================================================
@@ -463,7 +464,8 @@ def process_row(row):
         "uses_hedge_accounting": False,  # Found _S<POLICY>
         "has_pnl_activity": False,  # Found _S<PNL>
         "manages_credit_risk": False,  # Found _S<CREDIT>
-        "is_sophisticated": False,  # Found STRICT match
+        "is_hedging_sophisticated": False,  # Found STRICT match
+        "is_financing_sohpisticated": False,
         "mentions_venue": False,  # temp flag for commodity traders
         "is_historical": False,
     }
@@ -552,12 +554,16 @@ def process_row(row):
             if CP_REGEX.search(s):
                 strict_cats.add("cp")
             if EQ_REGEX.search(s):
-                strict_cats.add("eq")
+                if is_sophisticated_content(s):
+                    strict_cats.add("warr") # both warrants and convertibles
+                    attributes["is_financing_sophisticated"] = True
+                else:
+                    strict_cats.add("eq")
             if CR_REGEX.search(s):
                 strict_cats.add("cr")
 
             if strict_cats:
-                attributes["is_sophisticated"] = True
+                attributes["is_hedging_sophisticated"] = True
                 for cat in strict_cats:
                     evidence_map[cat].append(s)
                     doc_tracker.register_paragraph(s, cat)
@@ -572,7 +578,16 @@ def process_row(row):
                 if CP_SOFT_REGEX.search(s):
                     soft_cats.add("cp")
                 if EQ_SOFT_REGEX.search(s):
-                    soft_cats.add("eq")
+                    if is_sophisticated_content(s):
+                        # UPGRADE: It matched Soft Regex, but Context proves it's a Financing Instrument.
+                        # Action: Treat as PROVEN evidence (Anchor), not Potential.
+                        evidence_map["warr"].append(s)
+                        doc_tracker.register_paragraph(s, "warr")
+                        attributes["is_financing_sophisticated"] = True
+                    else:
+                        # It matched Soft Regex but looks like "Equity Options" (Trading).
+                        # Action: Keep as POTENTIAL.
+                        soft_cats.add("eq")
                 if CR_SOFT_REGEX.search(s):
                     soft_cats.add("cr")
 
@@ -594,18 +609,24 @@ def process_row(row):
 
                         if resolved and resolved not in {"gen", "other"}:
                             evidence_map[resolved].append(s)
-                            attributes["is_sophisticated"] = True
+                            attributes["is_hedging_sophisticated"] = True
 
     # 2. PROMOTION PASS (Piggybacking)
     # If firm is Sophisticated OR uses Hedge Accounting, we trust the Soft matches.
     is_valid_user = (
-        attributes["is_sophisticated"] or attributes["uses_hedge_accounting"]
+        attributes["is_hedging_sophisticated"] or attributes["uses_hedge_accounting"]
     )
 
     if is_valid_user:
         for cat, sentences in potential_map.items():
             if cat not in evidence_map:
                 evidence_map[cat].extend(sentences)
+
+    if attributes["is_financing_sophisticated"]:
+        # Only trust soft equity signals
+        if "eq" in potential_map and "eq" not in evidence_map:
+            evidence_map["eq"].extend(potential_map["eq"])
+            
     # 2.5: Trading attributes: if it is not a hedger, then it is a trader
     if attributes["mentions_venue"] and not attributes["is_hedger"]:
         attributes["is_trader"] = True
