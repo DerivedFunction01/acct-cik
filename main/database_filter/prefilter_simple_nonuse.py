@@ -197,8 +197,6 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 
     Returns the specific DEADWEIGHT tag (e.g. " _D<HYPO>") if excluded, else None.
     """
-    if DEADWEIGHT_TOKEN in text:
-        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
 
     def has_instrument(text: str) -> bool:
         return bool(SOFT_REGEX.search(text))
@@ -341,10 +339,6 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
     Checks for general deadweight categories (Policy, History, etc.).
     Returns the specific tag string if excluded, else None.
     """
-
-    # --- 1. HARD KILLS (Run BEFORE Verbs) ---
-    if DEADWEIGHT_TOKEN in text:
-        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
 
     # B. Historical Check
     if year:
