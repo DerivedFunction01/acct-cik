@@ -75,8 +75,6 @@ SOPHISTICATED_TARGET_GATE = re.compile(
     rf"(?:{EQ_REGEX.pattern}|{EQ_SOFT_REGEX.pattern})", re.IGNORECASE
 )
 
-WARRANT_CATCHER = re.compile(r"\bwarrants?\b", re.IGNORECASE)
-
 # 2. Sophisticated Context (The "Why/How")
 # Used to validate the sophisticated buffer.
 SOPHISTICATED_CONTEXT_TERMS = [
