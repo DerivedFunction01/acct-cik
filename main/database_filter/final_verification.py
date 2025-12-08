@@ -46,6 +46,7 @@ LLM_MODEL = "gpt-4-turbo"
 
 from derivative_regex import (
     ALL_REGEX,
+    COMMODITY_UNIT_PATTERN,
     ENTITY_TOKEN,
     GEN_REGEX,
     MIN_SENTENCE_LENGTH,
@@ -90,17 +91,17 @@ VALID_QUANT_CONTEXT_REGEX = re.compile(
 )
 NUMBER_PATTERN = r"(?:0\.\d+|(?:[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d*)(?:\.\d+)?)"
 SCALE_WORDS = r"(?:million|billion|trillion|thousand)"
-
 QUANT_REGEX = re.compile(
     # Currency symbol + optional parens + number + optional parens
     rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*\(?\s*{NUMBER_PATTERN}\s*\)?|"
     # Number + optional parens + currency symbol
     rf"\(?\s*{NUMBER_PATTERN}\s*\)?\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
     # Currency + number + scale word
-    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s+{NUMBER_PATTERN}\s+{SCALE_WORDS}",
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s+{NUMBER_PATTERN}\s+{SCALE_WORDS}|"
+    # Number + optional scale word + commodity unit
+    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+{COMMODITY_UNIT_PATTERN}",
     re.IGNORECASE,
 )
-
 VERB_REGEX = re.compile(rf"\b(?:{STRONG_VERB_PATTERN}|consists?\s+of)\b", re.IGNORECASE)
 LEVEL_REGEX = re.compile(
     r"\b(?:Level\s+[123]|observable|record(?:s|ed)?|recogniz(?:ed?|ing|es))\b",
