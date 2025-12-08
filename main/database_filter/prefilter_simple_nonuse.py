@@ -296,20 +296,37 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
         hedging_sentence_count == hedging_sentences_with_indicators
         and hedging_sentence_count > 0
     ):
+        # If the indicator was termination, prefer TERM tag over BOILER_BLOCK
+        if has_termination:
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
 
-    # 4. Potential / Hypothetical
+    # 4. Termination (PRIORITIZED)
+    # Check this BEFORE Potential. If "may" and "terminate" co-exist,
+    # treating it as TERM saves the "Historical" signal.
+    if has_termination:
+        # Check safeguards: if it's "may terminate" but we haven't found valid current year activity
+        if has_potential:
+            return get_tag(
+                DEADWEIGHT_TOKEN, NoiseReason.TERM
+            )  # "May terminate" -> Historical Signal
+
+        # Standard termination logic
+        if has_absence:
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
+        if not has_current_year_activity and has_only_past_years(text, year):
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
+
+    # 5. Potential / Hypothetical (Fallback)
     if has_potential:
         if is_strictly_generic and has_trading_denial:
             return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
         if has_absence:
             return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
-        if has_termination:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
         if has_trading_denial:
             return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
 
-    # 5. Historical / Policy / Absence
+    # 6. Historical / Policy / Absence (Remaining Logic)
     else:
         # Historic activity filters
         if not has_current_year_activity and has_only_past_years(text, year):
@@ -318,10 +335,6 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
         # Generic policy with no trade
         if has_trading_denial and is_strictly_generic:
             return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
-
-        # Terminated + no outstanding
-        if has_termination and has_absence:
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
 
         # Stated absence
         if has_absence:
