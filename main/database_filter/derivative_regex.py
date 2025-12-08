@@ -3660,60 +3660,76 @@ def build_reference_patterns() -> re.Pattern:
     # No SENTENCE_TAIL. We rely on text cleaning to scrub the debris.
     return re.compile(r"|".join(patterns), re.IGNORECASE)
 
+# Exhibit/Reference nouns
+EXHIBIT_NOUNS = [
+    "exhibits",
+    "references",
+    "note",
+    "appendix",
+    "schedule",
+    "article",
+    "section",
+    "subsection",
+    "statement",
+    "table",
+    "No.",
+    "page",
+    "pp.",
+    "p.",
+    "figure",
+    "chart",
+]
+EXHIBIT_FRAGMENT = build_alternation(EXHIBIT_NOUNS)
+
 def build_simple_reference_regex() -> re.Pattern:
     """
-    Simplified pattern to detect navigational sentences.
-    Focuses on 'See Note', 'Table below', and 'Refer to'.
+    Detects sentences that are primarily navigational pointers.
+    Structure: [Pointer Verb] + [Exhibit Noun] OR [Exhibit Noun] + [Direction]
     """
-    keywords = [
-        # 1. Direct Pointers (Start of phrase)
-        r"(?:see|refer\s+to|included\s+in|contained\s+in)\s+(?:the\s+)?(?:note|table|schedule|exhibit|section)",
-        # 2. Positional Pointers (Noun + Direction)
-        r"(?:note|table|schedule|exhibit)\s+(?:below|above|following|accompanying)",
-        # 3. Explicit Numbered References
-        r"(?:note|schedule)\s+(?:no\.\s+)?\d+",
-        # 4. Passive "As shown"
-        r"as\s+(?:shown|presented|detailed|discussed)\s+in",
+    
+    # 1. Pointer Anchors (Start of phrase usually)
+    pointers = [
+        r"see", 
+        r"refer\s+to", 
+        r"reference\s+is\s+made\s+to",
+        r"included\s+in", 
+        r"contained\s+in", 
+        r"set\s+forth\s+in",
+        r"discussed\s+in", 
+        r"as\s+shown\s+in",
+        r"as\s+presented\s+in",
+        r"as\s+detailed\s+in"
     ]
+    pointer_alt = build_alternation(pointers)
 
-    pattern = build_alternation(keywords)
-    return re.compile(rf"\b{pattern}\b", re.IGNORECASE)
+    # 2. Directions (for "Table below")
+    directions = [
+        "below", "above", "following", "accompanying", "attached", "herein"
+    ]
+    direction_alt = build_alternation(directions)
 
+    # PATTERN A: "See Note 5", "Refer to the Table"
+    # Matches: (Pointer) (Optional 'the') (Noun)
+    pat_a = rf"\b(?:{pointer_alt})\s+(?:the\s+)?(?:{EXHIBIT_FRAGMENT})\b"
 
-# Compile it once
+    # PATTERN B: "The table below", "The accompanying schedule"
+    # Matches: (Noun) (Direction)
+    pat_b = rf"\b(?:{EXHIBIT_FRAGMENT})\s+(?:{direction_alt})\b"
+
+    # PATTERN C: "Note 5.", "Exhibit 10." (Explicit Numbering at sentence start/end)
+    # Checks for Noun + Number (1-3 digits)
+    pat_c = rf"\b(?:{EXHIBIT_FRAGMENT})\s+(?:No\.\s+)?\d{{1,3}}\b"
+
+    return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
+
+# Compile once
 IS_REFERENCE_REGEX = build_simple_reference_regex()
-
 
 def is_reference_noise(text: str) -> bool:
     """
-    Returns True if the sentence is primarily a navigational pointer.
-    Fast check using simplified regex.
+    Fast check: Is this sentence a navigational pointer?
     """
-    # 1. Regex Check
-    if IS_REFERENCE_REGEX.search(text):
-        return True
-
-    # 2. Optional: Bag of Words fallback (if regex misses weird phrasings)
-    # Checks for density of navigation words
-    nav_words = {
-        "see",
-        "refer",
-        "note",
-        "table",
-        "below",
-        "above",
-        "following",
-        "exhibit",
-    }
-    words = set(text.lower().split())
-
-    # If 3+ navigation words appear, it's likely a reference
-    # e.g. "See the table below." -> {see, table, below} = 3
-    common = words.intersection(nav_words)
-    if len(common) >= 3:
-        return True
-
-    return False
+    return bool(IS_REFERENCE_REGEX.search(text))
 
 
 def build_information_reference_regex() -> re.Pattern:
