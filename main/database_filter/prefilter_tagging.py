@@ -7,15 +7,32 @@ from pathlib import Path
 from tqdm import tqdm
 
 from derivative_regex import (
+    # Structural
+    ABSENCE_REGEX,
     EMBEDDED_CAP_FLOOR_REGEX,
     IS_REFERENCE_REGEX,
     MORE_INFO_REGEX,
-    REFERENCE_CLEANUP_REGEX,
     SENTENCE_SPLIT_PATTERN,
     DEFINITION_INDICATORS,
     ENTITY_EXCLUSION_REGEX,
-    ENTITY_TOKEN
+    ENTITY_TOKEN,
+    # Business Logic
+    TRADING_STATEMENTS_REGEX,
+    NON_POSITION_INDICATORS,
+    EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
+    # Classification Killers
+    POTENTIAL_REGEX,
+    NEGATIVE_INTENT_REGEX,
+    TERMINATION_REGEX,
+    VAGUE_TIMING_REGEX,
+    YEAR_REGEX,
+    PRIOR_PATTERN,
+    ACTIVE_STATE_REGEX,
 )
+
+# Import Phase 6 Logic
+from notional_filter import check_is_quantitative_zero
+
 from prefilter_simple_nonuse import DEADWEIGHT_TOKEN
 
 # =============================================================================
@@ -25,23 +42,99 @@ NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 250
 CHUNK_SIZE = 20
 SOURCE_DB_PATH = "refined_data.db"
-TARGET_DB_PATH = "cleaned_data.db"
+TARGET_DB_PATH = "tagged_data.db"
 
-# Tokens
+# Token for sentence-level skips
 SKIP_TOKEN = " _S "
 
+# =============================================================================
+# STAGE-SPECIFIC CHECKS
+# =============================================================================
 
-def tag_paragraph(text):
+
+def is_temporal_noise(text: str, reporting_year: int) -> bool:
+    """[Phase 3] Returns True if sentence is purely historical."""
+    if not reporting_year:
+        return False
+
+    years = [int(y) for y in YEAR_REGEX.findall(text)]
+    if years:
+        # If ALL years are in the past, it's noise.
+        # (e.g. "In 2021 and 2022 we held..." vs Report 2024)
+        return all(y < reporting_year for y in years)
+
+    # Fallback: "In prior years", "During the previous period"
+    if PRIOR_PATTERN.search(text):
+        return True
+    return False
+
+
+def is_intent_noise(text: str) -> bool:
+    """[Phase 4] Returns True if sentence is hypothetical or negative."""
+    # "We may enter", "We expect to use" (Hypothetical)
+    if POTENTIAL_REGEX.search(text) or VAGUE_TIMING_REGEX.search(text):
+        return True
+    # "We do not intend to use", "We have no plans" (Negative)
+    if NEGATIVE_INTENT_REGEX.search(text) or ABSENCE_REGEX.search(text):
+        return True
+    return False
+
+
+def is_termination_noise(text: str) -> bool:
+    """[Phase 5] Returns True if sentence describes dead positions."""
+    # "The swaps expired", "Positions were terminated"
+    # Note: If you want to salvage "Expired... but replaced", add logic here.
+    if TERMINATION_REGEX.search(text):
+        return True
+    return False
+
+
+def is_quantitative_noise(text: str, reporting_year: int) -> bool:
+    """[Phase 6] Returns True if values for the reporting year are zero."""
+    if not reporting_year:
+        return False
+    # Uses your existing notional_filter logic to map Year -> Value
+    # Returns True if the mapping shows $0 for the current year.
+    return check_is_quantitative_zero(text, reporting_year)
+
+
+def check_paragraph_level_noise(text: str, reporting_year: int) -> bool:
+    """[Phase 1 & 3 Block Level] Checks if the entire paragraph is deadweight."""
+
+    # 1. Historical Narrative Block (Phase 3)
+    # If paragraph has years, and ALL are past, and no "Active" keywords
+    if reporting_year:
+        years = [int(y) for y in YEAR_REGEX.findall(text)]
+        if years and all(y < reporting_year for y in years):
+            if not ACTIVE_STATE_REGEX.search(text):
+                return True
+
+    # 2. Boilerplate / Trading Denial Block (Phase 1/4)
+    # If it's just "We do not trade derivatives" repeated
+    if TRADING_STATEMENTS_REGEX.search(text) and len(text) < 150:
+        return True
+
+    return False
+
+
+# =============================================================================
+# CORE TAGGING LOGIC
+# =============================================================================
+
+
+def tag_paragraph(text: str, reporting_year: int) -> str:
     """
-    Applies regex noise detection per sentence.
-    Returns the text with _S tokens inserted.
-    If ALL sentences are _S, prepends _D to the paragraph.
+    Applies the 7-Phase logic non-destructively.
     """
-    # 1. Create a Masked Version for Logic Checks
-    # We operate on this (so "CFTC" -> "ENTITY") to catch entity noise
+    # 1. MASKING (Phase 1)
+    # We operate on masked text to avoid "Chicago Mercantile Exchange" false positives
     masked_text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
 
-    # 2. Split BOTH versions (Must stay aligned)
+    # 2. PARAGRAPH-LEVEL CHECK
+    if check_paragraph_level_noise(masked_text, reporting_year):
+        return f"{DEADWEIGHT_TOKEN}{text}"
+
+    # 3. SENTENCE SPLITTING
     original_sentences = [
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
     ]
@@ -49,7 +142,7 @@ def tag_paragraph(text):
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()
     ]
 
-    # Safety: If split counts differ (rare regex edge case), fallback to keeping original
+    # Safety alignment check
     if len(original_sentences) != len(masked_sentences):
         return text
 
@@ -59,17 +152,34 @@ def tag_paragraph(text):
     for orig, masked in zip(original_sentences, masked_sentences):
         is_noise = False
 
-        # --- NOISE CHECKS (Run on MASKED version) ---
-        # A. Navigational / Info Pointers ("See Note 5", "For more info")
+        # --- PHASE 1: Structural Noise ---
         if IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
             is_noise = True
-
-        # B. Definitions ("Swap shall mean...")
         elif DEFINITION_INDICATORS.search(masked):
             is_noise = True
+        elif NON_POSITION_INDICATORS.search(masked):  # PnL/AOCI
+            is_noise = True
+        elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):  # NPNS
+            is_noise = True
+        elif TRADING_STATEMENTS_REGEX.search(masked):  # "We do not trade"
+            is_noise = True
+        elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):  # Loan noise
+            is_noise = True
 
-        # C. Embedded Loan Features (unless salvaged)
-        elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
+        # --- PHASE 3: Temporal Filtering ---
+        elif is_temporal_noise(masked, reporting_year):
+            is_noise = True
+
+        # --- PHASE 4: Intent Filtering ---
+        elif is_intent_noise(masked):
+            is_noise = True
+
+        # --- PHASE 5: Termination Filtering ---
+        elif is_termination_noise(masked):
+            is_noise = True
+
+        # --- PHASE 6: Quantitative Filtering ---
+        elif is_quantitative_noise(masked, reporting_year):
             is_noise = True
 
         # --- TAGGING ---
@@ -79,10 +189,9 @@ def tag_paragraph(text):
             tagged_output.append(orig)
             valid_count += 1
 
-    # Reassemble
     final_text = " ".join(tagged_output)
 
-    # If NO sentences survived, mark the whole block as Deadweight
+    # If NO sentences survived the gauntlet, the paragraph is Deadweight.
     if valid_count == 0:
         return f"{DEADWEIGHT_TOKEN}{final_text}"
 
@@ -98,27 +207,25 @@ def process_row(row):
 
     new_paragraphs = []
     for p in paragraphs:
-        # Skip if already deadweight from previous stage
+        # Respect existing tags from previous steps
         if p.startswith(DEADWEIGHT_TOKEN):
             new_paragraphs.append(p)
             continue
 
-        # Run the sentence tagger
-        tagged_p = tag_paragraph(p)
+        tagged_p = tag_paragraph(p, year)
         new_paragraphs.append(tagged_p)
 
     return (url, json.dumps(new_paragraphs), cik, year)
 
 
 # =============================================================================
-# DATABASE SETUP
+# INFRASTRUCTURE
 # =============================================================================
+
 
 def setup_target_db(path):
     if Path(path).exists():
-        pass  # Optional: uncomment to delete for fresh start
-        # Path(path).unlink()
-    
+        pass
     conn = sqlite3.connect(path)
     c = conn.cursor()
     c.execute(
@@ -136,43 +243,33 @@ def get_processed_urls(path):
     if not Path(path).exists():
         return set()
     conn = sqlite3.connect(path)
-    c = conn.cursor()
     try:
-        c.execute("SELECT url FROM webpage_result")
-        return {row[0] for row in c.fetchall()}
+        return {row[0] for row in conn.execute("SELECT url FROM webpage_result")}
     except:
         return set()
+    finally:
+        conn.close()
 
 
 def data_generator(source_db, processed_urls, batch_size=BATCH_SIZE):
-    """
-    Yields rows one by one from source database.
-    Prevents loading all rows into RAM.
-    """
     conn = sqlite3.connect(source_db)
-    c = conn.cursor()
-    c.execute(
+    cursor = conn.cursor()
+    cursor.execute(
         "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
-
     while True:
-        rows = c.fetchmany(batch_size)
+        rows = cursor.fetchmany(batch_size)
         if not rows:
             break
-
         for row in rows:
-            url = row[0]
-            if url in processed_urls:
-                continue
-            yield row
-
+            if row[0] not in processed_urls:
+                yield row
     conn.close()
 
 
 def write_batch(conn, buffer):
     if not buffer:
         return
-
     c = conn.cursor()
     try:
         c.execute("BEGIN TRANSACTION")
@@ -190,52 +287,27 @@ def write_batch(conn, buffer):
         conn.rollback()
 
 
-# =============================================================================
-# MAIN LOGIC
-# =============================================================================
-
 if __name__ == "__main__":
-    print(f"🚀 Starting Secondary Filter ({NUM_WORKERS} workers)")
-
-    # 1. Setup
+    print(f"🚀 Starting 7-Stage Tagger ({NUM_WORKERS} workers)")
     setup_target_db(TARGET_DB_PATH)
-    processed_urls = get_processed_urls(TARGET_DB_PATH)
-    print(f"📋 Found {len(processed_urls)} processed URLs.")
+    processed = get_processed_urls(TARGET_DB_PATH)
 
-    # 2. Connect Writer DB (Main Thread Only)
-    target_conn = sqlite3.connect(TARGET_DB_PATH, timeout=60)
-    target_conn.execute("PRAGMA journal_mode=WAL")
-    target_conn.execute("PRAGMA synchronous=NORMAL")
+    conn = sqlite3.connect(TARGET_DB_PATH, timeout=60)
+    conn.execute("PRAGMA journal_mode=WAL")
 
-    # 3. Processing Loop
     buffer = []
-    count = 0
-
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        # Create iterator (does not load all to RAM)
-        source_iter = list(data_generator(SOURCE_DB_PATH, processed_urls))
-        total_items = len(source_iter)
+        source = list(data_generator(SOURCE_DB_PATH, processed))
+        for result in tqdm(
+            executor.map(process_row, source, chunksize=CHUNK_SIZE), total=len(source)
+        ):
+            if result:
+                buffer.append(result)
+                if len(buffer) >= BATCH_SIZE:
+                    write_batch(conn, buffer)
+                    buffer = []
 
-        # executor.map yields results in order
-        results_iter = executor.map(process_row, source_iter, chunksize=CHUNK_SIZE)
-
-        # Wrap in tqdm with total
-        for result in tqdm(results_iter, desc="Tagging Sentences", total=total_items):
-            if not result:
-                continue
-
-            url, matches, cik, year = result
-            buffer.append((url, matches, cik, year))
-
-            if len(buffer) >= BATCH_SIZE:
-                write_batch(target_conn, buffer)
-                buffer = []
-
-            count += 1
-
-    # 4. Final Flush
     if buffer:
-        write_batch(target_conn, buffer)
-
-    target_conn.close()
-    print(f"✅ Complete. Processed {count} documents.")
+        write_batch(conn, buffer)
+    conn.close()
+    print("✅ Complete.")
