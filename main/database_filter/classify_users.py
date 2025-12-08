@@ -229,6 +229,8 @@ class GlobalInstrumentTracker:
             base_matches = BASE_REGEX.findall(paragraph)
             for instr in base_matches:
                 instr = instr.lower()
+                if instr.startswith("hedg"): #ignore hedge, it is too generic
+                    continue
                 if not instr.endswith("s") and instr != "swap":
                     continue
                 token = instr.rstrip("s")
