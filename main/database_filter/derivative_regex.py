@@ -4226,8 +4226,8 @@ class NoiseReason(Enum):
     HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging
     NO_SOPH  = "NO_SOPH" # No indication of convertible/warrants as derivatives
 
-def get_tag(token_type: str, reason: NoiseReason) -> str:
-    return f"{token_type}<{reason.value}>"
+def get_tag(token_type: str, reason: NoiseReason | str) -> str:
+    return f"{token_type}<{reason.value if isinstance(reason, NoiseReason) else reason}>" 
 
 # In derivative_regex.py
 
