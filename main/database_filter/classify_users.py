@@ -14,6 +14,8 @@ from derivative_regex import (
     ALL_REGEX,
     BASE_REGEX,
     CATEGORY_CONTEXT_MAP,
+    GEN_REGEX,
+    HEDGING_CONTEXT_REGEX,
     HIGH_PRECISION_SUFFIXES,
     LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
@@ -491,7 +493,8 @@ def process_row(row):
                 if FX_SOFT_REGEX.search(clean_s):
                     soft_cats.add("fx")
                 if CP_SOFT_REGEX.search(clean_s):
-                    soft_cats.add("cp")
+                    if HEDGING_CONTEXT_REGEX.search(clean_s) or GEN_REGEX.search(clean_s):
+                        soft_cats.add("cp")
                 if EQ_SOFT_REGEX.search(clean_s):
                     if is_sophisticated_content(clean_s):
                         soft_cats.add("warr")
