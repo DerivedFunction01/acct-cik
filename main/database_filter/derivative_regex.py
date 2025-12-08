@@ -3725,12 +3725,6 @@ def build_simple_reference_regex() -> re.Pattern:
 # Compile once
 IS_REFERENCE_REGEX = build_simple_reference_regex()
 
-def is_reference_noise(text: str) -> bool:
-    """
-    Fast check: Is this sentence a navigational pointer?
-    """
-    return bool(IS_REFERENCE_REGEX.search(text))
-
 
 def build_information_reference_regex() -> re.Pattern:
     """
