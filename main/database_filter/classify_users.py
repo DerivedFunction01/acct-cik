@@ -465,7 +465,7 @@ def process_row(row):
         "has_pnl_activity": False,  # Found _S<PNL>
         "manages_credit_risk": False,  # Found _S<CREDIT>
         "is_hedging_sophisticated": False,  # Found STRICT match
-        "is_financing_sohpisticated": False,
+        "is_financing_sophisticated": False,
         "mentions_venue": False,  # temp flag for commodity traders
         "is_historical": False,
     }
