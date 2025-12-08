@@ -454,7 +454,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     append_to_buffer(buffer_type, idx, salvaged_p, salvaged_p_masked)
                 continue
             # === EXCLUSIONS ===
-            exclusion_reason = check_hard_exclusions(p_masked)
+            exclusion_reason = check_hard_exclusions(p)
 
             # --- HYPOTHETICAL SALVAGE LOGIC ---
             if exclusion_reason == "hypothetical_noise":
