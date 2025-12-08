@@ -515,11 +515,13 @@ def process_row(row):
                     attributes["manages_credit_risk"] = True
 
                 elif tag_str == NoiseReason.DEF.value:
-                    # Definitions help the Tracker know "Swaps" = IR
+                    # Definitions help the Tracker know "Swaps" = IR/FX/etc.
                     cats = get_sentence_categories(clean_text)
                     specific = cats - {"gen", "other"}
                     if specific:
-                        doc_tracker.register_paragraph(clean_text, list(specific)[0])
+                        # NEW (Correct): Register ALL categories found in the definition
+                        for cat in specific:
+                            doc_tracker.register_paragraph(clean_text, cat)
 
                 # Add to context
                 context_buffer.append(clean_text)
@@ -603,7 +605,7 @@ def process_row(row):
     else:
         attributes["is_trader"] = False
     del attributes["mentions_venue"]
-    
+
     # 3. FINAL OUTPUT
     if not evidence_map and not any(attributes.values()):
         return (url, "{}", cik, year)
