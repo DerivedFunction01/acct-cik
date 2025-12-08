@@ -135,10 +135,13 @@ class TableToTextConverter:
         return header_cells, data_cells
 
     def _extract_caption(self, text: str) -> str:
-        """Extracts text following the <caption> tag."""
-        match = re.search(r"<caption>\s*(.*)", text, re.IGNORECASE)
+        """Extracts text following the <caption> tag until double newline."""
+        match = re.search(r"<caption>\s*(.*?)\n\n", text, re.IGNORECASE | re.DOTALL)
         if match:
-            return match.group(1).strip()
+            caption_text = match.group(1).strip()
+            # Clean up whitespace while preserving structure
+            caption_text = re.sub(r"\s+", " ", caption_text)
+            return caption_text
         return ""
 
     def _analyze_caption_context(self, caption: str) -> Optional[str]:
