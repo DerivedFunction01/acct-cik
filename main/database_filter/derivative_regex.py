@@ -654,7 +654,7 @@ HEDGING_CONTEXT_TERMS = (
         r"risk\s+management",
         rf"economic\s+{_RISK_ALTERNATION}",
         # --- Safe for Phase 1 Contextual Capture ---
-        rf"(?:market|rate|currency|credit|counterparty|equity)[ -]{_RISK_ALTERNATION}",
+        rf"(?:market|rate|currency|credit|counterparty|equity|price)[ -]{_RISK_ALTERNATION}",
         r"fluctuations?",  # e.g., "protect against fluctuations"
         r"volatility",  # e.g., "manage volatility"
         r"bifurcat(?:ed|ion|ing)",
