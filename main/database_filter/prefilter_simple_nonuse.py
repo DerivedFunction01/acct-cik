@@ -24,6 +24,7 @@ from year_deletion import extract_years
 
 from derivative_regex import (
     ACTIVE_STATE_REGEX,
+    CR_REGEX,
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
     EXHIBIT_FRAGMENT,
@@ -350,9 +351,6 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
     # --- 1. HARD KILLS (Run BEFORE Verbs) ---
     if DEADWEIGHT_TOKEN in text:
         return "deadweight"
-    # A. AOCI / PnL Lists
-    if NON_POSITION_INDICATORS.search(text):
-        return "aoci_pnl_reclassification"
 
     # B. Historical Check
     if year:
@@ -377,9 +375,12 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
     # A. Policy & Methodology
     if POLICY_REGEX.search(text):
         return "accounting_policy_boilerplate"
+    
+    if NON_POSITION_INDICATORS.search(text):
+        return "aoci_pnl_reclassification"
 
     # C. Counterparty / Credit Risk
-    if COUNTERPARTY_REGEX.search(text):
+    if COUNTERPARTY_REGEX.search(text) and not CR_REGEX.search(text):
         return "credit_risk_management"
 
     return None
