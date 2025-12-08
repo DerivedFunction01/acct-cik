@@ -138,7 +138,7 @@ class MinimalTextCleaner:
         Removes noise that would interfere with extract_values_and_years().
 
         Pipeline:
-        1. Clean numeric noise (bullets, dates, IDs, years)
+        1. Clean numeric noise (bullets, dates, IDs, years if remove_years is true)
         2. Normalize whitespace
         3. Return cleaned text ready for QUANT_REGEX/value extraction
         """
