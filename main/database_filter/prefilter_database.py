@@ -46,8 +46,10 @@ from derivative_regex import (
     TABLE_REGEX,
     VALUATION_MODELS,
     VALUATION_MODELS_REGEX,
+    NoiseReason,
     aggregate_discards,
     build_alternation,
+    get_tag,
     is_contractual_noise,
     is_hypothetical_noise,
     is_regulatory_noise,
@@ -520,7 +522,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     # SAVE AS DEADWEIGHT:
                     # 1. Mark with token so Main Filter knows it's not active usage.
                     # 2. Add to buffer so it provides context to neighbors.
-                    p_deadweight = f"{DEADWEIGHT_TOKEN} {p}"
+                    p_deadweight = f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYP_SCORE)} {p}"
 
                     # We append to 'clean' buffer (using masked text for validation logic)
                     append_to_buffer("clean", idx, p_deadweight, p_masked)
