@@ -223,6 +223,8 @@ class GlobalInstrumentTracker:
                 match = BASE_REGEX.search(instr)
                 if match:
                     token = match.group(0).lower().rstrip("s")
+                    if token.startswith("hedg"):  # ignore hedge, it is too generic
+                        continue
                     self.instrument_map[token].add(category)
         else:
             # Fallback: implicit context
