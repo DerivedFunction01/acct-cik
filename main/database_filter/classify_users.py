@@ -33,7 +33,8 @@ from derivative_regex import (
     TRADING_VENUE_REGEX,
     NoiseReason,
 )
-from main.database_filter.prefilter_database import is_sophisticated_content, is_sophisticated_target
+from prefilter_database import is_sophisticated_content
+from prefilter_tagging import MinimalTextCleaner
 
 
 # =============================================================================
@@ -45,7 +46,7 @@ SOURCE_DB_PATH = "tagged_data.db"
 TARGET_DB_PATH = "classified_data.db"
 
 # Tag Parsing Regex: Captures _S<REASON> (Group 1) and Text (Group 2)
-TAG_PARSER = re.compile(r" _[SD]<([^>]+)> (.*)")
+TAG_PARSER_STRICT = re.compile(r"^\s*(_[SD])<([^>]+)>\s+(.*)", re.DOTALL)
 PRIORTY = ["fx", "cp", "eq", "cr", "ir"]
 
 import requests
@@ -445,75 +446,6 @@ def get_sentence_categories(
 
     return specific if specific else top_cats
 
-import sqlite3
-import json
-import re
-import logging
-from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
-import multiprocessing as mp
-from tqdm import tqdm
-from typing import List, Optional, Tuple
-
-# --- IMPORTS ---
-from derivative_regex import (
-    ALL_REGEX,
-    BASE_REGEX,
-    CATEGORY_CONTEXT_MAP,
-    HIGH_PRECISION_SUFFIXES,
-    LOOSE_GEN_REGEX,
-    SENTENCE_SPLIT_PATTERN,
-    IR_REGEX,
-    FX_REGEX,
-    CP_REGEX,
-    EQ_REGEX,
-    CR_REGEX,
-    IR_SOFT_REGEX,
-    FX_SOFT_REGEX,
-    CP_SOFT_REGEX,
-    EQ_SOFT_REGEX,
-    CR_SOFT_REGEX,
-    STRICT_CONTEXT_MAP,
-    TRADING_VENUE_REGEX,
-    NoiseReason,
-    get_sentence_categories,
-)
-from filter_database import (
-    is_sophisticated_content,
-    is_sophisticated_target,
-    GlobalInstrumentTracker,
-    initialize_resolver,
-    RESOLVER,
-)
-
-# =============================================================================
-# CONFIGURATION
-# =============================================================================
-NUM_WORKERS = max(1, mp.cpu_count() - 1)
-BATCH_SIZE = 1000
-SOURCE_DB_PATH = "tagged_data.db"
-TARGET_DB_PATH = "classified_data.db"
-
-# UPDATED PARSER:
-# 1. Optional leading space (\s*)
-# 2. Captures Token Type (_S or _D) in Group 1
-# 3. Captures Reason in Group 2
-# 4. Captures Content in Group 3
-TAG_PARSER = re.compile(r"\s*(_[SD])<([^>]+)>\s+(.*)")
-
-
-def resolve_generic_with_ml(target_sentence, context_window, prev_valid_cat):
-    # (Keep existing implementation)
-    global RESOLVER
-    if not RESOLVER:
-        return None
-    label, conf = RESOLVER.resolve_single(
-        target_sentence, prev_sentences=context_window[-3:], next_sentences=[]
-    )
-    if conf > 0.85 and label != "gen":
-        return label
-    return None
-
 
 def process_row(row):
     url, matches_json, cik, year = row
@@ -532,7 +464,7 @@ def process_row(row):
         "has_pnl_activity": False,
         "manages_credit_risk": False,
         "is_hedging_sophisticated": False,
-        "is_financing_sophisticated": False,  # FIXED TYPO
+        "is_financing_sophisticated": False,
         "mentions_venue": False,
         "is_historical": False,
     }
@@ -540,152 +472,157 @@ def process_row(row):
     doc_tracker = GlobalInstrumentTracker()
     context_buffer = []
 
-    # 1. SCANNING PASS
     for p in paragraphs:
-        is_deadweight_block = False
+        # Initialize flags
+        is_paragraph_deadweight = False
 
-        # --- A. PARAGRAPH TAG CHECK ---
-        # We strip to handle leading spaces consistently
-        para_match = TAG_PARSER.match(p.strip())
+        # --- A. Check for Paragraph-Level Tag (_D) ---
+        # We strip to ensure the regex matches at the start
+        para_match = TAG_PARSER_STRICT.match(p)
 
         if para_match:
-            token_type = para_match.group(1)  # _D or _S
-            tag_str = para_match.group(2)  # REASON
-            content = para_match.group(3)  # TEXT
+            tag_type = para_match.group(1)  # _D or _S
+            tag_reason = para_match.group(2)
+            content = para_match.group(3)
 
-            # CASE 1: Paragraph-Level Deadweight (_D)
-            # This applies to the WHOLE block.
-            if token_type == "_D":
-                is_deadweight_block = True
+            if tag_type == "_D":
+                is_paragraph_deadweight = True
 
-                # Attribute Mining (Paragraph Level)
-                if tag_str == NoiseReason.TRADING.value:
+                # Mine Attributes from the Deadweight Tag
+                if tag_reason == NoiseReason.TRADING.value:
                     attributes["is_hedger"] = True
-                elif tag_str == NoiseReason.POLICY.value:
+                elif tag_reason == NoiseReason.POLICY.value:
                     attributes["uses_hedge_accounting"] = True
-                elif tag_str in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}:
+                elif tag_reason in {
+                    NoiseReason.HIST_BLOCK.value,
+                    NoiseReason.TERM.value,
+                }:
                     attributes["is_historical"] = True
 
-                # Unwrap content for sentence splitting (so we can check inner _S tags if ANLZ)
+                # UNWRAP: We must process the content to find Definitions or inner _S tags
                 p = content
 
-            # CASE 2: Sentence-Level Tag at Start (_S)
-            # This only applies to the first sentence.
-            # DO NOT set is_deadweight_block = True.
-            # DO NOT unwrap 'p' (let the sentence splitter handle the whole string).
-            elif token_type == "_S":
-                pass
-
-        # --- B. SENTENCE LEVEL PROCESSING ---
+        # --- B. Sentence Processing ---
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
 
         for s in sentences:
+            # 1. Attribute Mining & Tag Parsing
+            clean_s = s
+            is_sentence_deadweight = False
+
             if TRADING_VENUE_REGEX.search(s):
                 attributes["mentions_venue"] = True
 
-            # Check for Sentence Tag
-            tag_match = TAG_PARSER.match(s.strip())
-            current_sent_is_deadweight = False
-            clean_text = s
+            sent_match = TAG_PARSER_STRICT.match(s)
+            if sent_match:
+                # It's a tagged sentence (e.g. "_S<TRADING> We do not...")
+                tag_type = sent_match.group(1)
+                tag_reason = sent_match.group(2)
+                clean_s = sent_match.group(3)
 
-            if tag_match:
-                token_type = tag_match.group(1)
-
-                # We only care about _S tags here (or _D tags propagated from paragraph logic?)
-                # Actually, our splitter splits the _D unwrapped content, so we see _S tags inside.
-                if token_type == "_S":
-                    current_sent_is_deadweight = True
-                    tag_str = tag_match.group(2)
-                    clean_text = tag_match.group(3)
-
-                    # Attribute Mining (Sentence Level)
-                    if tag_str in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
-                        attributes["is_historical"] = True
-                    elif tag_str == NoiseReason.TRADING.value:
+                if tag_type == "_S":
+                    is_sentence_deadweight = True
+                    # Mine Attributes from Sentence Tag
+                    if tag_reason == NoiseReason.TRADING.value:
                         attributes["is_hedger"] = True
-                    elif tag_str == NoiseReason.POLICY.value:
+                    elif tag_reason == NoiseReason.POLICY.value:
                         attributes["uses_hedge_accounting"] = True
-                    elif tag_str == NoiseReason.PNL.value:
+                    elif tag_reason == NoiseReason.PNL.value:
                         attributes["has_pnl_activity"] = True
-                    elif tag_str == NoiseReason.CREDIT.value:
+                    elif tag_reason == NoiseReason.CREDIT.value:
                         attributes["manages_credit_risk"] = True
-                    elif tag_str == NoiseReason.DEF.value:
-                        # Register Definitions
-                        cats = get_sentence_categories(clean_text)
-                        specific = cats - {"gen", "other"}
-                        if specific:
-                            for cat in specific:
-                                doc_tracker.register_paragraph(clean_text, cat)
+                    elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
+                        attributes["is_historical"] = True
 
-            # Update Context Buffer (Always use clean text)
-            context_buffer.append(clean_text)
+            # 2. Update Context Buffer (Always use clean text)
+            context_buffer.append(clean_s)
             if len(context_buffer) > 5:
                 context_buffer.pop(0)
 
-            # --- C. CLASSIFICATION GATEKEEPER ---
-            # Skip Evidence Collection if:
-            # 1. The whole paragraph was _D (e.g. BOILER_BLOCK)
-            # 2. This specific sentence is _S (e.g. TIME)
-            if is_deadweight_block or current_sent_is_deadweight:
-                continue
+            # 3. GLOBAL TRACKER UPDATE (Context Map)
+            # KEY CHANGE: We register definitions/instruments even if deadweight.
+            # This allows "Deadweight Definitions" to inform "Live Usage".
 
-            # --- D. CLASSIFICATION LOGIC (Clean Sentences Only) ---
+            # Check for Definitions (Explicit _S<DEF>)
+            if sent_match and sent_match.group(2) == NoiseReason.DEF.value:
+                cats = get_sentence_categories(clean_s)
+                specific = cats - {"gen", "other"}
+                for cat in specific:
+                    doc_tracker.register_paragraph(clean_s, cat)
 
-            # 1. Check STRICT Matches
+            # Check for Strict Matches (Implicit Definitions)
+            # Even in a "Contractual" paragraph, "Interest Rate Swaps" is a valid token to learn.
+            # We run this on ALL sentences.
+
+            # However, we only allow it to set 'is_sophisticated' if it's NOT deadweight.
+            # (We don't want a definition to trigger the "Active User" flag on its own)
+
             strict_cats = set()
-            if IR_REGEX.search(s):
+            if IR_REGEX.search(clean_s):
                 strict_cats.add("ir")
-            if FX_REGEX.search(s):
+            if FX_REGEX.search(clean_s):
                 strict_cats.add("fx")
-            if CP_REGEX.search(s):
+            if CP_REGEX.search(clean_s):
                 strict_cats.add("cp")
-            if EQ_REGEX.search(s):
-                if is_sophisticated_content(s):
+            if CR_REGEX.search(clean_s):
+                strict_cats.add("cr")
+            if EQ_REGEX.search(clean_s):
+                if is_sophisticated_content(clean_s):
                     strict_cats.add("warr")
-                    attributes["is_financing_sophisticated"] = True
                 else:
                     strict_cats.add("eq")
-            if CR_REGEX.search(s):
-                strict_cats.add("cr")
 
+            # REGISTER TO TRACKER (Context)
+            for cat in strict_cats:
+                doc_tracker.register_paragraph(clean_s, cat)
+
+            # 4. EVIDENCE COLLECTION (Usage Map)
+            # Only if BOTH paragraph and sentence are clean
+            if is_paragraph_deadweight or is_sentence_deadweight:
+                continue
+
+            # --- From here on, we are in "Active Evidence" mode ---
+
+            # A. Strict Matches (Anchors)
             if strict_cats:
+                # Update Sophistication Flags
                 attributes["is_hedging_sophisticated"] = True
-                for cat in strict_cats:
-                    evidence_map[cat].append(s)
-                    doc_tracker.register_paragraph(s, cat)
+                if "warr" in strict_cats:
+                    attributes["is_financing_sophisticated"] = True
 
-            # 2. Check SOFT Matches
+                # Add to Evidence
+                for cat in strict_cats:
+                    evidence_map[cat].append(clean_s)  # Use original 's' to preserve tags if useful, or 'clean_s'
+
+            # B. Soft Matches (Potential)
             else:
                 soft_cats = set()
-                if IR_SOFT_REGEX.search(s):
+                # ... (Standard Soft Match Logic) ...
+                if IR_SOFT_REGEX.search(clean_s):
                     soft_cats.add("ir")
-                if FX_SOFT_REGEX.search(s):
+                if FX_SOFT_REGEX.search(clean_s):
                     soft_cats.add("fx")
-                if CP_SOFT_REGEX.search(s):
+                if CP_SOFT_REGEX.search(clean_s):
                     soft_cats.add("cp")
-                if EQ_SOFT_REGEX.search(s):
-                    if is_sophisticated_content(s):
-                        evidence_map["warr"].append(s)
-                        doc_tracker.register_paragraph(s, "warr")
+                if EQ_SOFT_REGEX.search(clean_s):
+                    if is_sophisticated_content(clean_s):
+                        evidence_map["warr"].append(clean_s)
+                        doc_tracker.register_paragraph(clean_s, "warr")
                         attributes["is_financing_sophisticated"] = True
                     else:
                         soft_cats.add("eq")
-                if CR_SOFT_REGEX.search(s):
+                if CR_SOFT_REGEX.search(clean_s):
                     soft_cats.add("cr")
 
                 if soft_cats:
                     for cat in soft_cats:
-                        potential_map[cat].append(s)
+                        potential_map[cat].append(clean_s)
                 else:
-                    # 3. Generic Resolution
-                    cats = get_sentence_categories(s)
+                    # C. Generic Resolution (The Payoff)
+                    # We use the tracker we populated (potentially from deadweight)
+                    cats = get_sentence_categories(clean_s)
                     if "gen" in cats:
-                        resolved = doc_tracker.resolve_instrument(s)
-                        if not resolved and RESOLVER:
-                            resolved = resolve_generic_with_ml(
-                                s, context_buffer[:-1], None
-                            )
-
+                        resolved = doc_tracker.resolve_instrument(clean_s)
                         if resolved and resolved not in {"gen", "other"}:
                             evidence_map[resolved].append(s)
                             attributes["is_hedging_sophisticated"] = True
