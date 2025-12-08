@@ -3821,6 +3821,69 @@ HEADER_CLEANUP_PATTERNS = [
         "\n\n",
     ),
 ]
+# =============================================================================
+# BANK ENTITY LISTS (New)
+# =============================================================================
+
+# Major Global & US Banks (Counterparties / Lenders)
+BANK_ENTITIES = [
+    # US Majors
+    r"J\.?P\.?\s+Morgan(?:\s+Chase)?",
+    r"Goldman\s+Sachs",
+    r"Morgan\s+Stanley",
+    r"Bank\s+of\s+America",
+    r"BofA(?:\s+Securities)?",
+    r"Merrill\s+Lynch",
+    r"Citigroup",
+    r"Citibank",
+    r"Wells\s+Fargo",
+    r"State\s+Street",
+    r"Bank\s+of\s+New\s+York(?:\s+Mellon)?",
+    r"BNY\s+Mellon",
+    # International Majors
+    r"Barclays",
+    r"HSBC",
+    r"Deutsche\s+Bank",
+    r"UBS",
+    r"Credit\s+Suisse",
+    r"BNP\s+Paribas",
+    r"Soci[eé]t[eé]\s+G[eé]n[eé]rale",
+    r"SocGen",
+    r"Credit\s+Agricole",
+    r"NatWest",
+    r"Standard\s+Chartered",
+    r"Santander",
+    r"Mizuho",
+    r"Nomura",
+    r"Sumitomo\s+Mitsui",
+    r"MUFG",
+    r"Royal\s+Bank\s+of\s+Canada",
+    r"RBC",
+    r"Toronto[- ]Dominion",
+    r"TD\s+Bank",
+    r"Scotiabank",
+    r"Bank\s+of\s+Montreal",
+    r"BMO",
+]
+
+# Compile for Bag-of-Words Scoring
+BANK_SCORING_REGEX = re.compile(
+    r"\b" + build_alternation(BANK_ENTITIES) + r"\b", re.IGNORECASE
+)
+
+
+def is_bank_list_noise(text: str, threshold: int = 3) -> bool:
+    """
+    Bag-of-Words Score for Banking Lists.
+
+    Logic: If a paragraph mentions 3+ distinct banks, it is likely a
+    Credit Agreement / Syndication list, not a specific derivative trade.
+
+    Example: "The lenders include JPM, Citi, and BofA." -> Score 3 -> True (Noise)
+    """
+    # Use set to count unique banks (avoid double counting "JPM... JPM")
+    hits = set(match.group(0).lower() for match in BANK_SCORING_REGEX.finditer(text))
+    return len(hits) >= threshold
 
 
 def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
@@ -3890,7 +3953,7 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         r"\bpension\s+funds?\b",  # Reinforces Plan Asset exclusion
         r"\bUniform\s+Commercial\s+Code\b",
         r"\bUCC\b",
-    ] + ISSUER_TERMS
+    ] + ISSUER_TERMS + BANK_ENTITIES
 
     # --- 6. Dynamic Fund Pattern (Your existing logic) ---
     # Matches: "United States Commodity Index Fund", "Oil Derivatives Trust"
@@ -4203,6 +4266,7 @@ class NoiseReason(Enum):
     CONTRACT = "CONTRACT"  # Contractual Boilerplate Score
     REG = "REG"  # Regulatory Boilerplate Score
     HYP_SCORE = "HYP_SCORE"  # Hypothetical Score
+    BANK = "BANK" # Banking
 
     # --- Classification Killers ---
     TIME = "TIME"  # Historical / Temporal
