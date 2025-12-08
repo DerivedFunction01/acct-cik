@@ -445,6 +445,75 @@ def get_sentence_categories(
 
     return specific if specific else top_cats
 
+import sqlite3
+import json
+import re
+import logging
+from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing as mp
+from tqdm import tqdm
+from typing import List, Optional, Tuple
+
+# --- IMPORTS ---
+from derivative_regex import (
+    ALL_REGEX,
+    BASE_REGEX,
+    CATEGORY_CONTEXT_MAP,
+    HIGH_PRECISION_SUFFIXES,
+    LOOSE_GEN_REGEX,
+    SENTENCE_SPLIT_PATTERN,
+    IR_REGEX,
+    FX_REGEX,
+    CP_REGEX,
+    EQ_REGEX,
+    CR_REGEX,
+    IR_SOFT_REGEX,
+    FX_SOFT_REGEX,
+    CP_SOFT_REGEX,
+    EQ_SOFT_REGEX,
+    CR_SOFT_REGEX,
+    STRICT_CONTEXT_MAP,
+    TRADING_VENUE_REGEX,
+    NoiseReason,
+    get_sentence_categories,
+)
+from filter_database import (
+    is_sophisticated_content,
+    is_sophisticated_target,
+    GlobalInstrumentTracker,
+    initialize_resolver,
+    RESOLVER,
+)
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+NUM_WORKERS = max(1, mp.cpu_count() - 1)
+BATCH_SIZE = 1000
+SOURCE_DB_PATH = "tagged_data.db"
+TARGET_DB_PATH = "classified_data.db"
+
+# UPDATED PARSER:
+# 1. Optional leading space (\s*)
+# 2. Captures Token Type (_S or _D) in Group 1
+# 3. Captures Reason in Group 2
+# 4. Captures Content in Group 3
+TAG_PARSER = re.compile(r"\s*(_[SD])<([^>]+)>\s+(.*)")
+
+
+def resolve_generic_with_ml(target_sentence, context_window, prev_valid_cat):
+    # (Keep existing implementation)
+    global RESOLVER
+    if not RESOLVER:
+        return None
+    label, conf = RESOLVER.resolve_single(
+        target_sentence, prev_sentences=context_window[-3:], next_sentences=[]
+    )
+    if conf > 0.85 and label != "gen":
+        return label
+    return None
+
 
 def process_row(row):
     url, matches_json, cik, year = row
@@ -463,7 +532,7 @@ def process_row(row):
         "has_pnl_activity": False,
         "manages_credit_risk": False,
         "is_hedging_sophisticated": False,
-        "is_financing_sophisticated": False,  # Fixed Typo
+        "is_financing_sophisticated": False,  # FIXED TYPO
         "mentions_venue": False,
         "is_historical": False,
     }
@@ -471,75 +540,97 @@ def process_row(row):
     doc_tracker = GlobalInstrumentTracker()
     context_buffer = []
 
+    # 1. SCANNING PASS
     for p in paragraphs:
-        # Flag to track if this entire paragraph is "Context Only"
         is_deadweight_block = False
 
-        # --- A. Paragraph Level Check ---
-        para_match = TAG_PARSER.match(p)
+        # --- A. PARAGRAPH TAG CHECK ---
+        # We strip to handle leading spaces consistently
+        para_match = TAG_PARSER.match(p.strip())
+
         if para_match:
-            is_deadweight_block = True
-            tag_str = para_match.group(1)
-            content = para_match.group(2)  # Unwrap the content
+            token_type = para_match.group(1)  # _D or _S
+            tag_str = para_match.group(2)  # REASON
+            content = para_match.group(3)  # TEXT
 
-            # 1. Mine Attributes from the Paragraph Tag itself
-            if tag_str == NoiseReason.TRADING.value:
-                attributes["is_hedger"] = True
-            elif tag_str == NoiseReason.POLICY.value:
-                attributes["uses_hedge_accounting"] = True
-            elif tag_str in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}:
-                attributes["is_historical"] = True
+            # CASE 1: Paragraph-Level Deadweight (_D)
+            # This applies to the WHOLE block.
+            if token_type == "_D":
+                is_deadweight_block = True
 
-            # 2. Update 'p' to be the inner text so we can split it into sentences
-            p = content
+                # Attribute Mining (Paragraph Level)
+                if tag_str == NoiseReason.TRADING.value:
+                    attributes["is_hedger"] = True
+                elif tag_str == NoiseReason.POLICY.value:
+                    attributes["uses_hedge_accounting"] = True
+                elif tag_str in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}:
+                    attributes["is_historical"] = True
 
-        # --- B. Sentence Level Processing ---
+                # Unwrap content for sentence splitting (so we can check inner _S tags if ANLZ)
+                p = content
+
+            # CASE 2: Sentence-Level Tag at Start (_S)
+            # This only applies to the first sentence.
+            # DO NOT set is_deadweight_block = True.
+            # DO NOT unwrap 'p' (let the sentence splitter handle the whole string).
+            elif token_type == "_S":
+                pass
+
+        # --- B. SENTENCE LEVEL PROCESSING ---
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
 
         for s in sentences:
-            # 1. Attribute Mining (Always Run)
             if TRADING_VENUE_REGEX.search(s):
                 attributes["mentions_venue"] = True
 
-            tag_match = TAG_PARSER.match(s)
+            # Check for Sentence Tag
+            tag_match = TAG_PARSER.match(s.strip())
             current_sent_is_deadweight = False
             clean_text = s
 
             if tag_match:
-                current_sent_is_deadweight = True
-                tag_str = tag_match.group(1)
-                clean_text = tag_match.group(2)
+                token_type = tag_match.group(1)
 
-                # Mine Sentence-Level Attributes (This now works for ANLZ blocks!)
-                if tag_str in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
-                    attributes["is_historical"] = True
-                elif tag_str == NoiseReason.TRADING.value:
-                    attributes["is_hedger"] = True
-                elif tag_str == NoiseReason.POLICY.value:
-                    attributes["uses_hedge_accounting"] = True
-                elif tag_str == NoiseReason.PNL.value:
-                    attributes["has_pnl_activity"] = True
-                elif tag_str == NoiseReason.CREDIT.value:
-                    attributes["manages_credit_risk"] = True
-                elif tag_str == NoiseReason.DEF.value:
-                    # Register Definitions (Context)
-                    cats = get_sentence_categories(clean_text)
-                    specific = cats - {"gen", "other"}
-                    if specific:
-                        for cat in specific:
-                            doc_tracker.register_paragraph(clean_text, cat)
+                # We only care about _S tags here (or _D tags propagated from paragraph logic?)
+                # Actually, our splitter splits the _D unwrapped content, so we see _S tags inside.
+                if token_type == "_S":
+                    current_sent_is_deadweight = True
+                    tag_str = tag_match.group(2)
+                    clean_text = tag_match.group(3)
 
-            # 2. Context Buffer Update
+                    # Attribute Mining (Sentence Level)
+                    if tag_str in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
+                        attributes["is_historical"] = True
+                    elif tag_str == NoiseReason.TRADING.value:
+                        attributes["is_hedger"] = True
+                    elif tag_str == NoiseReason.POLICY.value:
+                        attributes["uses_hedge_accounting"] = True
+                    elif tag_str == NoiseReason.PNL.value:
+                        attributes["has_pnl_activity"] = True
+                    elif tag_str == NoiseReason.CREDIT.value:
+                        attributes["manages_credit_risk"] = True
+                    elif tag_str == NoiseReason.DEF.value:
+                        # Register Definitions
+                        cats = get_sentence_categories(clean_text)
+                        specific = cats - {"gen", "other"}
+                        if specific:
+                            for cat in specific:
+                                doc_tracker.register_paragraph(clean_text, cat)
+
+            # Update Context Buffer (Always use clean text)
             context_buffer.append(clean_text)
             if len(context_buffer) > 5:
                 context_buffer.pop(0)
 
-            # 3. CLASSIFICATION GATEKEEPER
-            # If the paragraph is Deadweight OR the sentence is Deadweight, SKIP evidence.
+            # --- C. CLASSIFICATION GATEKEEPER ---
+            # Skip Evidence Collection if:
+            # 1. The whole paragraph was _D (e.g. BOILER_BLOCK)
+            # 2. This specific sentence is _S (e.g. TIME)
             if is_deadweight_block or current_sent_is_deadweight:
                 continue
 
-            # --- C. CLASSIFICATION (Clean Sentences Only) ---
+            # --- D. CLASSIFICATION LOGIC (Clean Sentences Only) ---
+
             # 1. Check STRICT Matches
             strict_cats = set()
             if IR_REGEX.search(s):
@@ -586,7 +677,7 @@ def process_row(row):
                     for cat in soft_cats:
                         potential_map[cat].append(s)
                 else:
-                    # 3. Check Generic Resolution
+                    # 3. Generic Resolution
                     cats = get_sentence_categories(s)
                     if "gen" in cats:
                         resolved = doc_tracker.resolve_instrument(s)
@@ -599,8 +690,7 @@ def process_row(row):
                             evidence_map[resolved].append(s)
                             attributes["is_hedging_sophisticated"] = True
 
-    # 2. PROMOTION PASS (Piggybacking)
-    # If firm is Sophisticated OR uses Hedge Accounting, we trust the Soft matches.
+    # 2. PROMOTION PASS
     is_valid_user = (
         attributes["is_hedging_sophisticated"] or attributes["uses_hedge_accounting"]
     )
@@ -611,11 +701,10 @@ def process_row(row):
                 evidence_map[cat].extend(sentences)
 
     if attributes["is_financing_sophisticated"]:
-        # Only trust soft equity signals
         if "eq" in potential_map and "eq" not in evidence_map:
             evidence_map["eq"].extend(potential_map["eq"])
 
-    # 2.5: Trading attributes: if it is not a hedger, then it is a trader
+    # Trader Logic
     if attributes["mentions_venue"] and not attributes["is_hedger"]:
         attributes["is_trader"] = True
     else:
@@ -627,7 +716,6 @@ def process_row(row):
         return (url, "{}", cik, year)
 
     output_data = {"evidence": evidence_map, "attributes": attributes}
-
     return (url, json.dumps(output_data), cik, year)
 
 
