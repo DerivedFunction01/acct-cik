@@ -241,6 +241,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     has_absence = False
     has_trading_denial = False
     has_termination = False
+    has_aoci = False
     has_meaningful_quant = (
         False  # NEW: tracks if ANY sentence has real positive numbers
     )
@@ -288,8 +289,15 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
 
         if TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
             has_termination = True
+        if NON_POSITION_INDICATORS.search(sent) and LOOSE_GEN_REGEX.search(sent):
+            has_aoci = True
 
     # === SAFE REMOVAL COMBINATIONS ===
+    if has_aoci:
+        if has_termination:
+            return "aoci_termination"
+        else:
+            return "aoci"
     if has_meaningful_quant:
         return None
     # All hedging sentences have negative indicators = pure boilerplate
