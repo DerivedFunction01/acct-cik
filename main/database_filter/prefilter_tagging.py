@@ -5,7 +5,9 @@ from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
+from typing import Optional, Tuple
 
+# --- REGEX IMPORTS ---
 from derivative_regex import (
     # Structural
     ABSENCE_REGEX,
@@ -30,17 +32,22 @@ from derivative_regex import (
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
     YEAR_REGEX,
-    PRIOR_PATTERN,
+    PRIOR_INDICATOR,
     ACTIVE_STATE_REGEX,
+    # Scoring
     is_contractual_noise,
     is_hypothetical_noise,
     is_regulatory_noise,
+    # Enums & Helpers
+    NoiseReason,
+    get_tag,
 )
 
 # Import Phase 6 Logic
 from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
 from notional_filter import check_is_quantitative_zero
 
+# Reuse cleaner from simple nonuse (assuming it's in the same directory/package)
 from prefilter_simple_nonuse import DEADWEIGHT_TOKEN, MinimalTextCleaner
 
 # =============================================================================
@@ -52,78 +59,96 @@ CHUNK_SIZE = 20
 SOURCE_DB_PATH = "refined_data.db"
 TARGET_DB_PATH = "tagged_data.db"
 
-# Token for sentence-level skips
+# Token for sentence-level skips (Base string, will be formatted by get_tag)
 SKIP_TOKEN = " _S"
+
+# Initialize shared cleaner
 _cleaner = MinimalTextCleaner()
 
 # =============================================================================
-# STAGE-SPECIFIC CHECKS
+# HELPERS: MASKING & LOGIC
 # =============================================================================
 
 
-def is_temporal_noise(text: str, reporting_year: int) -> bool:
-    """[Phase 3] Returns True if sentence is purely historical."""
-    if not reporting_year:
-        return False
+def mask_text(text: str) -> str:
+    """
+    Prepares text for logic checks.
+    1. Normalizes whitespace.
+    2. Masks entities (JPM -> _E) to prevent overfitting on names.
+    3. DOES NOT remove years (critical for temporal checks).
+    """
+    return _cleaner.clean_entities(text)
 
+
+# --- REASON-BASED CHECKS ---
+
+
+def get_temporal_noise_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
+    """Returns NoiseReason.TIME if sentence is purely historical."""
+    if not reporting_year:
+        return None
+    text = _cleaner.clean_numerics(text, remove_years=False)
     years = [int(y) for y in YEAR_REGEX.findall(text)]
     if years:
         # If ALL years are in the past, it's noise.
-        # (e.g. "In 2021 and 2022 we held..." vs Report 2024)
-        return all(y < reporting_year for y in years)
+        if all(y < reporting_year for y in years):
+            return NoiseReason.TIME
 
     # Fallback: "In prior years", "During the previous period"
-    if PRIOR_PATTERN.search(text):
-        return True
-    return False
+    if PRIOR_INDICATOR.search(text):
+        return NoiseReason.TIME
+
+    return None
 
 
-def is_intent_noise(text: str) -> bool:
-    """[Phase 4] Returns True if sentence is hypothetical or negative."""
-    # "We may enter", "We expect to use" (Hypothetical)
+def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
+    """Returns HYPO or NEG based on intent."""
     if POTENTIAL_REGEX.search(text) or VAGUE_TIMING_REGEX.search(text):
-        return True
-    # "We do not intend to use", "We have no plans" (Negative)
+        return NoiseReason.HYPO
+
     if NEGATIVE_INTENT_REGEX.search(text) or ABSENCE_REGEX.search(text):
-        return True
-    return False
+        return NoiseReason.NEG
+
+    return None
 
 
-def is_termination_noise(text: str) -> bool:
-    """[Phase 5] Returns True if sentence describes dead positions."""
-    # "The swaps expired", "Positions were terminated"
-    # Note: If you want to salvage "Expired... but replaced", add logic here.
+def get_termination_noise_reason(text: str) -> Optional[NoiseReason]:
+    """Returns TERM if sentence describes dead positions."""
     if TERMINATION_REGEX.search(text):
-        return True
-    return False
+        return NoiseReason.TERM
+    return None
 
 
-def is_quantitative_noise(text: str, reporting_year: int) -> bool:
-    """[Phase 6] Returns True if values for the reporting year are zero."""
+def get_quantitative_noise_reason(
+    text: str, reporting_year: int
+) -> Optional[NoiseReason]:
+    """Returns ZERO if values are present but all zero."""
     if not reporting_year:
-        return False
-    # Uses your existing notional_filter logic to map Year -> Value
-    # Returns True if the mapping shows $0 for the current year.
-    return check_is_quantitative_zero(text, reporting_year)
+        return None
+
+    # Use cleaner's specific method for quant parsing
+    clean_for_quant = _cleaner.clean_for_quant_analysis(text)
+    if check_is_quantitative_zero(clean_for_quant, reporting_year):
+        return NoiseReason.ZERO
+
+    return None
 
 
-def check_paragraph_level_noise(text: str, reporting_year: int) -> bool:
-    """[Phase 1 & 3 Block Level] Checks if the entire paragraph is deadweight."""
+def get_paragraph_level_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
+    """Checks if the entire paragraph block is deadweight."""
 
-    # 1. Historical Narrative Block (Phase 3)
-    # If paragraph has years, and ALL are past, and no "Active" keywords
+    # 1. Historical Narrative Block
     if reporting_year:
         years = [int(y) for y in YEAR_REGEX.findall(text)]
         if years and all(y < reporting_year for y in years):
             if not ACTIVE_STATE_REGEX.search(text):
-                return True
+                return NoiseReason.HIST_BLOCK
 
-    # 2. Boilerplate / Trading Denial Block (Phase 1/4)
-    # If it's just "We do not trade derivatives" repeated
+    # 2. Boilerplate / Trading Denial Block
     if TRADING_STATEMENTS_REGEX.search(text) and len(text) < 150:
-        return True
+        return NoiseReason.BOILER_BLOCK
 
-    return False
+    return None
 
 
 # =============================================================================
@@ -132,11 +157,16 @@ def check_paragraph_level_noise(text: str, reporting_year: int) -> bool:
 
 
 def tag_paragraph(text: str, reporting_year: int) -> str:
+    # 1. Masking for Logic Checks
     masked_text = mask_text(text)
 
-    if check_paragraph_level_noise(masked_text, reporting_year):
-        return f"{DEADWEIGHT_TOKEN}{text}"
+    # 2. Paragraph-Level Pre-Check
+    para_reason = get_paragraph_level_reason(masked_text, reporting_year)
+    if para_reason:
+        # Return: "_D<HIST_BLOCK> Original text..."
+        return f"{get_tag(DEADWEIGHT_TOKEN, para_reason)} {text}"
 
+    # 3. Dual Split (Original vs Masked)
     original_sentences = [
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
     ]
@@ -144,66 +174,72 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()
     ]
 
+    # Safety: Align lengths
     if len(original_sentences) != len(masked_sentences):
-        return text
+        # Fallback: Run logic on unmasked to ensure alignment if regex failed
+        masked_sentences = original_sentences
 
     tagged_output = []
     surviving_text_parts = []
 
     for orig, masked in zip(original_sentences, masked_sentences):
-        is_noise = False
+        reason: Optional[NoiseReason] = None
 
         # --- A. Structural Noise ---
         if IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
-            is_noise = True
+            reason = NoiseReason.REF
         elif DEFINITION_INDICATORS.search(masked):
-            is_noise = True
+            reason = NoiseReason.DEF
         elif NON_POSITION_INDICATORS.search(masked):
-            is_noise = True
+            reason = NoiseReason.PNL
         elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
-            is_noise = True
+            reason = NoiseReason.NPNS  # or COMM_EXEMPT
         elif TRADING_STATEMENTS_REGEX.search(masked):
-            is_noise = True
+            reason = NoiseReason.TRADING
         elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
-            is_noise = True
+            reason = NoiseReason.LOAN
 
         # --- B. Soft Kills (Policy / Credit) ---
-        # No safeguard needed! If this sentence is Policy, tag it.
-        # If the NEXT sentence is Usage, it survives.
         elif POLICY_REGEX.search(masked):
-            is_noise = True
+            reason = NoiseReason.POLICY
         elif COUNTERPARTY_REGEX.search(masked) and not CR_SOFT_REGEX.search(masked):
-            is_noise = True
+            reason = NoiseReason.CREDIT
 
         # --- C. Bag-of-Words Scoring ---
         elif is_contractual_noise(masked, threshold=2):
-            is_noise = True
+            reason = NoiseReason.CONTRACT
         elif is_regulatory_noise(masked, threshold=2):
-            is_noise = True
+            reason = NoiseReason.REG
         elif is_hypothetical_noise(masked, threshold=2):
-            is_noise = True
+            reason = NoiseReason.HYP_SCORE
 
-        # --- D. Classification Killers ---
-        elif is_temporal_noise(masked, reporting_year):
-            is_noise = True
-        elif is_intent_noise(masked):
-            is_noise = True
-        elif is_termination_noise(masked):
-            is_noise = True
-        elif is_quantitative_noise(masked, reporting_year):
-            is_noise = True
+        # --- D. Classification Killers (Logic Helpers) ---
+        if not reason:
+            reason = get_temporal_noise_reason(masked, reporting_year)
+        if not reason:
+            reason = get_intent_noise_reason(masked)
+        if not reason:
+            reason = get_termination_noise_reason(masked)
+        if not reason:
+            reason = get_quantitative_noise_reason(masked, reporting_year)
 
         # --- TAGGING ---
-        if is_noise:
-            tagged_output.append(f"{SKIP_TOKEN}{orig}")
+        if reason:
+            # Inject: "_S<TIME> In 2021..."
+            tagged_output.append(f"{get_tag(SKIP_TOKEN, reason)} {orig}")
         else:
+            # Keep clean
             tagged_output.append(orig)
             surviving_text_parts.append(masked)
 
-    # --- E. Final Signal Check ---
+    # --- E. Final Signal Check (Fluff Detector) ---
+    # If valid sentences remain, do they actually mention a derivative?
+
     if not surviving_text_parts:
+        # All sentences were tagged as noise
         final_text = " ".join(tagged_output)
-        return f"{DEADWEIGHT_TOKEN}{final_text}"
+        # Use ANLZ or a specific FLUFF reason
+        return f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ)} {final_text}"
 
     combined_survivors = " ".join(surviving_text_parts)
     has_signal = False
@@ -217,15 +253,16 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
     final_text = " ".join(tagged_output)
 
-
     if has_signal:
         return final_text
     else:
-        return f"{DEADWEIGHT_TOKEN}{final_text}"
+        # It survived the filters but has no "Derivative" keywords (e.g. just "Risk Management")
+        return f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ)} {final_text}"
 
-# Should be:
-def mask_text(text, remove_years=False):
-    return _cleaner.clean_for_quant_analysis(text, remove_years=remove_years)
+
+# =============================================================================
+# PROCESS ROW
+# =============================================================================
 
 
 def process_row(row):
@@ -237,6 +274,7 @@ def process_row(row):
 
     new_paragraphs = []
     for p in paragraphs:
+        # Respect existing tags from previous steps (Prefilter Simple Nonuse)
         if p.startswith(DEADWEIGHT_TOKEN):
             new_paragraphs.append(p)
             continue
