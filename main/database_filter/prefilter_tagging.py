@@ -138,6 +138,7 @@ def get_paragraph_level_reason(text: str, reporting_year: int) -> Optional[Noise
     """Checks if the entire paragraph block is deadweight."""
 
     # 1. Historical Narrative Block
+    text = _cleaner.clean_numerics(text, remove_years=False)
     if reporting_year:
         years = [int(y) for y in YEAR_REGEX.findall(text)]
         if years and all(y < reporting_year for y in years):
@@ -146,7 +147,7 @@ def get_paragraph_level_reason(text: str, reporting_year: int) -> Optional[Noise
 
     # 2. Boilerplate / Trading Denial Block
     if TRADING_STATEMENTS_REGEX.search(text) and len(text) < 150:
-        return NoiseReason.BOILER_BLOCK
+        return NoiseReason.TRADING
 
     return None
 
