@@ -4184,3 +4184,36 @@ NON_FINANCIAL_KEYWORDS = [
 
 # Compile
 EXCLUDE_NON_FINANCIAL_REGEX = build_exclude_regex(NON_FINANCIAL_KEYWORDS)
+
+from enum import Enum
+class NoiseReason(Enum):
+    # --- Structural / Formatting ---
+    REF = "REF"  # Navigational Reference ("See Note 5")
+    DEF = "DEF"  # Definition ("Swap shall mean...")
+    PNL = "PNL"  # PnL/AOCI ("Gain of $5M")
+    NPNS = "NPNS"  # Normal Purchases / Sales
+    LOAN = "LOAN"  # Embedded Loan Features
+
+    # --- Business Logic / Signals ---
+    TRADING = "TRADING"  # Trading Denial ("We do not trade")
+    POLICY = "POLICY"  # Accounting Policy ("Designated as hedge")
+    CREDIT = "CREDIT"  # Counterparty Risk ("Credit exposure")
+
+    # --- Scoring ---
+    CONTRACT = "CONTRACT"  # Contractual Boilerplate Score
+    REG = "REG"  # Regulatory Boilerplate Score
+    HYP_SCORE = "HYP_SCORE"  # Hypothetical Score
+
+    # --- Classification Killers ---
+    TIME = "TIME"  # Historical / Temporal
+    HYPO = "HYPO"  # Hypothetical / Potential
+    NEG = "NEG"  # Negative Intent
+    TERM = "TERM"  # Termination / Expiration
+    ZERO = "ZERO"  # Quantitative Zero
+
+    # --- Paragraph Level ---
+    HIST_BLOCK = "HIST_BLOCK"
+    BOILER_BLOCK = "BOILER_BLOCK"
+    
+def get_tag(token_type: str, reason) -> str:
+    return f"{token_type}<{reason}>"

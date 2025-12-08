@@ -16,7 +16,7 @@ SOURCE_DB_PATH = "prefiltered_data.db"  # Output from Step 1
 TARGET_DB_PATH = "refined_data.db"  # Input for Step 3
 
 # The token to append to deadweight paragraphs.
-DEADWEIGHT_TOKEN = " _D "
+DEADWEIGHT_TOKEN = "_D"
 
 # --- MODULE IMPORTS ---
 from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX, QUANT_REGEX
@@ -43,6 +43,8 @@ from derivative_regex import (
     STANDARD_ID_REGEX,
     VERB_REGEX,
     YEAR_REGEX,
+    NoiseReason,
+    get_tag
 )
 
 from notional_filter import (
@@ -185,20 +187,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     Checks for 'Deadweight' paragraphs that passed the hard pre-filter
     but are semantically useless for derivative classification.
 
-    KEY SAFEGUARD: Many filters require has_potential=True to avoid
-    removing legitimate 7A statements like:
-    "We use IR swaps to hedge risk. We do not trade or speculate."
-    (has explicit use but lacks numerics)
-
-    TEMPORAL AWARENESS: Filters account for reporting year to distinguish
-    current vs. historical statements.
-
-    HISTORIC ACTIVITY DETECTION: Identifies paragraphs that only discuss
-    past years + terminations (e.g., "In 2022 we terminated all swaps")
-    without current year activity.
-
-    QUANTITATIVE VALIDATION: Uses Phase 6 logic to verify if quoted numbers
-    are actually non-zero for the reporting year.
+    Returns the specific DEADWEIGHT tag (e.g. " _D<HYPO>") if excluded, else None.
     """
 
     def has_instrument(text: str) -> bool:
@@ -211,15 +200,11 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
         """
         if not reporting_year:
             return True
-
         sent_years = extract_years(sentence)
-
         if not sent_years:
             return True
-
         if any(y >= reporting_year for y in sent_years):
             return True
-
         return False
 
     def has_only_past_years(text: str, reporting_year: Optional[int]) -> bool:
@@ -228,14 +213,10 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
         Returns False if no years mentioned or any year >= reporting_year.
         """
         if not reporting_year:
-            return False  # No year to compare against
-
+            return False
         all_years = extract_years(text)
-
         if not all_years:
-            return False  # No years mentioned = ambiguous, not "only past"
-
-        # True only if ALL years are < reporting_year
+            return False
         return all(y < reporting_year for y in all_years)
 
     has_potential = False
@@ -243,9 +224,7 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     has_trading_denial = False
     has_termination = False
     has_aoci = False
-    has_meaningful_quant = (
-        False  # NEW: tracks if ANY sentence has real positive numbers
-    )
+    has_meaningful_quant = False
     is_strictly_generic = True
     has_current_year_activity = False
     hedging_sentence_count = 0
@@ -258,8 +237,8 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
     for sent in sentences:
         if has_instrument(sent):
             hedging_sentence_count += 1
-            # Track if THIS sentence has any negative indicator
             sent_has_indicator = False
+
             if POTENTIAL_REGEX.search(sent) or VAGUE_TIMING_REGEX.search(sent):
                 has_potential = True
                 sent_has_indicator = True
@@ -278,86 +257,91 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             if sent_has_indicator:
                 hedging_sentences_with_indicators += 1
 
-        # Check if sentence mentions current year (excluding termination context)
+        # Check for current year
         if is_current_or_no_year(sent, year):
-            # Only count if it's not JUST a termination sentence
+            # Exclude termination-only sentences from counting as "current activity"
             if not (TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent)):
                 has_current_year_activity = True
 
-        # Check if the quantity is actually meaningful (positive) for the reporting year
+        # Check for meaningful quantities
         if is_meaningful_quant(sent, year):
             has_meaningful_quant = True
 
         if TERMINATION_REGEX.search(sent) and LOOSE_GEN_REGEX.search(sent):
             has_termination = True
+
         if NON_POSITION_INDICATORS.search(sent):
             has_aoci = True
 
-    # === SAFE REMOVAL COMBINATIONS ===
+    # === DECISION LOGIC ===
+
+    # 1. AOCI + Termination = Historical Cleanup
     if has_aoci and has_termination:
-            return "aoci_termination"
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
+
+    # 2. Quantitative Safety
     if has_meaningful_quant:
         return None
-    # All hedging sentences have negative indicators = pure boilerplate
+
+    # 3. Full Non-Use (All signal sentences have negative indicators)
     if (
         hedging_sentence_count == hedging_sentences_with_indicators
         and hedging_sentence_count > 0
     ):
-        return "full_nonuse_signal"
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
 
+    # 4. Potential / Hypothetical
     if has_potential:
         if is_strictly_generic and has_trading_denial:
-            # "We may use" + "We do not trade" + generic language only
-            return "generic_potential_with_trading_denial"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
         if has_absence:
-            # "We may use" + "we have none" = pure hypothetical
-            return "risk_boilerplate_nonuse"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
         if has_termination:
-            # "we may use but we terminated" = pure hypothetical
-            return "potential_future_but_terminated"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
         if has_trading_denial:
-            # "may use" + "don't trade" but no real positive numbers = cautious talk
-            return "potential_with_trading_denial_no_explicit_use"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HYPO)
+
+    # 5. Historical / Policy / Absence
     else:
-        # Historic activity filters (only past years, no current activity)
-        # "In 2022 we terminated swaps" - pure historic termination
+        # Historic activity filters
         if not has_current_year_activity and has_only_past_years(text, year):
-            if has_termination:
-                return "historic_termination_no_current_activity"
-            elif has_absence:
-                return "historic_absence_no_current_activity"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HIST_BLOCK)
 
-        # Generic policy with no meaningful numbers
+        # Generic policy with no trade
         if has_trading_denial and is_strictly_generic:
-            return "generic_policy_no_trade"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
 
-        # Terminated + no outstanding = pure historical
+        # Terminated + no outstanding
         if has_termination and has_absence:
-            return "terminated_none_outstanding"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.TERM)
 
-        # No derivatives held + no meaningful numbers = clear statement
+        # Stated absence
         if has_absence:
-            return "stated_absence_no_active_signal"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.NEG)
 
-        # Don't trade policy + have none = policy + fact
+        # Policy no use no trade
         if has_trading_denial and has_absence:
-            return "policy_no_use_no_trade"
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
 
     return None
 
 
 def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Optional[str]:
+    """
+    Checks for general deadweight categories (Policy, History, etc.).
+    Returns the specific tag string if excluded, else None.
+    """
 
     # --- 1. HARD KILLS (Run BEFORE Verbs) ---
     if DEADWEIGHT_TOKEN in text:
-        return "deadweight"
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.BOILER_BLOCK)
 
     # B. Historical Check
     if year:
         all_years = [int(y) for y in YEAR_REGEX.findall(text)]
         if all_years and all(y < year for y in all_years):
             if not ACTIVE_STATE_REGEX.search(text):
-                return "pure_historical_narrative"
+                return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HIST_BLOCK)
 
     # --- 2. SAFEGUARDS (The "Active User" Signals) ---
 
@@ -366,7 +350,6 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
         return None
 
     # B. Active Action Check
-    # Saves "We hold swaps to hedge hypothetical risks"
     if VERB_REGEX.search(text):
         return None
 
@@ -374,18 +357,17 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
 
     # A. Policy & Methodology
     if POLICY_REGEX.search(text):
-        return "accounting_policy_boilerplate"
-    
-    if NON_POSITION_INDICATORS.search(text):
-        return "aoci_pnl_reclassification"
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.POLICY)
 
-    # C. Counterparty / Credit Risk
+    # B. AOCI / PnL Lists (Moved here to allow safeguards to protect active positions)
+    if NON_POSITION_INDICATORS.search(text):
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.PNL)
+
+    # C. Counterparty / Credit Risk (With exemption for explicit credit derivatives)
     if COUNTERPARTY_REGEX.search(text) and not CR_REGEX.search(text):
-        return "credit_risk_management"
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.CREDIT)
 
     return None
-
-
 # =============================================================================
 # WORKER LOGIC
 # =============================================================================
@@ -396,9 +378,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     Firm-Level Filter with Token Injection & Entity Masking:
 
     1. Scans paragraphs.
-    2. MASKS entities (e.g. 'CFTC', 'Chicago Mercantile Exchange') before logic checks.
-    3. If a paragraph is 'Deadweight' (based on masked text), append ANCHOR token to ORIGINAL text.
-    4. If a paragraph is Valid (based on masked text), keep ORIGINAL text as is.
+    2. MASKS entities before logic checks.
+    3. If a paragraph is 'Deadweight', prepends the specific _D<REASON> tag.
+    4. If a paragraph is Valid, keeps ORIGINAL text.
     5. If at least one Valid paragraph exists, return the modified list.
     6. If ALL are Deadweight, discard the firm.
     """
@@ -418,29 +400,30 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
         # 2. Level 2 Filter (Refinement - Linguistic Ambiguity)
-        reason = check_refinement_exclusions(p_masked, year)
+        # Returns a tag string (e.g. " _D<HYPO>") or None
+        tag = check_refinement_exclusions(p_masked, year)
 
         # 3. Level 3 Filter (Deadweight - Policy/History/Risk)
         # Only run if Level 2 didn't already flag it
-        if reason is None:
-            reason = check_deadweight_exclusions(p_masked, year)
+        if tag is None:
+            tag = check_deadweight_exclusions(p_masked, year)
 
-        if reason is None:
+        if tag is None:
             has_valid_signal = True
             modified_paragraphs.append(p)
         else:
-            # Append Anchor Token
-            modified_paragraphs.append(f"{DEADWEIGHT_TOKEN}{p}")
-            all_discards_log.append((url, p, reason))
+            # Prepend the specific tag to the paragraph
+            # tag is " _D<REASON>", so result is " _D<REASON> OriginalText"
+            modified_paragraphs.append(f"{tag} {p}")
+            all_discards_log.append((url, p, tag))
+
     # Firm-Level Decision
     if has_valid_signal:
-        # CONDITION MET: Firm has at least one strong signal.
         # Return the MODIFIED list. Valid paragraphs are clean;
-        # Weak paragraphs now have " <ANCHOR>" at the end.
+        # Weak paragraphs now have tags at the start.
         return (url, json.dumps(modified_paragraphs), cik, year, [])
 
     else:
-        # CONDITION FAILED: No valid signal found.
         # Drop the firm entirely.
         return (url, json.dumps([]), cik, year, all_discards_log)
 
