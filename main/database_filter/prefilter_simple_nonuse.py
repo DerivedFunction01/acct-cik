@@ -66,7 +66,7 @@ class MinimalTextCleaner:
     bullet_pattern = re.compile(
         r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
         r"(?:"
-        r"\(?\d+\)|\d+\.|"  # (1), 1), 1.
+        r"\(?\d+\)|\d+\.|\d+:|"  # (1), 1), 1., 1:   <-- added colon
         r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"  # (i), (ii), i., ii. (roman numerals)
         r"\([a-z]\)|[a-z]\.|"  # (a), (b), a., b. (letters)
         r"\([A-Z]\)|[A-Z]\."  # (A), (B), A., B. (capitals)
@@ -146,7 +146,7 @@ class MinimalTextCleaner:
         text = self.clean_numerics(text, remove_years)
         text = self.normalize_whitespace(text)
         return text
-    
+
     def clean(self, text: str, remove_years: bool = False) -> str:
         text = self.clean_for_quant_analysis(text, remove_years)
         text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
