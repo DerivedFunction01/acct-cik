@@ -4318,6 +4318,7 @@ class NoiseReason(Enum):
     REG = "REG"  # Regulatory Boilerplate Score
     HYP_SCORE = "HYP_SCORE"  # Hypothetical Score
     BANK = "BANK" # Banking
+    LIBOR = "LIBOR" # LIBOR Transition
 
     # --- Classification Killers ---
     TIME = "TIME"  # Historical / Temporal

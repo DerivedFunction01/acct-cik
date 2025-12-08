@@ -38,7 +38,9 @@ from derivative_regex import (
     EXCLUDE_NON_FINANCIAL_REGEX,
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
+    EXCLUDE_REGEX_LIBOR_TRANSITION,
     HEDGING_CONTEXT_REGEX,
+    IR_CONTEXT_REGEX,
     LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     SOFT_GEN_REGEX,
@@ -51,6 +53,7 @@ from derivative_regex import (
     aggregate_discards,
     build_alternation,
     get_tag,
+    is_bank_list_noise,
     is_contractual_noise,
     is_hypothetical_noise,
     is_regulatory_noise,
@@ -134,9 +137,6 @@ INDIVIDUAL_FOOTNOTE_PATTERN = re.compile(
 TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
-# In main/database_filter/prefilter_database.py
-
-
 def check_hard_exclusions(text: str) -> Optional[str]:
     """
     Checks text against 'Dead Weight' filters.
@@ -149,6 +149,8 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
         return NoiseReason.FORWARD.value
+    if EXCLUDE_REGEX_LIBOR_TRANSITION.search(text) and IR_CONTEXT_REGEX.search(text):
+        return NoiseReason.LIBOR.value
 
     # --- TIER 2: SPECIFIC TOPIC FILTERS ---
     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
@@ -167,6 +169,8 @@ def check_hard_exclusions(text: str) -> Optional[str]:
         return None
 
     # --- TIER 3: SCORING / DENSITY CHECKS (Heavier Ops) ---
+    if is_bank_list_noise(text):
+        return NoiseReason.BANK.value
     if is_regulatory_noise(text):
         return NoiseReason.REG.value
     if is_contractual_noise(text):
