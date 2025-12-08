@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from derivative_regex import (
     EMBEDDED_CAP_FLOOR_REGEX,
+    IS_REFERENCE_REGEX,
     MORE_INFO_REGEX,
     REFERENCE_CLEANUP_REGEX,
     SENTENCE_SPLIT_PATTERN,
@@ -60,7 +61,7 @@ def tag_paragraph(text):
 
         # --- NOISE CHECKS (Run on MASKED version) ---
         # A. Navigational / Info Pointers ("See Note 5", "For more info")
-        if REFERENCE_CLEANUP_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
+        if IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
             is_noise = True
 
         # B. Definitions ("Swap shall mean...")
