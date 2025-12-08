@@ -313,18 +313,19 @@ def process_accounting_standards_paragraph(
 
 def find_hedging_context(paragraph: str) -> bool:
     """Standard Gatekeeper for regular derivatives."""
-    if STRICT_REGEX.search(paragraph):
+    if "<TABLE>" in paragraph.upper() and TABLE_REGEX.search(paragraph):
+        return True
+    elif STRICT_REGEX.search(paragraph):
         return True
     elif SOFT_GEN_REGEX.search(paragraph):
         return True
     elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
         return True
-    elif DER_STD_REGEX.search(paragraph) and LOOSE_GEN_REGEX.search(paragraph):
-        return True
-    elif WARRANT_CATCHER.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
-        return True
-    if "<TABLE>" in paragraph.upper() and TABLE_REGEX.search(paragraph):
-        return True
+    else: # perform hard sentence by sentence verification
+        for sent in SENTENCE_SPLIT_PATTERN.split(paragraph):
+            if LOOSE_GEN_REGEX.search(sent):
+                if HEDGING_CONTEXT_REGEX.search(sent) or DER_STD_REGEX.search(sent):
+                    return True
     return False
 
 def validate_sophisticated_buffer(
