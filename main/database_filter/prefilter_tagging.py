@@ -9,6 +9,7 @@ from tqdm import tqdm
 from derivative_regex import (
     # Structural
     ABSENCE_REGEX,
+    CR_REGEX,
     EMBEDDED_CAP_FLOOR_REGEX,
     HEDGING_CONTEXT_REGEX,
     IS_REFERENCE_REGEX,
@@ -37,6 +38,7 @@ from derivative_regex import (
 )
 
 # Import Phase 6 Logic
+from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
 from notional_filter import check_is_quantitative_zero
 
 from prefilter_simple_nonuse import DEADWEIGHT_TOKEN
@@ -129,14 +131,11 @@ def check_paragraph_level_noise(text: str, reporting_year: int) -> bool:
 
 
 def tag_paragraph(text: str, reporting_year: int) -> str:
-    # 1. MASKING
     masked_text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
 
-    # 2. PARAGRAPH-LEVEL CHECK
     if check_paragraph_level_noise(masked_text, reporting_year):
         return f"{DEADWEIGHT_TOKEN}{text}"
 
-    # 3. SENTENCE SPLITTING
     original_sentences = [
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
     ]
@@ -167,10 +166,15 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
             is_noise = True
 
-        # --- B. Bag-of-Words Scoring (Low Threshold) ---
-        # Threshold 2 catches ANY Strict match (2pts) or Phrase match (2pts).
-        # It requires 2 Single matches (1pt each) to trigger, protecting against
-        # distinct but weak words like "whereas".
+        # --- B. Soft Kills (Policy / Credit) ---
+        # No safeguard needed! If this sentence is Policy, tag it.
+        # If the NEXT sentence is Usage, it survives.
+        elif POLICY_REGEX.search(masked):
+            is_noise = True
+        elif COUNTERPARTY_REGEX.search(masked) and not CR_REGEX.search(masked):
+            is_noise = True
+
+        # --- C. Bag-of-Words Scoring ---
         elif is_contractual_noise(masked, threshold=2):
             is_noise = True
         elif is_regulatory_noise(masked, threshold=2):
@@ -178,7 +182,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         elif is_hypothetical_noise(masked, threshold=2):
             is_noise = True
 
-        # --- C. Classification Killers ---
+        # --- D. Classification Killers ---
         elif is_temporal_noise(masked, reporting_year):
             is_noise = True
         elif is_intent_noise(masked):
@@ -195,7 +199,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             tagged_output.append(orig)
             surviving_text_parts.append(masked)
 
-    # --- D. Final Signal Check ---
+    # --- E. Final Signal Check ---
     if not surviving_text_parts:
         final_text = " ".join(tagged_output)
         return f"{DEADWEIGHT_TOKEN}{final_text}"
@@ -216,6 +220,25 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         return final_text
     else:
         return f"{DEADWEIGHT_TOKEN}{final_text}"
+
+
+def process_row(row):
+    url, matches_json, cik, year = row
+    try:
+        paragraphs = json.loads(matches_json)
+    except:
+        return None
+
+    new_paragraphs = []
+    for p in paragraphs:
+        if p.startswith(DEADWEIGHT_TOKEN):
+            new_paragraphs.append(p)
+            continue
+
+        tagged_p = tag_paragraph(p, year)
+        new_paragraphs.append(tagged_p)
+
+    return (url, json.dumps(new_paragraphs), cik, year)
 
 
 # =============================================================================
