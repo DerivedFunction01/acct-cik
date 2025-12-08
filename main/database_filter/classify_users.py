@@ -464,7 +464,8 @@ def process_row(row):
         "has_pnl_activity": False,  # Found _S<PNL>
         "manages_credit_risk": False,  # Found _S<CREDIT>
         "is_sophisticated": False,  # Found STRICT match
-        "mentions_venue": False, # temp flag for commodity traders
+        "mentions_venue": False,  # temp flag for commodity traders
+        "is_historical": False,
     }
 
     doc_tracker = GlobalInstrumentTracker()
@@ -483,6 +484,10 @@ def process_row(row):
                 attributes["is_hedger"] = True
             elif tag_str == NoiseReason.POLICY.value:
                 attributes["uses_hedge_accounting"] = True
+
+            # Historical Detection
+            if tag_str in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}:
+                attributes["is_historical"] = True
 
             # Add stripped content to context buffer for flow
             for s in SENTENCE_SPLIT_PATTERN.split(content):
@@ -505,7 +510,9 @@ def process_row(row):
                 clean_text = tag_match.group(2)
 
                 # Attribute Mining
-                if tag_str == NoiseReason.TRADING.value:
+                if tag_str in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
+                    attributes["is_historical"] = True
+                elif tag_str == NoiseReason.TRADING.value:
                     attributes["is_hedger"] = True
                 elif tag_str == NoiseReason.POLICY.value:
                     attributes["uses_hedge_accounting"] = True
