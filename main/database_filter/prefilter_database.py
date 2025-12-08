@@ -149,7 +149,7 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     if EXCLUDE_REGEX_FORWARD_LOOKING.search(text):
         return NoiseReason.FORWARD.value
-    if EXCLUDE_REGEX_LIBOR_TRANSITION.search(text) and IR_CONTEXT_REGEX.search(text):
+    if EXCLUDE_REGEX_LIBOR_TRANSITION.search(text):
         return NoiseReason.LIBOR.value
 
     # --- TIER 2: SPECIFIC TOPIC FILTERS ---
