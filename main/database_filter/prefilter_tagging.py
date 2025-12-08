@@ -41,7 +41,7 @@ from derivative_regex import (
 from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
 from notional_filter import check_is_quantitative_zero
 
-from prefilter_simple_nonuse import DEADWEIGHT_TOKEN
+from prefilter_simple_nonuse import DEADWEIGHT_TOKEN, MinimalTextCleaner
 
 # =============================================================================
 # CONFIGURATION
@@ -54,6 +54,7 @@ TARGET_DB_PATH = "tagged_data.db"
 
 # Token for sentence-level skips
 SKIP_TOKEN = " _S "
+_cleaner = MinimalTextCleaner()
 
 # =============================================================================
 # STAGE-SPECIFIC CHECKS
@@ -131,7 +132,7 @@ def check_paragraph_level_noise(text: str, reporting_year: int) -> bool:
 
 
 def tag_paragraph(text: str, reporting_year: int) -> str:
-    masked_text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
+    masked_text = mask_text(text)
 
     if check_paragraph_level_noise(masked_text, reporting_year):
         return f"{DEADWEIGHT_TOKEN}{text}"
@@ -221,6 +222,9 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     else:
         return f"{DEADWEIGHT_TOKEN}{final_text}"
 
+def mask_text(text):
+    text = _cleaner.clean_for_quant_analysis(text)
+    return text.strip()
 
 def process_row(row):
     url, matches_json, cik, year = row
