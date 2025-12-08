@@ -217,14 +217,16 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
     final_text = " ".join(tagged_output)
 
+
     if has_signal:
         return final_text
     else:
         return f"{DEADWEIGHT_TOKEN}{final_text}"
 
-def mask_text(text):
-    text = _cleaner.clean_for_quant_analysis(text)
-    return text.strip()
+# Should be:
+def mask_text(text, remove_years=False):
+    return _cleaner.clean(text, remove_years=remove_years)
+
 
 def process_row(row):
     url, matches_json, cik, year = row
