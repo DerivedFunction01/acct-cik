@@ -31,6 +31,9 @@ from derivative_regex import (
     YEAR_REGEX,
     PRIOR_PATTERN,
     ACTIVE_STATE_REGEX,
+    is_contractual_noise,
+    is_hypothetical_noise,
+    is_regulatory_noise,
 )
 
 # Import Phase 6 Logic
@@ -126,12 +129,6 @@ def check_paragraph_level_noise(text: str, reporting_year: int) -> bool:
 
 
 def tag_paragraph(text: str, reporting_year: int) -> str:
-    """
-    Applies regex noise detection per sentence.
-    1. Tags noise/history/intent with _S.
-    2. Checks if surviving sentences actually mention derivatives.
-    3. If no valid signal remains, marks paragraph as _D.
-    """
     # 1. MASKING
     masked_text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
 
@@ -151,12 +148,12 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         return text
 
     tagged_output = []
-    surviving_text_parts = []  # Track text that isn't noise
+    surviving_text_parts = []
 
     for orig, masked in zip(original_sentences, masked_sentences):
         is_noise = False
 
-        # --- NOISE GAUNTLET ---
+        # --- A. Structural Noise ---
         if IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
             is_noise = True
         elif DEFINITION_INDICATORS.search(masked):
@@ -169,6 +166,19 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             is_noise = True
         elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
             is_noise = True
+
+        # --- B. Bag-of-Words Scoring (Low Threshold) ---
+        # Threshold 2 catches ANY Strict match (2pts) or Phrase match (2pts).
+        # It requires 2 Single matches (1pt each) to trigger, protecting against
+        # distinct but weak words like "whereas".
+        elif is_contractual_noise(masked, threshold=2):
+            is_noise = True
+        elif is_regulatory_noise(masked, threshold=2):
+            is_noise = True
+        elif is_hypothetical_noise(masked, threshold=2):
+            is_noise = True
+
+        # --- C. Classification Killers ---
         elif is_temporal_noise(masked, reporting_year):
             is_noise = True
         elif is_intent_noise(masked):
@@ -178,32 +188,23 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         elif is_quantitative_noise(masked, reporting_year):
             is_noise = True
 
-        # --- TAGGING & ACCUMULATION ---
+        # --- TAGGING ---
         if is_noise:
             tagged_output.append(f"{SKIP_TOKEN}{orig}")
         else:
             tagged_output.append(orig)
-            surviving_text_parts.append(masked)  # Keep masked version for signal check
+            surviving_text_parts.append(masked)
 
-    # --- FINAL SIGNAL CHECK ---
-    # We survived the killers, but is there actually a derivative here?
-
+    # --- D. Final Signal Check ---
     if not surviving_text_parts:
-        # No sentences survived the filters
         final_text = " ".join(tagged_output)
         return f"{DEADWEIGHT_TOKEN}{final_text}"
 
-    # Combine survivors to check for "Soft Signal"
     combined_survivors = " ".join(surviving_text_parts)
-
     has_signal = False
 
-    # Check 1: Standard Derivative Keywords (Swaps, Futures, etc.)
     if SOFT_REGEX.search(combined_survivors):
         has_signal = True
-
-    # Check 2: Loose Keywords + Hedging Context ("Contracts" + "Risk Management")
-    # Only needed if Check 1 failed
     elif LOOSE_GEN_REGEX.search(combined_survivors) and HEDGING_CONTEXT_REGEX.search(
         combined_survivors
     ):
@@ -214,27 +215,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     if has_signal:
         return final_text
     else:
-        # It was just "Risk Fluff" -> Mark Deadweight
         return f"{DEADWEIGHT_TOKEN}{final_text}"
-
-def process_row(row):
-    url, matches_json, cik, year = row
-    try:
-        paragraphs = json.loads(matches_json)
-    except:
-        return None
-
-    new_paragraphs = []
-    for p in paragraphs:
-        # Respect existing tags from previous steps
-        if p.startswith(DEADWEIGHT_TOKEN):
-            new_paragraphs.append(p)
-            continue
-
-        tagged_p = tag_paragraph(p, year)
-        new_paragraphs.append(tagged_p)
-
-    return (url, json.dumps(new_paragraphs), cik, year)
 
 
 # =============================================================================
