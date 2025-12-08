@@ -19,8 +19,6 @@ from derivative_regex import (
     MORE_INFO_REGEX,
     SENTENCE_SPLIT_PATTERN,
     DEFINITION_INDICATORS,
-    ENTITY_EXCLUSION_REGEX,
-    ENTITY_TOKEN,
     SOFT_REGEX,
     # Business Logic
     TRADING_STATEMENTS_REGEX,
