@@ -404,7 +404,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             continue
 
         # --- 1. Masking ---
-        p_masked = _cleaner.clean(p)
+        p_masked = _cleaner.normalize_whitespace(p)
 
         # 2. Checks
         tag = check_refinement_exclusions(p_masked, year)
