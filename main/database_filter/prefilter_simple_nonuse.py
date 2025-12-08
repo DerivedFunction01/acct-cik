@@ -293,11 +293,8 @@ def check_refinement_exclusions(text: str, year: Optional[int] = None) -> Option
             has_aoci = True
 
     # === SAFE REMOVAL COMBINATIONS ===
-    if has_aoci:
-        if has_termination:
+    if has_aoci and has_termination:
             return "aoci_termination"
-        else:
-            return "aoci"
     if has_meaningful_quant:
         return None
     # All hedging sentences have negative indicators = pure boilerplate
