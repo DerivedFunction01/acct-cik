@@ -12,6 +12,7 @@ from derivative_regex import (
     # Structural
     ABSENCE_REGEX,
     CR_SOFT_REGEX,
+    DER_STD_REGEX,
     EMBEDDED_CAP_FLOOR_REGEX,
     HEDGING_CONTEXT_REGEX,
     IS_REFERENCE_REGEX,
@@ -245,10 +246,12 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
     if SOFT_REGEX.search(combined_survivors):
         has_signal = True
-    elif LOOSE_GEN_REGEX.search(combined_survivors) and HEDGING_CONTEXT_REGEX.search(
-        combined_survivors
-    ):
-        has_signal = True
+    else:
+        for s in surviving_text_parts:
+            if HEDGING_CONTEXT_REGEX.search(s) or DER_STD_REGEX.search(s):
+                if LOOSE_GEN_REGEX.search(s):
+                    has_signal = True
+                    break
 
     final_text = " ".join(tagged_output)
 
