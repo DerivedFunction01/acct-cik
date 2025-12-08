@@ -3230,19 +3230,21 @@ POTENTIAL_INDICATORS = [
 ]
 
 # Negative Intent Components
+# Updated Negative Components
+
 NEGATIVE_AUXILIARY = [
-    r"do",
-    r"does",
-    r"did",
-    r"will",
-    r"would",
-    r"can",
-    r"could",
-    r"shall",
-    r"should",
-    r"have",
-    r"has",
+    # Active
+    r"do", r"does", r"did", 
+    r"will", r"would", 
+    r"can", r"could", 
+    r"shall", r"should", 
+    r"have", r"has", "had", # Added 'had'
+    r"must",
+    # Passive (Crucial for "Derivatives were not held")
+    r"are", r"is", r"were", r"was", r"be" 
 ]
+
+
 NEGATIVE_INTENT_VERBS = [r"seek", r"intend", r"plan", r"expect", r"continue"]
 
 # Absence Indicators
@@ -3370,38 +3372,36 @@ def build_vague_timing_regex() -> re.Pattern:
 
 # Add this alongside your other lists
 NEGATIVE_CONTRACTIONS = [
-    r"do[nN]['’]?[tT]",  # don't
-    r"does[nN]['’]?[tT]",  # doesn't
-    r"did[nN]['’]?[tT]",  # didn't
-    r"wo[nN]['’]?[tT]",  # won't (handles 'will' negation)
-    r"would[nN]['’]?[tT]",  # wouldn't
-    r"ca[nN]['’]?[tT]",  # can't
-    r"cannot",  # cannot (special case, one word)
-    r"could[nN]['’]?[tT]",  # couldn't
-    r"should[nN]['’]?[tT]",  # shouldn't
-    r"sha[nN]['’]?[tT]",  # shan't
-    r"have[nN]['’]?[tT]",  # haven't
-    r"has[nN]['’]?[tT]",
+    # Active
+    r"do[nN]['’]?[tT]",  r"does[nN]['’]?[tT]", r"did[nN]['’]?[tT]",
+    r"wo[nN]['’]?[tT]",  r"would[nN]['’]?[tT]",
+    r"ca[nN]['’]?[tT]",  r"cannot", r"could[nN]['’]?[tT]",
+    r"should[nN]['’]?[tT]", r"sha[nN]['’]?[tT]",
+    r"have[nN]['’]?[tT]", r"has[nN]['’]?[tT]", r"had[nN]['’]?[tT]",
+    # Passive
+    r"are[nN]['’]?[tT]", r"is[nN]['’]?[tT]", 
+    r"was[nN]['’]?[tT]", r"were[nN]['’]?[tT]"
 ]
-
 
 def build_negation_prefix_pattern() -> str:
     """
     Returns a regex string matching:
-    1. "did not", "could not" (Aux + space + not)
-    2. "didn't", "couldn't"   (Contractions)
+    1. Standard Negation: "did not", "was not", "will not"
+    2. Contractions: "didn't", "wasn't"
+    3. Absolute Negation: "never"
     """
-    # 1. Full forms: \b(do|will|could)\s+not\b
+    # 1. Standard: Auxiliary + Not
     aux_full = build_alternation(NEGATIVE_AUXILIARY)
     pattern_full = rf"\b{aux_full}\s+not\b"
 
-    # 2. Contractions: \b(don't|won't|couldn't)\b
-    # Note: build_alternation automatically handles sorting by length
-    aux_contract = build_alternation(NEGATIVE_CONTRACTIONS)
-    pattern_contract = rf"\b{aux_contract}\b"
+    # 2. Contractions
+    pattern_contract = rf"\b{build_alternation(NEGATIVE_CONTRACTIONS)}\b"
 
-    # Combine: (Full | Contraction)
-    return rf"(?:{pattern_full}|{pattern_contract})"
+    # 3. Absolute (The new addition)
+    pattern_absolute = r"\bnever\b"
+
+    # Combine: (did not | didn't | never)
+    return rf"(?:{pattern_full}|{pattern_contract}|{pattern_absolute})"
 
 
 def build_negative_intent_regex() -> re.Pattern:
@@ -4231,3 +4231,24 @@ class NoiseReason(Enum):
 
 def get_tag(token_type: str, reason: NoiseReason) -> str:
     return f"{token_type}<{reason.value}>"
+
+# In derivative_regex.py
+
+def build_trading_venue_regex() -> re.Pattern:
+    """
+    Matches specific exchanges where active trading occurs.
+    """
+    venues = [
+        r"\bNYMEX\b", r"\bNew\s+York\s+Mercantile\s+Exchange\b",
+        r"\bCOMEX\b", r"\bCommodity\s+Exchange\b",
+        r"\bCBOT\b",  r"\bChicago\s+Board\s+of\s+Trade\b",
+        r"\bCME\b",   r"\bChicago\s+Mercantile\s+Exchange\b",
+        r"\bICE\b",   r"\bIntercontinental\s+Exchange\b",
+        r"\bLME\b",   r"\bLondon\s+Metal\s+Exchange\b",
+        r"\bCBOE\b",  r"\bChicago\s+Board\s+Options\s+Exchange\b",
+    ]
+    pattern = build_alternation(venues)
+    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+
+# Export
+TRADING_VENUE_REGEX = build_trading_venue_regex()
