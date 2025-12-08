@@ -408,21 +408,28 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.CREDIT)
 
     return None
+
 # =============================================================================
 # WORKER LOGIC
 # =============================================================================
 
-
 def process_item(item: Tuple) -> Optional[Tuple]:
+    """
+    Firm-Level Filter with Token Injection & Entity Masking.
+
+    UPDATED: Now passes ALL firms through, even if they have 0 valid signals.
+    Deadweight paragraphs are tagged, but the firm is NOT dropped.
+    """
     url, matches_json, cik, year = item
+
     try:
         paragraphs = json.loads(matches_json)
     except:
         return None
 
     modified_paragraphs = []
-    has_valid_signal = False
-    has_historical_signal = False
+    # has_valid_signal = False  <-- Removed, no longer needed for dropping
+    # has_historical_signal = False <-- Removed
     all_discards_log = []
 
     for p in paragraphs:
@@ -431,42 +438,40 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             modified_paragraphs.append(p)
             continue
 
-        # 1. Cleaning (Whitespace only, preserve entities for keyword check)
+        # 1. Cleaning (Whitespace only)
         p_clean = _cleaner.clean_entities(p)
 
+        # 2. Level 2 Filter (Refinement - Sentence Tagging)
+        # Returns (Tag, Text_With_Sentence_Tags)
         tag, processed_text = check_refinement_exclusions(p_clean, year)
 
         # 3. Level 3 Filter (Deadweight - Policy/History/Risk)
         if tag is None:
             tag = check_deadweight_exclusions(p_clean, year)
+            # If check_deadweight returns a tag, it applies to the whole paragraph.
+            # processed_text is just p_clean because check_refinement didn't tag it.
 
-        # 4. Decision
+        # 4. Construction
         if tag is None:
-            has_valid_signal = True
+            # Valid Signal
+            # has_valid_signal = True
             modified_paragraphs.append(processed_text)
         else:
-            # Check for Historical Attributes in the Tag
-            if any(
-                r in tag
-                for r in [
-                    NoiseReason.HIST_BLOCK.value,
-                    NoiseReason.TERM.value,
-                    NoiseReason.TIME.value,
-                    NoiseReason.PNL.value,
-                    NoiseReason.ANLZ.value
-                ]
-            ):
-                has_historical_signal = True
-
-            # Append Tagged Paragraph
+            # Deadweight (Boilerplate, History, Policy, etc.)
+            # Append Tagged Paragraph: "_D<REASON> _S<TERM> Text..."
             modified_paragraphs.append(f"{tag} {processed_text}")
+
+            # Log it (Optional: might want to disable this if you are keeping everything
+            # to save DB space, but useful for debugging why a specific paragraph was killed)
             all_discards_log.append((url, processed_text, tag))
 
-    # Firm-Level Decision
-    if has_valid_signal or has_historical_signal:
-        return (url, json.dumps(modified_paragraphs), cik, year, [])
-    else:
-        return (url, json.dumps([]), cik, year, all_discards_log)
+    # Firm-Level Decision: PASS EVERYTHING
+    # We return the modified list (with tags) regardless of signal count.
+    # The Classifier will determine "Non-User" vs "Historical" based on content.
+    return (url, json.dumps(modified_paragraphs), cik, year, all_discards_log)
+
+
+# ... (rest of the script: setup_target_db, data_generator, main block remain the same) ...
 
 
 def setup_target_db(path):
