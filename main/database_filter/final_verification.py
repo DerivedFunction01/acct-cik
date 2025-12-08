@@ -99,7 +99,8 @@ QUANT_REGEX = re.compile(
     # Currency + number + scale word
     rf"(?:{CURRENCY_SYMBOL_PATTERN})\s+{NUMBER_PATTERN}\s+{SCALE_WORDS}|"
     # Number + optional scale word + commodity unit
-    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+{COMMODITY_UNIT_PATTERN}",
+    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+{COMMODITY_UNIT_PATTERN}|"
+    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+shares",
     re.IGNORECASE,
 )
 VERB_REGEX = re.compile(rf"\b(?:{STRONG_VERB_PATTERN}|consists?\s+of)\b", re.IGNORECASE)
