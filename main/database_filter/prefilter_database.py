@@ -217,16 +217,34 @@ def strip_table_formatting(
 
 
 def is_text_container_table(table_text: str, footnotes: List[str]) -> bool:
+    """
+    Determines if a table should be unwrapped to text or kept as <TABLE>.
+
+    Returns: True if table should be UNWRAPPED, False if it should be KEPT
+
+    Logic:
+    - If table is invalid (no numerical cells) → unwrap (return True)
+    - If table is valid non-derivative → don't unwrap, discard instead (return False)
+    - If table is valid derivative → don't unwrap, keep as table (return False)
+    """
     if not TableToTextConverter:
         return True
+
     context_str = " ".join(footnotes)
     try:
         converter = TableToTextConverter(
             table_text, narrative_context=context_str, is_sophisticated=True
         )
-        sentences = converter.process()
-        return len(sentences) == 0
+
+        # Check if it's a valid table and whether it should be unwrapped
+        is_derivative, should_unwrap = converter.is_valid_table()
+
+        # Return True (unwrap) only if explicitly marked as should_unwrap
+        # Return False (keep/discard) if it's a structurally valid table
+        return should_unwrap
+
     except Exception:
+        # On error, default to unwrap (safer fallback)
         return True
 
 
@@ -340,6 +358,98 @@ def validate_sophisticated_buffer(
     return False
 
 
+def process_table(
+    p: str,
+    url: str,
+    idx: int,
+    append_to_buffer,
+    local_discards: List[Tuple[str, str, str]],
+) -> bool:
+    """
+    Process a table paragraph.
+
+    Args:
+        p: Original paragraph text (with <TABLE> markup)
+        url: Document URL
+        idx: Paragraph index
+        append_to_buffer: Function to append to clean/sophisticated buffers
+        local_discards: List to accumulate discards
+
+    Returns:
+        True if table was processed (regardless of outcome)
+        False if table was invalid and discarded early
+    """
+    try:
+        cleaned_table, footnotes = extract_and_separate_footnotes(p)
+    except Exception as e:
+        local_discards.append((url, p[:100], "table_footnote_extraction_failed"))
+        return False
+
+    try:
+        converter = TableToTextConverter(
+            cleaned_table, narrative_context=" ".join(footnotes), is_sophisticated=True
+        )
+        is_derivative, should_unwrap = converter.is_valid_table()
+    except Exception:
+        local_discards.append((url, p[:100], "table_analysis_failed"))
+        return False
+
+    if should_unwrap:
+        # CASE 1: Invalid/container table (no numerical cells)
+        # → Discard entirely
+        local_discards.append((url, p, "invalid_table_no_numerical_cells"))
+        return False
+
+    # CASE 2 & 3: Valid table (derivative or non-derivative)
+    # → Process through converter to extract sentences for NLP
+    table_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, cleaned_table)
+
+    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(table_masked):
+        local_discards.append((url, p, "legal_table"))
+        return False
+
+    # Generate sentences from table
+    try:
+        sentences = converter.process()
+    except Exception as e:
+        local_discards.append(
+            (url, p[:100], f"table_processing_failed_{type(e).__name__}")
+        )
+        return False
+
+    if not sentences:
+        # Valid table but no sentences generated → Discard
+        local_discards.append((url, p, "valid_table_no_sentences"))
+        return False
+
+    # Process each sentence individually through salvaging checks
+    for sent in sentences:
+        sent_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, sent)
+
+        # Apply hard exclusions to each sentence
+        exclusion_reason = check_hard_exclusions(sent_masked)
+        if exclusion_reason:
+            local_discards.append((url, sent, exclusion_reason))
+            continue
+
+        # Route to appropriate buffer based on content
+        if is_derivative or is_sophisticated_content(sent_masked):
+            append_to_buffer("sophisticated", idx, sent, sent_masked)
+        else:
+            append_to_buffer("clean", idx, sent, sent_masked)
+
+    # Add footnotes if present
+    if footnotes:
+        for fn in footnotes:
+            fn_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, fn)
+            if is_sophisticated_content(fn_masked):
+                append_to_buffer("sophisticated", idx, fn, fn_masked)
+            else:
+                append_to_buffer("clean", idx, fn, fn_masked)
+
+    return True
+
+
 def process_item(item: Tuple) -> Optional[Tuple]:
     """
     Process a single document item through the filtering pipeline.
@@ -381,61 +491,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
             # === TABLE HANDLING ===
             if "<TABLE>" in p.upper():
-                try:
-                    cleaned_table, footnotes = extract_and_separate_footnotes(p)
-                except Exception as e:
-                    local_discards.append(
-                        (url, p[:100], "table_footnote_extraction_failed")
-                    )
-                    continue
-
-                try:
-                    is_container = is_text_container_table(cleaned_table, footnotes)
-                except Exception:
-                    is_container = True
-
-                if not is_container:
-                    table_masked = ENTITY_EXCLUSION_REGEX.sub(
-                        ENTITY_TOKEN, cleaned_table
-                    )
-
-                    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(table_masked):
-                        local_discards.append((url, "<table>...", "legal_table"))
-                        continue
-
-                    is_target = is_sophisticated_target(table_masked)
-                    is_context = SOPHISTICATED_CONTEXT_REGEX.search(table_masked)
-
-                    if is_target or is_context:
-                        append_to_buffer(
-                            "sophisticated", idx, cleaned_table, table_masked
-                        )
-                        if is_context:
-                            append_to_buffer("clean", idx, cleaned_table, table_masked)
-                    else:
-                        append_to_buffer("clean", idx, cleaned_table, table_masked)
-
-                    if footnotes:
-                        for fn in footnotes:
-                            fn_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, fn)
-                            append_to_buffer("clean", idx, fn, fn_masked)
-                    continue
-                else:
-                    try:
-                        p, excluded_rows = strip_table_formatting(cleaned_table, url)
-                        local_discards.extend(excluded_rows)
-                    except Exception as e:
-                        local_discards.append(
-                            (url, p[:100], "table_formatting_strip_failed")
-                        )
-                        continue
-
-                    if footnotes:
-                        p += " " + " ".join(footnotes)
-                    if not p.strip():
-                        continue
-
-                    p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+                process_table(p, url, idx, append_to_buffer, local_discards)
+                continue
             # === ACCOUNTING STANDARDS ===
             if EXCLUDE_REGEX_ACCOUNTING_STD.search(p):
                 kept, acc_std_discards = process_accounting_standards_paragraph(p, url)
