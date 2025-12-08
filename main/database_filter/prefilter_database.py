@@ -616,7 +616,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             final_results.extend(clean_buffer_orig)
         elif clean_buffer_orig:
             discarded = "\n\n".join([text for _, text in clean_buffer_orig])
-            local_discards.append((url, discarded, "standard_check_failed"))
+            local_discards.append((url, discarded, NoiseReason.HEDGE_FAIL.value))
     except Exception as e:
         print(f"⚠️ Error validating standard buffer for {url}: {e}")
 
@@ -629,7 +629,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             final_results.extend(sophisticated_buffer_orig)
         elif sophisticated_buffer_orig:
             discarded = "\n\n".join([text for _, text in sophisticated_buffer_orig])
-            local_discards.append((url, discarded, "sophisticated_check_failed"))
+            local_discards.append((url, discarded, NoiseReason.NO_SOPH.value))
     except Exception as e:
         print(f"⚠️ Error validating sophisticated buffer for {url}: {e}")
 

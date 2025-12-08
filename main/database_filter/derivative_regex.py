@@ -4221,6 +4221,10 @@ class NoiseReason(Enum):
     NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
     COMP = "COMP"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
+    
+    # --- Firm Level ---
+    HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging
+    NO_SOPH  = "NO_SOPH" # No indication of convertible/warrants as derivatives
 
 def get_tag(token_type: str, reason: NoiseReason) -> str:
     return f"{token_type}<{reason.value}>"
