@@ -3824,7 +3824,24 @@ HEADER_CLEANUP_PATTERNS = [
 # =============================================================================
 # BANK ENTITY LISTS (New)
 # =============================================================================
-
+# =============================================================================
+CENTRAL_BANKS = [
+    r"Bank\s+of\s+England",
+    r"\bBoE\b",
+    r"Federal\s+Reserve",
+    r"the\s+Fed\b",  # Careful with "Fed", usually safe with "the"
+    r"Federal\s+Reserve\s+Bank\s+of\s+New\s+York",
+    r"New\s+York\s+Fed",
+    r"\bNY\s+Fed\b",
+    r"European\s+Central\s+Bank",
+    r"\bECB\b",
+    r"Swiss\s+National\s+Bank",
+    r"\bSNB\b",
+    r"Bank\s+of\s+Japan",
+    r"\bBoJ\b",
+    r"Financial\s+Conduct\s+Authority",  # UK Regulator (LIBOR killer)
+    r"\bFCA\b",
+]
 # Major Global & US Banks (Counterparties / Lenders)
 BANK_ENTITIES = [
     # US Majors
@@ -3864,12 +3881,41 @@ BANK_ENTITIES = [
     r"Scotiabank",
     r"Bank\s+of\s+Montreal",
     r"BMO",
-]
+] + CENTRAL_BANKS
 
 # Compile for Bag-of-Words Scoring
 BANK_SCORING_REGEX = re.compile(
     r"\b" + build_alternation(BANK_ENTITIES) + r"\b", re.IGNORECASE
 )
+
+# --- LIBOR TRANSITION NOISE (Updated) ---
+LIBOR_TRANSITION_KEYWORDS = [
+    # ... (Your existing transition terms: cessation, phase-out) ...
+    r"LIBOR\s+transition",
+    r"transition\s+(?:from|away\s+from)\s+LIBOR",
+    r"discontinu(?:ance|ation|ed)\s+of\s+LIBOR",
+    r"cessation\s+of\s+LIBOR",
+    r"phase[- ]?out\s+of\s+LIBOR",
+    r"replacement\s+of\s+LIBOR",
+    r"migration\s+from\s+LIBOR",
+    # Regulatory Bodies & Committees
+    r"Alternative\s+Reference\s+Rates?\s+Committee",
+    r"\bARRC\b",
+    r"reference\s+rate\s+reform",
+    r"interbank\s+offered\s+rates?\s+reform",
+    r"IBOR\s+reform",
+    # Specific Dates
+    r"after\s+June\s+30,?\s+2023",
+    r"publication\s+of\s+(?:certain\s+|all\s+)?LIBOR\s+rates?",
+    r"no\s+longer\s+publish(?:ed)?",
+    r"cease\s+to\s+be\s+representative",
+    r"synthetic\s+LIBOR",
+    r"ASC\s+848",
+    r"Facilitation\s+of\s+the\s+Effects\s+of\s+Reference\s+Rate\s+Reform",
+] + CENTRAL_BANKS
+
+# Compile
+EXCLUDE_REGEX_LIBOR_TRANSITION = build_exclude_regex(LIBOR_TRANSITION_KEYWORDS)
 
 
 def is_bank_list_noise(text: str, threshold: int = 3) -> bool:
