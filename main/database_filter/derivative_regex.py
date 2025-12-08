@@ -592,7 +592,7 @@ def build_fx_context_terms_advanced() -> List[str]:
 CURRENCY_SYMBOL_PATTERN = build_currency_symbol_pattern()
 # Generic hedging context (required for generic matches)
 hedging_terms = [
-    r"relationship",
+    r"relationships?",
     r"strateg(?:y|ies)",
     r"activit(?:y|ies)",
     r"programs?",

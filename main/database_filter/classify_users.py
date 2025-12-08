@@ -37,7 +37,7 @@ from derivative_regex import (
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
 )
-from prefilter_database import is_sophisticated_content
+from prefilter_database import find_hedging_context, is_sophisticated_content
 from prefilter_tagging import MinimalTextCleaner
 
 
@@ -493,7 +493,7 @@ def process_row(row):
                 if FX_SOFT_REGEX.search(clean_s):
                     soft_cats.add("fx")
                 if CP_SOFT_REGEX.search(clean_s):
-                    if HEDGING_CONTEXT_REGEX.search(clean_s) or GEN_REGEX.search(clean_s):
+                    if find_hedging_context(clean_s):
                         soft_cats.add("cp")
                 if EQ_SOFT_REGEX.search(clean_s):
                     if is_sophisticated_content(clean_s):
