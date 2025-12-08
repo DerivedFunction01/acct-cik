@@ -19,7 +19,7 @@ TARGET_DB_PATH = "refined_data.db"  # Input for Step 3
 DEADWEIGHT_TOKEN = " _D "
 
 # --- MODULE IMPORTS ---
-from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
+from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX, QUANT_REGEX
 from year_deletion import extract_years
 
 from derivative_regex import (
@@ -28,7 +28,6 @@ from derivative_regex import (
     ENTITY_TOKEN,
     LOOSE_GEN_REGEX,
     NON_POSITION_INDICATORS,
-    PNL_ONLY_NO_POSITION,
     POTENTIAL_REGEX,
     NEGATIVE_INTENT_REGEX,
     ABSENCE_REGEX,
@@ -41,7 +40,6 @@ from derivative_regex import (
     VAGUE_TIMING_REGEX,
     STANDARD_ID_REGEX,
     VERB_REGEX,
-    VERB_USE_REGEX,
     YEAR_REGEX,
 )
 
@@ -52,18 +50,22 @@ from notional_filter import (
     DATE_MD_REGEX,
 )
 
-
 class MinimalTextCleaner:
     """
     Lightweight cleaner that prepares text for quantitative analysis.
     Removes numeric noise that would confuse extract_values_and_years().
     """
 
-    # Bullet pattern: matches (1), 1), 1. at line/space start
+    # Bullet/footnote pattern: matches (1), 1), 1., (i), (ii), etc at line/sentence start
     # Simplified since QUANT_REGEX will protect actual monetary values first
     bullet_pattern = re.compile(
         r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
-        r"(?:\(?\d+\)|\d+\.)"  # (1), 1), or 1.
+        r"(?:"
+        r"\(?\d+\)|\d+\.|"  # (1), 1), 1.
+        r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"  # (i), (ii), i., ii. (roman numerals)
+        r"\([a-z]\)|[a-z]\.|"  # (a), (b), a., b. (letters)
+        r"\([A-Z]\)|[A-Z]\."  # (A), (B), A., B. (capitals)
+        r")"
         r"(?=\s)",  # Followed by whitespace
         re.IGNORECASE,
     )
@@ -73,7 +75,7 @@ class MinimalTextCleaner:
 
     # Exhibit/reference patterns: "Exhibit 5", "Note 3", "Table A"
     exhibit_pattern = re.compile(
-        r"\b(?:exhibit|reference|note|appendix|schedule|article|section|subsection|statement|table|No\.)\b"
+        r"\b(?:exhibit|reference|note|appendix|schedule|article|section|subsection|statement|table|No\.|page|pp\.|p\.)\b"
         r"(?:\s*No\.?)?"
         r"\s*\d{1,3}\b",
         re.IGNORECASE,
@@ -93,8 +95,27 @@ class MinimalTextCleaner:
         - Dates (Dec 31, 31 December)
         - Exhibit/reference markers (Note 5, Table A)
         - Standard IDs (ASC 815, IFRS 9)
+
+        Safety: QUANT_REGEX is applied FIRST to protect actual monetary values
+        like "$ (100)" from being destroyed by the bullet pattern.
         """
-        text = self.bullet_pattern.sub(" ", text)
+        # Step 1: Identify and protect quantitative values
+        quant_matches = list(QUANT_REGEX.finditer(text))
+        protected_ranges = set()
+        for match in quant_matches:
+            for i in range(match.start(), match.end()):
+                protected_ranges.add(i)
+
+        # Step 2: Apply bullet pattern, but skip protected ranges
+        def safe_bullet_sub(match):
+            if any(i in protected_ranges for i in range(match.start(), match.end())):
+                return match.group(0)  # Keep if protected
+            return " "
+        
+        text = text.strip()
+        text = self.bullet_pattern.sub(safe_bullet_sub, text)
+
+        # Step 3: Apply other cleanups (no quant conflict)
         text = self.dashed_pattern.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
         text = DATE_DM_REGEX.sub(" ", text)
