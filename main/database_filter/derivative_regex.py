@@ -1408,7 +1408,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
     # Fragment used for attachment to core terms: Requires an instrument base, excludes standalones.
     # This maintains the high precision of the original function's core logic.
     strict_attachment_fragment = expand_instruments(
-        unsafe=True, exclude_standalone_suffixes=True
+        unsafe=False, exclude_standalone_suffixes=True
     )
 
     strict_pattern = build_smart_regex(
