@@ -454,64 +454,63 @@ def process_row(row):
         return None
 
     # --- OUTPUT STRUCTURES ---
-    # Evidence: Confirmed sentences proving active use
     evidence_map = defaultdict(list)
-    # Potential: Soft matches waiting for sophistication confirmation
     potential_map = defaultdict(list)
 
     attributes = {
-        "is_hedger": False,  # Found _S<TRADING>
-        "uses_hedge_accounting": False,  # Found _S<POLICY>
-        "has_pnl_activity": False,  # Found _S<PNL>
-        "manages_credit_risk": False,  # Found _S<CREDIT>
-        "is_hedging_sophisticated": False,  # Found STRICT match
-        "is_financing_sophisticated": False,
-        "mentions_venue": False,  # temp flag for commodity traders
+        "is_hedger": False,
+        "uses_hedge_accounting": False,
+        "has_pnl_activity": False,
+        "manages_credit_risk": False,
+        "is_hedging_sophisticated": False,
+        "is_financing_sophisticated": False,  # Fixed Typo
+        "mentions_venue": False,
         "is_historical": False,
     }
 
     doc_tracker = GlobalInstrumentTracker()
     context_buffer = []
 
-    # 1. SCANNING PASS
     for p in paragraphs:
-        # --- A. Paragraph Level Tags (_D) ---
+        # Flag to track if this entire paragraph is "Context Only"
+        is_deadweight_block = False
+
+        # --- A. Paragraph Level Check ---
         para_match = TAG_PARSER.match(p)
         if para_match:
+            is_deadweight_block = True
             tag_str = para_match.group(1)
-            content = para_match.group(2)
+            content = para_match.group(2)  # Unwrap the content
 
-            # Mining Attributes from Deadweight
+            # 1. Mine Attributes from the Paragraph Tag itself
             if tag_str == NoiseReason.TRADING.value:
                 attributes["is_hedger"] = True
             elif tag_str == NoiseReason.POLICY.value:
                 attributes["uses_hedge_accounting"] = True
-
-            # Historical Detection
-            if tag_str in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}:
+            elif tag_str in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}:
                 attributes["is_historical"] = True
 
-            # Add stripped content to context buffer for flow
-            for s in SENTENCE_SPLIT_PATTERN.split(content):
-                context_buffer.append(s)
-                if len(context_buffer) > 5:
-                    context_buffer.pop(0)
-            continue
+            # 2. Update 'p' to be the inner text so we can split it into sentences
+            p = content
 
         # --- B. Sentence Level Processing ---
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
 
         for s in sentences:
+            # 1. Attribute Mining (Always Run)
             if TRADING_VENUE_REGEX.search(s):
                 attributes["mentions_venue"] = True
-            # Check Sentence Tags (_S)
+
             tag_match = TAG_PARSER.match(s)
+            current_sent_is_deadweight = False
+            clean_text = s
 
             if tag_match:
+                current_sent_is_deadweight = True
                 tag_str = tag_match.group(1)
                 clean_text = tag_match.group(2)
 
-                # Attribute Mining
+                # Mine Sentence-Level Attributes (This now works for ANLZ blocks!)
                 if tag_str in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
                     attributes["is_historical"] = True
                 elif tag_str == NoiseReason.TRADING.value:
@@ -522,30 +521,26 @@ def process_row(row):
                     attributes["has_pnl_activity"] = True
                 elif tag_str == NoiseReason.CREDIT.value:
                     attributes["manages_credit_risk"] = True
-
                 elif tag_str == NoiseReason.DEF.value:
-                    # Definitions help the Tracker know "Swaps" = IR/FX/etc.
+                    # Register Definitions (Context)
                     cats = get_sentence_categories(clean_text)
                     specific = cats - {"gen", "other"}
                     if specific:
-                        # NEW (Correct): Register ALL categories found in the definition
                         for cat in specific:
                             doc_tracker.register_paragraph(clean_text, cat)
 
-                # Add to context
-                context_buffer.append(clean_text)
-                if len(context_buffer) > 5:
-                    context_buffer.pop(0)
-                continue
-
-            # --- C. CLASSIFICATION (Clean Sentences) ---
-            # This sentence survived all filters. It is a candidate.
-
-            context_buffer.append(s)
+            # 2. Context Buffer Update
+            context_buffer.append(clean_text)
             if len(context_buffer) > 5:
                 context_buffer.pop(0)
 
-            # 1. Check STRICT Matches (Anchors)
+            # 3. CLASSIFICATION GATEKEEPER
+            # If the paragraph is Deadweight OR the sentence is Deadweight, SKIP evidence.
+            if is_deadweight_block or current_sent_is_deadweight:
+                continue
+
+            # --- C. CLASSIFICATION (Clean Sentences Only) ---
+            # 1. Check STRICT Matches
             strict_cats = set()
             if IR_REGEX.search(s):
                 strict_cats.add("ir")
@@ -555,7 +550,7 @@ def process_row(row):
                 strict_cats.add("cp")
             if EQ_REGEX.search(s):
                 if is_sophisticated_content(s):
-                    strict_cats.add("warr") # both warrants and convertibles
+                    strict_cats.add("warr")
                     attributes["is_financing_sophisticated"] = True
                 else:
                     strict_cats.add("eq")
@@ -568,7 +563,7 @@ def process_row(row):
                     evidence_map[cat].append(s)
                     doc_tracker.register_paragraph(s, cat)
 
-            # 2. Check SOFT Matches (Piggybackers)
+            # 2. Check SOFT Matches
             else:
                 soft_cats = set()
                 if IR_SOFT_REGEX.search(s):
@@ -579,14 +574,10 @@ def process_row(row):
                     soft_cats.add("cp")
                 if EQ_SOFT_REGEX.search(s):
                     if is_sophisticated_content(s):
-                        # UPGRADE: It matched Soft Regex, but Context proves it's a Financing Instrument.
-                        # Action: Treat as PROVEN evidence (Anchor), not Potential.
                         evidence_map["warr"].append(s)
                         doc_tracker.register_paragraph(s, "warr")
                         attributes["is_financing_sophisticated"] = True
                     else:
-                        # It matched Soft Regex but looks like "Equity Options" (Trading).
-                        # Action: Keep as POTENTIAL.
                         soft_cats.add("eq")
                 if CR_SOFT_REGEX.search(s):
                     soft_cats.add("cr")
@@ -598,10 +589,7 @@ def process_row(row):
                     # 3. Check Generic Resolution
                     cats = get_sentence_categories(s)
                     if "gen" in cats:
-                        # Try Global Tracker (Fast & Accurate)
                         resolved = doc_tracker.resolve_instrument(s)
-
-                        # Try ML (Optional Backup)
                         if not resolved and RESOLVER:
                             resolved = resolve_generic_with_ml(
                                 s, context_buffer[:-1], None
@@ -626,7 +614,7 @@ def process_row(row):
         # Only trust soft equity signals
         if "eq" in potential_map and "eq" not in evidence_map:
             evidence_map["eq"].extend(potential_map["eq"])
-            
+
     # 2.5: Trading attributes: if it is not a hedger, then it is a trader
     if attributes["mentions_venue"] and not attributes["is_hedger"]:
         attributes["is_trader"] = True
