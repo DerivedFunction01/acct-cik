@@ -2,6 +2,8 @@ import re
 from typing import List, Dict, Optional, Tuple
 
 from derivative_regex import (
+    FX_SOFT_REGEX,
+    IR_SOFT_REGEX,
     SOFT_REGEX,
     TABLE_REGEX,
     YEAR_REGEX,
@@ -64,9 +66,8 @@ class TableToTextConverter:
         full_context = f"{self.caption} {self.narrative_context}"
         
         # If caption says "Derivative Instruments" or "Hedging Activities", the whole table is safe.
-        self.caption_is_strong = bool(
-            STRICT_REGEX.search(full_context) or SOFT_GEN_REGEX.search(full_context)
-        )
+        # Additionally, if it mentions a soft instrument such as interest rate contracts or interest
+        self.caption_is_strong = self.is_implied_derivative(full_context)
         
         self.table_default_type = self._analyze_caption_context(full_context)
 
@@ -81,6 +82,11 @@ class TableToTextConverter:
 
         self._apply_column_heuristics()
         self._resolve_offsetting_conflicts()
+
+    def is_implied_derivative(self, full_context):
+        return bool(
+            STRICT_REGEX.search(full_context) or SOFT_GEN_REGEX.search(full_context) or IR_SOFT_REGEX.search(full_context) or FX_SOFT_REGEX.search(full_context)
+        )
         
     def extract_table_content(self, table_text: str) -> Tuple[List[List[str]], List[List[str]]]:
         """
@@ -367,9 +373,9 @@ class TableToTextConverter:
             )
 
             row_implies_notional = bool(NOTIONAL_HEADERS.search(full_instrument_name))
-            is_strict = bool(STRICT_REGEX.search(full_instrument_name))
+            is_strict = self.is_implied_derivative(full_instrument_name)
             is_table_safe = bool(TABLE_REGEX.search(full_instrument_name))
-            is_soft = bool(SOFT_REGEX.search(full_instrument_name))
+            is_soft = bool(SOFT_REGEX.search(full_instrument_name)) if not is_strict else False
 
             if is_strict or is_table_safe or row_implies_notional:
                 table_has_strong_row = True
