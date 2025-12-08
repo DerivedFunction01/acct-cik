@@ -3072,6 +3072,95 @@ def build_prior_statement_pattern() -> re.Pattern:
     return re.compile(full_pattern, re.IGNORECASE | re.VERBOSE)
 
 
+def build_prior_statement_pattern_2() -> re.Pattern:
+    """
+    Build regex pattern for DETECTING prior period statements.
+
+    Strategy:
+    1. Compositional: Preposition + (Optional 'the') + Adjective + Noun
+       matches: "In the prior year", "During previous reporting periods"
+    2. Catch-Alls: Standalone adverbs/phrases
+       matches: "Historically", "Prior to 2022"
+    """
+
+    # --- 1. COMPOSITIONAL COMPONENTS ---
+
+    PREPOSITIONS = [
+        r"in",
+        r"during",
+        r"for",
+        r"as\s+of",
+        r"at",
+        r"from",
+        r"throughout",
+        r"over",
+    ]
+
+    # Adjectives indicating the past
+    PRIOR_INDICATORS = [
+        "past",
+        "previous",
+        "last",
+        "prior",
+        "earlier",
+        "former",
+        "preceding",
+        "historical",
+        "retroactive",
+    ]
+
+    # Nouns indicating time periods (with optional "fiscal" prefix)
+    # Matches: "years", "fiscal years", "reporting periods", "quarters"
+    TIME_NOUNS = [
+        r"(?:fiscal\s+|reporting\s+|reported\s+)?(?:years?|periods?|quarters?|months?)",
+        r"comparable\s+periods?",  # "In the comparable period"
+    ]
+
+    # --- 2. BUILD FRAGMENTS ---
+
+    PREP_ALT = build_alternation(PREPOSITIONS)
+    ADJ_ALT = build_alternation(PRIOR_INDICATORS)
+    NOUN_ALT = build_alternation(TIME_NOUNS)
+
+    # Optional determiner: "In [the/our] prior year"
+    DETERMINER = r"(?:the\s+|our\s+)?"
+
+    # --- 3. PATTERNS ---
+
+    # Pattern A: Compositional (Prep + Adj + Noun)
+    # Matches: "In prior years", "During the previous fiscal period"
+    pat_compositional = (
+        rf"(?:\b(?:{SUBJ})\s+)?\b"  # Optional Subject ("The Company...")
+        rf"(?:{PREP_ALT})\s+"  # Preposition ("In")
+        rf"{DETERMINER}"  # Optional ("the")
+        rf"(?:{ADJ_ALT})\s+"  # Adjective ("prior")
+        rf"(?:{NOUN_ALT})"  # Noun ("years")
+        r"\b"  # Word boundary
+    )
+
+    # Pattern B: Standalone Catch-Alls (Adverbs & Specific Phrases)
+    CATCH_ALLS = [
+        r"historically",
+        r"previously",
+        r"formerly",
+        r"in\s+the\s+(?:past|previous|last)",  # "In the past" (Noun-less)
+        r"prior\s+to\s+(?:adoption|the\s+period|this|today|\d{4})",  # "Prior to 2023"
+        r"years?\s+ago",
+        r"same\s+period\s+last\s+year",
+    ]
+    pat_catchall = rf"\b{build_alternation(CATCH_ALLS)}\b"
+
+    # --- 4. COMBINE ---
+    return re.compile(rf"(?:{pat_compositional}|{pat_catchall})", re.IGNORECASE)
+
+
+# Export
+PRIOR_PATTERN = build_prior_statement_pattern()
+
+
+# Export
+PRIOR_PATTERN2 = build_prior_statement_pattern_2()
+
 PRIOR_PATTERN = build_prior_statement_pattern()
 
 # =============================================================================
