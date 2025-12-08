@@ -663,37 +663,23 @@ HEDGING_CONTEXT_TERMS = (
     + VALUATION_MODELS
 )
 
+# Strict commodity units (high confidence)
 CP_UNITS_STRICT = [
-    # Physical quantity units
-    "barrels",
-    "bbl",
-    "bbl/d",
-    "btu",
-    "gj",
-    "mmbtu",
-    "mmbtu/h",
-    "mwh",
-    "bushels",
-    "cwt",
-    "hundredweights",
-    "pecks",
-    "ounces",
-    "pounds",
-    "tons",
-    "tonne",
-    "long tons",
-    "short tons",
-    "joules",
-    "gigajoules",
-    "mcf",
-    "mmcf",
-    "bcf",  # thousand/million/billion cubic feet
-    "therm",
-    "therms",
-    "dth",
-    "dekatherms",
+    "barrels", "bbl", "bbl/d", "btu", "gj", "mmbtu", "mmbtu/h", "mwh",
+    "bushels", "cwt", "hundredweights", "pecks", "ounces", "pounds",
+    "tons", "tonne", "long tons", "short tons", "joules", "gigajoules",
+    "mcf", "mmcf", "bcf", "therm", "therms", "dth", "dekatherms",
 ]
-COMMODITY_UNIT_PATTERN = build_alternation(CP_UNITS_STRICT)
+CP_UNITS = [
+    "units", "items", "packages", "containers", "loads",
+    "gallons", "gal", "liters", "ltr",
+    "cubic meters", "m3", "cubic feet", "ft3",
+    "hectoliters", "hL", "kiloliters", "kL",
+    "megaliters", "ML", "gigaliters", "GL",
+    "board foot", "bf", "sheets", "coils", "bundles", "pallets",
+    "sacks", "bales", "heads", "carats", "ingots", "bars",
+] + CP_UNITS_STRICT
+COMMODITY_UNIT_PATTERN = build_alternation(CP_UNITS)
 CP_CONTEXT_TERMS = [
     # Power Grids / ISOs (Strongest context for "power swaps")
     "PJM",
@@ -3153,13 +3139,8 @@ def build_prior_statement_pattern_2() -> re.Pattern:
     # --- 4. COMBINE ---
     return re.compile(rf"(?:{pat_compositional}|{pat_catchall})", re.IGNORECASE)
 
-
 # Export
-PRIOR_PATTERN = build_prior_statement_pattern()
-
-
-# Export
-PRIOR_PATTERN2 = build_prior_statement_pattern_2()
+PRIOR_INDICATOR = build_prior_statement_pattern_2()
 
 PRIOR_PATTERN = build_prior_statement_pattern()
 
