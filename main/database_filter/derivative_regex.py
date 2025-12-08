@@ -2810,6 +2810,7 @@ def build_trading_denial_pattern() -> re.Pattern:
     # (We add them here because "are not" isn't a universal negation prefix like "do not")
     passive_negators = [
         r"are\s+not", r"is\s+not", r"were\s+not", r"was\s+not",
+        r"are\s+neither", r"is\s+neither", r"were\s+neither", r"was\s+neither", # <--- NEW
         r"never", r"not"
     ]
     passive_negation = build_alternation(passive_negators)
