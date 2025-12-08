@@ -216,7 +216,7 @@ def check_refinement_exclusions(
         if not reporting_year:
             return True
         text = _cleaner.clean_numerics(sentence, remove_years=False)
-        sent_years = extract_years(sentence)
+        sent_years = extract_years(text)
         if not sent_years:
             return True
         if any(y >= reporting_year for y in sent_years):
