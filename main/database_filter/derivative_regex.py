@@ -3942,69 +3942,76 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
     Matches official entity names AND their acronyms that contain trigger words
     (Futures, Swaps, Options, Derivatives, Exchange) to prevent false positive classification.
     """
-    entities = [
-        # --- 1. Regulators & Standard Setters ---
-        r"\b(?:U\.?S\.?\s+)?Commodity\s+Futures\s+Trading\s+Commission\b",
-        r"\bCFTC\b",
-        r"\bNational\s+Futures\s+Association\b",
-        r"\bNFA\b",
-        r"\bSecurities\s+(?:[Aa]nd|&)\s+Exchange\s+Commission\b",
-        r"\bSEC\b",
-        r"\bPublic\s+Company\s+Accounting\s+Oversight\s+Board\b",
-        r"\bPCAOB\b",
-        r"\bFederal\s+Energy\s+Regulatory\s+Commission\b",
-        r"\bFERC\b",
-        r"\bPrudential\s+Regulators?\b",  # Generic but common in bank filings
-        # --- 2. Associations (Master Agreements) ---
-        r"\bInternational\s+Swaps\s+(?:[Aa]nd|&)\s+Derivatives\s+Association\b",
-        r"\bISDA\b",
-        r"\bFutures\s+Industry\s+Association\b",
-        r"\bFIA\b",
-        r"\bSecurities\s+Industry\s+(?:[Aa]nd|&)\s+Financial\s+Markets\s+Association\b",
-        r"\bSIFMA\b",
-        # --- 3. Exchanges (The "Option/Future/Swap" Triggers) ---
-        # Chicago Group
-        r"\bChicago\s+Board\s+Options\s+Exchange\b",
-        r"\bCBOE\b",
-        r"\bChicago\s+Mercantile\s+Exchange\b",
-        r"\bCME\b",
-        r"\bChicago\s+Board\s+of\s+Trade\b",
-        r"\bCBOT\b",
-        # New York / ICE Group
-        r"\bNew\s+York\s+Stock\s+Exchange\b",
-        r"\bNYSE\b",
-        r"\bNew\s+York\s+Mercantile\s+Exchange\b",
-        r"\bNYMEX\b",
-        r"\bCommodity\s+Exchange(?:,?\s+Inc\.?)?\b",
-        r"\bCOMEX\b",
-        r"\bIntercontinental\s+Exchange\b",
-        r"\bICE\b",
-        # International / Other
-        r"\bLondon\s+Metal\s+Exchange\b",
-        r"\bLME\b",
-        r"\bLondon\s+Stock\s+Exchange\b",
-        r"\bLSE\b",
-        r"\bPhiladelphia\s+Stock\s+Exchange\b",
-        r"\bPHLX\b",
-        r"\bEurex\b",
-        # --- 4. Clearing Houses (Critical for "Cleared Swaps" noise) ---
-        r"\bOptions\s+Clearing\s+Corporation\b",
-        r"\bOCC\b",
-        r"\bLondon\s+Clearing\s+House\b",
-        r"\bLCH\b",
-        r"\bCME\s+Clearing\b",
-        r"\bICE\s+Clear\b",
-        # --- 5. Generic / Investment Vehicles ---
-        r"\bhedge\s+funds?\b",
-        r"\bmutual\s+funds?\b",
-        r"\bindex\s+funds?\b",
-        r"\bexchange[- ]traded\s+funds?\b",
-        r"\bETFs?\b",
-        r"\bmoney\s+market\s+funds?\b",
-        r"\bpension\s+funds?\b",  # Reinforces Plan Asset exclusion
-        r"\bUniform\s+Commercial\s+Code\b",
-        r"\bUCC\b",
-    ] + ISSUER_TERMS + BANK_ENTITIES
+    entities = (
+        [
+            # --- 1. Regulators & Standard Setters ---
+            r"\b(?:U\.?S\.?\s+)?Commodity\s+Futures\s+Trading\s+Commission\b",
+            r"\bCFTC\b",
+            r"\bNational\s+Futures\s+Association\b",
+            r"\bNFA\b",
+            r"\bSecurities\s+(?:[Aa]nd|&)\s+Exchange\s+Commission\b",
+            r"\bSEC\b",
+            r"\bPublic\s+Company\s+Accounting\s+Oversight\s+Board\b",
+            r"\bPCAOB\b",
+            r"\bFederal\s+Energy\s+Regulatory\s+Commission\b",
+            r"\bFERC\b",
+            r"\bPrudential\s+Regulators?\b",  # Generic but common in bank filings
+            # --- 2. Associations (Master Agreements) ---
+            r"\bInternational\s+Swaps\s+(?:[Aa]nd|&)\s+Derivatives\s+Association\b",
+            r"\bISDA\b",
+            r"\bFutures\s+Industry\s+Association\b",
+            r"\bFIA\b",
+            r"\bSecurities\s+Industry\s+(?:[Aa]nd|&)\s+Financial\s+Markets\s+Association\b",
+            r"\bSIFMA\b",
+            # --- 3. Exchanges (The "Option/Future/Swap" Triggers) ---
+            # Chicago Group
+            r"\bChicago\s+Board\s+Options\s+Exchange\b",
+            r"\bCBOE\b",
+            r"\bChicago\s+Mercantile\s+Exchange\b",
+            r"\bCME\b",
+            r"\bChicago\s+Board\s+of\s+Trade\b",
+            r"\bCBOT\b",
+            # New York / ICE Group
+            r"\bNew\s+York\s+Stock\s+Exchange\b",
+            r"\bNYSE\b",
+            r"\bNew\s+York\s+Mercantile\s+Exchange\b",
+            r"\bNYMEX\b",
+            r"\bCommodity\s+Exchange(?:,?\s+Inc\.?)?\b",
+            r"\bCOMEX\b",
+            r"\bIntercontinental\s+Exchange\b",
+            r"\bICE\b",
+            # International / Other
+            r"\bLondon\s+Metal\s+Exchange\b",
+            r"\bLME\b",
+            r"\bLondon\s+Stock\s+Exchange\b",
+            r"\bLSE\b",
+            r"\bPhiladelphia\s+Stock\s+Exchange\b",
+            r"\bPHLX\b",
+            r"\bEurex\b",
+            # --- 4. Clearing Houses (Critical for "Cleared Swaps" noise) ---
+            r"\bOptions\s+Clearing\s+Corporation\b",
+            r"\bOCC\b",
+            r"\bLondon\s+Clearing\s+House\b",
+            r"\bLCH\b",
+            r"\bCME\s+Clearing\b",
+            r"\bICE\s+Clear\b",
+            # --- 5. Generic / Investment Vehicles ---
+            r"\bmutual\s+funds?\b",
+            r"\bindex\s+funds?\b",
+            r"\bexchange[- ]traded\s+funds?\b",
+            r"\bETFs?\b",
+            r"\bmoney\s+market\s+funds?\b",
+            r"\bpension\s+funds?\b",  # Reinforces Plan Asset exclusion
+            r"\bUniform\s+Commercial\s+Code\b",
+            r"\bUCC\b",
+            r"\bhedge\s+funds?\b",
+            r"\bhedge\s+banks?\b",  # <--- ADDED: "The Hedge Bank" (Lender Role)
+            r"\bswap\s+dealers?\b",  # <--- ADDED: Regulatory Entity Role
+            r"\bmajor\s+swap\s+participants?\b",
+        ]
+        + ISSUER_TERMS
+        + BANK_ENTITIES
+    )
 
     # --- 6. Dynamic Fund Pattern (Your existing logic) ---
     # Matches: "United States Commodity Index Fund", "Oil Derivatives Trust"
