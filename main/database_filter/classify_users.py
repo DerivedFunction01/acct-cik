@@ -475,6 +475,9 @@ def process_row(row):
     for p in paragraphs:
         # Initialize flags
         is_paragraph_deadweight = False
+        
+        if TRADING_VENUE_REGEX.search(p):
+            attributes["mentions_venue"] = True
 
         # --- A. Check for Paragraph-Level Tag (_D) ---
         # We strip to ensure the regex matches at the start
@@ -510,9 +513,6 @@ def process_row(row):
             clean_s = s
             is_sentence_deadweight = False
 
-            if TRADING_VENUE_REGEX.search(s):
-                attributes["mentions_venue"] = True
-
             sent_match = TAG_PARSER_STRICT.match(s)
             if sent_match:
                 # It's a tagged sentence (e.g. "_S<TRADING> We do not...")
@@ -547,6 +547,7 @@ def process_row(row):
             if sent_match and sent_match.group(2) == NoiseReason.DEF.value:
                 cats = get_sentence_categories(clean_s)
                 specific = cats - {"gen", "other"}
+                clean_s = _cleaner.clean_entities(clean_s)
                 for cat in specific:
                     doc_tracker.register_paragraph(clean_s, cat)
 
