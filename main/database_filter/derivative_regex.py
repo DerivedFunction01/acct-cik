@@ -693,6 +693,7 @@ CP_UNITS_STRICT = [
     "dth",
     "dekatherms",
 ]
+COMMODITY_UNIT_PATTERN = build_alternation(CP_UNITS_STRICT)
 CP_CONTEXT_TERMS = [
     # Power Grids / ISOs (Strongest context for "power swaps")
     "PJM",
