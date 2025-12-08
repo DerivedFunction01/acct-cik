@@ -663,7 +663,7 @@ HEDGING_CONTEXT_TERMS = (
     + VALUATION_MODELS
 )
 
-CP_CONTEXT_TERMS = [
+CP_UNITS_STRICT = [
     # Physical quantity units
     "barrels",
     "bbl",
@@ -692,6 +692,8 @@ CP_CONTEXT_TERMS = [
     "therms",
     "dth",
     "dekatherms",
+]
+CP_CONTEXT_TERMS = [
     # Power Grids / ISOs (Strongest context for "power swaps")
     "PJM",
     "ERCOT",
