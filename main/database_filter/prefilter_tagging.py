@@ -10,12 +10,15 @@ from derivative_regex import (
     # Structural
     ABSENCE_REGEX,
     EMBEDDED_CAP_FLOOR_REGEX,
+    HEDGING_CONTEXT_REGEX,
     IS_REFERENCE_REGEX,
+    LOOSE_GEN_REGEX,
     MORE_INFO_REGEX,
     SENTENCE_SPLIT_PATTERN,
     DEFINITION_INDICATORS,
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
+    SOFT_REGEX,
     # Business Logic
     TRADING_STATEMENTS_REGEX,
     NON_POSITION_INDICATORS,
@@ -124,10 +127,12 @@ def check_paragraph_level_noise(text: str, reporting_year: int) -> bool:
 
 def tag_paragraph(text: str, reporting_year: int) -> str:
     """
-    Applies the 7-Phase logic non-destructively.
+    Applies regex noise detection per sentence.
+    1. Tags noise/history/intent with _S.
+    2. Checks if surviving sentences actually mention derivatives.
+    3. If no valid signal remains, marks paragraph as _D.
     """
-    # 1. MASKING (Phase 1)
-    # We operate on masked text to avoid "Chicago Mercantile Exchange" false positives
+    # 1. MASKING
     masked_text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
 
     # 2. PARAGRAPH-LEVEL CHECK
@@ -142,61 +147,75 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()
     ]
 
-    # Safety alignment check
     if len(original_sentences) != len(masked_sentences):
         return text
 
     tagged_output = []
-    valid_count = 0
+    surviving_text_parts = []  # Track text that isn't noise
 
     for orig, masked in zip(original_sentences, masked_sentences):
         is_noise = False
 
-        # --- PHASE 1: Structural Noise ---
+        # --- NOISE GAUNTLET ---
         if IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
             is_noise = True
         elif DEFINITION_INDICATORS.search(masked):
             is_noise = True
-        elif NON_POSITION_INDICATORS.search(masked):  # PnL/AOCI
+        elif NON_POSITION_INDICATORS.search(masked):
             is_noise = True
-        elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):  # NPNS
+        elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
             is_noise = True
-        elif TRADING_STATEMENTS_REGEX.search(masked):  # "We do not trade"
+        elif TRADING_STATEMENTS_REGEX.search(masked):
             is_noise = True
-        elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):  # Loan noise
+        elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
             is_noise = True
-
-        # --- PHASE 3: Temporal Filtering ---
         elif is_temporal_noise(masked, reporting_year):
             is_noise = True
-
-        # --- PHASE 4: Intent Filtering ---
         elif is_intent_noise(masked):
             is_noise = True
-
-        # --- PHASE 5: Termination Filtering ---
         elif is_termination_noise(masked):
             is_noise = True
-
-        # --- PHASE 6: Quantitative Filtering ---
         elif is_quantitative_noise(masked, reporting_year):
             is_noise = True
 
-        # --- TAGGING ---
+        # --- TAGGING & ACCUMULATION ---
         if is_noise:
             tagged_output.append(f"{SKIP_TOKEN}{orig}")
         else:
             tagged_output.append(orig)
-            valid_count += 1
+            surviving_text_parts.append(masked)  # Keep masked version for signal check
+
+    # --- FINAL SIGNAL CHECK ---
+    # We survived the killers, but is there actually a derivative here?
+
+    if not surviving_text_parts:
+        # No sentences survived the filters
+        final_text = " ".join(tagged_output)
+        return f"{DEADWEIGHT_TOKEN}{final_text}"
+
+    # Combine survivors to check for "Soft Signal"
+    combined_survivors = " ".join(surviving_text_parts)
+
+    has_signal = False
+
+    # Check 1: Standard Derivative Keywords (Swaps, Futures, etc.)
+    if SOFT_REGEX.search(combined_survivors):
+        has_signal = True
+
+    # Check 2: Loose Keywords + Hedging Context ("Contracts" + "Risk Management")
+    # Only needed if Check 1 failed
+    elif LOOSE_GEN_REGEX.search(combined_survivors) and HEDGING_CONTEXT_REGEX.search(
+        combined_survivors
+    ):
+        has_signal = True
 
     final_text = " ".join(tagged_output)
 
-    # If NO sentences survived the gauntlet, the paragraph is Deadweight.
-    if valid_count == 0:
+    if has_signal:
+        return final_text
+    else:
+        # It was just "Risk Fluff" -> Mark Deadweight
         return f"{DEADWEIGHT_TOKEN}{final_text}"
-
-    return final_text
-
 
 def process_row(row):
     url, matches_json, cik, year = row
