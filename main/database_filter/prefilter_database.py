@@ -515,6 +515,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 NoiseReason.HYP_SCORE.value,
                 NoiseReason.CONTRACT.value,
                 NoiseReason.REG.value,
+                NoiseReason.BANK.value,
             }
 
             if exclusion_reason in SALVAGEABLE_REASONS:
