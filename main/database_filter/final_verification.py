@@ -88,11 +88,16 @@ VALID_QUANT_TERMS = [
 VALID_QUANT_CONTEXT_REGEX = re.compile(
     r"\b" + build_alternation(VALID_QUANT_TERMS) + r"\b", re.IGNORECASE
 )
+NUMBER_PATTERN = r"(?:0\.\d+|(?:[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d*)(?:\.\d+)?)"
+SCALE_WORDS = r"(?:million|billion|trillion|thousand)"
 
 QUANT_REGEX = re.compile(
-    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*(?:0\.\d+|[1-9]\d*(?:\.\d+)?)|"
-    rf"(?:0\.\d+|[1-9]\d*(?:\.\d+)?)\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
-    r"\d+(?:\.\d+)?\s+(?:million|billion|trillion|thousand)",
+    # Currency symbol + optional parens + number + optional parens
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*\(?\s*{NUMBER_PATTERN}\s*\)?|"
+    # Number + optional parens + currency symbol
+    rf"\(?\s*{NUMBER_PATTERN}\s*\)?\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
+    # Currency + number + scale word
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s+{NUMBER_PATTERN}\s+{SCALE_WORDS}",
     re.IGNORECASE,
 )
 

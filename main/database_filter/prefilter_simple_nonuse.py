@@ -88,7 +88,7 @@ class MinimalTextCleaner:
     def __init__(self):
         pass
 
-    def clean_numerics(self, text: str) -> str:
+    def clean_numerics(self, text: str, remove_years: bool = False) -> str:
         """
         Remove numeric noise that confuses quantitative parsing:
         - Bullet points (1), 1), 1.
@@ -122,6 +122,8 @@ class MinimalTextCleaner:
         text = DATE_DM_REGEX.sub(" ", text)
         text = self.exhibit_pattern.sub(" ", text)
         text = self.standard_id_pattern.sub(" ", text)
+        if remove_years:
+            text = YEAR_REGEX.sub(" ", text)
         return text
 
     def normalize_whitespace(self, text: str) -> str:
@@ -130,7 +132,7 @@ class MinimalTextCleaner:
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
 
-    def clean_for_quant_analysis(self, text: str) -> str:
+    def clean_for_quant_analysis(self, text: str, remove_years: bool = False) -> str:
         """
         Prepare text for quantitative zero checking.
         Removes noise that would interfere with extract_values_and_years().
@@ -140,9 +142,14 @@ class MinimalTextCleaner:
         2. Normalize whitespace
         3. Return cleaned text ready for QUANT_REGEX/value extraction
         """
-        text = self.clean_numerics(text)
+        text = self.clean_numerics(text, remove_years)
         text = self.normalize_whitespace(text)
         return text
+    
+    def clean(self, text: str, remove_years: bool = False) -> str:
+        text = self.clean_for_quant_analysis(text, remove_years)
+        text = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, text)
+        return text.strip()
 
 
 # Initialize cleaner (shared instance)
@@ -397,7 +404,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     for p in paragraphs:
         # 1. Masking
-        p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+        p_masked = _cleaner.clean(p)
 
         # 2. Level 2 Filter (Refinement - Linguistic Ambiguity)
         # Returns a tag string (e.g. " _D<HYPO>") or None
