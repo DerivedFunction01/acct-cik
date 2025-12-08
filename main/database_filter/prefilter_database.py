@@ -380,7 +380,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
             # === ACCOUNTING STANDARDS ===
-            if ACCOUNTING_STANDARDS_STRICT_REGEX.search(p):
+            if EXCLUDE_REGEX_ACCOUNTING_STD.search(p):
                 kept, acc_std_discards = process_accounting_standards_paragraph(p, url)
                 local_discards.extend(acc_std_discards)
 
