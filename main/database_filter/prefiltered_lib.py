@@ -114,10 +114,13 @@ class MinimalTextCleaner:
         return text
 
 from enum import Enum
-
 class Reason(Enum):
     # --- Nothing here
     pass
+
+def get_tag(token_type: str, reason: Reason | str) -> str:
+    return f"{token_type}<{reason.value if isinstance(reason, Reason) else reason}>"
+
 class NoiseReason(Reason):
     # --- Structural / Formatting ---
     REF = "REF"  # Navigational Reference ("See Note 5")
