@@ -163,35 +163,38 @@ class NoiseReason(Reason):
     HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging
     NO_SOPH = "NO_SOPH"  # No indication of convertible/warrants as derivatives
 
-
+# --- LOGIC SETS ---
 class EvidenceReason(Reason):
-    # --- 1. STRONG: ANCHORS (Data & Explicit Current) ---
-    # These imply specific, undeniable facts about the current/future state.
-    NVY = "NOTIONAL_VALUE_YEAR"  # "Notional was $100M in 2024"
-    FVY = "FAIR_VALUE_YEAR"  # "Fair value was $5M in 2024"
-    MAT_FUT = "MATURITY_FUTURE"  # "Matures in 2026" (Future Year Anchor)
-    AS_YEAR = "ACTIVE_STATE_YEAR"  # "Outstanding at Dec 31, 2024"
-    SD = "CURRENT_STATE"  # "We CURRENTLY use", "PRESENTLY hold"
+    # --- TIER 1: STRONG (Anchors) ---
+    NVY = "NOTIONAL_VALUE_YEAR"
+    FVY = "FAIR_VALUE_YEAR"
+    FVAIY = "FAIR_VALUE_AMB_INSTR_YEAR"
+    MAT_FUT = "MATURITY_FUTURE"
+    AS_YEAR = "ACTIVE_STATE_YEAR"
+    SD = "CURRENT_STATE"
 
-    # --- 2. MEDIUM: STATES (Existence & Possession) ---
-    # Present tense "Being". Stronger than "Doing".
-    POSS = "POSSESSION"  # "We hold", "We carry", "We maintain"
-    BS_LOC = "BALANCE_SHEET_LOC"  # "Are recorded in Other Assets"
-    CONT_USE = "CONTINUOUS_USAGE"  # "Is hedging", "Are designating"
-    QUANT_NY = "QUANT_NO_YEAR"  # "$100M" or "Fair value of $5M" (No Year)
+    # --- TIER 2: MEDIUM (States - Time Killed) ---
+    POSS = "POSSESSION"  # "We hold", "We maintain"
+    BS_LOC = "BALANCE_SHEET_LOC"  # "Recorded in Other Assets"
+    CONT_USE = "CONTINUOUS_USAGE"  # "Is hedging"
+    NVNY = "NOTIONAL_NO_YEAR"  # "$100M" (No Year)
+    FVNY = "FAIR_VALUE__NO_YEAR"
+    FVAINY = "FAIR_VALUE_AMB_INSTR_NO_YEAR"
 
-    # --- 3. WEAK: ACTIONS (Transactions & Ambiguity) ---
-    # "Doing" verbs (active/past) or relative descriptors.
-    # Vulnerable to being generic policy or cancelled out actions.
-    PRU = "PRESENT_USAGE"  # "We use", "We derivative" (Generic Present)
-    ACT = "TRANSACTION_ACTION"  # "Entered into", "Purchased" (Past/Action verbs)
-    PNL_REC = "PNL_RECOGNITION"  # "Recognized a gain" (Could be closed position)
-    REM_TERM = "REMAINING_TERM"  # "Remaining term of 2 years"
+    # --- TIER 3: WEAK (Actions - Policy Killed) ---
+    PRU = "PRESENT_USAGE"  # "We use" (Generic)
+    ACT = "TRANSACTION_ACTION"  # "Entered into"
+    PU = "PAST_USAGE"  # "We held/used" (Specific Past)
+
+    # --- TIER 4: FLUFF (Context - Fragile) ---
+    PNL_REC = "PNL_RECOGNITION"  # "Recognized a gain"
+    REM_TERM = "REMAINING_TERM"  # "Remaining term"
 
 
 # --- LOGIC SETS ---
 
-# STRONG: Overrides ALL Noise.
+# TIER 1: STRONG
+# Logic: Overrides ALL Noise.
 STRONG_EVIDENCE = {
     EvidenceReason.NVY,
     EvidenceReason.FVY,
@@ -200,21 +203,26 @@ STRONG_EVIDENCE = {
     EvidenceReason.SD,
 }
 
-# MEDIUM: Dies to TERM, HIST, ZERO
-# Logic: "We hold" (Poss) overrides "Our policy is..."
-# Logic: "We hold" (Poss) DIES to "We closed..." (Term)
-MEDIUM_EVIDENCE = {
+# TIER 2: MEDIUM (Time-Killed)
+# Logic: Dies to HIST, TERM, TRADING. Survives POLICY.
+TIME_KILLED_EVIDENCE = {
     EvidenceReason.POSS,
     EvidenceReason.BS_LOC,
     EvidenceReason.CONT_USE,
-    EvidenceReason.QUANT_NY,
+    EvidenceReason.NVNY,
 }
 
-# WEAK: Dies to ANY Noise.
-# Logic: "We use" (PRU) DIES to "Our policy is..." (Policy)
-WEAK_EVIDENCE = {
+# TIER 3: WEAK (Policy-Killed)
+# Logic: Dies to POLICY, HIST, TERM, TRADING.
+POLICY_KILLED_EVIDENCE = {
     EvidenceReason.PRU,
     EvidenceReason.ACT,
+    EvidenceReason.PU,
+}
+
+# TIER 4: FLUFF (Fragile)
+# Logic: Dies to ANY Noise tag found in the paragraph.
+FLUFF_EVIDENCE = {
     EvidenceReason.PNL_REC,
     EvidenceReason.REM_TERM,
 }
