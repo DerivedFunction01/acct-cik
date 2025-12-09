@@ -522,8 +522,8 @@ def check_transaction_action(
 # "Is this sentence talking about gains, losses, or income?"
 
 PNL_TERMS = [
-    r"(?:realized|unrealized)\s+(?:gain|loss)",  # "Unrealized loss"
-    r"(?:net\s+)?(?:gain|loss)\s+on",  # "Net gain on...", "Loss on..."
+    r"(?:realized|unrealized)\s+(?:gains?|loss|losses)",  # "Unrealized loss"
+    r"(?:net\s+)?(?:gains?|loss|losses)\s+on",  # "Net gain on...", "Loss on..."
     r"mark(?:\s+to)?[- ]market",  # "Mark-to-market"
     r"change(?:s)?\s+in\s+fair\s+value",  # "Changes in fair value"
     r"ineffective\s+portion",  # "Ineffective portion"
