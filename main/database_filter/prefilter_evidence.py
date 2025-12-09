@@ -496,7 +496,7 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     has_current_state = ACTIVE_STATE_REGEX.search(text)
 
     # If it lacks all three anchors, it's just a mention (e.g., "We discuss swaps..."), not a state.
-    if not (has_prep or has_adj or has_poss_verb or has_current_state):
+    if not (has_prep or has_adj or has_poss_verb or has_current_state or has_use):
         return None
 
     # --- 3. Time Gate ---
