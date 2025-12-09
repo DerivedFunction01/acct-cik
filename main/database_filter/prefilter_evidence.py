@@ -3,7 +3,7 @@ from typing import Optional, Set, Tuple
 from derivative_regex import ACTIVE_STATE_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_alternation, build_regex
 from prefilter_database import is_sophisticated_content
 from notional_filter import extract_values_and_years
-from prefiltered_lib import DEADWEIGHT_TOKEN, EVIDENCE_TOKEN, FLUFF_EVIDENCE, POLICY_KILLED_EVIDENCE, SKIP_TOKEN, STRONG_EVIDENCE, TIME_KILLED_EVIDENCE, EvidenceReason, MinimalTextCleaner, NoiseReason, get_tag
+from prefiltered_lib import DEADWEIGHT_TOKEN, EVIDENCE_TOKEN, FLOW_EVIDENCE, FLOW_KILLERS, FLUFF_EVIDENCE, POLICY_KILLED_EVIDENCE, POLICY_KILLERS, SKIP_TOKEN, STRONG_EVIDENCE, TIME_KILLED_EVIDENCE, TIME_KILLERS, EvidenceReason, MinimalTextCleaner, NoiseReason, get_tag
 
 _cleaner = MinimalTextCleaner()
 
@@ -54,180 +54,36 @@ VERB_MAP = {
     ],
 }
 
-AUXILIARY_REGEX = re.compile(r"\b(?:have|has)\s+$", re.IGNORECASE)
-
-
-def scan_verbs(text: str) -> Set[EvidenceReason]:
-    """
-    Scans for verbs in the text, applying:
-    1. Subject Gate: Must mention an instrument.
-    2. Tense Logic: Handles "Have held" vs "Held".
-    3. Strictness Logic: Downgrades Soft Possession to Tier 3.
-    """
-    found_signals = set()
-
-    # --- 1. THE SUBJECT GATE ---
-    # We must determine if the sentence refers to derivatives at all.
-
-    # Check Strict (Swaps, Options, Warrants)
-    # Note: Ensure check_derivative includes is_sophisticated_content (Warrants)
-    is_strict = check_derivative(text)
-
-    # Check Any Mention (Strict OR Soft/Loose)
-    has_mention = check_mention(text)
-
-    # If "We hold inventory" (No derivative mention), bail out.
-    if not has_mention:
-        return set()
-
-    # If "We hold contracts" (Soft mention only)
-    is_soft_only = not is_strict
-
-    # --- 2. THE VERB LOOP ---
-    for category, patterns in VERB_MAP.items():
-        full_regex = re.compile(r"\b(?:" + "|".join(patterns) + r")\b", re.IGNORECASE)
-
-        for match in full_regex.finditer(text):
-            verb_token = match.group(0)
-
-            # A. Tense Detection (with Override)
-            tense = detect_tense(verb_token)
-
-            preceding_text = text[: match.start()]
-            if AUXILIARY_REGEX.search(preceding_text):
-                tense = "PRESENT"  # "Have entered" -> Present
-
-            # B. Categorization & Tiering
-
-            if category == "POSS":
-                if tense == "PRESENT":
-                    if is_strict:
-                        # "We hold Swaps" -> Medium (Survives Policy)
-                        found_signals.add(EvidenceReason.POSS)
-                    else:
-                        # "We hold Contracts" -> Weak (Dies to Policy)
-                        found_signals.add(EvidenceReason.POSS_AMB)
-                else:
-                    # "We held/We have held" (Past)
-                    # Note: "Have held" is Present Tense state, but usually if soft
-                    # we treat it carefully. For simplicity, Past Tense is always Weak.
-                    found_signals.add(EvidenceReason.PU)
-
-            elif category == "ACT":
-                # Actions ("Entered into") are Tier 3 (Weak) regardless of strictness
-                # because "Entering" is transactional/historical.
-                found_signals.add(EvidenceReason.ACT)
-
-            elif category == "PRU":
-                # Usage ("We use") is Tier 3 (Weak) regardless of strictness
-                # because "We use Swaps" is common Policy boilerplate.
-                found_signals.add(EvidenceReason.PRU)
-
-            elif category == "ACCT":
-                # Accounting verbs ("Designated")
-                # Useful for context, usually Weak/Policy Killed
-                pass
-
-    return found_signals
-
-
-def detect_tense(verb: str) -> str:
-    """
-    Analyzes a specific verb token to detect if it is PAST or PRESENT/CONTINUOUS.
-
-    Returns: 'PAST' | 'PRESENT'
-    """
-    verb = verb.lower().strip()
-
-    # 1. Financial Irregulars (The "Strong" Past Tense)
-    irregulars = {
-        "held",
-        "sold",
-        "bought",
-        "wrote",
-        "took",
-        "began",
-        "became",
-        "arose",
-        "saw",
-        "chose",
-        "had",
-        "withdrew",
-        "stood",  # "Stood at"
-    }
-
-    if verb in irregulars:
-        return "PAST"
-
-    # 2. Standard Morphology
-    # Ends in "ed" -> Past (entered, used, designated)
-    if verb.endswith("ed"):
-        return "PAST"
-
-    # 3. Default to Present/Continuous
-    # Covers: base form ("use"), third person ("uses"), participle ("using")
-    # Note: "using" is technically continuous, which counts as Active/Present for our logic.
-    return "PRESENT"
-
 
 def evaluate_dominance(text: str, evidence_tags: set, noise_tags: set) -> str:
     """
-    Decides the final fate of a paragraph based on the 4-Tier Survival Hierarchy.
+    Decides the final fate of a paragraph based on the Survival Hierarchy.
     """
 
-    # --- 1. STRONG CHECK (Immune) ---
-    # Strong Evidence overrides EVERYTHING.
-    # We exit immediately if found.
+    # --- 1. STOCK CHECK (Titanium) ---
     if not evidence_tags.isdisjoint(STRONG_EVIDENCE):
         return apply_tags(text, evidence_tags, noise_tags)
 
-    # =========================================================
-    # DEFINE CUMULATIVE KILLERS
-    # =========================================================
+    # --- 1.5. FLOW CHECK (Conditional Strong) ---
+    # "Entered in 2024" - Ignores History, Dies to Termination
+    if not evidence_tags.isdisjoint(FLOW_EVIDENCE):
+        if noise_tags.isdisjoint(FLOW_KILLERS):
+            return apply_tags(text, evidence_tags, noise_tags)
 
-    # KILLER SET A: The "Reality Check" Killers
-    # These kill everything except Strong Anchors.
-    TIME_KILLERS = {
-        NoiseReason.TIME,  # "In 2018..."
-        NoiseReason.HIST_BLOCK,  # "History..."
-        NoiseReason.TRADING,  # "We do not trade..."
-        NoiseReason.TERM,  # "Terminated..."
-        NoiseReason.NEG,  # "Did not hold..."
-        NoiseReason.HYPO,  # "If we hold..." (Dangerous for states)
-        NoiseReason.ZERO,  # "Notional was 0"
-        NoiseReason.NPNS,  # "Normal purchase/sale exemption"
-    }
-
-    # KILLER SET B: The "Boilerplate" Killers (Cumulative)
-    # Includes everything above + Policy definitions.
-    POLICY_KILLERS = TIME_KILLERS | {
-        NoiseReason.POLICY,  # "Our policy is to..."
-        NoiseReason.DEF,  # "Swap shall mean..."
-        NoiseReason.ACCT_STD,  # "FASB ASU 2017-12..."
-    }
-
-    # =========================================================
-    # EVALUATE TIERS
-    # =========================================================
-
-    # --- 2. MEDIUM CHECK (Time-Killed) ---
-    # Logic: Dies to TIME_KILLERS. Survives POLICY.
+    # --- 2. MEDIUM CHECK (Standard) ---
+    # "We hold swaps" - Dies to History AND Termination
     if not evidence_tags.isdisjoint(TIME_KILLED_EVIDENCE):
-        # Check against Set A
         if noise_tags.isdisjoint(TIME_KILLERS):
             return apply_tags(text, evidence_tags, noise_tags)
 
-    # --- 3. WEAK CHECK (Policy-Killed) ---
-    # Logic: Dies to POLICY_KILLERS (Time + Policy).
+    # --- 3. WEAK CHECK (Policy) ---
+    # "We enter into..." - Dies to Policy
     if not evidence_tags.isdisjoint(POLICY_KILLED_EVIDENCE):
-        # Check against Set B (The Superset)
         if noise_tags.isdisjoint(POLICY_KILLERS):
             return apply_tags(text, evidence_tags, noise_tags)
 
-    # --- 4. FLUFF CHECK (Fragile) ---
-    # Logic: Dies to ANY Noise.
+    # --- 4. FLUFF CHECK ---
     if not evidence_tags.isdisjoint(FLUFF_EVIDENCE):
-        # Must be 100% clean
         if not noise_tags:
             return apply_tags(text, evidence_tags, [])
 
@@ -646,15 +502,18 @@ def check_transaction_action(
     # --- 3. Time Gate ---
     # Find all years in the text
     years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
-
+    is_strict = check_derivative(clean_text)
     # CASE A: No years found -> General Policy ("We enter into swaps")
     if not years:
-        return EvidenceReason.ACT
+        return EvidenceReason.ACT_GEN
+
 
     # CASE B: Years found -> Must be current or future
     # If ANY year in the text is valid (>= reporting_year), we accept it.
     if any(y >= reporting_year for y in years):
-        return EvidenceReason.POSS # poss get killed by time, since we moved the other logic to AS_YEAR
+        return (
+            EvidenceReason.ACT_YEAR if is_strict else EvidenceReason.ACT_AMB_YEAR
+        ) 
 
     # CASE C: Years found, but all are old -> Historical Noise ("Entered in 2019")
     return None

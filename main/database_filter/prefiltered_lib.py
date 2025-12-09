@@ -164,75 +164,132 @@ class NoiseReason(Reason):
     NO_SOPH = "NO_SOPH"  # No indication of convertible/warrants as derivatives
 
 
-# --- LOGIC SETS ---
 class EvidenceReason(Reason):
-    # --- TIER 1: STRONG (Anchors + STRICT Subject) ---
-    # Undeniable facts about specific derivatives. Overrides ALL Noise.
-    NVY = "NOTIONAL_VALUE_YEAR"  # "Notional was $100M in 2024" (Notional is inherently strict)
-    FVY = "FAIR_VALUE_YEAR"  # "Fair Value of SWAPS was $5M in 2024"
-    MAT_FUT = "MATURITY_FUTURE"  # "SWAP Matures in 2026"
-    AS_YEAR = "ACTIVE_STATE_YEAR"  # "SWAP Outstanding at Dec 31, 2024"
+    # =========================================================
+    # TIER 1: STRONG (The "Smoking Gun")
+    # Criteria: Strict Subject ("Swap") + Hard Anchor (Year/Value)
+    # Survival: Overrides ALL Noise.
+    # =========================================================
+    AS_YEAR = "ACTIVE_STATE_YEAR"  # "Swaps outstanding at Dec 31, 2024"
+    MAT_FUT = "MATURITY_FUTURE"  # "Swaps mature in 2026"
+    NVY = "NOTIONAL_VALUE_YEAR"  # "Notional was $100M in 2024"
+    FVY = "FAIR_VALUE_YEAR"  # "Fair Value of Swaps was $5M in 2024"
+    
+    # Special Survives history but dies to termination only
+    ACT_YEAR = "TRANSACTION_YEAR"  # "Entered into Swaps in 2024" 
+    
+    # =========================================================
+    # TIER 2: MEDIUM (The "Solid State")
+    # Criteria:
+    #   A. Strict Subject + General State ("We hold Swaps")
+    #   B. Weak Subject + Hard Anchor ("Contracts outstanding in 2024")
+    #   C. Self-Validating ("Recorded in Earnings")
+    # Survival: Dies to TIME, NEG, TRADING. Survives POLICY.
+    # =========================================================
 
-    # --- TIER 2: MEDIUM (States - Time Killed) ---
-    # Dies to TRADING/HIST. Survives POLICY.
-    POSS = "POSSESSION"  # "We hold SWAPS" (Strict) -> Tier 2
-    BS_LOC = "BALANCE_SHEET_LOC" # recorded in ...
-    CONT_USE = "CONTINUOUS_USAGE"  # We posess swaps
+    # Group A: Strict Subject / General State
+    CONT_USE = "CONTINUOUS_USAGE"  # "We use Swaps to hedge" (Strict)
     NVNY = "NOTIONAL_NO_YEAR"  # "Notional is $100M"
-    FVNY = "FAIR_VALUE_NO_YEAR"  # "FV of Swaps is $5M"
+    FVNY = "FAIR_VALUE_NO_YEAR"  # "Fair Value of Swaps is $5M"
 
-    # Ambiguous / Soft Versions (The Duals):
-    # These have Strong Anchors (Date/Current) but Weak Subjects (Contract/Agreement).
-    # We downgrade them to Tier 2 so they can be killed by "No Trading" tags.
-    FVAIY = "FAIR_VALUE_AMB_INSTR_YEAR"  # "FV of CONTRACT was $5M in 2024"
-    POSS_AMB = "POSS_AMBIGUOUS"  # "We hold CONTRACTS" (Soft) -> Tier 3 (New)
-    MAT_AMB_FUT = "MAT_AMB_FUTURE"  # "CONTRACT Matures in 2026"
-    ASAIY = "ACTIVE_STATE_AMB_YEAR"  # "CONTRACT Outstanding at Dec 31, 2024"
-    FVAINY = "FAIR_VALUE_AMB_INSTR_NO_YEAR"  # "FV of Contract is $5M"
-    CONT_USE_AMB = "CONTINUOUS_USAGE_AMB" # We posess contracts
+    # Group B: Weak Subject / Hard Anchor (The "Ambiguous" Duals)
+    ASAIY = "ACTIVE_STATE_AMB_YEAR"  # "Contracts outstanding at Dec 31, 2024"
+    MAT_AMB_FUT = "MAT_AMB_FUTURE"  # "Agreements mature in 2026"
+    FVAIY = "FAIR_VALUE_AMB_YEAR"  # "Fair Value of Contracts was $5M in 2024"
+    ACT_AMB_YEAR = "TRANSACTION_AMB_YEAR"  # "Entered into Contracts in 2024"
 
-    # --- TIER 3: WEAK (Actions - Policy Killed) ---
-    PRU = "PRESENT_USAGE"
-    ACT = "TRANSACTION_ACTION"
-    PU = "PAST_USAGE"
+    # Group C: Self-Validating
+    BS_LOC = "BALANCE_SHEET_LOC"  # "Recorded in Earnings" (Implies existence)
 
-    # --- TIER 4: FLUFF ---
+    # =========================================================
+    # TIER 3: WEAK (The "Policy Prone")
+    # Criteria: Weak Subject ("Contracts") OR Generic Actions
+    # Survival: Dies to POLICY, DEFINITIONS, BOILERPLATE.
+    # =========================================================
+    ACT_GEN = "TRANSACTION_GENERIC"  # "We enter into Swaps" (No year)
+    CONT_USE_AMB = "CONTINUOUS_USAGE_AMB"  # "We use Contracts" (Weak Subject)
+    FVAINY = "FAIR_VALUE_AMB_NO_YEAR"  # "Fair Value of Contracts is $5M"
+
+    # =========================================================
+    # TIER 4: FLUFF (Context Only)
+    # Criteria: PnL descriptions, Terms
+    # Survival: Dies to ANY Noise.
+    # =========================================================
     PNL_REC = "PNL_RECOGNITION"
     REM_TERM = "REMAINING_TERM"
 
-
 # --- LOGIC SETS ---
+
+# TIER 1: STOCK EVIDENCE (Titanium)
+# Immune to: History, Termination, Policy, Negation.
+# Logic: If I have it at Year-End 2024, it doesn't matter if I terminated others or had old ones.
 STRONG_EVIDENCE = {
-    EvidenceReason.NVY,
-    EvidenceReason.FVY,
-    EvidenceReason.MAT_FUT,
-    EvidenceReason.AS_YEAR,
+    EvidenceReason.AS_YEAR,  # "Outstanding at Dec 31, 2024"
+    EvidenceReason.MAT_FUT,  # "Matures in 2026"
+    EvidenceReason.NVY,  # "Notional was $100M at Dec 31, 2024"
+    EvidenceReason.FVY,  # "Fair Value was $5M at Dec 31, 2024"
 }
 
+# TIER 1.5: FLOW EVIDENCE (Conditional Strong)
+# Immune to: History (TIME), Policy (POLICY).
+# Dies to: Termination (TERM)
+# Logic: "Entered in 2024" overrides "2019 history" or no other "oustanding positions", but dies if "Terminated" in same breath.
+FLOW_EVIDENCE = {
+    EvidenceReason.ACT_YEAR,  # "Entered into Swaps in 2024"
+}
+
+# TIER 2: MEDIUM EVIDENCE (Standard State)
+# Dies to: History (TIME) AND Termination (TERM).
+# Logic: Without a specific year, any mention of "History" or "Termination" poisons the well.
 TIME_KILLED_EVIDENCE = {
-    EvidenceReason.POSS,
-    EvidenceReason.BS_LOC,
-    EvidenceReason.CONT_USE,
-    EvidenceReason.NVNY,
-    EvidenceReason.FVNY,
-    # The Ambiguous Duals (Downgraded from Strong):
-    EvidenceReason.FVAIY,
-    EvidenceReason.FVAINY,
-    EvidenceReason.ASAIY,
-    EvidenceReason.MAT_AMB_FUT,  # <--- New
+    # Strict Subject / Yearless
+    EvidenceReason.CONT_USE,  # "We hold/use Swaps" (No year)
+    EvidenceReason.NVNY,  # "Notional is $100M"
+    EvidenceReason.FVNY,  # "Fair Value is $5M"
+    EvidenceReason.BS_LOC,  # "Recorded in Earnings"
+    # Weak Subject / Anchored (The "Ambiguous" Duals)
+    EvidenceReason.ASAIY,  # "Contracts outstanding 2024"
+    EvidenceReason.MAT_AMB_FUT,  # "Agreements mature in 2026"
+    EvidenceReason.FVAIY,  # "FV of Contracts was $5M in 2024"
+    EvidenceReason.ACT_AMB_YEAR,  # "Entered contracts in 2024"
 }
 
-
-# TIER 3 (Weak)
+# TIER 3: WEAK EVIDENCE (Policy Prone)
+# Dies to: Policy (POLICY), Definitions (DEF), Boilerplate.
 POLICY_KILLED_EVIDENCE = {
-    EvidenceReason.PRU,
-    EvidenceReason.POSS_AMB,
-    EvidenceReason.ACT,
-    EvidenceReason.PU,
+    EvidenceReason.ACT_GEN,  # "We enter into..." (No year)
+    EvidenceReason.CONT_USE_AMB,  # "We use contracts..." (No year, Weak Subject)
+    EvidenceReason.FVAINY,  # "FV of Contract is..."
 }
 
-# TIER 4 (Fluff)
+# TIER 4: FLUFF (Context Only)
+# Dies to: Any Noise.
 FLUFF_EVIDENCE = {
     EvidenceReason.PNL_REC,
     EvidenceReason.REM_TERM,
+}
+
+# --- KILLER SETS ---
+FLOW_KILLERS = {
+    NoiseReason.TERM,  # "Terminated"
+}
+
+# Standard Killers for TIER 2 (Medium)
+# Includes everything in Flow Killers + Time/History
+TIME_KILLERS = FLOW_KILLERS | {
+    NoiseReason.TIME,  # "In 2019..."
+    NoiseReason.HIST_BLOCK,  # "Historically..."
+    NoiseReason.HYPO,  # "Hypothetical..."
+    NoiseReason.NEG,  # "Did not enter"
+    NoiseReason.ZERO,  # "Zero value"
+}
+
+# Expanded Killers for TIER 3 (Weak)
+# Includes everything above + Policy/Definitions
+POLICY_KILLERS = TIME_KILLERS | {
+    NoiseReason.POLICY,  # "Our policy is..."
+    NoiseReason.DEF,  # "Swap shall mean..."
+    NoiseReason.ACCT_STD,  # "FASB ASU..."
+    NoiseReason.REF,  # "See Note 5"
+    NoiseReason.TRADING,  # "We do not trade"
 }
