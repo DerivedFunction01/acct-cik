@@ -8,6 +8,9 @@ DEADWEIGHT_TOKEN = "_D"
 
 # Token for sentence-level skips (Base string, will be formatted by get_tag)
 SKIP_TOKEN = " _S"
+
+# Token for evidence
+EVIDENCE_TOKEN = " _E"
 class MinimalTextCleaner:
     """
     Lightweight cleaner that prepares text for quantitative analysis.
@@ -109,3 +112,83 @@ class MinimalTextCleaner:
         text = self.clean_for_quant_analysis(text, remove_years)
         text = self.clean_entities(text)
         return text
+
+from enum import Enum
+
+class Reason(Enum):
+    # --- Nothing here
+    pass
+class NoiseReason(Reason):
+    # --- Structural / Formatting ---
+    REF = "REF"  # Navigational Reference ("See Note 5")
+    DEF = "DEF"  # Definition ("Swap shall mean...")
+    PNL = "PNL"  # PnL/AOCI ("Gain of $5M")
+    NPNS = "NPNS"  # Normal Purchases / Sales
+    LOAN = "LOAN"  # Embedded Loan Features
+
+    # --- Business Logic / Signals ---
+    TRADING = "TRADING"  # Trading Denial ("We do not trade")
+    POLICY = "POLICY"  # Accounting Policy ("Designated as hedge")
+    CREDIT = "CREDIT"  # Counterparty Risk ("Credit exposure")
+
+    # --- Scoring ---
+    CONTRACT = "CONTRACT"  # Contractual Boilerplate Score
+    REG = "REG"  # Regulatory Boilerplate Score
+    HYP_SCORE = "HYP_SCORE"  # Hypothetical Score
+    BANK = "BANK"  # Banking
+    LIBOR = "LIBOR"  # LIBOR Transition
+
+    # --- Classification Killers ---
+    TIME = "TIME"  # Historical / Temporal
+    HYPO = "HYPO"  # Hypothetical / Potential
+    NEG = "NEG"  # Negative Intent
+    TERM = "TERM"  # Termination / Expiration
+    ZERO = "ZERO"  # Quantitative Zero
+
+    # --- Paragraph Level ---
+    HIST_BLOCK = "HIST_BLOCK"
+    BOILER_BLOCK = "BOILER_BLOCK"
+    ANLZ = "ANLZ"  # Generic Deadweight: Requires scanning internal tags for attributes
+    FILING = "FILING"  # 10-K Headers
+    FORWARD = "FORWARD"  # Safe Harbor / Forward Looking
+    LEGAL = "LEGAL"  # Litigation
+    PLAN = "PLAN"  # Pension Plans
+    NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
+    COMP = "COMP"  # Competitors
+    ACCT_STD = "ACCT_STD"  # Accounting Standards
+
+    # --- Firm Level ---
+    HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging
+    NO_SOPH = "NO_SOPH"  # No indication of convertible/warrants as derivatives
+
+
+class EvidenceReason(Reason):
+    # --- QUANTITATIVE (The Gold Standard) ---
+    NVY = "NOTIONAL_VALUE_YEAR"  # "Notional was $100M in 2024"
+    FVY = "FAIR_VALUE_YEAR"  # "Fair value was $5M in 2024"
+    NVNY = "NOTIONAL_VALUE_NO_YEAR"  # "Notional amount of $100M" (Context dependent)
+    FVNY = "FAIR_VALUE_NO_YEAR"  # "Fair value of $5M"
+
+    # --- HARD LINGUISTIC (State of Being) ---
+    MAT_FUT = "MATURITY_FUTURE"  # "Matures in 2026" (Year > Reporting Year)
+    AS_YEAR = "ACTIVE_STATE_YEAR"  # "Outstanding at December 31, 2024"
+    BS_LOC = "BALANCE_SHEET_LOC"  # "Are recorded in Other Assets" (Present Tense)
+    CONT_USE = "CONTINUOUS_USAGE"  # "Currently hedges", "Is hedging"
+    REM_TERM = "REMAINING_TERM"  # "Weighted average maturity of 2 years"
+
+    # --- SOFT LINGUISTIC (Action/Activity) ---
+    PRU = "PRESENT_USAGE"  # "We use swaps" (Simple Present - Risk of Policy)
+    PRY = "PRESENT_YEAR_ACTION"  # "In 2024, we used..."
+    ACT_DUR = "ACTIVITY_DURING"  # "During 2024, we entered..."
+    PNL_REC = "PNL_RECOGNITION"  # "Recognized a gain of..."
+
+    # --- HISTORICAL / WEAK (Lower Confidence) ---
+    PU = "PAST_USAGE"  # "We held" (Simple Past)
+    PW = "PAST_WEAK"  # "We entered into" (Transactional Past)
+    ASNY = "ACTIVE_STATE_NO_YEAR"  # "Outstanding" (No date anchor)
+
+
+def get_tag(token_type: str, reason: Reason | str) -> str:
+    return (
+        f"{token_type}<{reason.value if isinstance(reason, Reason) else reason}>"
+    )
