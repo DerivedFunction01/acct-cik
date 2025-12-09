@@ -304,6 +304,7 @@ def setup_target_db(path):
         "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER, FOREIGN KEY (url) REFERENCES webpage_result(url))"
     )
     c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
+    
     conn.commit()
     conn.close()
 
