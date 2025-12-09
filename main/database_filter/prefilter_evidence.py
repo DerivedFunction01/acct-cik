@@ -56,46 +56,76 @@ VERB_MAP = {
 AUXILIARY_REGEX = re.compile(r"\b(?:have|has)\s+$", re.IGNORECASE)
 
 
-# Example Usage Logic
-def scan_verbs(text):
-    found_signals = set()  # Use a set to avoid duplicates
+def scan_verbs(text: str) -> Set[EvidenceReason]:
+    """
+    Scans for verbs in the text, applying:
+    1. Subject Gate: Must mention an instrument.
+    2. Tense Logic: Handles "Have held" vs "Held".
+    3. Strictness Logic: Downgrades Soft Possession to Tier 3.
+    """
+    found_signals = set()
 
+    # --- 1. THE SUBJECT GATE ---
+    # We must determine if the sentence refers to derivatives at all.
+
+    # Check Strict (Swaps, Options, Warrants)
+    # Note: Ensure check_derivative includes is_sophisticated_content (Warrants)
+    is_strict = check_derivative(text)
+
+    # Check Any Mention (Strict OR Soft/Loose)
+    has_mention = check_mention(text)
+
+    # If "We hold inventory" (No derivative mention), bail out.
+    if not has_mention:
+        return set()
+
+    # If "We hold contracts" (Soft mention only)
+    is_soft_only = not is_strict
+
+    # --- 2. THE VERB LOOP ---
     for category, patterns in VERB_MAP.items():
-        # Combine patterns for this category
         full_regex = re.compile(r"\b(?:" + "|".join(patterns) + r")\b", re.IGNORECASE)
 
         for match in full_regex.finditer(text):
             verb_token = match.group(0)
 
-            # 1. Default Detection (Base Logic)
+            # A. Tense Detection (with Override)
             tense = detect_tense(verb_token)
 
-            # 2. THE OVERRIDE: Check for "Have/Has"
-            # Look at the text immediately preceding the match
             preceding_text = text[: match.start()]
             if AUXILIARY_REGEX.search(preceding_text):
-                tense = "PRESENT"  # Force Present Tense (Present Perfect)
+                tense = "PRESENT"  # "Have entered" -> Present
 
-            # 3. Categorization Logic
+            # B. Categorization & Tiering
+
             if category == "POSS":
                 if tense == "PRESENT":
-                    # "We hold" OR "We have held" -> Medium Evidence
-                    found_signals.add(EvidenceReason.POSS)
+                    if is_strict:
+                        # "We hold Swaps" -> Medium (Survives Policy)
+                        found_signals.add(EvidenceReason.POSS)
+                    else:
+                        # "We hold Contracts" -> Weak (Dies to Policy)
+                        found_signals.add(EvidenceReason.POSS_AMB)
                 else:
-                    # "We held" -> Weak Evidence
-                    found_signals.add(EvidenceReason.PU)  # Past Usage
+                    # "We held/We have held" (Past)
+                    # Note: "Have held" is Present Tense state, but usually if soft
+                    # we treat it carefully. For simplicity, Past Tense is always Weak.
+                    found_signals.add(EvidenceReason.PU)
 
             elif category == "ACT":
-                # "Entered" and "Have Entered" are both Actions.
-                # In your hierarchy, ACT is WEAK regardless of tense,
-                # but marking it as Present helps if you add logic later.
+                # Actions ("Entered into") are Tier 3 (Weak) regardless of strictness
+                # because "Entering" is transactional/historical.
                 found_signals.add(EvidenceReason.ACT)
 
             elif category == "PRU":
-                if tense == "PRESENT":
-                    found_signals.add(EvidenceReason.PRU)
-                else:
-                    found_signals.add(EvidenceReason.PU)  # Past Usage
+                # Usage ("We use") is Tier 3 (Weak) regardless of strictness
+                # because "We use Swaps" is common Policy boilerplate.
+                found_signals.add(EvidenceReason.PRU)
+
+            elif category == "ACCT":
+                # Accounting verbs ("Designated")
+                # Useful for context, usually Weak/Policy Killed
+                pass
 
     return found_signals
 
