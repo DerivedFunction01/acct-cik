@@ -179,7 +179,6 @@ class EvidenceReason(Reason):
     CONT_USE = "CONTINUOUS_USAGE"  # "Is hedging"
     NVNY = "NOTIONAL_NO_YEAR"  # "$100M" (No Year)
     FVNY = "FAIR_VALUE__NO_YEAR"
-    FVAINY = "FAIR_VALUE_AMB_INSTR_NO_YEAR"
 
     # --- TIER 3: WEAK (Actions - Policy Killed) ---
     PRU = "PRESENT_USAGE"  # "We use" (Generic)
