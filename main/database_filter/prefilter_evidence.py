@@ -614,37 +614,50 @@ def check_balance_sheet_location(text: str) -> Optional[EvidenceReason]:
 
     return None
 
+TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
 
-def check_continuous_usage(text: str) -> Optional[EvidenceReason]:
+def check_transaction_action(
+    text: str, reporting_year: int
+) -> Optional[EvidenceReason]:
     """
-    Checks for continuous/participle usage (CONT_USE).
+    Checks for Transactional Events (Flow).
 
     Logic:
-    1. Matches CONT_USE_REGEX (e.g., "is hedging", "are designating").
+    1. Gate: Must mention an instrument.
+    2. Time Check:
+       - If Year < Reporting Year -> DISCARD (Historical noise).
+       - If Year >= Reporting Year -> ACT_YEAR (Fresh Transaction).
+       - If No Year -> ACT_GEN (General Policy).
     """
-    pass
+    if not reporting_year:
+        return None
 
+    # Keep years for validation
+    clean_text = _cleaner.clean_numerics(text, remove_years=False)
 
-def check_generic_usage(text: str) -> Optional[EvidenceReason]:
-    """
-    Checks for generic present tense usage (PRU).
+    # --- 1. Subject Gate ---
+    if not check_mention(clean_text):
+        return None
 
-    Logic:
-    1. Matches PRU_REGEX (e.g., "We use", "We derivative").
-    2. Highly vulnerable to Policy noise.
-    """
-    pass
+    # --- 2. Verb Gate ---
+    if not TRANS_VERB_REGEX.search(clean_text):
+        return None
 
+    # --- 3. Time Gate ---
+    # Find all years in the text
+    years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
 
-def check_transaction_action(text: str) -> Optional[EvidenceReason]:
-    """
-    Checks for transactional verbs (ACT).
+    # CASE A: No years found -> General Policy ("We enter into swaps")
+    if not years:
+        return EvidenceReason.ACT
 
-    Logic:
-    1. Matches ACT_REGEX (e.g., "Entered into", "Purchased").
-    2. Can be historical or generic.
-    """
-    pass
+    # CASE B: Years found -> Must be current or future
+    # If ANY year in the text is valid (>= reporting_year), we accept it.
+    if any(y >= reporting_year for y in years):
+        return EvidenceReason.POSS # poss get killed by time, since we moved the other logic to AS_YEAR
+
+    # CASE C: Years found, but all are old -> Historical Noise ("Entered in 2019")
+    return None
 
 
 def check_pnl_recognition(text: str) -> Optional[EvidenceReason]:
