@@ -284,6 +284,8 @@ def get_sentence_categories(
             scores["fx"] += 2000
         elif "eq" in strict_hits:
             scores["eq"] += 2000
+            if is_sophisticated_content(sentence):
+                scores["warr"] += 5000 # Bypasses eq
         elif "cp" in strict_hits:
             scores["cp"] += 2000
         elif "cr" in strict_hits:
@@ -301,6 +303,8 @@ def get_sentence_categories(
     ]:
         matches = regex.findall(sentence)
         for match in matches:
+            if is_sophisticated_content(sentence) and cat == "eq":
+                scores["warr"] = max(scores[cat], 5000)
             if HIGH_PRECISION_SUFFIXES.search(match):
                 scores[cat] = max(scores[cat], 1000)
             else:
@@ -334,6 +338,8 @@ def get_sentence_categories(
 
     max_score = max(active_scores.values())
     threshold = 50
+    if max_score >= 2000:
+        threshold = 1000
     if max_score >= 1000:
         threshold = 500
 
