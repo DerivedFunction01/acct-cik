@@ -25,44 +25,48 @@ WORKERS = max(1, mp.cpu_count() - 1)
 # =============================================================================
 
 
+# --- MODIFIED: process_batch in database_export.py ---
 def process_batch(batch):
-    """
-    Process a batch of raw DB rows into CSV lines.
-    Row: (url, cik, year, matches_json, categories_json)
-    """
     results = []
-    for url, cik, year, matches_json, categories_json in batch:
+    # Row: (url, cik, year, matches_json, categories_json)
+    # NOTE: Assuming categories_json now holds the array of "ir_fx", "eq_gen", etc.
+    for url, cik, year, _, categories_json in batch:
 
-        # 1. Safety Check: Must have active matches
-        if not matches_json or matches_json == "[]":
+        if not categories_json or categories_json == "[]":
             continue
 
         try:
-            categories = json.loads(categories_json) if categories_json else []
+            # 1. Load the array of combined category strings
+            categories_array = json.loads(categories_json)
         except json.JSONDecodeError:
-            categories = []
-
-        # 2. Extract Unique Categories
-        cat_set = {
-            cat.lower()
-            for cat in categories
-            if cat and cat.lower() not in {"other", "unknown", "table"}
-        }
-
-        if not cat_set:
             continue
 
-        # 3. Create Binary Flags
+        # 2. Extract Unique Categories using the underscore convention
+        doc_cat_set = set()
+        for combined_cat_str in categories_array:
+            # Split the combined string (e.g., "ir_fx_gen" -> ["ir", "fx", "gen"])
+            individual_cats = combined_cat_str.lower().split("_")
+
+            # Add all individual categories to the document set
+            for cat in individual_cats:
+                if cat and cat not in {"other", "unknown", "table"}:
+                    doc_cat_set.add(cat)
+
+        if not doc_cat_set:
+            continue
+
+        # 3. Create Binary Flags based on the final document set
         results.append(
             (
                 cik,
                 year,
-                1 if "ir" in cat_set else 0,
-                1 if "fx" in cat_set else 0,
-                1 if "cp" in cat_set else 0,
-                1 if "eq" in cat_set else 0,
-                1 if "cr" in cat_set else 0,
-                1 if "gen" in cat_set else 0,
+                1 if "ir" in doc_cat_set else 0,
+                1 if "fx" in doc_cat_set else 0,
+                1 if "cp" in doc_cat_set else 0,
+                1 if "eq" in doc_cat_set else 0,
+                1 if "cr" in doc_cat_set else 0,
+                1 if "warr" in doc_cat_set else 0,
+                1 if "gen" in doc_cat_set else 0,
             )
         )
     return results
@@ -164,7 +168,9 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
 
     with open(csv_path, "w", encoding="utf-8") as outfile:
         # Write header
-        outfile.write("cik,year,ir_user,fx_user,cp_user,eq_user,cr_user,gen_user\n")
+        outfile.write(
+            "cik,year,ir_user,fx_user,cp_user,eq_user,cr_user,warr_user,gen_user\n"
+        )
 
         # Process batches with progress bar
         with ProcessPoolExecutor(max_workers=WORKERS) as executor:
@@ -194,7 +200,7 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
                     print(f"  ❌ Batch processing error: {e}")
     # Move the file to the folder
     subprocess.run(["mv", csv_path, str(output_folder)])
-    
+
     print(f"\n✅ Export Complete: {csv_path}")
     print(f"   Total Records Written: {total_records:,}")
     print(f"   Batches Processed: {processed_batches:,}")
