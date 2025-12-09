@@ -92,7 +92,7 @@ class ComparisonAnalyzer(BaseAnalyzer):
         df_a_surv = df_a[df_a["_key"].isin(survivors)].set_index("_key").sort_index()
         df_b_surv = df_b[df_b["_key"].isin(survivors)].set_index("_key").sort_index()
 
-        cols_to_check = ["ir_user", "fx_user", "cp_user", "eq_user", "gen_user"]
+        cols_to_check = ["ir_user", "fx_user", "cp_user", "eq_user", "cr_user", "warr_user", "gen_user"]
 
         for col in cols_to_check:
             if col not in df_a_surv.columns or col not in df_b_surv.columns:
