@@ -206,7 +206,6 @@ STRONG_EVIDENCE = {
     EvidenceReason.FVY,
     EvidenceReason.MAT_FUT,
     EvidenceReason.AS_YEAR,
-    EvidenceReason.SD,
 }
 
 TIME_KILLED_EVIDENCE = {
@@ -220,7 +219,6 @@ TIME_KILLED_EVIDENCE = {
     EvidenceReason.FVAINY,
     EvidenceReason.ASAIY,
     EvidenceReason.MAT_AMB_FUT,  # <--- New
-    EvidenceReason.SD_AMB,  # <--- New
 }
 
 

@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import ACTIVE_STATE_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_regex
+from derivative_regex import ACTIVE_STATE_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_alternation, build_regex
 from prefilter_database import is_sophisticated_content
 from notional_filter import extract_values_and_years
 from prefiltered_lib import DEADWEIGHT_TOKEN, EVIDENCE_TOKEN, FLUFF_EVIDENCE, POLICY_KILLED_EVIDENCE, SKIP_TOKEN, STRONG_EVIDENCE, TIME_KILLED_EVIDENCE, EvidenceReason, MinimalTextCleaner, NoiseReason, get_tag
@@ -511,16 +511,72 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     # If Soft Instrument ("Held Contracts in 2024") -> Tier 2 (Medium)
     return EvidenceReason.ASAIY
 
+# --- Configuration ---
+
+# 1. Flexible Separator (Adjust '5' to allow for more/fewer intervening words)
+# Matches 0 to 5 non-whitespace tokens/words
+FLEX_SEP = r"(?:\s+\S+){0,5}\s+"
+
+FINANCIAL_OUTCOME_VERBS = [
+    "recognized in",
+    "recorded in",
+    "reflected in",
+    "reported in",
+    "included in",
+    "classified as",
+    "component of",
+]
+
+# 2. Simplified Locations (Core Nouns Only)
+# removed "AOCI" and "consolidated" adjectives
+BALANCE_SHEET_LOCATIONS = [
+    "other income",  # Catches "Other income (expense)" via partial match if strictness is low
+    "comprehensive income",
+    "earnings",
+    "net income",
+    "statement of operations",
+    "balance sheets",
+    "equity",
+    "profit and loss",
+]
+
+# --- Regex Construction ---
+
+# Escape locations automatically so you don't have to type "income \(expense\)"
+# We sort by length (descending) so "statement of operations" matches before "operations" (if you had it)
+locs_escaped = [re.escape(x) for x in BALANCE_SHEET_LOCATIONS]
+locs_pattern = build_alternation(locs_escaped)
+verbs_pattern = build_alternation(FINANCIAL_OUTCOME_VERBS)
+
+# Pattern: (Verb Phrase) + (0-5 Words) + (Location)
+# Example matches:
+# "recorded in earnings"
+# "recorded in consolidated earnings"
+# "recorded in the company's consolidated earnings"
+BS_LOC_REGEX = re.compile(f"{verbs_pattern}{FLEX_SEP}{locs_pattern}", re.IGNORECASE)
+
 
 def check_balance_sheet_location(text: str) -> Optional[EvidenceReason]:
     """
     Checks for accounting location descriptions (BS_LOC).
 
-    Logic:
-    1. Matches BS_LOC_REGEX (e.g., "Recorded in Other Assets").
-    2. Implies standard practice/current state.
+    Why Single Tier?
+    The specificity of the location ("OCI", "Earnings") validates generic terms
+    like "Contracts." If a "Contract" is "Recorded in OCI", it is a financial instrument.
     """
-    pass
+    clean_text = _cleaner.clean_numerics(text)
+
+    # --- 1. Subject Gate ---
+    # We still need this to ensure we aren't picking up "Revenue is recorded in..."
+    if not check_mention(clean_text):
+        return None
+
+    # --- 2. Pattern Gate ---
+    # Matches: "Natural gas contracts ... recorded in ... earnings"
+    if BS_LOC_REGEX.search(clean_text):
+        return EvidenceReason.BS_LOC
+
+    return None
 
 
 def check_continuous_usage(text: str) -> Optional[EvidenceReason]:
