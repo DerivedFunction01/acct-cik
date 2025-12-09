@@ -268,7 +268,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
 
 def process_row(row):
-    url, matches_json, cik, year = row
+    url, matches_json, cik, year, categories = row
     try:
         paragraphs = json.loads(matches_json)
     except:
@@ -284,7 +284,7 @@ def process_row(row):
         tagged_p = tag_paragraph(p, year)
         new_paragraphs.append(tagged_p)
 
-    return (url, json.dumps(new_paragraphs), cik, year)
+    return (url, json.dumps(new_paragraphs), json.dumps(categories), cik, year)
 
 
 # =============================================================================
@@ -324,7 +324,13 @@ def data_generator(source_db, processed_urls, batch_size=BATCH_SIZE):
     conn = sqlite3.connect(source_db)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
+        """
+        SELECT w.url, w.matches, r.cik, r.year, c.categories
+        FROM webpage_result w 
+        LEFT JOIN report_data r ON w.url = r.url
+        LEFT JOIN category c ON w.url = c.url
+        WHERE w.matches IS NOT NULL
+        """
     )
     while True:
         rows = cursor.fetchmany(batch_size)
@@ -336,21 +342,25 @@ def data_generator(source_db, processed_urls, batch_size=BATCH_SIZE):
     conn.close()
 
 
-def write_batch(conn, buffer):
+def flush_buffers(conn, buffer):
     if not buffer:
         return
     c = conn.cursor()
     try:
-        c.execute("BEGIN TRANSACTION")
+        # Buffer is list of (url, matches, categories, cik, year)
+        # url = 0, matches = 1, categories = 2, cik = 3, year = 4
         c.executemany(
             "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
             [(r[0], r[1]) for r in buffer],
         )
         c.executemany(
             "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-            [(r[0], r[2], r[3]) for r in buffer],
+            [(r[0], r[3], r[4]) for r in buffer],
         )
-        conn.commit()
+        c.executemany(
+            "INSERT OR IGNORE INTO category (url, categories) VALUES (?, ?)",
+            [(r[0], r[2]) for r in buffer],
+        )
     except Exception as e:
         print(f"❌ Write Error: {e}")
         conn.rollback()
@@ -373,10 +383,10 @@ if __name__ == "__main__":
             if result:
                 buffer.append(result)
                 if len(buffer) >= BATCH_SIZE:
-                    write_batch(conn, buffer)
+                    flush_buffers(conn, buffer)
                     buffer = []
 
     if buffer:
-        write_batch(conn, buffer)
+        flush_buffers(conn, buffer)
     conn.close()
     print("✅ Complete.")
