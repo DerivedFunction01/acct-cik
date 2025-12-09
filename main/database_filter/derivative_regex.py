@@ -3366,6 +3366,7 @@ TERMINATION_VERBS = [
     r"repudiat(?:e(?:d|s)?|ing)",
     # --- SAFEGUARDED SETTLEMENT (From previous turn) ---
     rf"(?<!{_settle_lookbehind}\s)settl(?:e(?:d)|ing)",
+    r"sold",
 ]
 TERMINATION_NOUNS = [
     # --- STATES (Strongest) ---
@@ -4417,3 +4418,120 @@ def build_trading_venue_regex() -> re.Pattern:
 
 # Export
 TRADING_VENUE_REGEX = build_trading_venue_regex()
+
+
+VERB_MAP = {
+    # --- MEDIUM EVIDENCE (States / Possession) ---
+    # These imply "Being" or "Having".
+    # Logic: Present tense = Medium Evidence. Past tense = Weak/Historical.
+    "POSS": [
+        r"hold(?:s|ing)?|held",  # Irregular: hold/held
+        r"hav(?:e|ing)|had",  # Irregular: have/had
+        r"maintain(?:s|ed|ing)?",
+        r"possess(?:e|es|ed|ing)?",
+        r"carr(?:y|ies|ied|ying)",  # "Carried at fair value"
+        r"retain(?:s|ed|ing)?",
+        r"remained?\s+(?:open|outstanding|active)",  # Phrasal state
+        r"(?:is|are|was|were)\s+a\s+party\s+to",  # Phrasal state
+    ],
+    # --- WEAK EVIDENCE (Generic Usage) ---
+    # Generic "Doing" verbs.
+    # Logic: Vulnerable to Policy (if Present) and History (if Past).
+    "PRU": [
+        r"use(?:s|d|ing)?",
+        r"utiliz(?:e|es|ed|ing)",
+        r"employ(?:s|ed|ing)?",
+        r"apply(?:ies|ied|ying)?",  # "We apply hedge accounting"
+    ],
+    # --- WEAK EVIDENCE (Transactions) ---
+    # Specific actions.
+    # Logic: Usually describe a moment in time (Past) or intent (Present).
+    "ACT": [
+        r"enter(?:s|ed|ing)?(?:\s+into)?",
+        r"engag(?:e|es|ed|ing)(?:\s+in)?",
+        r"execut(?:e|es|ed|ing)",
+        r"transact(?:s|ed|ing)?",
+        r"purchas(?:e|es|ed|ing)",
+        r"issu(?:e|es|ed|ing)?",  # "Issued warrants"
+        r"convert(?:s|ed|ing)?",  # "Converted notes"
+    ],
+    # --- PASSIVE / ACCOUNTING STATES ---
+    # Often found in Policy headers.
+    "ACCT": [
+        r"hedg(?:e|es|ed|ing)",
+        r"designat(?:e|es|ed|ing)",
+        r"offset(?:s|ting)?",
+        r"manag(?:e|es|ed|ing)",  # "Manage risk"
+        r"mitigat(?:e|es|ed|ing)",
+    ],
+}
+# Example Usage Logic
+def scan_verbs(text):
+    found_signals = []
+
+    for category, patterns in VERB_MAP.items():
+        # Combine patterns for this category
+        full_regex = re.compile(r"\b(?:" + "|".join(patterns) + r")\b", re.IGNORECASE)
+
+        for match in full_regex.finditer(text):
+            verb_token = match.group(0)
+            tense = detect_tense(verb_token)
+
+            # Logic Mapping
+            if category == "POSS":
+                if tense == "PRESENT":
+                    # "We hold" -> Medium Evidence
+                    found_signals.append("POSS_PRESENT")
+                else:
+                    # "We held" -> Weak/Historical Evidence
+                    found_signals.append("POSS_PAST")
+
+            elif category == "ACT":
+                if tense == "PRESENT":
+                    # "We enter into" -> Weak Evidence (Potential/Policy)
+                    found_signals.append("ACT_PRESENT")
+                else:
+                    # "We entered into" -> Weak Evidence (Historical Transaction)
+                    found_signals.append("ACT_PAST")
+
+    return found_signals
+import re
+
+
+def detect_tense(verb: str) -> str:
+    """
+    Analyzes a specific verb token to detect if it is PAST or PRESENT/CONTINUOUS.
+
+    Returns: 'PAST' | 'PRESENT'
+    """
+    verb = verb.lower().strip()
+
+    # 1. Financial Irregulars (The "Strong" Past Tense)
+    irregulars = {
+        "held",
+        "sold",
+        "bought",
+        "wrote",
+        "took",
+        "began",
+        "became",
+        "arose",
+        "saw",
+        "chose",
+        "had",
+        "withdrew",
+        "stood",  # "Stood at"
+    }
+
+    if verb in irregulars:
+        return "PAST"
+
+    # 2. Standard Morphology
+    # Ends in "ed" -> Past (entered, used, designated)
+    if verb.endswith("ed"):
+        return "PAST"
+
+    # 3. Default to Present/Continuous
+    # Covers: base form ("use"), third person ("uses"), participle ("using")
+    # Note: "using" is technically continuous, which counts as Active/Present for our logic.
+    return "PRESENT"
