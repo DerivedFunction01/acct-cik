@@ -455,21 +455,22 @@ ACTIVE_ADJ_REGEX = re.compile(
 )
 
 
+# Assuming you construct this regex from VERB_MAP["POSS"]
+# Example verbs: held, hold, holding, maintain, maintained, carry, carried, possess
+POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
 def check_active_state_year(text: str, reporting_year: int) -> Optional[EvidenceReason]:
     """
     Determines if text represents Active State anchored to a date.
-
-    Logic:
-    1. Gate: Must mention an instrument.
-    2. Anchor: Must have Active Preposition ("As of") or Adjective ("Outstanding").
-    3. Time: Must contain a Year >= reporting_year.
-    4. Result: Splits into AS_YEAR (Strong) vs ASAIY (Medium) based on strictness.
+    
+    Now Consolidates:
+    1. Prepositions ("As of")
+    2. Adjectives ("Outstanding", "Open")
+    3. Possession Verbs ("Held", "Maintained") -> NEW
     """
     if not reporting_year:
         return None
 
     # Use existing cleaner to allow year regex to work
-    # We pass remove_years=False because we NEED the year.
     clean_text = _cleaner.clean_numerics(text, remove_years=False)
 
     # --- 1. Subject Gate & Classification ---
@@ -480,30 +481,33 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     # Is it a specific derivative (Swap/Option) or generic (Contract/Agreement)?
     has_strict = check_derivative(clean_text)
 
-    # --- 2. Anchor Gate ---
-    # We NEED 'Active Prepositions' to catch cases like "As of 2024..."
-    # where no other adjective ("outstanding") exists.
+    # --- 2. Anchor Gate (Consolidated) ---
+    # We now accept three types of anchors to prove the state exists:
+    # A. Preposition: "As of 2024..."
+    # B. Adjective: "Swaps outstanding..."
+    # C. Possession Verb: "We held swaps..."
+    
     has_prep = bool(ACTIVE_PREP_REGEX.search(text))
     has_adj = bool(ACTIVE_ADJ_REGEX.search(text))
+    has_poss_verb = bool(POSS_VERB_REGEX.search(text))
 
-    if not (has_prep or has_adj):
+    # If it lacks all three anchors, it's just a mention (e.g., "We discuss swaps..."), not a state.
+    if not (has_prep or has_adj or has_poss_verb):
         return None
 
     # --- 3. Time Gate ---
     years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
-
     has_relevant_year = any(y >= reporting_year for y in years)
 
     if not has_relevant_year:
         return None
 
     # --- 4. Decision ---
-    # If Strict Instrument ("Outstanding Swaps at 2024") -> Tier 1 (Strong)
+    # If Strict Instrument ("Held Swaps in 2024") -> Tier 1 (Strong)
     if has_strict:
         return EvidenceReason.AS_YEAR
 
-    # If Soft Instrument ("Outstanding Contracts at 2024") -> Tier 2 (Medium)
-    # Dies to "We do not trade" denials.
+    # If Soft Instrument ("Held Contracts in 2024") -> Tier 2 (Medium)
     return EvidenceReason.ASAIY
 
 

@@ -172,13 +172,14 @@ class EvidenceReason(Reason):
     FVY = "FAIR_VALUE_YEAR"  # "Fair Value of SWAPS was $5M in 2024"
     MAT_FUT = "MATURITY_FUTURE"  # "SWAP Matures in 2026"
     AS_YEAR = "ACTIVE_STATE_YEAR"  # "SWAP Outstanding at Dec 31, 2024"
-    SD = "CURRENT_STATE"  # "We CURRENTLY hold SWAPS"
 
     # --- TIER 2: MEDIUM (States - Time Killed) ---
     # Dies to TRADING/HIST. Survives POLICY.
     POSS = "POSSESSION"  # "We hold SWAPS" (Strict) -> Tier 2
     BS_LOC = "BALANCE_SHEET_LOC"
     CONT_USE = "CONTINUOUS_USAGE"
+    NVNY = "NOTIONAL_NO_YEAR"  # "Notional is $100M"
+    FVNY = "FAIR_VALUE_NO_YEAR"  # "FV of Swaps is $5M"
 
     # Ambiguous / Soft Versions (The Duals):
     # These have Strong Anchors (Date/Current) but Weak Subjects (Contract/Agreement).
@@ -187,11 +188,6 @@ class EvidenceReason(Reason):
     POSS_AMB = "POSS_AMBIGUOUS"  # "We hold CONTRACTS" (Soft) -> Tier 3 (New)
     MAT_AMB_FUT = "MAT_AMB_FUTURE"  # "CONTRACT Matures in 2026"
     ASAIY = "ACTIVE_STATE_AMB_YEAR"  # "CONTRACT Outstanding at Dec 31, 2024"
-    SD_AMB = "CURRENT_STATE_AMB"  # "We CURRENTLY hold CONTRACTS"
-
-    # The Quants (No Year):
-    NVNY = "NOTIONAL_NO_YEAR"  # "Notional is $100M"
-    FVNY = "FAIR_VALUE_NO_YEAR"  # "FV of Swaps is $5M"
     FVAINY = "FAIR_VALUE_AMB_INSTR_NO_YEAR"  # "FV of Contract is $5M"
 
     # --- TIER 3: WEAK (Actions - Policy Killed) ---
