@@ -176,8 +176,8 @@ class EvidenceReason(Reason):
     # --- TIER 2: MEDIUM (States - Time Killed) ---
     # Dies to TRADING/HIST. Survives POLICY.
     POSS = "POSSESSION"  # "We hold SWAPS" (Strict) -> Tier 2
-    BS_LOC = "BALANCE_SHEET_LOC"
-    CONT_USE = "CONTINUOUS_USAGE"
+    BS_LOC = "BALANCE_SHEET_LOC" # recorded in ...
+    CONT_USE = "CONTINUOUS_USAGE"  # We posess swaps
     NVNY = "NOTIONAL_NO_YEAR"  # "Notional is $100M"
     FVNY = "FAIR_VALUE_NO_YEAR"  # "FV of Swaps is $5M"
 
@@ -189,6 +189,7 @@ class EvidenceReason(Reason):
     MAT_AMB_FUT = "MAT_AMB_FUTURE"  # "CONTRACT Matures in 2026"
     ASAIY = "ACTIVE_STATE_AMB_YEAR"  # "CONTRACT Outstanding at Dec 31, 2024"
     FVAINY = "FAIR_VALUE_AMB_INSTR_NO_YEAR"  # "FV of Contract is $5M"
+    CONT_USE_AMB = "CONTINUOUS_USAGE_AMB" # We posess contracts
 
     # --- TIER 3: WEAK (Actions - Policy Killed) ---
     PRU = "PRESENT_USAGE"
