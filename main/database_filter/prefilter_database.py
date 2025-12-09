@@ -51,10 +51,9 @@ from derivative_regex import (
     TABLE_REGEX,
     VALUATION_MODELS,
     VALUATION_MODELS_REGEX,
-    NoiseReason,
+
     aggregate_discards,
     build_alternation,
-    get_tag,
     is_bank_list_noise,
     is_contractual_noise,
     is_hypothetical_noise,
@@ -63,6 +62,7 @@ from derivative_regex import (
 
 from final_verification import QUANT_REGEX
 from table_processor import TableToTextConverter
+from prefiltered_lib import NoiseReason, get_tag
 
 # =============================================================================
 # SOPHISTICATED CONTEXT DEFINITIONS

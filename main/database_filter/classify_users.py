@@ -31,11 +31,10 @@ from derivative_regex import (
     CR_SOFT_REGEX,
     STRICT_CONTEXT_MAP,
     TRADING_VENUE_REGEX,
-    NoiseReason,
 )
 from table_processor import TABLE_ANCHOR
 from prefilter_database import find_hedging_context, is_sophisticated_content
-from prefiltered_lib import MinimalTextCleaner
+from prefiltered_lib import MinimalTextCleaner, NoiseReason
 
 
 # =============================================================================

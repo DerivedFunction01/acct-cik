@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional, Set
 from tqdm import tqdm
 
-from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner
+from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, get_tag
 
 # --- CONFIGURATION ---
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
@@ -38,8 +38,6 @@ from derivative_regex import (
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
     YEAR_REGEX,
-    NoiseReason,
-    get_tag
 )
 
 from notional_filter import (
