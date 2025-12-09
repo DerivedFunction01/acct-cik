@@ -207,8 +207,14 @@ def check_refinement_exclusions(
 
         if is_current_or_no_year(sent_masked, year):
             if not (
-                TERMINATION_REGEX.search(sent_masked)
-                and LOOSE_GEN_REGEX.search(sent_masked)
+                (
+                    TERMINATION_REGEX.search(sent_masked)
+                    and LOOSE_GEN_REGEX.search(sent_masked)
+                )
+                or (
+                    ABSENCE_REGEX.search(sent_masked)
+                    or DID_NOT_HOLD_REGEX.search(sent_masked)
+                )
             ):
                 current_year_activity_count += 1
 
@@ -262,8 +268,8 @@ def check_refinement_exclusions(
             is_deadweight = True
         elif trading_denial_count > 0 and absence_count > 0:
             is_deadweight = True
-        else:
-            # Double indicators strongly suggests discarding (ex./ We closed out... The closing of the swap...)
+        elif has_only_past_years(text_orig, year):
+            # Double indicators strongly suggests discarding (ex./ We closed out... The closing of the swap...). We make sure that there are no future years mentioned
             if absence_count > 1 or termination_count > 1 or potential_count > 1:
                 is_deadweight = True
 
