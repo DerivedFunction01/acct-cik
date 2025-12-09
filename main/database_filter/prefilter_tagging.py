@@ -40,7 +40,8 @@ from derivative_regex import (
 
 # Import Phase 6 Logic
 from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
-from prefiltered_lib import SKIP_TOKEN, DEADWEIGHT_TOKEN, MinimalTextCleaner, NoiseReason, get_tag, EvidenceReason, EVIDENCE_TOKEN
+from prefilter_database import is_sophisticated_content
+from prefiltered_lib import SKIP_TOKEN, DEADWEIGHT_TOKEN, MinimalTextCleaner, NoiseReason, get_tag
 from notional_filter import check_is_quantitative_zero
 
 # =============================================================================
@@ -202,7 +203,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             reason = NoiseReason.CONTRACT
         elif is_regulatory_noise(masked, threshold=2):
             reason = NoiseReason.REG
-        elif is_hypothetical_noise(masked, threshold=2):
+        elif not is_sophisticated_content(masked) and is_hypothetical_noise(masked, threshold=2):
             reason = NoiseReason.HYP_SCORE
 
         # --- D. Classification Killers (Logic Helpers) ---
