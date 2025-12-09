@@ -15,6 +15,8 @@ PIPELINE_STAGES = [
     ("prefilter_simple_nonuse.py", "refined_data.db", "prefiltered_refined.csv"),
     # 2. Tag each sentence
     ("prefilter_tagging.py", "tagged_data.db", "prefiltered_refined.csv"),
+    # 3. Classify
+    ("classify_users.py", "classified_data.db", "classified_users.csv"),
 ]
 
 # FINAL REPORT CONFIG: Compare first stage output to last stage output
