@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import ACTIVE_STATE_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_alternation, build_regex
+from derivative_regex import ACTIVE_STATE_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, VALUATION_MODELS_REGEX, YEAR_REGEX, build_alternation, build_regex
 from prefilter_database import is_sophisticated_content
 from notional_filter import extract_values_and_years
 from prefiltered_lib import DEADWEIGHT_TOKEN, EVIDENCE_TOKEN, FLOW_EVIDENCE, FLOW_KILLERS, FLUFF_EVIDENCE, POLICY_KILLED_EVIDENCE, POLICY_KILLERS, SKIP_TOKEN, STRONG_EVIDENCE, TIME_KILLED_EVIDENCE, TIME_KILLERS, EvidenceReason, MinimalTextCleaner, NoiseReason, get_tag
@@ -598,6 +598,29 @@ def check_remaining_term(text: str) -> Optional[EvidenceReason]:
     # 2. Pattern Gate
     if REM_TERM_REGEX.search(clean_text):
         return EvidenceReason.REM_TERM
+
+    return None
+
+
+def check_valuation_context(text: str) -> Optional[EvidenceReason]:
+    """
+    Checks for Valuation Models (Black-Scholes, Monte Carlo, Lattice).
+    Evidence Level: Tier 2 (Self-Validating).
+
+    Logic:
+    1. Pattern: Matches specific model names.
+    2. Gate: Must mention an instrument (to avoid 'Monte Carlo weather simulations').
+    """
+    # 1. Subject Gate (Safety first)
+    # We use check_mention (Soft) because "Black-Scholes" is strong enough
+    # to validate "Warrants" or "Contracts".
+    clean_text = _cleaner.clean_numerics(text)
+    if not check_mention(clean_text):
+        return None
+
+    # 2. Pattern Gate
+    if VALUATION_MODELS_REGEX.search(clean_text):
+        return EvidenceReason.VAL_MODEL
 
     return None
 
