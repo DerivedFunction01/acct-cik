@@ -125,6 +125,7 @@ POLICY_TERMS = [
     r"retrospectively",
     r"economic\s+relationship",
     r"(?:ineffective|effective) portions?",
+    r"nature\s+of",
 ]
 POLICY_REGEX = re.compile(
     r"\b" + build_alternation(POLICY_TERMS + [ENTITY_TOKEN]) + r"\b", re.IGNORECASE
