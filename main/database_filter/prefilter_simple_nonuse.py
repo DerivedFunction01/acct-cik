@@ -222,7 +222,7 @@ def check_refinement_exclusions(
             meaningful_quant_count += 1
 
         if AOCI_NOISE_REGEX.search(sent_masked):
-            tag = get_tag(SKIP_TOKEN, NoiseReason.PNL)
+            tag = get_tag(SKIP_TOKEN, NoiseReason.AOCI)
             current_sent = f"{tag} {current_sent}"
             aoci_count += 1
 
@@ -311,7 +311,7 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
 
     # B. AOCI / PnL Lists (Moved here to allow safeguards to protect active positions)
     if AOCI_NOISE_REGEX.search(text):
-        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.PNL)
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.AOCI)
 
     # C. Counterparty / Credit Risk (With exemption for explicit credit derivatives)
     if COUNTERPARTY_REGEX.search(text) and not CR_REGEX.search(text):

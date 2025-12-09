@@ -184,7 +184,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         elif DEFINITION_INDICATORS.search(masked):
             reason = NoiseReason.DEF
         elif AOCI_NOISE_REGEX.search(masked):
-            reason = NoiseReason.PNL
+            reason = NoiseReason.AOCI
         elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
             reason = NoiseReason.NPNS  # or COMM_EXEMPT
         elif TRADING_STATEMENTS_REGEX.search(masked):

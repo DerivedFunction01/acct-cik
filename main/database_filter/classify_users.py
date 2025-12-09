@@ -439,7 +439,7 @@ def _process_paragraphs_and_sentences(paragraphs, attributes, doc_tracker):
                 # Mine attributes from deadweight tag (TRADING, POLICY, HIST)
                 if tag_reason == NoiseReason.TRADING.value: attributes["is_hedger"] = True
                 elif tag_reason == NoiseReason.POLICY.value: attributes["uses_hedge_accounting"] = True
-                elif tag_reason == NoiseReason.PNL.value: attributes["has_pnl_activity"] = True
+                elif tag_reason == NoiseReason.AOCI.value: attributes["has_pnl_activity"] = True
                 elif tag_reason in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}: attributes["is_historical"] = True
                 p = content # UNWRAP: Process the content
 
@@ -462,7 +462,7 @@ def _process_paragraphs_and_sentences(paragraphs, attributes, doc_tracker):
                     # Mine attributes from sentence tag (TRADING, POLICY, PNL, CREDIT, TIME)
                     if tag_reason == NoiseReason.TRADING.value: attributes["is_hedger"] = True
                     elif tag_reason == NoiseReason.POLICY.value: attributes["uses_hedge_accounting"] = True
-                    elif tag_reason == NoiseReason.PNL.value: attributes["has_pnl_activity"] = True
+                    elif tag_reason == NoiseReason.AOCI.value: attributes["has_pnl_activity"] = True
                     elif tag_reason == NoiseReason.CREDIT.value: attributes["manages_credit_risk"] = True
                     elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value}: attributes["is_historical"] = True
 

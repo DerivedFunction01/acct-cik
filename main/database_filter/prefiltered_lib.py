@@ -125,7 +125,7 @@ class NoiseReason(Reason):
     # --- Structural / Formatting --- (sentence level)
     REF = "REF"  # Navigational Reference ("See Note 5")
     DEF = "DEF"  # Definition ("Swap shall mean...")
-    PNL = "PNL"  # PnL/AOCI ("Unrealized Gain of $5M", "recorded in AOCI") (Note: AOCI + Termination is an instant killer)
+    AOCI = "AOCI"  # AOCI ("recorded in AOCI") (Note: AOCI + Termination is an instant killer)
     NPNS = "NPNS"  # Normal Purchases / Sales
     LOAN = "LOAN"  # Embedded Loan Features
 
