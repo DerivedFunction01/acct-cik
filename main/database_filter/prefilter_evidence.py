@@ -19,7 +19,7 @@ from derivative_regex import (
     build_alternation,
     build_regex,
 )
-from prefilter_database import find_hedging_context, is_sophisticated_content
+from prefilter_database import is_sophisticated_content
 from notional_filter import extract_values_and_years
 from prefiltered_lib import (
     DEADWEIGHT_TOKEN,
@@ -38,7 +38,6 @@ from prefiltered_lib import (
     NoiseReason,
     get_tag,
 )
-from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
 import multiprocessing as mp
 
 _cleaner = MinimalTextCleaner()
