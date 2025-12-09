@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_regex
+from derivative_regex import ACTIVE_STATE_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_regex
 from prefilter_database import is_sophisticated_content
 from notional_filter import extract_values_and_years
 from prefiltered_lib import DEADWEIGHT_TOKEN, EVIDENCE_TOKEN, FLUFF_EVIDENCE, POLICY_KILLED_EVIDENCE, SKIP_TOKEN, STRONG_EVIDENCE, TIME_KILLED_EVIDENCE, EvidenceReason, MinimalTextCleaner, NoiseReason, get_tag
@@ -486,20 +486,21 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     # A. Preposition: "As of 2024..."
     # B. Adjective: "Swaps outstanding..."
     # C. Possession Verb: "We held swaps..."
-    
+
     has_prep = bool(ACTIVE_PREP_REGEX.search(text))
     has_adj = bool(ACTIVE_ADJ_REGEX.search(text))
     has_poss_verb = bool(POSS_VERB_REGEX.search(text))
+    has_current_state = ACTIVE_STATE_REGEX.search(text)
 
     # If it lacks all three anchors, it's just a mention (e.g., "We discuss swaps..."), not a state.
-    if not (has_prep or has_adj or has_poss_verb):
+    if not (has_prep or has_adj or has_poss_verb or has_current_state):
         return None
 
     # --- 3. Time Gate ---
     years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
     has_relevant_year = any(y >= reporting_year for y in years)
 
-    if not has_relevant_year:
+    if not has_relevant_year and not has_current_state:
         return None
 
     # --- 4. Decision ---
