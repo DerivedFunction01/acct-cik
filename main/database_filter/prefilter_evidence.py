@@ -361,7 +361,7 @@ def check_quantitative_evidence(
     if not has_mention:
         return None
 
-    is_strict = bool(STRICT_REGEX.search(text))
+    is_strict = bool(STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text)) 
 
     # 2. Extract Data
     # (extract_values_and_years returns found years and values)
