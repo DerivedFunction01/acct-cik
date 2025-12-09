@@ -563,14 +563,43 @@ def check_pnl_context(text: str) -> Optional[EvidenceReason]:
     return EvidenceReason.PNL_REC
 
 
+REM_TERM_PHRASES = [
+    # Explicit "Remaining"
+    r"remaining\s+(?:contractual\s+)?terms?",
+    r"weighted\s+average\s+(?:remaining\s+)?terms?",
+    r"terms?\s+to\s+maturity",
+    # "Term of..." (Must be careful here, requires strict subject usually)
+    r"terms?\s+of\s+(?:the\s+)?(?:derivatives?|instruments?|swaps?|hedges?)",
+    # Descriptive Limits
+    r"maximum\s+terms?",
+    r"average\s+life",  # "Average life of the swap"
+]
+
+
+# We construct the regex
+REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 def check_remaining_term(text: str) -> Optional[EvidenceReason]:
     """
-    Checks for relative duration (REM_TERM).
+    Checks for relative duration descriptions (REM_TERM).
+    Evidence Level: Tier 4 (Fluff/Context).
 
     Logic:
-    1. Matches REM_TERM_REGEX (e.g., "Remaining term of 2 years").
+    1. Subject Gate: Must mention an instrument (Contract/Swap) to avoid
+       "Remaining term of the lease/debt".
+    2. Pattern Gate: Matches specific duration vocabulary.
     """
-    pass
+    # 1. Subject Gate
+    # We use check_mention (Soft) because "Remaining term of the contract"
+    # is valid derivative language if found in a derivative note.
+    clean_text = _cleaner.clean_numerics(text)
+    if not check_mention(clean_text):
+        return None
+
+    # 2. Pattern Gate
+    if REM_TERM_REGEX.search(clean_text):
+        return EvidenceReason.REM_TERM
+
+    return None
 
 
 def scan_sentence_for_evidence(text: str, reporting_year: int) -> Set[EvidenceReason]:
