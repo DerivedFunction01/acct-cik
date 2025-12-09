@@ -85,7 +85,7 @@ def evaluate_dominance(text: str, evidence_tags: set, noise_tags: set) -> str:
     # --- 4. FLUFF CHECK ---
     if not evidence_tags.isdisjoint(FLUFF_EVIDENCE):
         if not noise_tags:
-            return apply_tags(text, evidence_tags, [])
+            return apply_tags(text, evidence_tags, set())
 
     # --- FALLBACK ---
     return mark_as_deadweight(text, NoiseReason.ANLZ)
@@ -628,7 +628,55 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
 def scan_sentence_for_evidence(text: str, reporting_year: int) -> Set[EvidenceReason]:
     """
     Runs all checkers on a single sentence and aggregates the Evidence Enums.
+
+    Order of Operations (Specific -> Abstract):
+    1. Quant (NVY/FVY) - The strongest numbers.
+    2. State (AS_YEAR) - The strongest text anchors.
+    3. Maturity (MAT_FUT) - Specific dates.
+    4. Transaction (ACT_YEAR) - Specific actions.
+    5. Location (BS_LOC) - Accounting validation.
+    6. General State (CONT_USE) - Yearless policy/possession.
+    7. Context (REM_TERM, PNL_REC) - Fluff/Bag-of-Words support.
     """
     evidence = set()
+
+    # --- TIER 1: STRONG (Titanium) ---
+    # 1. Quantitative (Notional / Fair Value)
+    if q := check_quantitative_evidence(text, reporting_year):
+        evidence.add(q)
+
+    # 2. Active State (Anchored) ("Outstanding at 2024")
+    if as_year := check_active_state_year(text, reporting_year):
+        evidence.add(as_year)
+
+    # 3. Future Maturity ("Matures in 2026")
+    if mat := check_future_maturity(text, reporting_year):
+        evidence.add(mat)
+
+    # --- TIER 1.5: FLOW (Conditional) ---
+    # 4. Transactions ("Entered in 2024")
+    if act := check_transaction_action(text, reporting_year):
+        evidence.add(act)
+
+    # --- TIER 2: MEDIUM (State) ---
+    # 5. Balance Sheet Location ("Recorded in Earnings")
+    if loc := check_balance_sheet_location(text):
+        evidence.add(loc)
+
+    if val := check_valuation_context(text):
+        evidence.add(val)
+
+    # 6. General State ("We hold swaps")
+    if gen := check_active_state_general(text):
+        evidence.add(gen)
+
+    # --- TIER 4: FLUFF (Context) ---
+    # 7. Remaining Term ("Remaining term of 2 years")
+    if term := check_remaining_term(text):
+        evidence.add(term)
+
+    # 8. PnL Context ("Unrealized gain on swaps")
+    if pnl := check_pnl_context(text):
+        evidence.add(pnl)
 
     return evidence
