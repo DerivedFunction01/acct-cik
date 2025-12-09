@@ -377,57 +377,66 @@ def check_quantitative_evidence(
 
     return None
 
+# GROUP A: PREPOSITIONS (Sentence-Wide Scope)
+# These apply to the entire sentence. If found, we just need a Subject + Year anywhere.
+ACTIVE_PREPOSITIONS = [
+    r"as\s+of",  # "As of Dec 31..."
+    r"at\s+year[- ]end",  # "At year-end..."
+    r"at\s+the\s+end\s+of",  # "At the end of 2024"
+    r"at\s+the\s+close\s+of",  # "At the close of 2024"
+    r"stood\s+at",  # "Stood at $10M"
+]
+
+# GROUP B: ADJECTIVES (Noun-Modifying Scope)
+# These modify the noun. Ideally, they should be "near" the instrument,
+# but in a single sentence, co-occurrence is usually 99% safe.
+ACTIVE_ADJECTIVES = [
+    r"outstanding",
+    r"active",
+    r"open\s+positions?",
+    r"remaining",
+    r"consist(?:s|ed)\s+of",  # "Portfolio consists of..."
+    r"compris(?:e|es|ed)\s+of",
+]
+
+# Compile them
+ACTIVE_PREP_REGEX = re.compile(
+    r"\b(?:" + "|".join(ACTIVE_PREPOSITIONS) + r")\b", re.IGNORECASE
+)
+
+
+ACTIVE_ADJ_REGEX = re.compile(
+    r"\b(?:" + "|".join(ACTIVE_ADJECTIVES) + r")\b", re.IGNORECASE
+)
+
 
 def check_active_state_year(text: str, reporting_year: int) -> Optional[EvidenceReason]:
     """
     Determines if text represents Active State anchored to a date (AS_YEAR).
-
-    Logic:
-    1. Matches ACTIVE_STATE_REGEX (e.g., "Outstanding", "As of").
-    2. Must contain a Year >= reporting_year.
-    """
-    pass
-
-
-def check_active_state_year(text: str, reporting_year: int) -> Optional[EvidenceReason]:
-    """
-    Determines if text represents an Active State anchored to a specific date.
-
-    Logic:
-    2. Must contain a Year >= reporting_year.
-    3. Safety: If multiple years exist, at least one must be >= reporting_year.
+    Crucial for distinguishing 'As of 2024' (Strong) from 'In 2024' (Weak).
     """
     if not reporting_year:
         return None
 
-    # 1. Check Keywords
-    if not ACTIVE_STATE_REGEX.search(text):
+    # 1. Subject Gate (Must mention instrument)
+    if not (SOFT_REGEX.search(text) or LOOSE_GEN_REGEX.search(text)):
         return None
 
-    # 2. Check Context (Must mention instrument)
-    # We reuse the gatekeeper logic to ensure we aren't catching "Outstanding debt"
-    has_mention = bool(
-        SOFT_REGEX.search(text)
-        or LOOSE_GEN_REGEX.search(text)
-        or STRICT_REGEX.search(text)
-    )
-    if not has_mention:
+    # 2. Anchor Gate (Prepositions OR Adjectives)
+    # We NEED 'Active Prepositions' to catch cases like "As of 2024..."
+    # where no other adjective ("outstanding") exists.
+    has_prep = bool(ACTIVE_PREP_REGEX.search(text))
+    has_adj = bool(ACTIVE_ADJ_REGEX.search(text))
+
+    if not (has_prep or has_adj):
         return None
 
-    # 3. Extract Years
-    # We clean numerics but keep years to parse them
+    # 3. Time Gate
+    # Use existing cleaner to allow year regex to work
     clean_text = _cleaner.clean_numerics(text, remove_years=False)
     years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
 
-    if not years:
-        return None
-
-    # 4. The Logic Test
-    # If the sentence says "Outstanding at 2023 and 2024", it is valid.
-    # If it says "Outstanding at 2018", it is invalid.
-    has_relevant_year = any(y >= reporting_year for y in years)
-
-    if has_relevant_year:
+    if any(y >= reporting_year for y in years):
         return EvidenceReason.AS_YEAR
 
     return None
@@ -512,19 +521,5 @@ def scan_sentence_for_evidence(text: str, reporting_year: int) -> Set[EvidenceRe
     Runs all checkers on a single sentence and aggregates the Evidence Enums.
     """
     evidence = set()
-
-    # --- TIER 1: STRONG ---
-    if res := check_quantitative_evidence(text, reporting_year):
-        evidence.add(res)
-    if res := check_future_maturity(text, reporting_year):
-        evidence.add(res)
-    if res := check_active_state_year(text, reporting_year):
-        evidence.add(res)
-    if res := check_current_state(text):
-        evidence.add(res)
-
-    # --- TIER 2 & 3: VERBS (Medium/Weak) ---
-    # scan_verbs returns a Set[EvidenceReason] already
-    evidence.update(scan_verbs(text))
 
     return evidence
