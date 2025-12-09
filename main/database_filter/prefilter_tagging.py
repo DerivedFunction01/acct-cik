@@ -39,7 +39,7 @@ from derivative_regex import (
 )
 
 # Import Phase 6 Logic
-from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
+from final_verification import COUNTERPARTY_REGEX, HEDGE_DOC_REGEX
 from prefilter_database import is_sophisticated_content
 from prefiltered_lib import SKIP_TOKEN, DEADWEIGHT_TOKEN, MinimalTextCleaner, NoiseReason, get_tag
 from notional_filter import check_is_quantitative_zero
@@ -193,7 +193,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             reason = NoiseReason.LOAN
 
         # --- B. Soft Kills (Policy / Credit) ---
-        elif POLICY_REGEX.search(masked):
+        elif HEDGE_DOC_REGEX.search(masked):
             reason = NoiseReason.POLICY
         elif COUNTERPARTY_REGEX.search(masked) and not CR_SOFT_REGEX.search(masked):
             reason = NoiseReason.CREDIT

@@ -18,7 +18,7 @@ TARGET_DB_PATH = "refined_data.db"  # Input for Step 3
 
 
 # --- MODULE IMPORTS ---
-from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
+from final_verification import COUNTERPARTY_REGEX, HEDGE_DOC_REGEX
 from year_deletion import extract_years
 
 from derivative_regex import (
@@ -311,7 +311,7 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
     # --- 3. SOFT KILLS (Run AFTER Verbs) ---
 
     # A. Policy & Methodology
-    if POLICY_REGEX.search(text):
+    if HEDGE_DOC_REGEX.search(text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.POLICY)
 
     # B. AOCI / PnL Lists (Moved here to allow safeguards to protect active positions)

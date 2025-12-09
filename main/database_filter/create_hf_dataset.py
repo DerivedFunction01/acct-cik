@@ -158,7 +158,7 @@ def extract_policy_paragraphs(
     merges them into dense, multi-sentence samples (Group Merge).
     """
     try:
-        label_type, policy_regex = get_extraction_details(policy_key)
+        label_type, HEDGE_DOC_REGEX = get_extraction_details(policy_key)
     except ValueError:
         return []
 
@@ -184,7 +184,7 @@ def extract_policy_paragraphs(
                 continue
 
             # Check paragraph first for efficiency
-            if policy_regex.search(paragraph):
+            if HEDGE_DOC_REGEX.search(paragraph):
                 sentences = SENTENCE_SPLIT_PATTERN.split(paragraph)
 
                 for sent in sentences:
@@ -192,7 +192,7 @@ def extract_policy_paragraphs(
                     if len(sent) > 300:
                         continue  # Skip large tables/fragments
 
-                    if policy_regex.search(sent):
+                    if HEDGE_DOC_REGEX.search(sent):
                         # Filter out quantitative or usage signals
                         quant_check = (
                             NUMERIC_QUANTITY_EXCLUSION_REGEX.search(sent)

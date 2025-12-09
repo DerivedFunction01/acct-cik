@@ -127,7 +127,7 @@ POLICY_TERMS = [
     r"(?:ineffective|effective) portions?",
     r"nature\s+of",
 ]
-POLICY_REGEX = re.compile(
+HEDGE_DOC_REGEX = re.compile(
     r"\b" + build_alternation(POLICY_TERMS + [ENTITY_TOKEN]) + r"\b", re.IGNORECASE
 )
 
@@ -177,7 +177,7 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
             return True, "kept_context_via_global_quant"
         return False, "discarded_valuation_methodology"
 
-    if POLICY_REGEX.search(sentence):
+    if HEDGE_DOC_REGEX.search(sentence):
         if has_quant and CATEGORY_REGEX.search(sentence):
             return True, "kept_context_via_global_quant"
         return False, "discarded_accounting_policy_boilerplate"
