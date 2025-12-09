@@ -290,19 +290,16 @@ def check_future_maturity(text: str, reporting_year: int) -> Optional[EvidenceRe
     if not TERMINATION_ALL_REGEX.search(text):
         return None
 
+    # 3. Time Gate
+    clean_text = _cleaner.clean_numerics(text, remove_years=False)
+    
     # 2. Subject Classification
-    is_strict = bool(
-        STRICT_REGEX.search(text)
-        or IR_SOFT_REGEX.search(text)
-        or FX_SOFT_REGEX.search(text)
-    )
-    is_soft = bool(SOFT_REGEX.search(text) or LOOSE_GEN_REGEX.search(text))
+    is_strict = check_derivative(clean_text)
+    is_soft = check_mention(clean_text)
 
     if not (is_strict or is_soft):
         return None
 
-    # 3. Time Gate
-    clean_text = _cleaner.clean_numerics(text, remove_years=False)
     years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
 
     if not any(y > reporting_year for y in years):
@@ -355,17 +352,16 @@ def check_quantitative_evidence(
     # 1. Determine Context (The Gatekeeper)
     is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
     is_fair_value = bool(FAIR_VALUE_CONTEXT_REGEX.search(text))
-    has_mention = bool(SOFT_REGEX.search(text) or LOOSE_GEN_REGEX.search(text))
+    clean_text = _cleaner.clean_for_quant_analysis(text)  # Use your cleaning lib
+    has_mention = check_mention(clean_text)
 
     # We bail out immediately.
     if not has_mention:
         return None
 
-    is_strict = bool(STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text)) 
-
+    is_strict = check_derivative(clean_text)
     # 2. Extract Data
     # (extract_values_and_years returns found years and values)
-    clean_text = _cleaner.clean_for_quant_analysis(text)  # Use your cleaning lib
     years_found, values_found = extract_values_and_years(clean_text)
 
     if not values_found:
@@ -386,6 +382,14 @@ def check_quantitative_evidence(
             return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
 
     return None
+
+def check_mention(clean_text):
+    return bool(
+        SOFT_REGEX.search(clean_text) or LOOSE_GEN_REGEX.search(clean_text)
+    )
+
+def check_derivative(text):
+    return bool(STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text))
 
 # GROUP A: PREPOSITIONS (Sentence-Wide Scope)
 # These apply to the entire sentence. If found, we just need a Subject + Year anywhere.
