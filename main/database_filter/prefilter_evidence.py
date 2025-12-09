@@ -514,7 +514,40 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     # If Soft Instrument ("Held Contracts in 2024") -> Tier 2 (Medium)
     return EvidenceReason.ASAIY
 
-# --- Configuration ---
+
+def check_active_state_general(text: str) -> Optional[EvidenceReason]:
+    """
+    Checks for General (Yearless) statements of Possession or Usage.
+
+    Assumption:
+    - Input text has already passed 'NEG', 'HYPO', 'ZERO' noise filters.
+
+    Logic:
+    1. Gate: Must mention an instrument.
+    2. Action: Must use a Possession verb ("hold") or Usage verb ("utilize").
+    """
+    # Use existing cleaner
+    clean_text = _cleaner.clean_numerics(text)
+
+    # --- 1. Subject Gate ---
+    if not check_mention(clean_text):
+        return None
+
+    # --- 2. Verb Gate ---
+    # We combine both Possession and Usage here.
+    # "We maintain a portfolio" (Possession) OR "We use swaps to hedge" (Usage)
+    has_poss = bool(POSS_VERB_REGEX.search(clean_text))
+    has_use = bool(USAGE_VERB_REGEX.search(clean_text))
+
+    if has_poss or has_use:
+        has_strict = check_derivative(clean_text)
+        if has_strict:
+            return EvidenceReason.CONT_USE
+        else:
+            return EvidenceReason.CONT_USE_AMB
+
+    return None
+
 
 # 1. Flexible Separator (Adjust '5' to allow for more/fewer intervening words)
 # Matches 0 to 5 non-whitespace tokens/words
