@@ -1,11 +1,10 @@
 import sqlite3
 import json
-import re
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
-from typing import Optional, Tuple
+from typing import Optional
 
 # --- REGEX IMPORTS ---
 from derivative_regex import (
@@ -44,10 +43,8 @@ from derivative_regex import (
 
 # Import Phase 6 Logic
 from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
+from prefiltered_lib import SKIP_TOKEN, DEADWEIGHT_TOKEN, MinimalTextCleaner
 from notional_filter import check_is_quantitative_zero
-
-# Reuse cleaner from simple nonuse (assuming it's in the same directory/package)
-from prefilter_simple_nonuse import DEADWEIGHT_TOKEN, MinimalTextCleaner
 
 # =============================================================================
 # CONFIGURATION
@@ -58,8 +55,6 @@ CHUNK_SIZE = 20
 SOURCE_DB_PATH = "refined_data.db"
 TARGET_DB_PATH = "tagged_data.db"
 
-# Token for sentence-level skips (Base string, will be formatted by get_tag)
-SKIP_TOKEN = " _S"
 
 # Initialize shared cleaner
 _cleaner = MinimalTextCleaner()
