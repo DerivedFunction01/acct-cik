@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional, Set, Dict
 from tqdm import tqdm
 
-from main.database_filter.prefilter_tagging import SKIP_TOKEN
+from prefilter_tagging import SKIP_TOKEN
 
 # --- CONFIGURATION ---
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
