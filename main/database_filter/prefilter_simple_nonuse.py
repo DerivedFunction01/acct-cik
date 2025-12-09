@@ -145,7 +145,7 @@ def check_refinement_exclusions(
 
     # Logic Variables
     hedging_sentence_count = 0
-    hedging_sentences_with_indicators = 0
+    hedging_sentences_neg = 0
     # Initialize counters instead of booleans
     potential_count = 0
     absence_count = 0
@@ -206,7 +206,7 @@ def check_refinement_exclusions(
                 sent_has_indicator = True
 
             if sent_has_indicator:
-                hedging_sentences_with_indicators += 1
+                hedging_sentences_neg += 1
 
         if is_current_or_no_year(sent_masked, year):
             if not (
@@ -247,7 +247,7 @@ def check_refinement_exclusions(
         is_deadweight = True
 
     elif (
-        hedging_sentence_count == hedging_sentences_with_indicators
+        hedging_sentence_count == hedging_sentences_neg
         and hedging_sentence_count > 0
     ):
         is_deadweight = True
