@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional, Set
 from tqdm import tqdm
 
+from prefilter_evidence import PNL_CONTEXT_REGEX
 from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, get_tag
 
 # --- CONFIGURATION ---
@@ -150,6 +151,7 @@ def check_refinement_exclusions(
     trading_denial_count = 0
     termination_count = 0
     aoci_count = 0
+    pnl_count = 0 # for termination
     meaningful_quant_count = 0
     current_year_activity_count = 0
 
@@ -225,6 +227,8 @@ def check_refinement_exclusions(
             tag = get_tag(SKIP_TOKEN, NoiseReason.AOCI)
             current_sent = f"{tag} {current_sent}"
             aoci_count += 1
+        if PNL_CONTEXT_REGEX.search(sent_masked):
+            pnl_count += 1
 
         processed_sentences.append(current_sent)
 
@@ -238,7 +242,7 @@ def check_refinement_exclusions(
         return None, modified_text
 
     # B. Deadweight Combinations
-    if aoci_count > 0 and termination_count > 0:
+    if (aoci_count > 0 or pnl_count > 0) and termination_count > 0:
         is_deadweight = True
 
     elif (
