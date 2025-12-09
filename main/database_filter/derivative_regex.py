@@ -1826,6 +1826,7 @@ PLAN_ASSETS_KEYWORDS = [
     r"\btrust\s+assets\b",
     r"\b401\(?k\)?\s+plan",
     r"\bVEBA\b",  # Voluntary Employees' Beneficiary Association
+    r"hedge funds?"
 ]
 
 # Section 2: Legal/Litigation
@@ -4376,52 +4377,6 @@ NON_FINANCIAL_KEYWORDS = [
 # Compile
 EXCLUDE_NON_FINANCIAL_REGEX = build_exclude_regex(NON_FINANCIAL_KEYWORDS)
 
-from enum import Enum
-class NoiseReason(Enum):
-    # --- Structural / Formatting ---
-    REF = "REF"  # Navigational Reference ("See Note 5")
-    DEF = "DEF"  # Definition ("Swap shall mean...")
-    PNL = "PNL"  # PnL/AOCI ("Gain of $5M")
-    NPNS = "NPNS"  # Normal Purchases / Sales
-    LOAN = "LOAN"  # Embedded Loan Features
-
-    # --- Business Logic / Signals ---
-    TRADING = "TRADING"  # Trading Denial ("We do not trade")
-    POLICY = "POLICY"  # Accounting Policy ("Designated as hedge")
-    CREDIT = "CREDIT"  # Counterparty Risk ("Credit exposure")
-
-    # --- Scoring ---
-    CONTRACT = "CONTRACT"  # Contractual Boilerplate Score
-    REG = "REG"  # Regulatory Boilerplate Score
-    HYP_SCORE = "HYP_SCORE"  # Hypothetical Score
-    BANK = "BANK" # Banking
-    LIBOR = "LIBOR" # LIBOR Transition
-
-    # --- Classification Killers ---
-    TIME = "TIME"  # Historical / Temporal
-    HYPO = "HYPO"  # Hypothetical / Potential
-    NEG = "NEG"  # Negative Intent
-    TERM = "TERM"  # Termination / Expiration
-    ZERO = "ZERO"  # Quantitative Zero
-
-    # --- Paragraph Level ---
-    HIST_BLOCK = "HIST_BLOCK"
-    BOILER_BLOCK = "BOILER_BLOCK"
-    ANLZ = "ANLZ"  # Generic Deadweight: Requires scanning internal tags for attributes
-    FILING = "FILING"  # 10-K Headers
-    FORWARD = "FORWARD"  # Safe Harbor / Forward Looking
-    LEGAL = "LEGAL"  # Litigation
-    PLAN = "PLAN"  # Pension Plans
-    NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
-    COMP = "COMP"  # Competitors
-    ACCT_STD = "ACCT_STD"  # Accounting Standards
-
-    # --- Firm Level ---
-    HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging
-    NO_SOPH  = "NO_SOPH" # No indication of convertible/warrants as derivatives
-
-def get_tag(token_type: str, reason: NoiseReason | str) -> str:
-    return f"{token_type}<{reason.value if isinstance(reason, NoiseReason) else reason}>" 
 
 # In derivative_regex.py
 
