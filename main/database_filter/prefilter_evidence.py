@@ -512,17 +512,6 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     return EvidenceReason.ASAIY
 
 
-def check_possession(text: str) -> Optional[EvidenceReason]:
-    """
-    Checks for explicit possession verbs (POSS).
-
-    Logic:
-    1. Matches POSS_REGEX (e.g., "We hold", "We maintain").
-    2. Must NOT be negated (handled by regex lookbehind).
-    """
-    pass
-
-
 def check_balance_sheet_location(text: str) -> Optional[EvidenceReason]:
     """
     Checks for accounting location descriptions (BS_LOC).
