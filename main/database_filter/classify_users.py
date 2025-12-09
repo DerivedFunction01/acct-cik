@@ -42,7 +42,7 @@ from prefiltered_lib import MinimalTextCleaner, NoiseReason
 # =============================================================================
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 1000
-SOURCE_DB_PATH = "tagged_data.db"
+SOURCE_DB_PATH = "evidence_data.db"
 TARGET_DB_PATH = "classified_data.db"
 
 # Tag Parsing Regex: Captures _S or _D (Group 1), REASON (Group 2), Text (Group 3)
