@@ -231,6 +231,7 @@ TIME_KILLED_EVIDENCE = {
 # TIER 3 (Weak)
 POLICY_KILLED_EVIDENCE = {
     EvidenceReason.PRU,
+    EvidenceReason.POSS_AMB,
     EvidenceReason.ACT,
     EvidenceReason.PU,
 }
