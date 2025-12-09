@@ -178,6 +178,7 @@ class EvidenceReason(Reason):
     BS_LOC = "BALANCE_SHEET_LOC"  # "Recorded in Other Assets"
     CONT_USE = "CONTINUOUS_USAGE"  # "Is hedging"
     NVNY = "NOTIONAL_NO_YEAR"  # "$100M" (No Year)
+    FVAINY = "FAIR_VALUE_AMB_INSTR_NO_YEAR"
     FVNY = "FAIR_VALUE__NO_YEAR"
 
     # --- TIER 3: WEAK (Actions - Policy Killed) ---
