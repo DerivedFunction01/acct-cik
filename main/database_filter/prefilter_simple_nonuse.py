@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional, Set
 from tqdm import tqdm
 
+from prefilter_database import find_hedging_context
 from prefilter_evidence import PNL_CONTEXT_REGEX
 from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, get_tag
 
@@ -23,6 +24,8 @@ from year_deletion import extract_years
 
 from derivative_regex import (
     ACTIVE_STATE_REGEX,
+    CP_REGEX,
+    CP_SOFT_REGEX,
     CR_REGEX,
     LOOSE_GEN_REGEX,
     AOCI_NOISE_REGEX,
@@ -292,40 +295,44 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
     Checks for general deadweight categories (Policy, History, etc.).
     Returns the specific tag string if excluded, else None.
     """
-
+    temp_text = _cleaner.clean_numerics(text, remove_years=False)
     # B. Historical Check
     if year:
-        temp_text = _cleaner.clean_numerics(text, remove_years=False)
         all_years = [int(y) for y in YEAR_REGEX.findall(temp_text)]
         if all_years and all(y < year for y in all_years):
             if not ACTIVE_STATE_REGEX.search(temp_text):
                 return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HIST_BLOCK)
+            
+    # Commodity check: is it refering to a derivative?
+    if CP_SOFT_REGEX.search(temp_text) and not CP_REGEX.search(temp_text):
+        if not find_hedging_context(temp_text):
+            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.NC)
 
     # --- 2. SAFEGUARDS (The "Active User" Signals) ---
 
     # A. Quantitative Check
-    if is_meaningful_quant(text, year):
+    if is_meaningful_quant(temp_text, year):
         return None
 
     # B. Active Action Check
-    if STRONG_POSSESSION_REGEX.search(text):
+    if STRONG_POSSESSION_REGEX.search(temp_text):
         return None
 
     # --- 3. SOFT KILLS (Run AFTER Verbs) ---
 
     # A. Policy & Methodology
-    if HEDGE_DOC_REGEX.search(text):
+    if HEDGE_DOC_REGEX.search(temp_text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.POLICY)
 
     # B. AOCI / PnL Lists (Moved here to allow safeguards to protect active positions)
-    if AOCI_NOISE_REGEX.search(text):
+    if AOCI_NOISE_REGEX.search(temp_text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.AOCI)
 
-    if PNL_CONTEXT_REGEX.search(text) and not VALUATION_MODELS_REGEX.search(text):
+    if PNL_CONTEXT_REGEX.search(temp_text) and not VALUATION_MODELS_REGEX.search(temp_text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.PNL)
 
     # C. Counterparty / Credit Risk (With exemption for explicit credit derivatives)
-    if COUNTERPARTY_REGEX.search(text) and not CR_REGEX.search(text):
+    if COUNTERPARTY_REGEX.search(temp_text) and not CR_REGEX.search(temp_text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.CREDIT)
 
     return None

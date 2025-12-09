@@ -128,6 +128,7 @@ class NoiseReason(Reason):
     AOCI = "AOCI"  # AOCI ("recorded in AOCI") (Note: AOCI + Termination is an instant killer)
     PNL = "PNL" # PNL, but no quantitaive action. Probably fair valuation inputs
     NPNS = "NPNS"  # Normal Purchases / Sales
+    NC = "NC" # Non derivative commodity contracts
     LOAN = "LOAN"  # Embedded Loan Features
 
     # --- Business Logic / Signals ---
