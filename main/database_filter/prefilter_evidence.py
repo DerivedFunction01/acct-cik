@@ -41,6 +41,7 @@ VERB_MAP = {
         r"purchas(?:e|es|ed|ing)",
         r"issu(?:e|es|ed|ing)?",  # "Issued warrants"
         r"convert(?:s|ed|ing)?",  # "Converted notes"
+        r"secur(?:e|es|ed|ing)",
     ],
     # --- PASSIVE / ACCOUNTING STATES ---
     # Often found in Policy headers.
@@ -458,6 +459,7 @@ ACTIVE_ADJ_REGEX = re.compile(
 # Assuming you construct this regex from VERB_MAP["POSS"]
 # Example verbs: held, hold, holding, maintain, maintained, carry, carried, possess
 POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
+USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
 def check_active_state_year(text: str, reporting_year: int) -> Optional[EvidenceReason]:
     """
     Determines if text represents Active State anchored to a date.
@@ -490,6 +492,7 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     has_prep = bool(ACTIVE_PREP_REGEX.search(text))
     has_adj = bool(ACTIVE_ADJ_REGEX.search(text))
     has_poss_verb = bool(POSS_VERB_REGEX.search(text))
+    has_use = bool(USAGE_VERB_REGEX.search(text)) # In 20XX we are using
     has_current_state = ACTIVE_STATE_REGEX.search(text)
 
     # If it lacks all three anchors, it's just a mention (e.g., "We discuss swaps..."), not a state.
