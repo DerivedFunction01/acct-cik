@@ -507,7 +507,6 @@ def check_transaction_action(
     if not years:
         return EvidenceReason.ACT_GEN
 
-
     # CASE B: Years found -> Must be current or future
     # If ANY year in the text is valid (>= reporting_year), we accept it.
     if any(y >= reporting_year for y in years):
@@ -518,15 +517,50 @@ def check_transaction_action(
     # CASE C: Years found, but all are old -> Historical Noise ("Entered in 2019")
     return None
 
+# --- PnL / Performance Context ---
+# We strip the complex lookaheads. We just want to know:
+# "Is this sentence talking about gains, losses, or income?"
 
-def check_pnl_recognition(text: str) -> Optional[EvidenceReason]:
+PNL_TERMS = [
+    r"(?:realized|unrealized)\s+(?:gain|loss)",  # "Unrealized loss"
+    r"(?:net\s+)?(?:gain|loss)\s+on",  # "Net gain on...", "Loss on..."
+    r"mark(?:\s+to)?[- ]market",  # "Mark-to-market"
+    r"change(?:s)?\s+in\s+fair\s+value",  # "Changes in fair value"
+    r"ineffective\s+portion",  # "Ineffective portion"
+    r"hedge\s+ineffectiveness",  # "Hedge ineffectiveness"
+    r"reclassifi(?:ed|cation).{0,20}earnings",  # "Reclassified into earnings" (Limited wildcards)
+    r"results\s+of\s+operations",  # "Results of operations"
+    r"impact(?:ed)?\s+(?:net\s+)?income",  # "Impacted net income"
+]
+
+
+# Build the simple regex
+PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
+def check_pnl_context(text: str) -> Optional[EvidenceReason]:
     """
-    Checks for PnL recognition statements (PNL_REC).
+    Checks for PnL / Performance context.
 
     Logic:
-    1. Matches PNL_REGEX (Focus on 'Recognized', 'Recorded gain').
+    1. Topic Gate: Must match PnL keywords (Gains/Losses).
+    2. Subject Gate: Must be STRICT (Swaps/Options).
+       We ignore "Gain on Contracts" to avoid physical commodity noise.
+
+    Returns:
+    Tier 4 (FLUFF) - This is context, not proof of holding.
     """
-    pass
+    # 1. Topic Gate (Fastest check)
+    if not PNL_CONTEXT_REGEX.search(text):
+        return None
+
+    clean_text = _cleaner.clean_numerics(text)
+
+    # 2. Subject Gate (Strict Only)
+    # We bail out if it's just "Gain on contracts" (Soft)
+    if not check_derivative(clean_text):
+        return None
+
+    # 3. Tag it
+    return EvidenceReason.PNL_REC
 
 
 def check_remaining_term(text: str) -> Optional[EvidenceReason]:

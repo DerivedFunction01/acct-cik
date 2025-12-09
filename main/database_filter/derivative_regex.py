@@ -4420,3 +4420,14 @@ def build_trading_venue_regex() -> re.Pattern:
 
 # Export
 TRADING_VENUE_REGEX = build_trading_venue_regex()
+
+
+# Use build_regex for consistency
+AOCI_TERMS = [
+    r"(?:accumulated\s+)?other\s+comprehensive\s+(?:income|loss)",  # Matches "Other comprehensive income"
+    r"AOCI\b",
+    r"O\.?C\.?I\b",
+    r"(?:reclassified?|reclassifi).{0,20}(?:AOCI|O\.?C\.?I|comprehensive)",  # Reclassification out of AOCI
+]
+
+AOCI_NOISE_REGEX = build_regex(AOCI_TERMS)

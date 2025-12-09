@@ -1,5 +1,5 @@
 import re
-from derivative_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, STANDARD_ID_REGEX, YEAR_REGEX
+from derivative_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
 from final_verification import QUANT_REGEX
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
 
@@ -293,3 +293,5 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.REF,  # "See Note 5"
     NoiseReason.TRADING,  # "We do not trade"
 }
+
+

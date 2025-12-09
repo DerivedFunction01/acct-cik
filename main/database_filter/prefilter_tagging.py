@@ -22,7 +22,7 @@ from derivative_regex import (
     SOFT_REGEX,
     # Business Logic
     TRADING_STATEMENTS_REGEX,
-    NON_POSITION_INDICATORS,
+    AOCI_NOISE_REGEX,
     EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
     # Classification Killers
     POTENTIAL_REGEX,
@@ -182,7 +182,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             reason = NoiseReason.REF
         elif DEFINITION_INDICATORS.search(masked):
             reason = NoiseReason.DEF
-        elif NON_POSITION_INDICATORS.search(masked):
+        elif AOCI_NOISE_REGEX.search(masked):
             reason = NoiseReason.PNL
         elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
             reason = NoiseReason.NPNS  # or COMM_EXEMPT
