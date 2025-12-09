@@ -176,7 +176,7 @@ class EvidenceReason(Reason):
 
     # --- TIER 2: MEDIUM (States - Time Killed) ---
     # Dies to TRADING/HIST. Survives POLICY.
-    POSS = "POSSESSION"  # "We hold" (Verb only, Tier 2 is safe)
+    POSS = "POSSESSION"  # "We hold SWAPS" (Strict) -> Tier 2
     BS_LOC = "BALANCE_SHEET_LOC"
     CONT_USE = "CONTINUOUS_USAGE"
 
@@ -184,6 +184,7 @@ class EvidenceReason(Reason):
     # These have Strong Anchors (Date/Current) but Weak Subjects (Contract/Agreement).
     # We downgrade them to Tier 2 so they can be killed by "No Trading" tags.
     FVAIY = "FAIR_VALUE_AMB_INSTR_YEAR"  # "FV of CONTRACT was $5M in 2024"
+    POSS_AMB = "POSS_AMBIGUOUS"  # "We hold CONTRACTS" (Soft) -> Tier 3 (New)
     MAT_AMB_FUT = "MAT_AMB_FUTURE"  # "CONTRACT Matures in 2026"
     ASAIY = "ACTIVE_STATE_AMB_YEAR"  # "CONTRACT Outstanding at Dec 31, 2024"
     SD_AMB = "CURRENT_STATE_AMB"  # "We CURRENTLY hold CONTRACTS"
