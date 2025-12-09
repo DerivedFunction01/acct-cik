@@ -369,8 +369,6 @@ def check_pnl_context(
     if not PNL_CONTEXT_REGEX.search(text):
         return None
 
-    clean_text = _cleaner.clean_numerics(text)
-
     if not is_strict_derivative:
         return None
 
