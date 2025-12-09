@@ -501,6 +501,15 @@ def setup_target_db(path):
         "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER)"
     )
     c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS category (
+            url TEXT PRIMARY KEY,
+            categories TEXT NOT NULL,  -- JSON array of category labels ['ir', 'fx', 'gen', ...]
+            FOREIGN KEY (url) REFERENCES webpage_result(url)
+        )
+        """
+    )
+    c.execute(
         "CREATE TABLE IF NOT EXISTS discarded_sentences (id INTEGER PRIMARY KEY, url TEXT, sentence TEXT, discard_reason TEXT)"
     )
     conn.commit()
