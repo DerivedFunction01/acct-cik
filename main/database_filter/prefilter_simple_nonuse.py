@@ -16,7 +16,6 @@ SOURCE_DB_PATH = "prefiltered_data.db"  # Output from Step 1
 TARGET_DB_PATH = "refined_data.db"  # Input for Step 3
 
 
-
 # --- MODULE IMPORTS ---
 from final_verification import COUNTERPARTY_REGEX, POLICY_REGEX
 from year_deletion import extract_years
@@ -145,13 +144,14 @@ def check_refinement_exclusions(
     # Logic Variables
     hedging_sentence_count = 0
     hedging_sentences_with_indicators = 0
-    has_potential = False
-    has_absence = False
-    has_trading_denial = False
-    has_termination = False
-    has_aoci = False
-    has_meaningful_quant = False
-    has_current_year_activity = False
+    # Initialize counters instead of booleans
+    potential_count = 0
+    absence_count = 0
+    trading_denial_count = 0
+    termination_count = 0
+    aoci_count = 0
+    meaningful_quant_count = 0
+    current_year_activity_count = 0
 
     # Check Soft Category on MASKED version (safer)
     is_strictly_generic = not bool(SOFT_CATEGORY_REGEX.search(text_masked))
@@ -159,15 +159,11 @@ def check_refinement_exclusions(
     # 2. PARALLEL LOOP
     for sent_orig, sent_masked in zip(sentences_orig, sentences_masked):
 
-        # We modify 'current_sent' (Original) based on 'sent_masked' (Logic)
         current_sent = sent_orig
 
         # --- A. Sentence-Level Tags ---
-        # Logic check: sent_masked
-        # Tag injection: current_sent (Original)
-
         if TRADING_STATEMENTS_REGEX.search(sent_masked):
-            has_trading_denial = True
+            trading_denial_count += 1
             tag = get_tag(SKIP_TOKEN, NoiseReason.TRADING)
             if tag not in current_sent:
                 current_sent = f"{tag} {current_sent}"
@@ -175,7 +171,7 @@ def check_refinement_exclusions(
         if TERMINATION_REGEX.search(sent_masked) and LOOSE_GEN_REGEX.search(
             sent_masked
         ):
-            has_termination = True
+            termination_count += 1
             tag = get_tag(SKIP_TOKEN, NoiseReason.TERM)
             if tag not in current_sent:
                 current_sent = f"{tag} {current_sent}"
@@ -183,12 +179,12 @@ def check_refinement_exclusions(
         if NEGATIVE_INTENT_REGEX.search(
             sent_masked
         ) and not TRADING_STATEMENTS_REGEX.search(sent_masked):
-            has_absence = True
+            absence_count += 1
             tag = get_tag(SKIP_TOKEN, NoiseReason.NEG)
             if tag not in current_sent:
                 current_sent = f"{tag} {current_sent}"
 
-        # --- B. Update Logic Counters (Using MASKED for safety) ---
+        # --- B. Update Logic Counters ---
         if has_instrument(sent_masked):
             hedging_sentence_count += 1
             sent_has_indicator = False
@@ -196,14 +192,14 @@ def check_refinement_exclusions(
             if POTENTIAL_REGEX.search(sent_masked) or VAGUE_TIMING_REGEX.search(
                 sent_masked
             ):
-                has_potential = True
+                potential_count += 1
                 sent_has_indicator = True
             if ABSENCE_REGEX.search(sent_masked) or DID_NOT_HOLD_REGEX.search(
                 sent_masked
             ):
-                has_absence = True
+                absence_count += 1
                 sent_has_indicator = True
-            if has_trading_denial or has_absence:
+            if trading_denial_count > 0 or absence_count > 0:
                 sent_has_indicator = True
 
             if sent_has_indicator:
@@ -214,35 +210,29 @@ def check_refinement_exclusions(
                 TERMINATION_REGEX.search(sent_masked)
                 and LOOSE_GEN_REGEX.search(sent_masked)
             ):
-                has_current_year_activity = True
+                current_year_activity_count += 1
 
-        # Note: Quant check uses its own cleaner, so we can pass either,
-        # but original is safer to preserve number formatting if masking touched it.
         if is_meaningful_quant(sent_orig, year):
-            has_meaningful_quant = True
+            meaningful_quant_count += 1
 
         if NON_POSITION_INDICATORS.search(sent_masked):
             tag = get_tag(SKIP_TOKEN, NoiseReason.PNL)
             current_sent = f"{tag} {current_sent}"
-            has_aoci = True
+            aoci_count += 1
 
-        # Add modified ORIGINAL sentence to list
         processed_sentences.append(current_sent)
 
-    # Reconstruct text from ORIGINAL sentences (now containing tags)
     modified_text = " ".join(processed_sentences)
 
-    # --- 2. THE GATEKEEPER (Combination Logic) ---
-    # We still need this complex logic to decide IF we drop the paragraph.
-    # But if we DO drop it, we just return the generic ANLZ tag.
+    # --- 2. THE GATEKEEPER ---
     is_deadweight = False
 
     # A. Quantitative Safety (Immediate Keep)
-    if has_meaningful_quant:
+    if meaningful_quant_count > 0:
         return None, modified_text
 
     # B. Deadweight Combinations
-    if has_aoci and has_termination:
+    if aoci_count > 0 and termination_count > 0:
         is_deadweight = True
 
     elif (
@@ -251,31 +241,33 @@ def check_refinement_exclusions(
     ):
         is_deadweight = True
 
-    elif has_potential:
-        if is_strictly_generic and has_trading_denial:
+    elif potential_count > 0:
+        if is_strictly_generic and trading_denial_count > 0:
             is_deadweight = True
-        elif has_absence:
+        elif absence_count > 0:
             is_deadweight = True
-        elif has_termination:
+        elif termination_count > 0:
             is_deadweight = True
-        elif has_trading_denial:
+        elif trading_denial_count > 0:
             is_deadweight = True
 
     else:
-        # Historical / Policy / Absence
-        if not has_current_year_activity and has_only_past_years(text_orig, year):
+        if current_year_activity_count == 0 and has_only_past_years(text_orig, year):
             is_deadweight = True
-        elif has_trading_denial and is_strictly_generic:
+        elif trading_denial_count > 0 and is_strictly_generic:
             is_deadweight = True
-        elif has_termination and has_absence:
+        elif termination_count > 0 and absence_count > 0:
             is_deadweight = True
-        elif has_absence:
+        elif absence_count > 0:
             is_deadweight = True
-        elif has_trading_denial and has_absence:
+        elif trading_denial_count > 0 and absence_count > 0:
             is_deadweight = True
+        else:
+            # Double indicators strongly suggests discarding (ex./ We closed out... The closing of the swap...)
+            if absence_count > 1 or termination_count > 1 or potential_count > 1:
+                is_deadweight = True
 
     if is_deadweight:
-        # Return generic tag. The inner _S tags tell the story.
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ), modified_text
 
     return None, modified_text
