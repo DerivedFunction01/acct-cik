@@ -346,12 +346,12 @@ def check_quantitative_evidence(
     is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
     is_fair_value = bool(FAIR_VALUE_CONTEXT_REGEX.search(text))
     has_mention = bool(SOFT_REGEX.search(text) or LOOSE_GEN_REGEX.search(text))
-    
+
     # We bail out immediately.
     if not has_mention:
         return None
 
-    is_strict = bool(STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text))
+    is_strict = bool(STRICT_REGEX.search(text))
 
     # 2. Extract Data
     # (extract_values_and_years returns found years and values)
@@ -367,13 +367,13 @@ def check_quantitative_evidence(
     has_relevant_year = any(y >= reporting_year for y in years_found)
 
     if is_notional or (is_strict and not is_fair_value):
-        return EvidenceReason.NVY if has_relevant_year else EvidenceReason.QUANT_NY
+        return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
 
     if is_fair_value:
-        if is_strict and has_relevant_year:
-            return EvidenceReason.FVY
+        if is_strict:
+            return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
         else:
-            return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.QUANT_NY
+            return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
 
     return None
 
