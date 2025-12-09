@@ -24,7 +24,7 @@ from derivative_regex import (
     ACTIVE_STATE_REGEX,
     CR_REGEX,
     LOOSE_GEN_REGEX,
-    NON_POSITION_INDICATORS,
+    AOCI_NOISE_REGEX,
     POTENTIAL_REGEX,
     NEGATIVE_INTENT_REGEX,
     ABSENCE_REGEX,
@@ -221,7 +221,7 @@ def check_refinement_exclusions(
         if is_meaningful_quant(sent_orig, year):
             meaningful_quant_count += 1
 
-        if NON_POSITION_INDICATORS.search(sent_masked):
+        if AOCI_NOISE_REGEX.search(sent_masked):
             tag = get_tag(SKIP_TOKEN, NoiseReason.PNL)
             current_sent = f"{tag} {current_sent}"
             aoci_count += 1
@@ -310,7 +310,7 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.POLICY)
 
     # B. AOCI / PnL Lists (Moved here to allow safeguards to protect active positions)
-    if NON_POSITION_INDICATORS.search(text):
+    if AOCI_NOISE_REGEX.search(text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.PNL)
 
     # C. Counterparty / Credit Risk (With exemption for explicit credit derivatives)
