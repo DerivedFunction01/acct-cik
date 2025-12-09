@@ -163,32 +163,56 @@ class NoiseReason(Reason):
 
 
 class EvidenceReason(Reason):
-    # --- QUANTITATIVE (The Gold Standard) ---
+    # --- 1. STRONG: ANCHORS (Data & Explicit Current) ---
+    # These imply specific, undeniable facts about the current/future state.
     NVY = "NOTIONAL_VALUE_YEAR"  # "Notional was $100M in 2024"
     FVY = "FAIR_VALUE_YEAR"  # "Fair value was $5M in 2024"
-    NVNY = "NOTIONAL_VALUE_NO_YEAR"  # "Notional amount of $100M" (Context dependent)
-    FVNY = "FAIR_VALUE_NO_YEAR"  # "Fair value of $5M"
+    MAT_FUT = "MATURITY_FUTURE"  # "Matures in 2026" (Future Year Anchor)
+    AS_YEAR = "ACTIVE_STATE_YEAR"  # "Outstanding at Dec 31, 2024"
+    SD = "CURRENT_STATE"  # "We CURRENTLY use", "PRESENTLY hold"
 
-    # --- HARD LINGUISTIC (State of Being) ---
-    MAT_FUT = "MATURITY_FUTURE"  # "Matures in 2026" (Year > Reporting Year)
-    AS_YEAR = "ACTIVE_STATE_YEAR"  # "Outstanding at December 31, 2024"
-    BS_LOC = "BALANCE_SHEET_LOC"  # "Are recorded in Other Assets" (Present Tense)
-    CONT_USE = "CONTINUOUS_USAGE"  # "Currently hedges", "Is hedging"
-    REM_TERM = "REMAINING_TERM"  # "Weighted average maturity of 2 years"
+    # --- 2. MEDIUM: STATES (Existence & Possession) ---
+    # Present tense "Being". Stronger than "Doing".
+    POSS = "POSSESSION"  # "We hold", "We carry", "We maintain"
+    BS_LOC = "BALANCE_SHEET_LOC"  # "Are recorded in Other Assets"
+    CONT_USE = "CONTINUOUS_USAGE"  # "Is hedging", "Are designating"
+    QUANT_NY = "QUANT_NO_YEAR"  # "$100M" or "Fair value of $5M" (No Year)
 
-    # --- SOFT LINGUISTIC (Action/Activity) ---
-    PRU = "PRESENT_USAGE"  # "We use swaps" (Simple Present - Risk of Policy)
-    PRY = "PRESENT_YEAR_ACTION"  # "In 2024, we used..."
-    ACT_DUR = "ACTIVITY_DURING"  # "During 2024, we entered..."
-    PNL_REC = "PNL_RECOGNITION"  # "Recognized a gain of..."
-
-    # --- HISTORICAL / WEAK (Lower Confidence) ---
-    PU = "PAST_USAGE"  # "We held" (Simple Past)
-    PW = "PAST_WEAK"  # "We entered into" (Transactional Past)
-    ASNY = "ACTIVE_STATE_NO_YEAR"  # "Outstanding" (No date anchor)
+    # --- 3. WEAK: ACTIONS (Transactions & Ambiguity) ---
+    # "Doing" verbs (active/past) or relative descriptors.
+    # Vulnerable to being generic policy or cancelled out actions.
+    PRU = "PRESENT_USAGE"  # "We use", "We derivative" (Generic Present)
+    ACT = "TRANSACTION_ACTION"  # "Entered into", "Purchased" (Past/Action verbs)
+    PNL_REC = "PNL_RECOGNITION"  # "Recognized a gain" (Could be closed position)
+    REM_TERM = "REMAINING_TERM"  # "Remaining term of 2 years"
 
 
-def get_tag(token_type: str, reason: Reason | str) -> str:
-    return (
-        f"{token_type}<{reason.value if isinstance(reason, Reason) else reason}>"
-    )
+# --- LOGIC SETS ---
+
+# STRONG: Overrides ALL Noise.
+STRONG_EVIDENCE = {
+    EvidenceReason.NVY,
+    EvidenceReason.FVY,
+    EvidenceReason.MAT_FUT,
+    EvidenceReason.AS_YEAR,
+    EvidenceReason.SD,
+}
+
+# MEDIUM: Dies to TERM, HIST, ZERO
+# Logic: "We hold" (Poss) overrides "Our policy is..."
+# Logic: "We hold" (Poss) DIES to "We closed..." (Term)
+MEDIUM_EVIDENCE = {
+    EvidenceReason.POSS,
+    EvidenceReason.BS_LOC,
+    EvidenceReason.CONT_USE,
+    EvidenceReason.QUANT_NY,
+}
+
+# WEAK: Dies to ANY Noise.
+# Logic: "We use" (PRU) DIES to "Our policy is..." (Policy)
+WEAK_EVIDENCE = {
+    EvidenceReason.PRU,
+    EvidenceReason.ACT,
+    EvidenceReason.PNL_REC,
+    EvidenceReason.REM_TERM,
+}
