@@ -808,7 +808,7 @@ def data_generator(source_db, processed_urls, batch_size=BATCH_SIZE):
     conn.close()
 
 
-def write_batch(conn, buffer, discards):
+def flush_buffers(conn, buffer, discards):
     if not buffer and not discards:
         return
 
@@ -885,7 +885,7 @@ if __name__ == "__main__":
                 discards_buffer.extend(discards)
 
             if len(buffer) >= BATCH_SIZE:
-                write_batch(target_conn, buffer, discards_buffer)
+                flush_buffers(target_conn, buffer, discards_buffer)
                 buffer = []
                 discards_buffer = []
 
@@ -893,7 +893,7 @@ if __name__ == "__main__":
 
     # 4. Final Flush
     if buffer or discards_buffer:
-        write_batch(target_conn, buffer, discards_buffer)
+        flush_buffers(target_conn, buffer, discards_buffer)
 
     target_conn.close()
     print(f"✅ Complete. Processed {count} documents.")

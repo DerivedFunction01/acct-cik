@@ -440,7 +440,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     UPDATED: Now passes ALL firms through, even if they have 0 valid signals.
     Deadweight paragraphs are tagged, but the firm is NOT dropped.
     """
-    url, matches_json, cik, year = item
+    url, matches_json, cik, year, categories_json = item
     try:
         paragraphs = json.loads(matches_json)
     except:
@@ -488,7 +488,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             all_discards_log.append((url, processed_text, tag))
 
     # PASS EVERYTHING (No dropping)
-    return (url, json.dumps(modified_paragraphs), cik, year, all_discards_log)
+    return (url, json.dumps(modified_paragraphs), categories_json, cik, year, all_discards_log)
 
 
 def setup_target_db(path):
@@ -535,9 +535,10 @@ def get_source_data(source_path: str, processed_urls: Set[str]) -> List[Tuple]:
     c = conn.cursor()
     c.execute(
         """
-        SELECT w.url, w.matches, r.cik, r.year 
+        SELECT w.url, w.matches, r.cik, r.year, c.categories
         FROM webpage_result w 
         LEFT JOIN report_data r ON w.url = r.url
+        LEFT JOIN category c ON w.url = c.url
         WHERE w.matches IS NOT NULL
         """
     )
@@ -547,28 +548,37 @@ def get_source_data(source_path: str, processed_urls: Set[str]) -> List[Tuple]:
 
 
 # --- NEW: Buffer flush helper ---
-def flush_buffers(conn, buffer_res, buffer_disc):
-    """Write buffered results and discards to DB, then clear buffers."""
+def flush_buffers(conn, buffer, discards):
+    if not buffer and not discards:
+        return
+
     c = conn.cursor()
-    if buffer_res:
-        c.executemany(
-            "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)",
-            [(x[0], x[1]) for x in buffer_res],
-        )
-        c.executemany(
-            "INSERT OR REPLACE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-            [(x[0], x[2], x[3]) for x in buffer_res],
-        )
-        buffer_res.clear()
-
-    if buffer_disc:
-        c.executemany(
-            "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
-            buffer_disc,
-        )
-        buffer_disc.clear()
-
-    conn.commit()
+    try:
+        c.execute("BEGIN TRANSACTION")
+        if buffer:
+            # Buffer is list of (url, matches, categories, cik, year)
+            # url = 0, matches = 1, categories = 2, cik = 3, year = 4
+            c.executemany(
+                "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
+                [(r[0], r[1]) for r in buffer],
+            )
+            c.executemany(
+                "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
+                [(r[0], r[3], r[4]) for r in buffer],
+            )
+            c.executemany(
+                "INSERT OR IGNORE INTO category (url, categories) VALUES (?, ?)",
+                [(r[0], r[2]) for r in buffer],
+            )
+        if discards:
+            c.executemany(
+                "INSERT INTO discarded_sentences (url, sentence, discard_reason) VALUES (?, ?, ?)",
+                discards,
+            )
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Write Error: {e}")
+        conn.rollback()
 
 
 # --- MAIN ---
@@ -602,8 +612,8 @@ if __name__ == "__main__":
             if not result:
                 continue
 
-            url, matches, cik, year, discards = result
-            buffer_res.append((url, matches, cik, year))
+            url, matches, categories, cik, year, discards = result
+            buffer_res.append((url, matches, categories, cik, year))
             if discards:
                 buffer_disc.extend(discards)
 
