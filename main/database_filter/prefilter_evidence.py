@@ -1,6 +1,7 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import ACTIVE_STATE_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_regex
+from derivative_regex import FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_regex
+from prefilter_database import is_sophisticated_content
 from notional_filter import extract_values_and_years
 from prefiltered_lib import DEADWEIGHT_TOKEN, EVIDENCE_TOKEN, FLUFF_EVIDENCE, POLICY_KILLED_EVIDENCE, SKIP_TOKEN, STRONG_EVIDENCE, TIME_KILLED_EVIDENCE, EvidenceReason, MinimalTextCleaner, NoiseReason, get_tag
 
@@ -389,7 +390,7 @@ def check_mention(clean_text):
     )
 
 def check_derivative(text):
-    return bool(STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text))
+    return bool(STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text) or is_sophisticated_content(text))
 
 # GROUP A: PREPOSITIONS (Sentence-Wide Scope)
 # These apply to the entire sentence. If found, we just need a Subject + Year anywhere.
@@ -426,17 +427,30 @@ ACTIVE_ADJ_REGEX = re.compile(
 
 def check_active_state_year(text: str, reporting_year: int) -> Optional[EvidenceReason]:
     """
-    Determines if text represents Active State anchored to a date (AS_YEAR).
-    Crucial for distinguishing 'As of 2024' (Strong) from 'In 2024' (Weak).
+    Determines if text represents Active State anchored to a date.
+
+    Logic:
+    1. Gate: Must mention an instrument.
+    2. Anchor: Must have Active Preposition ("As of") or Adjective ("Outstanding").
+    3. Time: Must contain a Year >= reporting_year.
+    4. Result: Splits into AS_YEAR (Strong) vs ASAIY (Medium) based on strictness.
     """
     if not reporting_year:
         return None
 
-    # 1. Subject Gate (Must mention instrument)
-    if not (SOFT_REGEX.search(text) or LOOSE_GEN_REGEX.search(text)):
+    # Use existing cleaner to allow year regex to work
+    # We pass remove_years=False because we NEED the year.
+    clean_text = _cleaner.clean_numerics(text, remove_years=False)
+
+    # --- 1. Subject Gate & Classification ---
+    # Does it mention any instrument at all?
+    if not check_mention(clean_text):
         return None
 
-    # 2. Anchor Gate (Prepositions OR Adjectives)
+    # Is it a specific derivative (Swap/Option) or generic (Contract/Agreement)?
+    has_strict = check_derivative(clean_text)
+
+    # --- 2. Anchor Gate ---
     # We NEED 'Active Prepositions' to catch cases like "As of 2024..."
     # where no other adjective ("outstanding") exists.
     has_prep = bool(ACTIVE_PREP_REGEX.search(text))
@@ -445,15 +459,22 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     if not (has_prep or has_adj):
         return None
 
-    # 3. Time Gate
-    # Use existing cleaner to allow year regex to work
-    clean_text = _cleaner.clean_numerics(text, remove_years=False)
+    # --- 3. Time Gate ---
     years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
 
-    if any(y >= reporting_year for y in years):
+    has_relevant_year = any(y >= reporting_year for y in years)
+
+    if not has_relevant_year:
+        return None
+
+    # --- 4. Decision ---
+    # If Strict Instrument ("Outstanding Swaps at 2024") -> Tier 1 (Strong)
+    if has_strict:
         return EvidenceReason.AS_YEAR
 
-    return None
+    # If Soft Instrument ("Outstanding Contracts at 2024") -> Tier 2 (Medium)
+    # Dies to "We do not trade" denials.
+    return EvidenceReason.ASAIY
 
 
 def check_possession(text: str) -> Optional[EvidenceReason]:
