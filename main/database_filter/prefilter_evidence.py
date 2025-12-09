@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_regex
+from derivative_regex import ACTIVE_STATE_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, LOOSE_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TERMINATION_ALL_REGEX, YEAR_REGEX, build_regex
 from notional_filter import extract_values_and_years
 from prefiltered_lib import DEADWEIGHT_TOKEN, EVIDENCE_TOKEN, FLUFF_EVIDENCE, POLICY_KILLED_EVIDENCE, SKIP_TOKEN, STRONG_EVIDENCE, TIME_KILLED_EVIDENCE, EvidenceReason, MinimalTextCleaner, NoiseReason, get_tag
 
@@ -389,15 +389,48 @@ def check_active_state_year(text: str, reporting_year: int) -> Optional[Evidence
     pass
 
 
-def check_current_state(text: str) -> Optional[EvidenceReason]:
+def check_active_state_year(text: str, reporting_year: int) -> Optional[EvidenceReason]:
     """
-    Determines if text uses explicit "Right Now" language (SD).
+    Determines if text represents an Active State anchored to a specific date.
 
     Logic:
-    1. Matches CURRENT_STATE_REGEX (e.g., "Currently hold", "Presently use").
-    2. Inherently strong because the adverb overrides historical context.
+    2. Must contain a Year >= reporting_year.
+    3. Safety: If multiple years exist, at least one must be >= reporting_year.
     """
-    pass
+    if not reporting_year:
+        return None
+
+    # 1. Check Keywords
+    if not ACTIVE_STATE_REGEX.search(text):
+        return None
+
+    # 2. Check Context (Must mention instrument)
+    # We reuse the gatekeeper logic to ensure we aren't catching "Outstanding debt"
+    has_mention = bool(
+        SOFT_REGEX.search(text)
+        or LOOSE_GEN_REGEX.search(text)
+        or STRICT_REGEX.search(text)
+    )
+    if not has_mention:
+        return None
+
+    # 3. Extract Years
+    # We clean numerics but keep years to parse them
+    clean_text = _cleaner.clean_numerics(text, remove_years=False)
+    years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
+
+    if not years:
+        return None
+
+    # 4. The Logic Test
+    # If the sentence says "Outstanding at 2023 and 2024", it is valid.
+    # If it says "Outstanding at 2018", it is invalid.
+    has_relevant_year = any(y >= reporting_year for y in years)
+
+    if has_relevant_year:
+        return EvidenceReason.AS_YEAR
+
+    return None
 
 
 def check_possession(text: str) -> Optional[EvidenceReason]:
