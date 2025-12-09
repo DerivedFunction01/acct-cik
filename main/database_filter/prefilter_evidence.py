@@ -280,31 +280,41 @@ def parse_existing_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
 
 def check_future_maturity(text: str, reporting_year: int) -> Optional[EvidenceReason]:
     """
-    Checks for Future Maturity. Returns the specific EvidenceReason Enum or None.
+    Checks for Future Maturity.
+    Splits into MAT_FUT (Strong) vs MAT_AMB_FUT (Medium).
     """
     if not reporting_year:
         return None
 
-    # 1. Check Topic (Fastest Fail)
+    # 1. Topic Gate: Must mention Termination/Maturity keywords
     if not TERMINATION_ALL_REGEX.search(text):
         return None
 
-    # 2. Check Context (Must mention instrument)
+    # 2. Subject Classification
+    is_strict = bool(
+        STRICT_REGEX.search(text)
+        or IR_SOFT_REGEX.search(text)
+        or FX_SOFT_REGEX.search(text)
+    )
+    is_soft = bool(SOFT_REGEX.search(text) or LOOSE_GEN_REGEX.search(text))
+
+    if not (is_strict or is_soft):
+        return None
+
+    # 3. Time Gate
     clean_text = _cleaner.clean_numerics(text, remove_years=False)
-    if not LOOSE_GEN_REGEX.search(clean_text):
-        return None
-
-    # 3. Check Time
     years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
-    if not years:
+
+    if not any(y > reporting_year for y in years):
         return None
 
-    if any(y > reporting_year for y in years):
-        return EvidenceReason.MAT_FUT  # Return Enum directly
+    # 4. Decision
+    # "Swap matures in 2026" -> Strong
+    if is_strict:
+        return EvidenceReason.MAT_FUT
 
-    return None
-
-import re
+    # "Agreement expires in 2026" -> Medium (Could be a lease, dies to Trading Denial)
+    return EvidenceReason.MAT_AMB_FUT
 
 # --- QUANTITATIVE CONTEXT GATES ---
 
