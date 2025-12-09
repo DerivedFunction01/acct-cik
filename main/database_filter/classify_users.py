@@ -655,6 +655,27 @@ def _promotion_and_cleanup(evidence_map, potential_map, attributes):
     return removed_outliers
 
 
+def _compute_final_categories(evidence_map: dict) -> List[str]:
+    """
+    Final authoritative category list.
+    If a key exists in evidence_map and has ≥1 sentence → it's real.
+    'eq' and 'warr' coexist happily.
+    'gen' only if that's literally all we have.
+    """
+    cats = set()
+
+    for cat, sentences in evidence_map.items():
+        if sentences:  # non-empty list
+            if cat not in {"other", "_generic"}:
+                cats.add(cat)
+
+    # If absolutely nothing specific → check if we at least had generic hedging
+    if not cats and evidence_map.get("gen"):
+        cats.add("gen")
+
+    return sorted(list(cats))
+
+
 def process_row(row):
     """
     Orchestrates the multi-pass classification process for a single company document.
@@ -694,8 +715,12 @@ def process_row(row):
     # Check if anything was found (attributes or evidence)
     if not evidence_map and not any(attributes.values()):
         return (url, "{}", cik, year, removed_outliers)
-
-    output_data = {"evidence": evidence_map, "attributes": attributes}
+    final_categories = _compute_final_categories(evidence_map)
+    output_data = {
+        "evidence": evidence_map,
+        "attributes": attributes,
+        "categories": final_categories,
+    }
 
     # Return with outlier log
     return (url, json.dumps(output_data), cik, year, removed_outliers)
@@ -718,7 +743,16 @@ def setup_target_db(path):
     c.execute(
         "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER, FOREIGN KEY (url) REFERENCES webpage_result(url))"
     )
-
+    
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS category (
+            url TEXT PRIMARY KEY,
+            categories TEXT NOT NULL,  -- JSON array of category labels ['ir', 'fx', 'gen', ...]
+            FOREIGN KEY (url) REFERENCES webpage_result(url)
+        )
+        """
+    )
     # NEW: Outlier removal log
     c.execute(
         """CREATE TABLE IF NOT EXISTS outlier_removals (
@@ -773,7 +807,7 @@ def data_generator(source_db, processed_urls, batch_size=BATCH_SIZE):
 
 
 def write_batch(conn, buffer):
-    """Write results and outlier logs to database."""
+    """Write classification results, report data, categories, and outlier logs."""
     if not buffer:
         return
 
@@ -781,9 +815,9 @@ def write_batch(conn, buffer):
     try:
         c.execute("BEGIN TRANSACTION")
 
-        # Main results
-        webpage_data = [(r[0], r[1]) for r in buffer]
-        report_data = [(r[0], r[2], r[3]) for r in buffer]
+        # 1. Main classification results
+        webpage_data = [(r[0], r[1]) for r in buffer]  # url, json_string
+        report_data = [(r[0], r[2], r[3]) for r in buffer]  # url, cik, year
 
         c.executemany(
             "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
@@ -794,35 +828,54 @@ def write_batch(conn, buffer):
             report_data,
         )
 
-        # NEW: Outlier logs
+        # 2. Extract and save final categories
+        category_data = []
+        for r in buffer:
+            url = r[0]
+            json_str = r[1]
+            try:
+                data = json.loads(json_str)
+                cats = data.get("categories", [])
+                if cats:  # only insert if not empty
+                    category_data.append((url, json.dumps(cats)))
+            except json.JSONDecodeError:
+                continue  # skip malformed
+
+        if category_data:
+            c.executemany(
+                "INSERT OR REPLACE INTO category (url, categories) VALUES (?, ?)",
+                category_data,
+            )
+
+        # 3. Outlier logs (unchanged)
         outlier_logs = []
         for r in buffer:
             url = r[0]
-            removed_outliers = r[4]  # The removed_outliers dict
-
+            removed_outliers = r[4]  # dict from _promotion_and_cleanup
             for cat, details in removed_outliers.items():
                 outlier_logs.append(
                     (
                         url,
                         cat,
-                        details["count"],
-                        details["threshold"],
-                        details["max_count"],
-                        details["reason"],
+                        details.get("count", 0),
+                        details.get("threshold", 0),
+                        details.get("max_count", 0),
+                        details.get("reason", "outlier"),
                     )
                 )
 
         if outlier_logs:
             c.executemany(
                 """INSERT INTO outlier_removals 
-                   (url, category, mention_count, threshold, max_count, reason) 
+                   (url, category, mention_count, threshold, max_count, reason)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 outlier_logs,
             )
 
         conn.commit()
+
     except Exception as e:
-        print(f"❌ Write Error: {e}")
+        print(f"Write Error: {e}")
         conn.rollback()
 
 

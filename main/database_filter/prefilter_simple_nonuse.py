@@ -512,6 +512,7 @@ def setup_target_db(path):
     c.execute(
         "CREATE TABLE IF NOT EXISTS discarded_sentences (id INTEGER PRIMARY KEY, url TEXT, sentence TEXT, discard_reason TEXT)"
     )
+    c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
     conn.commit()
     conn.close()
 
