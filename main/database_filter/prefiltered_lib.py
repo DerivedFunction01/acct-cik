@@ -174,10 +174,10 @@ class EvidenceReason(Reason):
     MAT_FUT = "MATURITY_FUTURE"  # "Swaps mature in 2026"
     NVY = "NOTIONAL_VALUE_YEAR"  # "Notional was $100M in 2024"
     FVY = "FAIR_VALUE_YEAR"  # "Fair Value of Swaps was $5M in 2024"
-    
+
     # Special Survives history but dies to termination only
     ACT_YEAR = "TRANSACTION_YEAR"  # "Entered into Swaps in 2024" 
-    
+
     # =========================================================
     # TIER 2: MEDIUM (The "Solid State")
     # Criteria:
@@ -191,6 +191,7 @@ class EvidenceReason(Reason):
     CONT_USE = "CONTINUOUS_USAGE"  # "We use Swaps to hedge" (Strict)
     NVNY = "NOTIONAL_NO_YEAR"  # "Notional is $100M"
     FVNY = "FAIR_VALUE_NO_YEAR"  # "Fair Value of Swaps is $5M"
+    VAL_MODEL = "VALUATION_MODEL" # Black Scholes, etc
 
     # Group B: Weak Subject / Hard Anchor (The "Ambiguous" Duals)
     ASAIY = "ACTIVE_STATE_AMB_YEAR"  # "Contracts outstanding at Dec 31, 2024"
@@ -252,6 +253,7 @@ TIME_KILLED_EVIDENCE = {
     EvidenceReason.MAT_AMB_FUT,  # "Agreements mature in 2026"
     EvidenceReason.FVAIY,  # "FV of Contracts was $5M in 2024"
     EvidenceReason.ACT_AMB_YEAR,  # "Entered contracts in 2024"
+    EvidenceReason.VAL_MODEL,  # Black Scholes, etc
 }
 
 # TIER 3: WEAK EVIDENCE (Policy Prone)
@@ -293,5 +295,3 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.REF,  # "See Note 5"
     NoiseReason.TRADING,  # "We do not trade"
 }
-
-
