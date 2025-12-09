@@ -242,7 +242,7 @@ def check_refinement_exclusions(
         return None, modified_text
 
     # B. Deadweight Combinations
-    if (aoci_count > 0 or pnl_count > 0) and termination_count > 0:
+    if (aoci_count > 0 or pnl_count > 0) and termination_count > 0: # we terminated... realized gain .... in aoci
         is_deadweight = True
 
     elif (
