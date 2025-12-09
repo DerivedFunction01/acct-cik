@@ -35,7 +35,7 @@ from derivative_regex import (
 )
 from table_processor import TABLE_ANCHOR
 from prefilter_database import find_hedging_context, is_sophisticated_content
-from prefilter_tagging import MinimalTextCleaner
+from prefiltered_lib import MinimalTextCleaner
 
 
 # =============================================================================
