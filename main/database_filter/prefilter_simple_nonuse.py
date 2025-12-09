@@ -238,14 +238,17 @@ def check_refinement_exclusions(
     # --- 2. THE GATEKEEPER ---
     is_deadweight = False
 
-    # A. Quantitative Safety (Immediate Keep)
-    if meaningful_quant_count > 0:
-        return None, modified_text
-
     # B. Deadweight Combinations
-    if (aoci_count > 0 or pnl_count > 0) and termination_count > 0: # we terminated... realized gain .... in aoci
+    if (aoci_count > 0 or pnl_count > 0) and termination_count > 0: # we terminated... realized gain or in aoci
         is_deadweight = True
-
+    elif (
+        aoci_count > 0 and pnl_count > 0
+    ):  # ... realized gain .... in aoci
+        is_deadweight = True
+    # A. Quantitative Safety (Immediate Keep)
+    elif meaningful_quant_count > 0:
+        return None, modified_text
+    
     elif (
         hedging_sentence_count == hedging_sentences_neg
         and hedging_sentence_count > 0

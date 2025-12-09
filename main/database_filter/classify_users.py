@@ -7,7 +7,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 from tqdm import tqdm
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # --- IMPORTS ---
 from derivative_regex import (
@@ -526,6 +526,144 @@ def _process_paragraphs_and_sentences(paragraphs, attributes, doc_tracker):
                         })
 
     return evidence_map, potential_map, context_buffer
+def resolve_from_paragraph_neighbors(
+    sent_idx: int,
+    paragraph_metadata: List[Dict]
+) -> Optional[str]:
+    """
+    Look back within current paragraph for nearest resolved sentence.
+    
+    Args:
+        sent_idx: Current sentence index
+        paragraph_metadata: Metadata list for sentences in this paragraph
+    
+    Returns:
+        Category of nearest resolved predecessor, or None
+    """
+    # Walk backwards from current sentence
+    for j in range(sent_idx - 1, -1, -1):
+        prev_meta = paragraph_metadata[j]
+
+        # Found a resolved sentence?
+        if prev_meta.get("final_category") not in {"gen", "other", None}:
+            return prev_meta["final_category"]
+
+    return None
+
+
+def resolve_from_global_neighbors(
+    meta: Dict, global_metadata: List[Dict]
+) -> Optional[str]:
+    """
+    Look back across all processed paragraphs for nearest resolved sentence.
+    Skips tables.
+
+    Args:
+        meta: Current unresolved sentence metadata
+        global_metadata: All previously resolved metadata
+
+    Returns:
+        Category of nearest resolved predecessor, or None
+    """
+    # Walk backwards through global history
+    for prev_meta in reversed(global_metadata):
+        # Skip tables
+        if TABLE_ANCHOR in prev_meta.get("sentence", ""):
+            continue
+
+        # Found a resolved sentence?
+        if prev_meta.get("final_category") not in {"gen", "other", None}:
+            return prev_meta["final_category"]
+
+    return None
+
+
+def get_document_category(global_metadata: List[Dict]) -> Optional[str]:
+    """
+    If document has exactly ONE specific category, return it.
+    Otherwise return None.
+
+    Args:
+        global_metadata: All resolved metadata from document
+
+    Returns:
+        Single category name if document is single-category, else None
+    """
+    # Collect all resolved, non-generic categories
+    resolved_cats = set()
+
+    for meta in global_metadata:
+        cat = meta.get("final_category")
+        if cat and cat not in {"gen", "other", None}:
+            resolved_cats.add(cat)
+
+    # Single category?
+    if len(resolved_cats) == 1:
+        return list(resolved_cats)[0]
+
+    return None
+
+
+def resolve_from_tracker(
+    sentence: str, tracker: GlobalInstrumentTracker
+) -> Optional[str]:
+    """
+    Check if sentence mentions a known instrument.
+
+    Args:
+        sentence: Current sentence
+        tracker: GlobalInstrumentTracker with registered instruments
+
+    Returns:
+        Category if unambiguous match found, else None
+    """
+    resolved = tracker.resolve_instrument(sentence)
+    if resolved and resolved not in {"gen", "other"}:
+        return resolved
+    return None
+
+
+def resolve_global_generics(
+    generic_buffer: List[Dict], global_metadata: List[Dict]
+) -> None:
+    """
+    Resolve pending generics using global context.
+
+    Order:
+    1. Document single-category inheritance
+    2. Global neighbor cascade
+    3. Stay generic
+
+    Modifies generic_buffer in place.
+
+    Args:
+        generic_buffer: List of unresolved generics marked "pending_global"
+        global_metadata: All previously resolved metadata
+    """
+    # Get document category (if single)
+    doc_cat = get_document_category(global_metadata)
+
+    for meta in generic_buffer:
+        # PASS 1: Single-category inheritance
+        if doc_cat:
+            meta["final_category"] = doc_cat
+            meta["resolution_method"] = "single_category_inheritance"
+            meta["confidence"] = 0.80
+            continue
+
+        # PASS 2: Global neighbor cascade
+        cat = resolve_from_global_neighbors(meta, global_metadata)
+        if cat:
+            meta["final_category"] = cat
+            meta["resolution_method"] = "neighbor_cascade_global"
+            meta["confidence"] = 0.85
+            continue
+
+        # PASS 3: Stay generic (unresolved)
+        meta["final_category"] = "gen"
+        meta["resolution_method"] = "unresolved"
+        meta["confidence"] = 0.0
+
 
 def _resolve_generic_passes(paragraphs, evidence_map, potential_map, attributes, doc_tracker):
     """
@@ -700,11 +838,6 @@ def process_row(row):
     # --- STEP 1: Initial Processing (Pass 0) ---
     evidence_map, potential_map, context_buffer = _process_paragraphs_and_sentences(
         paragraphs, attributes, doc_tracker
-    )
-
-    # --- STEP 2: Generic Resolution Passes (Passes 1, 2, 3) ---
-    _resolve_generic_passes(
-        paragraphs, evidence_map, potential_map, attributes, doc_tracker
     )
 
     # --- STEP 3: Promotion and Cleanup ---
