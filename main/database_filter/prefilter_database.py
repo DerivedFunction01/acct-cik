@@ -23,6 +23,10 @@ TARGET_DB_PATH = "prefiltered_data.db"
 
 # --- IMPORTS ---
 from derivative_regex import (
+    CP_REGEX,
+    CP_SOFT_REGEX,
+    CR_REGEX,
+    CR_SOFT_REGEX,
     DER_STD_REGEX,
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
@@ -37,7 +41,11 @@ from derivative_regex import (
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
     EXCLUDE_REGEX_LIBOR_TRANSITION,
+    FX_REGEX,
+    FX_SOFT_REGEX,
     HEDGING_CONTEXT_REGEX,
+    IR_REGEX,
+    IR_SOFT_REGEX,
     LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     SOFT_GEN_REGEX,
@@ -121,6 +129,62 @@ def is_sophisticated_content(text: str) -> bool:
     Used throughout to gate sophisticated buffer routing.
     """
     return is_sophisticated_target(text) or bool(SOPHISTICATED_CONTEXT_REGEX.search(text))
+
+
+def _get_combined_category(text: str) -> str:
+    """
+    Scans text against all soft/strict regexes and returns a sorted, unique,
+    underscore-separated string of all categories found.
+    e.g., "fx_ir_warr"
+    """
+    found_cats = set()
+
+    # 1. Check Strict Regexes (The Anchors)
+    if IR_REGEX.search(text):
+        found_cats.add("ir")
+    if FX_REGEX.search(text):
+        found_cats.add("fx")
+    if CP_REGEX.search(text):
+        found_cats.add("cp")
+    if CR_REGEX.search(text):
+        found_cats.add("cr")
+
+    # EQ and WARR are handled together due to the split category logic
+    if EQ_REGEX.search(text):
+        if is_sophisticated_content(
+            text
+        ):  # Use the existing check for WARR/Sophistication
+            found_cats.add("warr")
+        else:
+            found_cats.add("eq")
+
+    # 2. Check Soft Regexes (The Piggybackers)
+    if IR_SOFT_REGEX.search(text):
+        found_cats.add("ir")
+    if FX_SOFT_REGEX.search(text):
+        found_cats.add("fx")
+    if CP_SOFT_REGEX.search(text):
+        found_cats.add("cp")
+    if CR_SOFT_REGEX.search(text):
+        found_cats.add("cr")
+
+    # EQ Soft check
+    if EQ_SOFT_REGEX.search(text):
+        if is_sophisticated_content(text):
+            found_cats.add("warr")
+        else:
+            found_cats.add("eq")
+
+    # Fallback to Generic if any loose derivative signal is present
+    if SOFT_GEN_REGEX.search(text):
+        found_cats.add("gen")
+
+    # Sort for consistency and join
+    specific_cats = sorted(list(found_cats - {"gen", "other", "unknown"}))
+    if "gen" in found_cats:
+        specific_cats.append("gen")
+
+    return "_".join(specific_cats)
 
 
 # =============================================================================
@@ -428,20 +492,23 @@ def process_table(
             local_discards.append((url, sent, exclusion_reason))
             continue
 
+        cat = _get_combined_category(sent_masked)
+
         # Route to appropriate buffer based on content
         if is_derivative or is_sophisticated_content(sent_masked):
-            append_to_buffer("sophisticated", idx, sent, sent_masked)
+            append_to_buffer("sophisticated", idx, sent, sent_masked, cat)
         else:
-            append_to_buffer("clean", idx, sent, sent_masked)
+            append_to_buffer("clean", idx, sent, sent_masked, cat)
 
     # Add footnotes if present
     if footnotes:
         for fn in footnotes:
             fn_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, fn)
+            cat = _get_combined_category(fn_masked)
             if is_sophisticated_content(fn_masked):
-                append_to_buffer("sophisticated", idx, fn, fn_masked)
+                append_to_buffer("sophisticated", idx, fn, fn_masked, cat)
             else:
-                append_to_buffer("clean", idx, fn, fn_masked)
+                append_to_buffer("clean", idx, fn, fn_masked, cat)
 
     return True
 
@@ -465,14 +532,14 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         return None
 
     # Helper function to append to both buffers atomically
-    def append_to_buffer(buffer_type: str, idx: int, text_orig: str, text_masked: str):
+    def append_to_buffer(buffer_type: str, idx: int, text_orig: str, text_masked: str, category: Optional[str]="gen"):
         """Append (index, text) tuples to both original and masked buffers."""
         if buffer_type == "clean":
-            clean_buffer_orig.append((idx, text_orig))
-            clean_buffer_masked.append((idx, text_masked))
+            clean_buffer_orig.append((idx, text_orig, category))
+            clean_buffer_masked.append((idx, text_masked, category))
         elif buffer_type == "sophisticated":
-            sophisticated_buffer_orig.append((idx, text_orig))
-            sophisticated_buffer_masked.append((idx, text_masked))
+            sophisticated_buffer_orig.append((idx, text_orig, category))
+            sophisticated_buffer_masked.append((idx, text_masked, category))
 
     # Parallel buffer structure
     clean_buffer_orig = []
@@ -504,7 +571,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                         if is_sophisticated_content(salvaged_p_masked)
                         else "clean"
                     )
-                    append_to_buffer(buffer_type, idx, salvaged_p, salvaged_p_masked)
+
+                    append_to_buffer(buffer_type, idx, salvaged_p, salvaged_p_masked, _get_combined_category(p_masked))
                 continue
             # === EXCLUSIONS ===
             exclusion_reason = check_hard_exclusions(p)
@@ -536,7 +604,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     p_deadweight = f"{tag_str} {p}"
 
                     # Save to 'clean' buffer (it's legally 'clean' text, just contextually dead)
-                    append_to_buffer("clean", idx, p_deadweight, p_masked)
+                    append_to_buffer("clean", idx, p_deadweight, p_masked, _get_combined_category(p_masked))
                     continue
 
             # === SALVAGE: EQUITY COMP ===
@@ -559,8 +627,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                             if (
                                 SOFT_GEN_REGEX.search(sent_masked)
                                 or DER_STD_REGEX.search(sent_masked)
-                                or is_sophisticated_target(sent_masked)
-                                or SOPHISTICATED_CONTEXT_REGEX.search(sent_masked)
+                                or is_sophisticated_content(sent_masked)
+
                             ):
                                 kept_indices.append(sent_idx)
 
@@ -575,18 +643,14 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                                 sentences_masked[i] for i in kept_indices
                             )
                             buffer_type = (
-                                "sophisticated"
-                                if is_sophisticated_content(salvaged_p_masked)
-                                else "clean"
+                                "sophisticated" if is_sophisticated_content(salvaged_p_masked) else "clean"
                             )
                             append_to_buffer(
-                                buffer_type, idx, salvaged_p, salvaged_p_masked
+                                buffer_type, idx, salvaged_p, salvaged_p_masked,  _get_combined_category(salvaged_p_masked)
                             )
 
                             # Log discarded sentences
-                            discarded_indices = set(range(len(sentences))) - set(
-                                kept_indices
-                            )
+                            discarded_indices = set(range(len(sentences))) - set(kept_indices)
                             discarded_text = " ".join(
                                 sentences[i] for i in sorted(discarded_indices)
                             )
@@ -598,14 +662,14 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # === DISTRIBUTION ===
             is_soph_target = is_sophisticated_target(p_masked)
             is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(p_masked)
-
+            cats = _get_combined_category(p_masked)
             if is_soph_target:
-                append_to_buffer("sophisticated", idx, p, p_masked)
+                append_to_buffer("sophisticated", idx, p, p_masked, cats)
             elif is_soph_context:
-                append_to_buffer("sophisticated", idx, p, p_masked)
-                append_to_buffer("clean", idx, p, p_masked)
+                append_to_buffer("sophisticated", idx, p, p_masked, cats)
+                append_to_buffer("clean", idx, p, p_masked, cats)
             else:
-                append_to_buffer("clean", idx, p, p_masked)
+                append_to_buffer("clean", idx, p, p_masked, cats)
 
         except Exception as e:
             print(f"❌ Unexpected error processing paragraph {idx} in {url}: {e}")
@@ -619,7 +683,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     try:
         # A. Validate Standard Buffer
-        std_masked_texts = [text for _, text in clean_buffer_masked]
+        std_masked_texts = [text for _, text, _ in clean_buffer_masked]
         if any(find_hedging_context(p) for p in std_masked_texts):
             final_results.extend(clean_buffer_orig)
         elif clean_buffer_orig:
@@ -630,8 +694,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     try:
         # B. Validate Sophisticated Buffer
-        soph_masked_texts = [text for _, text in sophisticated_buffer_masked]
-        std_masked_texts = [text for _, text in clean_buffer_masked]
+        soph_masked_texts = [text for _, text, _ in sophisticated_buffer_masked]
+        std_masked_texts = [text for _, text, _ in clean_buffer_masked]
 
         if validate_sophisticated_buffer(soph_masked_texts, std_masked_texts):
             final_results.extend(sophisticated_buffer_orig)
@@ -647,14 +711,17 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             final_results.sort(key=lambda x: x[0])
             seen = set()
             unique_paragraphs = []
-            for _, text in final_results:
+            categories = []
+            for _, text, cat in final_results:
                 if text not in seen:
                     unique_paragraphs.append(text)
                     seen.add(text)
+                    categories.append(cat)
 
             return (
                 url,
                 json.dumps(unique_paragraphs),
+                json.dumps(categories),
                 cik,
                 year,
                 aggregate_discards(local_discards),
@@ -678,6 +745,15 @@ def setup_target_db(path):
     c = conn.cursor()
     c.execute(
         "CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, matches TEXT NOT NULL)"
+    )
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS category (
+            url TEXT PRIMARY KEY,
+            categories TEXT NOT NULL,  -- JSON array of category labels ['ir', 'fx', 'gen', ...]
+            FOREIGN KEY (url) REFERENCES webpage_result(url)
+        )
+        """
     )
     c.execute(
         "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER, FOREIGN KEY (url) REFERENCES webpage_result(url))"
@@ -740,14 +816,19 @@ def write_batch(conn, buffer, discards):
     try:
         c.execute("BEGIN TRANSACTION")
         if buffer:
-            # Buffer is list of (url, matches, cik, year)
+            # Buffer is list of (url, matches, categories, cik, year)
+            # url = 0, matches = 1, categories = 2, cik = 3, year = 4
             c.executemany(
                 "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
                 [(r[0], r[1]) for r in buffer],
             )
             c.executemany(
                 "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-                [(r[0], r[2], r[3]) for r in buffer],
+                [(r[0], r[3], r[4]) for r in buffer],
+            )
+            c.executemany(
+                "INSERT OR IGNORE INTO categories (url, categories) VALUES (?, ?)",
+                [(r[0], r[2]) for r in buffer],
             )
         if discards:
             c.executemany(
@@ -798,8 +879,8 @@ if __name__ == "__main__":
             if not result:
                 continue
 
-            url, matches, cik, year, discards = result
-            buffer.append((url, matches, cik, year))
+            url, matches, categories, cik, year, discards = result
+            buffer.append((url, matches, categories, cik, year))
             if discards:
                 discards_buffer.extend(discards)
 
