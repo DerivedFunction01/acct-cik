@@ -37,6 +37,7 @@ from derivative_regex import (
     TRADING_STATEMENTS_REGEX,
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
+    VALUATION_MODELS_REGEX,
     YEAR_REGEX,
 )
 
@@ -316,6 +317,9 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
     # B. AOCI / PnL Lists (Moved here to allow safeguards to protect active positions)
     if AOCI_NOISE_REGEX.search(text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.AOCI)
+
+    if PNL_CONTEXT_REGEX.search(text) and not VALUATION_MODELS_REGEX.search(text):
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.PNL)
 
     # C. Counterparty / Credit Risk (With exemption for explicit credit derivatives)
     if COUNTERPARTY_REGEX.search(text) and not CR_REGEX.search(text):

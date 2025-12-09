@@ -126,6 +126,7 @@ class NoiseReason(Reason):
     REF = "REF"  # Navigational Reference ("See Note 5")
     DEF = "DEF"  # Definition ("Swap shall mean...")
     AOCI = "AOCI"  # AOCI ("recorded in AOCI") (Note: AOCI + Termination is an instant killer)
+    PNL = "PNL" # PNL, but no quantitaive action. Probably fair valuation inputs
     NPNS = "NPNS"  # Normal Purchases / Sales
     LOAN = "LOAN"  # Embedded Loan Features
 
