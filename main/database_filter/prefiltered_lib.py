@@ -192,9 +192,6 @@ class EvidenceReason(Reason):
 
 
 # --- LOGIC SETS ---
-
-# TIER 1: STRONG
-# Logic: Overrides ALL Noise.
 STRONG_EVIDENCE = {
     EvidenceReason.NVY,
     EvidenceReason.FVY,
@@ -203,25 +200,28 @@ STRONG_EVIDENCE = {
     EvidenceReason.SD,
 }
 
-# TIER 2: MEDIUM (Time-Killed)
-# Logic: Dies to HIST, TERM, TRADING. Survives POLICY.
+# TIER 2 (Medium)
+# Logic: These denote EXISTENCE. They survive Policy.
+# They DIE to "We do not trade" or "History".
 TIME_KILLED_EVIDENCE = {
     EvidenceReason.POSS,
     EvidenceReason.BS_LOC,
     EvidenceReason.CONT_USE,
+    # The Quants:
     EvidenceReason.NVNY,
+    EvidenceReason.FVNY,
+    EvidenceReason.FVAIY,  # <--- Moved here.
+    EvidenceReason.FVAINY,
 }
 
-# TIER 3: WEAK (Policy-Killed)
-# Logic: Dies to POLICY, HIST, TERM, TRADING.
+# TIER 3 (Weak)
 POLICY_KILLED_EVIDENCE = {
     EvidenceReason.PRU,
     EvidenceReason.ACT,
     EvidenceReason.PU,
 }
 
-# TIER 4: FLUFF (Fragile)
-# Logic: Dies to ANY Noise tag found in the paragraph.
+# TIER 4 (Fluff)
 FLUFF_EVIDENCE = {
     EvidenceReason.PNL_REC,
     EvidenceReason.REM_TERM,
