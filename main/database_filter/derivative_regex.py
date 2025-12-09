@@ -2589,35 +2589,35 @@ REGULATORY_KEYWORDS_LOOSE = [
 ]
 
 
-def build_exclude_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
+def build_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
     """Build regex for excluding noise keywords."""
     # Add word boundaries (\b) around each keyword to prevent partial matches
     pattern = build_alternation(keywords)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE if ignore_case else 0)
 
 
-EXCLUDE_REGEX_EQUITY_COMP = build_exclude_regex(EQUITY_COMP_KEYWORDS)
-EXCLUDE_REGEX_LEGAL_LITIGATION = build_exclude_regex(LEGAL_LITIGATION_KEYWORDS)
-EXCLUDE_REGEX_ACCOUNTING_STD = build_exclude_regex(ACCOUNTING_STANDARDS_KEYWORDS)
-EXCLUDE_PLAN_ASSETS_REGEX = build_exclude_regex(PLAN_ASSETS_KEYWORDS)
-EXCLUDE_COMPETITOR_REGEX = build_exclude_regex(COMPETITOR_KEYWORDS)
-EXCLUDE_REGEX_FORWARD_LOOKING = build_exclude_regex(FORWARD_LOOKING_KEYWORDS)
-EXCLUDE_REGEX_FILING = build_exclude_regex(FILING_KEYWORDS)
+EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
+EXCLUDE_REGEX_LEGAL_LITIGATION = build_regex(LEGAL_LITIGATION_KEYWORDS)
+EXCLUDE_REGEX_ACCOUNTING_STD = build_regex(ACCOUNTING_STANDARDS_KEYWORDS)
+EXCLUDE_PLAN_ASSETS_REGEX = build_regex(PLAN_ASSETS_KEYWORDS)
+EXCLUDE_COMPETITOR_REGEX = build_regex(COMPETITOR_KEYWORDS)
+EXCLUDE_REGEX_FORWARD_LOOKING = build_regex(FORWARD_LOOKING_KEYWORDS)
+EXCLUDE_REGEX_FILING = build_regex(FILING_KEYWORDS)
 
-EXCLUDE_REGEX_REGULATORY_STRICT = build_exclude_regex(
+EXCLUDE_REGEX_REGULATORY_STRICT = build_regex(
     REGULATORY_KEYWORDS_STRICT, ignore_case=True
 )
-EXCLUDE_REGEX_REGULATORY_LOOSE = build_exclude_regex(
+EXCLUDE_REGEX_REGULATORY_LOOSE = build_regex(
     REGULATORY_KEYWORDS_LOOSE, ignore_case=True
 )
 
-EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_exclude_regex(
+EXCLUDE_REGEX_CONTRACTUAL_STRICT = build_regex(
     CONTRACTUAL_KEYWORDS_STRICT, ignore_case=False
 )
-EXCLUDE_REGEX_CONTRACTUAL_SINGLE = build_exclude_regex(
+EXCLUDE_REGEX_CONTRACTUAL_SINGLE = build_regex(
     CONTRACTUAL_KEYWORDS_SINGLE, ignore_case=True
 )
-EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_exclude_regex(
+EXCLUDE_REGEX_CONTRACTUAL_PHRASE = build_regex(
     CONTRACTUAL_KEYWORDS_PHRASE, ignore_case=True
 )
 
@@ -3178,7 +3178,7 @@ NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
     r"supply\s+arrangements?",
     r"procurement\s+contracts?",
 ]
-EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_exclude_regex(
+EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(
     NON_DERIVATIVE_COMMERCIAL_KEYWORDS
 )
 # Regex to find years between 1980-2049, followed by a word boundary character
@@ -3366,6 +3366,30 @@ TERMINATION_VERBS = [
     # --- SAFEGUARDED SETTLEMENT (From previous turn) ---
     rf"(?<!{_settle_lookbehind}\s)settl(?:e(?:d)|ing)",
 ]
+TERMINATION_NOUNS = [
+    # --- STATES (Strongest) ---
+    r"expir(?:ation|y)",  # Matches: expiration, expiry
+    r"maturit(?:y|ies)",  # Matches: maturity, maturities
+    r"terminat(?:ion|or)",  # Matches: termination
+    r"redemption",  # Matches: redemption
+    # --- EVENTS (Transactional) ---
+    r"extinguishment",  # Matches: extinguishment
+    r"settlement",  # Matches: settlement
+    r"cancellation",  # Matches: cancellation
+    r"novation",  # Matches: novation
+    r"rescission",  # Matches: rescission
+    r"discontinu(?:ance|ation)",  # Matches: discontinuance, discontinuation
+    r"withdrawal",  # Matches: withdrawal
+    r"retirement",  # Matches: retirement
+    r"unwinding",  # Matches: unwinding
+    r"repudiation",  # Matches: repudiation
+    r"cessation",  # Matches: cessation
+    r"closure",  # Matches: closure
+    r"exit",  # Matches: exit (noun form)
+]
+ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
+TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
+
 
 # Active / Timing Indicators (New)
 ACTIVE_INDICATORS = [
@@ -3991,7 +4015,7 @@ LIBOR_TRANSITION_KEYWORDS = [
 ] + CENTRAL_BANKS
 
 # Compile
-EXCLUDE_REGEX_LIBOR_TRANSITION = build_exclude_regex(LIBOR_TRANSITION_KEYWORDS)
+EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 
 
 def is_bank_list_noise(text: str, threshold: int = 3) -> bool:
@@ -4375,7 +4399,7 @@ NON_FINANCIAL_KEYWORDS = [
 ]
 
 # Compile
-EXCLUDE_NON_FINANCIAL_REGEX = build_exclude_regex(NON_FINANCIAL_KEYWORDS)
+EXCLUDE_NON_FINANCIAL_REGEX = build_regex(NON_FINANCIAL_KEYWORDS)
 
 
 # In derivative_regex.py
