@@ -122,26 +122,26 @@ def get_tag(token_type: str, reason: Reason | str) -> str:
     return f"{token_type}<{reason.value if isinstance(reason, Reason) else reason}>"
 
 class NoiseReason(Reason):
-    # --- Structural / Formatting ---
+    # --- Structural / Formatting --- (sentence level)
     REF = "REF"  # Navigational Reference ("See Note 5")
     DEF = "DEF"  # Definition ("Swap shall mean...")
-    PNL = "PNL"  # PnL/AOCI ("Gain of $5M")
+    PNL = "PNL"  # PnL/AOCI ("Unrealized Gain of $5M", "recorded in AOCI") (Note: AOCI + Termination is an instant killer)
     NPNS = "NPNS"  # Normal Purchases / Sales
     LOAN = "LOAN"  # Embedded Loan Features
 
     # --- Business Logic / Signals ---
     TRADING = "TRADING"  # Trading Denial ("We do not trade")
-    POLICY = "POLICY"  # Accounting Policy ("Designated as hedge")
-    CREDIT = "CREDIT"  # Counterparty Risk ("Credit exposure")
+    POLICY = "POLICY"  # Accounting Policy ("Formal Documentation of a hedge")
+    CREDIT = "CREDIT"  # Counterparty Risk ("Credit exposure, counterparty risk")
 
     # --- Scoring ---
     CONTRACT = "CONTRACT"  # Contractual Boilerplate Score
     REG = "REG"  # Regulatory Boilerplate Score
-    HYP_SCORE = "HYP_SCORE"  # Hypothetical Score
+    HYP_SCORE = "HYP_SCORE"  # Hypothetical Simulation/Derivative Score
     BANK = "BANK"  # Banking
     LIBOR = "LIBOR"  # LIBOR Transition
 
-    # --- Classification Killers ---
+    # --- Classification Killers --- (or sentence level indicators)
     TIME = "TIME"  # Historical / Temporal
     HYPO = "HYPO"  # Hypothetical / Potential
     NEG = "NEG"  # Negative Intent
@@ -149,8 +149,7 @@ class NoiseReason(Reason):
     ZERO = "ZERO"  # Quantitative Zero
 
     # --- Paragraph Level ---
-    HIST_BLOCK = "HIST_BLOCK"
-    BOILER_BLOCK = "BOILER_BLOCK"
+    HIST_BLOCK = "HIST_BLOCK" # The entire block was discard as history
     ANLZ = "ANLZ"  # Generic Deadweight: Requires scanning internal tags for attributes
     FILING = "FILING"  # 10-K Headers
     FORWARD = "FORWARD"  # Safe Harbor / Forward Looking

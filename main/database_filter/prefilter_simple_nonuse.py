@@ -89,7 +89,7 @@ def check_refinement_exclusions(
     Checks for 'Deadweight' paragraphs.
 
     UPDATED: Now returns a Tuple (Tag, Modified_Text).
-    - Tag: The paragraph-level decision (e.g., _D<BOILER_BLOCK> or None).
+    - Tag: The paragraph-level decision (e.g. "_D<ANLZ>" or None).
     - Modified_Text: The text with internal sentence tags applied (e.g., _S<TRADING>).
     """
     def has_instrument(text: str) -> bool:

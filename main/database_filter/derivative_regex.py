@@ -3287,6 +3287,7 @@ POTENTIAL_INDICATORS = [
     r"intend\s+to",
     r"plans?\s+to",
     r"if",
+    r"whether",
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
     r"expect\s+to\s+(?!continue)",
 ]
@@ -3393,15 +3394,9 @@ TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 
 # Active / Timing Indicators (New)
 ACTIVE_INDICATORS = [
-    "currently",
-    "actively",
+   "currently",
     "presently",
-    "ongoingly",
-    "continually",
-    "regularly",
-    "at the moment",
-    "as of now",
-    "now",
+    "at present",
 ]
 
 # Materiality (New)
