@@ -15,7 +15,9 @@ PIPELINE_STAGES = [
     ("prefilter_simple_nonuse.py", "refined_data.db", "prefiltered_refined.csv"),
     # 2. Tag each sentence
     ("prefilter_tagging.py", "tagged_data.db", "prefiltered_refined.csv"),
-    # 3. Classify
+    # 3. Tag each sentence
+    ("prefilter_evidence.py", "evidence_data.db", "prefiltered_refined.csv"),
+    # 4. Classify
     ("classify_users.py", "classified_data.db", "classified_users.csv"),
 ]
 
