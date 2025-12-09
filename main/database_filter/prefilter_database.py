@@ -827,7 +827,7 @@ def write_batch(conn, buffer, discards):
                 [(r[0], r[3], r[4]) for r in buffer],
             )
             c.executemany(
-                "INSERT OR IGNORE INTO categories (url, categories) VALUES (?, ?)",
+                "INSERT OR IGNORE INTO category (url, categories) VALUES (?, ?)",
                 [(r[0], r[2]) for r in buffer],
             )
         if discards:
