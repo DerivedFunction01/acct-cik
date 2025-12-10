@@ -216,8 +216,6 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
     elif tag_reason in {EvidenceReason.FVY.value, EvidenceReason.FVNY.value, 
                         EvidenceReason.FVAIY.value, EvidenceReason.FVAINY.value}:
         attributes["reports_fair_value"] = True
-    elif tag_reason in {EvidenceReason.VAL_MODEL.value}:
-        attributes["eq_valuation_model"] = True
 
 
 def remove_outlier_categories(
