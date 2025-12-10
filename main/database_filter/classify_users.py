@@ -409,18 +409,21 @@ def _process_paragraphs_and_sentences(paragraphs, attributes, doc_tracker):
     """
     PASS 0: Iterate through paragraphs and sentences.
     - Parse paragraph-level (_D) and sentence-level (_S) tags.
-    - Extract attributes from tags (is_hedger, uses_hedge_accounting, etc.).
+    - Extract attributes from tags (is_hedger, documents_hedge_accounting, etc.).
     - Generate initial strict and soft category matches.
-    - Register to GlobalInstrumentTracker and collect initial evidence.
+    - Register to GlobalInstrumentTracker.
+    - Resolve generics cheaply (tracker + paragraph neighbors).
+    - Defer truly unresolved generics to global buffer.
 
-    Returns: evidence_map, potential_map, context_buffer
+    Returns: evidence_map, generic_buffer, global_metadata, context_buffer
     """
     evidence_map = defaultdict(list)
-    potential_map = defaultdict(list)
+    generic_buffer = []  # NEW: unresolved generics for global pass
+    global_metadata = []  # NEW: all sentence metadata for global resolution
     context_buffer = []
 
     for p in paragraphs:
-        original_p = p # Keep the original paragraph for context
+        original_p = p
         is_paragraph_deadweight = False
 
         # VENUE CHECK: Run on original text
@@ -436,19 +439,28 @@ def _process_paragraphs_and_sentences(paragraphs, attributes, doc_tracker):
 
             if tag_type == "_D":
                 is_paragraph_deadweight = True
-                # Mine attributes from deadweight tag (TRADING, POLICY, HIST)
-                if tag_reason == NoiseReason.TRADING.value: attributes["is_hedger"] = True
-                elif tag_reason == NoiseReason.POLICY.value: attributes["uses_hedge_accounting"] = True
-                elif tag_reason == NoiseReason.AOCI.value: attributes["has_pnl_activity"] = True
-                elif tag_reason in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}: attributes["is_historical"] = True
-                p = content # UNWRAP: Process the content
+                # Mine attributes from deadweight tag
+                if tag_reason == NoiseReason.TRADING.value:
+                    attributes["is_hedger"] = True
+                elif tag_reason == NoiseReason.POLICY.value:
+                    attributes["documents_hedge_accounting"] = True
+                elif tag_reason == NoiseReason.AOCI.value:
+                    attributes["has_pnl_activity"] = True
+                elif tag_reason in {NoiseReason.HIST_BLOCK.value, NoiseReason.TERM.value}:
+                    attributes["is_historical"] = True
+                p = content  # UNWRAP
 
         # --- B. Sentence Processing ---
-        sentences_original = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
+        sentences_original = [
+            s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()
+        ]
+        
+        # NEW: Paragraph-local metadata for neighbor cascade
+        paragraph_metadata = []
 
-        for original_s in sentences_original:
+        for sent_idx, original_s in enumerate(sentences_original):
             clean_s = original_s
-            is_sentence_deadweight = is_paragraph_deadweight # Inherit paragraph deadweight
+            is_sentence_deadweight = is_paragraph_deadweight
 
             # --- 1. Parse Sentence-Level Tags ---
             sent_match = TAG_PARSER_STRICT.match(original_s)
@@ -459,73 +471,133 @@ def _process_paragraphs_and_sentences(paragraphs, attributes, doc_tracker):
 
                 if tag_type == "_S":
                     is_sentence_deadweight = True
-                    # Mine attributes from sentence tag (TRADING, POLICY, PNL, CREDIT, TIME)
-                    if tag_reason == NoiseReason.TRADING.value: attributes["is_hedger"] = True
-                    elif tag_reason == NoiseReason.POLICY.value: attributes["uses_hedge_accounting"] = True
-                    elif tag_reason == NoiseReason.AOCI.value: attributes["has_pnl_activity"] = True
-                    elif tag_reason == NoiseReason.CREDIT.value: attributes["manages_credit_risk"] = True
-                    elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value}: attributes["is_historical"] = True
+                    # Mine attributes from sentence tag
+                    if tag_reason == NoiseReason.TRADING.value:
+                        attributes["is_hedger"] = True
+                    elif tag_reason == NoiseReason.POLICY.value:
+                        attributes["documents_hedge_accounting"] = True
+                    elif tag_reason == NoiseReason.AOCI.value:
+                        attributes["has_pnl_activity"] = True
+                    elif tag_reason == NoiseReason.CREDIT.value:
+                        attributes["manages_credit_risk"] = True
+                    elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value}:
+                        attributes["is_historical"] = True
 
-            # --- 2. Clean text for tracking (remove entities) ---
+            # --- 2. Clean text for tracking ---
             clean_s = _cleaner.clean_entities(clean_s)
 
-            # --- 3. Update context buffer (use clean) ---
+            # --- 3. Update context buffer ---
             context_buffer.append(clean_s)
             if len(context_buffer) > 5:
                 context_buffer.pop(0)
 
-            # --- 4. Register to Global Tracker (use clean) ---
+            # --- 4. Register to Global Tracker ---
             strict_cats = set()
-            if IR_REGEX.search(clean_s): strict_cats.add("ir")
-            if FX_REGEX.search(clean_s): strict_cats.add("fx")
-            if CP_REGEX.search(clean_s): strict_cats.add("cp")
-            if CR_REGEX.search(clean_s): strict_cats.add("cr")
+            if IR_REGEX.search(clean_s):
+                strict_cats.add("ir")
+            if FX_REGEX.search(clean_s):
+                strict_cats.add("fx")
+            if CP_REGEX.search(clean_s):
+                strict_cats.add("cp")
+            if CR_REGEX.search(clean_s):
+                strict_cats.add("cr")
             if EQ_REGEX.search(clean_s):
-                if is_sophisticated_content(clean_s): strict_cats.add("warr")
-                else: strict_cats.add("eq")
+                if is_sophisticated_content(clean_s):
+                    strict_cats.add("warr")
+                else:
+                    strict_cats.add("eq")
 
             for cat in strict_cats:
                 doc_tracker.register_paragraph(clean_s, cat)
 
-            # --- 5. Collect Evidence (only if NOT deadweight) ---
+            # --- 5. Build metadata for this sentence ---
+            meta = {
+                "sentence": original_s,
+                "clean_sentence": clean_s,
+                "sent_idx": sent_idx,
+                "final_category": None,
+                "resolution_method": None,
+                "confidence": None,
+            }
+
+            # --- 6. Collect Evidence (only if NOT deadweight) ---
             if is_paragraph_deadweight or is_sentence_deadweight:
+                paragraph_metadata.append(meta)
+                global_metadata.append(meta)
                 continue
 
-            # A. Strict Matches
+            # A. STRICT MATCHES
             if strict_cats:
                 attributes["is_hedging_sophisticated"] = True
                 if "warr" in strict_cats:
                     attributes["is_financing_sophisticated"] = True
+                
+                primary_cat = list(strict_cats)[0]  # Use first match
+                meta["final_category"] = primary_cat
+                meta["resolution_method"] = "strict_match"
+                meta["confidence"] = 1.0
+                
                 for cat in strict_cats:
                     evidence_map[cat].append(original_s)
 
-            # B. Soft Matches
+            # B. SOFT MATCHES
             else:
                 soft_cats = set()
-                if IR_SOFT_REGEX.search(clean_s): soft_cats.add("ir")
-                if FX_SOFT_REGEX.search(clean_s): soft_cats.add("fx")
-                if CP_SOFT_REGEX.search(clean_s) and find_hedging_context(clean_s): soft_cats.add("cp")
-                if CR_SOFT_REGEX.search(clean_s): soft_cats.add("cr")
+                if IR_SOFT_REGEX.search(clean_s):
+                    soft_cats.add("ir")
+                if FX_SOFT_REGEX.search(clean_s):
+                    soft_cats.add("fx")
+                if CP_SOFT_REGEX.search(clean_s) and find_hedging_context(clean_s):
+                    soft_cats.add("cp")
+                if CR_SOFT_REGEX.search(clean_s):
+                    soft_cats.add("cr")
                 if EQ_SOFT_REGEX.search(clean_s):
-                    if is_sophisticated_content(clean_s): soft_cats.add("warr")
-                    else: soft_cats.add("eq")
+                    if is_sophisticated_content(clean_s):
+                        soft_cats.add("warr")
+                    else:
+                        soft_cats.add("eq")
 
                 if soft_cats:
+                    primary_cat = list(soft_cats)[0]
+                    meta["final_category"] = primary_cat
+                    meta["resolution_method"] = "soft_match"
+                    meta["confidence"] = 0.7
+                    
                     for cat in soft_cats:
-                        potential_map[cat].append(original_s)
+                        evidence_map[cat].append(original_s)
 
-                # C. Generic Resolution
+                # C. GENERIC RESOLUTION (Cheap Strategies)
                 else:
-                    cats = get_sentence_categories(clean_s)
-                    if "gen" in cats:
-                        potential_map["_generic"].append({
-                            "original": original_s,
-                            "clean": clean_s,
-                            "categories": cats,
-                            "sentence_index": len(context_buffer) - 1,
-                        })
+                    # PASS 1: Tracker (O(1))
+                    tracker_cat = resolve_from_tracker(clean_s, doc_tracker)
+                    if tracker_cat:
+                        meta["final_category"] = tracker_cat
+                        meta["resolution_method"] = "tracker"
+                        meta["confidence"] = 0.95
+                        evidence_map[tracker_cat].append(original_s)
+                    else:
+                        # PASS 2: Paragraph neighbor cascade (O(sent_idx))
+                        neighbor_cat = resolve_from_paragraph_neighbors(
+                            sent_idx, paragraph_metadata
+                        )
+                        if neighbor_cat:
+                            meta["final_category"] = neighbor_cat
+                            meta["resolution_method"] = "neighbor_cascade_paragraph"
+                            meta["confidence"] = 0.85
+                            evidence_map[neighbor_cat].append(original_s)
+                        else:
+                            # PASS 3: Defer to global resolution
+                            meta["final_category"] = "gen"
+                            meta["resolution_method"] = "pending_global"
+                            meta["confidence"] = None
+                            generic_buffer.append(meta)
 
-    return evidence_map, potential_map, context_buffer
+            # --- 7. Track in paragraph and global metadata ---
+            paragraph_metadata.append(meta)
+            global_metadata.append(meta)
+
+    return evidence_map, generic_buffer, global_metadata, context_buffer
+
 def resolve_from_paragraph_neighbors(
     sent_idx: int,
     paragraph_metadata: List[Dict]
@@ -762,7 +834,7 @@ def _promotion_and_cleanup(evidence_map, potential_map, attributes):
     # --- 1. PROMOTION PASS ---
     is_valid_user = (
         attributes["is_hedging_sophisticated"]
-        or attributes["uses_hedge_accounting"]
+        or attributes["documents_hedge_accounting"]
         or attributes["is_financing_sophisticated"]
     )
 
@@ -826,7 +898,7 @@ def process_row(row):
     # Initialize state
     attributes = {
         "is_hedger": False,
-        "uses_hedge_accounting": False,
+        "documents_hedge_accounting": False,
         "has_pnl_activity": False,
         "manages_credit_risk": False,
         "is_hedging_sophisticated": False,
