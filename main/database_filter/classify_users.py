@@ -6,7 +6,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 from tqdm import tqdm
-from typing import Tuple, Dict, Set, Optional
+from typing import Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from derivative_regex import (
@@ -22,107 +22,97 @@ from prefiltered_lib import MinimalTextCleaner, NoiseReason
 # =============================================================================
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 1000
-SOURCE_DB_PATH = "evidence_data.db"
+SOURCE_DB_PATH = "tagged_data.db"
 TARGET_DB_PATH = "classified_data.db"
 
 # Tag Parsing
 TAG_PARSER_STRICT = re.compile(r"^\s*(_[SD])<([^>]+)>\s+(.*)", re.DOTALL)
+EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
+
+# Evidence that elevates soft mentions to strict (unambiguous subject)
+UNAMBIGUOUS_EVIDENCE = {
+    "ACTIVE_STATE_YEAR",       # Strict subject + year
+    "MATURITY_FUTURE",         # Strict subject + future
+    "NOTIONAL_VALUE_YEAR",     # Strict subject + year
+    "FAIR_VALUE_YEAR",         # Strict subject + year
+    "TRANSACTION_YEAR",        # Strict subject + year
+    "CONTINUOUS_USAGE",        # Strict subject (no year)
+    "NOTIONAL_NO_YEAR",        # Strict subject, no year
+    "FAIR_VALUE_NO_YEAR",      # Strict subject, no year
+    "VALUATION_MODEL",         # Self-validating
+    "BALANCE_SHEET_LOC",       # Self-validating
+}
 
 _cleaner = MinimalTextCleaner()
-
 
 # =============================================================================
 # GLOBAL INSTRUMENT TRACKER
 # =============================================================================
 
 class GlobalInstrumentTracker:
-    """Tracks instrument → category mappings for resolving generic references."""
-
+    """Tracks instrument → category mappings from strict mentions."""
+    
     def __init__(self):
         self.instrument_map = defaultdict(set)
         self.embedded_regex = re.compile(r"\bembedded\b", re.IGNORECASE)
-
-    def register_paragraph(self, paragraph: str, category: str):
-        """Register instruments found in paragraph to category."""
-        if self.embedded_regex.search(paragraph):
+    
+    def register_paragraph(self, sentence: str, category: str) -> None:
+        """Register instruments found in sentence to category."""
+        if self.embedded_regex.search(sentence):
             self.instrument_map["embedded"].add(category)
-
-        # Specific matches (high confidence)
-        specific_matches = [m.group(0) for m in BASE_REGEX.finditer(paragraph)]
-
+        
+        specific_matches = [m.group(0) for m in BASE_REGEX.finditer(sentence)]
+        
         if specific_matches:
             for instr in specific_matches:
-                match = BASE_REGEX.search(instr)
-                if match:
-                    token = match.group(0).lower().rstrip("s")
-                    if token.startswith("hedg"):  # ignore hedge, it is too generic
-                        continue
+                token = instr.lower().rstrip("s")
+                if not token.startswith("hedg"):
                     self.instrument_map[token].add(category)
-        else:
-            # Fallback: implicit context
-            base_matches = BASE_REGEX.findall(paragraph)
-            for instr in base_matches:
-                instr = instr.lower()
-                if instr.startswith("hedg"):
-                    continue
-                if not instr.endswith("s") and instr != "swap":
-                    continue
-                token = instr.rstrip("s")
-                self.instrument_map[token].add(category)
-
+    
     def resolve_instrument(self, sentence: str) -> Optional[str]:
-        """Returns category if sentence contains unambiguous global instrument."""
+        """Returns category if sentence contains unambiguous known instrument."""
         matches = BASE_REGEX.findall(sentence)
         if self.embedded_regex.search(sentence):
             matches.append("embedded")
-
+        
         candidates = set()
         for m in matches:
             token = m.lower().rstrip("s")
             if token in self.instrument_map:
                 candidates.update(self.instrument_map[token])
-
+        
         if len(candidates) == 1:
             return list(candidates)[0]
+        
         return None
-
 
 # =============================================================================
 # HELPERS
 # =============================================================================
 
 def parse_tags(text: str) -> Tuple[bool, Optional[str], str]:
-    """
-    Parse _D or _S tags from text.
-    
-    Returns:
-        (is_deadweight, tag_reason, clean_text)
-    """
+    """Parse _D or _S tags. Returns (is_deadweight, tag_reason, clean_text)."""
     match = TAG_PARSER_STRICT.match(text)
     if match:
         tag_type = match.group(1)
         tag_reason = match.group(2)
         clean_text = match.group(3)
-        
         is_deadweight = (tag_type == "_D")
         return is_deadweight, tag_reason, clean_text
     
     return False, None, text
 
 
-def extract_categories(sentence: str) -> Set[str]:
-    """
-    Check which categories are mentioned in sentence.
-    
-    Priority: strict > soft
-    For EQ: apply gating (sophisticated)
-    
-    Returns:
-        Set of category strings: {"ir", "fx", "cp", "eq", "cr", "warr"}
-    """
+def has_unambiguous_evidence(sentence: str) -> bool:
+    """Check if sentence has unambiguous evidence tags."""
+    evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
+    return bool(evidence_tags.intersection(UNAMBIGUOUS_EVIDENCE))
+
+
+def extract_categories_strict(sentence: str) -> Set[str]:
+    """Extract STRICT category matches only."""
     cats = set()
     
-    # STRICT MATCHES (highest confidence)
     if IR_REGEX.search(sentence):
         cats.add("ir")
     if FX_REGEX.search(sentence):
@@ -131,25 +121,31 @@ def extract_categories(sentence: str) -> Set[str]:
         cats.add("cp")
     if CR_REGEX.search(sentence):
         cats.add("cr")
-    if is_sophisticated_content(sentence):
-        cats.add("warr")
-    elif EQ_REGEX.search(sentence):
-        cats.add("eq")
-    
-    # SOFT MATCHES (only if no strict match)
-    # Safeguards already applied upstream in prefiltering stage
-    if not cats:
-        if IR_SOFT_REGEX.search(sentence):
-            cats.add("ir")
-        if FX_SOFT_REGEX.search(sentence):
-            cats.add("fx")
-        if CP_SOFT_REGEX.search(sentence):
-            cats.add("cp")
-        if CR_SOFT_REGEX.search(sentence):
-            cats.add("cr")
+    if EQ_REGEX.search(sentence):
         if is_sophisticated_content(sentence):
             cats.add("warr")
-        elif EQ_SOFT_REGEX.search(sentence):
+        else:
+            cats.add("eq")
+    
+    return cats
+
+
+def extract_categories_soft(sentence: str) -> Set[str]:
+    """Extract SOFT category matches only."""
+    cats = set()
+    
+    if IR_SOFT_REGEX.search(sentence):
+        cats.add("ir")
+    if FX_SOFT_REGEX.search(sentence):
+        cats.add("fx")
+    if CP_SOFT_REGEX.search(sentence):
+        cats.add("cp")
+    if CR_SOFT_REGEX.search(sentence):
+        cats.add("cr")
+    if EQ_SOFT_REGEX.search(sentence):
+        if is_sophisticated_content(sentence):
+            cats.add("warr")
+        else:
             cats.add("eq")
     
     return cats
@@ -172,6 +168,38 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
         attributes["is_historical"] = True
 
 
+def remove_outlier_categories(
+    strict_cats: Set[str],
+    soft_cats: Dict[str, int],
+    threshold_pct: float = 0.10,
+    min_mentions: int = 3,
+) -> Set[str]:
+    """
+    Remove soft categories that are outliers (stray mentions).
+    
+    Strict categories always kept. Soft categories removed if:
+    - Count < min_mentions (absolute floor), OR
+    - Count < threshold_pct of largest strict category
+    """
+    if not soft_cats:
+        return set()
+    
+    if not strict_cats:
+        # No strict anchors, use soft that meet absolute threshold
+        return {
+            cat for cat, count in soft_cats.items()
+            if count >= min_mentions
+        }
+    
+    # Calculate threshold
+    threshold = max(min_mentions, 1 * threshold_pct)
+    
+    # Keep soft categories that meet threshold
+    return {
+        cat for cat, count in soft_cats.items()
+        if count >= threshold
+    }
+
 # =============================================================================
 # MAIN PROCESSING
 # =============================================================================
@@ -180,12 +208,7 @@ def process_row(row: Tuple) -> Tuple:
     """
     Process a single company document.
     
-    Two-pass approach:
-    1. Register ALL instrument mentions to tracker (including deadweight)
-    2. Count categories from non-deadweight text only (using tracker for ambiguous cases)
-    
-    Returns:
-        (url, categories_json, attributes_json, cik, year)
+    Returns: (url, categories_json, attributes_json, cik, year)
     """
     url, matches_json, cik, year = row
     
@@ -198,6 +221,8 @@ def process_row(row: Tuple) -> Tuple:
         return (url, json.dumps([]), json.dumps({}), cik, year)
     
     # Initialize
+    strict_categories = set()
+    soft_categories = defaultdict(int)
     attributes = {
         "is_hedger": False,
         "uses_hedge_accounting": False,
@@ -209,103 +234,104 @@ def process_row(row: Tuple) -> Tuple:
     mentions_venue = False
     tracker = GlobalInstrumentTracker()
     
-    # --- PASS 1: Register ALL mentions to tracker, extract attributes ---
+    # --- PASS 1: Collect strict mentions and build tracker ---
     for p in paragraphs:
-        # Check for trading venue
         if TRADING_VENUE_REGEX.search(p):
             mentions_venue = True
         
-        # Parse paragraph tag
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
-        
-        # Mine paragraph-level attributes (even from deadweight)
         mine_attributes(para_tag_reason, attributes)
         
-        # Split into sentences
-        sentences = [
-            s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()
-        ]
-        
-        for sent in sentences:
-            # Parse sentence tag
-            is_sent_deadweight, sent_tag_reason, sent_content = parse_tags(sent)
-            
-            # Mine sentence-level attributes (even from deadweight)
-            mine_attributes(sent_tag_reason, attributes)
-            
-            # Clean for regex matching
-            clean_sent = _cleaner.clean_entities(sent_content)
-            
-            # REGISTER TO TRACKER (from ALL text, including deadweight)
-            # This builds the instrument map for later generic resolution
-            if IR_REGEX.search(clean_sent):
-                tracker.register_paragraph(clean_sent, "ir")
-            if FX_REGEX.search(clean_sent):
-                tracker.register_paragraph(clean_sent, "fx")
-            if CP_REGEX.search(clean_sent):
-                tracker.register_paragraph(clean_sent, "cp")
-            if CR_REGEX.search(clean_sent):
-                tracker.register_paragraph(clean_sent, "cr")
-            if EQ_REGEX.search(clean_sent):
-                if is_sophisticated_content(clean_sent):
-                    tracker.register_paragraph(clean_sent, "warr")
-                else:
-                    tracker.register_paragraph(clean_sent, "eq")
-    
-    # --- PASS 2: Count categories from non-deadweight text ONLY ---
-    categories_found = set()
-    
-    for p in paragraphs:
-        # Parse paragraph tag
-        is_para_deadweight, _, para_content = parse_tags(p)
-        
-        # Skip deadweight paragraphs for category counting
         if is_para_deadweight:
             continue
         
-        # Split into sentences
         sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()
         ]
         
         for sent in sentences:
-            # Parse sentence tag
-            is_sent_deadweight, _, sent_content = parse_tags(sent)
+            is_sent_deadweight, sent_tag_reason, sent_content = parse_tags(sent)
+            mine_attributes(sent_tag_reason, attributes)
             
-            # Skip deadweight sentences for category counting
             if is_sent_deadweight:
                 continue
             
-            # Clean for regex matching
+            clean_sent = _cleaner.clean_entities(sent_content)
+            strict_cats = extract_categories_strict(clean_sent)
+            
+            if strict_cats:
+                for cat in strict_cats:
+                    tracker.register_paragraph(clean_sent, cat)
+                strict_categories.update(strict_cats)
+    
+    # --- PASS 2: Collect soft mentions ---
+    for p in paragraphs:
+        is_para_deadweight, _, para_content = parse_tags(p)
+        
+        if is_para_deadweight:
+            continue
+        
+        sentences = [
+            s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()
+        ]
+        
+        for sent in sentences:
+            is_sent_deadweight, _, sent_content = parse_tags(sent)
+            
+            if is_sent_deadweight:
+                continue
+            
             clean_sent = _cleaner.clean_entities(sent_content)
             
-            # Extract categories (strict > soft)
-            cats = extract_categories(clean_sent)
+            # Skip if already has strict match
+            if extract_categories_strict(clean_sent):
+                continue
             
-            # If no direct match, try tracker resolution
-            if not cats:
-                tracker_cat = tracker.resolve_instrument(clean_sent)
-                if tracker_cat:
-                    cats.add(tracker_cat)
+            # Check for unambiguous evidence (elevates soft to strict)
+            if has_unambiguous_evidence(sent_content):
+                soft_cats = extract_categories_soft(clean_sent)
+                if soft_cats:
+                    for cat in soft_cats:
+                        strict_categories.add(cat)
+                        tracker.register_paragraph(clean_sent, cat)
+                    continue
             
-            categories_found.update(cats)
+            # Try tracker first
+            tracker_cat = tracker.resolve_instrument(clean_sent)
+            if tracker_cat:
+                soft_categories[tracker_cat] += 1
+                continue
+            
+            # Extract soft categories
+            soft_cats = extract_categories_soft(clean_sent)
+            for cat in soft_cats:
+                soft_categories[cat] += 1
     
-    # --- FINAL LOGIC: Determine is_trader ---
-    # If mentions trading venue but NOT a hedger → trader
+    # --- PASS 3: Remove outlier soft categories ---
+    valid_soft_cats = remove_outlier_categories(
+        strict_categories,
+        soft_categories,
+        threshold_pct=0.10,
+        min_mentions=3,
+    )
+    
+    # --- COMBINE: Strict + Valid Soft ---
+    final_categories = strict_categories.union(valid_soft_cats)
+    
+    # --- PASS 4: Determine is_trader ---
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
     
     # --- OUTPUT ---
-    final_categories = sorted(list(categories_found))
+    final_cat_list = sorted(list(final_categories))
     
     return (
         url,
-        json.dumps(final_categories),
+        json.dumps(final_cat_list),
         json.dumps(attributes),
         cik,
         year,
     )
-
 
 # =============================================================================
 # DATABASE
@@ -317,33 +343,13 @@ def setup_target_db(path: str) -> None:
     c = conn.cursor()
     
     c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS webpage_result (
-            url TEXT PRIMARY KEY,
-            categories TEXT NOT NULL
-        )
-        """
+        "CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, categories TEXT NOT NULL)"
     )
-    
     c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS attributes (
-            url TEXT PRIMARY KEY,
-            attributes TEXT NOT NULL,
-            FOREIGN KEY (url) REFERENCES webpage_result(url)
-        )
-        """
+        "CREATE TABLE IF NOT EXISTS attributes (url TEXT PRIMARY KEY, attributes TEXT NOT NULL, FOREIGN KEY (url) REFERENCES webpage_result(url))"
     )
-    
     c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS report_data (
-            url TEXT PRIMARY KEY,
-            cik INTEGER,
-            year INTEGER,
-            FOREIGN KEY (url) REFERENCES webpage_result(url)
-        )
-        """
+        "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER, FOREIGN KEY (url) REFERENCES webpage_result(url))"
     )
     
     c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
@@ -370,19 +376,13 @@ def data_generator(source_db: str, processed_urls: set, batch_size: int = BATCH_
     conn = sqlite3.connect(source_db)
     cursor = conn.cursor()
     cursor.execute(
-        """
-        SELECT w.url, w.matches, r.cik, r.year 
-        FROM webpage_result w 
-        LEFT JOIN report_data r ON w.url = r.url 
-        WHERE w.matches IS NOT NULL
-        """
+        "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
     
     while True:
         rows = cursor.fetchmany(batch_size)
         if not rows:
             break
-        
         for row in rows:
             if row[0] not in processed_urls:
                 yield row
@@ -390,7 +390,7 @@ def data_generator(source_db: str, processed_urls: set, batch_size: int = BATCH_
     conn.close()
 
 
-def write_batch(conn, buffer: list) -> None:
+def write_batch(conn, buffer: List) -> None:
     """Write batch of results to database."""
     if not buffer:
         return
@@ -398,30 +398,22 @@ def write_batch(conn, buffer: list) -> None:
     c = conn.cursor()
     try:
         c.execute("BEGIN TRANSACTION")
-        
-        # Insert categories
         c.executemany(
             "INSERT OR IGNORE INTO webpage_result (url, categories) VALUES (?, ?)",
             [(r[0], r[1]) for r in buffer],
         )
-        
-        # Insert attributes
         c.executemany(
             "INSERT OR IGNORE INTO attributes (url, attributes) VALUES (?, ?)",
             [(r[0], r[2]) for r in buffer],
         )
-        
-        # Insert report data
         c.executemany(
             "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
             [(r[0], r[3], r[4]) for r in buffer],
         )
-        
         conn.commit()
     except Exception as e:
-        print(f"❌ Write Error: {e}")
+        print(f"Write Error: {e}")
         conn.rollback()
-
 
 # =============================================================================
 # MAIN
@@ -442,7 +434,6 @@ if __name__ == "__main__":
     
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
         source = list(data_generator(SOURCE_DB_PATH, processed_urls))
-        print(f"📦 Processing {len(source)} unprocessed URLs")
         
         for result in tqdm(
             executor.map(process_row, source, chunksize=50),
@@ -451,7 +442,6 @@ if __name__ == "__main__":
         ):
             if result:
                 buffer.append(result)
-                
                 if len(buffer) >= BATCH_SIZE:
                     write_batch(conn, buffer)
                     buffer = []
