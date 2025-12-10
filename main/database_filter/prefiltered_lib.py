@@ -298,9 +298,6 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.TRADING,  # "We do not trade"
 }
 
-from enum import Enum
-
-
 class DerivativeAttribute(Enum):
     # --- DESIGNATIONS (ASC 815 & SEC Portfolios) ---
     # The text distinguishes explicitly between "Trading" and "Other than Trading"[cite: 347, 355].
