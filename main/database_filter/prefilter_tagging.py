@@ -362,6 +362,7 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(TARGET_DB_PATH, timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
 
     buffer = []
     with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
