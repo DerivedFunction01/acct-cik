@@ -54,7 +54,7 @@ from derivative_regex import (
 )
 
 from final_verification import QUANT_REGEX
-from table_processor import TableToTextConverter
+from table_processor import TABLE_ANCHOR, TableToTextConverter
 from prefiltered_lib import NoiseReason, get_tag
 
 # =============================================================================
@@ -162,6 +162,8 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     if VALUATION_MODELS_REGEX.search(text):  # To save for convertibles
         return None
+    if TABLE_ANCHOR in text:
+        return None
     # Commodity check: is it refering to a derivative?
     if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
         if not find_hedging_context(text):
@@ -197,27 +199,18 @@ def extract_and_separate_footnotes(table_text: str) -> Tuple[str, List[str]]:
 
 
 def strip_table_formatting(
-    table_text: str, url: str
-) -> Tuple[str, List[Tuple[str, str, str]]]:
+    table_text: str
+) -> List[str]:
     text = TAG_PATTERN.sub("", table_text)
     lines = text.split("\n")
     cleaned_lines = []
-    excluded_rows = []
-
+    
     for line in lines:
         stripped = line.strip()
-        if not stripped or all(c in "-\t " for c in stripped):
+        if not stripped or all(c in "-=\t " for c in stripped):
             continue
-
-        exclusion_reason = check_hard_exclusions(stripped)
-        if exclusion_reason:
-            excluded_rows.append((url, stripped, exclusion_reason))
-            continue
-
         cleaned_lines.append(stripped)
-
-    result = " ".join(cleaned_lines)
-    return re.sub(r"\s+", " ", result).strip(), excluded_rows
+    return cleaned_lines
 
 
 # =============================================================================
@@ -369,9 +362,7 @@ def process_table(
 
     if should_unwrap:
         # CASE 1: Invalid/container table (no numerical cells)
-        # → Discard entirely
-        local_discards.append((url, p, "invalid_table_no_numerical_cells"))
-        return False
+        sentences = strip_table_formatting(p)
 
     if not sentences:
         # Valid table but no sentences generated → Discard
