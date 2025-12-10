@@ -2,13 +2,14 @@ import re
 from typing import List, Dict, Optional, Tuple
 
 from derivative_regex import (
+    BASE_REGEX,
     FX_SOFT_REGEX,
     IR_SOFT_REGEX,
     SOFT_REGEX,
     TABLE_REGEX,
     YEAR_REGEX,
     STRICT_REGEX,
-    SOFT_GEN_REGEX,  # Imported for caption analysis
+    SOFT_GEN_REGEX,
 )
 
 # --- 1. EXPANDED HEADER DEFINITIONS ---
@@ -16,9 +17,13 @@ CONTEXT_HEADERS = re.compile(
     r"purpose|risk|objective|hedged item|comments|description", re.IGNORECASE
 )
 VAR_HEADERS = re.compile(r"\bvar\b|value[- ]at[- ]risk", re.IGNORECASE)
+
+# SPLIT NOTIONAL INTO STRONG (Explicit) AND WEAK (Implied)
+STRONG_NOTIONAL_REGEX = re.compile(r"notional", re.IGNORECASE)
 NOTIONAL_HEADERS = re.compile(
     r"notional|principal|contract\s+(?:amount|volume|value)", re.IGNORECASE
 )
+
 NET_HEADERS = re.compile(r"net\s+amount|net\s+presented|total\s+net", re.IGNORECASE)
 GROSS_HEADERS = re.compile(r"gross\s+amount|gross\s+recognized", re.IGNORECASE)
 LEVEL_HEADERS = re.compile(r"level\s*[123]", re.IGNORECASE)
@@ -39,7 +44,6 @@ SECTION_KEYWORDS = re.compile(
     r"embedded|offsetting|trading|non[- ]?trading|held for|financial instruments",
     re.IGNORECASE,
 )
-# NEW: Specific regex for the sophisticated exception
 SOPHISTICATED_TARGETS = re.compile(
     r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
 )
@@ -59,23 +63,15 @@ class TableToTextConverter:
         self.narrative_context = narrative_context
         self.is_sophisticated = is_sophisticated
 
-        # 1. Extract & Analyze Caption
         self.caption = self._extract_caption(table_text)
 
-        # NEW: Check Caption for Strong Signal immediately
         full_context = f"{self.caption} {self.narrative_context}"
-        
-        # If caption says "Derivative Instruments" or "Hedging Activities", the whole table is safe.
-        # Additionally, if it mentions a soft instrument such as interest rate contracts or interest
         self.caption_is_strong = self.is_implied_derivative(full_context)
-        
         self.table_default_type = self._analyze_caption_context(full_context)
 
-        # 2. Extract Data
         self.headers, self.data = self.extract_table_content(table_text)
         self.flattened_headers = self._flatten_headers()
 
-        # 3. Classify Columns
         self.col_map = {
             i: self._classify_column(h) for i, h in enumerate(self.flattened_headers)
         }
@@ -85,43 +81,38 @@ class TableToTextConverter:
 
     def is_implied_derivative(self, full_context):
         return bool(
-            STRICT_REGEX.search(full_context) or SOFT_GEN_REGEX.search(full_context) or IR_SOFT_REGEX.search(full_context) or FX_SOFT_REGEX.search(full_context)
+            STRICT_REGEX.search(full_context)
+            or SOFT_GEN_REGEX.search(full_context)
+            or IR_SOFT_REGEX.search(full_context)
+            or FX_SOFT_REGEX.search(full_context)
         )
-        
-    def extract_table_content(self, table_text: str) -> Tuple[List[List[str]], List[List[str]]]:
-        """
-        Parses a raw <TABLE> string into headers and data rows.
-        Uses <S> and <C> tags (present in older SEC filings) to identify where data starts.
-        Falls back to first row as header if no tags found (artificial tables).
-        """
+
+    def extract_table_content(
+        self, table_text: str
+    ) -> Tuple[List[List[str]], List[List[str]]]:
         lines = table_text.split("\n")
         content_rows = []
 
-        # 1. Extract content rows (skip TABLE/CAPTION tags and separator rows)
         for line in lines:
             line = line.strip()
             if "<TABLE>" in line or "<CAPTION>" in line or "</TABLE>" in line:
                 continue
-            if not line:  # Empty lines
+            if not line:
                 continue
-            # Skip separator rows (dashes or equal signs)
             if all(c in "- =" for c in line) and any(c in "-=" for c in line):
                 continue
             content_rows.append(line)
 
-        # 2. Find first row with <S> or <C> tags (marks data start in older filings)
         data_start_idx = None
         for i, row in enumerate(content_rows):
             if "<S>" in row or "<C>" in row:
                 data_start_idx = i
                 break
 
-        # 3. Split headers and data based on tag markers
         if data_start_idx is not None:
             headers = content_rows[:data_start_idx]
             data = content_rows[data_start_idx:]
         else:
-            # No tags found - use first row as header (artificial tables)
             if content_rows:
                 headers = [content_rows[0]]
                 data = content_rows[1:]
@@ -129,9 +120,8 @@ class TableToTextConverter:
                 headers = []
                 data = []
 
-        # 4. Cell Parsing (Split by 2+ spaces)
         def parse_row(row: str) -> List[str]:
-            row = row.replace("<S>", "").replace("<C>", "")  # Remove tags
+            row = row.replace("<S>", "").replace("<C>", "")
             cells = re.split(r"\s{2,}", row.strip())
             return [c.strip() for c in cells if c.strip()]
 
@@ -141,20 +131,16 @@ class TableToTextConverter:
         return header_cells, data_cells
 
     def _extract_caption(self, text: str) -> str:
-        """Extracts text following the <caption> tag until double newline."""
         match = re.search(r"<caption>\s*(.*?)\n\n", text, re.IGNORECASE | re.DOTALL)
         if match:
             caption_text = match.group(1).strip()
-            # Clean up whitespace while preserving structure
             caption_text = re.sub(r"\s+", " ", caption_text)
             return caption_text
         return ""
 
     def _analyze_caption_context(self, caption: str) -> Optional[str]:
-        """Determines default value type from caption."""
         if not caption:
             return None
-
         caption_lower = caption.lower()
 
         if NOTIONAL_HEADERS.search(caption_lower):
@@ -165,7 +151,6 @@ class TableToTextConverter:
             return "fair_value"
         if GAIN_LOSS_HEADERS.search(caption_lower):
             return "gain_loss"
-
         return None
 
     def _flatten_headers(self) -> List[str]:
@@ -220,7 +205,6 @@ class TableToTextConverter:
 
         if col_type:
             return f"{col_type}{year_suffix}"
-
         return None
 
     def _cleanup_spaced_value(self, val: str) -> str:
@@ -338,10 +322,17 @@ class TableToTextConverter:
     def process(self) -> List[str]:
         sentences = []
 
-        # --- PASS 1: SCAN FOR STRONG SIGNALS ---
-        table_has_notional_col = any(
-            "notional" in str(v) for v in self.col_map.values()
-        ) or (self.table_default_type == "notional")
+        # Check for Strong Notional in Columns (Explicit "Notional" only)
+        table_has_strong_notional_col = False
+        for v in self.col_map.values():
+            if v and STRONG_NOTIONAL_REGEX.search(v):
+                table_has_strong_notional_col = True
+                break
+
+        # Check if default type is explicitly Notional (e.g. from Caption)
+        if self.table_default_type == "notional":
+            # If the caption explicitly said "Notional", we treat it as strong
+            table_has_strong_notional_col = True
 
         candidate_rows = []
         active_context = []
@@ -372,48 +363,95 @@ class TableToTextConverter:
                 f"{' '.join(active_context)} {row_label}{row_context_str}"
             )
 
-            row_implies_notional = bool(NOTIONAL_HEADERS.search(full_instrument_name))
+            # --- SIGNAL DETECTION ---
+
+            # 1. Row Content Signals
             is_strict = self.is_implied_derivative(full_instrument_name)
             is_table_safe = bool(TABLE_REGEX.search(full_instrument_name))
-            is_soft = bool(SOFT_REGEX.search(full_instrument_name)) if not is_strict else False
+            is_soft = (
+                bool(SOFT_REGEX.search(full_instrument_name))
+                if not is_strict
+                else False
+            )
 
-            if is_strict or is_table_safe or row_implies_notional:
+            # 2. Derivative Base Check (Swap, Option, Future, etc.)
+            has_base = bool(BASE_REGEX.search(full_instrument_name))
+
+            # 3. Notional Signals (Split into Strong vs Weak)
+            has_strong_notional = bool(
+                STRONG_NOTIONAL_REGEX.search(full_instrument_name)
+            )
+            row_implies_weak_notional = bool(
+                NOTIONAL_HEADERS.search(full_instrument_name)
+            )
+
+            # 4. Safe Category Check (IR/FX are usually safe even without base)
+            is_ir = bool(IR_SOFT_REGEX.search(full_instrument_name))
+            is_fx = bool(FX_SOFT_REGEX.search(full_instrument_name))
+
+            # --- ANCHORING LOGIC ---
+            # A row Anchors the table ONLY if it matches Strict, Table Safe, or EXPLICIT Notional.
+            # "Contract Value" (Weak Notional) does NOT anchor the table.
+            if is_strict or is_table_safe or has_strong_notional:
                 table_has_strong_row = True
 
             candidate_rows.append(
                 {
                     "row": row,
                     "name": full_instrument_name,
-                    "is_strong": is_strict or is_table_safe or row_implies_notional,
+                    "is_strict": is_strict,
+                    "is_table_safe": is_table_safe,
                     "is_soft": is_soft,
-                    "implies_notional": row_implies_notional,
+                    "has_base": has_base,
+                    "has_strong_notional": has_strong_notional,
+                    "implies_notional": has_strong_notional
+                    or row_implies_weak_notional,
+                    "is_not_cp": is_ir or is_fx,
                 }
             )
 
         # --- GLOBAL SIGNAL CHECK ---
-        # 1. Row/Column Anchors
-        # 2. Caption Anchor (NEW: If caption says "Derivatives", the table is safe)
         table_is_anchored = (
-            table_has_strong_row or table_has_notional_col or self.caption_is_strong
+            table_has_strong_row
+            or table_has_strong_notional_col
+            or self.caption_is_strong
         )
 
         # --- PASS 2: GENERATE SENTENCES ---
         for cand in candidate_rows:
 
-            # Exception Logic (Convertibles/Warrants for sophisticated firms)
-            is_sophisticated_exception = (
-                self.is_sophisticated and SOPHISTICATED_TARGETS.search(cand["name"])
-            )
-
-            # FILTER LOGIC
             should_keep = False
 
-            if cand["is_strong"]:
+            # 1. Strict / Strong Signals -> Always Keep
+            if (
+                cand["is_strict"]
+                or cand["is_table_safe"]
+                or cand["has_strong_notional"]
+            ):
                 should_keep = True
+
+            # 2. Soft Matches
             elif cand["is_soft"]:
-                if table_is_anchored:
-                    should_keep = True
-                elif is_sophisticated_exception:
+                # If IR or FX, we trust them
+                if cand["is_not_cp"]:
+                    if table_is_anchored:
+                        should_keep = True
+
+                # If Commodity/Other Soft Match
+                elif table_is_anchored:
+                    # **HYGIENE CHECK**:
+                    # If it's a soft commodity match (e.g. "Natural Gas"),
+                    # it MUST have a Derivative Base ("Swap") OR Explicit Notional to be kept.
+                    # Otherwise, it's just a physical contract (e.g. "Natural Gas" + "Contract Amount").
+                    if cand["has_base"]:
+                        should_keep = True
+                    # Note: We already checked has_strong_notional in block #1.
+                    # So if we are here, it has NO strong notional.
+                    # Therefore, if NO base, we drop it.
+
+            # 3. Sophisticated Exception (Warrants/Convertibles)
+            if not should_keep and self.is_sophisticated:
+                if SOPHISTICATED_TARGETS.search(cand["name"]):
                     should_keep = True
 
             if not should_keep:
@@ -459,7 +497,6 @@ class TableToTextConverter:
                         f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a value of {value}."
                     )
                 else:
-                    # Fallback: use generic "amount"
                     sentences.append(
                         f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with an amount of {value}."
                     )
