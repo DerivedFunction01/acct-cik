@@ -362,7 +362,7 @@ def process_table(
         converter = TableToTextConverter(
             cleaned_table, narrative_context=" ".join(footnotes), is_sophisticated=True
         )
-        is_derivative, should_unwrap = converter.process()
+        sentences, should_unwrap = converter.process()
     except Exception:
         local_discards.append((url, p[:100], "table_analysis_failed"))
         return False
@@ -371,16 +371,6 @@ def process_table(
         # CASE 1: Invalid/container table (no numerical cells)
         # → Discard entirely
         local_discards.append((url, p, "invalid_table_no_numerical_cells"))
-        return False
-
-    # CASE 2 & 3: Valid table (derivative or non-derivative)
-    # Generate sentences from table
-    try:
-        sentences = converter.process()
-    except Exception as e:
-        local_discards.append(
-            (url, p[:100], f"table_processing_failed_{type(e).__name__}")
-        )
         return False
 
     if not sentences:
@@ -399,7 +389,7 @@ def process_table(
             continue
 
         # Route to appropriate buffer based on content
-        if is_derivative or is_sophisticated_content(sent_masked):
+        if is_sophisticated_content(sent_masked):
             append_to_buffer("sophisticated", idx, sent, sent_masked)
         else:
             append_to_buffer("clean", idx, sent, sent_masked)
