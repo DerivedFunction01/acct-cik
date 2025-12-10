@@ -649,7 +649,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             final_results.sort(key=lambda x: x[0])
             seen = set()
             unique_paragraphs = []
-            for _, text, cat in final_results:
+            for _, text in final_results:
                 if text not in seen:
                     unique_paragraphs.append(text)
                     seen.add(text)
