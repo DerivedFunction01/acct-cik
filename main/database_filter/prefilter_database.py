@@ -164,10 +164,6 @@ def check_hard_exclusions(text: str) -> Optional[str]:
         return None
     if TABLE_ANCHOR in text:
         return None
-    # Commodity check: is it refering to a derivative?
-    if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
-        if not find_hedging_context(text):
-            return NoiseReason.NC.value
 
     # --- TIER 3: SCORING / DENSITY CHECKS (Heavier Ops) ---
     if is_bank_list_noise(text):
@@ -179,6 +175,10 @@ def check_hard_exclusions(text: str) -> Optional[str]:
     if is_hypothetical_noise(text):
         # Return the Enum value string to match process_item check
         return NoiseReason.HYP_SCORE.value
+        # Commodity check: is it refering to a derivative?
+    if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
+        if not find_hedging_context(text):
+            return NoiseReason.NC.value
     return None
 
 
