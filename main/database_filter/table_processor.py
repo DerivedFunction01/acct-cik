@@ -10,6 +10,7 @@ from derivative_regex import (
     YEAR_REGEX,
     STRICT_REGEX,
     SOFT_GEN_REGEX,
+    CURRENCY_NAMES_REGEX,
 )
 
 # --- 1. EXPANDED HEADER DEFINITIONS ---
@@ -390,14 +391,20 @@ class TableToTextConverter:
                 NOTIONAL_HEADERS.search(full_instrument_name)
             )
 
+            # 3b. Currency-based Notional Signal (e.g., "Euro", "British Pound", "Japanese Yen")
+            # If row name contains a currency name, it's a strong notional signal (contract amounts)
+            has_currency_notional = bool(
+                CURRENCY_NAMES_REGEX.search(full_instrument_name)
+            )
+
             # 4. Safe Category Check (IR/FX are usually safe even without base)
             is_ir = bool(IR_SOFT_REGEX.search(full_instrument_name))
-            is_fx = bool(FX_SOFT_REGEX.search(full_instrument_name))
+            is_fx = bool(FX_SOFT_REGEX.search(full_instrument_name)) or has_currency_notional
 
             # --- ANCHORING LOGIC ---
             # A row Anchors the table ONLY if it matches Strict, Table Safe, or EXPLICIT Notional.
             # "Contract Value" (Weak Notional) does NOT anchor the table.
-            if is_strict or is_table_safe or has_strong_notional:
+            if is_strict or is_table_safe or has_strong_notional or has_currency_notional:
                 table_has_strong_row = True
 
             candidate_rows.append(
@@ -409,7 +416,9 @@ class TableToTextConverter:
                     "is_soft": is_soft,
                     "has_base": has_base,
                     "has_strong_notional": has_strong_notional,
+                    "has_currency_notional": has_currency_notional,
                     "implies_notional": has_strong_notional
+                    or has_currency_notional
                     or row_implies_weak_notional,
                     "is_not_cp": is_ir or is_fx,
                 }
@@ -444,6 +453,7 @@ class TableToTextConverter:
                 cand["is_strict"]
                 or cand["is_table_safe"]
                 or cand["has_strong_notional"]
+                or cand["has_currency_notional"]
             ):
                 should_keep = True
 
