@@ -10,12 +10,12 @@ from typing import Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from derivative_regex import (
-    CURRENCY_NAMES_REGEX, GEN_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
+    CATEGORY_CONTEXT_MAP, CURRENCY_NAMES_REGEX, GEN_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
     IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
-    SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
+    SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_CONTEXT_MAP, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
 from main.database_filter.table_processor import TABLE_ANCHOR
-from prefilter_database import is_sophisticated_target
+from prefilter_database import is_sophisticated_content, is_sophisticated_target
 from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason
 
 # =============================================================================
@@ -293,6 +293,64 @@ def remove_outlier_categories(
 
     return valid_soft_cats
 
+
+PRIORITY = ["fx", "cp", "eq", "cr", "ir"]
+def get_text_categories(text: str) -> Set[str]:
+    """
+    Scors text based on Contextual Density (not just Instrument Names).
+    Used to determine the 'Atmosphere' of a paragraph for resolving generics.
+    """
+    # Initialize scores (include 'warr' for sophisticated equity)
+    scores = {"ir": 0, "fx": 0, "cp": 0, "eq": 0, "cr": 0, "warr": 0, "gen": 0}
+    strict_hits = set()
+
+    # 1. Strict Context Check (High Confidence)
+    for cat, regex in STRICT_CONTEXT_MAP.items():
+        if regex.search(text):
+            strict_hits.add(cat)
+
+    # 2. Scoring Logic
+    if strict_hits:
+        # COLLISION LOGIC: Define the Hierarchy
+        # FX overrides CP/IR (e.g. "Currency risk of corn")
+        if "fx" in strict_hits:
+            scores["fx"] += 2000
+        elif "eq" in strict_hits:
+            # Check for Warrant/Convertible context
+            if is_sophisticated_content(text):
+                scores["warr"] += 6000  # Immediate override
+            else:
+                scores["eq"] += 2000
+        elif "cp" in strict_hits:
+            scores["cp"] += 2000
+        elif "cr" in strict_hits:
+            scores["cr"] += 2000
+        elif "ir" in strict_hits:
+            scores["ir"] += 2000
+    else:
+        # 3. Soft Context Scoring (Density Based)
+        remaining_text = text
+        for cat in PRIORITY:
+            ctx_regex = CATEGORY_CONTEXT_MAP.get(cat)
+            if ctx_regex:
+                matches = list(ctx_regex.finditer(remaining_text))
+                if matches:
+                    scores[cat] += 50 * len(matches)
+                    # Remove matched terms to prevent double counting overlapping regexes
+                    remaining_text = ctx_regex.sub(" ", remaining_text)
+
+    # 4. Thresholding
+    max_score = max(scores.values())
+    threshold = 50
+
+    # If we have a massive strict hit, raise threshold to kill noise
+    if max_score > 1000:
+        threshold = 1000
+
+    top_cats = {cat for cat, score in scores.items() if score >= threshold}
+    specific = top_cats - {"gen"}
+
+    return specific if specific else top_cats
 
 # =============================================================================
 # MAIN PROCESSING

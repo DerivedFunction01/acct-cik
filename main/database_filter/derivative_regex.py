@@ -1796,6 +1796,7 @@ CATEGORY_DELETION_MAP = {
     "cr": (CR_REGEX, CR_SOFT_REGEX, CR_CONTEXT_REGEX),
 }
 
+
 # =============================================================================
 # EXCLUSION PATTERNS (from filter_database.py)
 # =============================================================================
@@ -4163,6 +4164,7 @@ IR_STRICT_TERMS = [
     # These imply Interest Rate mechanics specifically
     r"(?:floating|variable|fixed|prime|treasury|(?<!currency[- ])interest|(?<!foreign[- ])interest)[- ]rates?",
     r"fed(?:eral)?\s+funds\s+rates?",
+    r"credit\s+agreements"
 ]
 
 # 2. FOREIGN EXCHANGE (Strict)
@@ -4233,11 +4235,17 @@ EQ_STRICT_TERMS = [
     r"Lattice\s+model",
 ]
 # Build Regexes
+IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS)
+FX_STRICT_CONTEXT_REGEX = build_regex(FX_STRICT_TERMS)
+CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS)
+EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_STRICT_TERMS)
+
+
 STRICT_CONTEXT_MAP = {
-    "ir": re.compile(r"\b" + build_alternation(IR_STRICT_TERMS) + r"\b", re.IGNORECASE),
-    "fx": re.compile(r"\b" + build_alternation(FX_STRICT_TERMS) + r"\b", re.IGNORECASE),
-    "cp": re.compile(r"\b" + build_alternation(CP_STRICT_TERMS) + r"\b", re.IGNORECASE),
-    "eq": re.compile(r"\b" + build_alternation(EQ_STRICT_TERMS) + r"\b", re.IGNORECASE),
+    "ir": IR_STRICT_CONTEXT_REGEX,
+    "fx": FX_STRICT_CONTEXT_REGEX,
+    "cp": CP_STRICT_CONTEXT_REGEX,
+    "eq": EQ_STRICT_CONTEXT_REGEX,
     "cr": CR_CONTEXT_REGEX,
 }
 
@@ -4442,3 +4450,11 @@ AOCI_STRICT_TERMS = [
 ]
 
 AOCI_NOISE_REGEX = build_regex(AOCI_STRICT_TERMS)
+
+CATEGORY_MAP = {
+    "ir": (IR_REGEX, IR_SOFT_REGEX, IR_STRICT_CONTEXT_REGEX, IR_CONTEXT_REGEX),
+    "fx": (FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_CONTEXT_REGEX),
+    "cp": (CP_REGEX, CP_SOFT_REGEX, CP_STRICT_CONTEXT_REGEX, CP_CONTEXT_REGEX),
+    "eq": (EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_CONTEXT_REGEX, EQ_CONTEXT_REGEX),
+    "cr": (CR_REGEX, CR_SOFT_REGEX, CR_CONTEXT_REGEX, CR_CONTEXT_REGEX),
+}
