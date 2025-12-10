@@ -13,18 +13,15 @@ from derivative_regex import (
     CURRENCY_NAMES_REGEX,
 )
 
-# --- 1. EXPANDED HEADER DEFINITIONS ---
+# --- HEADER DEFINITIONS ---
 CONTEXT_HEADERS = re.compile(
     r"purpose|risk|objective|hedged item|comments|description", re.IGNORECASE
 )
 VAR_HEADERS = re.compile(r"\bvar\b|value[- ]at[- ]risk", re.IGNORECASE)
-
-# SPLIT NOTIONAL INTO STRONG (Explicit) AND WEAK (Implied)
 STRONG_NOTIONAL_REGEX = re.compile(r"notional", re.IGNORECASE)
 NOTIONAL_HEADERS = re.compile(
     r"notional|principal|contract\s+(?:amount|volume|value)", re.IGNORECASE
 )
-
 NET_HEADERS = re.compile(r"net\s+amount|net\s+presented|total\s+net", re.IGNORECASE)
 GROSS_HEADERS = re.compile(r"gross\s+amount|gross\s+recognized", re.IGNORECASE)
 LEVEL_HEADERS = re.compile(r"level\s*[123]", re.IGNORECASE)
@@ -34,14 +31,8 @@ LIABILITY_HEADERS = re.compile(r"liabilit", re.IGNORECASE)
 GAIN_LOSS_HEADERS = re.compile(
     r"gain|loss|income|earnings|oci|comprehensive", re.IGNORECASE
 )
-LOCATION_HEADERS = re.compile(r"location|sheet|line item", re.IGNORECASE)
-NOISE_HEADERS = re.compile(
-    r"strike|exercise|shares|units|count|ratio|rate|date|weighted",
-    re.IGNORECASE,
-)
-
-# ADD new Definition
 MATURITY_HEADERS = re.compile(r"maturity|expiration", re.IGNORECASE)
+
 SECTION_KEYWORDS = re.compile(
     r"designated as|hedging instruments|underlying risk|derivatives not designated|"
     r"cash flow|fair value|net investment|assets|liabilities|equity contracts|warrants|"
@@ -53,10 +44,13 @@ SOPHISTICATED_TARGETS = re.compile(
 )
 
 TABLE_ANCHOR = " T_ "
+caption_regex = re.compile(
+    r"<caption>\s*(.*?)(?=\n\n|:\n|\n[-=])", re.DOTALL | re.IGNORECASE
+)
 
-caption_regex = re.compile(r"<caption>\s*(.*?)(?=\n\n|[-=:])", re.DOTALL | re.IGNORECASE)
+
 class TableToTextConverter:
-    
+
     def __init__(
         self,
         table_text: str,
@@ -68,72 +62,15 @@ class TableToTextConverter:
         self.is_sophisticated = is_sophisticated
 
         self.caption = self._extract_caption(table_text)
-
         full_context = f"{self.caption} {self.narrative_context}"
         self.caption_is_strong = self.is_implied_derivative(full_context)
         self.table_default_type = self._analyze_caption_context(full_context)
 
-        self.headers, self.data = self.extract_table_content(table_text)
-        self.flattened_headers = self._flatten_headers()
-        self.invalid_table = False
-        self.col_map = {
-            i: self._classify_column(h) for i, h in enumerate(self.flattened_headers)
-        }
-
-        self._apply_column_heuristics()
-        self._resolve_offsetting_conflicts()
-
-    def is_implied_derivative(self, full_context):
-        return bool(
-            STRICT_REGEX.search(full_context)
-            or SOFT_GEN_REGEX.search(full_context)
-            or IR_SOFT_REGEX.search(full_context)
-            or FX_SOFT_REGEX.search(full_context)
+        # Data-driven extraction with sparsity detection
+        self.data, self.col_map = self._extract_data_driven(
+            caption_regex.sub("", table_text)
         )
-
-    def extract_table_content(
-        self, table_text: str
-    ) -> Tuple[List[List[str]], List[List[str]]]:
-        table_text = caption_regex.sub("", table_text)
-        lines = table_text.split("\n")
-        content_rows = []
-
-        for line in lines:
-            line = line.strip()
-            if "<TABLE>" in line or "<CAPTION>" in line or "</TABLE>" in line:
-                continue
-            if not line:
-                continue
-            if all(c in "- =" for c in line) and any(c in "-=" for c in line):
-                continue
-            content_rows.append(line)
-
-        data_start_idx = None
-        for i, row in enumerate(content_rows):
-            if "<S>" in row or "<C>" in row:
-                data_start_idx = i
-                break
-
-        if data_start_idx is not None:
-            headers = content_rows[:data_start_idx]
-            data = content_rows[data_start_idx:]
-        else:
-            if content_rows:
-                headers = [content_rows[0]]
-                data = content_rows[1:]
-            else:
-                headers = []
-                data = []
-
-        def parse_row(row: str) -> List[str]:
-            row = row.replace("<S>", "").replace("<C>", "")
-            cells = re.split(r"\s{2,}", row.strip())
-            return [c.strip() for c in cells if c.strip()]
-
-        header_cells = [parse_row(h) for h in headers]
-        data_cells = [parse_row(d) for d in data]
-
-        return header_cells, data_cells
+        self.invalid_table = len(self.data) == 0
 
     def _extract_caption(self, text: str) -> str:
         match = caption_regex.search(text)
@@ -147,7 +84,6 @@ class TableToTextConverter:
         if not caption:
             return None
         caption_lower = caption.lower()
-
         if NOTIONAL_HEADERS.search(caption_lower):
             return "notional"
         if VAR_HEADERS.search(caption_lower):
@@ -158,159 +94,286 @@ class TableToTextConverter:
             return "gain_loss"
         return None
 
-    def _flatten_headers(self) -> List[str]:
-        if not self.headers:
-            return []
-        num_cols = max(len(h) for h in self.headers)
-        flat_headers = []
+    def is_implied_derivative(self, full_context):
+        return bool(
+            STRICT_REGEX.search(full_context)
+            or SOFT_GEN_REGEX.search(full_context)
+            or IR_SOFT_REGEX.search(full_context)
+            or FX_SOFT_REGEX.search(full_context)
+        )
+
+    def _merge_sparse_columns(self, raw_rows: List[List[str]]) -> List[List[str]]:
+        """
+        Merge very sparse columns (mostly empty) with adjacent columns.
+        This handles cases where <C> markers create phantom columns.
+        """
+        if not raw_rows:
+            return raw_rows
+
+        # Calculate sparsity (% empty cells) for each column
+        num_rows = len(raw_rows)
+        num_cols = max(len(row) for row in raw_rows) if raw_rows else 0
+
+        col_sparsity = {}
         for col_idx in range(num_cols):
-            col_parts = []
-            for row in self.headers:
-                if col_idx < len(row) and row[col_idx].strip():
-                    part = row[col_idx].strip()
-                    if not set(part).issubset(set("-= ")):
-                        col_parts.append(part)
-            flat_headers.append(" ".join(col_parts))
-        return flat_headers
+            empty_count = sum(
+                1 for row in raw_rows if col_idx >= len(row) or not row[col_idx]
+            )
+            sparsity = empty_count / num_rows if num_rows > 0 else 0
+            col_sparsity[col_idx] = sparsity
 
-    def _classify_column(self, header: str) -> Optional[str]:
-        header = header.lower()
-        if len(header) > 100:
-            self.invalid_table = True
-            return "invalid_header"
-        if MATURITY_HEADERS.search(header):
-            return "metadata_maturity"
-        if NOISE_HEADERS.search(header):
-            return None
+        # Columns with > 80% empty cells are candidates for merging
+        sparse_columns = {
+            idx for idx, sparsity in col_sparsity.items() if sparsity > 0.8
+        }
 
-        year_match = YEAR_REGEX.search(header)
-        year_suffix = f"_{year_match.group(0)}" if year_match else ""
+        if not sparse_columns:
+            return raw_rows
 
-        col_type = None
-        if CONTEXT_HEADERS.search(header):
-            return "context_text"
-        elif VAR_HEADERS.search(header):
-            col_type = "fair_value"
-        elif NOTIONAL_HEADERS.search(header):
-            col_type = "notional"
-        elif NET_HEADERS.search(header):
-            col_type = "net_fair_value"
-        elif GROSS_HEADERS.search(header):
-            col_type = "gross_fair_value"
-        elif LEVEL_HEADERS.search(header):
-            col_type = "fair_value"
-        elif VALUE_HEADERS.search(header):
-            if ASSET_HEADERS.search(header):
-                col_type = "asset_fair_value"
-            elif LIABILITY_HEADERS.search(header):
-                col_type = "liability_fair_value"
+        # Merge sparse columns with their neighbors
+        merged_rows = []
+        for row in raw_rows:
+            merged_row = []
+            skip_next = False
+
+            for col_idx in range(len(row)):
+                if skip_next:
+                    skip_next = False
+                    continue
+
+                cell = row[col_idx]
+
+                # If this column is sparse, try to merge with next column
+                if col_idx in sparse_columns and col_idx + 1 < len(row):
+                    next_cell = row[col_idx + 1]
+                    # Merge non-empty cells, skip if both empty
+                    if cell or next_cell:
+                        merged_row.append((cell + next_cell).strip())
+                        skip_next = True
+                    else:
+                        skip_next = True
+                else:
+                    if col_idx not in sparse_columns:
+                        merged_row.append(cell)
+
+            if merged_row:
+                merged_rows.append(merged_row)
+
+        return merged_rows
+
+    def _extract_data_driven(
+        self, table_text: str
+    ) -> Tuple[List[List[str]], Dict[int, str]]:
+        """
+        Extract table using data rows to guide structure.
+
+        Steps:
+        1. Find <S> and <C> markers for column boundaries
+        2. Extract raw data rows
+        3. Merge sparse columns (>80% empty)
+        4. Clean spacing (merge $, %, parentheses, etc.)
+        5. Identify active columns (drop single-char noise)
+        6. Infer column types from content
+        """
+        lines = table_text.split("\n")
+
+        # Find <S> marker line
+        marker_line = None
+        marker_line_idx = None
+        for i, line in enumerate(lines):
+            if "<S>" in line:
+                marker_line = line
+                marker_line_idx = i
+                break
+
+        if not marker_line:
+            return [], {}
+
+        # Find all <C> positions
+        c_positions = [m.start() for m in re.finditer(r"<C>", marker_line)]
+        if not c_positions:
+            return [], {}
+
+        # Group adjacent <C> tags (within 5 chars)
+        grouped_positions = []
+        current_group = [c_positions[0]]
+        for pos in c_positions[1:]:
+            if pos - current_group[-1] <= 5:
+                current_group.append(pos)
             else:
-                col_type = "fair_value"
+                grouped_positions.append(current_group)
+                current_group = [pos]
+        grouped_positions.append(current_group)
 
-        if not col_type and year_suffix:
-            if self.table_default_type:
-                col_type = self.table_default_type
+        # Define column boundaries (start from position 0)
+        column_boundaries = []
+        first_c_pos = grouped_positions[0][0]
+        column_boundaries.append((0, first_c_pos))
+
+        for i, group in enumerate(grouped_positions):
+            start = group[0]
+            end = (
+                grouped_positions[i + 1][0]
+                if i + 1 < len(grouped_positions)
+                else len(marker_line)
+            )
+            column_boundaries.append((start, end))
+
+        # Extract raw data rows
+        data_lines = lines[marker_line_idx + 1 :]
+        raw_rows = []
+
+        for line in data_lines:
+            if not line.strip():
+                continue
+
+            row_cells = []
+            for start, end in column_boundaries:
+                if start < len(line):
+                    cell = line[start : min(end, len(line))].strip()
+                else:
+                    cell = ""
+                cell = re.sub(r"<[^>]+>", "", cell)
+                row_cells.append(cell)
+
+            if any(row_cells):
+                raw_rows.append(row_cells)
+
+        # STEP 1: Merge sparse columns based on data patterns
+        raw_rows = self._merge_sparse_columns(raw_rows)
+
+        # STEP 2: Clean spacing in data cells
+        cleaned_rows = []
+        for row in raw_rows:
+            cleaned_row = []
+            for cell in row:
+                # Merge $ with following numbers
+                cell = re.sub(r"\$\s+", "$", cell)
+                # Merge parentheses with numbers
+                cell = re.sub(r"\(\s+", "(", cell)
+                cell = re.sub(r"\s+\)", ")", cell)
+                # Merge % with preceding numbers
+                cell = re.sub(r"\s+%", "%", cell)
+                # Merge comma-separated digits
+                cell = re.sub(r",\s+", ",", cell)
+                cleaned_row.append(cell)
+
+            # POST-PROCESS: Merge trailing single-char symbols with preceding cells
+            # and leading symbols with following cells
+            final_row = []
+
+            # First pass: merge trailing symbols
+            merged_once = []
+            for i, cell in enumerate(cleaned_row):
+                if (
+                    cell in ["%", "$", "€", "£", "¥", ")"]
+                    and merged_once
+                    and merged_once[-1]
+                    and not any(c in merged_once[-1] for c in ["%", "$", "€", "£", "¥"])
+                ):
+                    merged_once[-1] = merged_once[-1] + cell
+                else:
+                    merged_once.append(cell)
+
+            # Second pass: merge leading symbols
+            for i, cell in enumerate(merged_once):
+                if cell in ["$", "€", "£", "¥", "("] and i + 1 < len(merged_once):
+                    next_cell = merged_once[i + 1]
+                    if next_cell and (
+                        next_cell[0].isdigit() or next_cell.startswith("(")
+                    ):
+                        final_row.append(cell + next_cell)
+                        merged_once[i + 1] = None
+                    else:
+                        final_row.append(cell)
+                elif cell is not None:
+                    final_row.append(cell)
+
+            final_row = [c for c in final_row if c is not None]
+            cleaned_rows.append(final_row)
+
+        # STEP 3: Identify active columns (non-empty, not single-char noise)
+        active_col_indices = set()
+        for row in cleaned_rows:
+            for col_idx, cell in enumerate(row):
+                if cell and len(cell) > 1:
+                    active_col_indices.add(col_idx)
+
+        active_col_indices = sorted(active_col_indices)
+
+        # Filter rows to active columns only
+        filtered_rows = []
+        for row in cleaned_rows:
+            filtered_row = [row[i] if i < len(row) else "" for i in active_col_indices]
+            if any(filtered_row):
+                filtered_rows.append(filtered_row)
+
+        # STEP 4: Infer column types from content
+        col_map = {}
+
+        for local_idx, global_col_idx in enumerate(active_col_indices):
+            sample_cells = [
+                row[local_idx] for row in filtered_rows if local_idx < len(row)
+            ]
+
+            has_dates = (
+                sum(1 for c in sample_cells if re.search(r"\d{1,2}/\d{1,2}/\d{4}", c))
+                > 0
+            )
+            has_percentages = sum(1 for c in sample_cells if "%" in c) > 0
+            has_large_numbers = (
+                sum(1 for c in sample_cells if self._is_numeric_large(c)) > 0
+            )
+            text_count = sum(1 for c in sample_cells if c and not self._is_numeric(c))
+            numeric_count = sum(1 for c in sample_cells if c and self._is_numeric(c))
+
+            col_type = None
+
+            # First column is always instrument/label
+            if local_idx == 0:
+                col_type = "context_text"
+
+            # Detect by content
+            elif has_dates:
+                col_type = "metadata_maturity"
+            elif has_percentages:
+                col_type = None  # Rate column, skip
+            elif has_large_numbers:
+                col_type = self.table_default_type or "notional"
             else:
-                col_type = "value"
+                col_type = None
 
-        if col_type:
-            return f"{col_type}{year_suffix}"
-        return None
+            col_map[local_idx] = col_type
+
+        return filtered_rows, col_map
+
+    def _is_numeric(self, val: str) -> bool:
+        """Check if value is numeric (with currency/percent symbols)."""
+        clean = re.sub(r"[$€£¥,%()-]", "", val).strip()
+        return bool(re.match(r"^-?\d+(?:\.\d+)?$", clean))
+
+    def _is_numeric_large(self, val: str) -> bool:
+        """Check if value is a large number (> 1000)."""
+        if not self._is_numeric(val):
+            return False
+        try:
+            clean = re.sub(r"[$€£¥,%()-]", "", val).strip()
+            return float(clean) > 1000
+        except:
+            return False
+
+    def _is_valid_value(self, val: str) -> bool:
+        """Check if value is valid for sentence generation."""
+        clean = re.sub(r"[$€£¥,%()-]", "", val).strip()
+        if clean in ["-", "—", "0", "0.0", "", "0.00", "--"]:
+            return False
+        return bool(re.match(r"^-?\d+(?:\.\d+)?$", clean))
 
     def _cleanup_spaced_value(self, val: str) -> str:
         val = re.sub(r"(\d)\s+([().,])", r"\1\2", val)
         val = re.sub(r"([().,])\s+(\d)", r"\1\2", val)
         val = re.sub(r"\s+", "", val)
         return val
-
-    def _is_valid_value(self, val: str) -> bool:
-        clean = self._cleanup_spaced_value(val)
-        clean = re.sub(r"[(),$€£¥%]", "", clean).strip()
-        if clean in ["-", "—", "0", "0.0", "", "0.00", "--"]:
-            return False
-        return bool(re.match(r"^-?\d+(?:\.\d+)?$", clean))
-
-    def _apply_column_heuristics(self):
-        TARGET_IDX = 1
-        if TARGET_IDX not in self.col_map or self.col_map[TARGET_IDX] is not None:
-            return
-        text_rows = 0
-        numeric_rows = 0
-        for row in self.data[:5]:
-            if len(row) > TARGET_IDX:
-                cell = row[TARGET_IDX].strip()
-                if not cell or set(cell).issubset(set("- ")):
-                    continue
-                if self._is_valid_value(cell):
-                    numeric_rows += 1
-                else:
-                    text_rows += 1
-        if text_rows > 0 and numeric_rows == 0:
-            self.col_map[TARGET_IDX] = "context_text"
-
-    def _resolve_offsetting_conflicts(self):
-        has_net = any(t == "net_fair_value" for t in self.col_map.values())
-        if has_net:
-            for idx, col_type in self.col_map.items():
-                if col_type == "gross_fair_value":
-                    self.col_map[idx] = None
-
-    def _is_subheader_row(self, row: List[str]) -> bool:
-        if not row or not row[0].strip():
-            return False
-        if SECTION_KEYWORDS.search(row[0]):
-            return True
-        has_data = False
-        for i, cell in enumerate(row[1:], start=1):
-            if (
-                i in self.col_map
-                and self.col_map[i]
-                and self.col_map[i] != "context_text"
-                and self._is_valid_value(cell)
-            ):
-                has_data = True
-                break
-        return not has_data
-
-    def _merge_row_values(self, row: List[str]) -> List[str]:
-        merged = row[:]
-        fragment_pattern = re.compile(r"^[()$€£¥%—\-\s]+$")
-        value_pattern = re.compile(r"\d")
-
-        i = 0
-        while i < len(merged):
-            cell = merged[i].strip()
-            if cell and fragment_pattern.match(cell):
-                j = i + 1
-                while j < len(merged) and j < i + 3:
-                    next_cell = merged[j].strip()
-                    if value_pattern.search(next_cell):
-                        merged[j] = cell + merged[j]
-                        merged[i] = ""
-                        break
-                    elif fragment_pattern.match(next_cell):
-                        j += 1
-                    else:
-                        break
-            i += 1
-
-        for i in range(len(merged)):
-            cell = merged[i].strip()
-            if value_pattern.search(cell) and not fragment_pattern.match(cell):
-                for offset in [1, 2]:
-                    if i - offset >= 0:
-                        left = merged[i - offset].strip()
-                        if left and fragment_pattern.match(left):
-                            merged[i] = left + merged[i]
-                            merged[i - offset] = ""
-                        else:
-                            break
-                if i + 1 < len(merged):
-                    right = merged[i + 1].strip()
-                    if right and fragment_pattern.match(right):
-                        merged[i] = merged[i] + right
-                        merged[i + 1] = ""
-        return merged
 
     def normalize_value(self, clean_val: str):
         stripped = clean_val.strip("()")
@@ -330,161 +393,93 @@ class TableToTextConverter:
             return clean_val
 
     def process(self) -> Tuple[List[str], bool]:
-        if self.invalid_table:
-            return ([], True)
+        if self.invalid_table or not self.data:
+            return ([], False)
+
         sentences = []
 
-        # Check for Strong Notional in Columns (Explicit "Notional" only)
-        table_has_strong_notional_col = False
-        for v in self.col_map.values():
-            if v and STRONG_NOTIONAL_REGEX.search(v):
-                table_has_strong_notional_col = True
-                break
-
-        # Check if default type is explicitly Notional (e.g. from Caption)
-        if self.table_default_type == "notional":
-            # If the caption explicitly said "Notional", we treat it as strong
-            table_has_strong_notional_col = True
-
-        candidate_rows = []
-        active_context = []
-        table_has_strong_row = False
-
-        for row in self.data:
-            if not row:
-                continue
-
-            if self._is_subheader_row(row):
-                active_context = [row[0].strip().rstrip(":")]
-                continue
-
-            row_label = row[0].strip()
-            if not row_label or "total" in row_label.lower():
-                continue
-
-            row = self._merge_row_values(row)
-
-            row_context_str = ""
-            for i, cell_val in enumerate(row[1:], start=1):
-                if self.col_map.get(i) == "context_text":
-                    clean_text = re.sub(r"\s+", " ", cell_val).strip()
-                    if clean_text and len(clean_text) > 2:
-                        row_context_str = f" ({clean_text})"
-
-            full_instrument_name = (
-                f"{' '.join(active_context)} {row_label}{row_context_str}"
-            )
-
-            # --- SIGNAL DETECTION ---
-
-            # 1. Row Content Signals
-            is_strict = self.is_implied_derivative(full_instrument_name)
-            is_table_safe = bool(TABLE_REGEX.search(full_instrument_name))
-            is_soft = (
-                bool(SOFT_REGEX.search(full_instrument_name))
-                if not is_strict
-                else False
-            )
-
-            # 2. Derivative Base Check (Swap, Option, Future, etc.)
-            has_base = bool(BASE_REGEX.search(full_instrument_name))
-
-            # 3. Notional Signals (Split into Strong vs Weak)
-            has_strong_notional = bool(
-                STRONG_NOTIONAL_REGEX.search(full_instrument_name)
-            )
-            row_implies_weak_notional = bool(
-                NOTIONAL_HEADERS.search(full_instrument_name)
-            )
-
-            # 3b. Currency-based Notional Signal (e.g., "Euro", "British Pound", "Japanese Yen")
-            # If row name contains a currency name, it's a strong notional signal (contract amounts)
-            has_currency_notional = bool(
-                CURRENCY_NAMES_REGEX.search(full_instrument_name)
-            )
-
-            # 4. Safe Category Check (IR/FX are usually safe even without base)
-            is_ir = bool(IR_SOFT_REGEX.search(full_instrument_name))
-            is_fx = bool(FX_SOFT_REGEX.search(full_instrument_name)) or has_currency_notional
-
-            # --- ANCHORING LOGIC ---
-            # A row Anchors the table ONLY if it matches Strict, Table Safe, or EXPLICIT Notional.
-            # "Contract Value" (Weak Notional) does NOT anchor the table.
-            if is_strict or is_table_safe or has_strong_notional or has_currency_notional:
-                table_has_strong_row = True
-
-            candidate_rows.append(
-                {
-                    "row": row,
-                    "name": full_instrument_name,
-                    "is_strict": is_strict,
-                    "is_table_safe": is_table_safe,
-                    "is_soft": is_soft,
-                    "has_base": has_base,
-                    "has_strong_notional": has_strong_notional,
-                    "has_currency_notional": has_currency_notional,
-                    "implies_notional": has_strong_notional
-                    or has_currency_notional
-                    or row_implies_weak_notional,
-                    "is_not_cp": is_ir or is_fx,
-                }
-            )
-        if len(candidate_rows) == 0:
-            return ([], False)
-        # --- GLOBAL SIGNAL CHECK ---
-        table_is_anchored = (
-            table_has_strong_row
-            or table_has_strong_notional_col
-            or self.caption_is_strong
+        # Check for table anchoring
+        table_has_strong_notional_col = any(
+            col_type and STRONG_NOTIONAL_REGEX.search(col_type)
+            for col_type in self.col_map.values()
         )
 
-        # Determine caption year for fallback when columns don't have year suffixes
+        if self.table_default_type == "notional":
+            table_has_strong_notional_col = True
+
+        # Get caption year
         caption_year_str = ""
         if self.caption:
             caption_years = YEAR_REGEX.findall(self.caption)
             if caption_years:
                 try:
-                    years_int = [int(y) for y in caption_years]
-                    caption_year_str = f"in {max(years_int)} "
-                except Exception:
-                    # Fallback to last matched year string
+                    caption_year_str = f"in {max(int(y) for y in caption_years)} "
+                except:
                     caption_year_str = f"in {caption_years[-1]} "
 
-        # --- PASS 2: GENERATE SENTENCES ---
-        for cand in candidate_rows:
+        # Process data rows
+        table_has_strong_row = False
 
+        for row_idx, row in enumerate(self.data):
+            if not row or not row[0].strip():
+                continue
+
+            instrument_name = row[0].strip()
+            if "total" in instrument_name.lower():
+                continue
+
+            # Check derivative signals
+            is_strict = self.is_implied_derivative(instrument_name)
+            is_table_safe = bool(TABLE_REGEX.search(instrument_name))
+            is_soft = (
+                bool(SOFT_REGEX.search(instrument_name)) if not is_strict else False
+            )
+            has_base = bool(BASE_REGEX.search(instrument_name))
+            has_strong_notional = bool(STRONG_NOTIONAL_REGEX.search(instrument_name))
+            has_currency_notional = bool(CURRENCY_NAMES_REGEX.search(instrument_name))
+            is_ir = bool(IR_SOFT_REGEX.search(instrument_name))
+            is_fx = bool(FX_SOFT_REGEX.search(instrument_name)) or has_currency_notional
+            is_not_cp = is_ir or is_fx
+
+            # Anchoring check
+            if (
+                is_strict
+                or is_table_safe
+                or has_strong_notional
+                or has_currency_notional
+            ):
+                table_has_strong_row = True
+
+            # Keep/drop decision
             should_keep = False
             soph = False
-            # 1. Strict / Strong Signals -> Always Keep
+
             if (
-                cand["is_strict"]
-                or cand["is_table_safe"]
-                or cand["has_strong_notional"]
-                or cand["has_currency_notional"]
+                is_strict
+                or is_table_safe
+                or has_strong_notional
+                or has_currency_notional
             ):
                 should_keep = True
 
-            # 2. Soft Matches
-            elif cand["is_soft"]:
-                # If IR or FX, we trust them
-                if cand["is_not_cp"]:
-                    if table_is_anchored:
+            elif is_soft:
+                if is_not_cp:
+                    if (
+                        table_has_strong_row
+                        or table_has_strong_notional_col
+                        or self.caption_is_strong
+                    ):
+                        should_keep = True
+                elif (
+                    table_has_strong_row
+                    or table_has_strong_notional_col
+                    or self.caption_is_strong
+                ):
+                    if has_base:
                         should_keep = True
 
-                # If Commodity/Other Soft Match
-                elif table_is_anchored:
-                    # **HYGIENE CHECK**:
-                    # If it's a soft commodity match (e.g. "Natural Gas"),
-                    # it MUST have a Derivative Base ("Swap") OR Explicit Notional to be kept.
-                    # Otherwise, it's just a physical contract (e.g. "Natural Gas" + "Contract Amount").
-                    if cand["has_base"]:
-                        should_keep = True
-                    # Note: We already checked has_strong_notional in block #1.
-                    # So if we are here, it has NO strong notional.
-                    # Therefore, if NO base, we drop it.
-
-            # 3. Sophisticated Exception (Warrants/Convertibles)
-            if SOPHISTICATED_TARGETS.search(cand["name"]):
+            # Sophisticated exception
+            if SOPHISTICATED_TARGETS.search(instrument_name):
                 soph = True
                 if not should_keep and self.is_sophisticated:
                     should_keep = True
@@ -492,31 +487,29 @@ class TableToTextConverter:
             if not should_keep:
                 continue
 
-            # Extract Values & Generate Sentences
-            row = cand["row"]
-            full_instrument_name = cand["name"]
-            row_implies_notional = cand["implies_notional"]
-
+            # Extract expiration
             expiration_str = ""
-            for i, cell_val in enumerate(row[1:], start=1):
-                if self.col_map.get(i) == "metadata_maturity":
-                    # Simple regex to find a year (2020-2099)
-                    # We look for the LAST year mentioned in the cell (often ranges like 2024-2026)
-                    years = YEAR_REGEX.findall(cell_val)
+            for col_idx, col_type in self.col_map.items():
+                if col_idx < len(row) and col_type == "metadata_maturity":
+                    cell = row[col_idx]
+                    years = YEAR_REGEX.findall(cell)
                     if years:
-                        # Take the max year found (assumes maturity is the end date)
                         expiration_str = f" (expiring in {max(years)})"
 
-            for i, cell_val in enumerate(row[1:], start=1):
-                col_type = self.col_map.get(i)
+            # Generate sentences
+            for col_idx, col_type in self.col_map.items():
                 if (
-                    not col_type
+                    col_idx >= len(row)
+                    or not col_type
                     or col_type in ["context_text", "metadata_maturity"]
-                    or not self._is_valid_value(cell_val)
                 ):
                     continue
 
-                clean_val = self._cleanup_spaced_value(cell_val)
+                cell = row[col_idx]
+                if not cell or not self._is_valid_value(cell):
+                    continue
+
+                clean_val = self._cleanup_spaced_value(cell)
                 if "(" in clean_val and ")" in clean_val:
                     clean_val = "-" + clean_val.replace("(", "").replace(")", "")
                 clean_val = clean_val.replace("$", "").replace(",", "").strip()
@@ -526,32 +519,52 @@ class TableToTextConverter:
                 if parts[-1].isdigit() and len(parts[-1]) == 4:
                     year_str = f"in {parts.pop()} "
 
-                # If we didn't get a year from the column type, use caption year (if present)
                 if not year_str and caption_year_str:
                     year_str = caption_year_str
 
                 base_type = "_".join(parts)
                 value = self.normalize_value(clean_val)
+                display_instrument = f"{instrument_name}{expiration_str}"
 
-                # Append expiration information (if present) to the instrument name
-                display_instrument = f"{full_instrument_name}{expiration_str}"
-                use_anchor = table_is_anchored and not soph # if table is anchored, use it
-                anchor_text = TABLE_ANCHOR if use_anchor else ''
-                if "notional" in base_type or row_implies_notional:
-                    sentences.append(
-                        f"{anchor_text} {year_str}The Company held {display_instrument} with a notional amount of {value}."
-                    )
-                elif "fair_value" in base_type:
-                    sentences.append(
-                        f"{anchor_text} {year_str}The Company held {display_instrument} with a fair value of {value}."
-                    )
-                elif base_type == "value":
-                    sentences.append(
-                        f"{anchor_text} {year_str}The Company held {display_instrument} with a value of {value}."
-                    )
+                # SMART SEMANTICS: Detect value type from instrument name
+                actual_col_type = base_type
+
+                # If instrument mentions "gain" or "loss", it's OCI/income, not notional
+                if re.search(
+                    r"\b(gain|loss|income|earnings|oci|comprehensive)\b",
+                    display_instrument,
+                    re.IGNORECASE,
+                ):
+                    actual_col_type = "gain_loss"
+
+                # If it mentions "fair value", force fair_value type
+                elif re.search(r"\bfair\s*value\b", display_instrument, re.IGNORECASE):
+                    actual_col_type = "fair_value"
+
+                # If it mentions "notional", keep as notional
+                elif re.search(r"\bnotional\b", display_instrument, re.IGNORECASE):
+                    actual_col_type = "notional"
+
+                use_anchor = (
+                    table_has_strong_row
+                    or table_has_strong_notional_col
+                    or self.caption_is_strong
+                ) and not soph
+                anchor_text = TABLE_ANCHOR if use_anchor else ""
+
+                # Generate sentence based on actual type
+                if "notional" in actual_col_type:
+                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a notional amount of {value}."
+                elif "gain_loss" in actual_col_type:
+                    sentence = f"{anchor_text} {year_str}The Company recorded {display_instrument} of {value}."
+                    continue
+                elif "fair_value" in actual_col_type:
+                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a fair value of {value}."
+                elif actual_col_type == "value":
+                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a value of {value}."
                 else:
-                    sentences.append(
-                        f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
-                    )
+                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
+
+                sentences.append(sentence)
 
         return (sentences, False)
