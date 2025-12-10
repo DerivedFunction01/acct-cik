@@ -16,7 +16,7 @@ from derivative_regex import (
 )
 from main.database_filter.table_processor import TABLE_ANCHOR
 from prefilter_database import is_sophisticated_target
-from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason
+from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason
 
 # =============================================================================
 # CONFIGURATION
@@ -191,10 +191,11 @@ def extract_categories_soft(sentence: str) -> Set[str]:
 
 
 def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
-    """Extract user attributes from noise tags."""
+    """Extract user attributes from tags (both noise and evidence)."""
     if not tag_reason:
         return
 
+    # --- NOISE ATTRIBUTES ---
     if tag_reason == NoiseReason.TRADING.value:
         attributes["is_hedger"] = True
     elif tag_reason == NoiseReason.POLICY.value:
@@ -205,6 +206,34 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
         attributes["manages_credit_risk"] = True
     elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value, NoiseReason.HIST_BLOCK.value}:
         attributes["is_historical"] = True
+    
+    # --- EVIDENCE ATTRIBUTES (Reporting Methods) ---
+    # Notional reporting
+    elif tag_reason in {EvidenceReason.NVY.value, EvidenceReason.NVNY.value}:
+        attributes["reports_notional"] = True
+    
+    # Fair Value reporting
+    elif tag_reason in {EvidenceReason.FVY.value, EvidenceReason.FVNY.value, 
+                        EvidenceReason.FVAIY.value, EvidenceReason.FVAINY.value}:
+        attributes["reports_fair_value"] = True
+    
+    # Transaction reporting
+    elif tag_reason in {EvidenceReason.ACT_YEAR.value, EvidenceReason.ACT_AMB_YEAR.value, 
+                        EvidenceReason.ACT_GEN.value}:
+        attributes["reports_transactions"] = True
+    
+    # Future maturity
+    elif tag_reason in {EvidenceReason.MAT_FUT.value, EvidenceReason.MAT_AMB_FUT.value}:
+        attributes["reports_maturity"] = True
+    
+    # Active/Outstanding state reporting
+    elif tag_reason in {EvidenceReason.AS_YEAR.value, EvidenceReason.ASAIY.value}:
+        attributes["reports_active_positions"] = True
+    
+    # Continuous usage/valuation models
+    elif tag_reason in {EvidenceReason.CONT_USE.value, EvidenceReason.CONT_USE_AMB.value,
+                        EvidenceReason.VAL_MODEL.value, EvidenceReason.BS_LOC.value}:
+        attributes["reports_continuous_usage"] = True
 
 
 def remove_outlier_categories(
