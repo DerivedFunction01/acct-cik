@@ -420,6 +420,12 @@ all_currencies = (
     + other_currencies
 )
 
+def build_currency_names_regex() -> re.Pattern:
+    terms = []
+    for currency in all_currencies:
+        terms.append(re.escape(currency.full_name))
+    return build_regex(terms)
+
 
 def build_currency_patterns() -> List[str]:
     """
@@ -2590,7 +2596,7 @@ REGULATORY_KEYWORDS_LOOSE = [
 
 
 def build_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
-    """Build regex for excluding noise keywords."""
+    """Build regex for that also builds the alternation."""
     # Add word boundaries (\b) around each keyword to prevent partial matches
     pattern = build_alternation(keywords)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE if ignore_case else 0)
