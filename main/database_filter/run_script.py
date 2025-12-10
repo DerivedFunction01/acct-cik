@@ -67,14 +67,14 @@ def run_pipeline():
         if not run_command([PYTHON_EXEC, script], f"Running {script}"):
             sys.exit(1)
 
-        # 2. Export Step
-        if Path(db_target).exists() and csv_target:
-            run_command(
-                [PYTHON_EXEC, "database_export.py", db_target, csv_target],
-                f"Exporting {csv_target}",
-            )
+        # # 2. Export Step
+        # if Path(db_target).exists() and csv_target:
+        #     run_command(
+        #         [PYTHON_EXEC, "database_export.py", db_target, csv_target],
+        #         f"Exporting {csv_target}",
+        #     )
 
-            stage_csvs.append(csv_target)
+        #     stage_csvs.append(csv_target)
 
             # # 3. Analysis: Visual Sampling (HTML)
             # if not run_command(
@@ -101,8 +101,8 @@ def run_pipeline():
 
             # previous_csv = csv_target
 
-        else:
-            log(f"⚠️  Output DB {db_target} not found. Skipping export/analysis.")
+        # else:
+        #     log(f"⚠️  Output DB {db_target} not found. Skipping export/analysis.")
 
         time.sleep(5)
 
