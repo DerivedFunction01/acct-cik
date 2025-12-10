@@ -329,16 +329,16 @@ def setup_target_db(path: str) -> None:
     c = conn.cursor()
     
     c.execute(
-        "CREATE TABLE IF NOT EXISTS webpage_result (url TEXT PRIMARY KEY, categories TEXT NOT NULL)"
+        "CREATE TABLE IF NOT EXISTS category (url TEXT PRIMARY KEY, categories TEXT NOT NULL)"
     )
     c.execute(
-        "CREATE TABLE IF NOT EXISTS attributes (url TEXT PRIMARY KEY, attributes TEXT NOT NULL, FOREIGN KEY (url) REFERENCES webpage_result(url))"
+        "CREATE TABLE IF NOT EXISTS attributes (url TEXT PRIMARY KEY, attributes TEXT NOT NULL, FOREIGN KEY (url) REFERENCES category(url))"
     )
     c.execute(
-        "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER, FOREIGN KEY (url) REFERENCES webpage_result(url))"
+        "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER, FOREIGN KEY (url) REFERENCES category(url))"
     )
     
-    c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
+    c.execute("CREATE INDEX IF NOT EXISTS url_idx ON category (url)")
     c.execute("PRAGMA journal_mode=WAL")
     conn.commit()
     conn.close()
@@ -350,7 +350,7 @@ def get_processed_urls(path: str) -> set:
         return set()
     conn = sqlite3.connect(path)
     try:
-        return {row[0] for row in conn.execute("SELECT url FROM webpage_result")}
+        return {row[0] for row in conn.execute("SELECT url FROM category")}
     except:
         return set()
     finally:
@@ -362,7 +362,7 @@ def data_generator(source_db: str, processed_urls: set, batch_size: int = BATCH_
     conn = sqlite3.connect(source_db)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
+        "SELECT w.url, w.matches, r.cik, r.year FROM category w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
     
     while True:
@@ -385,7 +385,7 @@ def write_batch(conn, buffer: List) -> None:
     try:
         c.execute("BEGIN TRANSACTION")
         c.executemany(
-            "INSERT OR IGNORE INTO webpage_result (url, categories) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO category (url, categories) VALUES (?, ?)",
             [(r[0], r[1]) for r in buffer],
         )
         c.executemany(
