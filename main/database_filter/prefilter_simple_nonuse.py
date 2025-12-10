@@ -361,7 +361,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
         # B. Masked (For Logic Checks)
         # replaces "JPM" -> "_E", cleans layout for regex safety
-        p_masked = _cleaner.clean_for_quant_analysis(p)
+        p_masked = _cleaner.clean(p)
 
         # 2. Level 2 Filter (Pass BOTH)
         # We logic-check p_masked, but we insert tags into p_norm
