@@ -10,9 +10,9 @@ from typing import Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from derivative_regex import (
-    IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
-    IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX,
-    SENTENCE_SPLIT_PATTERN, TRADING_VENUE_REGEX, BASE_REGEX,
+    GEN_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
+    IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
+    SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
 from prefilter_database import is_sophisticated_content
 from prefiltered_lib import MinimalTextCleaner, NoiseReason
@@ -145,6 +145,11 @@ def extract_categories_soft(sentence: str) -> Set[str]:
         cats.add("warr")
     elif EQ_SOFT_REGEX.search(sentence):
         cats.add("eq")
+    if not cats:
+        if STRICT_GEN_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
+            cats.add("gen")
+        elif LOOSE_GEN_REGEX.search(sentence) and HEDGING_CONTEXT_REGEX.search(sentence):
+            cats.add("gen")
     
     return cats
 
