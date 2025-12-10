@@ -3422,8 +3422,8 @@ TERMINATION_NOUNS = [
     r"forfeiture",
     r"derecognition",
     r"wind[- ]?down",
-    
 ]
+
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 
