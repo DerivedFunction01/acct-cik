@@ -52,39 +52,45 @@ _cleaner = MinimalTextCleaner()
 
 class GlobalInstrumentTracker:
     """Tracks instrument → category mappings from strict mentions."""
-    
+    STOPLIST = {
+        "hedge",
+        "hedges",
+        "hedging",
+        "derivative",
+        "derivatives",
+    }
     def __init__(self):
         self.instrument_map = defaultdict(set)
         self.embedded_regex = re.compile(r"\bembedded\b", re.IGNORECASE)
-    
+
     def register_paragraph(self, sentence: str, category: str) -> None:
         """Register instruments found in sentence to category."""
         if self.embedded_regex.search(sentence):
             self.instrument_map["embedded"].add(category)
-        
+
         specific_matches = [m.group(0) for m in BASE_REGEX.finditer(sentence)]
-        
+
         if specific_matches:
             for instr in specific_matches:
                 token = instr.lower().rstrip("s")
-                if not token.startswith("hedg"):
+                if token not in self.STOPLIST:
                     self.instrument_map[token].add(category)
-    
+
     def resolve_instrument(self, sentence: str) -> Optional[str]:
         """Returns category if sentence contains unambiguous known instrument."""
         matches = BASE_REGEX.findall(sentence)
         if self.embedded_regex.search(sentence):
             matches.append("embedded")
-        
+
         candidates = set()
         for m in matches:
             token = m.lower().rstrip("s")
             if token in self.instrument_map:
                 candidates.update(self.instrument_map[token])
-        
+
         if len(candidates) == 1:
             return list(candidates)[0]
-        
+
         return None
 
 # =============================================================================
