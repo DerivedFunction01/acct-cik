@@ -162,8 +162,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
         if not reason:
             if reporting_year:
-                text_clean = _cleaner.clean_for_quant_analysis(orig)
-                if check_is_quantitative_zero(text_clean, reporting_year):
+                if check_is_quantitative_zero(masked, reporting_year):
                     reason = NoiseReason.ZERO.value
 
         # --- TAGGING ---
