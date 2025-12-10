@@ -216,24 +216,6 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
     elif tag_reason in {EvidenceReason.FVY.value, EvidenceReason.FVNY.value, 
                         EvidenceReason.FVAIY.value, EvidenceReason.FVAINY.value}:
         attributes["reports_fair_value"] = True
-    
-    # Transaction reporting
-    elif tag_reason in {EvidenceReason.ACT_YEAR.value, EvidenceReason.ACT_AMB_YEAR.value, 
-                        EvidenceReason.ACT_GEN.value}:
-        attributes["reports_transactions"] = True
-    
-    # Future maturity
-    elif tag_reason in {EvidenceReason.MAT_FUT.value, EvidenceReason.MAT_AMB_FUT.value}:
-        attributes["reports_maturity"] = True
-    
-    # Active/Outstanding state reporting
-    elif tag_reason in {EvidenceReason.AS_YEAR.value, EvidenceReason.ASAIY.value}:
-        attributes["reports_active_positions"] = True
-    
-    # Continuous usage/valuation models
-    elif tag_reason in {EvidenceReason.CONT_USE.value, EvidenceReason.CONT_USE_AMB.value,
-                        EvidenceReason.BS_LOC.value}:
-        attributes["reports_continuous_usage"] = True
     elif tag_reason in {EvidenceReason.VAL_MODEL.value}:
         attributes["eq_valuation_model"] = True
 
