@@ -4195,7 +4195,7 @@ _COMMODITY_NAMES = build_alternation(COMMON_COMMODITIES)
 
 # 2. COMMODITY (Strict)
 # FIX: Do NOT include raw commodity names.
-# Only include them if attached to "price", "cost", "risk", "hedge", or "swap".
+# Only include them if attached to "price", "cost", "risk", "hedge", "volaitity"
 CP_STRICT_TERMS = [
     # General terms
     rf"(?:{_COMMODITY_NAMES})\s+(?:cost|price)\s+{_RISK_ALTERNATION}",
