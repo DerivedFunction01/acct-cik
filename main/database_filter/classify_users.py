@@ -379,9 +379,9 @@ def data_generator(source_db: str, processed_urls: set, batch_size: int = BATCH_
     conn = sqlite3.connect(source_db)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT w.url, w.matches, r.cik, r.year FROM category w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
+        "SELECT w.url, w.matches, r.cik, r.year FROM webpage_result w LEFT JOIN report_data r ON w.url = r.url WHERE w.matches IS NOT NULL"
     )
-    
+
     while True:
         rows = cursor.fetchmany(batch_size)
         if not rows:
@@ -389,7 +389,7 @@ def data_generator(source_db: str, processed_urls: set, batch_size: int = BATCH_
         for row in rows:
             if row[0] not in processed_urls:
                 yield row
-    
+
     conn.close()
 
 
