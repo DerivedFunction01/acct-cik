@@ -10,7 +10,7 @@ from typing import Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from derivative_regex import (
-    CATEGORY_CONTEXT_MAP, CURRENCY_NAMES_REGEX, GEN_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
+    CATEGORY_CONTEXT_MAP, CATEGORY_MAP, CURRENCY_NAMES_REGEX, GEN_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
     IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_CONTEXT_MAP, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
@@ -294,63 +294,78 @@ def remove_outlier_categories(
     return valid_soft_cats
 
 
-PRIORITY = ["fx", "cp", "eq", "cr", "ir"]
+PRIORITY_ORDER = ["fx", "cp", "eq", "cr", "ir"]
 def get_text_categories(text: str) -> Set[str]:
     """
-    Scors text based on Contextual Density (not just Instrument Names).
-    Used to determine the 'Atmosphere' of a paragraph for resolving generics.
+    Determines category using Weighted Scoring and Map Iteration.
+
+    Phases:
+    1. Strict Check (Instrument + Context): High Score (Bypass).
+    2. Soft Check (Context Density): Low Score (Requires volume).
+       - Uses Priority Consumption (FX eats 'Currency' before IR sees it).
     """
-    # Initialize scores (include 'warr' for sophisticated equity)
-    scores = {"ir": 0, "fx": 0, "cp": 0, "eq": 0, "cr": 0, "warr": 0, "gen": 0}
-    strict_hits = set()
+    scores = defaultdict(int)
 
-    # 1. Strict Context Check (High Confidence)
-    for cat, regex in STRICT_CONTEXT_MAP.items():
-        if regex.search(text):
-            strict_hits.add(cat)
+    # ═══════════════════════════════════════════════════════════
+    # PHASE 1: STRICT SIGNALS (Non-Destructive)
+    # ═══════════════════════════════════════════════════════════
+    # We check Strict Instruments (Index 0) and Strict Context (Index 2)
 
-    # 2. Scoring Logic
-    if strict_hits:
-        # COLLISION LOGIC: Define the Hierarchy
-        # FX overrides CP/IR (e.g. "Currency risk of corn")
-        if "fx" in strict_hits:
-            scores["fx"] += 2000
-        elif "eq" in strict_hits:
-            # Check for Warrant/Convertible context
-            if is_sophisticated_content(text):
+    for cat, (strict_inst, soft_inst, strict_ctx, _) in CATEGORY_MAP.items():
+        # A. Strict Instrument ("Interest Rate Swap")
+        if strict_inst and strict_inst.search(text):
+            scores[cat] += 1000
+        elif soft_inst and soft_inst.search(text):
+            scores[cat] += 250
+
+        # B. Strict Context ("Interest Rate Risk")
+        if strict_ctx and strict_ctx.search(text):
+            # Special Handling for Equity -> Warrants
+            if cat == "eq" and is_sophisticated_content(text):
                 scores["warr"] += 6000  # Immediate override
             else:
-                scores["eq"] += 2000
-        elif "cp" in strict_hits:
-            scores["cp"] += 2000
-        elif "cr" in strict_hits:
-            scores["cr"] += 2000
-        elif "ir" in strict_hits:
-            scores["ir"] += 2000
-    else:
-        # 3. Soft Context Scoring (Density Based)
-        remaining_text = text
-        for cat in PRIORITY:
-            ctx_regex = CATEGORY_CONTEXT_MAP.get(cat)
-            if ctx_regex:
-                matches = list(ctx_regex.finditer(remaining_text))
-                if matches:
-                    scores[cat] += 50 * len(matches)
-                    # Remove matched terms to prevent double counting overlapping regexes
-                    remaining_text = ctx_regex.sub(" ", remaining_text)
+                scores[cat] += 2000
+                
 
-    # 4. Thresholding
+    # ═══════════════════════════════════════════════════════════
+    # PHASE 2: SOFT CONTEXT (Priority Consumption)
+    # ═══════════════════════════════════════════════════════════
+    # Only run if we haven't found a "Smoking Gun" (Score < 2000)
+    # or if we want to resolve ties.
+
+    remaining_text = text
+
+    for cat in PRIORITY_ORDER:
+        # Get Soft Context Regex (Index 3)
+        soft_ctx = CATEGORY_MAP[cat][3]
+
+        if soft_ctx:
+            # Find all matches
+            matches = list(soft_ctx.finditer(remaining_text))
+            if matches:
+                # Score based on density (50 pts per mention)
+                scores[cat] += 50 * len(matches)
+
+                # CRITICAL: Consume text to prevent double-counting
+                # e.g. FX eats "Foreign Currency" so IR doesn't match "Currency"
+                remaining_text = soft_ctx.sub(" ", remaining_text)
+
+    # ═══════════════════════════════════════════════════════════
+    # PHASE 3: THRESHOLDING
+    # ═══════════════════════════════════════════════════════════
+    if not scores:
+        return set()
+
     max_score = max(scores.values())
-    threshold = 50
 
-    # If we have a massive strict hit, raise threshold to kill noise
-    if max_score > 1000:
-        threshold = 1000
+    # If we have a massive strict hit (>1000), raise threshold to kill weak noise
+    threshold = 1000 if max_score >= 1000 else 50
 
     top_cats = {cat for cat, score in scores.items() if score >= threshold}
     specific = top_cats - {"gen"}
 
     return specific if specific else top_cats
+
 
 # =============================================================================
 # MAIN PROCESSING
