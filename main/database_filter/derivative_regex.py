@@ -4164,7 +4164,7 @@ IR_STRICT_TERMS = [
     # These imply Interest Rate mechanics specifically
     r"(?:floating|variable|fixed|prime|treasury|(?<!currency[- ])interest|(?<!foreign[- ])interest)[- ]rates?",
     r"fed(?:eral)?\s+funds\s+rates?",
-    r"credit\s+agreements"
+    r"credit\s+agreements?"
 ]
 
 # 2. FOREIGN EXCHANGE (Strict)
