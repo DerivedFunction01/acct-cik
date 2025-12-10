@@ -517,12 +517,17 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     Tag untagged sentences with evidence and mark paragraph as deadweight if needed.
 
     Process:
-    1. Parse existing noise tags from paragraph
-    2. Split into sentences
-    3. Tag ONLY untagged sentences with their evidence
-    4. Collect evidence for dominance check
-    5. Mark paragraph as deadweight if it should be killed
+    1. Check if paragraph is already deadweight - if so, return unchanged
+    2. Parse existing noise tags from paragraph
+    3. Split into sentences
+    4. Tag ONLY untagged sentences with their evidence
+    5. Collect evidence for dominance check
+    6. Apply hierarchy to check if mixed signals should kill the paragraph
     """
+    # If paragraph is already marked deadweight, leave it alone
+    if text.startswith(DEADWEIGHT_TOKEN):
+        return text
+    
     # Parse any existing noise tags from the paragraph for dominance evaluation
     _, existing_paragraph_noise = parse_existing_tags(text)
     
@@ -569,7 +574,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     # Reconstruct paragraph with tagged sentences
     tagged_paragraph = " ".join(tagged_sentences)
 
-    # Check if paragraph should be marked deadweight
+    # Apply hierarchy: check if mixed signals kill the paragraph
     if should_mark_deadweight(all_evidence, existing_paragraph_noise):
         return mark_as_deadweight(tagged_paragraph, NoiseReason.ANLZ)
     
