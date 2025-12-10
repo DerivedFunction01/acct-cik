@@ -3181,8 +3181,8 @@ NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(
     NON_DERIVATIVE_COMMERCIAL_KEYWORDS
 )
-# Regex to find years between 1980-2049, followed by a word boundary character
-YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20[0-4]\d)\b")
+# Regex to find years between 1980-2099, followed by a word boundary character
+YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
 PNL_ONLY_NO_POSITION = re.compile(
     rf"""
