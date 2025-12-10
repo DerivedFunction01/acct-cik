@@ -232,8 +232,10 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
     
     # Continuous usage/valuation models
     elif tag_reason in {EvidenceReason.CONT_USE.value, EvidenceReason.CONT_USE_AMB.value,
-                        EvidenceReason.VAL_MODEL.value, EvidenceReason.BS_LOC.value}:
+                        EvidenceReason.BS_LOC.value}:
         attributes["reports_continuous_usage"] = True
+    elif tag_reason in {EvidenceReason.VAL_MODEL.value}:
+        attributes["eq_valuation_model"] = True
 
 
 def remove_outlier_categories(
