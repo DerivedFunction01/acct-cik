@@ -239,7 +239,6 @@ def process_row(row: Tuple) -> Tuple:
     strict_categories = set()
     soft_categories = defaultdict(int)
     strict_counts = defaultdict(int)
-    has_explicit_eq = False  # NEW: Flag for EQ context
     attributes = {
         "is_hedger": False,
         "documents_hedge_accounting": False,
@@ -258,10 +257,6 @@ def process_row(row: Tuple) -> Tuple:
 
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         mine_attributes(para_tag_reason, attributes)
-        
-        # NEW: Check for explicit EQ anywhere in paragraph (even deadweight)
-        if not has_explicit_eq and is_sophisticated_target(para_content):
-            has_explicit_eq = True
         
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()]
 
@@ -316,10 +311,7 @@ def process_row(row: Tuple) -> Tuple:
     )
 
     final_categories = strict_categories.union(valid_soft_cats)
-    
-    # NEW: Validate warr → if no explicit EQ found, remove warr
-    if "warr" in final_categories and not has_explicit_eq:
-        final_categories.discard("warr")
+
     
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
