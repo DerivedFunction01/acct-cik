@@ -409,29 +409,29 @@ def scan_sentence_for_evidence(
     # TIER 1: STRONG
     if q := check_quantitative_evidence(text, reporting_year, is_strict_derivative):
         evidence.add(q)
-    if as_year := check_active_state_year(text, reporting_year, is_strict_derivative):
+    elif as_year := check_active_state_year(text, reporting_year, is_strict_derivative):
         evidence.add(as_year)
-    if mat := check_future_maturity(text, reporting_year, is_strict_derivative):
+    elif mat := check_future_maturity(text, reporting_year, is_strict_derivative):
         evidence.add(mat)
 
     # TIER 1.5: FLOW
-    if act := check_transaction_action(text, reporting_year, is_strict_derivative):
+    elif act := check_transaction_action(text, reporting_year, is_strict_derivative):
         evidence.add(act)
 
     # TIER 2: MEDIUM
-    if loc := check_balance_sheet_location(text):
+    elif loc := check_balance_sheet_location(text):
         evidence.add(loc)
-    if val := check_valuation_context(text):
+    elif val := check_valuation_context(text):
         evidence.add(val)
-    if gen := check_active_state_general(text, is_strict_derivative):
+    elif gen := check_active_state_general(text, is_strict_derivative):
         evidence.add(gen)
 
     # TIER 4: FLUFF
-    if term := check_remaining_term(text):
+    elif term := check_remaining_term(text):
         evidence.add(term)
-    if pnl := check_pnl_context(text, is_strict_derivative):
+    elif pnl := check_pnl_context(text, is_strict_derivative):
         evidence.add(pnl)
-    if other := mark_sentence_as_other(text):
+    elif other := mark_sentence_as_other(text):
         evidence.add(other)
 
     return evidence
