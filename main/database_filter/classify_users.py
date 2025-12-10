@@ -370,7 +370,6 @@ def get_text_categories(text: str) -> Set[str]:
 # =============================================================================
 # MAIN PROCESSING
 # =============================================================================
-
 def process_row(row: Tuple) -> Tuple:
     url, matches_json, cik, year = row
     
@@ -402,14 +401,13 @@ def process_row(row: Tuple) -> Tuple:
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         mine_attributes(para_tag_reason, attributes)
         
-        # 1. PARAGRAPH PRE-SCAN (Local Context)
-        # Determine if this specific paragraph is dominated by a single category
+        # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
+        # Use the scoring classifier to determine what this paragraph is ABOUT.
         para_clean = _cleaner.clean_entities(para_content)
-        para_strict_cats = extract_categories_strict(para_clean)
-        para_soft_cats = extract_categories_soft(para_clean)
+        context_cats = get_text_categories(para_clean)
         
-        # Local Resolution: If exactly one category is found (e.g. {"ir"}), use it to resolve generics
-        local_context = list(para_strict_cats)[0] if len(para_strict_cats) == 1 else list(para_soft_cats)[0] if len(para_soft_cats) == 1 else None
+        # We allow multiple contexts if they are strong enough to survive get_text_categories
+        local_contexts = context_cats if context_cats else set()
 
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()]
 
@@ -435,7 +433,6 @@ def process_row(row: Tuple) -> Tuple:
                         strict_categories.add(cat)
                 continue 
 
-            # Only count soft matches for active sentences
             if not is_active:
                 continue
 
@@ -448,18 +445,20 @@ def process_row(row: Tuple) -> Tuple:
                     strict_counts[cat] += 1
                 continue
 
-            # C. Tracker Resolution (Global Context)
+            # C. Tracker Resolution (Token Matching)
             tracker_cat = tracker.resolve_instrument(clean_sent)
             if tracker_cat:
                 soft_categories[tracker_cat] += 1
                 continue
 
-            # D. Standard Soft Extraction with Local Resolution
+            # D. Standard Soft Extraction with Local Resolution (Context Matching)
             found_soft = extract_categories_soft(clean_sent)
             
-            # If we found ONLY "gen" and we have a local context, resolve it!
-            if local_context and "gen" in found_soft and len(found_soft) == 1:
-                soft_categories[local_context] += 1
+            # If we found ONLY "gen" (e.g. "The instruments") 
+            # and we have valid local contexts (e.g. {"ir", "fx"}), resolve to ALL of them!
+            if local_contexts and "gen" in found_soft and len(found_soft) == 1:
+                for ctx in local_contexts:
+                    soft_categories[ctx] += 1
             else:
                 for cat in found_soft:
                     soft_categories[cat] += 1
@@ -474,7 +473,6 @@ def process_row(row: Tuple) -> Tuple:
 
     final_categories = strict_categories.union(valid_soft_cats)
     
-    # Remove 'gen' if specific categories exist
     if len(final_categories) > 1 and "gen" in final_categories:
         final_categories.remove("gen")
 
@@ -482,8 +480,6 @@ def process_row(row: Tuple) -> Tuple:
         attributes["is_trader"] = True
 
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
-
-
 # =============================================================================
 # DATABASE
 # =============================================================================
