@@ -135,7 +135,7 @@ ELSE:
 **Key insight:** Refinement Exclusions catches **combinations** of signals that individually might seem innocent but together indicate deadweight:
 - "We use swaps" (positive) + "but we liquidated all in December" (termination) = deadweight
 - "Fair value in AOCI" (methodology) + "swaps expired" (termination) = deadweight
-- "We may enter swaps" (potential) + "we don't trade" (trading denial) = deadweight
+We want to catch these risk management paragraphs, obvious termination patterns early to avoid false survival.
 
 **Output:** Either `_D<ANLZ>` tag or None
 
