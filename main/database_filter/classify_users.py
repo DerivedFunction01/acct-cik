@@ -191,31 +191,58 @@ def extract_categories_soft(sentence: str) -> Set[str]:
 
 
 def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
-    """Extract user attributes from tags (both noise and evidence)."""
+    """
+    Extract user attributes from tags using a mapped lookup.
+    Consolidates redundant state indicators into unified attributes.
+    """
     if not tag_reason:
         return
 
-    # --- NOISE ATTRIBUTES ---
-    if tag_reason == NoiseReason.TRADING.value:
-        attributes["is_hedger"] = True
-    elif tag_reason == NoiseReason.POLICY.value:
-        attributes["documents_hedge_accounting"] = True
-    elif tag_reason == NoiseReason.AOCI.value:
-        attributes["has_aoci_activity"] = True
-    elif tag_reason == NoiseReason.CREDIT.value:
-        attributes["manages_credit_risk"] = True
-    elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value, NoiseReason.HIST_BLOCK.value}:
+    # 1. Historical Special Case (Group of Noise Tags)
+    if tag_reason in {
+        NoiseReason.TIME.value,
+        NoiseReason.TERM.value,
+        NoiseReason.HIST_BLOCK.value,
+    }:
         attributes["is_historical"] = True
-    
-    # --- EVIDENCE ATTRIBUTES (Reporting Methods) ---
-    # Notional reporting
-    elif tag_reason in {EvidenceReason.NVY.value, EvidenceReason.NVNY.value}:
-        attributes["reports_notional"] = True
-    
-    # Fair Value reporting
-    elif tag_reason in {EvidenceReason.FVY.value, EvidenceReason.FVNY.value, 
-                        EvidenceReason.FVAIY.value, EvidenceReason.FVAINY.value}:
-        attributes["reports_fair_value"] = True
+        return
+
+    # 2. Attribute Mapping
+    # Maps Tag Reason -> Attribute Key
+    TAG_MAP = {
+        # --- NOISE (Identity Signals) ---
+        NoiseReason.TRADING.value: "is_hedger",
+        NoiseReason.POLICY.value: "documents_hedge_accounting",
+        NoiseReason.AOCI.value: "has_aoci_activity",
+        NoiseReason.CREDIT.value: "manages_credit_risk",
+        # --- EVIDENCE (Reporting Signals) ---
+        # A. POSITIONS (The "We Have It" Merge)
+        # Merges: Active State (Anchored), Continuous Usage (General), and Location (Accounting)
+        EvidenceReason.AS_YEAR.value: "reports_positions",
+        EvidenceReason.ASAIY.value: "reports_positions",
+        EvidenceReason.CONT_USE.value: "reports_positions",
+        EvidenceReason.CONT_USE_AMB.value: "reports_positions",
+        EvidenceReason.BS_LOC.value: "reports_positions",
+        # B. TRANSACTIONS (The "Flow" Merge)
+        EvidenceReason.ACT_YEAR.value: "reports_transactions",
+        EvidenceReason.ACT_AMB_YEAR.value: "reports_transactions",
+        EvidenceReason.ACT_GEN.value: "reports_transactions",
+        # C. QUANTITATIVE (Kept distinct for granularity)
+        EvidenceReason.NVY.value: "reports_notional",
+        EvidenceReason.NVNY.value: "reports_notional",
+        EvidenceReason.FVY.value: "reports_fair_value",
+        EvidenceReason.FVNY.value: "reports_fair_value",
+        EvidenceReason.FVAIY.value: "reports_fair_value",
+        EvidenceReason.FVAINY.value: "reports_fair_value",
+        # D. DETAILS
+        EvidenceReason.MAT_FUT.value: "reports_maturity",
+        EvidenceReason.MAT_AMB_FUT.value: "reports_maturity",
+        EvidenceReason.VAL_MODEL.value: "eq_valuation_model",
+    }
+
+    # 3. Apply
+    if target_attr := TAG_MAP.get(tag_reason):
+        attributes[target_attr] = True
 
 
 def remove_outlier_categories(
