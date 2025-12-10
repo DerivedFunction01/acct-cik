@@ -54,7 +54,7 @@ from derivative_regex import (
 )
 
 from final_verification import QUANT_REGEX
-from table_processor import TABLE_ANCHOR, TableToTextConverter
+from table_processor import TABLE_ANCHOR, VALUE_HEADERS, TableToTextConverter
 from prefiltered_lib import NoiseReason, get_tag
 
 # =============================================================================
@@ -177,7 +177,7 @@ def check_hard_exclusions(text: str) -> Optional[str]:
         return NoiseReason.HYP_SCORE.value
         # Commodity check: is it refering to a derivative?
     if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
-        if not find_hedging_context(text):
+        if not find_hedging_context(text) or VALUE_HEADERS.search(text):
             return NoiseReason.NC.value
     return None
 
