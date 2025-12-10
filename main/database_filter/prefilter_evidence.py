@@ -183,9 +183,9 @@ TAG_PARSER = re.compile(r"(_[SD])<([^>]+)>")
 # =============================================================================
 
 
-def check_mention(clean_text: str) -> bool:
+def check_mention(text: str) -> bool:
     """Check if text mentions any derivative instrument."""
-    return bool(SOFT_REGEX.search(clean_text) or LOOSE_GEN_REGEX.search(clean_text))
+    return bool(SOFT_REGEX.search(text) or LOOSE_GEN_REGEX.search(text))
 
 
 def check_derivative_global(text: str) -> bool:
@@ -212,13 +212,12 @@ def check_quantitative_evidence(
 
     is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
     is_fair_value = bool(FAIR_VALUE_CONTEXT_REGEX.search(text))
-    clean_text = _cleaner.clean_for_quant_analysis(text)
-    has_mention = check_mention(clean_text)
+    has_mention = check_mention(text)
 
     if not has_mention:
         return None
 
-    years_found, values_found = extract_values_and_years(clean_text)
+    years_found, values_found = extract_values_and_years(text)
 
     if not values_found:
         return None
@@ -247,12 +246,10 @@ def check_future_maturity(
     if not TERMINATION_ALL_REGEX.search(text):
         return None
 
-    clean_text = _cleaner.clean_numerics(text, remove_years=False)
-
-    if not check_mention(clean_text):
+    if not check_mention(text):
         return None
 
-    years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
+    years = [int(y) for y in YEAR_REGEX.findall(text)]
 
     if not any(y > reporting_year for y in years):
         return None
@@ -269,9 +266,7 @@ def check_active_state_year(
     if not reporting_year:
         return None
 
-    clean_text = _cleaner.clean_numerics(text, remove_years=False)
-
-    if not check_mention(clean_text):
+    if not check_mention(text):
         return None
 
     has_prep = bool(ACTIVE_PREP_REGEX.search(text))
@@ -283,7 +278,7 @@ def check_active_state_year(
     if not (has_prep or has_adj or has_poss_verb or has_current_state or has_use):
         return None
 
-    years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
+    years = [int(y) for y in YEAR_REGEX.findall(text)]
     has_relevant_year = any(y >= reporting_year for y in years)
 
     if not has_relevant_year and not has_current_state:
@@ -296,13 +291,12 @@ def check_active_state_general(
     text: str, is_strict_derivative: bool
 ) -> Optional[EvidenceReason]:
     """Check for General (Yearless) Possession or Usage."""
-    clean_text = _cleaner.clean_numerics(text)
 
-    if not check_mention(clean_text):
+    if not check_mention(text):
         return None
 
-    has_poss = bool(POSS_VERB_REGEX.search(clean_text))
-    has_use = bool(USAGE_VERB_REGEX.search(clean_text))
+    has_poss = bool(POSS_VERB_REGEX.search(text))
+    has_use = bool(USAGE_VERB_REGEX.search(text))
 
     if has_poss or has_use:
         return (
@@ -316,12 +310,12 @@ def check_active_state_general(
 
 def check_balance_sheet_location(text: str) -> Optional[EvidenceReason]:
     """Check for Balance Sheet Location (self-validating)."""
-    clean_text = _cleaner.clean_numerics(text)
+    
 
-    if not check_mention(clean_text):
+    if not check_mention(text):
         return None
 
-    if BS_LOC_REGEX.search(clean_text):
+    if BS_LOC_REGEX.search(text):
         return EvidenceReason.BS_LOC
 
     return None
@@ -334,15 +328,13 @@ def check_transaction_action(
     if not reporting_year:
         return None
 
-    clean_text = _cleaner.clean_numerics(text, remove_years=False)
-
-    if not check_mention(clean_text):
+    if not check_mention(text):
         return None
 
-    if not TRANS_VERB_REGEX.search(clean_text):
+    if not TRANS_VERB_REGEX.search(text):
         return None
 
-    years = [int(y) for y in YEAR_REGEX.findall(clean_text)]
+    years = [int(y) for y in YEAR_REGEX.findall(text)]
 
     if not years:
         return EvidenceReason.ACT_GEN
@@ -372,12 +364,11 @@ def check_pnl_context(
 
 def check_remaining_term(text: str) -> Optional[EvidenceReason]:
     """Check for Remaining Term descriptions."""
-    clean_text = _cleaner.clean_numerics(text)
 
-    if not check_mention(clean_text):
+    if not check_mention(text):
         return None
 
-    if REM_TERM_REGEX.search(clean_text):
+    if REM_TERM_REGEX.search(text):
         return EvidenceReason.REM_TERM
 
     return None
@@ -385,12 +376,11 @@ def check_remaining_term(text: str) -> Optional[EvidenceReason]:
 
 def check_valuation_context(text: str) -> Optional[EvidenceReason]:
     """Check for Valuation Models (self-validating)."""
-    clean_text = _cleaner.clean_numerics(text)
-
-    if not check_mention(clean_text):
+    
+    if not check_mention(text):
         return None
 
-    if VALUATION_MODELS_REGEX.search(clean_text):
+    if VALUATION_MODELS_REGEX.search(text):
         return EvidenceReason.VAL_MODEL
 
     return None
@@ -509,10 +499,10 @@ def parse_existing_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
             except ValueError:
                 pass
 
-    clean_text = TAG_PARSER.sub("", text).strip()
-    clean_text = re.sub(r"\s+", " ", clean_text)
+    text = TAG_PARSER.sub("", text).strip()
+    text = re.sub(r"\s+", " ", text)
 
-    return clean_text, noise_tags
+    return text, noise_tags
 
 
 # =============================================================================
@@ -532,7 +522,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     5. Parse existing noise tags
     6. Evaluate dominance hierarchy
     """
-    masked_text = _cleaner.clean_entities(text)
+    masked_text = _cleaner.clean(text)
     is_strict_derivative = check_derivative_global(masked_text)
 
     # Split into sentences
