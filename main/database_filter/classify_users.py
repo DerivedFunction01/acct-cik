@@ -129,19 +129,19 @@ def extract_categories_strict(sentence: str) -> Set[str]:
     if not cats and TABLE_ANCHOR in sentence:
         if CURRENCY_NAMES_REGEX.search(sentence):
             cats.add("fx")
-        elif FX_SOFT_REGEX.search(sentence):
+        if FX_SOFT_REGEX.search(sentence):
             cats.add("fx")
-        elif IR_SOFT_REGEX.search(sentence):
+        if IR_SOFT_REGEX.search(sentence):
             cats.add("ir")
-        elif CP_SOFT_REGEX.search(sentence):
+        if CP_SOFT_REGEX.search(sentence):
             cats.add("cp")
-        elif CR_SOFT_REGEX.search(sentence):
+        if CR_SOFT_REGEX.search(sentence):
             cats.add("cr")
-        elif is_sophisticated_target(sentence):
+        if is_sophisticated_target(sentence):
             cats.add("warr")
         elif EQ_SOFT_REGEX.search(sentence):
             cats.add("eq")
-        else:
+        if not cats:
             cats.add("gen")
     return cats
 
