@@ -14,7 +14,7 @@ from derivative_regex import (
     IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
-from prefilter_database import is_sophisticated_content
+from prefilter_database import is_sophisticated_content, is_sophisticated_target
 from prefiltered_lib import MinimalTextCleaner, NoiseReason
 
 # =============================================================================
@@ -112,7 +112,7 @@ def has_unambiguous_evidence(sentence: str) -> bool:
 def extract_categories_strict(sentence: str) -> Set[str]:
     """Extract STRICT category matches only."""
     cats = set()
-    
+
     if IR_REGEX.search(sentence):
         cats.add("ir")
     if FX_REGEX.search(sentence):
@@ -121,18 +121,17 @@ def extract_categories_strict(sentence: str) -> Set[str]:
         cats.add("cp")
     if CR_REGEX.search(sentence):
         cats.add("cr")
+    if EQ_REGEX.search(sentence):
+        cats.add("eq")
     if is_sophisticated_content(sentence):
         cats.add("warr")
-    elif EQ_REGEX.search(sentence):
-        cats.add("eq")
-    
+
     return cats
 
 
 def extract_categories_soft(sentence: str) -> Set[str]:
     """Extract SOFT category matches only."""
     cats = set()
-    
     if IR_SOFT_REGEX.search(sentence):
         cats.add("ir")
     if FX_SOFT_REGEX.search(sentence):
@@ -141,16 +140,19 @@ def extract_categories_soft(sentence: str) -> Set[str]:
         cats.add("cp")
     if CR_SOFT_REGEX.search(sentence):
         cats.add("cr")
+    if EQ_SOFT_REGEX.search(sentence):
+        cats.add("eq")
     if is_sophisticated_content(sentence):
         cats.add("warr")
-    elif EQ_SOFT_REGEX.search(sentence):
-        cats.add("eq")
+
     if not cats:
         if STRICT_GEN_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
             cats.add("gen")
-        elif LOOSE_GEN_REGEX.search(sentence) and HEDGING_CONTEXT_REGEX.search(sentence):
+        elif LOOSE_GEN_REGEX.search(sentence) and HEDGING_CONTEXT_REGEX.search(
+            sentence
+        ):
             cats.add("gen")
-    
+
     return cats
 
 
@@ -237,6 +239,7 @@ def process_row(row: Tuple) -> Tuple:
     strict_categories = set()
     soft_categories = defaultdict(int)
     strict_counts = defaultdict(int)
+    has_explicit_eq = False  # NEW: Flag for EQ context
     attributes = {
         "is_hedger": False,
         "documents_hedge_accounting": False,
@@ -250,41 +253,37 @@ def process_row(row: Tuple) -> Tuple:
 
     # --- SINGLE PASS Processing ---
     for p in paragraphs:
-        # 1. Document Level Checks
         if not mentions_venue and TRADING_VENUE_REGEX.search(p):
             mentions_venue = True
 
-        # 2. Parse Tags ONCE
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         mine_attributes(para_tag_reason, attributes)
         
-        # Split sentences
+        # NEW: Check for explicit EQ anywhere in paragraph (even deadweight)
+        if not has_explicit_eq and is_sophisticated_target(para_content):
+            has_explicit_eq = True
+        
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()]
 
         for sent in sentences:
             is_sent_deadweight, sent_tag_reason, sent_content = parse_tags(sent)
             mine_attributes(sent_tag_reason, attributes)
             
-            # Determine Active Status
             is_active = not (is_para_deadweight or is_sent_deadweight)
             clean_sent = _cleaner.clean_entities(sent_content)
 
-            # 3. Check Strict Matches First
+            # Check Strict Matches
             strict_cats = extract_categories_strict(clean_sent)
             
             if strict_cats:
-                # ACTION: Register Anchor
                 for cat in strict_cats:
                     tracker.register_paragraph(clean_sent, cat)
-                    strict_counts[cat] += 1 # Counts towards magnitude (even if deadweight)
-                    
+                    strict_counts[cat] += 1
                     if is_active:
-                        strict_categories.add(cat) # Counts towards classification
-                
-                # If we found strict matches, we don't need to look for soft matches in this sentence
+                        strict_categories.add(cat)
                 continue 
 
-            # 4. Check Soft Matches (Active Only)
+            # Check Soft Matches (Active Only)
             if not is_active:
                 continue
 
@@ -294,7 +293,7 @@ def process_row(row: Tuple) -> Tuple:
                 for cat in promoted_cats:
                     strict_categories.add(cat)
                     tracker.register_paragraph(clean_sent, cat)
-                    strict_counts[cat] += 1 # Add to anchor count
+                    strict_counts[cat] += 1
                 continue
 
             # Tracker Resolution
@@ -309,7 +308,6 @@ def process_row(row: Tuple) -> Tuple:
                 soft_categories[cat] += 1
 
     # --- REMOVE OUTLIERS ---
-    # Now strictly separated: strict_counts has the volume, soft_categories has the candidates
     valid_soft_cats = remove_outlier_categories(
         strict_counts, 
         soft_categories,
@@ -319,7 +317,10 @@ def process_row(row: Tuple) -> Tuple:
 
     final_categories = strict_categories.union(valid_soft_cats)
     
-    # Logic for trader check...
+    # NEW: Validate warr → if no explicit EQ found, remove warr
+    if "warr" in final_categories and not has_explicit_eq:
+        final_categories.discard("warr")
+    
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
 
