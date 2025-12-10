@@ -154,7 +154,6 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     # 2. Paragraph-Level Pre-Check
     para_reason = get_paragraph_level_reason(masked_text, reporting_year)
     if para_reason:
-        # Return: "_D<HIST_BLOCK> Original text..."
         return f"{get_tag(DEADWEIGHT_TOKEN, para_reason)} {text}"
 
     # 3. Dual Split (Original vs Masked)
@@ -165,9 +164,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()
     ]
 
-    # Safety: Align lengths
     if len(original_sentences) != len(masked_sentences):
-        # Fallback: Run logic on unmasked to ensure alignment if regex failed
         masked_sentences = original_sentences
 
     tagged_output = []
@@ -175,64 +172,78 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
     for orig, masked in zip(original_sentences, masked_sentences):
         reason: Optional[NoiseReason] = None
+
+        # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
+        # If it's not about derivatives or it's ancient history, nothing else matters.
         if not LOOSE_GEN_REGEX.search(masked):
             reason = NoiseReason.CTX
-        # --- A. Structural Noise ---
-        elif IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
-            reason = NoiseReason.REF
-        elif DEFINITION_INDICATORS.search(masked):
-            reason = NoiseReason.DEF
-        elif AOCI_NOISE_REGEX.search(masked):
-            reason = NoiseReason.AOCI
-        elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
-            reason = NoiseReason.NPNS  # or COMM_EXEMPT
-        elif TRADING_STATEMENTS_REGEX.search(masked):
-            reason = NoiseReason.TRADING
-        elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
-            reason = NoiseReason.LOAN
 
-        # --- B. Soft Kills (Policy / Credit) ---
-        elif HEDGE_DOC_REGEX.search(masked):
-            reason = NoiseReason.POLICY
-        elif COUNTERPARTY_REGEX.search(masked) and not CR_SOFT_REGEX.search(masked):
-            reason = NoiseReason.CREDIT
-
-        # --- C. Bag-of-Words Scoring ---
-        elif is_contractual_noise(masked, threshold=2):
-            reason = NoiseReason.CONTRACT
-        elif is_regulatory_noise(masked, threshold=2):
-            reason = NoiseReason.REG
-        elif not is_sophisticated_content(masked) and is_hypothetical_noise(
-            masked, threshold=2
-        ):
-            reason = NoiseReason.HYP_SCORE
-
-        # --- D. Classification Killers (Logic Helpers) ---
         if not reason:
             reason = get_temporal_noise_reason(masked, reporting_year)
-        if not reason:
-            reason = get_intent_noise_reason(masked)
-        if not reason:
-            reason = get_termination_noise_reason(masked)
-        if not reason:
-            reason = get_quantitative_noise_reason(masked, reporting_year)
 
-        # --- TAGGING ---
+        # --- TIER 2: EVIDENCE / SIGNAL (The "High Value" Tags) ---
+        # We check these BEFORE Structural Noise (REF).
+        # "See note 5 re: termination" -> TERM (Signal), not REF (Noise).
+
+        if not reason:
+            if TRADING_STATEMENTS_REGEX.search(masked):
+                # "We do not trade..." -> Critical End User Signal
+                reason = NoiseReason.TRADING
+
+            elif not reason:
+                # Check Termination (e.g., "Terminated in [Current Year]")
+                # Note: Temporal check above already killed "Terminated in [Past Year]"
+                reason = get_termination_noise_reason(masked)
+
+            if not reason:
+                # Check Absence (e.g., "We do not hold...")
+                reason = get_intent_noise_reason(masked)
+            if not reason:
+                # Check 0/nil
+                reason = get_quantitative_noise_reason(masked, reporting_year)
+
+        # --- TIER 3: STRUCTURAL NOISE (The "Format" Tags) ---
+        # Only check these if we didn't find a strong Evidence signal above.
+        if not reason:
+            if IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
+                reason = NoiseReason.REF
+            elif DEFINITION_INDICATORS.search(masked):
+                reason = NoiseReason.DEF
+            elif AOCI_NOISE_REGEX.search(masked):
+                reason = NoiseReason.AOCI
+            elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
+                reason = NoiseReason.NPNS
+            elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
+                reason = NoiseReason.LOAN
+
+        # --- TIER 4: SOFT KILLS (The "Generic" Tags) ---
+        if not reason:
+            if HEDGE_DOC_REGEX.search(masked):
+                reason = NoiseReason.POLICY
+            elif COUNTERPARTY_REGEX.search(masked) and not CR_SOFT_REGEX.search(masked):
+                reason = NoiseReason.CREDIT
+
+        # --- TIER 5: FALLBACK SCORING ---
+        if not reason:
+            if is_contractual_noise(masked, threshold=2):
+                reason = NoiseReason.CONTRACT
+            elif is_regulatory_noise(masked, threshold=2):
+                reason = NoiseReason.REG
+            elif not is_sophisticated_content(masked) and is_hypothetical_noise(
+                masked, threshold=2
+            ):
+                reason = NoiseReason.HYP_SCORE
+
+        # --- CONSTRUCTION ---
         if reason:
-            # Inject: "_S<TIME> In 2021..."
             tagged_output.append(f"{get_tag(SKIP_TOKEN, reason)} {orig}")
         else:
-            # Keep clean
             tagged_output.append(orig)
             surviving_text_parts.append(masked)
 
-    # --- E. Final Signal Check (Fluff Detector) ---
-    # If valid sentences remain, do they actually mention a derivative?
-
+    # --- E. Final Signal Check ---
     if not surviving_text_parts:
-        # All sentences were tagged as noise
         final_text = " ".join(tagged_output)
-        # Use ANLZ or a specific FLUFF reason
         return f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ)} {final_text}"
 
     combined_survivors = " ".join(surviving_text_parts)
@@ -243,15 +254,13 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     else:
         for s in surviving_text_parts:
             if HEDGING_CONTEXT_REGEX.search(s) or DER_STD_REGEX.search(s):
-                    has_signal = True
-                    break
+                has_signal = True
+                break
 
     final_text = " ".join(tagged_output)
-
     if has_signal:
         return final_text
     else:
-        # It survived the filters but has no "Derivative" keywords (e.g. just "Risk Management")
         return f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ)} {final_text}"
 
 

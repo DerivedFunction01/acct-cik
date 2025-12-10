@@ -2935,12 +2935,18 @@ def build_definition_regex() -> re.Pattern:
     COMMON_VERBS = (
         r"(?:means?|represents?|refers?\s+to|considered\s+as|\:)"  # Add colon
     )
-
-    # SPECIFIC: Accounting nouns allowed for "represents"
-    ACCT_NOUNS = (
-        r"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value)"
+    # Subject Groups
+    # 1. Safe Accounting Nouns (Fair Value, Notional, etc.) - Can use "is the"
+    SAFE_ACCT_SUBJ = (
+        r"(?:notional\s+value|contractual\s+interest|fair\s+value|market\s+value|"
+        r"hedge\s+effectiveness|credit\s+risk)"
     )
+    
+    # 2. Instrument Names (Swaps, Forwards) - NEED STRICTER VERBS
+    INSTR_SUBJ = f"(?:{CATEGORY_REGEX.pattern})" # Your LOOSE_GEN_REGEX equivalent
 
+    # 3. Generic Definitional Objects (To anchor "is the")
+    DEF_OBJECTS = r"(?:agreement|contract|exchange|obligation|instrument|transaction|commitment|arrangement)"
     pattern_list = [
         # --- 1. The "Legal Hammer" (Safe to be broad) ---
         # Matches: "Swaps shall mean...", "Hedging is defined as..."
@@ -2956,13 +2962,25 @@ def build_definition_regex() -> re.Pattern:
         rf"(?:a\s+)?{instr}\s+(?:{COMMON_VERBS}){SENTENCE_TAIL}",
         # --- 4. Accounting Specifics ---
         # Matches: "Notional value represents..."
-        rf"{ACCT_NOUNS}\s+(?:represents?|means?){SENTENCE_TAIL}",
+        rf"{SAFE_ACCT_SUBJ}\s+(?:represents?|means?){SENTENCE_TAIL}",
         # --- 5. Corporate Definitions ---
         # Matches: "The Company defines...", "Management considers..."
         rf"(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{instr}.*as{SENTENCE_TAIL}",
         # --- 6. Inverted Definitions ---
         # Matches: "...is the definition of..."
         rf".*?\s+is\s+the\s+definition\s+of{SENTENCE_TAIL}",
+        # --- 4. Accounting Specifics (Safe with 'is the') ---
+        # "Fair value is the price..."
+        rf"{SAFE_ACCT_SUBJ}\s+(?:represents?|means?|is\s+the|are\s+the){SENTENCE_TAIL}",
+
+        # --- 5. Instrument Definitions (Strict) ---
+        # A. Strong Verbs: "Swaps mean..." (Safe)
+        rf"{INSTR_SUBJ}\s+(?:means?|refers?\s+to|is\s+defined\s+as){SENTENCE_TAIL}",
+        
+        # B. "Is The" Anchor: Requires abstract subject ("A swap") AND generic object ("is a contract")
+        # Matches: "A swap is the exchange...", "An option is a contract..."
+        # Avoids: "The swap is the tool..."
+        rf"(?:A|An)\s+{INSTR_SUBJ}\s+is\s+(?:the|an?)\s+{DEF_OBJECTS}{SENTENCE_TAIL}",
     ]
 
     combined = "|".join(f"(?:{p})" for p in pattern_list)
