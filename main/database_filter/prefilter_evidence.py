@@ -161,12 +161,8 @@ REM_TERM_PHRASES = [
 # Compile all regexes once at module load
 NOTIONAL_CONTEXT_REGEX = build_regex(NOTIONAL_TERMS)
 FAIR_VALUE_CONTEXT_REGEX = build_regex(FAIR_VALUE_TERMS)
-ACTIVE_PREP_REGEX = re.compile(
-    r"\b(?:" + "|".join(ACTIVE_PREPOSITIONS) + r")\b", re.IGNORECASE
-)
-ACTIVE_ADJ_REGEX = re.compile(
-    r"\b(?:" + "|".join(ACTIVE_ADJECTIVES) + r")\b", re.IGNORECASE
-)
+ACTIVE_PREP_REGEX = build_regex(ACTIVE_PREPOSITIONS)
+ACTIVE_ADJ_REGEX = build_regex(ACTIVE_ADJECTIVES)
 POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
 USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
 TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
