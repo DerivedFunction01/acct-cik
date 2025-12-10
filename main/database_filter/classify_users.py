@@ -162,9 +162,9 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
     if tag_reason == NoiseReason.TRADING.value:
         attributes["is_hedger"] = True
     elif tag_reason == NoiseReason.POLICY.value:
-        attributes["uses_hedge_accounting"] = True
+        attributes["documents_hedge_accounting"] = True
     elif tag_reason == NoiseReason.AOCI.value:
-        attributes["has_pnl_activity"] = True
+        attributes["has_aoci_activity"] = True
     elif tag_reason == NoiseReason.CREDIT.value:
         attributes["manages_credit_risk"] = True
     elif tag_reason in {NoiseReason.TIME.value, NoiseReason.TERM.value, NoiseReason.HIST_BLOCK.value}:
@@ -225,8 +225,8 @@ def process_row(row: Tuple) -> Tuple:
     soft_categories = defaultdict(int)
     attributes = {
         "is_hedger": False,
-        "uses_hedge_accounting": False,
-        "has_pnl_activity": False,
+        "documents_hedge_accounting": False,
+        "has_aoci_activity": False,
         "manages_credit_risk": False,
         "is_historical": False,
         "is_trader": False,
