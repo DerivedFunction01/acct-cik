@@ -402,41 +402,46 @@ def mark_sentence_as_other(text: str) -> Optional[Reason]:
 
 def scan_sentence_for_evidence(
     text: str, reporting_year: int, is_strict_derivative: bool
-) -> Set[Reason]:
-    """Scan a sentence and return all applicable evidence tags."""
-    evidence = set()
+) -> Optional[Reason]:
+    """
+    Scan a sentence and return the HIGHEST PRIORITY evidence tag.
+    Returns only ONE tag per sentence based on the survival hierarchy.
+    """
     if SKIP_TOKEN in text:
-        return evidence
+        return None
     
-    # TIER 1: STRONG
+    # TIER 1: STRONG (highest priority)
     if q := check_quantitative_evidence(text, reporting_year, is_strict_derivative):
-        evidence.add(q)
-    elif as_year := check_active_state_year(text, reporting_year, is_strict_derivative):
-        evidence.add(as_year)
-    elif mat := check_future_maturity(text, reporting_year, is_strict_derivative):
-        evidence.add(mat)
+        return q
+    if as_year := check_active_state_year(text, reporting_year, is_strict_derivative):
+        return as_year
+    if mat := check_future_maturity(text, reporting_year, is_strict_derivative):
+        return mat
 
     # TIER 1.5: FLOW
-    elif act := check_transaction_action(text, reporting_year, is_strict_derivative):
-        evidence.add(act)
+    if act := check_transaction_action(text, reporting_year, is_strict_derivative):
+        return act
 
     # TIER 2: MEDIUM
-    elif loc := check_balance_sheet_location(text):
-        evidence.add(loc)
-    elif val := check_valuation_context(text):
-        evidence.add(val)
-    elif gen := check_active_state_general(text, is_strict_derivative):
-        evidence.add(gen)
+    if loc := check_balance_sheet_location(text):
+        return loc
+    if val := check_valuation_context(text):
+        return val
+    if gen := check_active_state_general(text, is_strict_derivative):
+        return gen
 
-    # TIER 4: FLUFF
-    elif term := check_remaining_term(text):
-        evidence.add(term)
-    elif pnl := check_pnl_context(text, is_strict_derivative):
-        evidence.add(pnl)
-    elif other := mark_sentence_as_other(text):
-        evidence.add(other)
-
-    return evidence
+    # TIER 3: FLUFF (lowest priority)
+    if term := check_remaining_term(text):
+        return term
+    if pnl := check_pnl_context(text, is_strict_derivative):
+        return pnl
+    
+    # TIER 4: OTHER (catch-all)
+    other = mark_sentence_as_other(text)
+    if other:
+        return other
+    
+    return None
 
 
 # =============================================================================
@@ -528,13 +533,17 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     Tag a paragraph with evidence and evaluate dominance.
 
     Process:
-    1. Mask text for logic checks
-    2. Check if global strict derivative
-    3. Split into sentences
-    4. Scan each sentence for evidence
-    5. Parse existing noise tags
-    6. Evaluate dominance hierarchy
+    1. Parse existing tags from the whole paragraph
+    2. Mask text for logic checks
+    3. Check if global strict derivative
+    4. Split into sentences
+    5. Scan ONLY untagged sentences for evidence
+    6. Aggregate evidence from untagged sentences
+    7. Evaluate dominance hierarchy using paragraph context
     """
+    # First, parse any existing tags from the whole paragraph for context
+    _, existing_paragraph_noise = parse_existing_tags(text)
+    
     masked_text = _cleaner.clean(text)
     is_strict_derivative = check_derivative_global(masked_text)
 
@@ -550,23 +559,24 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     if len(original_sentences) != len(masked_sentences):
         masked_sentences = original_sentences
 
-    # Aggregate evidence and noise across all sentences
+    # Aggregate evidence only from untagged sentences
     all_evidence = set()
-    all_noise = set()
 
     for orig, masked in zip(original_sentences, masked_sentences):
-        # Parse existing noise tags from prefilter step
-        _, existing_noise = parse_existing_tags(orig)
-        all_noise.update(existing_noise)
+        # Parse existing tags from this sentence
+        clean_sent, existing_noise = parse_existing_tags(orig)
+        
+        # Only scan sentences that have NO existing tags
+        if not existing_noise:
+            # Scan for evidence - returns single tag or None
+            evidence = scan_sentence_for_evidence(
+                masked, reporting_year, is_strict_derivative
+            )
+            if evidence:
+                all_evidence.add(evidence)
 
-        # Scan for evidence
-        evidence = scan_sentence_for_evidence(
-            masked, reporting_year, is_strict_derivative
-        )
-        all_evidence.update(evidence)
-
-    # Evaluate dominance and return
-    return evaluate_dominance(text, all_evidence, all_noise)
+    # Evaluate dominance using paragraph-level noise tags and aggregated evidence
+    return evaluate_dominance(text, all_evidence, existing_paragraph_noise)
 
 
 # =============================================================================
