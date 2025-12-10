@@ -548,4 +548,4 @@ class TableToTextConverter:
                         f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
                     )
 
-        return (sentences, True)
+        return (sentences, False)

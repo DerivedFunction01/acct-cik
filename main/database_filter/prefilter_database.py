@@ -220,38 +220,6 @@ def strip_table_formatting(
     return re.sub(r"\s+", " ", result).strip(), excluded_rows
 
 
-def is_text_container_table(table_text: str, footnotes: List[str]) -> bool:
-    """
-    Determines if a table should be unwrapped to text or kept as <TABLE>.
-
-    Returns: True if table should be UNWRAPPED, False if it should be KEPT
-
-    Logic:
-    - If table is invalid (no numerical cells) → unwrap (return True)
-    - If table is valid non-derivative → don't unwrap, discard instead (return False)
-    - If table is valid derivative → don't unwrap, keep as table (return False)
-    """
-    if not TableToTextConverter:
-        return True
-
-    context_str = " ".join(footnotes)
-    try:
-        converter = TableToTextConverter(
-            table_text, narrative_context=context_str, is_sophisticated=True
-        )
-
-        # Check if it's a valid table and whether it should be unwrapped
-        is_derivative, should_unwrap = converter.is_valid_table()
-
-        # Return True (unwrap) only if explicitly marked as should_unwrap
-        # Return False (keep/discard) if it's a structurally valid table
-        return should_unwrap
-
-    except Exception:
-        # On error, default to unwrap (safer fallback)
-        return True
-
-
 # =============================================================================
 # WORKER LOGIC
 # =============================================================================
@@ -394,7 +362,7 @@ def process_table(
         converter = TableToTextConverter(
             cleaned_table, narrative_context=" ".join(footnotes), is_sophisticated=True
         )
-        is_derivative, should_unwrap = converter.is_valid_table()
+        is_derivative, should_unwrap = converter.process()
     except Exception:
         local_discards.append((url, p[:100], "table_analysis_failed"))
         return False
