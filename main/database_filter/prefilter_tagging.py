@@ -270,7 +270,7 @@ def process_row(row):
     new_paragraphs = []
     for p in paragraphs:
         # Respect existing tags from previous steps (Prefilter Simple Nonuse)
-        if p.startswith(DEADWEIGHT_TOKEN):
+        if DEADWEIGHT_TOKEN in p:
             new_paragraphs.append(p)
             continue
 
