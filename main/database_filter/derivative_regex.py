@@ -3385,7 +3385,7 @@ TERMINATION_VERBS = [
     rf"(?<!{_settle_lookbehind}\s)settl(?:e(?:d)|ing)",
     r"sold",
     r"wind(?:ing)?\s+down",
-    r"dispos((?:e(?:d|s)?|ing)",
+    r"dispos(?:e(?:d|s)?|ing)",
     r"derecogni[sz](?:e|ed|ing)",
     r"divest(?:ed|s|ing)?",
     r"preterminat(?:e(?:d|s)?|ing)",
