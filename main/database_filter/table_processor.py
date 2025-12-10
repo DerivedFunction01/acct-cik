@@ -467,11 +467,21 @@ class TableToTextConverter:
             full_instrument_name = cand["name"]
             row_implies_notional = cand["implies_notional"]
 
+            expiration_str = ""
+            for i, cell_val in enumerate(row[1:], start=1):
+                if self.col_map.get(i) == "metadata_maturity":
+                    # Simple regex to find a year (2020-2099)
+                    # We look for the LAST year mentioned in the cell (often ranges like 2024-2026)
+                    years = YEAR_REGEX.findall(cell_val)
+                    if years:
+                        # Take the max year found (assumes maturity is the end date)
+                        expiration_str = f" (expiring in {max(years)})"
+
             for i, cell_val in enumerate(row[1:], start=1):
                 col_type = self.col_map.get(i)
                 if (
                     not col_type
-                    or col_type == "context_text"
+                    or col_type in ["context_text", "metadata_maturity"]
                     or not self._is_valid_value(cell_val)
                 ):
                     continue
@@ -489,21 +499,24 @@ class TableToTextConverter:
                 base_type = "_".join(parts)
                 value = self.normalize_value(clean_val)
 
+                # Append expiration information (if present) to the instrument name
+                display_instrument = f"{full_instrument_name}{expiration_str}"
+
                 if "notional" in base_type or row_implies_notional:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a notional amount of {value}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {display_instrument} with a notional amount of {value}."
                     )
                 elif "fair_value" in base_type:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a fair value of {value}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {display_instrument} with a fair value of {value}."
                     )
                 elif base_type == "value":
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with a value of {value}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {display_instrument} with a value of {value}."
                     )
                 else:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {full_instrument_name} with an amount of {value}."
+                        f"{TABLE_ANCHOR} {year_str}The Company held {display_instrument} with an amount of {value}."
                     )
 
         return sentences
