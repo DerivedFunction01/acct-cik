@@ -243,7 +243,6 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     else:
         for s in surviving_text_parts:
             if HEDGING_CONTEXT_REGEX.search(s) or DER_STD_REGEX.search(s):
-                if LOOSE_GEN_REGEX.search(s):
                     has_signal = True
                     break
 
