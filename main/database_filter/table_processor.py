@@ -179,7 +179,7 @@ class TableToTextConverter:
 
         # Find <S> marker line
         marker_line = None
-        marker_line_idx = None
+        marker_line_idx = 0
         for i, line in enumerate(lines):
             if "<S>" in line:
                 marker_line = line
