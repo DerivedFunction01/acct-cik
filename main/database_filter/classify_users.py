@@ -251,7 +251,7 @@ def process_row(row: Tuple) -> Tuple:
     # --- SINGLE PASS Processing ---
     for p in paragraphs:
         # 1. Document Level Checks
-        if TRADING_VENUE_REGEX.search(p):
+        if not mentions_venue and TRADING_VENUE_REGEX.search(p):
             mentions_venue = True
 
         # 2. Parse Tags ONCE
