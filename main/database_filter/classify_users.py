@@ -10,10 +10,11 @@ from typing import Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from derivative_regex import (
-    GEN_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
+    CURRENCY_NAMES_REGEX, GEN_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
     IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
+from main.database_filter.table_processor import TABLE_ANCHOR
 from prefilter_database import is_sophisticated_target
 from prefiltered_lib import MinimalTextCleaner, NoiseReason
 
@@ -125,7 +126,23 @@ def extract_categories_strict(sentence: str) -> Set[str]:
         cats.add("warr")
     elif EQ_REGEX.search(sentence):
         cats.add("eq")
-
+    if not cats and TABLE_ANCHOR in sentence:
+        if CURRENCY_NAMES_REGEX.search(sentence):
+            cats.add("fx")
+        elif FX_SOFT_REGEX.search(sentence):
+            cats.add("fx")
+        elif IR_SOFT_REGEX.search(sentence):
+            cats.add("ir")
+        elif CP_SOFT_REGEX.search(sentence):
+            cats.add("cp")
+        elif CR_SOFT_REGEX.search(sentence):
+            cats.add("cr")
+        elif is_sophisticated_target(sentence):
+            cats.add("warr")
+        elif EQ_SOFT_REGEX.search(sentence):
+            cats.add("eq")
+        else:
+            cats.add("gen")
     return cats
 
 
