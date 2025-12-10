@@ -16,7 +16,7 @@ from derivative_regex import (
 )
 from main.database_filter.table_processor import TABLE_ANCHOR
 from prefilter_database import is_sophisticated_target
-from prefiltered_lib import MinimalTextCleaner, NoiseReason
+from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason
 
 # =============================================================================
 # CONFIGURATION
@@ -115,9 +115,9 @@ def parse_tags(text: str) -> Tuple[bool, Optional[str], str]:
         tag_type = match.group(1)
         tag_reason = match.group(2)
         clean_text = match.group(3)
-        is_deadweight = (tag_type == "_D")
+        is_deadweight = tag_type in [DEADWEIGHT_TOKEN, SKIP_TOKEN]
         return is_deadweight, tag_reason, clean_text
-    
+
     return False, None, text
 
 
