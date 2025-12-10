@@ -449,54 +449,38 @@ def scan_sentence_for_evidence(
 # =============================================================================
 
 
-def apply_tags(
-    text: str, evidence_tags: Set[EvidenceReason], noise_tags: Set[NoiseReason]
-) -> str:
-    """Apply evidence and noise tags to text."""
-    e_str = " ".join(
-        [
-            get_tag(EVIDENCE_TOKEN, t)
-            for t in sorted(evidence_tags, key=lambda x: x.value)
-        ]
-    )
-    n_str = " ".join(
-        [get_tag(SKIP_TOKEN, t) for t in sorted(noise_tags, key=lambda x: x.value)]
-    )
+def should_mark_deadweight(evidence_tags: set, noise_tags: set) -> bool:
+    """
+    Determine if paragraph should be marked as deadweight based on dominance hierarchy.
+    Returns True if paragraph should be marked deadweight, False if it survives.
+    """
+    # STRONG evidence always survives
+    if not evidence_tags.isdisjoint(STRONG_EVIDENCE):
+        return False
 
-    prefix = f"{e_str} {n_str}".strip()
+    # FLOW evidence survives unless killed by FLOW_KILLERS
+    if not evidence_tags.isdisjoint(FLOW_EVIDENCE):
+        return not noise_tags.isdisjoint(FLOW_KILLERS)
 
-    if prefix:
-        return f"{prefix} {text}"
-    return text
+    # TIME_KILLED evidence survives unless killed by TIME_KILLERS
+    if not evidence_tags.isdisjoint(TIME_KILLED_EVIDENCE):
+        return not noise_tags.isdisjoint(TIME_KILLERS)
+
+    # POLICY_KILLED evidence survives unless killed by POLICY_KILLERS
+    if not evidence_tags.isdisjoint(POLICY_KILLED_EVIDENCE):
+        return not noise_tags.isdisjoint(POLICY_KILLERS)
+
+    # FLUFF evidence survives only if there are no noise tags
+    if not evidence_tags.isdisjoint(FLUFF_EVIDENCE):
+        return bool(noise_tags)
+
+    # No evidence = deadweight
+    return True
 
 
 def mark_as_deadweight(text: str, reason: NoiseReason) -> str:
     """Mark paragraph as deadweight."""
     return f"{get_tag(DEADWEIGHT_TOKEN, reason)} {text}"
-
-
-def evaluate_dominance(text: str, evidence_tags: set, noise_tags: set) -> str:
-    """Decide final fate based on Survival Hierarchy."""
-    if not evidence_tags.isdisjoint(STRONG_EVIDENCE):
-        return apply_tags(text, evidence_tags, noise_tags)
-
-    if not evidence_tags.isdisjoint(FLOW_EVIDENCE):
-        if noise_tags.isdisjoint(FLOW_KILLERS):
-            return apply_tags(text, evidence_tags, noise_tags)
-
-    if not evidence_tags.isdisjoint(TIME_KILLED_EVIDENCE):
-        if noise_tags.isdisjoint(TIME_KILLERS):
-            return apply_tags(text, evidence_tags, noise_tags)
-
-    if not evidence_tags.isdisjoint(POLICY_KILLED_EVIDENCE):
-        if noise_tags.isdisjoint(POLICY_KILLERS):
-            return apply_tags(text, evidence_tags, noise_tags)
-
-    if not evidence_tags.isdisjoint(FLUFF_EVIDENCE):
-        if not noise_tags:
-            return apply_tags(text, evidence_tags, set())
-
-    return mark_as_deadweight(text, NoiseReason.ANLZ)
 
 
 def parse_existing_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
@@ -530,18 +514,16 @@ def parse_existing_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
 
 def tag_paragraph(text: str, reporting_year: int) -> str:
     """
-    Tag a paragraph with evidence and evaluate dominance.
+    Tag untagged sentences with evidence and mark paragraph as deadweight if needed.
 
     Process:
-    1. Parse existing tags from the whole paragraph
-    2. Mask text for logic checks
-    3. Check if global strict derivative
-    4. Split into sentences
-    5. Scan ONLY untagged sentences for evidence
-    6. Aggregate evidence from untagged sentences
-    7. Evaluate dominance hierarchy using paragraph context
+    1. Parse existing noise tags from paragraph
+    2. Split into sentences
+    3. Tag ONLY untagged sentences with their evidence
+    4. Collect evidence for dominance check
+    5. Mark paragraph as deadweight if it should be killed
     """
-    # First, parse any existing tags from the whole paragraph for context
+    # Parse any existing noise tags from the paragraph for dominance evaluation
     _, existing_paragraph_noise = parse_existing_tags(text)
     
     masked_text = _cleaner.clean(text)
@@ -559,14 +541,15 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     if len(original_sentences) != len(masked_sentences):
         masked_sentences = original_sentences
 
-    # Aggregate evidence only from untagged sentences
+    # Process sentences: tag untagged ones, collect evidence
+    tagged_sentences = []
     all_evidence = set()
 
     for orig, masked in zip(original_sentences, masked_sentences):
         # Parse existing tags from this sentence
         clean_sent, existing_noise = parse_existing_tags(orig)
         
-        # Only scan sentences that have NO existing tags
+        # Only scan and tag sentences that have NO existing tags
         if not existing_noise:
             # Scan for evidence - returns single tag or None
             evidence = scan_sentence_for_evidence(
@@ -574,9 +557,23 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             )
             if evidence:
                 all_evidence.add(evidence)
+                # Tag this sentence with the evidence
+                tagged_sent = f"{get_tag(EVIDENCE_TOKEN, evidence)} {orig}"
+                tagged_sentences.append(tagged_sent)
+            else:
+                tagged_sentences.append(orig)
+        else:
+            # Already tagged, keep as-is
+            tagged_sentences.append(orig)
 
-    # Evaluate dominance using paragraph-level noise tags and aggregated evidence
-    return evaluate_dominance(text, all_evidence, existing_paragraph_noise)
+    # Reconstruct paragraph with tagged sentences
+    tagged_paragraph = " ".join(tagged_sentences)
+
+    # Check if paragraph should be marked deadweight
+    if should_mark_deadweight(all_evidence, existing_paragraph_noise):
+        return mark_as_deadweight(tagged_paragraph, NoiseReason.ANLZ)
+    
+    return tagged_paragraph
 
 
 # =============================================================================
