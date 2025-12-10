@@ -4198,7 +4198,7 @@ _COMMODITY_NAMES = build_alternation(COMMON_COMMODITIES)
 # Only include them if attached to "price", "cost", "risk", "hedge", or "swap".
 CP_STRICT_TERMS = [
     # General terms
-    rf"(?:cost|price)\s+{_RISK_ALTERNATION}",
+    rf"(?:{_COMMODITY_NAMES})\s+(?:cost|price)\s+{_RISK_ALTERNATION}",
     r"raw\s+material\s+costs?",
     r"fuel\s+surcharges?",
     # Specific Commodity + Financial Modifier
@@ -4207,6 +4207,7 @@ CP_STRICT_TERMS = [
     # Financial Modifier + Specific Commodity
     # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
     rf"{_RISK_ALTERNATION}\s+of\s+(?:{_COMMODITY_NAMES})",
+    rf"physical\s+deliver(?:y|ies)",
 ]
 
 # Focus: Convertibles, Warrants, Valuation Models, and Equity Risk
