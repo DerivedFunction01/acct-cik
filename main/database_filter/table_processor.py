@@ -135,7 +135,7 @@ class TableToTextConverter:
         return header_cells, data_cells
 
     def _extract_caption(self, text: str) -> str:
-        match = re.search(r"<caption>\s*(.*?)\n\n", text, re.IGNORECASE | re.DOTALL)
+        match = re.search(r"<caption>\s*(.*?)(?=\n\n|[-=])", text, re.IGNORECASE | re.DOTALL)
         if match:
             caption_text = match.group(1).strip()
             caption_text = re.sub(r"\s+", " ", caption_text)
