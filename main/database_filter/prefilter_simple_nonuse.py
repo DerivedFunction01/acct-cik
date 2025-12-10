@@ -67,10 +67,8 @@ def is_meaningful_quant(sentence: str, reporting_year: Optional[int]) -> bool:
     - Only zeros/nil/immaterial -> False
     - At least one positive number -> True
     """
-    # Clean numeric noise first so extract_values_and_years() works correctly
-    cleaned_sent = _cleaner.clean_for_quant_analysis(sentence)
 
-    years, values = extract_values_and_years(cleaned_sent)
+    years, values = extract_values_and_years(sentence)
 
     # No numbers at all
     if not values:
@@ -78,7 +76,7 @@ def is_meaningful_quant(sentence: str, reporting_year: Optional[int]) -> bool:
 
     # Has numbers, but are they all zero?
     is_zero_garbage = check_is_quantitative_zero(
-        cleaned_sent, reporting_year if reporting_year else 0
+        sentence, reporting_year if reporting_year else 0
     )
     if is_zero_garbage:
         return False
@@ -107,8 +105,7 @@ def check_refinement_exclusions(
         """
         if not reporting_year:
             return True
-        text = _cleaner.clean_numerics(sentence, remove_years=False)
-        sent_years = extract_years(text)
+        sent_years = extract_years(sentence)
         if not sent_years:
             return True
         if any(y >= reporting_year for y in sent_years):
@@ -122,7 +119,6 @@ def check_refinement_exclusions(
         """
         if not reporting_year:
             return False
-        text = _cleaner.clean_numerics(text, remove_years=False)
         all_years = extract_years(text)
         if not all_years:
             return False
@@ -251,7 +247,7 @@ def check_refinement_exclusions(
     # A. Quantitative Safety (Immediate Keep) after termination and aoci
     elif meaningful_quant_count > 0:
         return None, modified_text
-    
+
     elif (
         hedging_sentence_count == hedging_sentences_neg
         and hedging_sentence_count > 0
@@ -295,44 +291,43 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
     Checks for general deadweight categories (Policy, History, etc.).
     Returns the specific tag string if excluded, else None.
     """
-    temp_text = _cleaner.clean_numerics(text, remove_years=False)
     # B. Historical Check
     if year:
-        all_years = [int(y) for y in YEAR_REGEX.findall(temp_text)]
+        all_years = [int(y) for y in YEAR_REGEX.findall(text)]
         if all_years and all(y < year for y in all_years):
-            if not ACTIVE_STATE_REGEX.search(temp_text):
+            if not ACTIVE_STATE_REGEX.search(text):
                 return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HIST_BLOCK)
             
     # Commodity check: is it refering to a derivative?
-    if CP_SOFT_REGEX.search(temp_text) and not CP_REGEX.search(temp_text):
-        if not find_hedging_context(temp_text):
+    if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
+        if not find_hedging_context(text):
             return get_tag(DEADWEIGHT_TOKEN, NoiseReason.NC)
 
     # --- 2. SAFEGUARDS (The "Active User" Signals) ---
 
     # A. Quantitative Check
-    if is_meaningful_quant(temp_text, year):
+    if is_meaningful_quant(text, year):
         return None
 
     # B. Active Action Check
-    if STRONG_POSSESSION_REGEX.search(temp_text):
+    if STRONG_POSSESSION_REGEX.search(text):
         return None
 
     # --- 3. SOFT KILLS (Run AFTER Verbs) ---
 
     # A. Policy & Methodology
-    if HEDGE_DOC_REGEX.search(temp_text):
+    if HEDGE_DOC_REGEX.search(text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.POLICY)
 
     # B. AOCI / PnL Lists (Moved here to allow safeguards to protect active positions)
-    if AOCI_NOISE_REGEX.search(temp_text):
+    if AOCI_NOISE_REGEX.search(text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.AOCI)
 
-    if PNL_CONTEXT_REGEX.search(temp_text) and not VALUATION_MODELS_REGEX.search(temp_text):
+    if PNL_CONTEXT_REGEX.search(text) and not VALUATION_MODELS_REGEX.search(text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.PNL)
 
     # C. Counterparty / Credit Risk (With exemption for explicit credit derivatives)
-    if COUNTERPARTY_REGEX.search(temp_text) and not CR_REGEX.search(temp_text):
+    if COUNTERPARTY_REGEX.search(text) and not CR_REGEX.search(text):
         return get_tag(DEADWEIGHT_TOKEN, NoiseReason.CREDIT)
 
     return None
@@ -366,8 +361,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
         # B. Masked (For Logic Checks)
         # replaces "JPM" -> "_E", cleans layout for regex safety
-        p_masked = _cleaner.clean_entities(p)
-        # Note: clean_entities calls normalize_whitespace internally
+        p_masked = _cleaner.clean_for_quant_analysis(p)
 
         # 2. Level 2 Filter (Pass BOTH)
         # We logic-check p_masked, but we insert tags into p_norm
