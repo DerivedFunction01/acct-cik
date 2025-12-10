@@ -35,9 +35,12 @@ GAIN_LOSS_HEADERS = re.compile(
 )
 LOCATION_HEADERS = re.compile(r"location|sheet|line item", re.IGNORECASE)
 NOISE_HEADERS = re.compile(
-    r"strike|exercise|shares|units|count|ratio|rate|maturity|date|weighted",
+    r"strike|exercise|shares|units|count|ratio|rate|date|weighted",
     re.IGNORECASE,
 )
+
+# ADD new Definition
+MATURITY_HEADERS = re.compile(r"maturity|expiration", re.IGNORECASE)
 SECTION_KEYWORDS = re.compile(
     r"designated as|hedging instruments|underlying risk|derivatives not designated|"
     r"cash flow|fair value|net investment|assets|liabilities|equity contracts|warrants|"
