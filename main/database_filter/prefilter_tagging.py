@@ -93,7 +93,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     but preserves original text for context.
     """
 
-    masked_text = _cleaner.clean_entities(text)
+    masked_text = _cleaner.clean(text)
 
     original_sentences = [
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
@@ -143,8 +143,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         # --- D. Classification Killers (Logic Helpers) ---
         if not reason:
             if reporting_year:
-                text_clean = _cleaner.clean_numerics(masked, remove_years=False)
-                years = [int(y) for y in YEAR_REGEX.findall(text_clean)]
+                years = [int(y) for y in YEAR_REGEX.findall(text)]
                 if years and all(y < reporting_year for y in years):
                     if not ACTIVE_STATE_REGEX.search(masked):
                         reason = NoiseReason.TIME.value
