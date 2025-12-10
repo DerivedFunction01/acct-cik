@@ -139,10 +139,6 @@ def get_paragraph_level_reason(text: str, reporting_year: int) -> Optional[Noise
             if not ACTIVE_STATE_REGEX.search(text):
                 return NoiseReason.HIST_BLOCK
 
-    # 2. Boilerplate / Trading Denial Block
-    if TRADING_STATEMENTS_REGEX.search(text) and len(text) < 150:
-        return NoiseReason.TRADING
-
     return None
 
 
