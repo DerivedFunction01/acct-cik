@@ -54,9 +54,9 @@ SOPHISTICATED_TARGETS = re.compile(
 
 TABLE_ANCHOR = " T_ "
 
-
+caption_regex = re.compile(r"<caption>\s*(.*?)(?=\n\n|[-=])", re.DOTALL | re.IGNORECASE)
 class TableToTextConverter:
-
+    
     def __init__(
         self,
         table_text: str,
@@ -94,6 +94,7 @@ class TableToTextConverter:
     def extract_table_content(
         self, table_text: str
     ) -> Tuple[List[List[str]], List[List[str]]]:
+        table_text = caption_regex.sub("", table_text)
         lines = table_text.split("\n")
         content_rows = []
 
@@ -135,7 +136,7 @@ class TableToTextConverter:
         return header_cells, data_cells
 
     def _extract_caption(self, text: str) -> str:
-        match = re.search(r"<caption>\s*(.*?)(?=\n\n|[-=])", text, re.IGNORECASE | re.DOTALL)
+        match = caption_regex.search(text)
         if match:
             caption_text = match.group(1).strip()
             caption_text = re.sub(r"\s+", " ", caption_text)
