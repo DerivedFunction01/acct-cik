@@ -447,7 +447,7 @@ class TableToTextConverter:
         for cand in candidate_rows:
 
             should_keep = False
-
+            soph = False
             # 1. Strict / Strong Signals -> Always Keep
             if (
                 cand["is_strict"]
@@ -477,8 +477,9 @@ class TableToTextConverter:
                     # Therefore, if NO base, we drop it.
 
             # 3. Sophisticated Exception (Warrants/Convertibles)
-            if not should_keep and self.is_sophisticated:
-                if SOPHISTICATED_TARGETS.search(cand["name"]):
+            if SOPHISTICATED_TARGETS.search(cand["name"]):
+                soph = True
+                if not should_keep and self.is_sophisticated:
                     should_keep = True
 
             if not should_keep:
@@ -527,22 +528,23 @@ class TableToTextConverter:
 
                 # Append expiration information (if present) to the instrument name
                 display_instrument = f"{full_instrument_name}{expiration_str}"
-
+                use_anchor = table_is_anchored and not soph # if table is anchored, use it
+                anchor_text = TABLE_ANCHOR if use_anchor else ''
                 if "notional" in base_type or row_implies_notional:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {display_instrument} with a notional amount of {value}."
+                        f"{anchor_text} {year_str}The Company held {display_instrument} with a notional amount of {value}."
                     )
                 elif "fair_value" in base_type:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {display_instrument} with a fair value of {value}."
+                        f"{anchor_text} {year_str}The Company held {display_instrument} with a fair value of {value}."
                     )
                 elif base_type == "value":
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {display_instrument} with a value of {value}."
+                        f"{anchor_text} {year_str}The Company held {display_instrument} with a value of {value}."
                     )
                 else:
                     sentences.append(
-                        f"{TABLE_ANCHOR} {year_str}The Company held {display_instrument} with an amount of {value}."
+                        f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
                     )
 
         return sentences
