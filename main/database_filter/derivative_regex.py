@@ -3366,6 +3366,7 @@ TERMINATION_VERBS = [
     r"ceas(?:e(?:d|s)?|ing)",  # Matches: cease, ceased
     r"retir(?:e(?:d|s)?|ing)",  # Matches: retire, retired.
     r"clos(?:e(?:d|s)?|ing)(?!\s+(?:price|rate|date|balance|value))",
+    r"liquidat(?:e(?:d|s)?|ing)",  # Matches: liquidate, liquidated.  STOPS: liquidation
     r"unwound",
     r"unwind",
     r"exercis(?:e(?:d|s)?|ing)",  # Matches: exercise, exercised.        STOPS: exercisable
@@ -3383,6 +3384,15 @@ TERMINATION_VERBS = [
     # --- SAFEGUARDED SETTLEMENT (From previous turn) ---
     rf"(?<!{_settle_lookbehind}\s)settl(?:e(?:d)|ing)",
     r"sold",
+    r"wind(?:ing)?\s+down",
+    r"dispos((?:e(?:d|s)?|ing)",
+    r"derecogni[sz](?:e|ed|ing)",
+    r"divest(?:ed|s|ing)?",
+    r"preterminat(?:e(?:d|s)?|ing)",
+    r"accelerat(?:e(?:d|s)?|ing)",
+    r"relinquish(?:ed|es|ing)?",
+    r"lapse(?:d|s|ing)?",
+    r"forfeit(?:ed|s|ing)?",
 ]
 TERMINATION_NOUNS = [
     # --- STATES (Strongest) ---
@@ -3404,6 +3414,15 @@ TERMINATION_NOUNS = [
     r"cessation",  # Matches: cessation
     r"closure",  # Matches: closure
     r"exit",  # Matches: exit (noun form)
+    r"liquidation",
+    r"forfeiture",
+    r"acceleration",
+    r"close[- ]?out",
+    r"lapse",
+    r"forfeiture",
+    r"derecognition",
+    r"wind[- ]?down",
+    
 ]
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
