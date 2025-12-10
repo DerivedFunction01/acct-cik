@@ -3268,7 +3268,7 @@ def cleanup_fragment(sentence: str) -> str:
 # =============================================================================
 
 # Transaction verbs (Action)
-_TRANSACTION_VERBS = [r"enter", r"engage", r"transact", r"perform"]
+_TRANSACTION_VERBS = [r"enter", r"engage", r"transact", r"perform", r"chooses?"]
 _TRANSACTION_PATTERN = build_alternation(_TRANSACTION_VERBS)
 
 # Combined intent verbs: standard (hold, use, hedge) + transaction (enter, engage)
@@ -3287,6 +3287,7 @@ SPECULATIVE_PHRASES = [
     r"believes?",
     r"(?:may|might)\s+consider",
     r"when\s+(?:deemed\s+)?necessary",
+    r"when\s+(?:chosen|choosed)",
     r"expects?\s+that",
     r"(?!not )prevent",
 ]

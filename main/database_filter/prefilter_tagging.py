@@ -340,6 +340,7 @@ def flush_buffers(conn, buffer):
         return
     c = conn.cursor()
     try:
+        c.execute("BEGIN TRANSACTION")
         # Buffer is list of (url, matches, categories, cik, year)
         # url = 0, matches = 1,  cik = 2, year = 3
         c.executemany(
@@ -350,6 +351,7 @@ def flush_buffers(conn, buffer):
             "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
             [(r[0], r[2], r[3]) for r in buffer],
         )
+        conn.commit()
     except Exception as e:
         print(f"❌ Write Error: {e}")
         conn.rollback()
