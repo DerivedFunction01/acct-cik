@@ -27,7 +27,7 @@ SOURCE_DB_PATH = "tagged_data.db"
 TARGET_DB_PATH = "classified_data.db"
 
 # Tag Parsing
-TAG_PARSER_STRICT = re.compile(r"^\s*(_[SD])<([^>]+)>\s+(.*)", re.DOTALL)
+TAG_PARSER_STRICT = re.compile(r"^\s*(_[SDE])<([^>]+)>\s+(.*)", re.DOTALL)
 EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
 
 # Evidence that elevates soft mentions to strict (unambiguous subject)
