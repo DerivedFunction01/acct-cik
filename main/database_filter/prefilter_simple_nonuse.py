@@ -503,8 +503,8 @@ if __name__ == "__main__":
             if not result:
                 continue
 
-            url, matches, categories, cik, year, discards = result
-            buffer_res.append((url, matches, categories, cik, year))
+            url, matches, cik, year, discards = result
+            buffer_res.append((url, matches, cik, year))
             if discards:
                 buffer_disc.extend(discards)
 
