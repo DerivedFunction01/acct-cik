@@ -50,7 +50,7 @@ Each phase **preserves all text** but adds metadata (tags) to indicate what shou
 **Key actions:**
 
 1. **Keyword Detection** - Find paragraphs mentioning derivatives
-   - Uses SOFT_REGEX (soft terms like "swap", "derivative") and STRICT_REGEX
+   - Uses SOFT_REGEX (soft terms like "natural gas contracts", "equity option") and STRICT_REGEX (full confidence it is a derivative)
    - Extracts candidate text
 
 2. **Entity Masking** - Replace company/org names with placeholders
