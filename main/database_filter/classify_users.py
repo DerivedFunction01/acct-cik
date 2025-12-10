@@ -183,17 +183,17 @@ def remove_outlier_categories(
     """
     if not soft_cats:
         return set()
-    
+
     if not strict_cats:
         # No strict anchors, use soft that meet absolute threshold
         return {
             cat for cat, count in soft_cats.items()
             if count >= min_mentions
         }
-    
+
     # Calculate threshold
     threshold = max(min_mentions, 1 * threshold_pct)
-    
+
     # Keep soft categories that meet threshold
     return {
         cat for cat, count in soft_cats.items()
@@ -204,22 +204,19 @@ def remove_outlier_categories(
 # MAIN PROCESSING
 # =============================================================================
 
+
 def process_row(row: Tuple) -> Tuple:
     """
     Process a single company document.
-    
     Returns: (url, categories_json, attributes_json, cik, year)
     """
     url, matches_json, cik, year = row
-    
+
     try:
         paragraphs = json.loads(matches_json)
     except (json.JSONDecodeError, TypeError):
         return (url, json.dumps([]), json.dumps({}), cik, year)
-    
-    if not isinstance(paragraphs, list):
-        return (url, json.dumps([]), json.dumps({}), cik, year)
-    
+
     # Initialize
     strict_categories = set()
     soft_categories = defaultdict(int)
@@ -233,80 +230,81 @@ def process_row(row: Tuple) -> Tuple:
     }
     mentions_venue = False
     tracker = GlobalInstrumentTracker()
-    
+
     # --- PASS 1: Collect strict mentions and build tracker ---
     for p in paragraphs:
         if TRADING_VENUE_REGEX.search(p):
             mentions_venue = True
-        
+
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         mine_attributes(para_tag_reason, attributes)
-        
-        if is_para_deadweight:
-            continue
-        
+
+        # Split sentences regardless of paragraph deadweight status
         sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()
         ]
-        
+
         for sent in sentences:
             is_sent_deadweight, sent_tag_reason, sent_content = parse_tags(sent)
             mine_attributes(sent_tag_reason, attributes)
-            
-            if is_sent_deadweight:
-                continue
-            
+
+            # Determine if this sentence counts as "Active Evidence"
+            is_active = not (is_para_deadweight or is_sent_deadweight)
+
             clean_sent = _cleaner.clean_entities(sent_content)
             strict_cats = extract_categories_strict(clean_sent)
-            
+
             if strict_cats:
+                # ACTION 1: ALWAYS Register to tracker (Learning Phase)
                 for cat in strict_cats:
                     tracker.register_paragraph(clean_sent, cat)
-                strict_categories.update(strict_cats)
-    
-    # --- PASS 2: Collect soft mentions ---
+
+                # ACTION 2: ONLY Count if active (Classification Phase)
+                if is_active:
+                    strict_categories.update(strict_cats)
+
+    # --- PASS 2: Collect soft mentions (Active Only) ---
     for p in paragraphs:
         is_para_deadweight, _, para_content = parse_tags(p)
-        
         if is_para_deadweight:
             continue
-        
+
         sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()
         ]
-        
+
         for sent in sentences:
             is_sent_deadweight, _, sent_content = parse_tags(sent)
-            
             if is_sent_deadweight:
                 continue
-            
+
             clean_sent = _cleaner.clean_entities(sent_content)
-            
-            # Skip if already has strict match
+
+            # Skip if already has strict match (handled in Pass 1)
             if extract_categories_strict(clean_sent):
                 continue
-            
+
             # Check for unambiguous evidence (elevates soft to strict)
             if has_unambiguous_evidence(sent_content):
                 soft_cats = extract_categories_soft(clean_sent)
                 if soft_cats:
                     for cat in soft_cats:
                         strict_categories.add(cat)
+                        # Register these promoted matches to tracker too
                         tracker.register_paragraph(clean_sent, cat)
                     continue
-            
-            # Try tracker first
+
+            # Try tracker first (Generic Resolution)
             tracker_cat = tracker.resolve_instrument(clean_sent)
             if tracker_cat:
                 soft_categories[tracker_cat] += 1
                 continue
-            
-            # Extract soft categories
+
+            # Extract soft categories (Ambiguous)
             soft_cats = extract_categories_soft(clean_sent)
             for cat in soft_cats:
                 soft_categories[cat] += 1
-    
+
     # --- PASS 3: Remove outlier soft categories ---
     valid_soft_cats = remove_outlier_categories(
         strict_categories,
@@ -314,24 +312,17 @@ def process_row(row: Tuple) -> Tuple:
         threshold_pct=0.10,
         min_mentions=3,
     )
-    
-    # --- COMBINE: Strict + Valid Soft ---
+
+    # --- COMBINE & FINALIZE ---
     final_categories = strict_categories.union(valid_soft_cats)
-    
-    # --- PASS 4: Determine is_trader ---
+
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
-    
-    # --- OUTPUT ---
+
     final_cat_list = sorted(list(final_categories))
-    
-    return (
-        url,
-        json.dumps(final_cat_list),
-        json.dumps(attributes),
-        cik,
-        year,
-    )
+
+    return (url, json.dumps(final_cat_list), json.dumps(attributes), cik, year)
+
 
 # =============================================================================
 # DATABASE
