@@ -344,7 +344,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     UPDATED: Now passes ALL firms through, even if they have 0 valid signals.
     Deadweight paragraphs are tagged, but the firm is NOT dropped.
     """
-    url, matches_json, cik, year, categories_json = item
+    url, matches_json, cik, year = item
     try:
         paragraphs = json.loads(matches_json)
     except:
@@ -392,7 +392,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             all_discards_log.append((url, processed_text, tag))
 
     # PASS EVERYTHING (No dropping)
-    return (url, json.dumps(modified_paragraphs), categories_json, cik, year, all_discards_log)
+    return (url, json.dumps(modified_paragraphs), cik, year, all_discards_log)
 
 
 def setup_target_db(path):
@@ -403,15 +403,6 @@ def setup_target_db(path):
     )
     c.execute(
         "CREATE TABLE IF NOT EXISTS report_data (url TEXT PRIMARY KEY, cik INTEGER, year INTEGER)"
-    )
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS category (
-            url TEXT PRIMARY KEY,
-            categories TEXT NOT NULL,  -- JSON array of category labels ['ir', 'fx', 'gen', ...]
-            FOREIGN KEY (url) REFERENCES webpage_result(url)
-        )
-        """
     )
     c.execute(
         "CREATE TABLE IF NOT EXISTS discarded_sentences (id INTEGER PRIMARY KEY, url TEXT, sentence TEXT, discard_reason TEXT)"
@@ -440,10 +431,9 @@ def get_source_data(source_path: str, processed_urls: Set[str]) -> List[Tuple]:
     c = conn.cursor()
     c.execute(
         """
-        SELECT w.url, w.matches, r.cik, r.year, c.categories
+        SELECT w.url, w.matches, r.cik, r.year
         FROM webpage_result w 
         LEFT JOIN report_data r ON w.url = r.url
-        LEFT JOIN category c ON w.url = c.url
         WHERE w.matches IS NOT NULL
         """
     )
@@ -462,18 +452,14 @@ def flush_buffers(conn, buffer, discards):
         c.execute("BEGIN TRANSACTION")
         if buffer:
             # Buffer is list of (url, matches, categories, cik, year)
-            # url = 0, matches = 1, categories = 2, cik = 3, year = 4
+            # url = 0, matches = 1, cik = 2, year = 3
             c.executemany(
                 "INSERT OR IGNORE INTO webpage_result (url, matches) VALUES (?, ?)",
                 [(r[0], r[1]) for r in buffer],
             )
             c.executemany(
                 "INSERT OR IGNORE INTO report_data (url, cik, year) VALUES (?, ?, ?)",
-                [(r[0], r[3], r[4]) for r in buffer],
-            )
-            c.executemany(
-                "INSERT OR IGNORE INTO category (url, categories) VALUES (?, ?)",
-                [(r[0], r[2]) for r in buffer],
+                [(r[0], r[2], r[3]) for r in buffer],
             )
         if discards:
             c.executemany(
