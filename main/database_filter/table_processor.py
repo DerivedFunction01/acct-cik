@@ -530,19 +530,15 @@ class TableToTextConverter:
                 actual_col_type = base_type
 
                 # If instrument mentions "gain" or "loss", it's OCI/income, not notional
-                if re.search(
-                    r"\b(gain|loss|income|earnings|oci|comprehensive)\b",
-                    display_instrument,
-                    re.IGNORECASE,
-                ):
+                if GAIN_LOSS_HEADERS.search(display_instrument):
                     actual_col_type = "gain_loss"
 
                 # If it mentions "fair value", force fair_value type
-                elif re.search(r"\bfair\s*value\b", display_instrument, re.IGNORECASE):
+                elif VALUE_HEADERS.search(display_instrument):
                     actual_col_type = "fair_value"
 
                 # If it mentions "notional", keep as notional
-                elif re.search(r"\bnotional\b", display_instrument, re.IGNORECASE):
+                elif STRONG_NOTIONAL_REGEX.search(display_instrument):
                     actual_col_type = "notional"
 
                 use_anchor = (
