@@ -59,14 +59,21 @@ class GlobalInstrumentTracker:
         "derivative",
         "derivatives",
     }
+    EMBEDDED_TERMS = {
+        "embedded",
+    }
+    
     def __init__(self):
         self.instrument_map = defaultdict(set)
-        self.embedded_regex = re.compile(r"\bembedded\b", re.IGNORECASE)
 
     def register_paragraph(self, sentence: str, category: str) -> None:
         """Register instruments found in sentence to category."""
-        if self.embedded_regex.search(sentence):
-            self.instrument_map["embedded"].add(category)
+        sentence_lower = sentence.lower()
+        
+        # Check for embedded terms
+        for term in self.EMBEDDED_TERMS:
+            if term in sentence_lower:
+                self.instrument_map[term].add(category)
 
         specific_matches = [m.group(0) for m in BASE_REGEX.finditer(sentence)]
 
@@ -79,8 +86,12 @@ class GlobalInstrumentTracker:
     def resolve_instrument(self, sentence: str) -> Optional[str]:
         """Returns category if sentence contains unambiguous known instrument."""
         matches = BASE_REGEX.findall(sentence)
-        if self.embedded_regex.search(sentence):
-            matches.append("embedded")
+        sentence_lower = sentence.lower()
+        
+        # Check for embedded terms
+        for term in self.EMBEDDED_TERMS:
+            if term in sentence_lower:
+                matches.append(term)
 
         candidates = set()
         for m in matches:
