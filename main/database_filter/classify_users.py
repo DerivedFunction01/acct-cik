@@ -10,11 +10,11 @@ from typing import Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from derivative_regex import (
-    CATEGORY_CONTEXT_MAP, CATEGORY_MAP, CURRENCY_NAMES_REGEX, GEN_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
+    CATEGORY_MAP, CURRENCY_NAMES_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
     IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
-    SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_CONTEXT_MAP, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
+    SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
-from main.database_filter.table_processor import TABLE_ANCHOR
+from table_processor import TABLE_ANCHOR
 from prefilter_database import is_sophisticated_content, is_sophisticated_target
 from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason
 
