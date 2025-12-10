@@ -4203,7 +4203,7 @@ CP_STRICT_TERMS = [
     r"fuel\s+surcharges?",
     # Financial Modifier + Specific Commodity
     # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
-    rf"{_RISK_ALTERNATION}\s+of\s+{_COMMODITY_NAMES}",
+    rf"{_RISK_ALTERNATION}(?:\s+\w+){0,3}{_COMMODITY_NAMES}",
     rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}", # natural gas inventory, etc
 ]
 
