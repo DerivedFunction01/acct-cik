@@ -325,7 +325,7 @@ class TableToTextConverter:
         except ValueError:
             return clean_val
 
-    def process(self) -> List[str]:
+    def process(self) -> Tuple[List[str], bool]:
         sentences = []
 
         # Check for Strong Notional in Columns (Explicit "Notional" only)
@@ -423,7 +423,8 @@ class TableToTextConverter:
                     "is_not_cp": is_ir or is_fx,
                 }
             )
-
+        if len(candidate_rows) == 0:
+            return ([], False)
         # --- GLOBAL SIGNAL CHECK ---
         table_is_anchored = (
             table_has_strong_row
@@ -547,98 +548,4 @@ class TableToTextConverter:
                         f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
                     )
 
-        return sentences
-
-    def is_valid_table(self) -> Tuple[bool, bool]:
-        """
-        Determines if this is a valid table and whether it should be unwrapped.
-        
-        Returns: (is_derivative_table, should_unwrap)
-        
-        Cases:
-        1. (True, False)   - Valid derivative table → KEEP as <TABLE>
-        2. (False, False)  - Valid non-derivative table (has numerical cells) → DISCARD
-        3. (False, True)   - Invalid/container table (no numerical cells) → UNWRAP to text
-        """
-
-        # 1. Check if table has any numerical financial cells
-        has_numerical_cells = False
-
-        for row in self.data:
-            if not row:
-                continue
-
-            if self._is_subheader_row(row):
-                continue
-
-            row_label = row[0].strip()
-            if not row_label or "total" in row_label.lower():
-                continue
-
-            # Check if any cell in this row is a valid numerical value
-            for i, cell_val in enumerate(row[1:], start=1):
-                col_type = self.col_map.get(i)
-                if col_type and col_type != "context_text" and self._is_valid_value(cell_val):
-                    has_numerical_cells = True
-                    break
-
-            if has_numerical_cells:
-                break
-
-        # If no numerical cells found → invalid/container table, should unwrap
-        if not has_numerical_cells:
-            return (False, True)
-
-        # 2. Now check if it's a derivative table (has derivative signals)
-
-        # Caption Check - Strong Signal
-        if self.caption_is_strong:
-            return (True, False)
-
-        # Column Check - Has notional or fair value columns
-        has_notional_col = any(
-            "notional" in str(v) for v in self.col_map.values()
-        ) or (self.table_default_type == "notional")
-
-        has_value_col = any(
-            "fair_value" in str(v) or "value" in str(v) 
-            for v in self.col_map.values()
-        )
-
-        if has_notional_col or has_value_col:
-            return (True, False)
-
-        # Row Check - Scan for derivative signals
-        for row in self.data:
-            if not row:
-                continue
-
-            if self._is_subheader_row(row):
-                continue
-
-            row_label = row[0].strip()
-            if not row_label or "total" in row_label.lower():
-                continue
-
-            # Build full instrument name
-            row = self._merge_row_values(row)
-            row_context_str = ""
-            for i, cell_val in enumerate(row[1:], start=1):
-                if self.col_map.get(i) == "context_text":
-                    clean_text = re.sub(r"\s+", " ", cell_val).strip()
-                    if clean_text and len(clean_text) > 2:
-                        row_context_str = f" ({clean_text})"
-
-            full_instrument_name = f"{row_label}{row_context_str}"
-
-            # Check derivative signals
-            is_strict = bool(STRICT_REGEX.search(full_instrument_name))
-            is_table_safe = bool(TABLE_REGEX.search(full_instrument_name))
-            row_implies_notional = bool(NOTIONAL_HEADERS.search(full_instrument_name))
-
-            if is_strict or is_table_safe or row_implies_notional:
-                return (True, False)
-
-        # 3. Has numerical cells but no derivative signals
-        # → Valid non-derivative table (income statement, balance sheet, etc.)
-        return (False, False)
+        return (sentences, True)
