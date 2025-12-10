@@ -324,10 +324,10 @@ class DerivativeAttribute(Enum):
     # --- SEC DISCLOSURE ALTERNATIVES (Item 305) ---
     # The SEC mandates three specific quantitative disclosure formats.
     TABULAR_PRESENTATION = (
-        "TAB"  # "Tabular presentation of fair value information" 
+        "TAB"  # "Tabular presentation of fair value information" # Any fair value matches with table anchor
     )
     SENSITIVITY_ANALYSIS = (
-        "SEN"  # "Sensitivity analysis... hypothetical changes" 
+        "SEN"  # "Sensitivity analysis... hypothetical changes"
     )
     VALUE_AT_RISK = (
         "VAR"  # "Value at risk analysis estimating potential loss" 
