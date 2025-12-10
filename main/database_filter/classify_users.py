@@ -298,7 +298,6 @@ def remove_outlier_categories(
 # MAIN PROCESSING
 # =============================================================================
 
-
 def process_row(row: Tuple) -> Tuple:
     url, matches_json, cik, year = row
     
@@ -330,16 +329,29 @@ def process_row(row: Tuple) -> Tuple:
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         mine_attributes(para_tag_reason, attributes)
         
+        # 1. PARAGRAPH PRE-SCAN (Local Context)
+        # Determine if this specific paragraph is dominated by a single category
+        para_clean = _cleaner.clean_entities(para_content)
+        para_strict_cats = extract_categories_strict(para_clean)
+        para_soft_cats = extract_categories_soft(para_clean)
+        
+        # Local Resolution: If exactly one category is found (e.g. {"ir"}), use it to resolve generics
+        local_context = list(para_strict_cats)[0] if len(para_strict_cats) == 1 else list(para_soft_cats)[0] if len(para_soft_cats) == 1 else None
+
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()]
 
         for sent in sentences:
             is_sent_deadweight, sent_tag_reason, sent_content = parse_tags(sent)
             mine_attributes(sent_tag_reason, attributes)
             
+            evidence_tags_found = EVIDENCE_TAG_PARSER.findall(sent_content)
+            for etag in evidence_tags_found:
+                mine_attributes(etag, attributes)
+
             is_active = not (is_para_deadweight or is_sent_deadweight)
             clean_sent = _cleaner.clean_entities(sent_content)
 
-            # Check Strict Matches
+            # A. Check Strict Matches
             strict_cats = extract_categories_strict(clean_sent)
             
             if strict_cats:
@@ -350,11 +362,11 @@ def process_row(row: Tuple) -> Tuple:
                         strict_categories.add(cat)
                 continue 
 
-            # Check Soft Matches (Active Only)
+            # Only count soft matches for active sentences
             if not is_active:
                 continue
 
-            # Check Unambiguous Promotion
+            # B. Check Unambiguous Promotion (Soft -> Strict via Evidence)
             if has_unambiguous_evidence(sent_content):
                 promoted_cats = extract_categories_soft(clean_sent)
                 for cat in promoted_cats:
@@ -363,16 +375,21 @@ def process_row(row: Tuple) -> Tuple:
                     strict_counts[cat] += 1
                 continue
 
-            # Tracker Resolution
+            # C. Tracker Resolution (Global Context)
             tracker_cat = tracker.resolve_instrument(clean_sent)
             if tracker_cat:
                 soft_categories[tracker_cat] += 1
                 continue
 
-            # Standard Soft Extraction
+            # D. Standard Soft Extraction with Local Resolution
             found_soft = extract_categories_soft(clean_sent)
-            for cat in found_soft:
-                soft_categories[cat] += 1
+            
+            # If we found ONLY "gen" and we have a local context, resolve it!
+            if local_context and "gen" in found_soft and len(found_soft) == 1:
+                soft_categories[local_context] += 1
+            else:
+                for cat in found_soft:
+                    soft_categories[cat] += 1
 
     # --- REMOVE OUTLIERS ---
     valid_soft_cats = remove_outlier_categories(
@@ -383,8 +400,11 @@ def process_row(row: Tuple) -> Tuple:
     )
 
     final_categories = strict_categories.union(valid_soft_cats)
-
     
+    # Remove 'gen' if specific categories exist
+    if len(final_categories) > 1 and "gen" in final_categories:
+        final_categories.remove("gen")
+
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
 
