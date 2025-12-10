@@ -1,5 +1,5 @@
 import re
-from derivative_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
+from derivative_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
 from final_verification import QUANT_REGEX
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
 
@@ -109,8 +109,11 @@ class MinimalTextCleaner:
         return text
 
     def clean(self, text: str, remove_years: bool = False) -> str:
-        text = self.clean_for_quant_analysis(text, remove_years)
-        text = self.clean_entities(text)
+        texts = []
+        for sent in SENTENCE_SPLIT_PATTERN.split(text):
+            sent = self.clean_for_quant_analysis(sent, remove_years)
+            sent = self.clean_entities(sent)
+            texts.append(sent)
         return text
 
 from enum import Enum
