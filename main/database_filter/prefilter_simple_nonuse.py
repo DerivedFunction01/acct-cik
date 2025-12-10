@@ -24,8 +24,6 @@ from year_deletion import extract_years
 
 from derivative_regex import (
     ACTIVE_STATE_REGEX,
-    CP_REGEX,
-    CP_SOFT_REGEX,
     CR_REGEX,
     LOOSE_GEN_REGEX,
     AOCI_NOISE_REGEX,
@@ -297,11 +295,6 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
         if all_years and all(y < year for y in all_years):
             if not ACTIVE_STATE_REGEX.search(text):
                 return get_tag(DEADWEIGHT_TOKEN, NoiseReason.HIST_BLOCK)
-            
-    # Commodity check: is it refering to a derivative?
-    if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
-        if not find_hedging_context(text):
-            return get_tag(DEADWEIGHT_TOKEN, NoiseReason.NC)
 
     # --- 2. SAFEGUARDS (The "Active User" Signals) ---
 

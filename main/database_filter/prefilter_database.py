@@ -22,8 +22,6 @@ TARGET_DB_PATH = "prefiltered_data.db"
 from derivative_regex import (
     CP_REGEX,
     CP_SOFT_REGEX,
-    CR_REGEX,
-    CR_SOFT_REGEX,
     DER_STD_REGEX,
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
@@ -38,17 +36,12 @@ from derivative_regex import (
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
     EXCLUDE_REGEX_LIBOR_TRANSITION,
-    FX_REGEX,
-    FX_SOFT_REGEX,
     HEDGING_CONTEXT_REGEX,
-    IR_REGEX,
-    IR_SOFT_REGEX,
     LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     SOFT_GEN_REGEX,
     SOFT_REGEX,
     STRICT_REGEX,
-    TABLE_REGEX,
     VALUATION_MODELS,
     VALUATION_MODELS_REGEX,
 
@@ -61,7 +54,7 @@ from derivative_regex import (
 )
 
 from final_verification import QUANT_REGEX
-from table_processor import TABLE_ANCHOR, TableToTextConverter
+from table_processor import TableToTextConverter
 from prefiltered_lib import NoiseReason, get_tag
 
 # =============================================================================
@@ -128,7 +121,6 @@ def is_sophisticated_content(text: str) -> bool:
     return is_sophisticated_target(text) or bool(SOPHISTICATED_CONTEXT_REGEX.search(text))
 
 
-
 # =============================================================================
 # TABLE CLEANUP HELPERS
 # =============================================================================
@@ -170,6 +162,10 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     if VALUATION_MODELS_REGEX.search(text):  # To save for convertibles
         return None
+    # Commodity check: is it refering to a derivative?
+    if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
+        if not find_hedging_context(text):
+            return NoiseReason.NC.value
 
     # --- TIER 3: SCORING / DENSITY CHECKS (Heavier Ops) ---
     if is_bank_list_noise(text):
