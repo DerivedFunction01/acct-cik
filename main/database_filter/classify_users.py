@@ -14,7 +14,7 @@ from derivative_regex import (
     IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
-from prefilter_database import is_sophisticated_content, is_sophisticated_target
+from prefilter_database import is_sophisticated_target
 from prefiltered_lib import MinimalTextCleaner, NoiseReason
 
 # =============================================================================
@@ -121,10 +121,10 @@ def extract_categories_strict(sentence: str) -> Set[str]:
         cats.add("cp")
     if CR_REGEX.search(sentence):
         cats.add("cr")
-    if EQ_REGEX.search(sentence):
-        cats.add("eq")
-    if is_sophisticated_content(sentence):
+    if is_sophisticated_target(sentence):
         cats.add("warr")
+    elif EQ_REGEX.search(sentence):
+        cats.add("eq")
 
     return cats
 
@@ -140,10 +140,10 @@ def extract_categories_soft(sentence: str) -> Set[str]:
         cats.add("cp")
     if CR_SOFT_REGEX.search(sentence):
         cats.add("cr")
-    if EQ_SOFT_REGEX.search(sentence):
-        cats.add("eq")
-    if is_sophisticated_content(sentence):
+    if is_sophisticated_target(sentence):
         cats.add("warr")
+    elif EQ_SOFT_REGEX.search(sentence):
+        cats.add("eq")
 
     if not cats:
         if STRICT_GEN_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
