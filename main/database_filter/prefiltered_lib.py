@@ -133,7 +133,8 @@ class NoiseReason(Reason):
     NPNS = "NPNS"  # Normal Purchases / Sales
     NC = "NC" # Non derivative commodity contracts
     LOAN = "LOAN"  # Embedded Loan Features
-    OTHER = "OTHER" # other text
+    CTX = "CONTEXT" # Context text
+    OTHER = "OTHER" # other text (has some derivative mention)
 
     # --- Business Logic / Signals ---
     TRADING = "TRADING"  # Trading Denial ("We do not trade")

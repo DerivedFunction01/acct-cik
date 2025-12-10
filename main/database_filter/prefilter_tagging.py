@@ -175,9 +175,10 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
     for orig, masked in zip(original_sentences, masked_sentences):
         reason: Optional[NoiseReason] = None
-
+        if not LOOSE_GEN_REGEX.search(masked):
+            reason = NoiseReason.CTX
         # --- A. Structural Noise ---
-        if IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
+        elif IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
             reason = NoiseReason.REF
         elif DEFINITION_INDICATORS.search(masked):
             reason = NoiseReason.DEF
