@@ -75,7 +75,7 @@ class TableToTextConverter:
 
         self.headers, self.data = self.extract_table_content(table_text)
         self.flattened_headers = self._flatten_headers()
-
+        self.invalid_table = False
         self.col_map = {
             i: self._classify_column(h) for i, h in enumerate(self.flattened_headers)
         }
@@ -174,6 +174,9 @@ class TableToTextConverter:
 
     def _classify_column(self, header: str) -> Optional[str]:
         header = header.lower()
+        if len(header) > 100:
+            self.invalid_table = True
+            return "invalid_header"
         if MATURITY_HEADERS.search(header):
             return "metadata_maturity"
         if NOISE_HEADERS.search(header):
@@ -326,6 +329,8 @@ class TableToTextConverter:
             return clean_val
 
     def process(self) -> Tuple[List[str], bool]:
+        if self.invalid_table:
+            return ([], True)
         sentences = []
 
         # Check for Strong Notional in Columns (Explicit "Notional" only)
