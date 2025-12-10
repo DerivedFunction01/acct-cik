@@ -386,6 +386,10 @@ asian_currencies = [
     Currency("HKD", "Hong Kong Dollar", "HK$", "Hong Kong", "Hong Kong"),
     Currency("THB", "Thai Baht", "฿", "Thai", "Thailand", symbol_first=False),
     Currency("MYR", "Malaysian Ringgit", "RM", "Malaysian", "Malaysia"),
+    Currency("PHP", "Philippine Peso", "₱", "Philippine", "Philippines"),
+    Currency("VND", "Vietnamese Dong", "₫", "Vietnamese", "Vietnam", symbol_first=False),
+    Currency("IDR", "Indonesian Rupiah", "Rp", "Indonesian", "Indonesia"),
+    Currency("PKR", "Pakistani Rupee", "₨", "Pakistani", "Pakistan"),
 ]
 
 americas_currencies = [
@@ -409,6 +413,9 @@ other_currencies = [
         symbol_first=False,
     ),
     Currency("SAR", "Saudi Riyal", "ر.س", "Saudi", "Saudi Arabia", symbol_first=False),
+    Currency("ZAR", "South African Rand", "R_", "South African", "South Africa"), # added _ to prevent R from matching
+    Currency("ILS", "Israeli Shekel", "₪", "Israeli", "Israel"),
+    Currency("KWD", "Kuwaiti Dinar", "د.ك", "Kuwaiti", "Kuwait", symbol_first=False),
 ]
 
 
@@ -425,6 +432,7 @@ def build_currency_names_regex() -> re.Pattern:
     for currency in all_currencies:
         terms.append(re.escape(currency.full_name))
     return build_regex(terms)
+CURRENCY_NAMES_REGEX = build_currency_names_regex()
 
 
 def build_currency_patterns() -> List[str]:
