@@ -297,3 +297,53 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.REF,  # "See Note 5"
     NoiseReason.TRADING,  # "We do not trade"
 }
+
+from enum import Enum
+
+
+class DerivativeAttribute(Enum):
+    # --- DESIGNATIONS (ASC 815 & SEC Portfolios) ---
+    # The text distinguishes explicitly between "Trading" and "Other than Trading"[cite: 347, 355].
+    # Within "Other than Trading," firms designate specific accounting hedges (CFH, FVH).
+    TRADING = "TRD"  # "Instruments entered into for trading purposes"
+    CASH_FLOW_HEDGE = "CFH"  # Hedging variability in cash flows 
+    FAIR_VALUE_HEDGE = "FVH"  # Hedging changes in fair value 
+    NET_INVESTMENT_HEDGE = "NIH"  # Hedging foreign currency exposure of net investment (implied by translation risk discussions )
+    UNDESIGNATED = (
+        "UND"  # Economic hedges not designated for hedge accounting 
+    )
+
+    # --- ACCOUNTING METHODS ---
+    # The text notes that FASB 133 (ASC 815) largely superseded Deferral/Accrual,
+    # but firms must still disclose these policies if material.
+    FAIR_VALUE_ACCOUNTING = "FVA"  # "Derivatives are carried on the balance sheet at fair value" 
+    DEFERRAL_METHOD = (
+        "DFM"  # Gains/losses deferred and recognized with hedged item 
+    )
+    ACCRUAL_METHOD = (
+        "ACM"  # Net payment/receipt recognized in earnings (e.g., swaps) 
+    )
+
+    # --- SEC DISCLOSURE ALTERNATIVES (Item 305) ---
+    # The SEC mandates three specific quantitative disclosure formats.
+    TABULAR_PRESENTATION = (
+        "TAB"  # "Tabular presentation of fair value information" 
+    )
+    SENSITIVITY_ANALYSIS = (
+        "SEN"  # "Sensitivity analysis... hypothetical changes" 
+    )
+    VALUE_AT_RISK = (
+        "VAR"  # "Value at risk analysis estimating potential loss" 
+    )
+
+    # --- VALUATION MODELS (For VaR & Fair Value) ---
+    # The text explicitly lists these three methods for calculating Value at Risk.
+    VARIANCE_COVARIANCE = "VCOV"  # "Variance/Covariance approach" 
+    HISTORICAL_SIMULATION = "HSIM"  # "Historical Simulation method" 
+    MONTE_CARLO = "MCS"  # "Monte Carlo simulation" 
+
+    # Generic valuation (if needed for non-VaR Fair Value)
+    BLACK_SCHOLES = "BSM"  # implied by "probabilistic models" 
+    LATTICE_MODEL = (
+        "LAT"  # (Binomial) - distinct from BSM, often used for complex options
+    )
