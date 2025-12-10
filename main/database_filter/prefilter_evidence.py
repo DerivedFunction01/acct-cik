@@ -36,6 +36,7 @@ from prefiltered_lib import (
     EvidenceReason,
     MinimalTextCleaner,
     NoiseReason,
+    Reason,
     get_tag,
 )
 import multiprocessing as mp
@@ -385,6 +386,12 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
 
     return None
 
+def mark_sentence_as_other(text: str) -> Optional[Reason]:
+    if not check_mention(text):
+        return NoiseReason.OTHER
+    else:
+        return None
+
 
 # =============================================================================
 # MAIN EVIDENCE SCANNER
@@ -393,7 +400,7 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
 
 def scan_sentence_for_evidence(
     text: str, reporting_year: int, is_strict_derivative: bool
-) -> Set[EvidenceReason]:
+) -> Set[Reason]:
     """Scan a sentence and return all applicable evidence tags."""
     evidence = set()
 
@@ -422,6 +429,8 @@ def scan_sentence_for_evidence(
         evidence.add(term)
     if pnl := check_pnl_context(text, is_strict_derivative):
         evidence.add(pnl)
+    if other := mark_sentence_as_other(text):
+        evidence.add(other)
 
     return evidence
 
