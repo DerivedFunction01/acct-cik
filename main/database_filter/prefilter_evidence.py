@@ -405,7 +405,9 @@ def scan_sentence_for_evidence(
 ) -> Set[Reason]:
     """Scan a sentence and return all applicable evidence tags."""
     evidence = set()
-
+    if SKIP_TOKEN in text:
+        return evidence
+    
     # TIER 1: STRONG
     if q := check_quantitative_evidence(text, reporting_year, is_strict_derivative):
         evidence.add(q)
