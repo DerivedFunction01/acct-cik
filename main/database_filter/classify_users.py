@@ -131,11 +131,10 @@ def extract_categories(sentence: str) -> Set[str]:
         cats.add("cp")
     if CR_REGEX.search(sentence):
         cats.add("cr")
-    if EQ_REGEX.search(sentence):
-        if is_sophisticated_content(sentence):
-            cats.add("warr")
-        else:
-            cats.add("eq")
+    if is_sophisticated_content(sentence):
+        cats.add("warr")
+    elif EQ_REGEX.search(sentence):
+        cats.add("eq")
     
     # SOFT MATCHES (only if no strict match)
     # Safeguards already applied upstream in prefiltering stage
@@ -148,11 +147,10 @@ def extract_categories(sentence: str) -> Set[str]:
             cats.add("cp")
         if CR_SOFT_REGEX.search(sentence):
             cats.add("cr")
-        if EQ_SOFT_REGEX.search(sentence):
-            if is_sophisticated_content(sentence):
-                cats.add("warr")
-            else:
-                cats.add("eq")
+        if is_sophisticated_content(sentence):
+            cats.add("warr")
+        elif EQ_SOFT_REGEX.search(sentence):
+            cats.add("eq")
     
     return cats
 
