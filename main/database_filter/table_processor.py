@@ -54,7 +54,7 @@ SOPHISTICATED_TARGETS = re.compile(
 
 TABLE_ANCHOR = " T_ "
 
-caption_regex = re.compile(r"<caption>\s*(.*?)(?=\n\n|[-=])", re.DOTALL | re.IGNORECASE)
+caption_regex = re.compile(r"<caption>\s*(.*?)(?=\n\n|[-=:])", re.DOTALL | re.IGNORECASE)
 class TableToTextConverter:
     
     def __init__(
