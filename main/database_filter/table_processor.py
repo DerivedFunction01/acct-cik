@@ -422,6 +422,18 @@ class TableToTextConverter:
             or self.caption_is_strong
         )
 
+        # Determine caption year for fallback when columns don't have year suffixes
+        caption_year_str = ""
+        if self.caption:
+            caption_years = YEAR_REGEX.findall(self.caption)
+            if caption_years:
+                try:
+                    years_int = [int(y) for y in caption_years]
+                    caption_year_str = f"in {max(years_int)} "
+                except Exception:
+                    # Fallback to last matched year string
+                    caption_year_str = f"in {caption_years[-1]} "
+
         # --- PASS 2: GENERATE SENTENCES ---
         for cand in candidate_rows:
 
@@ -495,6 +507,10 @@ class TableToTextConverter:
                 year_str = ""
                 if parts[-1].isdigit() and len(parts[-1]) == 4:
                     year_str = f"in {parts.pop()} "
+
+                # If we didn't get a year from the column type, use caption year (if present)
+                if not year_str and caption_year_str:
+                    year_str = caption_year_str
 
                 base_type = "_".join(parts)
                 value = self.normalize_value(clean_val)
