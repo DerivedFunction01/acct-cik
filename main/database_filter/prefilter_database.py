@@ -61,7 +61,7 @@ from derivative_regex import (
 )
 
 from final_verification import QUANT_REGEX
-from table_processor import TableToTextConverter
+from table_processor import TABLE_ANCHOR, TableToTextConverter
 from prefiltered_lib import NoiseReason, get_tag
 
 # =============================================================================
@@ -318,8 +318,8 @@ def process_accounting_standards_paragraph(
 
 def find_hedging_context(paragraph: str) -> bool:
     """Standard Gatekeeper for regular derivatives."""
-    if "<TABLE>" in paragraph.upper() and TABLE_REGEX.search(paragraph):
-        return True
+    if "<TABLE>" in paragraph.upper(): # Tables should have been parsed
+        return False 
     elif STRICT_REGEX.search(paragraph):
         return True
     elif SOFT_GEN_REGEX.search(paragraph):
