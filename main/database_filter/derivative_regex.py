@@ -49,6 +49,11 @@ def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
 
     return f'(?:{"|".join(items)})'
 
+def build_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
+    """Build regex for that also builds the alternation."""
+    # Add word boundaries (\b) around each keyword to prevent partial matches
+    pattern = build_alternation(keywords)
+    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE if ignore_case else 0)
 
 # =============================================================================
 # SHARED COMPONENTS (moved from filter_database.py)
@@ -2601,13 +2606,6 @@ REGULATORY_KEYWORDS_LOOSE = [
     r"contamination",
     r"pollutants?",
 ]
-
-
-def build_regex(keywords: list, ignore_case: bool = True) -> re.Pattern:
-    """Build regex for that also builds the alternation."""
-    # Add word boundaries (\b) around each keyword to prevent partial matches
-    pattern = build_alternation(keywords)
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE if ignore_case else 0)
 
 
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
