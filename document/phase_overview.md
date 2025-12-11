@@ -222,14 +222,10 @@ At each phase, certain content is protected from being filtered:
 - Reason: "Interest rate swap" is proof of position, even in regulatory context
 
 **Phase 1 Safeguard:**
-- Rule: "If a sentence contains a quantitative amount (notional, fair value), keep it regardless of other noise"
-- Reason: "$50M in swaps" is direct proof of a position
-
-**Phase 2 Safeguard:**
 - Rule: "If surviving sentences contain actual derivative keywords, don't mark entire paragraph as deadweight"
 - Reason: One good sentence outweighs boilerplate
 
-**Phase 3 Safeguard:**
+**Phase 2 Safeguard:**
 - Rule: "If any evidence tags exist, upgrade soft matches to strict"
 - Reason: Evidence (like "at year-end 2024") disambiguates weak instrument references
 
