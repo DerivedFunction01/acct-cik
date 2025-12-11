@@ -3895,10 +3895,9 @@ def build_information_reference_regex() -> re.Pattern:
     nouns = [
         "information",
         "details?",
-        "discussion",
-        "analysis",
-        "disclosure",
-        "description",
+        "discussions?",
+        "disclosures?",
+        "descriptions?",
     ]
 
     # Connectors to the subject (Optional)
@@ -3915,7 +3914,6 @@ def build_information_reference_regex() -> re.Pattern:
     noun_pat = build_alternation(nouns)
     conn_pat = build_alternation(connectors)
 
-    # Structure: "For" + [Adjective] + [Noun] + (Optional [Connector])
     # Structure: "For" + (Optional [Adjective]) + [Noun] + (Optional [Connector])
     pattern = (
         rf"([Ff]or)?\s+"
