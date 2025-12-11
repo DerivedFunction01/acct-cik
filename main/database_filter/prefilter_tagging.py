@@ -203,7 +203,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         # --- TIER 4: SOFT KILLS (The "Generic" Tags) ---
         if not reason:
             if HEDGE_DOC_REGEX.search(masked):
-                reason = NoiseReason.POLICY
+                reason = NoiseReason.DOC
             elif COUNTERPARTY_REGEX.search(masked) and not CR_SOFT_REGEX.search(masked):
                 reason = NoiseReason.CREDIT
 

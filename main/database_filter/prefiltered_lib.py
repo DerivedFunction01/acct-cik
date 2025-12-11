@@ -139,7 +139,7 @@ class NoiseReason(Reason):
 
     # --- Business Logic / Signals ---
     TRADING = "TRADING"  # Trading Denial ("We do not trade")
-    POLICY = "POLICY"  # Accounting Policy ("Formal Documentation of a hedge")
+    DOC = "DOC"  # Hedge Documentation ("Formal Documentation of a hedge")
     CREDIT = "CREDIT"  # Counterparty Risk ("Credit exposure, counterparty risk")
 
     # --- Scoring ---
@@ -297,7 +297,7 @@ TIME_KILLERS = FLOW_KILLERS | {
 # Expanded Killers for TIER 3 (Weak)
 # Includes everything above + Policy/Definitions
 POLICY_KILLERS = TIME_KILLERS | {
-    NoiseReason.POLICY,  # "Our policy is..."
+    NoiseReason.DOC,  # "Our policy is..."
     NoiseReason.DEF,  # "Swap shall mean..."
     NoiseReason.ACCT_STD,  # "FASB ASU..."
     NoiseReason.REF,  # "See Note 5"

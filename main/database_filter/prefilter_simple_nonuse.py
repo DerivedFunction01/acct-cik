@@ -310,7 +310,7 @@ def check_deadweight_exclusions(text: str, year: Optional[int] = None) -> Option
 
     # A. Policy & Methodology
     if HEDGE_DOC_REGEX.search(text):
-        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.POLICY)
+        return get_tag(DEADWEIGHT_TOKEN, NoiseReason.DOC)
 
     # B. AOCI / PnL Lists (Moved here to allow safeguards to protect active positions)
     if AOCI_NOISE_REGEX.search(text):
