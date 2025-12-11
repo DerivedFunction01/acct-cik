@@ -132,8 +132,7 @@ def get_termination_noise_reason(text: str, reporting_year: int) -> Optional[Noi
 ZERO_PATTERN = re.compile(
     r"\b(?:nil|zero)(?!\s+(?:cost|coupon|premium))\b|"  # Text: "nil"
     rf"(?:(?:{CURRENCY_SYMBOL_PATTERN})\s*)?0(?:\.0+)?\s*(?:million|billion|trillion|thousand)?\b|"  # Prefix: $0
-    rf"\b0(?:\.0+)?\s*(?:{CURRENCY_SYMBOL_PATTERN})\b|"  # Suffix: 0 USD
-    rf"\b(?:{IMMATERIAL_PATTERN})\b",  # Immaterial
+    rf"\b0(?:\.0+)?\s*(?:{CURRENCY_SYMBOL_PATTERN})\b",  # Suffix: 0 USD
     re.IGNORECASE,
 )
 
