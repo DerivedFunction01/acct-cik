@@ -104,7 +104,7 @@ def get_temporal_noise_reason(text: str, reporting_year: int) -> Optional[NoiseR
 def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     """Returns HYPO or NEG based on intent."""
     if POTENTIAL_REGEX.search(text) or VAGUE_TIMING_REGEX.search(text):
-        return NoiseReason.HYPO
+        return NoiseReason.POT
 
     if NEGATIVE_INTENT_REGEX.search(text) or ABSENCE_REGEX.search(text):
         return NoiseReason.NEG

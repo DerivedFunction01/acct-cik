@@ -150,7 +150,7 @@ class NoiseReason(Reason):
 
     # --- Classification Killers --- (or sentence level indicators)
     TIME = "TIME"  # Historical / Temporal
-    HYPO = "HYPO"  # Hypothetical / Potential
+    POT = "POTENTIAL"  # Hypothetical / Potential
     NEG = "NEG"  # Negative Intent
     TERM = "TERM"  # Termination / Expiration
     ZERO = "ZERO"  # Quantitative Zero
@@ -289,7 +289,7 @@ FLOW_KILLERS = {
 TIME_KILLERS = FLOW_KILLERS | {
     NoiseReason.TIME,  # "In 2019..."
     NoiseReason.HIST_BLOCK,  # "Historically..."
-    NoiseReason.HYPO,  # "Hypothetical..."
+    NoiseReason.POT,  # "We periodically use..."
     NoiseReason.NEG,  # "Did not enter"
     NoiseReason.ZERO,  # "Zero value"
 }
