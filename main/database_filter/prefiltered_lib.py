@@ -132,7 +132,7 @@ class NoiseReason(Reason):
     AOCI = "AOCI"  # AOCI ("recorded in AOCI") (Note: AOCI + Termination is an instant killer)
     PNL = "PNL" # PNL, but no quantitaive action. Probably fair valuation inputs
     NPNS = "NPNS"  # Normal Purchases / Sales
-    LOAN = "LOAN"  # Embedded Loan Features
+    LOAN = "LOAN"  # Non derivative interest rate caps and floors on debt
     CTX = "CONTEXT" # Context text
     OTHER = "OTHER" # other text (has some derivative mention)
 
