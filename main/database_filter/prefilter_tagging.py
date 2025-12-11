@@ -42,7 +42,7 @@ from derivative_regex import (
 # Import Phase 6 Logic
 from final_verification import COUNTERPARTY_REGEX, HEDGE_DOC_REGEX
 from prefilter_evidence import PNL_CONTEXT_REGEX
-from prefilter_database import is_sophisticated_content
+from prefilter_database import is_sophisticated_content, is_sophisticated_target
 from prefiltered_lib import (
     SKIP_TOKEN,
     DEADWEIGHT_TOKEN,
@@ -165,7 +165,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
-        if not LOOSE_GEN_REGEX.search(masked):
+        if not LOOSE_GEN_REGEX.search(masked) or is_sophisticated_target(text):
             reason = NoiseReason.CTX
 
         if not reason:
