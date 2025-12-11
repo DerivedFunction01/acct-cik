@@ -11,6 +11,7 @@ from derivative_regex import (
     FX_SOFT_REGEX,
     IR_SOFT_REGEX,
     LOOSE_GEN_REGEX,
+    SENTENCE_SPLIT_PATTERN,
     SOFT_REGEX,
     STRICT_REGEX,
     TERMINATION_ALL_REGEX,
@@ -482,8 +483,6 @@ def should_mark_deadweight(evidence_tags: set, noise_tags: set) -> bool:
     return True
 
 
-
-
 # =============================================================================
 # TAGGING ENGINE
 # =============================================================================
@@ -504,20 +503,18 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     # If paragraph is already marked deadweight, leave it alone
     if text.startswith(DEADWEIGHT_TOKEN):
         return text
-    
+
     # Parse any existing noise tags from the paragraph for dominance evaluation
     _, existing_paragraph_noise = parse_noise_tags(text)
-    
+
     masked_text = _cleaner.clean(text)
     is_strict_derivative = check_derivative_global(masked_text)
 
     # Split into sentences
     original_sentences = [
-        s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()
+        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
     ]
-    masked_sentences = [
-        s.strip() for s in re.split(r"(?<=[.!?])\s+", masked_text) if s.strip()
-    ]
+    masked_sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()]
 
     # Align lengths (safety)
     if len(original_sentences) != len(masked_sentences):
@@ -530,7 +527,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     for orig, masked in zip(original_sentences, masked_sentences):
         # Parse existing tags from this sentence
         clean_sent, existing_noise = parse_noise_tags(orig)
-        
+
         # Only scan and tag sentences that have NO existing tags
         if not existing_noise:
             # Scan for evidence - returns single tag or None
@@ -554,7 +551,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     # Apply hierarchy: check if mixed signals kill the paragraph
     if should_mark_deadweight(all_evidence, existing_paragraph_noise):
         return mark_as_deadweight(tagged_paragraph, NoiseReason.ANLZ)
-    
+
     return tagged_paragraph
 
 
