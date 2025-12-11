@@ -111,6 +111,11 @@ PARAGRAPH_THRESHOLD = 250
 
 TABLE_ANCHOR = " T_"
 
+DEBUG = False
+
+def debug_print(*args, **kwargs):
+    if DEBUG:
+        print(*args, **kwargs)
 
 class TableToTextConverter:
 
