@@ -91,8 +91,8 @@ def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
     # Important: We keep the length identical so indices (start/end) remain valid
     # for the original sentence if needed, and for correct relative ordering.
     clean_sentence = sentence
-    for pat in [DATE_MD_REGEX, DATE_DM_REGEX]:
-        clean_sentence = pat.sub(lambda m: " " * len(m.group(0)), clean_sentence)
+    # for pat in [DATE_MD_REGEX, DATE_DM_REGEX]:
+    #     clean_sentence = pat.sub(lambda m: " " * len(m.group(0)), clean_sentence)
 
     # 2. Extract Years (from cleaned string, though years usually aren't inside the date patterns above)
     years = [int(y) for y in YEAR_REGEX.findall(clean_sentence)]
