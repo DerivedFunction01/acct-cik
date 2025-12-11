@@ -493,43 +493,47 @@ def scan_sentence_for_evidence(
 # =============================================================================
 
 
+# In prefilter_evidence.py
+
+
 def should_mark_deadweight(
-    evidence_tags: set, noise_tags: set, length: int = 0
+    evidence_tags: set, noise_tags: set, sent_count: int = 0
 ) -> bool:
     """
-    Determine if paragraph should be marked as deadweight based on dominance hierarchy.
+    Determine if paragraph should be marked as deadweight.
     """
-    # 1. Handle No Evidence Case
-    # If we have no specific evidence, we treat the text as "Uncategorized".
-    # It will only survive if it is completely clean (No Noise).
+
+    # 1. ORPHAN KILL RULE (The "Anti-Clutter" Logic)
+    # If it's a single sentence with NO evidence and NO noise, it's likely a
+    # header, footer, or isolated bullet point. Kill it to prevent "Definition" counts.
+    if sent_count == 1 and not evidence_tags and not noise_tags:
+        return True
+
+    # 2. Handle Remaining No-Evidence Cases (Multi-sentence clean text)
+    # If we are here, and tags are empty, it must be > 1 sentence.
+    # We treat this as "Uncategorized Context" (Fluff). 
     if not evidence_tags:
         evidence_tags.add(EvidenceReason.UNCAT)
 
-    # 2. Hierarchy Checks
+    # 3. Hierarchy Checks (Standard)
 
-    # STRONG evidence always survives
     if not evidence_tags.isdisjoint(STRONG_EVIDENCE):
         return False
 
-    # FLOW evidence survives unless killed by FLOW_KILLERS
     if not evidence_tags.isdisjoint(FLOW_EVIDENCE):
         return not noise_tags.isdisjoint(FLOW_KILLERS)
 
-    # TIME_KILLED evidence survives unless killed by TIME_KILLERS
     if not evidence_tags.isdisjoint(TIME_KILLED_EVIDENCE):
         return not noise_tags.isdisjoint(TIME_KILLERS)
 
-    # POLICY_KILLED evidence survives unless killed by POLICY_KILLERS
     if not evidence_tags.isdisjoint(POLICY_KILLED_EVIDENCE):
         return not noise_tags.isdisjoint(POLICY_KILLERS)
 
     # FLUFF (including UNCAT) survives ONLY if there are no noise tags
+    # This means multi-sentence clean text survives.
     if not evidence_tags.isdisjoint(FLUFF_EVIDENCE):
-        return bool(
-            noise_tags
-        )  # Returns True (Dead) if noise exists, False (Survives) if clean.
+        return bool(noise_tags)
 
-    # Default to Deadweight (Safety fall-through)
     return True
 
 
@@ -603,7 +607,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     tagged_paragraph = " ".join(tagged_sentences)
 
     # Apply hierarchy: check if mixed signals kill the paragraph
-    if should_mark_deadweight(all_evidence, existing_paragraph_noise, len=len(original_sentences)):
+    if should_mark_deadweight(all_evidence, existing_paragraph_noise, sent_count=len(original_sentences)):
         return mark_as_deadweight(tagged_paragraph, NoiseReason.ANLZ)
 
     return tagged_paragraph
