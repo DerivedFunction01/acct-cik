@@ -793,6 +793,7 @@ class TableToTextConverter:
 
         sentences = []
         active_context = ""
+        section_year_str = ""
         # Check for table anchoring
         table_has_strong_notional_col = any(
             col_type and STRONG_NOTIONAL_REGEX.search(col_type)
@@ -820,22 +821,41 @@ class TableToTextConverter:
                 continue
 
             if self._is_subheader_row(row):
-                new_header = row[0].strip().rstrip(":")
+                raw_header = row[0].strip().rstrip(":")
 
-                # Check if this is a "Designation" subheader (should append)
-                # vs a "Category" subheader (should replace)
-                is_designation = bool(
-                    re.search(r"designated|hedging|trading", new_header, re.IGNORECASE)
-                )
+                # A. EXTRACT YEAR (Consume it)
+                # If header is "At December 31, 2023", we want year="2023" and header="At December 31,"
+                header_years = YEAR_REGEX.findall(raw_header)
+                if header_years:
+                    # Take the last year found (usually the current one in "2022 and 2023")
+                    # Or max? Usually subheaders are specific points in time.
+                    y_val = max(int(y) for y in header_years)
+                    section_year_str = f"in {y_val} "
 
-                if is_designation and active_context:
-                    # Append to existing context (e.g. "Interest Rate Contracts" + "Designated...")
-                    # We store them as a combined string, and let _construct_instrument_name parse it later?
-                    # Actually, better to just append the string for the construct function to handle.
-                    active_context = f"{active_context} {new_header}"
-                else:
-                    # New Category - Replace context
-                    active_context = new_header
+                    # Remove year from header so it doesn't end up in instrument name
+                    # "Interest Rate Swaps (2023)" -> "Interest Rate Swaps ()" -> Cleaned later
+                    raw_header = YEAR_REGEX.sub("", raw_header).strip(" (),")
+
+                # B. UPDATE CONTEXT
+                # If the remaining header is empty (e.g. it was JUST a year),
+                # we keep the OLD active_context (don't clear it).
+                # This handles:
+                # Header 1: "Interest Rate Swaps" -> context="Interest Rate Swaps"
+                # Header 2: "2023" -> context="Interest Rate Swaps", year="2023"
+                if raw_header:
+                    # Check for appending vs replacing (Designation Logic)
+                    is_designation = bool(
+                        re.search(
+                            r"designated|hedging|trading|aoci|income|earnings|gain|loss",
+                            raw_header,
+                            re.IGNORECASE,
+                        )
+                    )
+
+                    if is_designation and active_context:
+                        active_context = f"{active_context} {raw_header}"
+                    else:
+                        active_context = raw_header
 
                 continue
 
@@ -933,11 +953,23 @@ class TableToTextConverter:
                     clean_val = "-" + clean_val.replace("(", "").replace(")", "")
                 clean_val = clean_val.replace("$", "").replace(",", "").strip()
 
+                # YEAR HIERARCHY
+                # 1. Column Header (Most specific)
+                # 2. Section Subheader (Local context)
+                # 3. Table Caption (Global context)
+
                 parts = col_type.split("_")
                 year_str = ""
+
+                # Check Column Header Year (from split parts)
                 if parts[-1].isdigit() and len(parts[-1]) == 4:
                     year_str = f"in {parts.pop()} "
 
+                # Fallback to Section Year
+                if not year_str and section_year_str:
+                    year_str = section_year_str
+
+                # Fallback to Caption Year
                 if not year_str and caption_year_str:
                     year_str = caption_year_str
 
