@@ -11,8 +11,8 @@ LOG_FILE = "pipeline_run.log"
 PIPELINE_STAGES = [
     # 0. Attempt to cleanup tables
     ("prefilter_database.py", "prefiltered_data.db", "prefiltered.csv"),
-    # 1. Drop simple nonusers
-    ("prefilter_simple_nonuse.py", "refined_data.db", "prefiltered_refined.csv"),
+    # # 1. Drop simple nonusers
+    # ("prefilter_simple_nonuse.py", "refined_data.db", "prefiltered_refined.csv"),
     # 2. Tag each sentence
     ("prefilter_tagging.py", "tagged_data.db", "prefiltered_refined.csv"),
     # 3. Tag each sentence
