@@ -21,15 +21,11 @@ SEC Filing (raw text)
   (prefilter_database.py)
   Remove obvious junk, mask entities, parse tables
          ↓
-[PHASE 1: Semantic Filtering & Token Injection]
-  (prefilter_simple_nonuse.py)
-  Add sentence-level noise tags, safeguard quantitative evidence
-         ↓
-[PHASE 2: Fine-Grained Sentence Classification]
+[PHASE 1: Fine-Grained Sentence Classification]
   (prefilter_tagging.py)
   Apply reason-based checks, mark evidence, evaluate dominance
          ↓
-[PHASE 3: Category Assignment & Attributes]
+[PHASE 2: Category Assignment & Attributes]
   (classify_users.py)
   Categorize by type, resolve ambiguities, mine user attributes
          ↓
@@ -62,7 +58,7 @@ Each phase **preserves all text** but adds metadata (tags) to indicate what shou
    - Litigation: "In Smith v. Corporation, the court ruled..."
    - Regulatory boilerplate: "The SEC regulates derivatives..."
    - Employee compensation: Stock option grant descriptions
-   - Pension plans: "Pension plan assets held derivatives..."
+   - Pension plans/Hedge Funds: "Pension plan assets held derivatives..."
    - Competitors: "Our competitors use swaps, but we don't..."
 
 4. **Dual Buffer System** - Route text strategically
@@ -77,123 +73,16 @@ Each phase **preserves all text** but adds metadata (tags) to indicate what shou
 6. **Sophisticated Content Validation**
    - Convertibles/Warrants require equity derivative context (not general mentions)
    - Uses `is_sophisticated_target()` to prevent false positives
-   - Example: "convertible debt" is kept, "convertible fund" is not
+   - Example: "convertible debt" is kept if and only if there is a derivative mention related.
 
-**What survives:** Paragraphs likely about the company's actual derivative use
+**What survives:** Paragraphs likely about the company's actual derivative use. Note: convertible debt/warrants "steals" embedded derivative sentences.
 
 **Output**: 
 - Paragraphs marked with tags or clean text
 
 ---
 
-### PHASE 1: Semantic Filtering & Token Injection
-**File**: `prefilter_simple_nonuse.py`
-
-### Refinement Exclusions Deep Dive
-
-**How it works:**
-
-Refinement Exclusions runs in two stages:
-
-**Stage 1: Counter Accumulation**
-```
-Loop through each sentence:
-  - Count hedging sentences with derivative keywords
-  - Count how many of those are "negative" (potential, absence, termination, trading denial)
-  - Count quantitative amounts
-  - Count temporal markers (past years only)
-  - Count AOCI/PnL references
-```
-
-**Stage 2: Decision Matrix**
-```
-IF quantitative evidence found:
-  RETURN: None (SAFEGUARD: Keep the paragraph)
-
-ELSE IF all hedging sentences are negative:
-  RETURN: _D<ANLZ> (all evidence tagged as noise)
-
-ELSE IF (AOCI or PnL) AND (Termination):
-  RETURN: _D<ANLZ> (realized gains from terminated positions)
-
-ELSE IF (AOCI and PnL both present):
-  RETURN: _D<ANLZ> (boilerplate about accounting effects)
-
-ELSE IF potential found AND (trading denial OR absence):
-  RETURN: _D<ANLZ> (hypothetical discussion, confirmed non-use)
-
-ELSE IF potential found AND (termination):
-  RETURN: _D<ANLZ> (used to plan, then terminated)
-
-ELSE IF only past years found:
-  RETURN: _D<ANLZ> (purely historical)
-
-ELSE:
-  RETURN: None (Pass to next stage)
-```
-
-**Key insight:** Refinement Exclusions catches **combinations** of signals that individually might seem innocent but together indicate deadweight:
-- "We use swaps" (positive) + "but we liquidated all in December" (termination) = deadweight
-- "Fair value in AOCI" (methodology) + "swaps expired" (termination) = deadweight
-We want to catch these risk management paragraphs, obvious termination patterns early to avoid false survival.
-
-**Output:** Either `_D<ANLZ>` tag or None
-
----
-
-1. **Sentence-Level Analysis**
-   - Splits paragraphs into sentences
-   - Checks each sentence for noise patterns
-   - Injects tags without deleting original text
-
-2. **Noise Pattern Detection**
-   - **Potential/Hypothetical**: "The Company **may** use derivatives in the future"
-     - Tag: `_S<HYPO>` (Mark but preserve for context)
-   - **Negative Intent**: "We **have no plans** to use derivatives"
-     - Tag: `_S<NEG>`
-   - **Termination**: "Swaps that **expired in December** 2023"
-     - Tag: `_S<TERM>`
-   - **AOCI References**: "**Changes in Other Comprehensive Income** due to derivatives"
-     - Tag: `_S<AOCI>`
-   - **Trading Denial**: "We **do not trade** derivatives"
-     - Tag: `_S<TRADING>`
-
-3. **Quantitative Safeguards** - Override all noise logic
-   - "We maintain $100M notional of swaps" → **KEEP** (no tags)
-   - "Fair value was $0" → Tag: `_S<ZERO>` (explicit zero)
-   - Quantitative evidence forces survival regardless of other signals
-
-4. **Refinement Exclusions** - Early paragraph-level deadweight detection
-   - Runs **before** sentence-by-sentence tagging
-   - Detects patterns where the entire paragraph should be marked as deadweight
-   - Examples:
-     - **All sentences tagged + no instrument**: Paragraph is pure noise
-     - **Quantitative safeguard overrides**: If ANY sentence has `$amount`, paragraph survives
-     - **Historical + Termination**: "In 2022 we used swaps. Liquidated in December."
-     - **AOCI + Termination**: "Recorded in AOCI. Swaps expired in 2023."
-     - **Potential + Trading**: "We may use swaps. We do not trade."
-   - Returns: `(tag, modified_text)` where tag is `_D<REASON>` or None
-   - If tag is None, paragraph passes to normal processing
-   - If tag is set, paragraph marked deadweight: `_D<REASON> [text with sentence tags]`
-
-5. **Gatekeeper Logic** - Final validation
-   - Checks paragraph-level deadweight decision from Refinement Exclusions
-   - Applies additional deadweight checks (policy, methodology, counterparty risk)
-   - Ensures quantitative evidence can't be overridden
-
-5. **Tag Format** - Preserved for Phase 2
-   - `_S<REASON>` = Sentence-level noise tag
-   - `_D<REASON>` = Paragraph-level deadweight tag
-   - Tags appear **before** original text: `_S<TIME> In 2021 we used swaps...`
-
-**What survives:** Statements that likely represent actual holdings, plus context
-
-**Output**: 
-- Same paragraphs with tags injected
-
----
-
-### PHASE 2: Fine-Grained Sentence Classification
+### PHASE 1: Fine-Grained Sentence Classification
 **File**: `prefilter_tagging.py`
 
 **What gets removed:** Individual sentences that are noise or fluff
@@ -204,18 +93,19 @@ We want to catch these risk management paragraphs, obvious termination patterns 
    - Keeps years (needed for temporal checks)
    - Removes entities (prevents name-based false positives)
    - Cleans layout for regex safety
+   - Tagging based hierarchy: Certain tags dominates over others
 
 2. **Reason-Based Sentence Checks**
    - **Structural Noise**: "See Note 5", "Swap shall mean..." (definitions)
    - **Temporal Noise**: "In 2022 we used swaps" (historical, if reporting year is 2024)
    - **Intent Noise**: "We may enter into swaps", "We do not intend to use..."
-   - **Termination Noise**: "Swaps expired in December"
+   - **Termination Noise (Present)**: "Swaps expired in December"
    - **Quantitative Noise**: "Notional value was $0"
-   - **Methodology**: "Fair values use Level 2 valuation inputs"
+   - **Other**: "We do not use derivatives for trading"
 
 3. **Tagging Logic**
    - Find all applicable tags for this sentence
-   - Apply: `_S<REASON1> _S<REASON2> Original text...`
+   - Apply: `_S<REASON1> Original text...`
    - Later phases read these tags to decide survival
 
 4. **Fluff Detector** - Final safeguard
@@ -231,43 +121,50 @@ We want to catch these risk management paragraphs, obvious termination patterns 
 - Audit trail: tags show exactly why sentences were marked
 
 ---
-
-### PHASE 3: Category Assignment & Attributes
+### PHASE 2: Category Assignment & Attributes** 
 **File**: `classify_users.py`
+The process is now structured as a **Four-Gate System**, where evidence quality determines how a mention contributes to the final score.
 
-**What happens:** Categorize by derivative type and extract user attributes
+### PHASE 2: Category Assignment & Attributes (Revised Flow)
 
-**Process:**
+| Component | Goal | Status |
+| :--- | :--- | :--- |
+| **Input** | Paragraphs tagged with **Noise** (`_S<...>`, `_D<...>` from Stage 2) and **Evidence** (`_E<...>` from Stage 3). | |
+| **Output** | Final categories (`ir`, `fx`, etc.) and user attributes (`reports_notional`, `is_hedger`). | |
 
-1. **Parse Existing Tags** - Extract noise/evidence from earlier phases
-   - Read `_S<REASON>` and `_D<REASON>` tags
-   - Use them to make dominance decisions
+---
 
-2. **Two-Pass Category Matching**
-   
-   **Pass 1: Strict Matching** (Instrument + Context)
-   - "Interest Rate Swap" (instrument) + "interest rate risk" (context) → IR
-   - "Currency Forward" (instrument) + "currency exposure" (context) → FX
-   - Score: 1000 points (immediate classification)
-   
-   **Pass 2: Soft Matching** (Context-only, with Priority Consumption)
-   - Uses priority order: FX > CP > EQ > CR > IR
-   - FX gets first access to "currency" mentions
-   - After FX consumes text, IR doesn't see "currency" anymore
-   - Prevents double-counting when categories overlap
-   - Score: 50 points per mention (requires volume to survive)
+### Process Stages
 
-3. **Global Instrument Tracker** - Learn from strict mentions
-   - When you see "interest rate swap" (strict), register: "swap" → "ir"
-   - Later, if you see just "we maintain swaps" (soft), look up in tracker
-   - If tracker says all prior mentions were IR, classify as IR
+#### 1. Pre-Processing & Tag Extraction (Filtering)
 
-4. **Outlier Removal** - Filter weak soft categories
-   - If IR has 20 mentions total (strict + soft)
-   - And CP has only 1 mention (soft-only)
-   - Threshold: 10% of max = 2
-   - CP (1 mention) < threshold (2) → Remove CP
-   - Keeps solid evidence, discards noise
+* **Action:** For every sentence, parse the tags to determine if it is "active" (meaning it has survived the filtering stages).
+* **Dominance Decision:** A sentence is considered **Active** if it is **not** marked as paragraph-level Deadweight (`_D<...>`, `_S<...>` inherited from paragraph noise) or sentence-level Deadweight (`_S<...>` sentence noise).
+* **Attribute Mining:** Extract all `_S<...>` (Noise) and `_E<...>` (Evidence) tags and map them to permanent user attributes (`is_hedger`, `reports_positions`, etc.).
+
+---
+
+#### 2. The Four-Gate Category Assignment (Strict vs. Soft)
+
+The core classification occurs through four sequential gates. A sentence stops at the first gate it passes.
+
+| Gate | Condition | Action & Rationale |
+| :--- | :--- | :--- |
+| **Gate 1: Strict Anchor (Evidence Required)** | Sentence contains an **unambiguous strict match** (e.g., `IR_REGEX` hits "Interest Rate Swap") **AND** is marked with **any evidence tag** (`_E<...>`, including `_E<OTHER>`). | **ACTION:** Immediately classify as **Strict**. Increment `strict_counts`. **CRITICAL:** Register instrument in the **Global Tracker**. |
+| **Gate 2: Strong Promotion (Evidence Dominates)** | Sentence is **active** (survived filtering) **AND** is marked with **Unambiguous Evidence** (Tier 1/1.5/2, e.g., `_E<NOTIONAL_VALUE_YEAR>`, `_E<AS_YEAR>`). | **ACTION:** Elevate Soft Mentions (e.g., "Contracts") to **Strict**. Increment `strict_counts`. Register instrument in the **Global Tracker**.  |
+| **Gate 3: Tracker Resolution** | Sentence is **active** and contains a **generic instrument word** (e.g., "swap") that was **previously registered** by the **Global Tracker** (Gate 1 or 2). | **ACTION:** Classify as **Soft** based on the tracker's learned category (e.g., "swap" → `ir`). Increment `soft_categories`. |
+| **Gate 4: Standard Soft Match (Contextual Density)** | All previous gates failed. Sentence is **active** and contains **soft category mentions** (e.g., "commodity price risk"). | **ACTION:** Classify as **Soft** using **Priority Consumption** (FX > CP > EQ > CR > IR). Increment `soft_categories`. |
+
+---
+
+#### 3. Final Aggregation & Outlier Removal
+
+* **Final Candidate Pool:** Combine all successfully classified **Strict** categories (which are already anchored) with the high-frequency **Soft** categories.
+* **Outlier Removal Logic:** 
+    1.  **Anchor Magnitude:** Calculate the total weight of all Strict Anchors (Strict Count + Soft Count for that same category).
+    2.  **Threshold:** Determine the threshold as $10\%$ of the largest Anchor's magnitude (minimum of 3 mentions).
+    3.  **Filtration:** Any Soft-Only category (e.g., `warr`) that falls below this dynamic threshold is removed.
+* **Final Classification:** The resulting set of categories forms the final classification for the user.
 
 5. **Attributes Mining** - Extract user characteristics from tags
    - `_D<POLICY>` → "documents_hedge_accounting"
