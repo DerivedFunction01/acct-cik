@@ -1,6 +1,6 @@
 import re
 from typing import List, Optional
-from derivative_regex import ACCOUNTING_STANDARDS_STRICT_REGEX, EMBEDDED_CAP_FLOOR_REGEX, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXCLUDE_REGEX_ACCOUNTING_STD, HEADER_CLEANUP_PATTERNS, HEDGING_CONTEXT_REGEX, MORE_INFO_REGEX, REFERENCE_CLEANUP_REGEX, SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STANDARD_ID_REGEX, STRICT_NOTIONAL_REGEX, TITLE_CLEANER_REGEX, YEAR_REGEX, cleanup_fragment
+from derivative_regex import ACCOUNTING_STANDARDS_STRICT_REGEX, NON_DER_CAP_FLOOR_REGEX, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXCLUDE_REGEX_ACCOUNTING_STD, HEADER_CLEANUP_PATTERNS, HEDGING_CONTEXT_REGEX, MORE_INFO_REGEX, REFERENCE_CLEANUP_REGEX, SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STANDARD_ID_REGEX, STRICT_NOTIONAL_REGEX, TITLE_CLEANER_REGEX, YEAR_REGEX, cleanup_fragment
 from final_verification import QUANT_REGEX
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
 from table_processor import TABLE_ANCHOR
@@ -356,7 +356,7 @@ class TextCleaner:
     def clean_loan_features(self, text: str):
 
         return self._clean_text_per_sentence(
-            text, EMBEDDED_CAP_FLOOR_REGEX, "loan_features", self.loan_salvation_regex
+            text, NON_DER_CAP_FLOOR_REGEX, "loan_features", self.loan_salvation_regex
         )
 
     def process(self, text: str, url: Optional[str] = None) -> str:

@@ -4377,7 +4377,7 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
 
 
 # Export this
-EMBEDDED_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
+NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
 
 
 def create_strict_fair_value_regex() -> re.Pattern:

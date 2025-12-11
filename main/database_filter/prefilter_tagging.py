@@ -12,7 +12,7 @@ from derivative_regex import (
     ABSENCE_REGEX,
     CR_SOFT_REGEX,
     DER_STD_REGEX,
-    EMBEDDED_CAP_FLOOR_REGEX,
+    NON_DER_CAP_FLOOR_REGEX,
     HEDGING_CONTEXT_REGEX,
     IS_REFERENCE_REGEX,
     LOOSE_GEN_REGEX,
@@ -197,7 +197,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 reason = NoiseReason.PNL
             elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
                 reason = NoiseReason.NPNS
-            elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
+            elif NON_DER_CAP_FLOOR_REGEX.search(masked):
                 reason = NoiseReason.LOAN
 
         # --- TIER 4: SOFT KILLS (The "Generic" Tags) ---
