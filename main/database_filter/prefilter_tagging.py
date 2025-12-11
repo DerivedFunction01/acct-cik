@@ -12,6 +12,7 @@ from derivative_regex import (
     ABSENCE_REGEX,
     CR_SOFT_REGEX,
     DER_STD_REGEX,
+    DID_NOT_HOLD_REGEX,
     NON_DER_CAP_FLOOR_REGEX,
     HEDGING_CONTEXT_REGEX,
     IS_REFERENCE_REGEX,
@@ -106,7 +107,11 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     if POTENTIAL_REGEX.search(text) or VAGUE_TIMING_REGEX.search(text):
         return NoiseReason.POT
 
-    if NEGATIVE_INTENT_REGEX.search(text) or ABSENCE_REGEX.search(text):
+    if (
+        NEGATIVE_INTENT_REGEX.search(text)
+        or ABSENCE_REGEX.search(text)
+        or DID_NOT_HOLD_REGEX.search(text)
+    ):
         return NoiseReason.NEG
 
     return None
