@@ -6,7 +6,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 from tqdm import tqdm
-from typing import Tuple, Dict, Set, Optional, List
+from typing import Any, Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from derivative_regex import (
@@ -382,7 +382,7 @@ def process_row(row: Tuple) -> Tuple:
     strict_categories = set()
     soft_categories = defaultdict(int)
     strict_counts = defaultdict(int)
-    attributes = {
+    attributes: Dict[str, Any] = {
         "is_hedger": False,
         "documents_hedge_accounting": False,
         "has_aoci_activity": False,
@@ -517,6 +517,8 @@ def process_row(row: Tuple) -> Tuple:
 
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
+    
+    attributes["debug"] = {"soft_counts": soft_categories, "strict_counts": strict_counts}
 
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
 # =============================================================================
