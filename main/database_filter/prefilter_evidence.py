@@ -180,9 +180,16 @@ FLEX_SEP = r"(?:\s+\S+){0,5}\s+"
 BS_LOC_REGEX = re.compile(f"{verbs_pattern}{FLEX_SEP}{locs_pattern}", re.IGNORECASE)
 
 PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
-CHANGE_FV_REGEX = build_regex(
-    [  # The "change" anchor prevents matching "Fair value of..." (Balance Sheet)
-        r"\bchange(?:s)?\s+in\s+(?:the\s+)?fair\s+value",
+# In prefilter_evidence.py
+CHANGE_FV_REGEX=build_regex(
+    [
+        # LOGIC:
+        # 1. Match "Change in fair value"
+        # 2. Negative Lookahead (?!...): Ensure it is NOT followed by "of debt/loans"
+        #    (This protects: "Hedge change in fair value of debt ($50M)")
+        # 3. Numeric Lookahead (?:...): Require a digit (\d) within 50 characters.
+        #    (This targets: "Change in fair value was $5M")
+        r"\bchange(?:s)?\s+in\s+(?:the\s+)?fair\s+value"
     ]
 )
 REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
@@ -234,12 +241,23 @@ def check_quantitative_evidence(
 
     has_relevant_year = any(y >= reporting_year for y in years_found)
 
+    # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
+    # Logic: You don't have "Notional PnL". If "Notional" is there, it's a Position.
     if is_notional or (is_strict_derivative and not is_fair_value):
         return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
 
+    # 2. FAIR VALUE LOGIC
     if is_fair_value:
+        # PNL CHECK:
+        # If we see "Change in FV", we assume PnL NOISE...
         if CHANGE_FV_REGEX.search(text):
-            return NoiseReason.PNL
+            # Correct Logic: Return PNL only if NO active verbs are found.
+            if not (POSS_VERB_REGEX.search(text) 
+                    or USAGE_VERB_REGEX.search(text) 
+                    or TRANS_VERB_REGEX.search(text)):
+                return NoiseReason.PNL
+
+        # If we passed the PnL check, treat as valid FV evidence
         if is_strict_derivative:
             return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
         else:
