@@ -462,11 +462,13 @@ def scan_sentence_for_evidence(
 # =============================================================================
 
 
-def should_mark_deadweight(evidence_tags: set, noise_tags: set) -> bool:
+def should_mark_deadweight(evidence_tags: set, noise_tags: set, len:int =0) -> bool:
     """
     Determine if paragraph should be marked as deadweight based on dominance hierarchy.
     Returns True if paragraph should be marked deadweight, False if it survives.
     """
+    if len == 1 and not evidence_tags or noise_tags: # Singular one-off mention that was never categorized
+        return True
     # STRONG evidence always survives
     if not evidence_tags.isdisjoint(STRONG_EVIDENCE):
         return False
@@ -561,7 +563,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     tagged_paragraph = " ".join(tagged_sentences)
 
     # Apply hierarchy: check if mixed signals kill the paragraph
-    if should_mark_deadweight(all_evidence, existing_paragraph_noise):
+    if should_mark_deadweight(all_evidence, existing_paragraph_noise, len=len(original_sentences)):
         return mark_as_deadweight(tagged_paragraph, NoiseReason.ANLZ)
 
     return tagged_paragraph
