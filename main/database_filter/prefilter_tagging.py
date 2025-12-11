@@ -40,7 +40,7 @@ from derivative_regex import (
 
 # Import Phase 6 Logic
 from final_verification import COUNTERPARTY_REGEX, HEDGE_DOC_REGEX
-from main.database_filter.prefilter_evidence import PNL_CONTEXT_REGEX
+from prefilter_evidence import PNL_CONTEXT_REGEX
 from prefilter_database import is_sophisticated_content
 from prefiltered_lib import (
     SKIP_TOKEN,
