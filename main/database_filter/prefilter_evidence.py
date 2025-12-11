@@ -20,7 +20,7 @@ from derivative_regex import (
     build_alternation,
     build_regex,
 )
-from prefilter_tagging import extract_values_and_years
+
 from table_processor import TABLE_ANCHOR
 from prefilter_database import is_sophisticated_content
 from prefiltered_lib import (
@@ -241,6 +241,8 @@ def check_derivative_global(text: str) -> bool:
 def check_quantitative_evidence(
     text: str, reporting_year: int, is_strict_derivative: bool
 ) -> Optional[Reason]:
+    from prefilter_tagging import extract_values_and_years
+
     """Check for Quantitative Evidence (NVY/FVY)."""
     if not reporting_year:
         return None
