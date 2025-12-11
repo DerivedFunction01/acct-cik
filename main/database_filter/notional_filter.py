@@ -150,13 +150,9 @@ def check_is_quantitative_zero(sentence: str, reporting_year: int) -> bool:
     # We use the cleaner inside extract_values_and_years
     years, values = extract_values_and_years(sentence)
 
-    # If no values at all, check for "notional" boilerplate
+    # If no values at all, skip
     if not values:
-        if (
-            "notional" in sentence.lower() or "fair value" in sentence.lower()
-        ) and not years:
-            return True  # Discard (Boilerplate)
-        return False  # Keep (Qualitative)
+        return False
 
     # --- STEP 2: Tier 1 - Strict Mapping (The Happy Path) ---
     # If we have a perfect 1-to-1 match, we trust the order.
