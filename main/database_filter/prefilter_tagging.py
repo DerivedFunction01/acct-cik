@@ -44,8 +44,6 @@ from derivative_regex import (
     is_regulatory_noise,
 )
 
-# Import Phase 6 Logic
-from final_verification import COUNTERPARTY_REGEX, HEDGE_DOC_REGEX
 from prefilter_evidence import PNL_CONTEXT_REGEX
 from prefilter_database import is_sophisticated_content, is_sophisticated_target
 from prefiltered_lib import (
@@ -55,7 +53,7 @@ from prefiltered_lib import (
     NoiseReason,
     get_tag,
     mark_as_deadweight,
-    parse_noise_tags,
+    QUANT_REGEX,
 )
 
 
@@ -138,20 +136,40 @@ ZERO_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# 3. Positive Numbers (Strict)
-POSITIVE_PATTERN = re.compile(
-    r"(?:"
-    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*[1-9]\d*(?:,\d{3})*(?:\.\d+)?|"  # Prefix: $100
-    r"[1-9]\d*(?:,\d{3})*(?:\.\d+)?\s+(?:million|billion|trillion|thousand)|"  # Text Suffix: 100 million
-    rf"[1-9]\d*(?:,\d{3})*(?:\.\d+)?\s*(?:{CURRENCY_SYMBOL_PATTERN})|"  # Code Suffix: 100 USD
-    r"[1-9]\d*(?:,\d{3})*+\.\d+(?!\s*\%)"  # Decimal forced: 5.5 (but not percentages)
-    r")",
-    re.IGNORECASE,
-)
-
 # 4. Any Number (Loose)
 ANY_NUMBER_LOOSE = re.compile(r"\b[1-9]\d*(?:,\d{3})*(?:\.\d+)?\b")
 COMPARISON_REGEX = build_regex(COMPARISON_PHRASES)
+
+
+HEDGE_DOC_TERMS = [
+    r"formally\s+document",
+    r"hedge\s+documentation",
+    r"documentation",
+    r"at\s+inception",
+    r"effectiveness\s+(?:is|was)\s+assessed",
+    r"highly\s+effective",
+    r"qualif(?:y|ies|ied)\s+for\s+hedg(?:ing|e)\s+(?:accounting|relationship|documentation)",
+    r"(?:dis)?continu(?:es?|ed|ing)\s+hedge\s+(?:accounting|relationship|documentation)",
+    r"economic\s+relationship",
+    r"nature\s+of",
+]
+HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)
+
+COUNTERPARTY_POLICY_TERMS = [
+    r"credit\s+risk",
+    r"counterpart(?:y|ies)",
+    r"credit\s+quality",
+    r"credit\s+worthiness",
+    r"highly[- ]rated",
+    r"investment[- ]grade",
+    r"financial\s+institutions",
+    r"master\s+netting",
+    r"collateral\s+requirements",
+    r"concentration\s+of\s+credit",
+    r"non[- ]performance",
+    r"nonperformance",
+]
+COUNTERPARTY_REGEX = build_regex(COUNTERPARTY_POLICY_TERMS)
 
 def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
     """
@@ -169,8 +187,8 @@ def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
     for m in ZERO_PATTERN.finditer(sentence):
         value_tokens.append({"start": m.start(), "is_zero": True, "text": m.group()})
 
-    # Find Positives (Strict)
-    for m in POSITIVE_PATTERN.finditer(sentence):
+    # Find Numerics (Strict)
+    for m in QUANT_REGEX.finditer(sentence):
         value_tokens.append({"start": m.start(), "is_zero": False, "text": m.group()})
 
     # Track ranges occupied by Strict/Zero matches to prevent double counting with Loose
