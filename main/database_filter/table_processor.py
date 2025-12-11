@@ -60,7 +60,9 @@ NOISE_HEADERS = re.compile(
 SECTION_KEYWORDS = re.compile(
     r"designated as|hedging instruments|underlying risk|derivatives not designated|"
     r"cash flow|fair value|net investment|assets|liabilities|equity contracts|warrants|"
-    r"embedded|offsetting|trading|non[- ]?trading|held for|financial instruments",
+    r"embedded|offsetting|trading|non[- ]?trading|held for|financial instruments|"
+    r"(?:interest\s+rate|equity|foreign\s+exchange|commodity|credit|"
+    r"FX|IR|commodity|currency)\s+(?:contracts?|derivatives?|instruments?)",
     re.IGNORECASE,
 )
 
@@ -145,12 +147,12 @@ class TableToTextConverter:
         - "skip": ambiguous or mixed content (don't merge)
         """
         merge_directions = {}
-        
+
         for col_idx in sparse_columns:
             # Collect all non-empty values in this column
             col_values = []
             col_patterns = set()
-            
+
             for row in raw_rows:
                 if col_idx < len(row) and row[col_idx].strip():
                     val = row[col_idx].strip()
@@ -166,10 +168,10 @@ class TableToTextConverter:
                         col_patterns.add("opening_paren")
                     else:
                         col_patterns.add("other")
-            
+
             if not col_values:
                 continue
-            
+
             # Determine merge strategy
             # Pure currency: merge RIGHT
             if col_patterns == {"currency"}:
@@ -189,9 +191,8 @@ class TableToTextConverter:
             # Ambiguous or mixed: skip to be safe
             else:
                 merge_directions[col_idx] = "skip"
-        
-        return merge_directions
 
+        return merge_directions
 
     def _merge_sparse_columns(self, raw_rows: List[List[str]], single_width_cols: Optional[Set] = None) -> Tuple[List[List[str]], Dict[int, int]]:
         """
@@ -243,7 +244,7 @@ class TableToTextConverter:
         # PASS 2: Apply merges based on detected strategies and track column mapping
         merged_rows = []
         col_mapping = {}  # old_col_idx -> new_col_idx
-        
+
         for row in raw_rows:
             merged_row = []
             skip_indices = set()
@@ -256,7 +257,7 @@ class TableToTextConverter:
                 cell = row[col_idx]
                 strategy = merge_directions.get(col_idx, "keep")
                 new_col_idx = len(merged_row)
-                
+
                 # Merge RIGHT: currency, opening paren
                 if strategy == "merge_right":
                     if col_idx + 1 < len(row):
@@ -269,7 +270,7 @@ class TableToTextConverter:
                     else:
                         merged_row.append(cell)
                         row_col_mapping[col_idx] = new_col_idx
-                
+
                 # Merge LEFT: closing paren, percent
                 elif strategy == "merge_left":
                     if merged_row:  # Append to previous cell
@@ -279,26 +280,25 @@ class TableToTextConverter:
                     else:
                         merged_row.append(cell)
                         row_col_mapping[col_idx] = new_col_idx
-                
+
                 # Skip (ambiguous): don't merge
                 elif strategy == "skip":
                     merged_row.append(cell)
                     row_col_mapping[col_idx] = new_col_idx
-                
+
                 # Normal column or unclassified sparse column: keep as-is
                 else:
                     merged_row.append(cell)
                     row_col_mapping[col_idx] = new_col_idx
-            
+
             # Aggregate column mappings (use first row as reference)
             if not col_mapping:
                 col_mapping = row_col_mapping
-            
+
             if merged_row:
                 merged_rows.append(merged_row)
 
         return merged_rows, col_mapping
-
 
     def _sync_headers_after_merge(self, col_mapping: Dict[int, int]) -> Dict[int, str]:
         """
@@ -308,14 +308,14 @@ class TableToTextConverter:
         """
         if not col_mapping or not self.col_headers:
             return self.col_headers
-        
+
         synced_headers = {}
         processed_old_cols = set()
-        
+
         for old_col_idx, new_col_idx in sorted(col_mapping.items()):
             if old_col_idx in processed_old_cols:
                 continue
-            
+
             # Check if this column merged with the next
             if (old_col_idx + 1 in col_mapping and 
                 col_mapping[old_col_idx + 1] == new_col_idx):
@@ -330,7 +330,7 @@ class TableToTextConverter:
                 # Single column (no merge)
                 synced_headers[new_col_idx] = self.col_headers.get(old_col_idx, "")
                 processed_old_cols.add(old_col_idx)
-        
+
         return synced_headers
 
     def _extract_data_driven(self, table_text: str) -> Tuple[List[List[str]], Dict[int, Optional[str]], Dict[int, str]]:
@@ -392,13 +392,13 @@ class TableToTextConverter:
                 if i + 1 < len(grouped_positions)
                 else len(marker_line)
             )
-            
+
             # Heuristic: if <C> group spans only 1 characters, it's likely a separator
             width = end - start
             col_idx = len(column_boundaries)
             if width < 2:
                 single_width_col_indices.add(col_idx)
-            
+
             column_boundaries.append((start, end))
 
         # Extract raw data rows (everything after <S>)
@@ -681,6 +681,36 @@ class TableToTextConverter:
                 return formatted.replace("__", num_str)
         except ValueError:
             return clean_val
+
+    def _is_subheader_row(self, row: List[str]) -> bool:
+        """
+        Determines if a row is likely a section header rather than a data row.
+        A row is a subheader if:
+        1. It matches known section keywords (e.g., "Cash Flow Hedges"), OR
+        2. It has no valid numeric data in the value columns.
+        """
+        if not row or not row[0].strip():
+            return False
+
+        # 1. Explicit Keyword Check
+        if SECTION_KEYWORDS.search(row[0]):
+            return True
+
+        # 2. Data Sparsity Check
+        # If the row has text in col 0 but NO valid numbers in mapped data columns, it's a header.
+        has_data = False
+        for i, cell in enumerate(row[1:], start=1):
+            if (
+                i in self.col_map
+                and self.col_map[i]
+                and self.col_map[i] != "context_text"  # Ignore context columns
+                and self.col_map[i] != "metadata_maturity"  # Ignore maturity dates
+                and self._is_valid_value(cell)
+            ):
+                has_data = True
+                break
+
+        return not has_data
 
     def process(self) -> Tuple[List[str], bool]:
         if self.invalid_table or not self.data:
