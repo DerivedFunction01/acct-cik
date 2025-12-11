@@ -407,7 +407,7 @@ def mark_sentence_as_other(text: str) -> Optional[Reason]:
         return EvidenceReason.TABLE
     if not SOFT_REGEX.search(text):
         return NoiseReason.CTX
-    return NoiseReason.OTHER
+    return None
 
 
 # =============================================================================
