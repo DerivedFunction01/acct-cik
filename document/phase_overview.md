@@ -277,9 +277,9 @@ Phase 3: Marked as deadweight → Not counted ✓
 
 ### Problem 3: Historical Activity
 ```
-Raw text: "In 2022, we used currency forwards. We liquidated all in December."
-Phase 1: Tags: `_S<TIME> In 2022...` and `_S<TERM> liquidated...`
-Phase 2: Temporal check: all years < reporting_year
+Raw text: "In 2023, we used currency forwards. We liquidated all in December."
+Phase 1: Tags: `_S<TRANSACTION_YEAR> In 2022...` and `_S<TERM> liquidated...`
+Phase 2: Exclusion check: TERM eliminates TRANSACTION_YEAR
 Phase 3: Marked as deadweight (historical) → Not counted ✓
 ```
 
@@ -294,8 +294,8 @@ Phase 3: No evidence tags → Marked as deadweight ✓
 ### Problem 5: Ambiguous Reference
 ```
 Company earlier disclosed: "interest rate swap agreement"
-Later says: "We maintain these instruments to manage floating rate risk"
-Phase 3: Global Instrument Tracker learned "instruments" can mean "swaps"
+Later says: "We maintain these swaps to manage floating rate risk"
+Phase 3: Global Instrument Tracker learned "swaps" can mean "interest rate swaps" if there are no "currency swaps"
 Result: Correctly classified as Interest Rate ✓
 ```
 
