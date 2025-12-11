@@ -74,7 +74,7 @@ class MinimalTextCleaner:
         text = text.strip()
         text = self.bullet_pattern.sub(safe_bullet_sub, text)
 
-        # Step 3: Apply other cleanups (no quant conflict)
+        # Step 3: Apply POLICY cleanups (no quant conflict)
         text = self.dashed_pattern.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
         text = DATE_DM_REGEX.sub(" ", text)
@@ -134,7 +134,7 @@ class NoiseReason(Reason):
     NPNS = "NPNS"  # Normal Purchases / Sales
     LOAN = "LOAN"  # Non derivative interest rate caps and floors on debt
     CTX = "CONTEXT" # Context text
-    OTHER = "OTHER" # other text (has some derivative mention)
+    POLICY = "POLICY" # POLICY text (has some derivative mention)
 
     # --- Business Logic / Signals ---
     TRADING = "TRADING"  # Trading Denial ("We do not trade")
@@ -231,7 +231,7 @@ class EvidenceReason(Reason):
 
 # TIER 1: STOCK EVIDENCE (Titanium)
 # Immune to: History, Termination, Policy, Negation.
-# Logic: If I have it at Year-End 2024, it doesn't matter if I terminated others or had old ones.
+# Logic: If I have it at Year-End 2024, it doesn't matter if I terminated POLICYs or had old ones.
 STRONG_EVIDENCE = {
     EvidenceReason.AS_YEAR,  # "Outstanding at Dec 31, 2024"
     EvidenceReason.MAT_FUT,  # "Matures in 2026"
@@ -242,7 +242,7 @@ STRONG_EVIDENCE = {
 # TIER 1.5: FLOW EVIDENCE (Conditional Strong)
 # Immune to: History (TIME), Policy (POLICY).
 # Dies to: Termination (TERM)
-# Logic: "Entered in 2024" overrides "2019 history" or no other "oustanding positions", but dies if "Terminated" in same breath.
+# Logic: "Entered in 2024" overrides "2019 history" or no POLICY "oustanding positions", but dies if "Terminated" in same breath.
 FLOW_EVIDENCE = {
     EvidenceReason.ACT_YEAR,  # "Entered into Swaps in 2024"
 }
