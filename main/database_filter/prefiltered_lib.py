@@ -303,6 +303,7 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.REF,  # "See Note 5"
     NoiseReason.TRADING,  # "We do not trade"
     NoiseReason.PNL,  # An unrealized gain
+    NoiseReason.AOCI,  # "Recorded in AOCI"
 }
 
 
