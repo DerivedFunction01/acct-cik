@@ -340,7 +340,7 @@ class TableToTextConverter:
             elif has_percentages:
                 col_type = None  # Rate column, skip
             elif has_large_numbers:
-                col_type = self.table_default_type or "notional"
+                col_type = self.table_default_type or "value"
             else:
                 col_type = None
 
