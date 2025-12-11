@@ -395,6 +395,7 @@ def process_row(row: Tuple) -> Tuple:
 
     # --- SINGLE PASS Processing ---
     for p in paragraphs:
+        local_tracker = GlobalInstrumentTracker()
         if not mentions_venue and TRADING_VENUE_REGEX.search(p):
             mentions_venue = True
 
@@ -431,6 +432,7 @@ def process_row(row: Tuple) -> Tuple:
                 # 1. Always learn Definitions from Strict matches (e.g. Headers)
                 for cat in strict_cats:
                     tracker.register_paragraph(clean_sent, cat)
+                    local_tracker.register_paragraph(clean_sent, cat)
 
                 # 2. If Verified Evidence exists, Lock it in as an ANCHOR.
                 if is_active and evidence_tags_found:
@@ -457,6 +459,7 @@ def process_row(row: Tuple) -> Tuple:
                 for cat in promoted_cats:
                     strict_categories.add(cat)
                     tracker.register_paragraph(clean_sent, cat)
+                    local_tracker.register_paragraph(clean_sent, cat)
                     strict_counts[cat] += 1
                 continue
 
@@ -468,17 +471,22 @@ def process_row(row: Tuple) -> Tuple:
             if soft_cats and soft_cats != {"gen"}:
                 for cat in soft_cats:
                     tracker.register_paragraph(clean_sent, cat)
+                    local_tracker.register_paragraph(clean_sent, cat)
                     soft_categories[cat] += 1
                 continue
 
             # -------------------------------------------------------------
             # C. Tracker Resolution (Token Matching)
             # -------------------------------------------------------------
-            tracker_cat = tracker.resolve_instrument(clean_sent)
+            tracker_cat = local_tracker.resolve_instrument(clean_sent)
+
+            # Priority 2: Check Global Context (If Local failed/was empty)
+            if not tracker_cat:
+                tracker_cat = tracker.resolve_instrument(clean_sent)
+                
             if tracker_cat:
                 soft_categories[tracker_cat] += 1
                 continue
-
             # -------------------------------------------------------------
             # D. Standard Soft Extraction with Local Resolution
             # -------------------------------------------------------------
