@@ -20,6 +20,7 @@ from derivative_regex import (
     build_alternation,
     build_regex,
 )
+from table_processor import TABLE_ANCHOR
 from prefilter_database import is_sophisticated_content
 from notional_filter import extract_values_and_years
 from prefiltered_lib import (
@@ -384,6 +385,8 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
     return None
 
 def mark_sentence_as_other(text: str) -> Optional[Reason]:
+    if TABLE_ANCHOR in text:
+        return EvidenceReason.TABLE
     if not SOFT_REGEX.search(text):
         return NoiseReason.CTX
     return NoiseReason.OTHER
