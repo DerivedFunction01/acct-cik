@@ -132,7 +132,6 @@ class NoiseReason(Reason):
     AOCI = "AOCI"  # AOCI ("recorded in AOCI") (Note: AOCI + Termination is an instant killer)
     PNL = "PNL" # PNL, but no quantitaive action. Probably fair valuation inputs
     NPNS = "NPNS"  # Normal Purchases / Sales
-    NC = "NC" # Non derivative commodity contracts
     LOAN = "LOAN"  # Embedded Loan Features
     CTX = "CONTEXT" # Context text
     OTHER = "OTHER" # other text (has some derivative mention)
@@ -166,6 +165,7 @@ class NoiseReason(Reason):
     NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
     COMP = "COMP"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
+    NC = "NC"  # Non derivative commodity contracts
 
     # --- Firm Level ---
     HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging
