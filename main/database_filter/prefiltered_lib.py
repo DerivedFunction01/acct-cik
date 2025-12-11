@@ -256,7 +256,7 @@ TIME_KILLED_EVIDENCE = {
     EvidenceReason.NVNY,  # "Notional is $100M"
     EvidenceReason.FVNY,  # "Fair Value is $5M"
     EvidenceReason.BS_LOC,  # "Recorded in Earnings"
-    # Weak Subject / Anchored (The "Ambiguous" Duals)
+    # Weak Subject / Anchored (The "Ambiguous" Duals): There is no derivative mention within the same paragraph.
     EvidenceReason.ASAIY,  # "Contracts outstanding 2024"
     EvidenceReason.MAT_AMB_FUT,  # "Agreements mature in 2026"
     EvidenceReason.FVAIY,  # "FV of Contracts was $5M in 2024"
