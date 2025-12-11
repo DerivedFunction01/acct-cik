@@ -720,6 +720,73 @@ class TableToTextConverter:
         # If no numeric data, it's a subheader
         return not has_numeric_data
 
+    def _construct_instrument_name(self, row_text: str, context_text: str) -> str:
+        """
+        Intelligently combines row label and context header.
+
+        Logic:
+        1. Designation Context ("Designated as..."): Appended to the end.
+        2. Category Context ("Interest Rate Contracts"): Prepended.
+           - Redundancy Check: If Context has a generic base ("Contracts") and
+             Row has a specific base ("Swaps"), drop the generic base.
+
+        Example:
+        Context: "Interest Rate Contracts" | Row: "Swaps"
+        Result: "Interest Rate Swaps" (Not "Interest Rate Contracts Swaps")
+        """
+        # Clean inputs
+        name = row_text.strip().rstrip(":")
+        ctx = context_text.strip().rstrip(":")
+
+        if not ctx:
+            return name
+
+        # --- SCENARIO 1: Designation / Status (Append) ---
+        # If context describes *how* it's held (hedging, trading, fair value), it goes AFTER.
+        # We use a subset of SECTION_KEYWORDS logic here.
+        is_designation = bool(
+            re.search(
+                r"designated|hedging|trading|fair value|cash flow|net investment|derivatives",
+                ctx,
+                re.IGNORECASE,
+            )
+        )
+
+        # Special Case: "Derivatives" can be a category or designation depending on phrasing.
+        # "Derivatives not designated" -> Designation (Append)
+        # "Derivative Instruments" -> Category (Prepend)
+        if is_designation:
+            # Check if row already contains the context to avoid "Designated... Designated..."
+            if ctx.lower() in name.lower():
+                return name
+            return f"{name} {ctx}"
+
+        # --- SCENARIO 2: Category / Modifier (Prepend) ---
+        # Context: "Interest Rate Contracts"
+
+        # A. Check for exact redundancy
+        if ctx.lower() in name.lower():
+            return name
+
+        # B. Smart Base Removal
+        # Does the Context have a generic base? (e.g., "Contracts", "Instruments")
+        ctx_base_match = BASE_REGEX.search(ctx)
+
+        # Does the Row have a specific base? (e.g., "Swaps", "Options")
+        row_base_match = BASE_REGEX.search(name)
+
+        prefix = ctx
+
+        # If both have a base, we likely want to drop the Context's base to act as a modifier.
+        # "Interest Rate [Contracts]" + "[Swaps]" -> "Interest Rate Swaps"
+        if ctx_base_match and row_base_match:
+            ctx_base = ctx_base_match.group(0)
+            # Remove the base from the context (case-insensitive)
+            # e.g., "Interest Rate Contracts" -> "Interest Rate"
+            prefix = re.sub(re.escape(ctx_base), "", ctx, flags=re.IGNORECASE).strip()
+
+        return f"{prefix} {name}".strip()
+
     def process(self) -> Tuple[List[str], bool]:
         if self.invalid_table or not self.data:
             return ([], False)
@@ -753,16 +820,32 @@ class TableToTextConverter:
                 continue
 
             if self._is_subheader_row(row):
-                # Update the active context (e.g., "Interest Rate Contracts")
-                # We strip colons/whitespace to keep it clean.
-                active_context = row[0].strip().rstrip(":")
+                new_header = row[0].strip().rstrip(":")
+
+                # Check if this is a "Designation" subheader (should append)
+                # vs a "Category" subheader (should replace)
+                is_designation = bool(
+                    re.search(r"designated|hedging|trading", new_header, re.IGNORECASE)
+                )
+
+                if is_designation and active_context:
+                    # Append to existing context (e.g. "Interest Rate Contracts" + "Designated...")
+                    # We store them as a combined string, and let _construct_instrument_name parse it later?
+                    # Actually, better to just append the string for the construct function to handle.
+                    active_context = f"{active_context} {new_header}"
+                else:
+                    # New Category - Replace context
+                    active_context = new_header
+
                 continue
 
             instrument_name = row[0].strip()
             if "total" in instrument_name.lower():
                 continue
             if active_context:
-                instrument_name = f"{active_context} {instrument_name}"
+                instrument_name = self._construct_instrument_name(
+                    instrument_name, active_context
+                )
 
             # Check derivative signals
             is_strict = self.is_implied_derivative(instrument_name)
