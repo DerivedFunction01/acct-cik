@@ -77,11 +77,7 @@ VERB_MAP = {
         r"secur(?:e|es|ed|ing)",
     ],
     "ACCT": [
-        r"hedg(?:e|es|ed|ing)",
         r"designat(?:e|es|ed|ing)",
-        r"offset(?:s|ting)?",
-        r"manag(?:e|es|ed|ing)",
-        r"mitigat(?:e|es|ed|ing)",
     ],
 }
 
@@ -174,6 +170,7 @@ ACTIVE_ADJ_REGEX = build_regex(ACTIVE_ADJECTIVES)
 POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
 USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
 TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
+ACCT_VERB_REGEX = build_regex(VERB_MAP["ACCT"])
 
 locs_escaped = [re.escape(x) for x in BALANCE_SHEET_LOCATIONS]
 locs_pattern = build_alternation(locs_escaped)
@@ -310,7 +307,7 @@ def check_active_state_general(
         return None
 
     has_poss = bool(POSS_VERB_REGEX.search(text))
-    has_use = bool(USAGE_VERB_REGEX.search(text))
+    has_use = bool(USAGE_VERB_REGEX.search(text) or ACCT_VERB_REGEX.search(text))
 
     if has_poss or has_use:
         return (
