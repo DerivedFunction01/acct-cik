@@ -134,6 +134,7 @@ class NoiseReason(Reason):
     NPNS = "NPNS"  # Normal Purchases / Sales
     LOAN = "LOAN"  # Non derivative interest rate caps and floors on debt
     CTX = "CONTEXT" # Context text
+    OTHER = "OTHER"  # Has derivative mention but no Evidence -> Other
     POLICY = "POLICY" # POLICY text (has some derivative mention)
 
     # --- Business Logic / Signals ---
@@ -304,7 +305,6 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.TRADING,  # "We do not trade"
     NoiseReason.PNL,  # An unrealized gain
     NoiseReason.AOCI,  # "Recorded in AOCI"
-    NoiseReason.POLICY # Any other derivative mention
 }
 
 

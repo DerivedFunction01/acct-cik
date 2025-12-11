@@ -396,8 +396,8 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
 
 def mark_sentence_as_other(text: str) -> Optional[Reason]:
     if not SOFT_REGEX.search(text):
-        return NoiseReason.POLICY
-    return NoiseReason.CTX
+        return NoiseReason.CTX
+    return NoiseReason.OTHER
 
 
 # =============================================================================
