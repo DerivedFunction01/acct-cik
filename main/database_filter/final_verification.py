@@ -29,8 +29,6 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Tuple, List, Dict
 from collections import defaultdict
 
-from table_processor import TABLE_ANCHOR
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -157,6 +155,8 @@ COUNTERPARTY_REGEX = re.compile(
 
 
 def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, str]:
+    from table_processor import TABLE_ANCHOR
+
     """
     Analyzes sentence for evidence of active usage.
     Returns: (is_kept, reason_code)
@@ -202,6 +202,8 @@ def check_signal_status(sentence: str, has_quant: bool = False) -> Tuple[bool, s
 
 
 def process_company(item):
+    from table_processor import TABLE_ANCHOR
+
     url, matches_json, cats_json, cik, year = item
 
     try:
