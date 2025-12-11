@@ -119,10 +119,12 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     return None
 
 
-def get_termination_noise_reason(text: str) -> Optional[NoiseReason]:
+def get_termination_noise_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
     """Returns TERM if sentence describes dead positions."""
     if TERMINATION_REGEX.search(text):
-        return NoiseReason.TERM
+        years = [int(y) for y in YEAR_REGEX.findall(text)]
+        if not any(y > reporting_year for y in years):
+            return NoiseReason.TERM
     return None
 
 
@@ -369,7 +371,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             elif not reason:
                 # Check Termination (e.g., "Terminated in [Current Year]")
                 # Note: Temporal check above already killed "Terminated in [Past Year]"
-                reason = get_termination_noise_reason(masked)
+                reason = get_termination_noise_reason(masked, reporting_year=reporting_year)
             # Prevents no hedge ineffectiveness from being negated
             elif PNL_CONTEXT_REGEX.search(masked):
                 reason = NoiseReason.PNL
