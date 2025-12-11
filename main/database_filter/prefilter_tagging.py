@@ -130,19 +130,6 @@ def get_quantitative_noise_reason(
     return None
 
 
-def get_paragraph_level_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
-    """Checks if the entire paragraph block is deadweight."""
-
-    # 1. Historical Narrative Block
-    if reporting_year:
-        years = [int(y) for y in YEAR_REGEX.findall(text)]
-        if years and all(y < reporting_year for y in years):
-            if not ACTIVE_STATE_REGEX.search(text):
-                return NoiseReason.HIST_BLOCK
-
-    return None
-
-
 # =============================================================================
 # CORE TAGGING LOGIC
 # =============================================================================
@@ -151,11 +138,6 @@ def get_paragraph_level_reason(text: str, reporting_year: int) -> Optional[Noise
 def tag_paragraph(text: str, reporting_year: int) -> str:
     # 1. Masking for Logic Checks
     masked_text = mask_text(text)
-
-    # 2. Paragraph-Level Pre-Check
-    para_reason = get_paragraph_level_reason(masked_text, reporting_year)
-    if para_reason:
-        return f"{get_tag(DEADWEIGHT_TOKEN, para_reason)} {text}"
 
     # 3. Dual Split (Original vs Masked)
     original_sentences = [
