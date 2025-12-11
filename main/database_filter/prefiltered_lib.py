@@ -142,7 +142,7 @@ class NoiseReason(Reason):
     CREDIT = "CREDIT"  # Counterparty Risk ("Credit exposure, counterparty risk")
 
     # --- Scoring ---
-    CONTRACT = "CONTRACT"  # Contractual Boilerplate Score
+    CONTRACT = "CONTRACT"  # Contractual Boilerplate Score (includes certain definition indicators)
     REG = "REG"  # Regulatory Boilerplate Score
     HYP_SCORE = "HYP_SCORE"  # Hypothetical Simulation/Derivative Score
     BANK = "BANK"  # Banking
