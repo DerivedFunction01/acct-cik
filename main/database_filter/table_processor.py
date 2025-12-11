@@ -12,6 +12,7 @@ from derivative_regex import (
     SOFT_GEN_REGEX,
     CURRENCY_NAMES_REGEX,
 )
+from prefiltered_lib import EVIDENCE_TOKEN, EvidenceReason, get_tag
 
 # --- HEADER DEFINITIONS ---
 CONTEXT_HEADERS = re.compile(
@@ -43,7 +44,8 @@ SOPHISTICATED_TARGETS = re.compile(
     r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
 )
 
-TABLE_ANCHOR = " T_ "
+TABLE_ANCHOR = get_tag(EVIDENCE_TOKEN, EvidenceReason.TABLE)
+
 caption_regex = re.compile(
     r"<caption>\s*(.*?)(?=\n\n|:\n|\n[-=])", re.DOTALL | re.IGNORECASE
 )
@@ -546,7 +548,7 @@ class TableToTextConverter:
                     or table_has_strong_notional_col
                     or self.caption_is_strong
                 ) and not soph
-                anchor_text = TABLE_ANCHOR if use_anchor else ""
+                anchor_text = (TABLE_ANCHOR if use_anchor else "")
 
                 # Generate sentence based on actual type
                 if "notional" in actual_col_type:

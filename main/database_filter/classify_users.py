@@ -372,7 +372,7 @@ def get_text_categories(text: str) -> Set[str]:
 # =============================================================================
 def process_row(row: Tuple) -> Tuple:
     url, matches_json, cik, year = row
-    
+
     try:
         paragraphs = json.loads(matches_json)
     except (json.JSONDecodeError, TypeError):
@@ -400,12 +400,12 @@ def process_row(row: Tuple) -> Tuple:
 
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         mine_attributes(para_tag_reason, attributes)
-        
+
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
         para_clean = _cleaner.clean_entities(para_content)
         context_cats = get_text_categories(para_clean)
-        
+
         # We allow multiple contexts if they are strong enough to survive get_text_categories
         local_contexts = context_cats if context_cats else set()
 
@@ -414,17 +414,19 @@ def process_row(row: Tuple) -> Tuple:
         for sent in sentences:
             is_sent_deadweight, sent_tag_reason, sent_content = parse_tags(sent)
             mine_attributes(sent_tag_reason, attributes)
-            
+
             evidence_tags_found = EVIDENCE_TAG_PARSER.findall(sent_content)
             for etag in evidence_tags_found:
                 mine_attributes(etag, attributes)
 
-            is_active = not (is_para_deadweight or is_sent_deadweight)
+            is_active = (
+                not (is_para_deadweight or is_sent_deadweight) and evidence_tags_found
+            )
             clean_sent = _cleaner.clean_entities(sent_content)
 
             # A. Check Strict Matches
             strict_cats = extract_categories_strict(clean_sent)
-            
+
             if strict_cats:
                 for cat in strict_cats:
                     tracker.register_paragraph(clean_sent, cat)
@@ -453,8 +455,8 @@ def process_row(row: Tuple) -> Tuple:
 
             # D. Standard Soft Extraction with Local Resolution (Context Matching)
             found_soft = extract_categories_soft(clean_sent)
-            
-            # If we found ONLY "gen" (e.g. "The instruments") 
+
+            # If we found ONLY "gen" (e.g. "The instruments")
             # and we have valid local contexts (e.g. {"ir", "fx"}), resolve to ALL of them!
             if local_contexts and "gen" in found_soft and len(found_soft) == 1:
                 for ctx in local_contexts:
@@ -472,7 +474,7 @@ def process_row(row: Tuple) -> Tuple:
     )
 
     final_categories = strict_categories.union(valid_soft_cats)
-    
+
     if len(final_categories) > 1 and "gen" in final_categories:
         final_categories.remove("gen")
 

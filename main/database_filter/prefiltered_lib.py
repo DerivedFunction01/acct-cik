@@ -186,6 +186,7 @@ class EvidenceReason(Reason):
 
     # Special Survives history but dies to termination only
     ACT_YEAR = "TRANSACTION_YEAR"  # "Entered into Swaps in 2024" 
+    TABLE = "TABLE" # Table usually refers to current usage
 
     # =========================================================
     # TIER 2: MEDIUM (The "Solid State")
