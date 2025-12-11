@@ -288,7 +288,7 @@ FLOW_KILLERS = {
 # Includes everything in Flow Killers + Time/History
 TIME_KILLERS = FLOW_KILLERS | {
     NoiseReason.TIME,  # "In 2019..."
-    NoiseReason.HIST_BLOCK,  # "Historically..."
+    NoiseReason.HIST_BLOCK,  # Entire paragraph is marked as historical (legacy)
     NoiseReason.POT,  # "We periodically use..."
     NoiseReason.NEG,  # "Did not enter"
     NoiseReason.ZERO,  # "Zero value"
