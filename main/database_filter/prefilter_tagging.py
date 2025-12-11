@@ -48,6 +48,8 @@ from prefiltered_lib import (
     MinimalTextCleaner,
     NoiseReason,
     get_tag,
+    mark_as_deadweight,
+    parse_noise_tags,
 )
 from notional_filter import check_is_quantitative_zero
 
@@ -229,9 +231,11 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     if not surviving_text_parts:
         final_text = " ".join(tagged_output)
         return f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ)} {final_text}"
+
     # Perform some paragraph-level check here
-    
     combined_survivors = " ".join(surviving_text_parts)
+    final_text = " ".join(tagged_output)
+
     has_signal = False
 
     if SOFT_REGEX.search(combined_survivors):
@@ -242,11 +246,10 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 has_signal = True
                 break
 
-    final_text = " ".join(tagged_output)
     if has_signal:
         return final_text
     else:
-        return f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ)} {final_text}"
+        return mark_as_deadweight(final_text, NoiseReason.ANLZ)
 
 
 # =============================================================================
