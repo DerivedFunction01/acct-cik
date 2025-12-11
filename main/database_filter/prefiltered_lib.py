@@ -1,6 +1,6 @@
 import re
 from typing import Set, Tuple
-from derivative_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
 from final_verification import QUANT_REGEX
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
 
@@ -340,3 +340,19 @@ def parse_noise_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
     text = re.sub(r"\s+", " ", text)
 
     return text, noise_tags
+
+
+NUMBER_PATTERN = r"(?:0\.\d+|(?:[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d*)(?:\.\d+)?)"
+SCALE_WORDS = r"(?:million|billion|trillion|thousand)"
+QUANT_REGEX = re.compile(
+    # Currency symbol + optional parens + number + optional parens
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*\(?\s*{NUMBER_PATTERN}\s*\)?|"
+    # Number + optional parens + currency symbol
+    rf"\(?\s*{NUMBER_PATTERN}\s*\)?\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
+    # Currency + number + scale word
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s+{NUMBER_PATTERN}\s+{SCALE_WORDS}|"
+    # Number + optional scale word + commodity unit
+    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+{COMMODITY_UNIT_PATTERN}|"
+    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+shares",
+    re.IGNORECASE,
+)

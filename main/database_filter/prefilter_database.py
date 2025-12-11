@@ -46,16 +46,15 @@ from derivative_regex import (
     VALUATION_MODELS_REGEX,
 
     aggregate_discards,
-    build_alternation,
+    build_regex,
     is_bank_list_noise,
     is_contractual_noise,
     is_hypothetical_noise,
     is_regulatory_noise,
 )
 
-from final_verification import QUANT_REGEX
-from table_processor import TABLE_ANCHOR, VALUE_HEADERS, TableToTextConverter
-from prefiltered_lib import NoiseReason, get_tag
+from table_processor import TABLE_ANCHOR, TableToTextConverter
+from prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
 
 # =============================================================================
 # SOPHISTICATED CONTEXT DEFINITIONS
@@ -88,10 +87,7 @@ SOPHISTICATED_CONTEXT_TERMS = [
     r"fair\s+value\s+options?",
 ] + VALUATION_MODELS  # Black-Scholes, Monte Carlo, etc.
 
-SOPHISTICATED_CONTEXT_REGEX = re.compile(
-    r"\b" + build_alternation(SOPHISTICATED_CONTEXT_TERMS) + r"\b", re.IGNORECASE
-)
-
+SOPHISTICATED_CONTEXT_REGEX = build_regex(SOPHISTICATED_CONTEXT_TERMS)
 
 def is_sophisticated_target(text: str) -> bool:
     """
