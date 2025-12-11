@@ -147,8 +147,6 @@ PNL_TERMS = [
     # 2. "On" Construction (e.g., "Gain on derivatives")
     r"\b(?:net\s+)?(?:gains?|loss(?:es)?)",
     # 3. Fair Value CHANGES (Strictly Flow)
-    # The "change" anchor prevents matching "Fair value of..." (Balance Sheet)
-    r"\bchange(?:s)?\s+in\s+(?:the\s+)?fair\s+value",
     # 4. Ineffectiveness (Strictly PnL context)
     r"\bineffective\s+portion",
     r"\bhedge\s+ineffectiveness",
@@ -184,6 +182,11 @@ FLEX_SEP = r"(?:\s+\S+){0,5}\s+"
 BS_LOC_REGEX = re.compile(f"{verbs_pattern}{FLEX_SEP}{locs_pattern}", re.IGNORECASE)
 
 PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
+CHANGE_FV_REGEX = build_regex(
+    [  # The "change" anchor prevents matching "Fair value of..." (Balance Sheet)
+        r"\bchange(?:s)?\s+in\s+(?:the\s+)?fair\s+value",
+    ]
+)
 REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
 
@@ -214,7 +217,7 @@ def check_derivative_global(text: str) -> bool:
 
 def check_quantitative_evidence(
     text: str, reporting_year: int, is_strict_derivative: bool
-) -> Optional[EvidenceReason]:
+) -> Optional[Reason]:
     """Check for Quantitative Evidence (NVY/FVY)."""
     if not reporting_year:
         return None
@@ -237,6 +240,8 @@ def check_quantitative_evidence(
         return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
 
     if is_fair_value:
+        if CHANGE_FV_REGEX.search(text):
+            return NoiseReason.PNL
         if is_strict_derivative:
             return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
         else:
@@ -358,19 +363,6 @@ def check_transaction_action(
     return None
 
 
-def check_pnl_context(
-    text: str, is_strict_derivative: bool
-) -> Optional[EvidenceReason]:
-    """Check for PnL Context."""
-    if not PNL_CONTEXT_REGEX.search(text):
-        return None
-
-    if not is_strict_derivative:
-        return None
-
-    return EvidenceReason.PNL_REC
-
-
 def check_remaining_term(text: str) -> Optional[EvidenceReason]:
     """Check for Remaining Term descriptions."""
 
@@ -438,8 +430,6 @@ def scan_sentence_for_evidence(
     # TIER 3: FLUFF (lowest priority)
     if term := check_remaining_term(text):
         return term
-    if pnl := check_pnl_context(text, is_strict_derivative):
-        return pnl
 
     # TIER 4: OTHER (catch-all)
     other = mark_sentence_as_other(text)
@@ -535,9 +525,13 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 masked, reporting_year, is_strict_derivative
             )
             if evidence:
-                all_evidence.add(evidence)
+                evidence_type = isinstance(evidence, EvidenceReason)
+                if evidence_type:
+                    all_evidence.add(evidence)
+                elif isinstance(evidence, NoiseReason):
+                    existing_paragraph_noise.add(evidence)
                 # Tag this sentence with the evidence
-                tagged_sent = f"{get_tag(EVIDENCE_TOKEN, evidence)} {orig}"
+                tagged_sent = f"{get_tag(EVIDENCE_TOKEN if evidence_type else SKIP_TOKEN, evidence)} {orig}"
                 tagged_sentences.append(tagged_sent)
             else:
                 tagged_sentences.append(orig)
