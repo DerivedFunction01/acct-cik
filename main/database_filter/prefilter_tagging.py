@@ -179,7 +179,9 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 # Check Termination (e.g., "Terminated in [Current Year]")
                 # Note: Temporal check above already killed "Terminated in [Past Year]"
                 reason = get_termination_noise_reason(masked)
-
+            # Prevents no hedge ineffectiveness from being negated
+            elif PNL_CONTEXT_REGEX.search(masked):
+                reason = NoiseReason.PNL
             if not reason:
                 # Check Absence (e.g., "We do not hold...")
                 reason = get_intent_noise_reason(masked)
@@ -193,8 +195,6 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 reason = NoiseReason.DEF
             elif AOCI_NOISE_REGEX.search(masked):
                 reason = NoiseReason.AOCI
-            elif PNL_CONTEXT_REGEX.search(masked):
-                reason = NoiseReason.PNL
             elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
                 reason = NoiseReason.NPNS
             elif NON_DER_CAP_FLOOR_REGEX.search(masked):
