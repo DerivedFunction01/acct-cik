@@ -228,6 +228,7 @@ class EvidenceReason(Reason):
     # =========================================================
     PNL_REC = "PNL_RECOGNITION"
     REM_TERM = "REMAINING_TERM"
+    UNCAT = "UNCATEGORIZED"
 
 # --- LOGIC SETS ---
 
@@ -279,6 +280,7 @@ POLICY_KILLED_EVIDENCE = {
 FLUFF_EVIDENCE = {
     EvidenceReason.PNL_REC,
     EvidenceReason.REM_TERM,
+    EvidenceReason.UNCAT
 }
 
 # --- KILLER SETS ---

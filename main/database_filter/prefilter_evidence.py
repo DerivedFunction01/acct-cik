@@ -493,13 +493,20 @@ def scan_sentence_for_evidence(
 # =============================================================================
 
 
-def should_mark_deadweight(evidence_tags: set, noise_tags: set, len:int =0) -> bool:
+def should_mark_deadweight(
+    evidence_tags: set, noise_tags: set, length: int = 0
+) -> bool:
     """
     Determine if paragraph should be marked as deadweight based on dominance hierarchy.
-    Returns True if paragraph should be marked deadweight, False if it survives.
     """
-    if len == 1 and not evidence_tags or noise_tags: # Singular one-off mention that was never categorized
-        return True
+    # 1. Handle No Evidence Case
+    # If we have no specific evidence, we treat the text as "Uncategorized".
+    # It will only survive if it is completely clean (No Noise).
+    if not evidence_tags:
+        evidence_tags.add(EvidenceReason.UNCAT)
+
+    # 2. Hierarchy Checks
+
     # STRONG evidence always survives
     if not evidence_tags.isdisjoint(STRONG_EVIDENCE):
         return False
@@ -516,11 +523,13 @@ def should_mark_deadweight(evidence_tags: set, noise_tags: set, len:int =0) -> b
     if not evidence_tags.isdisjoint(POLICY_KILLED_EVIDENCE):
         return not noise_tags.isdisjoint(POLICY_KILLERS)
 
-    # FLUFF evidence survives only if there are no noise tags
+    # FLUFF (including UNCAT) survives ONLY if there are no noise tags
     if not evidence_tags.isdisjoint(FLUFF_EVIDENCE):
-        return bool(noise_tags)
+        return bool(
+            noise_tags
+        )  # Returns True (Dead) if noise exists, False (Survives) if clean.
 
-    # No evidence = deadweight
+    # Default to Deadweight (Safety fall-through)
     return True
 
 
