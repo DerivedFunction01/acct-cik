@@ -13,7 +13,7 @@ from derivative_regex import (
     CURRENCY_NAMES_REGEX,
 )
 
-# --- EXPANDED HEADER DEFINITIONS ---
+# --- EXPANDED HEADER DEFINITIONS (COMPILED UPFRONT) ---
 
 # Context/Purpose Headers
 CONTEXT_HEADERS = re.compile(
@@ -70,11 +70,44 @@ SOPHISTICATED_TARGETS = re.compile(
     r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
 )
 
-TABLE_ANCHOR = " T_"
+# --- ADDITIONAL PATTERNS USED IN METHODS (COMPILED UPFRONT) ---
 
-caption_regex = re.compile(
+# Caption extraction
+CAPTION_REGEX = re.compile(
     r"<caption>\s*(.*?)(?=\n\n|:\n|\n[-=])", re.DOTALL | re.IGNORECASE
 )
+
+# HTML tag removal
+HTML_TAG_REGEX = re.compile(r"<[^>]+>")
+
+# S marker for column structure
+S_MARKER_REGEX = re.compile(r"<S>")
+
+# C marker for column boundaries
+C_MARKER_REGEX = re.compile(r"<C>")
+
+# Spacing cleanup patterns
+DOLLAR_SPACE_REGEX = re.compile(r"\$\s+")
+OPEN_PAREN_SPACE_REGEX = re.compile(r"\(\s+")
+CLOSE_PAREN_SPACE_REGEX = re.compile(r"\s+\)")
+PERCENT_SPACE_REGEX = re.compile(r"\s+%")
+COMMA_SPACE_REGEX = re.compile(r",\s+")
+SPACED_PUNCT_BEFORE_REGEX = re.compile(r"(\d)\s+([().,])")
+SPACED_PUNCT_AFTER_REGEX = re.compile(r"([().,])\s+(\d)")
+WHITESPACE_REGEX = re.compile(r"\s+")
+
+# Designation/status keywords
+DESIGNATION_REGEX = re.compile(
+    r"designated|hedging|trading|fair value|cash flow|net investment|derivatives|aoci|income|earnings|gain|loss",
+    re.IGNORECASE,
+)
+
+# Numeric patterns
+NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
+NUMERIC_WITH_SYMBOLS = re.compile(r"[$€£¥,%()-]")
+ACCOUNTING_NEGATIVE = re.compile(r"\(([^)]+)\)")  # Converts (100) to -100
+
+TABLE_ANCHOR = " T_"
 
 
 class TableToTextConverter:
@@ -96,7 +129,7 @@ class TableToTextConverter:
 
         # Data-driven extraction with sparsity detection
         self.data, self.col_map, self.col_headers = self._extract_data_driven(
-            caption_regex.sub("", table_text)
+            CAPTION_REGEX.sub("", table_text)
         )
         self.invalid_table = len(self.data) == 0
 
@@ -107,10 +140,10 @@ class TableToTextConverter:
             self._resolve_offsetting_conflicts()
 
     def _extract_caption(self, text: str) -> str:
-        match = caption_regex.search(text)
+        match = CAPTION_REGEX.search(text)
         if match:
             caption_text = match.group(1).strip()
-            caption_text = re.sub(r"\s+", " ", caption_text)
+            caption_text = WHITESPACE_REGEX.sub(" ", caption_text)
             return caption_text
         return ""
 
@@ -136,11 +169,13 @@ class TableToTextConverter:
             or FX_SOFT_REGEX.search(full_context)
         )
 
-    def _detect_merge_patterns(self, raw_rows: List[List[str]], sparse_columns: set) -> Dict[int, str]:
+    def _detect_merge_patterns(
+        self, raw_rows: List[List[str]], sparse_columns: set
+    ) -> Dict[int, str]:
         """
         Pre-analysis pass: detect semantic patterns for how sparse columns should merge.
         Returns mapping of column_idx -> merge_strategy.
-        
+
         Strategies:
         - "merge_right": currency symbols, opening parens (merge with following column)
         - "merge_left": closing parens, percents (merge with preceding column)
@@ -194,19 +229,21 @@ class TableToTextConverter:
 
         return merge_directions
 
-    def _merge_sparse_columns(self, raw_rows: List[List[str]], single_width_cols: Optional[Set] = None) -> Tuple[List[List[str]], Dict[int, int]]:
+    def _merge_sparse_columns(
+        self, raw_rows: List[List[str]], single_width_cols: Optional[Set] = None
+    ) -> Tuple[List[List[str]], Dict[int, int]]:
         """
         Merge very sparse columns (mostly empty) with adjacent columns.
         Combines two heuristics:
         1. Single-width <C> tag heuristic: columns with width <= 2 chars are almost certainly separators
         2. Data sparsity: columns with > 80% empty cells
-        
+
         Semantic rules (via pre-analysis):
         - $ (currency) merges RIGHT with numbers
         - ) (closing paren) merges LEFT with numbers
         - % (percent) merges LEFT with numbers
         - ( (opening paren) merges RIGHT with numbers
-        
+
         Returns:
         - merged_rows: data rows after merging
         - col_mapping: dict mapping old column indices to new indices (for header alignment)
@@ -230,7 +267,9 @@ class TableToTextConverter:
             col_sparsity[col_idx] = sparsity
 
         # Combine both heuristics: single-width columns OR > 80% empty cells
-        sparse_columns = {idx for idx, sparsity in col_sparsity.items() if sparsity > 0.8}
+        sparse_columns = {
+            idx for idx, sparsity in col_sparsity.items() if sparsity > 0.8
+        }
         sparse_columns.update(single_width_cols)
 
         if not sparse_columns:
@@ -303,7 +342,7 @@ class TableToTextConverter:
     def _sync_headers_after_merge(self, col_mapping: Dict[int, int]) -> Dict[int, str]:
         """
         Align headers with merged columns using the column mapping.
-        
+
         If column 2 merged with column 3, the new column 2 should have a combined header.
         """
         if not col_mapping or not self.col_headers:
@@ -317,8 +356,10 @@ class TableToTextConverter:
                 continue
 
             # Check if this column merged with the next
-            if (old_col_idx + 1 in col_mapping and 
-                col_mapping[old_col_idx + 1] == new_col_idx):
+            if (
+                old_col_idx + 1 in col_mapping
+                and col_mapping[old_col_idx + 1] == new_col_idx
+            ):
                 # Merged pair: combine headers
                 h1 = self.col_headers.get(old_col_idx, "")
                 h2 = self.col_headers.get(old_col_idx + 1, "")
@@ -333,7 +374,9 @@ class TableToTextConverter:
 
         return synced_headers
 
-    def _extract_data_driven(self, table_text: str) -> Tuple[List[List[str]], Dict[int, Optional[str]], Dict[int, str]]:
+    def _extract_data_driven(
+        self, table_text: str
+    ) -> Tuple[List[List[str]], Dict[int, Optional[str]], Dict[int, str]]:
         """
         Extract table using data rows to guide structure.
 
@@ -345,7 +388,7 @@ class TableToTextConverter:
         5. Clean spacing (merge $, %, parentheses, etc.)
         6. Identify active columns (drop single-char noise)
         7. Infer column types from content
-        
+
         Returns: (data_rows, col_map, col_headers)
         """
         lines = table_text.split("\n")
@@ -354,7 +397,7 @@ class TableToTextConverter:
         marker_line = None
         marker_line_idx = 0
         for i, line in enumerate(lines):
-            if "<S>" in line:
+            if S_MARKER_REGEX.search(line):
                 marker_line = line
                 marker_line_idx = i
                 break
@@ -363,7 +406,7 @@ class TableToTextConverter:
             return [], {}, {}
 
         # Find all <C> positions
-        c_positions = [m.start() for m in re.finditer(r"<C>", marker_line)]
+        c_positions = [m.start() for m in C_MARKER_REGEX.finditer(marker_line)]
         if not c_positions:
             return [], {}, {}
 
@@ -381,7 +424,9 @@ class TableToTextConverter:
         # Define column boundaries (start from position 0)
         # Mark single-width <C> groups as candidates for merging
         column_boundaries = []
-        single_width_col_indices = set()  # Track which columns are single-width candidates
+        single_width_col_indices = (
+            set()
+        )  # Track which columns are single-width candidates
         first_c_pos = grouped_positions[0][0]
         column_boundaries.append((0, first_c_pos))
 
@@ -415,14 +460,16 @@ class TableToTextConverter:
                     cell = line[start : min(end, len(line))].strip()
                 else:
                     cell = ""
-                cell = re.sub(r"<[^>]+>", "", cell)
+                cell = HTML_TAG_REGEX.sub("", cell)
                 row_cells.append(cell)
 
             if any(row_cells):
                 raw_rows.append(row_cells)
 
         # STEP 1: Merge sparse columns based on data patterns AND single-width heuristic
-        raw_rows, col_mapping = self._merge_sparse_columns(raw_rows, single_width_col_indices)
+        raw_rows, col_mapping = self._merge_sparse_columns(
+            raw_rows, single_width_col_indices
+        )
 
         # STEP 2: Clean spacing in data cells
         cleaned_rows = []
@@ -430,14 +477,14 @@ class TableToTextConverter:
             cleaned_row = []
             for cell in row:
                 # Merge $ with following numbers
-                cell = re.sub(r"\$\s+", "$", cell)
+                cell = DOLLAR_SPACE_REGEX.sub("$", cell)
                 # Merge parentheses with numbers
-                cell = re.sub(r"\(\s+", "(", cell)
-                cell = re.sub(r"\s+\)", ")", cell)
+                cell = OPEN_PAREN_SPACE_REGEX.sub("(", cell)
+                cell = CLOSE_PAREN_SPACE_REGEX.sub(")", cell)
                 # Merge % with preceding numbers
-                cell = re.sub(r"\s+%", "%", cell)
+                cell = PERCENT_SPACE_REGEX.sub("%", cell)
                 # Merge comma-separated digits
-                cell = re.sub(r",\s+", ",", cell)
+                cell = COMMA_SPACE_REGEX.sub(",", cell)
                 cleaned_row.append(cell)
 
             # POST-PROCESS: Merge trailing single-char symbols with preceding cells
@@ -517,10 +564,7 @@ class TableToTextConverter:
                 row[local_idx] for row in filtered_rows if local_idx < len(row)
             ]
 
-            has_dates = (
-                sum(1 for c in sample_cells if re.search(r"\d{1,2}/\d{1,2}/\d{4}", c))
-                > 0
-            )
+            has_dates = sum(1 for c in sample_cells if YEAR_REGEX.search(c)) > 0
             has_percentages = sum(1 for c in sample_cells if "%" in c) > 0
             has_large_numbers = (
                 sum(1 for c in sample_cells if self._is_numeric_large(c)) > 0
@@ -639,33 +683,35 @@ class TableToTextConverter:
 
     def _is_numeric(self, val: str) -> bool:
         """Check if value is numeric (with currency/percent symbols)."""
-        clean = re.sub(r"[$€£¥,%()-]", "", val).strip()
-        return bool(re.match(r"^-?\d+(?:\.\d+)?$", clean))
+        clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
+        return bool(NUMERIC_PATTERN.match(clean))
 
     def _is_numeric_large(self, val: str) -> bool:
         """Check if value is a large number (> 1000)."""
         if not self._is_numeric(val):
             return False
         try:
-            clean = re.sub(r"[$€£¥,%()-]", "", val).strip()
+            clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
             return float(clean) > 1000
         except:
             return False
 
     def _is_valid_value(self, val: str) -> bool:
         """Check if value is valid for sentence generation."""
-        clean = re.sub(r"[$€£¥,%()-]", "", val).strip()
+        clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
         if clean in ["-", "—", "0", "0.0", "", "0.00", "--"]:
             return False
-        return bool(re.match(r"^-?\d+(?:\.\d+)?$", clean))
+        return bool(NUMERIC_PATTERN.match(clean))
 
     def _cleanup_spaced_value(self, val: str) -> str:
-        val = re.sub(r"(\d)\s+([().,])", r"\1\2", val)
-        val = re.sub(r"([().,])\s+(\d)", r"\1\2", val)
-        val = re.sub(r"\s+", "", val)
+        val = SPACED_PUNCT_BEFORE_REGEX.sub(r"\1\2", val)
+        val = SPACED_PUNCT_AFTER_REGEX.sub(r"\1\2", val)
+        val = WHITESPACE_REGEX.sub("", val)
         return val
 
     def normalize_value(self, clean_val: str):
+        # Convert accounting notation: (100) means -100
+        clean_val = ACCOUNTING_NEGATIVE.sub(r"-\1", clean_val)
         stripped = clean_val.strip("()")
         try:
             norm_num = float(stripped.replace(",", ""))
@@ -685,11 +731,11 @@ class TableToTextConverter:
     def _is_subheader_row(self, row: List[str]) -> bool:
         """
         Determines if a row is likely a section header rather than a data row.
-        
+
         Simple rule: A row is a subheader if:
         1. Only column 0 is populated (all other columns are empty), OR
         2. It has no valid numeric data in any value columns (after we've started seeing data)
-        
+
         This naturally catches:
         - "Interest rate contracts:"
         - "swaps options collars"
@@ -744,13 +790,7 @@ class TableToTextConverter:
         # --- SCENARIO 1: Designation / Status (Append) ---
         # If context describes *how* it's held (hedging, trading, fair value), it goes AFTER.
         # We use a subset of SECTION_KEYWORDS logic here.
-        is_designation = bool(
-            re.search(
-                r"designated|hedging|trading|fair value|cash flow|net investment|derivatives",
-                ctx,
-                re.IGNORECASE,
-            )
-        )
+        is_designation = bool(DESIGNATION_REGEX.search(ctx))
 
         # Special Case: "Derivatives" can be a category or designation depending on phrasing.
         # "Derivatives not designated" -> Designation (Append)
@@ -844,13 +884,7 @@ class TableToTextConverter:
                 # Header 2: "2023" -> context="Interest Rate Swaps", year="2023"
                 if raw_header:
                     # Check for appending vs replacing (Designation Logic)
-                    is_designation = bool(
-                        re.search(
-                            r"designated|hedging|trading|aoci|income|earnings|gain|loss",
-                            raw_header,
-                            re.IGNORECASE,
-                        )
-                    )
+                    is_designation = bool(DESIGNATION_REGEX.search(raw_header))
 
                     if is_designation and active_context:
                         active_context = f"{active_context} {raw_header}"
@@ -949,8 +983,6 @@ class TableToTextConverter:
                     continue
 
                 clean_val = self._cleanup_spaced_value(cell)
-                if "(" in clean_val and ")" in clean_val:
-                    clean_val = "-" + clean_val.replace("(", "").replace(")", "")
                 clean_val = clean_val.replace("$", "").replace(",", "").strip()
 
                 # YEAR HIERARCHY
