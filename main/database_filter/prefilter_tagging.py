@@ -57,7 +57,7 @@ from notional_filter import check_is_quantitative_zero
 NUM_WORKERS = max(1, mp.cpu_count() - 1)
 BATCH_SIZE = 250
 CHUNK_SIZE = 20
-SOURCE_DB_PATH = "refined_data.db"
+SOURCE_DB_PATH = "prefiltered_data.db"
 TARGET_DB_PATH = "tagged_data.db"
 
 
