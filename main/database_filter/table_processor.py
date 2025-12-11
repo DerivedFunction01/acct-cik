@@ -106,6 +106,8 @@ DESIGNATION_REGEX = re.compile(
 NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
 NUMERIC_WITH_SYMBOLS = re.compile(r"[$€£¥,%()-]")
 ACCOUNTING_NEGATIVE = re.compile(r"\(([^)]+)\)")  # Converts (100) to -100
+TABLE_OF_CONTENTS_REGEX = re.compile(r'\.{3,}')
+PARAGRAPH_THRESHOLD = 250
 
 TABLE_ANCHOR = " T_"
 
@@ -118,6 +120,7 @@ class TableToTextConverter:
         narrative_context: str = "",
         is_sophisticated: bool = False,
     ):
+        
         self.raw_text = table_text
         self.narrative_context = narrative_context
         self.is_sophisticated = is_sophisticated
@@ -373,6 +376,33 @@ class TableToTextConverter:
                 processed_old_cols.add(old_col_idx)
 
         return synced_headers
+    
+    def _detect_paragraph_masquerading_as_table(self) -> bool:
+        """
+        Detects if this "table" is actually just prose using two heuristics:
+        1. Table of Contents: Contains 3+ consecutive dots (...)
+        2. First Column Too Long: First column exceeds PARAGRAPH_THRESHOLD (250 chars)
+        
+        Returns True if the table is likely a paragraph container, False if it's a real table.
+        """
+        if not self.data:
+            return False
+        
+        # HEURISTIC 1: Check for table of contents pattern (3+ dots)
+        raw_text = "\n".join([" ".join(row) for row in self.data])
+        if TABLE_OF_CONTENTS_REGEX.search(raw_text):
+            return True
+        
+        # HEURISTIC 2: Check if first column is excessively long (prose indicator)
+        first_col_max_length = 0
+        for row in self.data:
+            if row and len(row) > 0:
+                first_col_max_length = max(first_col_max_length, len(row[0]))
+        
+        if first_col_max_length > PARAGRAPH_THRESHOLD:
+            return True
+        
+        return False
 
     def _extract_data_driven(
         self, table_text: str
@@ -828,6 +858,7 @@ class TableToTextConverter:
         return f"{prefix} {name}".strip()
 
     def process(self) -> Tuple[List[str], bool]:
+        self.invalid_table = self._detect_paragraph_masquerading_as_table()
         if self.invalid_table or not self.data:
             return ([], False)
 
