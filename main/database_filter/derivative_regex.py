@@ -4254,11 +4254,7 @@ EQ_STRICT_TERMS = [
     rf"share\s+(?:price|{_RISK_ALTERNATION})",
     # 2. Convertible Instruments
     rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
-    # 3. Embedded Features ("derivative" as requested)
-    # Only matches specific features now, reducing noise.
-    r"embedded\s+(?:conversion|option)",
     # 4. Specific Instruments
-    r"warrants?",
     r"accelerated\s+share\s+repurchases?",
     r"capped\s+calls?",
     # 5. Indices (Strict indicators of Equity category)
