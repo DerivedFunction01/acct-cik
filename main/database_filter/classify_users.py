@@ -419,26 +419,39 @@ def process_row(row: Tuple) -> Tuple:
             for etag in evidence_tags_found:
                 mine_attributes(etag, attributes)
 
-            is_active = (
-                not (is_para_deadweight or is_sent_deadweight) and evidence_tags_found
-            )
+            is_active = not (is_para_deadweight or is_sent_deadweight)
             clean_sent = _cleaner.clean_entities(sent_content)
 
-            # A. Check Strict Matches
+            # -------------------------------------------------------------
+            # A. Check Strict Matches (Gate 1 - Modified)
+            # -------------------------------------------------------------
             strict_cats = extract_categories_strict(clean_sent)
 
             if strict_cats:
+                # 1. Always learn Definitions from Strict matches (e.g. Headers)
                 for cat in strict_cats:
                     tracker.register_paragraph(clean_sent, cat)
-                    strict_counts[cat] += 1
-                    if is_active:
-                        strict_categories.add(cat)
-                continue 
 
+                # 2. If Verified Evidence exists, Lock it in as an ANCHOR.
+                if is_active and evidence_tags_found:
+                    for cat in strict_cats:
+                        strict_categories.add(cat)
+                        strict_counts[cat] += 1  # Only increment Anchor magnitude here!
+                    continue  # Done. We trust this sentence.
+
+                # 3. If NO Evidence, fall through!
+                # We do NOT increment strict_counts. This demotes the strict match
+                # to a "Soft Candidate" which must pass the frequency threshold (3+).
+
+            # -------------------------------------------------------------
+            # Active Check (Gatekeeper for Soft Logic)
+            # -------------------------------------------------------------
             if not is_active:
                 continue
 
-            # B. Check Unambiguous Promotion (Soft -> Strict via Evidence)
+            # -------------------------------------------------------------
+            # B. Check Unambiguous Promotion (Soft -> Strict via Strong Evidence)
+            # -------------------------------------------------------------
             if has_unambiguous_evidence(sent_content):
                 promoted_cats = extract_categories_soft(clean_sent)
                 for cat in promoted_cats:
@@ -447,17 +460,33 @@ def process_row(row: Tuple) -> Tuple:
                     strict_counts[cat] += 1
                 continue
 
+            # -------------------------------------------------------------
+            # NEW: Explicit Soft Extraction (Catching fall-through Strict)
+            # -------------------------------------------------------------
+            # This catches "Interest Rate Swaps" (Strict) that fell through above.
+            soft_cats = extract_categories_soft(clean_sent)
+            if soft_cats and soft_cats != {"gen"}:
+                for cat in soft_cats:
+                    tracker.register_paragraph(clean_sent, cat)
+                    soft_categories[cat] += 1
+                continue
+
+            # -------------------------------------------------------------
             # C. Tracker Resolution (Token Matching)
+            # -------------------------------------------------------------
             tracker_cat = tracker.resolve_instrument(clean_sent)
             if tracker_cat:
                 soft_categories[tracker_cat] += 1
                 continue
 
-            # D. Standard Soft Extraction with Local Resolution (Context Matching)
-            found_soft = extract_categories_soft(clean_sent)
+            # -------------------------------------------------------------
+            # D. Standard Soft Extraction with Local Resolution
+            # -------------------------------------------------------------
+            # (soft_cats already computed above, reused here if needed)
+            found_soft = soft_cats if soft_cats else extract_categories_soft(clean_sent)
 
             # If we found ONLY "gen" (e.g. "The instruments")
-            # and we have valid local contexts (e.g. {"ir", "fx"}), resolve to ALL of them!
+            # and we have valid local contexts, resolve to ALL of them.
             if local_contexts and "gen" in found_soft and len(found_soft) == 1:
                 for ctx in local_contexts:
                     soft_categories[ctx] += 1
