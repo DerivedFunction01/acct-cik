@@ -385,7 +385,7 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
     return None
 
 def mark_sentence_as_other(text: str) -> Optional[Reason]:
-    if TABLE_ANCHOR in text:
+    if TABLE_ANCHOR in text and not is_sophisticated_content(text): # Only for "normal" derivatives
         return EvidenceReason.TABLE
     if not SOFT_REGEX.search(text):
         return NoiseReason.CTX
