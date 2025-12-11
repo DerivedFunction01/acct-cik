@@ -36,7 +36,6 @@ from derivative_regex import (
     VAGUE_TIMING_REGEX,
     YEAR_REGEX,
     PRIOR_INDICATOR,
-    ACTIVE_STATE_REGEX,
     build_regex,
     # Scoring
     is_contractual_noise,
