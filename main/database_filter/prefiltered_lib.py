@@ -129,8 +129,8 @@ class NoiseReason(Reason):
     # --- Structural / Formatting --- (sentence level)
     REF = "REF"  # Navigational Reference ("See Note 5")
     DEF = "DEF"  # Definition ("Swap shall mean...")
-    AOCI = "AOCI"  # AOCI ("recorded in AOCI") (Note: AOCI + Termination is an instant killer)
-    PNL = "PNL" # PNL, but no quantitaive action. Probably fair valuation inputs
+    AOCI = "AOCI"  # AOCI ("recorded in AOCI")
+    PNL = "PNL" # PNL (gains/losses, change in FV)
     NPNS = "NPNS"  # Normal Purchases / Sales
     LOAN = "LOAN"  # Non derivative interest rate caps and floors on debt
     CTX = "CONTEXT" # Context text
@@ -157,19 +157,19 @@ class NoiseReason(Reason):
     ZERO = "ZERO"  # Quantitative Zero
 
     # --- Paragraph Level ---
-    HIST_BLOCK = "HIST_BLOCK" # The entire block was discard as history
+    HIST_BLOCK = "HIST_BLOCK" # The entire block was discard as history (legacy/unused)
     ANLZ = "ANLZ"  # Generic Deadweight: Requires scanning internal tags for attributes
     FILING = "FILING"  # 10-K Headers
     FORWARD = "FORWARD"  # Safe Harbor / Forward Looking
     LEGAL = "LEGAL"  # Litigation
-    PLAN = "PLAN"  # Pension Plans
+    PLAN = "PLAN"  # Pension Plans or Hedge Funds
     NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
     COMP = "COMP"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
-    NC = "NC"  # Non derivative commodity contracts
+    NC = "NC"  # Non derivative commodity contracts (No hedging context anywhere)
 
     # --- Firm Level ---
-    HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging
+    HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging (Fails stage 1 prefilter_database)
     NO_SOPH = "NO_SOPH"  # No indication of convertible/warrants as derivatives
 
 
