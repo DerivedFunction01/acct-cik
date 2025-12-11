@@ -12,7 +12,6 @@ from derivative_regex import (
     SOFT_GEN_REGEX,
     CURRENCY_NAMES_REGEX,
 )
-from prefiltered_lib import EVIDENCE_TOKEN, EvidenceReason, get_tag
 
 # --- HEADER DEFINITIONS ---
 CONTEXT_HEADERS = re.compile(
@@ -44,7 +43,7 @@ SOPHISTICATED_TARGETS = re.compile(
     r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
 )
 
-TABLE_ANCHOR = get_tag(EVIDENCE_TOKEN, EvidenceReason.TABLE)
+TABLE_ANCHOR = " T_"
 
 caption_regex = re.compile(
     r"<caption>\s*(.*?)(?=\n\n|:\n|\n[-=])", re.DOTALL | re.IGNORECASE
