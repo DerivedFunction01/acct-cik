@@ -685,39 +685,47 @@ class TableToTextConverter:
     def _is_subheader_row(self, row: List[str]) -> bool:
         """
         Determines if a row is likely a section header rather than a data row.
-        A row is a subheader if:
-        1. It matches known section keywords (e.g., "Cash Flow Hedges"), OR
-        2. It has no valid numeric data in the value columns.
+        
+        Simple rule: A row is a subheader if:
+        1. Only column 0 is populated (all other columns are empty), OR
+        2. It has no valid numeric data in any value columns (after we've started seeing data)
+        
+        This naturally catches:
+        - "Interest rate contracts:"
+        - "swaps options collars"
+        - "Not designated as hedging instruments:"
+        - Any row with just a label and no numbers
         """
         if not row or not row[0].strip():
             return False
 
-        # 1. Explicit Keyword Check
-        if SECTION_KEYWORDS.search(row[0]):
-            return True
+        # Check if ONLY column 0 has content (all others empty)
+        if len(row) > 1:
+            rest_is_empty = all(not cell.strip() for cell in row[1:])
+            if rest_is_empty:
+                return True
 
-        # 2. Data Sparsity Check
-        # If the row has text in col 0 but NO valid numbers in mapped data columns, it's a header.
-        has_data = False
+        # Check if this row has any valid numeric data
+        has_numeric_data = False
         for i, cell in enumerate(row[1:], start=1):
             if (
                 i in self.col_map
                 and self.col_map[i]
-                and self.col_map[i] != "context_text"  # Ignore context columns
-                and self.col_map[i] != "metadata_maturity"  # Ignore maturity dates
+                and self.col_map[i] not in ["context_text", "metadata_maturity"]
                 and self._is_valid_value(cell)
             ):
-                has_data = True
+                has_numeric_data = True
                 break
 
-        return not has_data
+        # If no numeric data, it's a subheader
+        return not has_numeric_data
 
     def process(self) -> Tuple[List[str], bool]:
         if self.invalid_table or not self.data:
             return ([], False)
 
         sentences = []
-
+        active_context = ""
         # Check for table anchoring
         table_has_strong_notional_col = any(
             col_type and STRONG_NOTIONAL_REGEX.search(col_type)
@@ -744,9 +752,17 @@ class TableToTextConverter:
             if not row or not row[0].strip():
                 continue
 
+            if self._is_subheader_row(row):
+                # Update the active context (e.g., "Interest Rate Contracts")
+                # We strip colons/whitespace to keep it clean.
+                active_context = row[0].strip().rstrip(":")
+                continue
+
             instrument_name = row[0].strip()
             if "total" in instrument_name.lower():
                 continue
+            if active_context:
+                instrument_name = f"{active_context} {instrument_name}"
 
             # Check derivative signals
             is_strict = self.is_implied_derivative(instrument_name)
