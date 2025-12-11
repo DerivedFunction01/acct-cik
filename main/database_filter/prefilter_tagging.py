@@ -40,6 +40,7 @@ from derivative_regex import (
 
 # Import Phase 6 Logic
 from final_verification import COUNTERPARTY_REGEX, HEDGE_DOC_REGEX
+from main.database_filter.prefilter_evidence import PNL_CONTEXT_REGEX
 from prefilter_database import is_sophisticated_content
 from prefiltered_lib import (
     SKIP_TOKEN,
@@ -198,9 +199,6 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             if not reason:
                 # Check Absence (e.g., "We do not hold...")
                 reason = get_intent_noise_reason(masked)
-            if not reason:
-                # Check 0/nil
-                reason = get_quantitative_noise_reason(masked, reporting_year)
 
         # --- TIER 3: STRUCTURAL NOISE (The "Format" Tags) ---
         # Only check these if we didn't find a strong Evidence signal above.
@@ -211,6 +209,8 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 reason = NoiseReason.DEF
             elif AOCI_NOISE_REGEX.search(masked):
                 reason = NoiseReason.AOCI
+            elif PNL_CONTEXT_REGEX.search(masked):
+                reason = NoiseReason.PNL
             elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
                 reason = NoiseReason.NPNS
             elif EMBEDDED_CAP_FLOOR_REGEX.search(masked):
@@ -233,7 +233,9 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 masked, threshold=2
             ):
                 reason = NoiseReason.HYP_SCORE
-
+        if not reason:
+            # Check 0/nil
+            reason = get_quantitative_noise_reason(masked, reporting_year)
         # --- CONSTRUCTION ---
         if reason:
             tagged_output.append(f"{get_tag(SKIP_TOKEN, reason)} {orig}")

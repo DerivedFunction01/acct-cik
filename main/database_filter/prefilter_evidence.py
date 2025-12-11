@@ -139,15 +139,21 @@ BALANCE_SHEET_LOCATIONS = [
 ]
 
 PNL_TERMS = [
-    r"(?:realized|unrealized)\s+(?:gains?|loss|losses)",
-    r"(?:net\s+)?(?:gains?|loss|losses)\s+on",
-    r"mark(?:\s+to)?[- ]market",
-    r"change(?:s)?\s+in\s+fair\s+value",
-    r"ineffective\s+portion",
-    r"hedge\s+ineffectiveness",
-    r"reclassifi(?:ed|cation).{0,20}earnings",
-    r"results\s+of\s+operations",
-    r"impact(?:ed)?\s+(?:net\s+)?income",
+    # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
+    r"\b(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
+    # 2. "On" Construction (e.g., "Gain on derivatives")
+    r"\b(?:net\s+)?(?:gains?|loss(?:es)?)",
+    # 3. Fair Value CHANGES (Strictly Flow)
+    # The "change" anchor prevents matching "Fair value of..." (Balance Sheet)
+    r"\bchange(?:s)?\s+in\s+(?:the\s+)?fair\s+value",
+    # 4. Ineffectiveness (Strictly PnL context)
+    r"\bineffective\s+portion",
+    r"\bhedge\s+ineffectiveness",
+    # 6. Mark-to-Market (Action/Result, usually implies flow)
+    # Distinguishes from "Fair Value" measurement policy
+    r"\bmark(?:ed)?[- ]to[- ]market",
+    # 7. Impact statements
+    r"\bimpact\s+(?:on|to)\s+(?:earnings|income|revenue)",
 ]
 
 REM_TERM_PHRASES = [
