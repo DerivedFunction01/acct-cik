@@ -185,12 +185,30 @@ CHANGE_FV_REGEX=build_regex(
     [
         # LOGIC:
         # 1. Match "Change in fair value"
-        # 2. Negative Lookahead (?!...): Ensure it is NOT followed by "of debt/loans"
-        #    (This protects: "Hedge change in fair value of debt ($50M)")
-        # 3. Numeric Lookahead (?:...): Require a digit (\d) within 50 characters.
-        #    (This targets: "Change in fair value was $5M")
         r"\bchange(?:s)?\s+in\s+(?:the\s+)?fair\s+value"
     ]
+)
+
+# 1. Match auxiliary verbs: have, having, had, has
+# 2. Allow 0-2 filler words (e.g., "recorded a", "significant", "no", "a")
+# 3. Match target: "change(s) in fair value"
+# In prefilter_evidence.py
+
+# 1. Define the specific PnL event phrases
+_fv_change_targets = [
+    r"change(?:s)?\s+(?:in|of|on)\s+(?:the\s+)?fair\s+value",  # "Change in fair value"
+    r"fair\s+value\s+change(?:s)?",  # "Fair value changes"
+]
+
+# 2. Build the alternation pattern (Matches either A OR B)
+_fv_change_pattern = build_alternation(_fv_change_targets)
+
+# 3. Construct the full regex with Anchor + Gap + Target
+HAD_CHANGE_REGEX = re.compile(
+    r"\b(?:hav(?:e|ing)|had|has)"  # Anchor Verb
+    r"(?:\s+\S+){0,2}"  # Flexible Gap (0-2 words)
+    r"\s+(?:" + _fv_change_pattern + r")",  # Target
+    re.IGNORECASE,
 )
 REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
@@ -248,16 +266,29 @@ def check_quantitative_evidence(
 
     # 2. FAIR VALUE LOGIC
     if is_fair_value:
-        # PNL CHECK:
-        # If we see "Change in FV", we assume PnL NOISE...
+        # 1. STRICT PNL CHECK (The Override)
+        # Catches: "had a change", "has recorded a change", "have significant changes"
+        # Logic: This specific proximity implies an event, not possession.
+        if HAD_CHANGE_REGEX.search(text):
+            return NoiseReason.PNL
+
+        # 2. STANDARD PNL CHECK (The Rescue Logic)
+        # Catches: "The change in fair value was..."
         if CHANGE_FV_REGEX.search(text):
-            # Correct Logic: Return PNL only if NO active verbs are found.
-            if not (POSS_VERB_REGEX.search(text) 
-                    or USAGE_VERB_REGEX.search(text) 
-                    or TRANS_VERB_REGEX.search(text)):
+            # ...UNLESS we see an Active Verb elsewhere in the sentence.
+            # "We have swaps... to hedge the change in fair value."
+            # Since "have... swaps... to... hedge... the..." is > 2 words,
+            # HAD_CHANGE_REGEX failed, so we reach this rescue block.
+            has_active_verb = (
+                POSS_VERB_REGEX.search(text)
+                or USAGE_VERB_REGEX.search(text)
+                or TRANS_VERB_REGEX.search(text)
+            )
+
+            if not has_active_verb:
                 return NoiseReason.PNL
 
-        # If we passed the PnL check, treat as valid FV evidence
+        # 3. VALID EVIDENCE
         if is_strict_derivative:
             return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
         else:
