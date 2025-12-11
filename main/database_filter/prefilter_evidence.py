@@ -247,7 +247,7 @@ def check_quantitative_evidence(
 
 def check_future_maturity(
     text: str, reporting_year: int, is_strict_derivative: bool
-) -> Optional[EvidenceReason]:
+) -> Optional[Reason]:
     """Check for Future Maturity."""
     if not reporting_year:
         return None
@@ -260,8 +260,8 @@ def check_future_maturity(
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
-    if not any(y > reporting_year for y in years):
-        return None
+    if not any(y > reporting_year for y in years): # Termination noun without a year? probably termination amount/settlement
+        return NoiseReason.PNL
 
     return (
         EvidenceReason.MAT_FUT if is_strict_derivative else EvidenceReason.MAT_AMB_FUT
@@ -414,14 +414,14 @@ def scan_sentence_for_evidence(
     """
     if SKIP_TOKEN in text:
         return None
-    
+
     # TIER 1: STRONG (highest priority)
+    if mat := check_future_maturity(text, reporting_year, is_strict_derivative): # Overrides quant in case it is not relavant (ie termination amounts become PNL)
+        return mat
     if q := check_quantitative_evidence(text, reporting_year, is_strict_derivative):
         return q
     if as_year := check_active_state_year(text, reporting_year, is_strict_derivative):
         return as_year
-    if mat := check_future_maturity(text, reporting_year, is_strict_derivative):
-        return mat
 
     # TIER 1.5: FLOW
     if act := check_transaction_action(text, reporting_year, is_strict_derivative):
@@ -440,12 +440,12 @@ def scan_sentence_for_evidence(
         return term
     if pnl := check_pnl_context(text, is_strict_derivative):
         return pnl
-    
+
     # TIER 4: OTHER (catch-all)
     other = mark_sentence_as_other(text)
     if other:
         return other
-    
+
     return None
 
 
