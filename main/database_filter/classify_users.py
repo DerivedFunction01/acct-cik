@@ -248,7 +248,7 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
 def remove_outlier_categories(
     strict_counts: Dict[str, int],  # Changed from Set[str] to Dict[str, int]
     soft_counts: Dict[str, int],
-    threshold_pct: float = 0.10,
+    threshold_pct: float = 0.25,
     min_mentions: int = 3,
 ) -> Set[str]:
     """
