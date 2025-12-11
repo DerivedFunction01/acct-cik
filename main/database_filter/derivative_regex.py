@@ -2559,7 +2559,7 @@ REGULATORY_KEYWORDS_STRICT = [
     # Specific Banking Metrics (High likelihood of capital adequacy sections)
     r"capital\s+adequacy",
     r"liquidity\s+coverage\s+ratio",
-    r"regulatory\s+capital",
+    r"regulatory\s+(?:capital|environment)",
     r"risk[- ]weighted\s+assets?",  # RWA
     # --- Agencies (If not already caught by Entity Exclusion) ---
     r"\bEPA\b",  # Environmental Protection Agency
@@ -2596,6 +2596,8 @@ REGULATORY_KEYWORDS_LOOSE = [
     r"investigations?",
     r"anti[- ]market\s+manipulation",
     r"third\s+party\s+claims?",
+    r"auditor",
+    r"audits?",
     # --- NEW: Environmental Compliance ---
     r"environmental\s+(?:laws?|regulations?|matters?|compliance|protection|liabilit(?:y|ies))",
     r"greenhouse\s+gas(?:es)?",
