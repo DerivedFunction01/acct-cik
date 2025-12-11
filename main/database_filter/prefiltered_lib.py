@@ -262,7 +262,6 @@ TIME_KILLED_EVIDENCE = {
     EvidenceReason.FVAIY,  # "FV of Contracts was $5M in 2024"
     EvidenceReason.ACT_AMB_YEAR,  # "Entered contracts in 2024"
     EvidenceReason.VAL_MODEL,  # Black Scholes, etc
-    EvidenceReason.ACT_GEN,  # "We enter into..." (No year)
 }
 
 # TIER 3: WEAK EVIDENCE (Policy Prone)
@@ -270,6 +269,7 @@ TIME_KILLED_EVIDENCE = {
 POLICY_KILLED_EVIDENCE = {
     EvidenceReason.CONT_USE_AMB,  # "We use contracts..." (No year, Weak Subject)
     EvidenceReason.FVAINY,  # "FV of Contract is..."
+    EvidenceReason.ACT_GEN,  # "We enter into..." (No year)
 }
 
 # TIER 4: FLUFF (Context Only)
