@@ -343,8 +343,8 @@ def get_text_categories(text: str) -> Set[str]:
             # Find all matches
             matches = list(soft_ctx.finditer(remaining_text))
             if matches:
-                # Score based on density (50 pts per mention)
-                scores[cat] += 50 * len(matches)
+                # Score based on density (15 pts per mention)
+                scores[cat] += 15 * len(matches)
 
                 # CRITICAL: Consume text to prevent double-counting
                 # e.g. FX eats "Foreign Currency" so IR doesn't match "Currency"
@@ -359,7 +359,7 @@ def get_text_categories(text: str) -> Set[str]:
     max_score = max(scores.values())
 
     # If we have a massive strict hit (>1000), raise threshold to kill weak noise
-    threshold = 1000 if max_score >= 1000 else 50
+    threshold = 1000 if max_score >= 1000 else 75
 
     top_cats = {cat for cat, score in scores.items() if score >= threshold}
     specific = top_cats - {"gen"}
