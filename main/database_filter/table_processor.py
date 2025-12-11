@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Set, Tuple
 
 from derivative_regex import (
     BASE_REGEX,
@@ -13,17 +13,29 @@ from derivative_regex import (
     CURRENCY_NAMES_REGEX,
 )
 
-# --- HEADER DEFINITIONS ---
+# --- EXPANDED HEADER DEFINITIONS ---
+
+# Context/Purpose Headers
 CONTEXT_HEADERS = re.compile(
     r"purpose|risk|objective|hedged item|comments|description", re.IGNORECASE
 )
+
+# Value at Risk (Strong Signal)
 VAR_HEADERS = re.compile(r"\bvar\b|value[- ]at[- ]risk", re.IGNORECASE)
+
+# Strong Notional Indicator
 STRONG_NOTIONAL_REGEX = re.compile(r"notional", re.IGNORECASE)
+
+# Expanded Notional
 NOTIONAL_HEADERS = re.compile(
     r"notional|principal|contract\s+(?:amount|volume|value)", re.IGNORECASE
 )
+
+# Netting / Offsetting (ASC 210-20)
 NET_HEADERS = re.compile(r"net\s+amount|net\s+presented|total\s+net", re.IGNORECASE)
 GROSS_HEADERS = re.compile(r"gross\s+amount|gross\s+recognized", re.IGNORECASE)
+
+# Standard Values
 LEVEL_HEADERS = re.compile(r"level\s*[123]", re.IGNORECASE)
 VALUE_HEADERS = re.compile(r"(?:fair|market|carrying)\s+value|balance", re.IGNORECASE)
 ASSET_HEADERS = re.compile(r"asset", re.IGNORECASE)
@@ -31,14 +43,27 @@ LIABILITY_HEADERS = re.compile(r"liabilit", re.IGNORECASE)
 GAIN_LOSS_HEADERS = re.compile(
     r"gain|loss|income|earnings|oci|comprehensive", re.IGNORECASE
 )
+
+# Location (line item reference)
+LOCATION_HEADERS = re.compile(r"location|sheet|line item", re.IGNORECASE)
+
+# Maturity
 MATURITY_HEADERS = re.compile(r"maturity|expiration", re.IGNORECASE)
 
+# Noise to Ignore (metadata columns that shouldn't generate sentences)
+NOISE_HEADERS = re.compile(
+    r"strike|exercise|shares|units|count|ratio|weighted",
+    re.IGNORECASE,
+)
+
+# Context Row Keywords
 SECTION_KEYWORDS = re.compile(
     r"designated as|hedging instruments|underlying risk|derivatives not designated|"
     r"cash flow|fair value|net investment|assets|liabilities|equity contracts|warrants|"
     r"embedded|offsetting|trading|non[- ]?trading|held for|financial instruments",
     re.IGNORECASE,
 )
+
 SOPHISTICATED_TARGETS = re.compile(
     r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
 )
@@ -68,10 +93,16 @@ class TableToTextConverter:
         self.table_default_type = self._analyze_caption_context(full_context)
 
         # Data-driven extraction with sparsity detection
-        self.data, self.col_map = self._extract_data_driven(
+        self.data, self.col_map, self.col_headers = self._extract_data_driven(
             caption_regex.sub("", table_text)
         )
         self.invalid_table = len(self.data) == 0
+
+        # Apply classification and refinement heuristics
+        if not self.invalid_table:
+            self._classify_columns_from_headers()
+            self._apply_column_heuristics()
+            self._resolve_offsetting_conflicts()
 
     def _extract_caption(self, text: str) -> str:
         match = caption_regex.search(text)
@@ -103,13 +134,87 @@ class TableToTextConverter:
             or FX_SOFT_REGEX.search(full_context)
         )
 
-    def _merge_sparse_columns(self, raw_rows: List[List[str]]) -> List[List[str]]:
+    def _detect_merge_patterns(self, raw_rows: List[List[str]], sparse_columns: set) -> Dict[int, str]:
+        """
+        Pre-analysis pass: detect semantic patterns for how sparse columns should merge.
+        Returns mapping of column_idx -> merge_strategy.
+        
+        Strategies:
+        - "merge_right": currency symbols, opening parens (merge with following column)
+        - "merge_left": closing parens, percents (merge with preceding column)
+        - "skip": ambiguous or mixed content (don't merge)
+        """
+        merge_directions = {}
+        
+        for col_idx in sparse_columns:
+            # Collect all non-empty values in this column
+            col_values = []
+            col_patterns = set()
+            
+            for row in raw_rows:
+                if col_idx < len(row) and row[col_idx].strip():
+                    val = row[col_idx].strip()
+                    col_values.append(val)
+                    # Classify pattern
+                    if val in ["$", "€", "£", "¥"]:
+                        col_patterns.add("currency")
+                    elif val == ")":
+                        col_patterns.add("closing_paren")
+                    elif val == "%":
+                        col_patterns.add("percent")
+                    elif val == "(":
+                        col_patterns.add("opening_paren")
+                    else:
+                        col_patterns.add("other")
+            
+            if not col_values:
+                continue
+            
+            # Determine merge strategy
+            # Pure currency: merge RIGHT
+            if col_patterns == {"currency"}:
+                merge_directions[col_idx] = "merge_right"
+            # Pure closing paren: merge LEFT
+            elif col_patterns == {"closing_paren"}:
+                merge_directions[col_idx] = "merge_left"
+            # Pure percent: merge LEFT
+            elif col_patterns == {"percent"}:
+                merge_directions[col_idx] = "merge_left"
+            # Pure opening paren: merge RIGHT
+            elif col_patterns == {"opening_paren"}:
+                merge_directions[col_idx] = "merge_right"
+            # Mixed currency symbols: merge RIGHT
+            elif col_patterns.issubset({"currency"}):
+                merge_directions[col_idx] = "merge_right"
+            # Ambiguous or mixed: skip to be safe
+            else:
+                merge_directions[col_idx] = "skip"
+        
+        return merge_directions
+
+
+    def _merge_sparse_columns(self, raw_rows: List[List[str]], single_width_cols: Optional[Set] = None) -> Tuple[List[List[str]], Dict[int, int]]:
         """
         Merge very sparse columns (mostly empty) with adjacent columns.
-        This handles cases where <C> markers create phantom columns.
+        Combines two heuristics:
+        1. Single-width <C> tag heuristic: columns with width <= 2 chars are almost certainly separators
+        2. Data sparsity: columns with > 80% empty cells
+        
+        Semantic rules (via pre-analysis):
+        - $ (currency) merges RIGHT with numbers
+        - ) (closing paren) merges LEFT with numbers
+        - % (percent) merges LEFT with numbers
+        - ( (opening paren) merges RIGHT with numbers
+        
+        Returns:
+        - merged_rows: data rows after merging
+        - col_mapping: dict mapping old column indices to new indices (for header alignment)
         """
         if not raw_rows:
-            return raw_rows
+            return [], {}
+
+        if single_width_cols is None:
+            single_width_cols = set()
 
         # Calculate sparsity (% empty cells) for each column
         num_rows = len(raw_rows)
@@ -123,62 +228,129 @@ class TableToTextConverter:
             sparsity = empty_count / num_rows if num_rows > 0 else 0
             col_sparsity[col_idx] = sparsity
 
-        # Columns with > 80% empty cells are candidates for merging
-        sparse_columns = {
-            idx for idx, sparsity in col_sparsity.items() if sparsity > 0.8
-        }
+        # Combine both heuristics: single-width columns OR > 80% empty cells
+        sparse_columns = {idx for idx, sparsity in col_sparsity.items() if sparsity > 0.8}
+        sparse_columns.update(single_width_cols)
 
         if not sparse_columns:
-            return raw_rows
+            # No merging needed: identity mapping
+            col_mapping = {i: i for i in range(num_cols)}
+            return raw_rows, col_mapping
 
-        # Merge sparse columns with their neighbors
+        # PASS 1: Detect merge patterns (pre-aware system)
+        merge_directions = self._detect_merge_patterns(raw_rows, sparse_columns)
+
+        # PASS 2: Apply merges based on detected strategies and track column mapping
         merged_rows = []
+        col_mapping = {}  # old_col_idx -> new_col_idx
+        
         for row in raw_rows:
             merged_row = []
-            skip_next = False
+            skip_indices = set()
+            row_col_mapping = {}  # Track mapping for this row
 
             for col_idx in range(len(row)):
-                if skip_next:
-                    skip_next = False
+                if col_idx in skip_indices:
                     continue
 
                 cell = row[col_idx]
-
-                # If this column is sparse, try to merge with next column
-                if col_idx in sparse_columns and col_idx + 1 < len(row):
-                    next_cell = row[col_idx + 1]
-                    # Merge non-empty cells, skip if both empty
-                    if cell or next_cell:
+                strategy = merge_directions.get(col_idx, "keep")
+                new_col_idx = len(merged_row)
+                
+                # Merge RIGHT: currency, opening paren
+                if strategy == "merge_right":
+                    if col_idx + 1 < len(row):
+                        next_cell = row[col_idx + 1]
                         merged_row.append((cell + next_cell).strip())
-                        skip_next = True
+                        skip_indices.add(col_idx + 1)
+                        # Both old columns map to new column
+                        row_col_mapping[col_idx] = new_col_idx
+                        row_col_mapping[col_idx + 1] = new_col_idx
                     else:
-                        skip_next = True
-                else:
-                    if col_idx not in sparse_columns:
                         merged_row.append(cell)
-
+                        row_col_mapping[col_idx] = new_col_idx
+                
+                # Merge LEFT: closing paren, percent
+                elif strategy == "merge_left":
+                    if merged_row:  # Append to previous cell
+                        merged_row[-1] = (merged_row[-1] + cell).strip()
+                        # This column maps to the previous column
+                        row_col_mapping[col_idx] = len(merged_row) - 1
+                    else:
+                        merged_row.append(cell)
+                        row_col_mapping[col_idx] = new_col_idx
+                
+                # Skip (ambiguous): don't merge
+                elif strategy == "skip":
+                    merged_row.append(cell)
+                    row_col_mapping[col_idx] = new_col_idx
+                
+                # Normal column or unclassified sparse column: keep as-is
+                else:
+                    merged_row.append(cell)
+                    row_col_mapping[col_idx] = new_col_idx
+            
+            # Aggregate column mappings (use first row as reference)
+            if not col_mapping:
+                col_mapping = row_col_mapping
+            
             if merged_row:
                 merged_rows.append(merged_row)
 
-        return merged_rows
+        return merged_rows, col_mapping
 
-    def _extract_data_driven(
-        self, table_text: str
-    ) -> Tuple[List[List[str]], Dict[int, str]]:
+
+    def _sync_headers_after_merge(self, col_mapping: Dict[int, int]) -> Dict[int, str]:
+        """
+        Align headers with merged columns using the column mapping.
+        
+        If column 2 merged with column 3, the new column 2 should have a combined header.
+        """
+        if not col_mapping or not self.col_headers:
+            return self.col_headers
+        
+        synced_headers = {}
+        processed_old_cols = set()
+        
+        for old_col_idx, new_col_idx in sorted(col_mapping.items()):
+            if old_col_idx in processed_old_cols:
+                continue
+            
+            # Check if this column merged with the next
+            if (old_col_idx + 1 in col_mapping and 
+                col_mapping[old_col_idx + 1] == new_col_idx):
+                # Merged pair: combine headers
+                h1 = self.col_headers.get(old_col_idx, "")
+                h2 = self.col_headers.get(old_col_idx + 1, "")
+                combined = f"{h1} {h2}".strip()
+                synced_headers[new_col_idx] = combined
+                processed_old_cols.add(old_col_idx)
+                processed_old_cols.add(old_col_idx + 1)
+            else:
+                # Single column (no merge)
+                synced_headers[new_col_idx] = self.col_headers.get(old_col_idx, "")
+                processed_old_cols.add(old_col_idx)
+        
+        return synced_headers
+
+    def _extract_data_driven(self, table_text: str) -> Tuple[List[List[str]], Dict[int, Optional[str]], Dict[int, str]]:
         """
         Extract table using data rows to guide structure.
 
         Steps:
         1. Find <S> and <C> markers for column boundaries
         2. Extract raw data rows
-        3. Merge sparse columns (>80% empty)
-        4. Clean spacing (merge $, %, parentheses, etc.)
-        5. Identify active columns (drop single-char noise)
-        6. Infer column types from content
+        3. Merge sparse columns (>80% empty) with semantic awareness
+        4. Sync headers to merged column structure
+        5. Clean spacing (merge $, %, parentheses, etc.)
+        6. Identify active columns (drop single-char noise)
+        7. Infer column types from content
+        
+        Returns: (data_rows, col_map, col_headers)
         """
         lines = table_text.split("\n")
 
-        # Find <S> marker line
+        # Find <S> marker line (column structure marker)
         marker_line = None
         marker_line_idx = 0
         for i, line in enumerate(lines):
@@ -188,14 +360,14 @@ class TableToTextConverter:
                 break
 
         if not marker_line:
-            return [], {}
+            return [], {}, {}
 
         # Find all <C> positions
         c_positions = [m.start() for m in re.finditer(r"<C>", marker_line)]
         if not c_positions:
-            return [], {}
+            return [], {}, {}
 
-        # Group adjacent <C> tags (within 5 chars)
+        # Group adjacent <C> tags (within 5 chars) and filter single-width candidates
         grouped_positions = []
         current_group = [c_positions[0]]
         for pos in c_positions[1:]:
@@ -207,7 +379,9 @@ class TableToTextConverter:
         grouped_positions.append(current_group)
 
         # Define column boundaries (start from position 0)
+        # Mark single-width <C> groups as candidates for merging
         column_boundaries = []
+        single_width_col_indices = set()  # Track which columns are single-width candidates
         first_c_pos = grouped_positions[0][0]
         column_boundaries.append((0, first_c_pos))
 
@@ -218,9 +392,16 @@ class TableToTextConverter:
                 if i + 1 < len(grouped_positions)
                 else len(marker_line)
             )
+            
+            # Heuristic: if <C> group spans only 1 characters, it's likely a separator
+            width = end - start
+            col_idx = len(column_boundaries)
+            if width < 2:
+                single_width_col_indices.add(col_idx)
+            
             column_boundaries.append((start, end))
 
-        # Extract raw data rows
+        # Extract raw data rows (everything after <S>)
         data_lines = lines[marker_line_idx + 1 :]
         raw_rows = []
 
@@ -240,8 +421,8 @@ class TableToTextConverter:
             if any(row_cells):
                 raw_rows.append(row_cells)
 
-        # STEP 1: Merge sparse columns based on data patterns
-        raw_rows = self._merge_sparse_columns(raw_rows)
+        # STEP 1: Merge sparse columns based on data patterns AND single-width heuristic
+        raw_rows, col_mapping = self._merge_sparse_columns(raw_rows, single_width_col_indices)
 
         # STEP 2: Clean spacing in data cells
         cleaned_rows = []
@@ -309,7 +490,26 @@ class TableToTextConverter:
             if any(filtered_row):
                 filtered_rows.append(filtered_row)
 
-        # STEP 4: Infer column types from content
+        # STEP 4: Extract column headers (infer from data patterns + look for year indicators)
+        col_headers = {}
+        for local_idx, global_col_idx in enumerate(active_col_indices):
+            sample_cells = [
+                row[local_idx] for row in filtered_rows if local_idx < len(row)
+            ]
+
+            # Try to infer year from cell content
+            years_found = set()
+            for cell in sample_cells:
+                year_matches = YEAR_REGEX.findall(cell)
+                years_found.update(year_matches)
+
+            # If year found in cells, use it as header
+            if years_found:
+                col_headers[local_idx] = f"value_{max(years_found)}"
+            else:
+                col_headers[local_idx] = ""
+
+        # STEP 5: Infer column types from content
         col_map = {}
 
         for local_idx, global_col_idx in enumerate(active_col_indices):
@@ -346,7 +546,96 @@ class TableToTextConverter:
 
             col_map[local_idx] = col_type
 
-        return filtered_rows, col_map
+        return filtered_rows, col_map, col_headers
+
+    def _classify_columns_from_headers(self):
+        """
+        Refine column classification using header analysis.
+        Maps detected headers to semantic types (notional, fair_value, gain_loss, etc.)
+        """
+        for local_idx, header in self.col_headers.items():
+            if not header or self.col_map.get(local_idx):
+                continue
+
+            header_lower = header.lower()
+
+            # Skip noise columns
+            if NOISE_HEADERS.search(header_lower):
+                self.col_map[local_idx] = None
+                continue
+
+            # Classify by header patterns
+            if CONTEXT_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "context_text"
+            elif VAR_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "fair_value"
+            elif NOTIONAL_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "notional"
+            elif NET_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "net_fair_value"
+            elif GROSS_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "gross_fair_value"
+            elif LEVEL_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "fair_value"
+            elif VALUE_HEADERS.search(header_lower):
+                if ASSET_HEADERS.search(header_lower):
+                    self.col_map[local_idx] = "asset_fair_value"
+                elif LIABILITY_HEADERS.search(header_lower):
+                    self.col_map[local_idx] = "liability_fair_value"
+                else:
+                    self.col_map[local_idx] = "fair_value"
+            elif GAIN_LOSS_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "gain_loss"
+            elif LOCATION_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "location"
+            elif MATURITY_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "metadata_maturity"
+
+    def _apply_column_heuristics(self):
+        """
+        Applies data-driven heuristics to classify ambiguous columns.
+        Specific Rule: If Column 2 (Index 1) is unclassified AND contains text (not numbers),
+        treat it as a Context/Purpose column.
+        """
+        TARGET_IDX = 1
+
+        # Only run if column exists and is currently unclassified
+        if TARGET_IDX not in self.col_map or self.col_map[TARGET_IDX] is not None:
+            return
+
+        # Scan the first 5 data rows to check content type
+        text_rows = 0
+        numeric_rows = 0
+
+        for row in self.data[:5]:
+            if len(row) > TARGET_IDX:
+                cell = row[TARGET_IDX].strip()
+                if not cell or set(cell).issubset(set("- ")):
+                    continue  # Skip empty/dash
+
+                if self._is_valid_value(cell):
+                    numeric_rows += 1
+                else:
+                    # It has content but isn't a number -> Text
+                    text_rows += 1
+
+        # Logic: If we see text and NO numbers, it's a Purpose column
+        if text_rows > 0 and numeric_rows == 0:
+            self.col_map[TARGET_IDX] = "context_text"
+
+    def _resolve_offsetting_conflicts(self):
+        """
+        Handle ASC 210-20 netting conflicts: if both net and gross fair values exist,
+        deprioritize gross amounts in favor of net amounts.
+        """
+        has_net = any(
+            col_type == "net_fair_value" for col_type in self.col_map.values()
+        )
+
+        if has_net:
+            for idx, col_type in self.col_map.items():
+                if col_type == "gross_fair_value":
+                    self.col_map[idx] = None
 
     def _is_numeric(self, val: str) -> bool:
         """Check if value is numeric (with currency/percent symbols)."""
@@ -547,7 +836,7 @@ class TableToTextConverter:
                     or table_has_strong_notional_col
                     or self.caption_is_strong
                 ) and not soph
-                anchor_text = (TABLE_ANCHOR if use_anchor else "")
+                anchor_text = TABLE_ANCHOR if use_anchor else ""
 
                 # Generate sentence based on actual type
                 if "notional" in actual_col_type:
