@@ -229,7 +229,8 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     if not surviving_text_parts:
         final_text = " ".join(tagged_output)
         return f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ)} {final_text}"
-
+    # Perform some paragraph-level check here
+    
     combined_survivors = " ".join(surviving_text_parts)
     has_signal = False
 

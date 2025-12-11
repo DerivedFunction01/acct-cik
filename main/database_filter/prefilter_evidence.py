@@ -38,6 +38,8 @@ from prefiltered_lib import (
     NoiseReason,
     Reason,
     get_tag,
+    mark_as_deadweight,
+    parse_noise_tags,
 )
 import multiprocessing as mp
 
@@ -183,7 +185,6 @@ BS_LOC_REGEX = re.compile(f"{verbs_pattern}{FLEX_SEP}{locs_pattern}", re.IGNOREC
 PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
 REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
-TAG_PARSER = re.compile(r"(_[SD])<([^>]+)>")
 
 # =============================================================================
 # HELPER FUNCTIONS (Global checks - called once per paragraph)
@@ -481,33 +482,6 @@ def should_mark_deadweight(evidence_tags: set, noise_tags: set) -> bool:
     return True
 
 
-def mark_as_deadweight(text: str, reason: NoiseReason) -> str:
-    """Mark paragraph as deadweight."""
-    return f"{get_tag(DEADWEIGHT_TOKEN, reason)} {text}"
-
-
-def parse_existing_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
-    """Extract existing noise tags from text."""
-    noise_tags = set()
-
-    matches = list(TAG_PARSER.finditer(text))
-    if not matches:
-        return text.strip(), noise_tags
-
-    for m in matches:
-        token_type = m.group(1)
-        reason_str = m.group(2)
-
-        if token_type == SKIP_TOKEN.strip():
-            try:
-                noise_tags.add(NoiseReason(reason_str))
-            except ValueError:
-                pass
-
-    text = TAG_PARSER.sub("", text).strip()
-    text = re.sub(r"\s+", " ", text)
-
-    return text, noise_tags
 
 
 # =============================================================================
@@ -532,7 +506,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         return text
     
     # Parse any existing noise tags from the paragraph for dominance evaluation
-    _, existing_paragraph_noise = parse_existing_tags(text)
+    _, existing_paragraph_noise = parse_noise_tags(text)
     
     masked_text = _cleaner.clean(text)
     is_strict_derivative = check_derivative_global(masked_text)
@@ -555,7 +529,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
     for orig, masked in zip(original_sentences, masked_sentences):
         # Parse existing tags from this sentence
-        clean_sent, existing_noise = parse_existing_tags(orig)
+        clean_sent, existing_noise = parse_noise_tags(orig)
         
         # Only scan and tag sentences that have NO existing tags
         if not existing_noise:

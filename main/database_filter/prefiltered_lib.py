@@ -1,4 +1,5 @@
 import re
+from typing import Set, Tuple
 from derivative_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
 from final_verification import QUANT_REGEX
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
@@ -301,4 +302,36 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.ACCT_STD,  # "FASB ASU..."
     NoiseReason.REF,  # "See Note 5"
     NoiseReason.TRADING,  # "We do not trade"
+    NoiseReason.PNL,  # An unrealized gain
 }
+
+
+NOISE_TAG_PARSER = re.compile(r"(_[SD])<([^>]+)>")
+
+def mark_as_deadweight(text: str, reason: NoiseReason) -> str:
+    """Mark paragraph as deadweight."""
+    return f"{get_tag(DEADWEIGHT_TOKEN, reason)} {text}"
+
+
+def parse_noise_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
+    """Extract existing noise tags from text."""
+    noise_tags = set()
+
+    matches = list(NOISE_TAG_PARSER.finditer(text))
+    if not matches:
+        return text.strip(), noise_tags
+
+    for m in matches:
+        token_type = m.group(1)
+        reason_str = m.group(2)
+
+        if token_type == SKIP_TOKEN.strip():
+            try:
+                noise_tags.add(NoiseReason(reason_str))
+            except ValueError:
+                pass
+
+    text = NOISE_TAG_PARSER.sub("", text).strip()
+    text = re.sub(r"\s+", " ", text)
+
+    return text, noise_tags
