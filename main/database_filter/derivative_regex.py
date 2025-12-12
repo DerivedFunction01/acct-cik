@@ -414,7 +414,7 @@ other_currencies = [
         symbol_first=False,
     ),
     Currency("SAR", "Saudi Riyal", "ر.س", "Saudi", "Saudi Arabia", symbol_first=False),
-    Currency("ZAR", "South African Rand", "R_", "South African", "South Africa"), # added _ to prevent R from matching
+    Currency("ZAR", "South African Rand", "R", "South African", "South Africa"), # added _ to prevent R from matching
     Currency("ILS", "Israeli Shekel", "₪", "Israeli", "Israel"),
     Currency("KWD", "Kuwaiti Dinar", "د.ك", "Kuwaiti", "Kuwait", symbol_first=False),
 ]
