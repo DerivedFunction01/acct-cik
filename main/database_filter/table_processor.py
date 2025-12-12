@@ -1007,7 +1007,7 @@ class TableToTextConverter:
 
     def _strip_multipliers(self, val: str) -> str:
         val = val.lower()
-        val = re.sub(r"(?i)\s*(?:trillion|billion|million|thousand)s?", "", val)
+        val = UNIT_REGEX.sub("", val)
         return val
 
     def _is_valid_value(self, val: str) -> bool:
