@@ -2815,11 +2815,9 @@ def build_trading_denial_pattern() -> re.Pattern:
     active_negation = build_negation_prefix_pattern()
 
     # 2. Context-Specific Passive Negation
-    # These are needed for: "Derivatives *are not* used", "It *is not* our policy"
-    # (We add them here because "are not" isn't a universal negation prefix like "do not")
     passive_negators = [
         r"are\s+not", r"is\s+not", r"were\s+not", r"was\s+not",
-        r"are\s+neither", r"is\s+neither", r"were\s+neither", r"was\s+neither", # <--- NEW
+        r"are\s+neither", r"is\s+neither", r"were\s+neither", r"was\s+neither",
         r"never", r"not"
     ]
     passive_negation = build_alternation(passive_negators)
@@ -2827,7 +2825,7 @@ def build_trading_denial_pattern() -> re.Pattern:
     # Combined Negation Block
     _NEG = rf"(?:{active_negation}|{passive_negation})"
 
-    # --- ACTIONS (Expanded for Intent) ---
+    # --- ACTIONS ---
     ACTIONS = [
         r"use(?:d|s)?", r"using", r"utiliz(?:e|es|ed|ing)",
         r"enter(?:ed|s)?\s+into", r"entering\s+into",
@@ -2856,9 +2854,12 @@ def build_trading_denial_pattern() -> re.Pattern:
     # --- HELPERS ---
     SUBJ_Or_OBJ = r"(?:[\w\s,]+)" 
     
-    # GAP HANDLER: Allows adverbs or intentions between Negator and Action
-    # Matches: "We do not [currently] use", "We do not [primarily] hold"
+    # GAP HANDLER
     _ADVERB_GAP = r"(?:\s+(?:currently|historically|primarily|solely|intend\s+to|expect\s+to))?"
+
+    # --- NEW: AUTHORIZATION VERBS (For Clause 8) ---
+    # Matches: "are not permitted", "is not authorized"
+    _AUTH_VERBS = r"(?:permitted|authorized|allowed|condoned)"
 
     # --- CLAUSES ---
 
@@ -2893,8 +2894,7 @@ def build_trading_denial_pattern() -> re.Pattern:
         rf"(?:for\s+)?(?:{_TRAD})(?:\s+(?:{_PURP}))?\b"
     )
 
-    # 6. Strict Header: "No trading purposes" (Fixed anchor)
-    # Starts with "No" or "Not", NEVER just "for"
+    # 6. Strict Header: "No trading purposes"
     CLAUSE_6 = rf"""
         \b(?:no|not)\s+                
         (?:{_TRAD})(?:\s+\S+){{0,4}}    
@@ -2911,9 +2911,16 @@ def build_trading_denial_pattern() -> re.Pattern:
         rf"(?:for\s+)?(?:{_TRAD})(?:\s+(?:{_PURP}))?\b"
     )
 
+    # 8. NEW: "Derivatives for speculation [is/are] not permitted"
+    CLAUSE_8 = (
+        rf"\b(?:{SUBJ_Or_OBJ}|derivatives?)\s+" # "Use of derivatives"
+        rf"(?:for|in)\s+(?:the\s+purpose\s+of\s+)?(?:{_TRAD})\s+"           # "for speculation"
+        rf"(?:are|is|were|was)\s+not\s+{_AUTH_VERBS}\b"                     # "are not permitted"
+    )
+
     pattern = build_alternation([
         CLAUSE_1, CLAUSE_2, CLAUSE_3, CLAUSE_4, 
-        CLAUSE_5, CLAUSE_6, CLAUSE_7
+        CLAUSE_5, CLAUSE_6, CLAUSE_7, CLAUSE_8
     ])
     
     return re.compile(pattern, re.IGNORECASE | re.VERBOSE)
