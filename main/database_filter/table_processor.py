@@ -52,8 +52,52 @@ NOISE_HEADERS = re.compile(r"strike|exercise|shares|units|count|ratio|weighted",
 DESIGNATION_REGEX = re.compile(r"designated|hedging|trading|fair value|cash flow|net investment|derivatives|aoci|income|earnings|gain|loss",re.IGNORECASE,)
 
 SOPHISTICATED_TARGETS = re.compile(r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE)
+YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
 # Paragraph Detection
 TABLE_OF_CONTENTS_REGEX = re.compile(r"\.{3,}")
+
+
+def convert_slash_year_to_four_digit(year_str: str) -> str:
+    """
+    Extract all 2-digit or 4-digit years from a string, convert each to 4-digit
+    using the heuristic, and return the largest resulting year.
+
+    Heuristic:
+    - If year is already 4 digits (1900-2999), keep as-is
+    - If year is 2 digits:
+      - 00-30 → 2000–2030
+      - 31-99 → 1931–1999
+    """
+    if not year_str:
+        return ""
+
+    try:
+        matches = YEAR_SLASH_REGEX.findall(year_str)
+        if not matches:
+            return ""
+
+        converted_years = []
+        for m in matches:
+            y = int(m)
+
+            # Already 4-digit
+            if y >= 1000:
+                converted_years.append(y)
+            else:
+                # 2-digit conversion
+                if y >= 80:          # 80–99 → 1980–1999
+                    converted_years.append(1900 + y)
+                else:                # 00–79 → 2000–2079
+                    converted_years.append(2000 + y)
+
+
+        # Return the largest converted year
+        return str(max(converted_years))
+
+    except (ValueError, TypeError):
+        return year_str
+
+
 PARAGRAPH_THRESHOLD = 250
 TABLE_ANCHOR = " T_"
 DEBUG = False
@@ -500,7 +544,7 @@ class TableToTextConverter:
             ]
             years_found = set()
             for cell in sample_cells:
-                year_matches = YEAR_REGEX.findall(cell)
+                year_matches = YEAR_REGEX.findall(cell) or [convert_slash_year_to_four_digit(cell)]
                 years_found.update(year_matches)
             if years_found:
                 col_headers[local_idx] = f"value_{max(years_found)}"
@@ -513,7 +557,7 @@ class TableToTextConverter:
             sample_cells = [
                 row[local_idx] for row in filtered_rows if local_idx < len(row)
             ]
-            has_dates = sum(1 for c in sample_cells if YEAR_REGEX.search(c)) > 0
+            has_dates = sum(1 for c in sample_cells if YEAR_REGEX.search(c) or convert_slash_year_to_four_digit(c)) > 0
             has_percentages = sum(1 for c in sample_cells if "%" in c) > 0
             has_large_numbers = (
                 sum(1 for c in sample_cells if self._is_numeric_large(c)) > 0
@@ -726,7 +770,7 @@ class TableToTextConverter:
 
         caption_year_str = ""
         if self.caption:
-            caption_years = YEAR_REGEX.findall(self.caption)
+            caption_years = YEAR_REGEX.findall(self.caption) or [convert_slash_year_to_four_digit(self.caption)]
             if caption_years:
                 try:
                     caption_year_str = f"in {max(int(y) for y in caption_years)} "
@@ -739,7 +783,7 @@ class TableToTextConverter:
             if self._is_subheader_row(row):
                 debug_print(f"Found subheader row: {row}")
                 raw_header = row[0].strip().rstrip(":")
-                header_years = YEAR_REGEX.findall(raw_header)
+                header_years = YEAR_REGEX.findall(raw_header) or [convert_slash_year_to_four_digit(raw_header)]
                 if header_years:
                     y_val = max(int(y) for y in header_years)
                     section_year_str = f"in {y_val} "
@@ -816,7 +860,7 @@ class TableToTextConverter:
             for col_idx, col_type in self.col_map.items():
                 if col_idx < len(row) and col_type == "metadata_maturity":
                     cell = row[col_idx]
-                    years = YEAR_REGEX.findall(cell)
+                    years = YEAR_REGEX.findall(cell) or [convert_slash_year_to_four_digit(cell)]
                     if years:
                         expiration_str = f" (expiring in {max(years)})"
 
