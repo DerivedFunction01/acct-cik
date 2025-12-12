@@ -192,13 +192,13 @@ def extract_categories_soft(sentence: str) -> Set[str]:
     return cats
 
 
-def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
+def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
     """
     Extract user attributes from tags using a mapped lookup.
     Consolidates redundant state indicators into unified attributes.
     """
     if not tag_reason:
-        return
+        return attributes
 
     # 1. Historical Special Case (Group of Noise Tags)
     if tag_reason in {
@@ -207,7 +207,8 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
         NoiseReason.HIST_BLOCK.value,
     }:
         attributes["is_historical"] = True
-        return
+        return attributes
+
 
     # 2. Attribute Mapping
     # Maps Tag Reason -> Attribute Key
@@ -245,6 +246,8 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> None:
     # 3. Apply
     if target_attr := TAG_MAP.get(tag_reason):
         attributes[target_attr] = True
+    return attributes
+
 
 
 def remove_outlier_categories(
@@ -402,7 +405,7 @@ def process_row(row: Tuple) -> Tuple:
             mentions_venue = True
 
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
-        mine_attributes(para_tag_reason, attributes)
+        attributes = mine_attributes(para_tag_reason, attributes)
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
@@ -417,11 +420,11 @@ def process_row(row: Tuple) -> Tuple:
 
         for sent in sentences:
             is_sent_deadweight, sent_tag_reason, sent_content = parse_tags(sent)
-            mine_attributes(sent_tag_reason, attributes)
+            attributes = mine_attributes(sent_tag_reason, attributes)
 
             evidence_tags_found = EVIDENCE_TAG_PARSER.findall(sent_content)
             for etag in evidence_tags_found:
-                mine_attributes(etag, attributes)
+                attributes = mine_attributes(etag, attributes)
 
             is_active = not (is_para_deadweight or is_sent_deadweight)
             clean_sent = _cleaner.clean_entities(sent_content)
