@@ -888,7 +888,7 @@ AMBIGUOUS_BASE_TYPES = [
     "locks?",
     "caps?",
     "floors?",
-    "hedges?",
+    r"(?<!to[ -])hedges?",
     "puts?",
     "calls?",
     "straddles?" "strangles?",
