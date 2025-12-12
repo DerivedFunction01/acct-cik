@@ -135,7 +135,6 @@ class NoiseReason(Reason):
     LOAN = "LOAN"  # Non derivative interest rate caps and floors on debt
     CTX = "CONTEXT" # Context text
     OTHER = "OTHER"  # Has derivative mention but no Evidence -> Other
-    POLICY = "POLICY" # POLICY text (has some derivative mention)
     RISK = "RISK" # Risk management text
 
     # --- Business Logic / Signals ---
