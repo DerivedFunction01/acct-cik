@@ -114,7 +114,7 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
         NEGATIVE_INTENT_REGEX.search(text)
         or ABSENCE_REGEX.search(text)
         or DID_NOT_HOLD_REGEX.search(text)
-    ) and SOFT_REGEX.search(text):
+    ):
         return NoiseReason.NEG
 
     return None

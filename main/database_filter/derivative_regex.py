@@ -3599,7 +3599,7 @@ def build_absence_regex() -> re.Pattern:
 
 def build_did_not_hold_regex() -> re.Pattern:
     """
-    Matches: "did not hold", "didn't enter", "couldn't engage"
+    Matches: "did not hold", "didn't enter", "couldn't engage" in swaps, derivatives
     Note: if the sentence mentions that it can't do something, then we don't need the sentence anyways.
     """
     # Use the same unified prefix
@@ -3612,6 +3612,7 @@ def build_did_not_hold_regex() -> re.Pattern:
 
     return re.compile(
         # Replace the hardcoded (did|does...) with the unified prefix
+        # We do not currently have XXX instruments
         rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+(?:\S+\s+){{0,12}}"
         rf"{_instrument_object}\b",
         re.IGNORECASE,
