@@ -411,7 +411,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         if not reason:
             if HEDGE_DOC_REGEX.search(masked):
                 reason = NoiseReason.DOC
-            elif COUNTERPARTY_REGEX.search(masked) and not CR_SOFT_REGEX.search(masked):
+            elif COUNTERPARTY_REGEX.search(masked):
                 reason = NoiseReason.CREDIT
 
         # --- TIER 5: FALLBACK SCORING ---
