@@ -119,7 +119,6 @@ class MinimalTextCleaner:
 
 from enum import Enum
 class Reason(Enum):
-    # --- Nothing here
     pass
 
 def get_tag(token_type: str, reason: Reason | str) -> str:
@@ -167,6 +166,7 @@ class NoiseReason(Reason):
     COMP = "COMP"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
     NC = "NC"  # Non derivative commodity contracts (No hedging context anywhere)
+    MGMTND = "MGMT_NO_DER" # Risk managment paragraph with no derivative positions (either potential or none)
 
     # --- Firm Level ---
     HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging (Fails stage 1 prefilter_database)
@@ -174,6 +174,9 @@ class NoiseReason(Reason):
 
 
 class EvidenceReason(Reason):
+    MGMTD = "MGMT_DER"  # Risk managment paragraph with intent of using derivatives (no quant)
+    MGMTDQ = "MGMT_DER_QUANT"  # Risk managment paragraph with intent of using derivatives (with quant)
+    POSDQ = "DER_QUANT" # Standard valuation of derivative paragraph (quant, have strong evidence)
     # =========================================================
     # TIER 1: STRONG (The "Smoking Gun")
     # Criteria: Strict Subject ("Swap") + Hard Anchor (Year/Value)

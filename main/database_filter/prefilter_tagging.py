@@ -383,6 +383,8 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         ):
             if RISK_MANAGEMENT_REGEX.search(masked):
                 reason = NoiseReason.RISK
+            elif PNL_CONTEXT_REGEX.search(masked) or HAD_CHANGE_REGEX.search(masked):
+                reason = NoiseReason.PNL
             else:
                 reason = NoiseReason.CTX
 
