@@ -115,6 +115,8 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
         or ABSENCE_REGEX.search(text)
         or DID_NOT_HOLD_REGEX.search(text)
     ):
+        if PNL_CONTEXT_REGEX.search(text):
+            return NoiseReason.PNL
         return NoiseReason.NEG
 
     return None
@@ -142,18 +144,22 @@ ANY_NUMBER_LOOSE = re.compile(r"\b[1-9]\d*(?:,\d{3})*(?:\.\d+)?\b")
 COMPARISON_REGEX = build_regex(COMPARISON_PHRASES)
 
 
+G = r"(?:\W+\w+){0,3}"  # up to 3 intermediate words
+
 HEDGE_DOC_TERMS = [
-    r"formally\s+document",
-    r"hedge\s+documentation",
+    rf"formally{G}document",
+    rf"hedge{G}documentation",
     r"documentation",
-    r"at\s+inception",
-    r"effectiveness\s+(?:is|was)\s+assessed",
-    r"highly\s+effective",
-    r"qualif(?:y|ies|ied)\s+for\s+hedg(?:ing|e)\s+(?:accounting|relationship|documentation)",
-    r"(?:dis)?continu(?:es?|ed|ing)\s+hedge\s+(?:accounting|relationship|documentation)",
-    r"economic\s+relationship",
-    r"nature\s+of",
+    rf"at{G}inception",
+    rf"effectiveness{G}(?:is|was){G}assessed",
+    rf"highly{G}effective",
+    rf"qualif(?:y|ies|ied){G}(?:for|as){G}hedg(?:ing|e?){G}(?:accounting|relationship|documentation)?",
+    rf"(?:not)?{G}designated",
+    rf"(?:dis)?continu(?:es?|ed|ing){G}hedge{G}(?:accounting|relationship|documentation)?",
+    rf"economic{G}relationship",
+    rf"nature{G}of",
 ]
+
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)
 
 COUNTERPARTY_POLICY_TERMS = [
