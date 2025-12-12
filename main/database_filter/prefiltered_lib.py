@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
 from final_verification import QUANT_REGEX
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
 
@@ -109,11 +109,17 @@ class MinimalTextCleaner:
         text = self.normalize_whitespace(text)
         return text
 
+    def clean_non_derivatives(self, text: str) -> str:
+        text = NON_DERIVATIVE_REGEX.sub(" ", text)
+        text = self.normalize_whitespace(text)
+        return text
+
     def clean(self, text: str, remove_years: bool = False) -> str:
         texts = []
         for sent in SENTENCE_SPLIT_PATTERN.split(text):
             sent = self.clean_for_quant_analysis(sent, remove_years)
             sent = self.clean_entities(sent)
+            sent = self.clean_non_derivatives(sent)
             texts.append(sent)
         return text
 

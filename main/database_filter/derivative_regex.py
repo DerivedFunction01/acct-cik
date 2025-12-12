@@ -4193,6 +4193,39 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
 # Compile and Export
 ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN = build_entity_exclusion_regex()
 
+
+def build_non_derivative_instrument_regex() -> re.Pattern:
+    """
+    Prevents loose_gen_regex from assuming that context still exists
+    
+    :return: Description
+    :rtype: Pattern[Any]
+    """
+    placeholders = [
+        # --- Existing ---
+        "debt",
+        "credit",
+        # --- Explicit Exemptions (SEC Item 305) ---
+        "lease",  #
+        "insurance",  #
+        "pension",  #
+        "warranty",  #
+        "purchase",  # Matches "Purchase contract"
+        "trade",  # Matches "Trade agreement
+        "deferred compensation",  #
+        "stock option",  #
+        "stock purchase",  #
+        "equity method",  # Matches "Equity method contract"
+    ]
+
+    placeholder_alternation = build_alternation(placeholders)
+    return re.compile(
+        rf"\b{placeholder_alternation}\s+{suffix_alternation}\b", re.IGNORECASE
+    )
+
+NON_DERIVATIVE_REGEX = build_non_derivative_instrument_regex()
+
+
 # Unique marker to identify the "Target" sentence that anchors a context window.
 # Used to enforce dependency: if the anchor is deleted, loose dependents must die.
 ANCHOR_TAG = " A_ "
