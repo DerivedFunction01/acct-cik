@@ -13,11 +13,33 @@ ACCOUNTING_NEGATIVE = re.compile(r"\(([^)]+)\)")  # Converts (100) to -100
 WHITESPACE_REGEX = re.compile(r"\s+")
 HTML_TAG_REGEX = re.compile(r"<[^>]+>")
 
-# Table Structure Markers
-CAPTION_REGEX = re.compile(
-    r"<caption>([^\n][\s\S]*?)\s*(?=\n\n|:\n|\n[-=])", re.IGNORECASE
-)
+import re
 
+CAPTION_REGEX = re.compile(
+    r"""
+    <caption[^>]*>        # Match start tag (case-insensitive via flags)
+    
+    (                     # --- GROUP 1: CAPTION CONTENT ---
+        .*?               # Lazily match content (including newlines)
+    )
+    
+    (?=                   # --- LOOKAHEAD: STOP CONDITIONS ---
+                          # Stop matching content when we encounter:
+        
+        \n\s*\n           # 1. A BLANK LINE (Double newline). 
+                          #    This prevents capturing table headers in Case 2.
+        |
+        \n\s*<S>          # 2. The <S> tag on a new line.
+        |
+        \n\s* # 3. A SEPARATOR LINE.
+                          #    Must be a new line starting with dashes/equals.
+        (?:[-=][ \t]*){3,} #    Matches "---", "- - -", or "------------"
+        |
+        \Z                # 4. End of String.
+    )
+    """,
+    re.IGNORECASE | re.DOTALL | re.VERBOSE,
+)
 TABLE_TAG_REGEX = re.compile(r"<TABLE.*?>", re.DOTALL | re.IGNORECASE)
 S_MARKER_REGEX = re.compile(r"<S>")
 C_MARKER_REGEX = re.compile(r"<C>")
@@ -1454,9 +1476,9 @@ class TableToTextConverter:
 if __name__ == "__main__":
     DEBUG = True
     string = """ <TABLE>
-    <CAPTION>
-    , we had the following Interest Rate Derivatives outstanding:
-    
+    <CAPTION> 
+    , we have the following interest rate derivatives outstanding:
+    -----------------------------  -  ----------------------------------------  -  ---------------------------------  -  ---------------  -  -----------------  -  -----------------------------------------  -  -------------------------------
                                       Initial                  Notional Amount     Maximum           Notional Amount      Effective Date         Maturity Date     Weighted Average Fixed Interest Rate Paid     Variable Interest Rate Received
     -----------------------------  -  ----------------------------------------  -  ---------------------------------  -  ---------------  -  -----------------  -  -----------------------------------------  -  -------------------------------
     <S>                            <C><C>                                       <C><C>                                <C><C>              <C><C>                <C><C>                                        <C><C>
