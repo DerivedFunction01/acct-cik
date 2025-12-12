@@ -164,36 +164,60 @@ verbs_pattern = build_alternation(FINANCIAL_OUTCOME_VERBS)
 FLEX_SEP = r"(?:\s+\S+){0,5}\s+"
 BS_LOC_REGEX = re.compile(f"{verbs_pattern}{FLEX_SEP}{locs_pattern}", re.IGNORECASE)
 
-# In prefilter_evidence.py
-CHANGE_FV_REGEX=build_regex(
+
+_prep_pattern = build_alternation([r"in", r"of", r"on"])
+CHANGE_FV_REGEX = build_regex(
     [
         # LOGIC:
         # 1. Match "Change in fair value"
-        r"\bchange(?:s)?\s+in\s+(?:the\s+)?fair\s+value"
+        rf"\bchange(?:s)?\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value"
     ]
 )
 
 # 1. Match auxiliary verbs: have, having, had, has
 # 2. Allow 0-2 filler words (e.g., "recorded a", "significant", "no", "a")
 # 3. Match target: "change(s) in fair value"
-# In prefilter_evidence.py
+# --- 1. Core components -------------------------------------------------------
 
-# 1. Define the specific PnL event phrases
-_fv_change_targets = [
-    r"change(?:s)?\s+(?:in|of|on)\s+(?:the\s+)?fair\s+value",  # "Change in fair value"
-    r"fair\s+value\s+change(?:s)?",  # "Fair value changes"
+# Change verbs: change / changes / increased / decreases / etc.
+_change_verbs = [
+    r"change(?:s)?",
+    r"increase(?:d|s)?",
+    r"decrease(?:d|s)?",
 ]
 
-# 2. Build the alternation pattern (Matches either A OR B)
-_fv_change_pattern = build_alternation(_fv_change_targets)
+change_verb_pattern = build_alternation(_change_verbs)
 
-# 3. Construct the full regex with Anchor + Gap + Target
+
+# --- 2. Fair value targets ----------------------------------------------------
+
+_fv_targets = [
+    # e.g., "change in fair value", "increase of fair value"
+    rf"{change_verb_pattern}\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value",
+    # e.g., "fair value changes"
+    r"fair\s+value\s+change(?:s)?",
+]
+
+fv_target_pattern = build_alternation(_fv_targets)
+
+# --- 3. Auxiliary verb anchor -------------------------------------------------
+_aux_verbs = [
+    r"hav(?:e|ing)",
+    r"had",
+    r"has",
+]
+
+aux_verb_pattern = build_alternation(_aux_verbs)
+
+# --- 4. Final regex -----------------------------------------------------------
+
 HAD_CHANGE_REGEX = re.compile(
-    r"\b(?:hav(?:e|ing)|had|has)"  # Anchor Verb
-    r"(?:\s+\S+){0,2}"  # Flexible Gap (0-2 words)
-    r"\s+(?:" + _fv_change_pattern + r")",  # Target
+    rf"\b{aux_verb_pattern}"  # have / having / had / has
+    rf"(?:\s+\S+){{0,2}}"  # 0–2 filler words
+    rf"\s+{fv_target_pattern}",  # fair value change target
     re.IGNORECASE,
 )
+
 REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
 
