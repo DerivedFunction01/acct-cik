@@ -2034,24 +2034,24 @@ ISSUER_TERMS = [
 
 # --- STANDARD TYPES & ACRONYMS ---
 STANDARDS_TERMS = [
-    r"\bSFAS\b",
-    r"\bFAS\b",
-    r"\bASU\b",
-    r"\bASC\b",
-    r"\bIFRS\b",
-    r"\bIAS\b",
-    r"\bIFRIC\b",
-    r"\bSIC\b",
-    r"\bEITF\b",
-    r"\bSOP\b",
-    r"\bFSP\b",
-    r"\bFIN\b",
-    r"\bTechnical\s+Bulletin\b",
-    r"\bTB\b",
-    r"\bSFAC\b",
+    r"\bSFAS\b", "Statement of Financial Accounting Standards?",
+    r"\bFAS\b", "Financial Accounting Standards?",
+    r"\bASU\b", "Accounting Standards Update",
+    r"\bASC\b", "Accounting Standards Codification",
+    r"\bIFRS\b", "International Financial Reporting Standards?",
+    r"\bIAS\b", "International Accounting Standards?",
+    r"\bIFRIC\b", "International Financial Reporting Interpretations Committee",
+    r"\bSIC\b", "Standing Interpretations Committee",
+    r"\bEITF\b", "Emerging Issues Task Force",
+    r"\bSOP\b", "Statement of Position",
+    r"\bFSP\b", "FASB Staff Position",
+    r"\bFIN\b", "FASB Interpretation",
+    r"\bTB\b", r"\bTechnical\s+Bulletin\b",
+    r"\bSFAC\b", "Statement of Financial Accounting Concepts",
     r"\bConcept\s+Statement\b",
-    r"\bAPB\s+Opinion\b",
+    r"\bAPB\s+Opinion\b", "Accounting Principles Board Opinion",
 ]
+
 
 # --- MONTHS (for date boilerplate) ---
 MONTHS_TERMS = [
