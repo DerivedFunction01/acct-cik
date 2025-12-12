@@ -406,7 +406,7 @@ def process_row(row: Tuple) -> Tuple:
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
-        context_cats = get_text_categories(p) # Allow full original text
+        context_cats = get_text_categories(para_content)  # Allow full original text
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
         local_contexts = context_cats if context_cats else set()
