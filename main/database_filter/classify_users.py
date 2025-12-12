@@ -32,17 +32,17 @@ EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
 
 # Evidence that elevates soft mentions to strict (unambiguous subject)
 UNAMBIGUOUS_EVIDENCE = {
-    EvidenceReason.AS_YEAR,  # "Outstanding at Dec 31, 2024"
-    EvidenceReason.MAT_FUT,  # "Matures in 2026"
-    EvidenceReason.NVY,  # "Notional was $100M at Dec 31, 2024"
-    EvidenceReason.FVY,  # "Fair Value was $5M at Dec 31, 2024"
-    EvidenceReason.VY,  # "Value was $5M at Dec 31, 2024"
-    EvidenceReason.ACT_YEAR,
-    EvidenceReason.CONT_USE,  # "We hold/use Swaps" (No year)
-    EvidenceReason.NVNY,  # "Notional is $100M"
-    EvidenceReason.VNY,  # " Value is $5M"
-    EvidenceReason.FVNY,  # "Fair Value is $5M"
-    EvidenceReason.BS_LOC,  # "Recorded in Earnings"
+    EvidenceReason.AS_YEAR.value,  # "Outstanding at Dec 31, 2024"
+    EvidenceReason.MAT_FUT.value,  # "Matures in 2026"
+    EvidenceReason.NVY.value,  # "Notional was $100M at Dec 31, 2024"
+    EvidenceReason.FVY.value,  # "Fair Value was $5M at Dec 31, 2024"
+    EvidenceReason.VY.value,  # "Value was $5M at Dec 31, 2024"
+    EvidenceReason.ACT_YEAR.value,
+    EvidenceReason.CONT_USE.value,  # "We hold/use Swaps" (No year)
+    EvidenceReason.NVNY.value,  # "Notional is $100M"
+    EvidenceReason.VNY.value,  # " Value is $5M"
+    EvidenceReason.FVNY.value,  # "Fair Value is $5M"
+    EvidenceReason.BS_LOC.value,  # "Recorded in Earnings"
 }
 
 _cleaner = MinimalTextCleaner()
@@ -125,6 +125,7 @@ def parse_tags(text: str) -> Tuple[bool, Optional[str], str]:
 def has_unambiguous_evidence(sentence: str) -> bool:
     """Check if sentence has unambiguous evidence tags."""
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
+    print(evidence_tags, flush=True)
     return bool(evidence_tags.intersection(UNAMBIGUOUS_EVIDENCE))
 
 
