@@ -138,21 +138,6 @@ BALANCE_SHEET_LOCATIONS = [
     "profit and loss",
 ]
 
-PNL_TERMS = [
-    # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
-    r"\b(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
-    # 2. "On" Construction (e.g., "Gain on derivatives")
-    r"\b(?:net\s+)?(?:gains?|loss(?:es)?)",
-    # 3. Fair Value CHANGES (Strictly Flow)
-    # 4. Ineffectiveness (Strictly PnL context)
-    r"\bineffective\s+portion",
-    r"\bhedge\s+ineffectiveness",
-    # 6. Mark-to-Market (Action/Result, usually implies flow)
-    # Distinguishes from "Fair Value" measurement policy
-    r"\bmark(?:ed)?[- ]to[- ]market",
-    # 7. Impact statements
-    r"\bimpact\s+(?:on|to)\s+(?:earnings|income|revenue)",
-]
 
 REM_TERM_PHRASES = [
     r"remaining\s+(?:contractual\s+)?terms?",
@@ -179,7 +164,6 @@ verbs_pattern = build_alternation(FINANCIAL_OUTCOME_VERBS)
 FLEX_SEP = r"(?:\s+\S+){0,5}\s+"
 BS_LOC_REGEX = re.compile(f"{verbs_pattern}{FLEX_SEP}{locs_pattern}", re.IGNORECASE)
 
-PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
 # In prefilter_evidence.py
 CHANGE_FV_REGEX=build_regex(
     [
@@ -263,7 +247,7 @@ def check_quantitative_evidence(
 
     # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
     # Logic: You don't have "Notional PnL". If "Notional" is there, it's a Position.
-    if is_notional or (is_strict_derivative and not is_fair_value):
+    if is_notional:
         return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
 
     # 2. FAIR VALUE LOGIC

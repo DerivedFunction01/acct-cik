@@ -43,7 +43,7 @@ from derivative_regex import (
     is_regulatory_noise,
 )
 
-from prefilter_evidence import PNL_CONTEXT_REGEX
+
 from prefilter_database import is_sophisticated_content, is_sophisticated_target
 from prefiltered_lib import (
     SKIP_TOKEN,
@@ -170,7 +170,22 @@ COUNTERPARTY_POLICY_TERMS = [
     r"nonperformance",
 ]
 COUNTERPARTY_REGEX = build_regex(COUNTERPARTY_POLICY_TERMS)
-
+PNL_TERMS = [
+    # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
+    r"(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
+    # 2. "On" Construction (e.g., "Gain on derivatives")
+    r"(?:net\s+)?(?:gains?|loss(?:es)?)",
+    # 3. Fair Value CHANGES (Strictly Flow)
+    # 4. Ineffectiveness (Strictly PnL context)
+    r"ineffective\s+portion",
+    r"hedge\s+ineffectiveness",
+    # 6. Mark-to-Market (Action/Result, usually implies flow)
+    # Distinguishes from "Fair Value" measurement policy
+    r"mark(?:ed)?[- ]to[- ]market",
+    # 7. Impact statements
+    r"impact\s+(?:on|to)\s+(?:earnings|income|revenue)",
+]
+PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
 def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
     """
     Parses sentence to find years and 'Value Tokens'.
