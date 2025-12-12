@@ -4242,6 +4242,15 @@ _COMMODITY_NAMES = build_alternation(COMMON_COMMODITIES)
 # 2. COMMODITY (Strict)
 # FIX: Do NOT include raw commodity names.
 # Only include them if attached to "price", "cost", "risk", "hedge", "volaitity"
+venues = [
+        r"\bNYMEX\b", r"\bNew\s+York\s+Mercantile\s+Exchange\b",
+        r"\bCOMEX\b", r"\bCommodity\s+Exchange\b",
+        r"\bCBOT\b",  r"\bChicago\s+Board\s+of\s+Trade\b",
+        r"\bCME\b",   r"\bChicago\s+Mercantile\s+Exchange\b",
+        r"\bICE\b",   r"\bIntercontinental\s+Exchange\b",
+        r"\bLME\b",   r"\bLondon\s+Metal\s+Exchange\b",
+        r"\bCBOE\b",  r"\bChicago\s+Board\s+Options\s+Exchange\b",
+]
 CP_STRICT_TERMS = [
     # General terms
     rf"{_COMMODITY_NAMES}(?:\s+\w+){0,3}{_RISK_ALTERNATION}"
@@ -4251,7 +4260,7 @@ CP_STRICT_TERMS = [
     # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
     rf"{_RISK_ALTERNATION}(?:\s+\w+){0,3}{_COMMODITY_NAMES}",
     rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}", # natural gas inventory, etc,
-]
+] + venues
 
 # Focus: Convertibles, Warrants, Valuation Models, and Equity Risk
 EQ_STRICT_TERMS = [
@@ -4459,27 +4468,8 @@ NON_FINANCIAL_KEYWORDS = [
 # Compile
 EXCLUDE_NON_FINANCIAL_REGEX = build_regex(NON_FINANCIAL_KEYWORDS)
 
-
-# In derivative_regex.py
-
-def build_trading_venue_regex() -> re.Pattern:
-    """
-    Matches specific exchanges where active trading occurs.
-    """
-    venues = [
-        r"\bNYMEX\b", r"\bNew\s+York\s+Mercantile\s+Exchange\b",
-        r"\bCOMEX\b", r"\bCommodity\s+Exchange\b",
-        r"\bCBOT\b",  r"\bChicago\s+Board\s+of\s+Trade\b",
-        r"\bCME\b",   r"\bChicago\s+Mercantile\s+Exchange\b",
-        r"\bICE\b",   r"\bIntercontinental\s+Exchange\b",
-        r"\bLME\b",   r"\bLondon\s+Metal\s+Exchange\b",
-        r"\bCBOE\b",  r"\bChicago\s+Board\s+Options\s+Exchange\b",
-    ]
-    pattern = build_alternation(venues)
-    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
-
 # Export
-TRADING_VENUE_REGEX = build_trading_venue_regex()
+TRADING_VENUE_REGEX = build_regex(venues, ignore_case=False)
 
 
 # Use build_regex for consistency
