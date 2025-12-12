@@ -3443,6 +3443,13 @@ TERMINATION_NOUNS = [
     r"forfeiture",
     r"derecognition",
     r"wind[- ]?down",
+    r"sale",
+    r"disposition",
+    r"transfer",
+    r"assignment",
+    r"relinquishment",
+    r"voiding",
+    r"divestiture",
 ]
 
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS

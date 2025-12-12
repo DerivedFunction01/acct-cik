@@ -17,6 +17,7 @@ HTML_TAG_REGEX = re.compile(r"<[^>]+>")
 CAPTION_REGEX = re.compile(
     r"<caption>\s*(.*?)(?=\n\n|:\n|\n[-=])", re.DOTALL | re.IGNORECASE
 )
+TABLE_TAG_REGEX = re.compile(r"<TABLE.*?>", re.DOTALL | re.IGNORECASE)
 S_MARKER_REGEX = re.compile(r"<S>")
 C_MARKER_REGEX = re.compile(r"<C>")
 
@@ -49,7 +50,7 @@ LOCATION_HEADERS = re.compile(r"location|sheet|line item", re.IGNORECASE)
 MATURITY_HEADERS = re.compile(r"maturity|expiration", re.IGNORECASE)
 NOISE_HEADERS = re.compile(r"strike|exercise|shares|units|count|ratio|weighted", re.IGNORECASE)
 
-DESIGNATION_REGEX = re.compile(r"designated|hedging|trading|fair value|cash flow|net investment|derivatives|aoci|income|earnings|gain|loss",re.IGNORECASE,)
+DESIGNATION_REGEX = re.compile(r"designated as|hedging|trading|fair value|cash flow hedg|net investment|derivatives|aoci|income|earnings|gain|loss",re.IGNORECASE,)
 
 SOPHISTICATED_TARGETS = re.compile(r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE)
 YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
@@ -443,6 +444,7 @@ class TableToTextConverter:
     def _extract_data_driven(
         self, table_text: str
     ) -> Tuple[List[List[str]], Dict[int, Optional[str]], Dict[int, str]]:
+        table_text = TABLE_TAG_REGEX.sub("", table_text)
         lines = table_text.split("\n")
 
         # --- 1. DETECT TABLE STRUCTURE (<S> and <C>) ---
@@ -572,7 +574,9 @@ class TableToTextConverter:
         for row in merged_rows:
             cleaned_row = self._clean_and_merge_symbols(row)
             cleaned_rows.append(cleaned_row)
-
+            
+        cleaned_rows = self._heal_data_rows(cleaned_rows)
+        
         # Identify active columns (columns that actually have data)
         active_col_indices = set()
         for row in cleaned_rows:
@@ -644,6 +648,90 @@ class TableToTextConverter:
             col_map[local_idx] = col_type
 
         return filtered_rows, col_map, col_headers
+
+    def _heal_data_rows(self, rows: List[List[str]]) -> List[List[str]]:
+        """
+        Fixes rows where the description text has shifted into the data columns
+        due to indentation, or where text and data are split across lines.
+        """
+        healed_rows = []
+        prev_text_row = None  # Buffer for vertical merging
+
+        for i, row in enumerate(rows):
+            if not row or not any(row):
+                continue
+
+            # --- 1. HORIZONTAL SHIFT (The "Shift It" Logic) ---
+            # Scenario: ['', 'Accounts Payable', '100', '200']
+            # Goal:     ['Accounts Payable', '', '100', '200']
+
+            # If Col 0 is empty...
+            if not row[0].strip() and len(row) > 1:
+                # Find the first non-empty column index
+                first_content_idx = -1
+                for idx, cell in enumerate(row):
+                    if cell.strip():
+                        first_content_idx = idx
+                        break
+
+                # If we found content, and it is NOT a number (it's text), move it to Col 0
+                if first_content_idx > 0:
+                    val = row[first_content_idx]
+                    # Check if it looks like a number/year (don't move data!)
+                    # We treat specific keywords (Level 1, etc) as text, but dates/numbers as data
+                    if not self._is_numeric(val) and not YEAR_REGEX.match(val):
+                        row[0] = val
+                        row[first_content_idx] = ""  # Clear the old spot
+
+            # --- 2. VERTICAL MERGE (Hanging Indents) ---
+            # Scenario:
+            # Row A: ['Net Income', '', '']  <-- Text, No Data
+            # Row B: ['', '100', '200']      <-- No Text, Data
+            # Goal:  ['Net Income', '100', '200']
+
+            has_text = bool(row[0].strip())
+
+            # Check if the rest of the row has numeric data
+            has_data = False
+            for cell in row[1:]:
+                if self._is_numeric(cell):
+                    has_data = True
+                    break
+
+            if has_text and not has_data:
+                # This might be a "Hanging Header". Buffer it.
+                # If we already have a buffered header, flush it (it was a section header)
+                if prev_text_row:
+                    healed_rows.append(prev_text_row)
+                prev_text_row = row
+                continue
+
+            elif not has_text and has_data:
+                # This is a "Hanging Data" row.
+                if prev_text_row:
+                    # MERGE BACK!
+                    row[0] = prev_text_row[0]
+                    # If the previous row had other random text in other cols, arguably we could merge that too,
+                    # but usually, we just want the description.
+                    prev_text_row = None
+                    healed_rows.append(row)
+                else:
+                    # No previous text to attach to. Just keep the row (orphaned data).
+                    healed_rows.append(row)
+                continue
+
+            # Standard Case (Text AND Data, or neither)
+            else:
+                if prev_text_row:
+                    healed_rows.append(prev_text_row)
+                    prev_text_row = None
+                healed_rows.append(row)
+
+        # Flush any remaining buffer
+        if prev_text_row:
+            healed_rows.append(prev_text_row)
+
+        return healed_rows
 
     def _detect_paragraph_masquerading_as_table(self) -> bool:
         if not self.data:
@@ -1124,19 +1212,61 @@ if __name__ == "__main__":
     DEBUG = True
     string = """<TABLE>
     <CAPTION>
-    The warrants issued in lieu of the financing were recorded as and valued using the Black-Scholes Option Pricing Model with the following weighted-average assumptions used.
     
-                                                    11/30/05 Traunch  1/4/06 Traunch  1/30/06 Traunch  11/16/07 Traunch  4/22/08 Traunch
-    ----------------------------------------------  ---------------  -------------  --------------  ---------------  --------------
-    <S>                                             <C>              <C>            <C>             <C>              <C>
-    Approximate risk free rate                                4.42%          4.28%           4.46%            3.88%           3.29%
-    Average expected life                                   5 years        5 years         5 years          7 years         7 years
-    Dividend yield                                               0%             0%              0%               0%              0%
-    Volatility                                              356.33%        348.92%         342.77%          286.90%         325.91%
-    Number of warrants granted                              375,000        625,000       1,500,000       15,000,000      10,000,000
-    Estimated fair value of total warrants granted         $299,975       $493,692      $1,184,815          $59,995         $15,000
     
-    </TABLE>"""
+                                                                                                                                                                                                                                                                                                                                        For the Year Ended May 31,                                                 
+                                                                                                                                                                                                                                                                                                                                                              2008               2007              2006            
+                                                                                                                                                                                                                                                                                                                                                    (In thousands)                                                 
+    --------------------------------------------------------  ---------------------------------------------------------------------------------------------  -----------------------------------------------------  ---------------------------------------------------------------  ----------------------------------------------  -  --------------------------  --------  -  ----  -------  -  ----  -------  -
+    <S>                                                       <C>                                                                                            <C>                                                    <C>                                                              <C>                                             <C><C>                         <C>       <C><C>   <C>      <C><C>   <C>      <C>
+    Cash flows provided from (used in) operating activities:                                                                                                                                                                                                                                                                                                                                                       
+                                                                                                                                                 Net income                                                                                                                                                                                                      $    75,144        $   58,660        $   35,163   
+                                                              Adjustments to reconcile net income to net cash provided from (used in) operating activities:                                                                                                                                                                                                                                                        
+                                                                                                                                                                                                                                                      Depreciation and amortization                                                                                   39,952            32,199            29,222   
+                                                                                                                                                                                                                                       Deferred tax provisioncontinuing operations                                                                                   13,243            20,411             8,433   
+                                                                                                                                                                                                                                        Tax benefits from exercise of stock options                                                                                   (4,657  )         (4,345  )                 
+                                                                                                                                                                                                                                                       Gain on sale of product line                                                                                                    (5,358  )                 
+                                                                                                                                                                                                                                                                 Impairment charges                                                                                                     7,652                    
+                                                                                                                                                                                                                                              Loss (gain) on extinguishment of debt                                                                                      205            (2,927  )          3,893   
+                                                                                                                                                                                                                                                       Earnings from joint ventures                                                                                   (5,948  )        (10,952  )                 
+                                                                                                                                                                                                                                                         Gain on sale of investment                                                                                     (532  )           (915  )                 
+                                                                                                                                                                                                                    Changes in certain assets and liabilities, net of acquisitions:                                                                                                                                
+                                                                                                                                                                                                                                                                                                Accounts and trade notes receivable                                   12,428           (25,160  )         (9,324  )
+                                                                                                                                                                                                                                                                                                                        Inventories                                  (42,339  )         (8,567  )        (58,297  )
+                                                                                                                                                                                                                                                                                     Equipment on or available for short-term lease                                  (44,689  )         (5,259  )        (12,892  )
+                                                                                                                                                                                                                                                                                                       Equipment on long-term lease                                    4,413           (62,491  )        (76,156  )
+                                                                                                                                                                                                                                                                                                                   Accounts payable                                  (26,078  )          6,473            19,735   
+                                                                                                                                                                                                                                                                                            Accrued liabilities and taxes on income                                   19,131             1,903            12,282   
+                                                                                                                                                                                                                                                                                                                  Other liabilities                                   (6,152  )         (4,696  )         10,493   
+                                                                                                                                                                                                                                                                                         Other, primarily program development costs                                  (17,195  )        (17,867  )         (3,034  )
+                                                                                                                                                             Net cash provided from (used in) operating activities                                                                                                                                                    16,926           (21,239  )        (40,482  )
+    Cash flows used in investing activities:                                                                                                                                                                                                                                                                                                                                                                       
+                                                                                                                 Property, plant and equipment expenditures                                                                                                                                                                                                          (30,334  )        (29,891  )        (16,296  )
+                                                                                                                           Proceeds from disposal of assets                                                                                                                                                                                                               10                51               205   
+                                                                                                                         Proceeds from sale of product line                                                                                                                                                                                                                             6,567                    
+                                                                                                        Proceeds from sale of available for sale securities                                                                                                                                                                                                           23,767            11,612                    
+                                                                                                                Investment in available for sale securities                                                                                                                                                                                                          (26,179  )        (10,697  )                 
+                                                                                                                            Companies acquired, net of cash                                                                                                                                                                                                          (85,210  )        (38,478  )                 
+                                                                                                                      Proceeds from aircraft joint ventures                                                                                                                                                                                                              877            32,108             6,439   
+                                                                                                                      Investment in aircraft joint ventures                                                                                                                                                                                                          (23,609  )         (9,556  )        (23,245  )
+                                                                                                                                                      Other                                                                                                                                                                                                           (1,287  )           (845  )            272   
+                                                                                                                                                                             Net cash used in investing activities                                                                                                                                                  (141,965  )        (39,129  )        (32,625  )
+    Cash flows provided from financing activities:                                                                                                                                                                                                                                                                                                                                                                 
+                                                                                                                              Proceeds from borrowings, net                                                                                                                                                                                                          267,003            29,491           155,629   
+                                                                                                                                    Reduction in borrowings                                                                                                                                                                                                          (99,541  )        (20,439  )        (20,376  )
+                                                                                                                    Proceeds from capital lease obligations                                                                                                                                                                                                           12,880                                     
+                                                                                                                     Reduction in capital lease obligations                                                                                                                                                                                                           (1,058  )                                  
+                                                                                                                             Proceeds from sale of warrants                                                                                                                                                                                                           40,114                                     
+                                                                                                                        Purchase of convertible note hedges                                                                                                                                                                                                          (69,676  )                                  
+                                                                                                                                 Purchase of treasury stock                                                                                                                                                                                                           (9,527  )                                  
+                                                                                                                                     Stock option exercises                                                                                                                                                                                                            6,169             8,576             9,402   
+                                                                                                                Tax benefits from exercise of stock options                                                                                                                                                                                                            4,657             4,345                    
+                                                                                                                                                                       Net cash provided from financing activities                                                                                                                                                   151,021            21,973           144,655   
+    Effect of exchange rate changes on cash                                                                                                                                                                                                                                                                                                                               92               (26  )           (148  )
+    Increase (decrease) in cash and cash equivalents                                                                                                                                                                                                                                                                                                                  26,074           (38,421  )         71,400   
+    Cash and cash equivalents, beginning of year                                                                                                                                                                                                                                                                                                                      83,317           121,738            50,338   
+    Cash and cash equivalents, end of year                                                                                                                                                                                                                                                                                                                       $   109,391        $   83,317        $  121,738   
+    </TABLE> """
     table = TableToTextConverter(string, is_sophisticated=True)
     print(table.process())
 # %%
