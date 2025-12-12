@@ -32,18 +32,17 @@ EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
 
 # Evidence that elevates soft mentions to strict (unambiguous subject)
 UNAMBIGUOUS_EVIDENCE = {
-    "ACTIVE_STATE_YEAR",       # Strict subject + year
-    "MATURITY_FUTURE",         # Strict subject + future
-    "NOTIONAL_VALUE_YEAR",     # Strict subject + year
-    "FAIR_VALUE_YEAR",         # Strict subject + year
-    "TRANSACTION_YEAR",        # Strict subject + year
-    "CONTINUOUS_USAGE",        # Strict subject (no year)
-    "NOTIONAL_NO_YEAR",        # Strict subject, no year
-    "FAIR_VALUE_NO_YEAR",      # Strict subject, no year
-    "VALUE_YEAR",                # Strict subject, yearr
-    "VALUE_NO_YEAR",            # Strict subject, no year
-    "VALUATION_MODEL",         # Self-validating
-    "BALANCE_SHEET_LOC",       # Self-validating
+    EvidenceReason.AS_YEAR,  # "Outstanding at Dec 31, 2024"
+    EvidenceReason.MAT_FUT,  # "Matures in 2026"
+    EvidenceReason.NVY,  # "Notional was $100M at Dec 31, 2024"
+    EvidenceReason.FVY,  # "Fair Value was $5M at Dec 31, 2024"
+    EvidenceReason.VY,  # "Value was $5M at Dec 31, 2024"
+    EvidenceReason.ACT_YEAR,
+    EvidenceReason.CONT_USE,  # "We hold/use Swaps" (No year)
+    EvidenceReason.NVNY,  # "Notional is $100M"
+    EvidenceReason.VNY,  # " Value is $5M"
+    EvidenceReason.FVNY,  # "Fair Value is $5M"
+    EvidenceReason.BS_LOC,  # "Recorded in Earnings"
 }
 
 _cleaner = MinimalTextCleaner()
