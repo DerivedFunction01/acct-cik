@@ -577,6 +577,7 @@ class TableToTextConverter:
             cleaned_rows.append(cleaned_row)
 
         cleaned_rows = self._heal_data_rows(cleaned_rows)
+        cleaned_rows = self._repair_split_numbers(cleaned_rows)
 
         # Identify active columns (columns that actually have data)
         active_col_indices = set()
@@ -743,6 +744,50 @@ class TableToTextConverter:
             healed_rows.append(prev_text_row)
 
         return healed_rows
+
+    def _repair_split_numbers(self, rows: List[List[str]]) -> List[List[str]]:
+        """
+        Stitches numbers that have been split across columns due to commas or formatting.
+        Example: ['33', ',252'] -> ['', '33,252']
+        """
+        repaired_rows = []
+        for row in rows:
+            new_row = [x for x in row]  # Copy
+            # Iterate backwards so we can merge left-to-right safely or right-to-left
+            # Actually, standard split is [Num] [CommaNum]. We want to merge Right into Left.
+
+            i = 0
+            while i < len(new_row) - 1:
+                curr = new_row[i].strip()
+                next_val = new_row[i + 1].strip()
+
+                # Check for the split pattern: "33" + ",252"
+                # Current must end in digit, Next must start with comma + digit
+                if (
+                    curr
+                    and next_val
+                    and curr[-1].isdigit()
+                    and next_val.startswith(",")
+                    and len(next_val) > 1
+                    and next_val[1].isdigit()
+                ):
+
+                    # Merge
+                    new_row[i] = curr + next_val
+                    new_row[i + 1] = ""  # Clear the fragment
+                    i += 1  # Skip next
+
+                # Check for the reverse split (sometimes happens): "33," + "252"
+                elif curr and next_val and curr.endswith(",") and next_val[0].isdigit():
+
+                    new_row[i] = curr + next_val
+                    new_row[i + 1] = ""
+                    i += 1
+
+                i += 1
+
+            repaired_rows.append(new_row)
+        return repaired_rows
 
     def _detect_paragraph_masquerading_as_table(self) -> bool:
         if not self.data:
@@ -1221,32 +1266,29 @@ class TableToTextConverter:
 
 if __name__ == "__main__":
     DEBUG = True
-    string = """<TABLE>
+    string = """ <TABLE>
     <CAPTION>
     
     
-    
-                                                                                                                                         For the Year Ended May 31,                                        
-                                                                                                                                                               2017           2016           2015          
-                                                                                                                                                      (In millions)                                        
-    --------------------------------------------------------------------------------------------------------------------------------  -  --------------------------  ----  -  ----  ----  -  ----  -----  -
-    <S>                                                                                                                               <C><C>                         <C>   <C><C>   <C>   <C><C>   <C>    <C>
-    Net income                                                                                                                                                    $  56.5        $  47.7        $   10.4   
-    Other comprehensive income, net of tax:                                                                                                                                                                
-    Currency translation adjustments, net of tax                                                                                                                     (0.6  )                       (7.8  )
-    Derivative instruments, net of tax expense of $1.4 in 2015                                                                                                                                     2.6   
-    Unrecognized pension and post retirement costs, net of tax expense (benefit) of $2.8 in 2017, ($2.1) in 2016, and ($3.2) in 2015                                  5.1           (4.0  )         (5.9  )
-                                                                                                                                                                                                
-    Total other comprehensive income (loss), net of tax                                                                                                               4.5           (4.0  )        (11.1  )
-                                                                                                                                                                                                
-    Comprehensive income (loss)                                                                                                                                      61.0           43.7            (0.7  )
-    Less: Comprehensive income attributable to noncontrolling interest                                                                                                                            (0.2  )
-                                                                                                                                                                                                
-    Comprehensive income (loss) attributable to AAR                                                                                                               $  61.0        $  43.7        $   (0.9  )
-                                                                                                                                                                                                
-                                                                                                                                                                                                
-                                                                                                                                                                                                
-    </TABLE>  """
+                                                                                                      Common Stock                                                                  Accumulated Other Comprehensive(Loss) Income                                                
+                                                                                          Additional Paid-In Capital             Retained Earnings        Total Shareholders'Equity                                               
+                                                                                                            Shares     Amount                     
+    ---------------------------------------------------------------------------------  -  ------------------------  -  ------  ----------------  -  -  ------------------------  -  ------------------------------------------  -------  -  -  ----------  -  -  ----------  -
+    <S>                                                                                <C><C>                       <C><C>     <C>               <C><C><C>                       <C><C>                                         <C>      <C><C><C>         <C><C><C>         <C>
+    Balance, January 1, 2002 (Unaudited)                                                                       200          $            39,500     $                     6,449                                              $  (20,846  )  $     738,499     $     763,602   
+    Net income                                                                                                                                                                                                                              1,333,545         1,333,545   
+    Net unrealized gain on option and forward contracts, net of taxes of $7,444                                                                                                                                               33,252                             33,252   
+    Dividends                                                                                                                                                                                                                              (1,389,889  )     (1,389,889  )
+    Balance, December 31, 2002                                                                                 200                       39,500                           6,449                                                  12,406           682,155           740,510   
+    Net income                                                                                                                                                                                                                              1,161,898         1,161,898   
+    Net unrealized loss on option and forward contracts, net of taxes of $(6,051)                                                                                                                                            (10,085  )                         (10,085  )
+    Dividends                                                                                                                                                                                                                              (1,211,414  )     (1,211,414  )
+    Balance, December 31, 2003                                                                                 200                       39,500                           6,449                                                   2,321           632,639           680,909   
+    Net income                                                                                                                                                                                                                                749,969           749,969   
+    Net unrealized loss on investment and forward contracts, net of taxes of $(1,150)                                                                                                                                         (3,066  )                          (3,066  )
+    Dividends                                                                                                                                                                                                                              (1,276,448  )     (1,276,448  )
+    Balance, December 31, 2004                                                                                 200          $            39,500     $                     6,449                                              $     (745  )  $     106,160     $     151,364   
+    </TABLE> """
     table = TableToTextConverter(string, is_sophisticated=True)
     print(table.process())
 # %%
