@@ -7,7 +7,7 @@ from pathlib import Path
 from tqdm import tqdm
 from typing import Dict, List, Optional, Set, Tuple
 
-# --- REGEX IMPORTS ---
+# --- REGEX IMPORTS ---f
 from derivative_regex import (
     # Structural
     ABSENCE_REGEX,
@@ -137,9 +137,8 @@ def get_termination_noise_reason(text: str, reporting_year: int) -> Optional[Noi
 # 2. Zero Indicators (Text & Numeric)
 ZERO_PATTERN = re.compile(
     r"\b(?:nil|zero)(?!\s+(?:cost|coupon|premium))\b|"  # Text: "nil"
-    rf"(?:(?:{CURRENCY_SYMBOL_PATTERN})\s*)?0(?:\.0+)?\s*(?:million|billion|trillion|thousand)?\b|"  # Prefix: $0
-    rf"\b0(?:\.0+)?\s*(?:{CURRENCY_SYMBOL_PATTERN})\b",  # Suffix: 0 USD
-    re.IGNORECASE,
+    rf"(?:(?:\b{CURRENCY_SYMBOL_PATTERN})\b\s*)?0(?:\.0+)?\s*(?:million|billion|trillion|thousand)?\b|"  # Prefix: $0
+    rf"\b0(?:\.0+)?\s+(?:\b{CURRENCY_SYMBOL_PATTERN})\b",  # Suffix: 0 USD
 )
 
 # 4. Any Number (Loose)
@@ -204,6 +203,8 @@ def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
 
     # 2. Extract Years (from cleaned string, though years usually aren't inside the date patterns above)
     years = [int(y) for y in YEAR_REGEX.findall(sentence)]
+    # Replace all the years
+    sentence = YEAR_REGEX.sub("YEAR", sentence)
 
     # 3. Extract Values from CLEANED string
     value_tokens = []
@@ -255,6 +256,7 @@ def check_is_quantitative_zero(sentence: str, reporting_year: int) -> bool:
     # --- STEP 1: Extract Data ---
     # We use the cleaner inside extract_values_and_years
     years, values = extract_values_and_years(sentence)
+    print(years, values)
 
     # If no values at all, skip
     if not values:
