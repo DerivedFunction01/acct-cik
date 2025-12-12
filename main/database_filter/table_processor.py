@@ -94,7 +94,7 @@ BILLION_REGEX = re.compile(r"(?:in|dollars\s+in)\s+billions", re.IGNORECASE)
 UNIT_REGEX = re.compile(
     r"(?i)\s*(?:thousands?|millions?|billions?|trillions?)", re.IGNORECASE
 )
-def convert_slash_year_to_four_digit(year_str: str) -> List[str]:
+def convert_slash_year_to_four_digit(year_str: str) -> List[int]:
     """
     Extract all 2-digit or 4-digit years from a string, convert each to 4-digit
     using the heuristic, and return the largest resulting year.
