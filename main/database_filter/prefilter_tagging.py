@@ -381,7 +381,10 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         if not LOOSE_GEN_REGEX.search(temp_sent) or not is_sophisticated_target(
             temp_sent
         ):
-            reason = NoiseReason.CTX
+            if RISK_MANAGEMENT_REGEX.search(masked):
+                reason = NoiseReason.RISK
+            else:
+                reason = NoiseReason.CTX
 
         if not reason:
             reason = get_temporal_noise_reason(masked, reporting_year)
