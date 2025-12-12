@@ -57,7 +57,7 @@ YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
 TABLE_OF_CONTENTS_REGEX = re.compile(r"\.{3,}")
 
 
-def convert_slash_year_to_four_digit(year_str: str) -> str:
+def convert_slash_year_to_four_digit(year_str: str) -> List[str]:
     """
     Extract all 2-digit or 4-digit years from a string, convert each to 4-digit
     using the heuristic, and return the largest resulting year.
@@ -69,12 +69,12 @@ def convert_slash_year_to_four_digit(year_str: str) -> str:
       - 31-99 → 1931–1999
     """
     if not year_str:
-        return ""
+        return []
 
     try:
         matches = YEAR_SLASH_REGEX.findall(year_str)
         if not matches:
-            return ""
+            return []
 
         converted_years = []
         for m in matches:
@@ -92,10 +92,10 @@ def convert_slash_year_to_four_digit(year_str: str) -> str:
 
 
         # Return the largest converted year
-        return str(max(converted_years))
+        return converted_years
 
     except (ValueError, TypeError):
-        return year_str
+        return []
 
 
 PARAGRAPH_THRESHOLD = 250
@@ -445,7 +445,7 @@ class TableToTextConverter:
     ) -> Tuple[List[List[str]], Dict[int, Optional[str]], Dict[int, str]]:
         lines = table_text.split("\n")
 
-        # Find <S> marker line
+        # --- 1. DETECT TABLE STRUCTURE (<S> and <C>) ---
         marker_line = None
         marker_line_idx = 0
         for i, line in enumerate(lines):
@@ -457,13 +457,11 @@ class TableToTextConverter:
         if not marker_line:
             return [], {}, {}
 
-        # Find all <C> positions
+        # Parse <C> tags into column boundaries
         c_positions = [m.start() for m in C_MARKER_REGEX.finditer(marker_line)]
-        debug_print(f"Found {len(c_positions)} <C> markers")
         if not c_positions:
             return [], {}, {}
 
-        # Group adjacent <C> tags
         grouped_positions = []
         current_group = [c_positions[0]]
         for pos in c_positions[1:]:
@@ -474,7 +472,6 @@ class TableToTextConverter:
                 current_group = [pos]
         grouped_positions.append(current_group)
 
-        # Define column boundaries
         column_boundaries = []
         single_width_col_indices = set()
         first_c_pos = grouped_positions[0][0]
@@ -493,7 +490,9 @@ class TableToTextConverter:
                 single_width_col_indices.add(col_idx)
             column_boundaries.append((start, end))
 
-        # Extract raw data rows
+        # --- 2. RAW EXTRACTION (Headers & Data) ---
+
+        # A. Extract Raw Data Rows
         data_lines = lines[marker_line_idx + 1 :]
         raw_rows = []
         for line in data_lines:
@@ -510,18 +509,71 @@ class TableToTextConverter:
             if any(row_cells):
                 raw_rows.append(row_cells)
 
-        # STEP 1: Merge sparse columns
+        # B. Extract Raw Header Rows (Using the same boundaries)
+        # We grab lines BEFORE the marker, but apply the EXACT same column slices
+        header_lines = lines[:marker_line_idx]
+        raw_header_rows = []
+        for line in header_lines:
+            clean_line = line.strip()
+            # Skip noise lines
+            if not clean_line or "<CAPTION>" in clean_line or "<TABLE>" in clean_line:
+                continue
+            # Skip separator lines (dashes/equals only)
+            if all(c in "-= " for c in clean_line) and any(
+                c in "-=" for c in clean_line
+            ):
+                continue
+
+            h_cells = []
+            for start, end in column_boundaries:
+                if start < len(line):
+                    h_cells.append(line[start : min(end, len(line))].strip())
+                else:
+                    h_cells.append("")
+
+            if any(h_cells):
+                raw_header_rows.append(h_cells)
+
+        # --- 3. MERGE LOGIC (Strictly Data-Driven) ---
+
+        # We pass ONLY raw_rows to the merge logic.
+        # The empty/messy headers do not influence the decision.
         merged_rows, col_mapping = self._merge_sparse_columns(
             raw_rows, single_width_col_indices
         )
 
-        # STEP 2: Clean spacing & Strict Merge Symbols
+        # --- 4. APPLY MERGE TO HEADERS ---
+
+        # Now we force the headers to follow the data's lead.
+        merged_headers_map = {}
+
+        for h_row in raw_header_rows:
+            for old_idx, text in enumerate(h_row):
+                if not text:
+                    continue
+
+                # Move header text to where the data went
+                new_idx = col_mapping.get(old_idx, old_idx)
+
+                if new_idx not in merged_headers_map:
+                    merged_headers_map[new_idx] = []
+
+                merged_headers_map[new_idx].append(text)
+
+        # Flatten multi-line headers into single strings
+        final_physical_headers = {}
+        for idx, parts in merged_headers_map.items():
+            final_physical_headers[idx] = " ".join(parts).strip()
+
+        # --- 5. CLEANING & FILTERING ---
+
+        # Clean symbols in data (post-merge)
         cleaned_rows = []
         for row in merged_rows:
             cleaned_row = self._clean_and_merge_symbols(row)
             cleaned_rows.append(cleaned_row)
 
-        # STEP 3: Identify active columns
+        # Identify active columns (columns that actually have data)
         active_col_indices = set()
         for row in cleaned_rows:
             for col_idx, cell in enumerate(row):
@@ -529,35 +581,51 @@ class TableToTextConverter:
                     active_col_indices.add(col_idx)
         active_col_indices = sorted(active_col_indices)
 
-        # Filter rows
+        # Create final filtered data rows
         filtered_rows = []
         for row in cleaned_rows:
+            # Only keep active columns
             filtered_row = [row[i] if i < len(row) else "" for i in active_col_indices]
             if any(filtered_row):
                 filtered_rows.append(filtered_row)
 
-        # STEP 4: Extract headers
-        col_headers = {}
-        for local_idx, global_col_idx in enumerate(active_col_indices):
-            sample_cells = [
-                row[local_idx] for row in filtered_rows if local_idx < len(row)
-            ]
-            years_found = set()
-            for cell in sample_cells:
-                year_matches = YEAR_REGEX.findall(cell) or [convert_slash_year_to_four_digit(cell)]
-                years_found.update(year_matches)
-            if years_found:
-                col_headers[local_idx] = f"value_{max(years_found)}"
-            else:
-                col_headers[local_idx] = ""
+        # --- 6. ASSIGN HEADERS & TYPES ---
 
-        # STEP 5: Infer types
+        col_headers = {}
         col_map = {}
+
         for local_idx, global_col_idx in enumerate(active_col_indices):
+            # 1. Get Header (Physical or Inferred)
+            header_text = final_physical_headers.get(global_col_idx, "")
+
+            # Fallback: If physical header is missing (common for Col 0), try data inference
+            if not header_text:
+                sample_cells = [
+                    row[local_idx] for row in filtered_rows if local_idx < len(row)
+                ]
+                years_found = set()
+                for cell in sample_cells:
+                    year_matches = YEAR_REGEX.findall(
+                        cell
+                    ) or convert_slash_year_to_four_digit(cell)
+                    years_found.update(year_matches)
+                if years_found:
+                    header_text = f"value_{max(years_found)}"
+
+            col_headers[local_idx] = header_text
+
+            # 2. Infer Type (Standard logic)
             sample_cells = [
                 row[local_idx] for row in filtered_rows if local_idx < len(row)
             ]
-            has_dates = sum(1 for c in sample_cells if YEAR_REGEX.search(c) or convert_slash_year_to_four_digit(c)) > 0
+            has_dates = (
+                sum(
+                    1
+                    for c in sample_cells
+                    if YEAR_REGEX.search(c) or convert_slash_year_to_four_digit(c)
+                )
+                > 0
+            )
             has_percentages = sum(1 for c in sample_cells if "%" in c) > 0
             has_large_numbers = (
                 sum(1 for c in sample_cells if self._is_numeric_large(c)) > 0
@@ -569,8 +637,6 @@ class TableToTextConverter:
             elif has_dates:
                 col_type = "metadata_maturity"
             elif has_large_numbers:
-                # Prioritize value if it has large numbers, even if it has percentages
-                # This fixes tables with mixed data types (rates mixed with fair values)
                 col_type = self.table_default_type or "value"
             elif has_percentages:
                 col_type = None
@@ -578,8 +644,6 @@ class TableToTextConverter:
             col_map[local_idx] = col_type
 
         return filtered_rows, col_map, col_headers
-
-    # --- REMAINING METHODS (Unchanged but included for completeness) ---
 
     def _detect_paragraph_masquerading_as_table(self) -> bool:
         if not self.data:
@@ -596,25 +660,153 @@ class TableToTextConverter:
         return False
 
     def _classify_columns_from_headers(self):
+        """
+        Refines column classification using physical header text.
+        1. Identifies the base type (Notional, Fair Value, etc.).
+        2. Identifies any specific year in the header (e.g. "2015").
+        3. Combines them (e.g. "notional_2015" or "value_2015").
+        """
         for local_idx, header in self.col_headers.items():
-            if not header or self.col_map.get(local_idx):
+            if not header:
                 continue
+
+            # --- 0. EXTRACT YEAR (The "Comparative" Check) ---
+            # Look for 4-digit years or slash dates in the header
+            # e.g., "December 31, 2015" or "12/31/14"
+            years = YEAR_REGEX.findall(header) or convert_slash_year_to_four_digit(
+                header
+            )
+
+            # Normalize to a suffix string: "_2015"
+            year_suffix = ""
+            if years:
+                # convert_slash helper might return ints, regex returns strings
+                # map to str just in case
+                y_val = max(str(y) for y in years)
+                year_suffix = f"_{y_val}"
+
             header_lower = header.lower()
+
+            # Don't override context or maturity columns based on data inference
+            # (unless the header is explicitly "Notional", but usually Context is safe)
+            current_type = self.col_map.get(local_idx)
+            if current_type in ["context_text", "metadata_maturity"]:
+                continue
+
+            new_base_type = None
+
+            # --- 1. DETERMINE BASE TYPE (Accounting Concept) ---
+
             if NOISE_HEADERS.search(header_lower):
                 self.col_map[local_idx] = None
                 continue
+
+            elif CONTEXT_HEADERS.search(header_lower):
+                new_base_type = "context_text"
+                year_suffix = ""  # Context generally doesn't get a year split
+
+            elif NOTIONAL_HEADERS.search(header_lower):
+                new_base_type = "notional"
+
+            elif VAR_HEADERS.search(header_lower):
+                new_base_type = "fair_value"
+
+            elif NET_HEADERS.search(header_lower):
+                new_base_type = "net_fair_value"
+            elif GROSS_HEADERS.search(header_lower):
+                new_base_type = "gross_fair_value"
+
+            elif LEVEL_HEADERS.search(header_lower):
+                new_base_type = "fair_value"
+
+            elif VALUE_HEADERS.search(header_lower):
+                if ASSET_HEADERS.search(header_lower):
+                    new_base_type = "asset_fair_value"
+                elif LIABILITY_HEADERS.search(header_lower):
+                    new_base_type = "liability_fair_value"
+                else:
+                    new_base_type = "fair_value"
+
+            elif GAIN_LOSS_HEADERS.search(header_lower):
+                new_base_type = "gain_loss"
+
+            elif LOCATION_HEADERS.search(header_lower):
+                new_base_type = "location"
+                year_suffix = ""
+
+            elif MATURITY_HEADERS.search(header_lower):
+                new_base_type = "metadata_maturity"
+                year_suffix = ""
+
+            # --- 2. COMBINE TYPE + YEAR ---
+
+            if new_base_type:
+                # Case A: Specific Header Found (e.g. "Notional 2015")
+                # Result: "notional_2015"
+                self.col_map[local_idx] = f"{new_base_type}{year_suffix}"
+
+            elif year_suffix:
+                # Case B: Only Year Found (e.g. "2015" or "Dec 31, 2014")
+                # If we already guessed "value" from the data, keep it.
+                # If we have no guess, default to "value".
+
+                # Check current inferred type
+                if current_type and "value" in current_type:
+                    base = current_type  # e.g., "gross_fair_value"
+                else:
+                    base = "value"  # Default fallback
+
+                # Result: "value_2015" or "gross_fair_value_2015"
+                self.col_map[local_idx] = f"{base}{year_suffix}"
+        """
+        Refines column classification using the physical header text extracted
+        earlier. This overrides generic data-inferred types (like 'value')
+        with specific accounting types (like 'notional' or 'gain_loss').
+        """
+        for local_idx, header in self.col_headers.items():
+            if not header:
+                continue
+
+            header_lower = header.lower()
+
+            # --- SKIP CHECK ---
+            # If we already identified this as a Date or Text column based on data,
+            # we generally trust the data over the header (e.g., a column named "Date"
+            # containing only text is likely Context, not a Maturity Date).
+            current_type = self.col_map.get(local_idx)
+            if current_type in ["context_text", "metadata_maturity"]:
+                continue
+
+            # --- REGEX CLASSIFICATION ---
+
+            # 1. Noise / Ignore
+            if NOISE_HEADERS.search(header_lower):
+                self.col_map[local_idx] = None
+                continue
+
+            # 2. Context / Description
             if CONTEXT_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "context_text"
-            elif VAR_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "fair_value"
+
+            # 3. Notional / Principal (Strong Signal)
             elif NOTIONAL_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "notional"
+
+            # 4. Fair Value / VAR
+            elif VAR_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "fair_value"
+
+            # 5. Net / Gross Amounts
             elif NET_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "net_fair_value"
             elif GROSS_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "gross_fair_value"
+
+            # 6. Level 1/2/3
             elif LEVEL_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "fair_value"
+
+            # 7. Asset / Liability specific
             elif VALUE_HEADERS.search(header_lower):
                 if ASSET_HEADERS.search(header_lower):
                     self.col_map[local_idx] = "asset_fair_value"
@@ -622,10 +814,16 @@ class TableToTextConverter:
                     self.col_map[local_idx] = "liability_fair_value"
                 else:
                     self.col_map[local_idx] = "fair_value"
+
+            # 8. Gains / Losses (Income Statement)
             elif GAIN_LOSS_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "gain_loss"
+
+            # 9. Location / Balance Sheet Line
             elif LOCATION_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "location"
+
+            # 10. Maturity Dates
             elif MATURITY_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "metadata_maturity"
 
@@ -770,20 +968,21 @@ class TableToTextConverter:
 
         caption_year_str = ""
         if self.caption:
-            caption_years = YEAR_REGEX.findall(self.caption) or [convert_slash_year_to_four_digit(self.caption)]
+            caption_years = YEAR_REGEX.findall(self.caption) or convert_slash_year_to_four_digit(self.caption)
             if caption_years:
                 try:
                     caption_year_str = f"in {max(int(y) for y in caption_years)} "
                 except:
                     caption_year_str = f"in {caption_years[-1]} "
         debug_print(f"Found {len(self.data)} rows")
+        debug_print(f"Header: {self.col_headers}")
         for row_idx, row in enumerate(self.data):
             if not row or not row[0].strip():
                 continue
             if self._is_subheader_row(row):
                 debug_print(f"Found subheader row: {row}")
                 raw_header = row[0].strip().rstrip(":")
-                header_years = YEAR_REGEX.findall(raw_header) or [convert_slash_year_to_four_digit(raw_header)]
+                header_years = YEAR_REGEX.findall(raw_header) or convert_slash_year_to_four_digit(raw_header)
                 if header_years:
                     y_val = max(int(y) for y in header_years)
                     section_year_str = f"in {y_val} "
@@ -860,7 +1059,7 @@ class TableToTextConverter:
             for col_idx, col_type in self.col_map.items():
                 if col_idx < len(row) and col_type == "metadata_maturity":
                     cell = row[col_idx]
-                    years = YEAR_REGEX.findall(cell) or [convert_slash_year_to_four_digit(cell)]
+                    years = YEAR_REGEX.findall(cell) or convert_slash_year_to_four_digit(cell)
                     if years:
                         expiration_str = f" (expiring in {max(years)})"
 
