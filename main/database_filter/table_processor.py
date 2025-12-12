@@ -15,8 +15,9 @@ HTML_TAG_REGEX = re.compile(r"<[^>]+>")
 
 # Table Structure Markers
 CAPTION_REGEX = re.compile(
-    r"<caption>\s*(.*?)(?=\n\n|:\n|\n[-=])", re.DOTALL | re.IGNORECASE
+    r"<caption>([^\n][\s\S]*?)\s*(?=\n\n|:\n|\n[-=])", re.IGNORECASE
 )
+
 TABLE_TAG_REGEX = re.compile(r"<TABLE.*?>", re.DOTALL | re.IGNORECASE)
 S_MARKER_REGEX = re.compile(r"<S>")
 C_MARKER_REGEX = re.compile(r"<C>")
@@ -574,9 +575,9 @@ class TableToTextConverter:
         for row in merged_rows:
             cleaned_row = self._clean_and_merge_symbols(row)
             cleaned_rows.append(cleaned_row)
-            
+
         cleaned_rows = self._heal_data_rows(cleaned_rows)
-        
+
         # Identify active columns (columns that actually have data)
         active_col_indices = set()
         for row in cleaned_rows:
@@ -593,6 +594,8 @@ class TableToTextConverter:
             if any(filtered_row):
                 filtered_rows.append(filtered_row)
 
+        # ... inside _extract_data_driven ...
+
         # --- 6. ASSIGN HEADERS & TYPES ---
 
         col_headers = {}
@@ -602,7 +605,7 @@ class TableToTextConverter:
             # 1. Get Header (Physical or Inferred)
             header_text = final_physical_headers.get(global_col_idx, "")
 
-            # Fallback: If physical header is missing (common for Col 0), try data inference
+            # Fallback: If physical header is missing, try data inference
             if not header_text:
                 sample_cells = [
                     row[local_idx] for row in filtered_rows if local_idx < len(row)
@@ -618,10 +621,12 @@ class TableToTextConverter:
 
             col_headers[local_idx] = header_text
 
-            # 2. Infer Type (Standard logic)
+            # 2. Infer Type (UPDATED LOGIC)
             sample_cells = [
                 row[local_idx] for row in filtered_rows if local_idx < len(row)
             ]
+
+            # Metrics
             has_dates = (
                 sum(
                     1
@@ -631,19 +636,25 @@ class TableToTextConverter:
                 > 0
             )
             has_percentages = sum(1 for c in sample_cells if "%" in c) > 0
-            has_large_numbers = (
-                sum(1 for c in sample_cells if self._is_numeric_large(c)) > 0
-            )
+
+            # Check for ANY valid numbers (not just large ones)
+            # We filter out empty strings and explicitly check for numeric format
+            numeric_count = sum(1 for c in sample_cells if self._is_numeric(c))
+            total_count = len([c for c in sample_cells if c])
+
+            # It's a numeric column if > 30% of its non-empty cells are numbers
+            is_numeric_col = total_count > 0 and (numeric_count / total_count > 0.3)
 
             col_type = None
             if local_idx == 0:
                 col_type = "context_text"
             elif has_dates:
                 col_type = "metadata_maturity"
-            elif has_large_numbers:
+            elif is_numeric_col:
+                # Accept small numbers too (fixes "In Millions" tables)
                 col_type = self.table_default_type or "value"
             elif has_percentages:
-                col_type = None
+                col_type = None  # Or "rate" if you want to capture percentages later
 
             col_map[local_idx] = col_type
 
@@ -1214,59 +1225,28 @@ if __name__ == "__main__":
     <CAPTION>
     
     
-                                                                                                                                                                                                                                                                                                                                        For the Year Ended May 31,                                                 
-                                                                                                                                                                                                                                                                                                                                                              2008               2007              2006            
-                                                                                                                                                                                                                                                                                                                                                    (In thousands)                                                 
-    --------------------------------------------------------  ---------------------------------------------------------------------------------------------  -----------------------------------------------------  ---------------------------------------------------------------  ----------------------------------------------  -  --------------------------  --------  -  ----  -------  -  ----  -------  -
-    <S>                                                       <C>                                                                                            <C>                                                    <C>                                                              <C>                                             <C><C>                         <C>       <C><C>   <C>      <C><C>   <C>      <C>
-    Cash flows provided from (used in) operating activities:                                                                                                                                                                                                                                                                                                                                                       
-                                                                                                                                                 Net income                                                                                                                                                                                                      $    75,144        $   58,660        $   35,163   
-                                                              Adjustments to reconcile net income to net cash provided from (used in) operating activities:                                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                      Depreciation and amortization                                                                                   39,952            32,199            29,222   
-                                                                                                                                                                                                                                       Deferred tax provisioncontinuing operations                                                                                   13,243            20,411             8,433   
-                                                                                                                                                                                                                                        Tax benefits from exercise of stock options                                                                                   (4,657  )         (4,345  )                 
-                                                                                                                                                                                                                                                       Gain on sale of product line                                                                                                    (5,358  )                 
-                                                                                                                                                                                                                                                                 Impairment charges                                                                                                     7,652                    
-                                                                                                                                                                                                                                              Loss (gain) on extinguishment of debt                                                                                      205            (2,927  )          3,893   
-                                                                                                                                                                                                                                                       Earnings from joint ventures                                                                                   (5,948  )        (10,952  )                 
-                                                                                                                                                                                                                                                         Gain on sale of investment                                                                                     (532  )           (915  )                 
-                                                                                                                                                                                                                    Changes in certain assets and liabilities, net of acquisitions:                                                                                                                                
-                                                                                                                                                                                                                                                                                                Accounts and trade notes receivable                                   12,428           (25,160  )         (9,324  )
-                                                                                                                                                                                                                                                                                                                        Inventories                                  (42,339  )         (8,567  )        (58,297  )
-                                                                                                                                                                                                                                                                                     Equipment on or available for short-term lease                                  (44,689  )         (5,259  )        (12,892  )
-                                                                                                                                                                                                                                                                                                       Equipment on long-term lease                                    4,413           (62,491  )        (76,156  )
-                                                                                                                                                                                                                                                                                                                   Accounts payable                                  (26,078  )          6,473            19,735   
-                                                                                                                                                                                                                                                                                            Accrued liabilities and taxes on income                                   19,131             1,903            12,282   
-                                                                                                                                                                                                                                                                                                                  Other liabilities                                   (6,152  )         (4,696  )         10,493   
-                                                                                                                                                                                                                                                                                         Other, primarily program development costs                                  (17,195  )        (17,867  )         (3,034  )
-                                                                                                                                                             Net cash provided from (used in) operating activities                                                                                                                                                    16,926           (21,239  )        (40,482  )
-    Cash flows used in investing activities:                                                                                                                                                                                                                                                                                                                                                                       
-                                                                                                                 Property, plant and equipment expenditures                                                                                                                                                                                                          (30,334  )        (29,891  )        (16,296  )
-                                                                                                                           Proceeds from disposal of assets                                                                                                                                                                                                               10                51               205   
-                                                                                                                         Proceeds from sale of product line                                                                                                                                                                                                                             6,567                    
-                                                                                                        Proceeds from sale of available for sale securities                                                                                                                                                                                                           23,767            11,612                    
-                                                                                                                Investment in available for sale securities                                                                                                                                                                                                          (26,179  )        (10,697  )                 
-                                                                                                                            Companies acquired, net of cash                                                                                                                                                                                                          (85,210  )        (38,478  )                 
-                                                                                                                      Proceeds from aircraft joint ventures                                                                                                                                                                                                              877            32,108             6,439   
-                                                                                                                      Investment in aircraft joint ventures                                                                                                                                                                                                          (23,609  )         (9,556  )        (23,245  )
-                                                                                                                                                      Other                                                                                                                                                                                                           (1,287  )           (845  )            272   
-                                                                                                                                                                             Net cash used in investing activities                                                                                                                                                  (141,965  )        (39,129  )        (32,625  )
-    Cash flows provided from financing activities:                                                                                                                                                                                                                                                                                                                                                                 
-                                                                                                                              Proceeds from borrowings, net                                                                                                                                                                                                          267,003            29,491           155,629   
-                                                                                                                                    Reduction in borrowings                                                                                                                                                                                                          (99,541  )        (20,439  )        (20,376  )
-                                                                                                                    Proceeds from capital lease obligations                                                                                                                                                                                                           12,880                                     
-                                                                                                                     Reduction in capital lease obligations                                                                                                                                                                                                           (1,058  )                                  
-                                                                                                                             Proceeds from sale of warrants                                                                                                                                                                                                           40,114                                     
-                                                                                                                        Purchase of convertible note hedges                                                                                                                                                                                                          (69,676  )                                  
-                                                                                                                                 Purchase of treasury stock                                                                                                                                                                                                           (9,527  )                                  
-                                                                                                                                     Stock option exercises                                                                                                                                                                                                            6,169             8,576             9,402   
-                                                                                                                Tax benefits from exercise of stock options                                                                                                                                                                                                            4,657             4,345                    
-                                                                                                                                                                       Net cash provided from financing activities                                                                                                                                                   151,021            21,973           144,655   
-    Effect of exchange rate changes on cash                                                                                                                                                                                                                                                                                                                               92               (26  )           (148  )
-    Increase (decrease) in cash and cash equivalents                                                                                                                                                                                                                                                                                                                  26,074           (38,421  )         71,400   
-    Cash and cash equivalents, beginning of year                                                                                                                                                                                                                                                                                                                      83,317           121,738            50,338   
-    Cash and cash equivalents, end of year                                                                                                                                                                                                                                                                                                                       $   109,391        $   83,317        $  121,738   
-    </TABLE> """
+    
+                                                                                                                                         For the Year Ended May 31,                                        
+                                                                                                                                                               2017           2016           2015          
+                                                                                                                                                      (In millions)                                        
+    --------------------------------------------------------------------------------------------------------------------------------  -  --------------------------  ----  -  ----  ----  -  ----  -----  -
+    <S>                                                                                                                               <C><C>                         <C>   <C><C>   <C>   <C><C>   <C>    <C>
+    Net income                                                                                                                                                    $  56.5        $  47.7        $   10.4   
+    Other comprehensive income, net of tax:                                                                                                                                                                
+    Currency translation adjustments, net of tax                                                                                                                     (0.6  )                       (7.8  )
+    Derivative instruments, net of tax expense of $1.4 in 2015                                                                                                                                     2.6   
+    Unrecognized pension and post retirement costs, net of tax expense (benefit) of $2.8 in 2017, ($2.1) in 2016, and ($3.2) in 2015                                  5.1           (4.0  )         (5.9  )
+                                                                                                                                                                                                
+    Total other comprehensive income (loss), net of tax                                                                                                               4.5           (4.0  )        (11.1  )
+                                                                                                                                                                                                
+    Comprehensive income (loss)                                                                                                                                      61.0           43.7            (0.7  )
+    Less: Comprehensive income attributable to noncontrolling interest                                                                                                                            (0.2  )
+                                                                                                                                                                                                
+    Comprehensive income (loss) attributable to AAR                                                                                                               $  61.0        $  43.7        $   (0.9  )
+                                                                                                                                                                                                
+                                                                                                                                                                                                
+                                                                                                                                                                                                
+    </TABLE>  """
     table = TableToTextConverter(string, is_sophisticated=True)
     print(table.process())
 # %%
