@@ -2349,7 +2349,7 @@ ACCOUNTING_STANDARDS_STRICT = [
     rf"^{ISSUER_FRAGMENT}\s+(?:{ISSUANCE_VERBS_FRAGMENT}|{DESCRIPTION_VERBS_FRAGMENT})",
     rf"^In\s+{MONTHS_FRAGMENT}.*{ISSUER_FRAGMENT}",
     # Specific Terms
-    rf"recently\s+(?:issued|updated|released|published|announced)\s+(?:accounting\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}",
+    rf"(?:recently\s+)?(?:issued|updated|released|published|announced)\s+(?:accounting\s+)?{GUIDANCE_OBJECT_TYPES_FRAGMENT}(?:\s+updates?)?",
     r"accounting standards update",
     # Disclosures explicitly mandated by an ID
     rf"disclosures?\s+(?:required|mandated)\s+by\s+{STANDARD_ID_PATTERN}[^.?!]*",
