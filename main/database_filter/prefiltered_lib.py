@@ -1,5 +1,5 @@
 import re
-from typing import Set, Tuple
+from typing import Optional, Set, Tuple
 from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
 from final_verification import QUANT_REGEX
 from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
@@ -166,7 +166,28 @@ class NoiseReason(Reason):
     COMP = "COMP"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
     NC = "NC"  # Non derivative commodity contracts (No hedging context anywhere)
-    MGMTND = "MGMT_NO_DER" # Risk managment paragraph with no derivative positions (either potential or none)
+
+    # 1. Historical / Temporal
+    DEAD_HIST_TERM = "DEAD_HISTORICAL_TERMINATION"  # "In 2019, we terminated..."
+    DEAD_HIST_NEG = (
+        "DEAD_HISTORICAL_ABSENCE"  # "At Dec 31, 2020, we had no derivatives."
+    )
+
+    # 2. Strategy / Non-Use
+    DEAD_STRAT_VOID = (
+        "DEAD_STRATEGY_VOID"  # "We may use... we do not hold." (Strategic Non-User)
+    )
+    DEAD_RISK_GEN = (
+        "DEAD_RISK_GENERIC"  # "We manage risk via diversification." (No derivatives)
+    )
+
+    # 3. Accounting Boilerplate
+    DEAD_POL_MECH = "DEAD_POLICY_MECHANICS"  # "Gains are recorded in OCI."
+    DEAD_POL_DEF = "DEAD_POLICY_DEFINITION"  # "Swaps are defined as..."
+    DEAD_POL_STD = "DEAD_POLICY_STANDARD"  # "ASC 815 requires..."
+
+    # 4. Empty Flow
+    DEAD_FLOW_NIL = "DEAD_FLOW_NIL"  # "The effect was nil."
 
     # --- Firm Level ---
     HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging (Fails stage 1 prefilter_database)
@@ -320,9 +341,68 @@ POLICY_KILLERS = TIME_KILLERS | {
 
 NOISE_TAG_PARSER = re.compile(r"(_[SD])<([^>]+)>")
 
-def mark_as_deadweight(text: str, reason: NoiseReason = NoiseReason.ANLZ) -> str:
-    """Mark paragraph as deadweight."""
-    return f"{get_tag(DEADWEIGHT_TOKEN, reason)} {text}"
+def mark_as_deadweight(
+    text: str,
+    noise: Optional[Set[Reason]] = None,
+) -> str:
+    """
+    Marks paragraph as deadweight with a specific semantic reason derived from its tags.
+    """
+    final_reason = NoiseReason.ANLZ  # Default fallback
+    if not noise:
+        # If dead but no noise tags (rare, implies Orphan Kill rule), use ANLZ
+        return f"{get_tag(DEADWEIGHT_TOKEN, final_reason)} {text}"
+
+    # --- TIER 1: TEMPORAL NUANCE (The "Timeline") ---
+    # Distinguish "Former User" (Terminated) from "Former Non-User" (Absence)
+    if not noise.isdisjoint({NoiseReason.TIME, NoiseReason.HIST_BLOCK}):
+        if NoiseReason.TERM in noise:
+            final_reason = NoiseReason.DEAD_HIST_TERM  # "In 2019, we terminated..."
+        elif NoiseReason.NEG in noise:
+            final_reason = NoiseReason.DEAD_HIST_NEG  # "In 2019, we had none."
+        else:
+            final_reason = NoiseReason.HIST_BLOCK  # Generic history
+
+    elif NoiseReason.NEG in noise:
+        # Check for the "Strategic Non-Use" combo (Potential + Absence)
+        # "We may enter... we currently do not hold."
+        if NoiseReason.POT in noise:
+            final_reason = NoiseReason.DEAD_STRAT_VOID
+        else:
+            final_reason = NoiseReason.NEG  # Simple Absence
+
+    # --- TIER 3: SPECIFIC EVENTS ---
+    elif NoiseReason.TERM in noise:
+        final_reason = NoiseReason.TERM  # Current year termination
+
+    # --- TIER 4: RISK MANAGEMENT CONTEXT ---
+    # Removed MGMTND from input check. Now relies on RISK (generic) and POT (potential).
+    elif not noise.isdisjoint({NoiseReason.RISK, NoiseReason.POT}):
+        # "We manage risk via cash reserves" OR "We may hedge in the future"
+        final_reason = NoiseReason.DEAD_RISK_GEN
+    # --- TIER 2: EXPLICIT FIRM STATUS ---
+    elif NoiseReason.TRADING in noise:
+        final_reason = NoiseReason.TRADING  # "We do not trade"
+    # --- TIER 5: FINANCIAL MECHANICS (Policy without Numbers) ---
+    elif NoiseReason.ZERO in noise:
+        final_reason = NoiseReason.DEAD_FLOW_NIL  # "Immaterial amount"
+
+    # Check for PnL/AOCI policy (Mechanics)
+    elif not noise.isdisjoint({NoiseReason.PNL, NoiseReason.AOCI}):
+        final_reason = NoiseReason.DEAD_POL_MECH  # "Changes are recorded in..."
+
+    # --- TIER 6: PURE BOILERPLATE ---
+    elif not noise.isdisjoint({NoiseReason.DEF, NoiseReason.DOC}):
+        final_reason = NoiseReason.DEAD_POL_DEF  # "Swaps are defined as..."
+
+    elif NoiseReason.ACCT_STD in noise:
+        final_reason = NoiseReason.DEAD_POL_STD  # "ASC 815 requires..."
+
+    elif NoiseReason.REF in noise:
+        final_reason = NoiseReason.REF
+
+    # Apply the specific tag
+    return f"{get_tag(DEADWEIGHT_TOKEN, final_reason)} {text}"
 
 
 def parse_noise_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
