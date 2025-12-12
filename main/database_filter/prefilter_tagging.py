@@ -378,7 +378,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
         temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
-        if not LOOSE_GEN_REGEX.search(temp_sent) or not is_sophisticated_target(
+        if not LOOSE_GEN_REGEX.search(temp_sent) and not is_sophisticated_target(
             temp_sent
         ):
             if RISK_MANAGEMENT_REGEX.search(masked):
