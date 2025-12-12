@@ -5,7 +5,7 @@ from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 # --- REGEX IMPORTS ---
 from derivative_regex import (
@@ -365,7 +365,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     masked_sentences = [
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()
     ]
-
+    reasons: Set[NoiseReason] = set()
     if len(original_sentences) != len(masked_sentences):
         masked_sentences = original_sentences
 
@@ -447,34 +447,17 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             reason = get_quantitative_noise_reason(masked, reporting_year)
         # --- CONSTRUCTION ---
         if reason:
+            reasons.add(reason)
             tagged_output.append(f"{get_tag(SKIP_TOKEN, reason)} {orig}")
         else:
             tagged_output.append(orig)
             surviving_text_parts.append(masked)
-
+            
+    final_text = " ".join(tagged_output)
     # --- E. Final Signal Check ---
     if not surviving_text_parts:
-        final_text = " ".join(tagged_output)
-        return f"{get_tag(DEADWEIGHT_TOKEN, NoiseReason.ANLZ)} {final_text}"
-
-    # Perform some paragraph-level check here
-    combined_survivors = " ".join(surviving_text_parts)
-    final_text = " ".join(tagged_output)
-
-    has_signal = False
-
-    if SOFT_REGEX.search(combined_survivors):
-        has_signal = True
-    else:
-        for s in surviving_text_parts:
-            if HEDGING_CONTEXT_REGEX.search(s) or DER_STD_REGEX.search(s):
-                has_signal = True
-                break
-
-    if has_signal:
-        return final_text
-    else:
-        return mark_as_deadweight(final_text, NoiseReason.ANLZ)
+        return mark_as_deadweight(final_text, noise=reasons)
+    return final_text
 
 
 # =============================================================================

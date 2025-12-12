@@ -343,7 +343,7 @@ NOISE_TAG_PARSER = re.compile(r"(_[SD])<([^>]+)>")
 
 def mark_as_deadweight(
     text: str,
-    noise: Optional[Set[Reason]] = None,
+    noise: Optional[Set[NoiseReason]] = None,
 ) -> str:
     """
     Marks paragraph as deadweight with a specific semantic reason derived from its tags.
