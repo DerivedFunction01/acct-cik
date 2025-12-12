@@ -1080,7 +1080,10 @@ class TableToTextConverter:
                     self.col_map[idx] = None
 
     def _is_numeric(self, val: str) -> bool:
+        # 1. Clean symbols
         clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
+        # 2. Clean multipliers (Fix for "$20.0 million")
+        clean = self._strip_multipliers(clean)
         return bool(NUMERIC_PATTERN.match(clean))
 
     def _is_numeric_large(self, val: str) -> bool:
@@ -1088,16 +1091,28 @@ class TableToTextConverter:
             return False
         try:
             clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
+            clean = self._strip_multipliers(clean)
             return float(clean) > 1000
         except:
             return False
+
     def _has_any_value(self, val: str) -> bool:
         return bool(val)
 
+    def _strip_multipliers(self, val: str) -> str:
+        """Helper to remove text multipliers for numeric validation."""
+        val = val.lower()
+        val = re.sub(r"(?i)\s*(?:trillion|billion|million|thousand)s?", "", val)
+        return val
+
     def _is_valid_value(self, val: str) -> bool:
         clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
+        # Allow multipliers in validation
+        clean = self._strip_multipliers(clean)
+        
         if clean in ["-", "—", "0", "0.0", "", "0.00", "--"]:
             return False
+        
         return bool(NUMERIC_PATTERN.match(clean))
 
     def _scan_for_multiplier(self, text: str) -> Optional[float]:
@@ -1453,7 +1468,7 @@ class TableToTextConverter:
                     or self.caption_is_strong
                 )
                 anchor_text = TABLE_ANCHOR if use_anchor else ""
-                
+
                 if "notional" in actual_col_type:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a notional amount of {value}."
                 elif "gain_loss" in actual_col_type:
