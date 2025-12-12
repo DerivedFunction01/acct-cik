@@ -659,22 +659,25 @@ VALUATION_MODELS = [
 VALUATION_MODELS_REGEX = re.compile(
     r"\b" + build_alternation(VALUATION_MODELS) + r"\b", re.IGNORECASE
 )
+RISK_MANAGEMENT_TERMS = [
+    r"to\s+hedge",
+    r"mitigat(?:e|es|ed|ing)",
+    r"protect(?:s|ed|ing)?",
+    r"manage(?:s|d|ing)?",
+    r"exposures?",
+    r"risk\s+management",
+    rf"economic\s+{_RISK_ALTERNATION}",
+    # --- Safe for Phase 1 Contextual Capture ---
+    rf"(?:market|rate|currency|credit|equity|price)[ -]{_RISK_ALTERNATION}",
+    r"fluctuations?",  # e.g., "protect against fluctuations"
+    r"volatility",  # e.g., "manage volatility"
+    
+]
 HEDGING_CONTEXT_TERMS = (
     [
-        r"hedge(?:s|d|ing)?",
-        r"mitigat(?:e|es|ed|ing)",
-        r"protect(?:s|ed|ing)?",
-        r"manage(?:s|d|ing)?",
-        r"exposures?",
-        r"risk\s+management",
-        rf"economic\s+{_RISK_ALTERNATION}",
-        # --- Safe for Phase 1 Contextual Capture ---
-        rf"(?:market|rate|currency|credit|counterparty|equity|price)[ -]{_RISK_ALTERNATION}",
-        r"fluctuations?",  # e.g., "protect against fluctuations"
-        r"volatility",  # e.g., "manage volatility"
-        r"bifurcat(?:ed|ion|ing)",
+       r"bifurcat(?:ed|ion|ing)",
     ]
-    + SOFT_GEN_TERMS
+    + SOFT_GEN_TERMS + RISK_MANAGEMENT_TERMS
     + VALUATION_MODELS
 )
 
