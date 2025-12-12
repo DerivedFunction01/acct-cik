@@ -622,7 +622,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
     # Apply hierarchy: check if mixed signals kill the paragraph
     if should_mark_deadweight(all_evidence, existing_paragraph_noise, sent_count=len(original_sentences)):
-        return mark_as_deadweight(tagged_paragraph, NoiseReason.ANLZ)
+        return mark_as_deadweight(tagged_paragraph, noise=existing_paragraph_noise)
 
     return tagged_paragraph
 
