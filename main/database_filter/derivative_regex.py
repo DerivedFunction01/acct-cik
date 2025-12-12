@@ -2548,6 +2548,7 @@ REGULATORY_KEYWORDS_STRICT = [
     r"Commodity\s+Exchange\s+Act",
     r"Securities\s+Exchange\s+Act",
     r"Regulation\s+AB",
+    r"Federal\s+Reserve",
     # --- NEW: Energy & Environmental Acts ---
     r"Energy\s+Policy\s+Act",
     r"Clean\s+Air\s+Act",
@@ -2581,7 +2582,7 @@ REGULATORY_KEYWORDS_LOOSE = [
     r"regulatory\s+(?:requirements?|compliance|authorit(?:y|ies)|bod(?:y|ies)|agenc(?:y|ies)|frameworks?|matters?|reforms?)",
     r"subject\s+to\s+(?:regulation|oversight|regulatory)",
     r"governmental\s+regulations?",
-    r"govern(?:ing|ed|s)?",
+    r"govern(?:ing|ed|s|ors?)?",
     r"penalt(?:y|ies)",
     r"(?:state|local|federal|international|government)\s+laws?",
     r"statutes?",

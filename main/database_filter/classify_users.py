@@ -125,7 +125,7 @@ def parse_tags(text: str) -> Tuple[bool, Optional[str], str]:
 def has_unambiguous_evidence(sentence: str) -> bool:
     """Check if sentence has unambiguous evidence tags."""
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
-    print(evidence_tags, flush=True)
+    print(sentence, evidence_tags, flush=True)
     return bool(evidence_tags.intersection(UNAMBIGUOUS_EVIDENCE))
 
 
@@ -247,7 +247,6 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
     if target_attr := TAG_MAP.get(tag_reason):
         attributes[target_attr] = True
     return attributes
-
 
 
 def remove_outlier_categories(
