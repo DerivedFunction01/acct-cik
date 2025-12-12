@@ -117,6 +117,8 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     ):
         if PNL_CONTEXT_REGEX.search(text):
             return NoiseReason.PNL
+        if HEDGE_DOC_REGEX.search(text):
+            return NoiseReason.DOC
         return NoiseReason.NEG
 
     return None
