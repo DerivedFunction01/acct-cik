@@ -244,7 +244,12 @@ def check_quantitative_evidence(
         return None
 
     has_relevant_year = any(y >= reporting_year for y in years_found)
-
+    # "We hold interest rate swaps... with value of XX in 2025"
+    has_active_verb = (
+        POSS_VERB_REGEX.search(text)
+        or USAGE_VERB_REGEX.search(text)
+        or TRANS_VERB_REGEX.search(text)
+    )
     # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
     # Logic: You don't have "Notional PnL". If "Notional" is there, it's a Position.
     if is_notional: # The notional value is... or we hold XX with notional of ...
@@ -265,11 +270,6 @@ def check_quantitative_evidence(
             # "We have swaps... to hedge the change in fair value."
             # Since "have... swaps... to... hedge... the..." is > 2 words,
             # HAD_CHANGE_REGEX failed, so we reach this rescue block.
-            has_active_verb = (
-                POSS_VERB_REGEX.search(text)
-                or USAGE_VERB_REGEX.search(text)
-                or TRANS_VERB_REGEX.search(text)
-            )
 
             if not has_active_verb:
                 return NoiseReason.PNL
@@ -279,13 +279,8 @@ def check_quantitative_evidence(
             return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
         else:
             return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
+    
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
-    # "We hold interest rate swaps... with value of XX in 2025"
-    has_active_verb = (
-        POSS_VERB_REGEX.search(text)
-        or USAGE_VERB_REGEX.search(text)
-        or TRANS_VERB_REGEX.search(text)
-    )
     if has_active_verb:
         if STRICT_REGEX.search(text):
             return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
