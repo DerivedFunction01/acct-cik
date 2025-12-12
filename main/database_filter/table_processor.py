@@ -1431,7 +1431,7 @@ class TableToTextConverter:
                     or self.caption_is_strong
                 )
                 anchor_text = TABLE_ANCHOR if use_anchor else ""
-
+                
                 if "notional" in actual_col_type:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a notional amount of {value}."
                 elif "gain_loss" in actual_col_type:
@@ -1445,7 +1445,6 @@ class TableToTextConverter:
                     continue # Skip rates
                 else:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
-                    continue
 
                 sentences.append(sentence)
 
