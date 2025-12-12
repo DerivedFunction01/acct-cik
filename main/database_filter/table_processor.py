@@ -1100,7 +1100,7 @@ class TableToTextConverter:
             return False
 
     def _has_any_value(self, val: str) -> bool:
-        return bool(val)
+        return bool(len(val.strip()) > 1)
 
     def _strip_multipliers(self, val: str) -> str:
         """Helper to remove text multipliers for numeric validation."""
@@ -1228,21 +1228,28 @@ class TableToTextConverter:
             return clean_val
 
     def _is_subheader_row(self, row: List[str]) -> bool:
+        """
+        Determines if a row is a subheader.
+        
+        CRITICAL RULE: Data takes precedence.
+        If ANY column beyond the first contains a valid numeric value, 
+        this is a Data Row (return False), even if the label looks like a header.
+        """
+        # 1. Empty Check (Safety)
         if not row or not row[0].strip():
             return False
-        if len(row) > 1 and all(not cell.strip() for cell in row[1:]):
-            return True
-        has_numeric_data = False
-        for i, cell in enumerate(row[1:], start=1):
-            if (
-                i in self.col_map
-                and self.col_map[i]
-                and self.col_map[i] not in ["context_text", "metadata_maturity"]
-                and self._has_any_value(cell)
-            ):
-                has_numeric_data = True
-                break
-        return not has_numeric_data
+
+        # 2. Data Scan (The "Is there a number?" check)
+        # We iterate strictly over data columns (index 1 onwards).
+        # We DO NOT check col_map here. If there is a number, it's data.
+        for cell in row[1:]:
+            # We use _is_valid_value to ignore dashes/empty/zeros, but catch '61', '(5)', etc.
+            if cell and self._is_valid_value(cell):
+                return False  # Found data -> NOT a subheader
+
+        # 3. If no data found, assume it is a subheader
+        # (The calling loop already ensures row[0] has text)
+        return True
 
     def _construct_instrument_name(self, row_text: str, context_text: str) -> str:
         name = row_text.strip().rstrip(":")
@@ -1491,15 +1498,51 @@ class TableToTextConverter:
 if __name__ == "__main__":
     DEBUG = True
     string = """ <TABLE>
-    <CAPTION> 
-    , we have the following interest rate derivatives outstanding:
-    -----------------------------  -  ----------------------------------------  -  ---------------------------------  -  ---------------  -  -----------------  -  -----------------------------------------  -  -------------------------------
-                                      Initial                  Notional Amount     Maximum           Notional Amount      Effective Date         Maturity Date     Weighted Average Fixed Interest Rate Paid     Variable Interest Rate Received
-    -----------------------------  -  ----------------------------------------  -  ---------------------------------  -  ---------------  -  -----------------  -  -----------------------------------------  -  -------------------------------
-    <S>                            <C><C>                                       <C><C>                                <C><C>              <C><C>                <C><C>                                        <C><C>
-    SPL Interest Rate Derivatives                                $20.0 million                        $628.8 million     August 14, 2012         July 31, 2019                                         1.98%                     One-month LIBOR
-    CQP Interest Rate Derivatives                               $225.0 million                          $1.3 billion      March 22, 2016     February 29, 2020                                         1.19%                     One-month LIBOR
-    CCH Interest Rate Derivatives                                $28.8 million                          $5.5 billion        May 20, 2015          May 31, 2022                                         2.29%                     One-month LIBOR
+    <CAPTION>
+    
+    
+                                                                                                                                  December 31,                                          
+    -------------------------------------------------------------------------------------------------------------  -  -  -  -  -  ------------  -------  -  -  -  -  -------  -------  -
+    <S>                                                                                                            <C><C><C><C><C><C>           <C>      <C><C><C><C><C>      <C>      <C>
+                                                                                                                                          2020                          2019            
+    ASSETS                                                                                                                                                                              
+    Current assets:                                                                                                                                                                     
+    Cash and cash equivalents                                                                                                                $   39,293                    $  112,994   
+    Restricted cash                                                                                                                     12,772                         9,261            
+    Accounts receivable, net of allowance for doubtfulaccounts of $114 and $141, respectively                                            99,799                        94,534            
+    Inventory                                                                                                                           19,336                        26,407            
+    Derivative assets                                                                                                                       61                                         
+    Income tax receivable                                                                                                               13,288                         2,569            
+    Prepayments and other current assets                                                                                                 2,964                         1,559            
+    Total current assets                                                                                                               187,513                       247,324            
+    Property and equipment, net                                                                                                         94,134                        69,046            
+    Operating lease right-of-use assets, net                                                                                             8,051                         9,576            
+    Intangible assets, net                                                                                                               4,106                         1,597            
+    Other assets                                                                                                                         2,383                         3,299            
+    Total assets                                                                                                                             $  296,187                    $  330,842   
+    LIABILITIES AND SHAREHOLDERS EQUITY                                                                                                                                                
+    Current liabilities:                                                                                                                                                                
+    Accounts payable                                                                                                                         $   85,991                    $  147,851   
+    Accounts payable  related party                                                                                                                                      5            
+    Derivative liabilities                                                                                                                  52                                         
+    Current portion of finance lease obligations                                                                                         4,112                         2,167            
+    Current portion of operating lease liabilities                                                                                       2,050                         2,252            
+    Other current liabilities                                                                                                           22,343                         7,302            
+    Total current liabilities                                                                                                          114,548                       159,577            
+    Other long-term liabilities:                                                                                                                                                        
+    Asset retirement obligations                                                                                                         2,308                         1,573            
+    Finance lease obligations                                                                                                           11,507                         4,376            
+    Operating lease liabilities                                                                                                          6,000                         7,323            
+    Deferred taxes and other liabilities                                                                                                12,732                         6,352            
+    Total liabilities                                                                                                                  147,095                       179,201            
+    Commitments and contingencies (Note 17)                                                                                                                                             
+    Shareholders equity:                                                                                                                                                               
+    Preferred stock  $1.00 par value,960,000 sharesauthorized,noneoutstanding                                                                                                          
+    Common stock  $0.10 par value,7,500,000 sharesauthorized,4,243,716 and 4,235,533 shares outstanding, respectively                          423                           423            
+    Contributed capital                                                                                                                 13,340                        12,778            
+    Retained earnings                                                                                                                  135,329                       138,440            
+    Total shareholders equity                                                                                                         149,092                       151,641            
+    Total liabilities and shareholders equity                                                                                               $  296,187                    $  330,842   
     </TABLE> """
     table = TableToTextConverter(string, is_sophisticated=True)
     print(table.process())
