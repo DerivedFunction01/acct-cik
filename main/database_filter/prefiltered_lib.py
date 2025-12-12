@@ -357,6 +357,8 @@ QUANT_REGEX = re.compile(
     rf"(?:{CURRENCY_SYMBOL_PATTERN})\s+{NUMBER_PATTERN}\s+{SCALE_WORDS}|"
     # Number + optional scale word + commodity unit
     rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+{COMMODITY_UNIT_PATTERN}|"
-    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+shares",
+    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+shares|"
+    # Tabular data
+    rf"(?:amount|value)\s+of\s+{NUMBER_PATTERN}",
     re.IGNORECASE,
 )
