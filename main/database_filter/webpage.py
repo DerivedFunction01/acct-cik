@@ -410,6 +410,20 @@ def extract_content(data: str, asHTML=True) -> str:
     Extract content using html2text for better recursion handling.
     Preserves tables and structure without deep recursion issues.
     """
+    def is_bold_style(tag):
+        style = tag.get("style", "")
+        if not style:
+            return False
+
+        style = style.lower().replace(" ", "")
+        # Check for common bold patterns
+        return (
+            "font-weight:bold" in style
+            or "font-weight:700" in style
+            or "font-weight:600" in style
+            or "font-weight:bolder" in style
+        )
+
     if not data:
         return ""
 
@@ -485,15 +499,23 @@ def extract_content(data: str, asHTML=True) -> str:
                             # Criteria A: Explicit <th> tags
                             if tr.find("th"):
                                 is_header = True
-                            # Criteria B: Bold text (<b> or <strong>)
+
+                            # Criteria B: Bold tags
                             elif tr.find(["b", "strong"]):
                                 is_header = True
+
+                            # Criteria C: Inline bold style
+                            else:
+                                for cell in tr.find_all(["td", "th"]):
+                                    if is_bold_style(cell):
+                                        is_header = True
+                                        break
 
                             if is_header:
                                 header_count += 1
                             else:
-                                # The moment we hit a non-header row, the header block ends.
                                 in_header_block = False
+
 
                         rows.append(row_cells)
                         col_count = max(col_count, len(row_cells))
