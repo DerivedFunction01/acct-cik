@@ -27,7 +27,7 @@ SOURCE_DB_PATH = "tagged_data.db"
 TARGET_DB_PATH = "classified_data.db"
 
 # Tag Parsing
-TAG_PARSER_STRICT = re.compile(r"^\s*(_[SDE])<([^>]+)>\s+(.*)", re.DOTALL)
+TAG_PARSER_STRICT = re.compile(r"^\s*(_[SD])<([^>]+)>\s+(.*)", re.DOTALL)
 EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
 
 # Evidence that elevates soft mentions to strict (unambiguous subject)
@@ -405,12 +405,13 @@ def process_row(row: Tuple) -> Tuple:
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
         context_cats = get_text_categories(p) # Allow full original text
-        para_clean = _cleaner.clean_entities(para_content)
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
         local_contexts = context_cats if context_cats else set()
 
-        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(para_content) if s.strip()]
+        sentences = [
+            s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()
+        ]
 
         for sent in sentences:
             is_sent_deadweight, sent_tag_reason, sent_content = parse_tags(sent)
