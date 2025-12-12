@@ -206,28 +206,28 @@ def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
     for m in QUANT_REGEX.finditer(sentence):
         value_tokens.append({"start": m.start(), "is_zero": False, "text": m.group()})
 
-    # Track ranges occupied by Strict/Zero matches to prevent double counting with Loose
-    existing_ranges = set()
-    for v in value_tokens:
-        for i in range(v["start"], v["start"] + len(v["text"])):
-            existing_ranges.add(i)
+    # # Track ranges occupied by Strict/Zero matches to prevent double counting with Loose
+    # existing_ranges = set()
+    # for v in value_tokens:
+    #     for i in range(v["start"], v["start"] + len(v["text"])):
+    #         existing_ranges.add(i)
 
-    # Track ranges occupied by Years (to prevent 2023 from being a value)
-    year_ranges = set()
-    for m in YEAR_REGEX.finditer(sentence):
-        for i in range(m.start(), m.end()):
-            year_ranges.add(i)
+    # # Track ranges occupied by Years (to prevent 2023 from being a value)
+    # year_ranges = set()
+    # for m in YEAR_REGEX.finditer(sentence):
+    #     for i in range(m.start(), m.end()):
+    #         year_ranges.add(i)
 
-    # Find Positives (Loose) - Safely runs on clean_sentence (No Dates)
-    for m in ANY_NUMBER_LOOSE.finditer(sentence):
-        # Skip if overlaps with strict value
-        if m.start() in existing_ranges:
-            continue
-        # Skip if overlaps with a year
-        if m.start() in year_ranges:
-            continue
+    # # Find Positives (Loose) - Safely runs on clean_sentence (No Dates)
+    # for m in ANY_NUMBER_LOOSE.finditer(sentence):
+    #     # Skip if overlaps with strict value
+    #     if m.start() in existing_ranges:
+    #         continue
+    #     # Skip if overlaps with a year
+    #     if m.start() in year_ranges:
+    #         continue
 
-        value_tokens.append({"start": m.start(), "is_zero": False, "text": m.group()})
+    #     value_tokens.append({"start": m.start(), "is_zero": False, "text": m.group()})
 
     # Sort by position
     value_tokens.sort(key=lambda x: x["start"])

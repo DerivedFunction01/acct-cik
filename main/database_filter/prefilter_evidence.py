@@ -247,7 +247,7 @@ def check_quantitative_evidence(
 
     # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
     # Logic: You don't have "Notional PnL". If "Notional" is there, it's a Position.
-    if is_notional:
+    if is_notional: # The notional value is... or we hold XX with notional of ...
         return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
 
     # 2. FAIR VALUE LOGIC
@@ -279,7 +279,16 @@ def check_quantitative_evidence(
             return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
         else:
             return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
-
+    # ...UNLESS we see an Active Verb elsewhere in the sentence.
+    # "We hold interest rate swaps... with value of XX in 2025"
+    has_active_verb = (
+        POSS_VERB_REGEX.search(text)
+        or USAGE_VERB_REGEX.search(text)
+        or TRANS_VERB_REGEX.search(text)
+    )
+    if has_active_verb:
+        if STRICT_REGEX.search(text):
+            return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
     return None
 
 

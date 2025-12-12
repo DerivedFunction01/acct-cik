@@ -183,6 +183,7 @@ class EvidenceReason(Reason):
     MAT_FUT = "MATURITY_FUTURE"  # "Swaps mature in 2026"
     NVY = "NOTIONAL_VALUE_YEAR"  # "Notional was $100M in 2024"
     FVY = "FAIR_VALUE_YEAR"  # "Fair Value of Swaps was $5M in 2024"
+    VY = "VALUE_YEAR"  # "Value of Swaps was $5M in 2024
 
     # Special Survives history but dies to termination only
     ACT_YEAR = "TRANSACTION_YEAR"  # "Entered into Swaps in 2024" 
@@ -201,6 +202,7 @@ class EvidenceReason(Reason):
     CONT_USE = "CONTINUOUS_USAGE"  # "We use Swaps to hedge" (Strict)
     NVNY = "NOTIONAL_NO_YEAR"  # "Notional is $100M"
     FVNY = "FAIR_VALUE_NO_YEAR"  # "Fair Value of Swaps is $5M"
+    VNY = "VALUE_YEAR"  # "Value of Swaps was $5M
     VAL_MODEL = "VALUATION_MODEL" # Black Scholes, etc
 
     # Group B: Weak Subject / Hard Anchor (The "Ambiguous" Duals)
@@ -240,6 +242,7 @@ STRONG_EVIDENCE = {
     EvidenceReason.MAT_FUT,  # "Matures in 2026"
     EvidenceReason.NVY,  # "Notional was $100M at Dec 31, 2024"
     EvidenceReason.FVY,  # "Fair Value was $5M at Dec 31, 2024"
+    EvidenceReason.VY  # "Value was $5M at Dec 31, 2024"
 }
 
 # TIER 1.5: FLOW EVIDENCE (Conditional Strong)
@@ -257,6 +260,7 @@ TIME_KILLED_EVIDENCE = {
     # Strict Subject / Yearless
     EvidenceReason.CONT_USE,  # "We hold/use Swaps" (No year)
     EvidenceReason.NVNY,  # "Notional is $100M"
+    EvidenceReason.VNY,  # " Value is $5M"
     EvidenceReason.FVNY,  # "Fair Value is $5M"
     EvidenceReason.BS_LOC,  # "Recorded in Earnings"
     # Weak Subject / Anchored (The "Ambiguous" Duals): There is no derivative mention within the same paragraph.
