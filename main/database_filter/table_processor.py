@@ -7,6 +7,7 @@ from derivative_regex import BASE_REGEX, CURRENCY_NAMES_REGEX, FX_SOFT_REGEX, IR
 # --- REGEX DEFINITIONS ---
 
 # Basic patterns
+YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
 NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
 NUMERIC_WITH_SYMBOLS = re.compile(r"[$€£¥,%()-]")
 ACCOUNTING_NEGATIVE = re.compile(r"\(([^)]+)\)")  # Converts (100) to -100
@@ -43,6 +44,7 @@ CAPTION_REGEX = re.compile(
 TABLE_TAG_REGEX = re.compile(r"<TABLE.*?>", re.DOTALL | re.IGNORECASE)
 S_MARKER_REGEX = re.compile(r"<S>")
 C_MARKER_REGEX = re.compile(r"<C>")
+TABLE_TAG_REGEX = re.compile(r"<TABLE.*?>", re.DOTALL | re.IGNORECASE)
 
 # Spacing & Cleaning
 DOLLAR_SPACE_REGEX = re.compile(r"(\$|€|£|¥)\s+")
@@ -72,7 +74,9 @@ GAIN_LOSS_HEADERS = re.compile(
 )
 LOCATION_HEADERS = re.compile(r"location|sheet|line item", re.IGNORECASE)
 MATURITY_HEADERS = re.compile(r"maturity|expiration", re.IGNORECASE)
-NOISE_HEADERS = re.compile(r"strike|exercise|shares|units|count|ratio|weighted", re.IGNORECASE)
+NOISE_HEADERS = re.compile(
+    r"strike|exercise|shares|units|count|ratio|weighted", re.IGNORECASE
+)
 
 DESIGNATION_REGEX = re.compile(r"designated as|hedging|trading|fair value|cash flow hedg|net investment|derivatives|aoci|income|earnings|gain|loss",re.IGNORECASE,)
 
@@ -80,9 +84,11 @@ SOPHISTICATED_TARGETS = re.compile(r"\b(?:convertibles?|warrants?|conversion)\b"
 YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
 # Paragraph Detection
 TABLE_OF_CONTENTS_REGEX = re.compile(r"\.{3,}")
+PARAGRAPH_THRESHOLD = 250
+TABLE_ANCHOR = " T_"
+DEBUG = False
 
-# --- MULTIPLIER REGEX ---
-# specific enough to avoid false positives in narrative text
+# Multipliers
 THOUSAND_REGEX = re.compile(
     r"(?:in|dollars\s+in)\s+thousands|\(000(?:['\s]s)?\)", re.IGNORECASE
 )
@@ -90,10 +96,16 @@ MILLION_REGEX = re.compile(
     r"(?:in|dollars\s+in)\s+millions|\(000(?:,000)?(?:['\s]s)?\)", re.IGNORECASE
 )
 BILLION_REGEX = re.compile(r"(?:in|dollars\s+in)\s+billions", re.IGNORECASE)
-
 UNIT_REGEX = re.compile(
     r"(?i)\s*(?:thousands?|millions?|billions?|trillions?)", re.IGNORECASE
 )
+
+
+def debug_print(*args, **kwargs):
+    if DEBUG:
+        print(*args, **kwargs)
+
+
 def convert_slash_year_to_four_digit(year_str: str) -> List[int]:
     """
     Extract all 2-digit or 4-digit years from a string, convert each to 4-digit
@@ -116,33 +128,18 @@ def convert_slash_year_to_four_digit(year_str: str) -> List[int]:
         converted_years = []
         for m in matches:
             y = int(m)
-
             # Already 4-digit
             if y >= 1000:
                 converted_years.append(y)
             else:
                 # 2-digit conversion
-                if y >= 80:          # 80–99 → 1980–1999
+                if y >= 80:  # 80-99 -> 1980-1999
                     converted_years.append(1900 + y)
-                else:                # 00–79 → 2000–2079
+                else:  # 00-79 -> 2000-2079
                     converted_years.append(2000 + y)
-
-
-        # Return the largest converted year
         return converted_years
-
     except (ValueError, TypeError):
         return []
-
-
-PARAGRAPH_THRESHOLD = 250
-TABLE_ANCHOR = " T_"
-DEBUG = False
-
-
-def debug_print(*args, **kwargs):
-    if DEBUG:
-        print(*args, **kwargs)
 
 
 class TableToTextConverter:
@@ -586,7 +583,6 @@ class TableToTextConverter:
 
         # Now we force the headers to follow the data's lead.
         merged_headers_map = {}
-
         for h_row in raw_header_rows:
             for old_idx, text in enumerate(h_row):
                 if not text:
@@ -594,10 +590,8 @@ class TableToTextConverter:
 
                 # Move header text to where the data went
                 new_idx = col_mapping.get(old_idx, old_idx)
-
                 if new_idx not in merged_headers_map:
                     merged_headers_map[new_idx] = []
-
                 merged_headers_map[new_idx].append(text)
 
         # Flatten multi-line headers into single strings
@@ -633,7 +627,30 @@ class TableToTextConverter:
             if any(filtered_row):
                 filtered_rows.append(filtered_row)
 
-        # --- 6. ASSIGN HEADERS & TYPES ---
+        # --- HEURISTIC: CARRY FORWARD YEARS IN HEADERS ---
+        last_seen_year = None
+        for global_col_idx in active_col_indices:
+            header_text = final_physical_headers.get(global_col_idx, "")
+
+            # Extract years (handle regex results or helper results)
+            years_str = YEAR_REGEX.findall(header_text)
+            years_int = convert_slash_year_to_four_digit(header_text)
+
+            current_years = []
+            if years_str:
+                current_years.extend(int(y) for y in years_str)
+            if years_int:
+                current_years.extend(years_int)
+
+            if current_years:
+                last_seen_year = str(max(current_years))
+            elif last_seen_year:
+                if header_text:
+                    final_physical_headers[global_col_idx] = (
+                        f"{header_text} {last_seen_year}"
+                    )
+                else:
+                    final_physical_headers[global_col_idx] = last_seen_year
 
         col_headers = {}
         col_map = {}
@@ -652,7 +669,10 @@ class TableToTextConverter:
                     year_matches = YEAR_REGEX.findall(
                         cell
                     ) or convert_slash_year_to_four_digit(cell)
-                    years_found.update(year_matches)
+                    if year_matches:
+                        # Normalize to string for set
+                        for y in year_matches:
+                            years_found.add(str(y))
                 if years_found:
                     header_text = f"value_{max(years_found)}"
 
@@ -673,13 +693,8 @@ class TableToTextConverter:
                 > 0
             )
             has_percentages = sum(1 for c in sample_cells if "%" in c) > 0
-
-            # Check for ANY valid numbers (not just large ones)
-            # We filter out empty strings and explicitly check for numeric format
             numeric_count = sum(1 for c in sample_cells if self._is_numeric(c))
             total_count = len([c for c in sample_cells if c])
-
-            # It's a numeric column if > 30% of its non-empty cells are numbers
             is_numeric_col = total_count > 0 and (numeric_count / total_count > 0.3)
 
             col_type = None
@@ -688,10 +703,9 @@ class TableToTextConverter:
             elif has_dates:
                 col_type = "metadata_maturity"
             elif is_numeric_col:
-                # Accept small numbers too (fixes "In Millions" tables)
                 col_type = self.table_default_type or "value"
             elif has_percentages:
-                col_type = "rate"  # Or "rate" if you want to capture percentages later
+                col_type = "rate"
 
             col_map[local_idx] = col_type
 
@@ -862,7 +876,6 @@ class TableToTextConverter:
                     new_row[i] = curr + next_val
                     new_row[i + 1] = ""
                     i += 1
-
                 i += 1
 
             repaired_rows.append(new_row)
@@ -932,18 +945,14 @@ class TableToTextConverter:
 
             elif NOTIONAL_HEADERS.search(header_lower):
                 new_base_type = "notional"
-
             elif VAR_HEADERS.search(header_lower):
                 new_base_type = "fair_value"
-
             elif NET_HEADERS.search(header_lower):
                 new_base_type = "net_fair_value"
             elif GROSS_HEADERS.search(header_lower):
                 new_base_type = "gross_fair_value"
-
             elif LEVEL_HEADERS.search(header_lower):
                 new_base_type = "fair_value"
-
             elif VALUE_HEADERS.search(header_lower):
                 if ASSET_HEADERS.search(header_lower):
                     new_base_type = "asset_fair_value"
@@ -951,14 +960,11 @@ class TableToTextConverter:
                     new_base_type = "liability_fair_value"
                 else:
                     new_base_type = "fair_value"
-
             elif GAIN_LOSS_HEADERS.search(header_lower):
                 new_base_type = "gain_loss"
-
             elif LOCATION_HEADERS.search(header_lower):
                 new_base_type = "location"
                 year_suffix = ""
-
             elif MATURITY_HEADERS.search(header_lower):
                 new_base_type = "metadata_maturity"
                 year_suffix = ""
@@ -1083,9 +1089,7 @@ class TableToTextConverter:
                     self.col_map[idx] = None
 
     def _is_numeric(self, val: str) -> bool:
-        # 1. Clean symbols
         clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
-        # 2. Clean multipliers (Fix for "$20.0 million")
         clean = self._strip_multipliers(clean)
         return bool(NUMERIC_PATTERN.match(clean))
 
@@ -1103,26 +1107,18 @@ class TableToTextConverter:
         return bool(len(val.strip()) > 1)
 
     def _strip_multipliers(self, val: str) -> str:
-        """Helper to remove text multipliers for numeric validation."""
         val = val.lower()
         val = re.sub(r"(?i)\s*(?:trillion|billion|million|thousand)s?", "", val)
         return val
 
     def _is_valid_value(self, val: str) -> bool:
         clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
-        # Allow multipliers in validation
         clean = self._strip_multipliers(clean)
-
         if clean in ["-", "—", "0", "0.0", "", "0.00", "--"]:
             return False
-
         return bool(NUMERIC_PATTERN.match(clean))
 
     def _scan_for_multiplier(self, text: str) -> Optional[float]:
-        """
-        Scans text for financial multipliers (thousands, millions, billions).
-        Returns the float value if found, or None.
-        """
         if not text:
             return None
         if BILLION_REGEX.search(text):
@@ -1132,30 +1128,18 @@ class TableToTextConverter:
         if THOUSAND_REGEX.search(text):
             return 1_000.0
         return None
-    def normalize_value(self, clean_val: str, multiplier: float = 1.0):
-        """
-        Normalizes a numeric string, handling currency, percentages, and
-        explicit text multipliers (e.g., '$20.0 million').
-        """
-        clean_val = clean_val.strip()
 
-        # 1. DETECT: Identify symbols before stripping
+    def normalize_value(self, clean_val: str, multiplier: float = 1.0):
+        clean_val = clean_val.strip()
         had_dollar = "$" in clean_val
         had_percent = "%" in clean_val
-
-        # Handle accounting negatives (e.g. "(500)" -> "-500")
         if "(" in clean_val and ")" in clean_val:
             clean_val = clean_val.replace("(", "-").replace(")", "")
 
-        # --- 1.5 DETECT TEXT MULTIPLIERS ---
-        # Logic: If the cell explicitly says "million", we use that multiplier
-        # and IGNORE the global 'multiplier' passed from the header.
         text_multiplier = 1.0
         lower_val = clean_val.lower()
-
-        # Check for keywords and remove them from the string
         if "trillion" in lower_val:
-            text_multiplier = 1e12  
+            text_multiplier = 1e12
         elif "billion" in lower_val:
             text_multiplier = 1e9
         elif "million" in lower_val:
@@ -1164,21 +1148,11 @@ class TableToTextConverter:
             text_multiplier = 1e3
 
         clean_val = UNIT_REGEX.sub("", clean_val)
-        # 2. STRIP: Clean formatting for calculation
-        # Remove symbols and commas to get raw number
         stripped = NUMERIC_WITH_SYMBOLS.sub("", clean_val).strip()
 
         try:
             norm_num = float(stripped)
-
-            # 3. PROCESS: Apply Multiplier
-            # Priority Logic:
-            # A. If we found a text multiplier (e.g. "million"), use ONLY that.
-            # B. If no text multiplier, use the global table multiplier (e.g. "in thousands").
-            # C. Never multiply percentages.
-
             final_multiplier = 1.0
-
             if not had_percent:
                 if text_multiplier > 1.0:
                     final_multiplier = text_multiplier
@@ -1186,15 +1160,10 @@ class TableToTextConverter:
                     final_multiplier = multiplier
 
             potential_val = norm_num * final_multiplier
-
-            # Safety Check: Prevent runaway numbers (exceeding 100 Trillion)
-            # This prevents errors where a date or ID is mistaken for a value
             if abs(potential_val) < 1e14:
                 norm_num = potential_val
 
             num = abs(norm_num)
-
-            # Zero case
             if num == 0:
                 if had_dollar:
                     return "$0"
@@ -1202,53 +1171,30 @@ class TableToTextConverter:
                     return "0%"
                 return "0"
 
-            # 4. FORMAT: Determine string representation
-            # If >= 100, use no decimals (integer look).
-            # If < 100, use 2 decimals.
             if num >= 100:
                 num_str = "{:,.0f}".format(num)
             else:
                 num_str = "{:,.2f}".format(num)
 
-            # 5. RESTORE: Add symbols back
             prefix = "$" if had_dollar else ""
             suffix = "%" if had_percent else ""
 
             if norm_num < 0:
-                # Accounting standard: Dollars use $(...), others use -
                 if had_dollar:
                     return f"{prefix}({num_str}){suffix}"
                 else:
                     return f"-{prefix}{num_str}{suffix}"
             else:
                 return f"{prefix}{num_str}{suffix}"
-
         except ValueError:
-            # If it's not a number (e.g. "-"), return as is
             return clean_val
 
     def _is_subheader_row(self, row: List[str]) -> bool:
-        """
-        Determines if a row is a subheader.
-        
-        CRITICAL RULE: Data takes precedence.
-        If ANY column beyond the first contains a valid numeric value, 
-        this is a Data Row (return False), even if the label looks like a header.
-        """
-        # 1. Empty Check (Safety)
         if not row or not row[0].strip():
             return False
-
-        # 2. Data Scan (The "Is there a number?" check)
-        # We iterate strictly over data columns (index 1 onwards).
-        # We DO NOT check col_map here. If there is a number, it's data.
         for cell in row[1:]:
-            # We use _is_valid_value to ignore dashes/empty/zeros, but catch '61', '(5)', etc.
             if cell and self._is_valid_value(cell):
-                return False  # Found data -> NOT a subheader
-
-        # 3. If no data found, assume it is a subheader
-        # (The calling loop already ensures row[0] has text)
+                return False
         return True
 
     def _construct_instrument_name(self, row_text: str, context_text: str) -> str:
@@ -1276,9 +1222,8 @@ class TableToTextConverter:
             return ([], False)
         sentences = []
         active_context = ""
-        section_year_str = ""  # Running state for year context
+        section_year_str = ""
 
-        # Check for strong signals in the table type
         table_has_strong_notional_col = any(
             col_type and STRONG_NOTIONAL_REGEX.search(col_type)
             for col_type in self.col_map.values()
@@ -1286,7 +1231,6 @@ class TableToTextConverter:
         if self.table_default_type == "notional":
             table_has_strong_notional_col = True
 
-        # Extract year from caption for global fallback
         caption_year_str = ""
         if self.caption:
             caption_years = YEAR_REGEX.findall(
@@ -1305,47 +1249,33 @@ class TableToTextConverter:
             if not row or not row[0].strip():
                 continue
 
-            # --- NEW: ALWAYS CHECK FIRST CELL FOR YEAR CONTEXT ---
-            # This captures years from rows like "Balance, December 31, 2004"
-            # regardless of whether they are Subheaders or Data rows.
             row_text = row[0].strip()
             row_specific_multiplier = self._scan_for_multiplier(row_text)
-            row_years = YEAR_REGEX.findall(row_text) or convert_slash_year_to_four_digit(
+            row_years = YEAR_REGEX.findall(
                 row_text
-            )
-
+            ) or convert_slash_year_to_four_digit(row_text)
             if row_years:
-                # Update the running section year (fallback for rows with no column-specific year)
-                # We assume the last/largest year in the text is the relevant one
                 y_val = max(int(y) for y in row_years)
                 section_year_str = f"in {y_val} "
 
-            # --- SUBHEADER DETECTION ---
             if self._is_subheader_row(row):
                 debug_print(f"Found subheader row: {row}")
                 raw_header = row_text.rstrip(":")
-
-                # We already extracted the year above into section_year_str.
-                # Now clean the header text so we don't duplicate the year in the context string.
                 if row_years:
                     raw_header = YEAR_REGEX.sub("", raw_header).strip(" (),")
 
                 if raw_header:
-                    # Smart Context Management
                     is_designation = bool(DESIGNATION_REGEX.search(raw_header))
-
                     if "cash flow" in raw_header.lower() and len(raw_header) > 20:
                         is_designation = False
                     if len(raw_header) > 50:
                         is_designation = False
-
                     if is_designation and active_context:
                         active_context = f"{active_context} {raw_header}"
                     else:
                         active_context = raw_header
                 continue
 
-            # --- ROW PROCESSING (Data Rows) ---
             instrument_name = row[0].strip()
             if "total" == instrument_name.lower():
                 continue
@@ -1354,10 +1284,11 @@ class TableToTextConverter:
                     instrument_name, active_context
                 )
 
-            # (Existing Row Classification Logic...)
             is_strict = self.is_implied_derivative(instrument_name)
             is_table_safe = bool(TABLE_REGEX.search(instrument_name))
-            is_soft = bool(SOFT_REGEX.search(instrument_name)) if not is_strict else False
+            is_soft = (
+                bool(SOFT_REGEX.search(instrument_name)) if not is_strict else False
+            )
             has_base = bool(BASE_REGEX.search(instrument_name))
             has_strong_notional = bool(STRONG_NOTIONAL_REGEX.search(instrument_name))
             has_currency_notional = bool(CURRENCY_NAMES_REGEX.search(instrument_name))
@@ -1365,13 +1296,20 @@ class TableToTextConverter:
             is_fx = bool(FX_SOFT_REGEX.search(instrument_name)) or has_currency_notional
             is_not_cp = is_ir or is_fx
             table_has_strong_row = (
-                is_strict or is_table_safe or has_strong_notional or has_currency_notional
+                is_strict
+                or is_table_safe
+                or has_strong_notional
+                or has_currency_notional
             )
 
             should_keep = False
             soph = False
-
-            if is_strict or is_table_safe or has_strong_notional or has_currency_notional:
+            if (
+                is_strict
+                or is_table_safe
+                or has_strong_notional
+                or has_currency_notional
+            ):
                 should_keep = True
             elif is_soft:
                 if is_not_cp:
@@ -1388,29 +1326,24 @@ class TableToTextConverter:
                 ):
                     if has_base:
                         should_keep = True
-
             if SOPHISTICATED_TARGETS.search(instrument_name):
                 soph = True
                 if not should_keep and (self.is_sophisticated or soph):
                     should_keep = True
 
             if not should_keep:
-                debug_print(f"Discarded candidate row: {row}")
                 continue
 
-            debug_print(f"Found candidate row: {row}")
-
-            # Extract Expiration
             expiration_str = ""
             for col_idx, col_type in self.col_map.items():
                 if col_idx < len(row) and col_type == "metadata_maturity":
                     cell = row[col_idx]
-                    # Don't use split logic here, use regex
-                    yrs = YEAR_REGEX.findall(cell) or convert_slash_year_to_four_digit(cell)
+                    yrs = YEAR_REGEX.findall(cell) or convert_slash_year_to_four_digit(
+                        cell
+                    )
                     if yrs:
                         expiration_str = f" (expiring in {max(yrs)})"
 
-            # Generate Sentences
             for col_idx, col_type in self.col_map.items():
                 if (
                     col_idx >= len(row)
@@ -1424,25 +1357,19 @@ class TableToTextConverter:
 
                 clean_val = cell.replace(",", "").strip()
 
-                # Handle Year Suffixes (value_2008 -> in 2008)
                 parts = col_type.split("_")
                 year_str = ""
                 if parts[-1].isdigit() and len(parts[-1]) == 4:
-                    # 1. Priority: Column Header Year
                     year_str = f"in {parts.pop()} "
-
-                # 2. Priority: Section Year (from row[0] or subheader)
                 if not year_str and section_year_str:
                     year_str = section_year_str
-
-                # 3. Priority: Caption Year
                 if not year_str and caption_year_str:
                     year_str = caption_year_str
 
                 base_type = "_".join(parts)
                 actual_col_type = base_type
-
                 display_instrument = f"{instrument_name}{expiration_str}"
+
                 if GAIN_LOSS_HEADERS.search(display_instrument):
                     actual_col_type = "gain_loss"
                 elif VALUE_HEADERS.search(display_instrument):
@@ -1450,24 +1377,15 @@ class TableToTextConverter:
                 elif STRONG_NOTIONAL_REGEX.search(display_instrument):
                     actual_col_type = "notional"
 
-                # --- DETERMINE MULTIPLIER ---
-                # 1. Row Override
                 final_multiplier = row_specific_multiplier
-
-                # 2. Column Header Override
                 if not final_multiplier:
                     final_multiplier = self.col_multipliers.get(col_idx)
-
-                # 3. Global/Caption Default
                 if not final_multiplier:
                     final_multiplier = self.global_multiplier
 
-                # Pass to normalize
-                value = self.normalize_value(
-                    clean_val, multiplier=final_multiplier
-                )
-                # If the value is a percent, make it a rate
-                actual_col_type = "rate" if "%" in value else actual_col_type
+                value = self.normalize_value(clean_val, multiplier=final_multiplier)
+                if "%" in value:
+                    actual_col_type = "rate"
 
                 use_anchor = (
                     table_has_strong_row
@@ -1485,11 +1403,9 @@ class TableToTextConverter:
                 elif actual_col_type == "value":
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a value of {value}."
                 elif actual_col_type == "rate":
-                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an rate of {value}."
-                    continue # Skip rates
+                    continue
                 else:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
-
                 sentences.append(sentence)
 
         return (sentences, False)
@@ -1497,53 +1413,3 @@ class TableToTextConverter:
 
 if __name__ == "__main__":
     DEBUG = True
-    string = """ <TABLE>
-    <CAPTION>
-    
-    
-                                                                                                                                  December 31,                                          
-    -------------------------------------------------------------------------------------------------------------  -  -  -  -  -  ------------  -------  -  -  -  -  -------  -------  -
-    <S>                                                                                                            <C><C><C><C><C><C>           <C>      <C><C><C><C><C>      <C>      <C>
-                                                                                                                                          2020                          2019            
-    ASSETS                                                                                                                                                                              
-    Current assets:                                                                                                                                                                     
-    Cash and cash equivalents                                                                                                                $   39,293                    $  112,994   
-    Restricted cash                                                                                                                     12,772                         9,261            
-    Accounts receivable, net of allowance for doubtfulaccounts of $114 and $141, respectively                                            99,799                        94,534            
-    Inventory                                                                                                                           19,336                        26,407            
-    Derivative assets                                                                                                                       61                                         
-    Income tax receivable                                                                                                               13,288                         2,569            
-    Prepayments and other current assets                                                                                                 2,964                         1,559            
-    Total current assets                                                                                                               187,513                       247,324            
-    Property and equipment, net                                                                                                         94,134                        69,046            
-    Operating lease right-of-use assets, net                                                                                             8,051                         9,576            
-    Intangible assets, net                                                                                                               4,106                         1,597            
-    Other assets                                                                                                                         2,383                         3,299            
-    Total assets                                                                                                                             $  296,187                    $  330,842   
-    LIABILITIES AND SHAREHOLDERS EQUITY                                                                                                                                                
-    Current liabilities:                                                                                                                                                                
-    Accounts payable                                                                                                                         $   85,991                    $  147,851   
-    Accounts payable  related party                                                                                                                                      5            
-    Derivative liabilities                                                                                                                  52                                         
-    Current portion of finance lease obligations                                                                                         4,112                         2,167            
-    Current portion of operating lease liabilities                                                                                       2,050                         2,252            
-    Other current liabilities                                                                                                           22,343                         7,302            
-    Total current liabilities                                                                                                          114,548                       159,577            
-    Other long-term liabilities:                                                                                                                                                        
-    Asset retirement obligations                                                                                                         2,308                         1,573            
-    Finance lease obligations                                                                                                           11,507                         4,376            
-    Operating lease liabilities                                                                                                          6,000                         7,323            
-    Deferred taxes and other liabilities                                                                                                12,732                         6,352            
-    Total liabilities                                                                                                                  147,095                       179,201            
-    Commitments and contingencies (Note 17)                                                                                                                                             
-    Shareholders equity:                                                                                                                                                               
-    Preferred stock  $1.00 par value,960,000 sharesauthorized,noneoutstanding                                                                                                          
-    Common stock  $0.10 par value,7,500,000 sharesauthorized,4,243,716 and 4,235,533 shares outstanding, respectively                          423                           423            
-    Contributed capital                                                                                                                 13,340                        12,778            
-    Retained earnings                                                                                                                  135,329                       138,440            
-    Total shareholders equity                                                                                                         149,092                       151,641            
-    Total liabilities and shareholders equity                                                                                               $  296,187                    $  330,842   
-    </TABLE> """
-    table = TableToTextConverter(string, is_sophisticated=True)
-    print(table.process())
-# %%
