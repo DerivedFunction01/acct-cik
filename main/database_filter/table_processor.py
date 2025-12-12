@@ -673,7 +673,6 @@ class TableToTextConverter:
         except ValueError:
             return clean_val
 
-
     def _is_subheader_row(self, row: List[str]) -> bool:
         if not row or not row[0].strip():
             return False
@@ -733,12 +732,12 @@ class TableToTextConverter:
                     caption_year_str = f"in {max(int(y) for y in caption_years)} "
                 except:
                     caption_year_str = f"in {caption_years[-1]} "
-
+        debug_print(f"Found {len(self.data)} rows")
         for row_idx, row in enumerate(self.data):
             if not row or not row[0].strip():
                 continue
-            print(row)
             if self._is_subheader_row(row):
+                debug_print(f"Found subheader row: {row}")
                 raw_header = row[0].strip().rstrip(":")
                 header_years = YEAR_REGEX.findall(raw_header)
                 if header_years:
@@ -755,7 +754,7 @@ class TableToTextConverter:
                 continue
 
             instrument_name = row[0].strip()
-            if "total" in instrument_name.lower():
+            if "total" == instrument_name.lower():
                 continue
             if active_context:
                 instrument_name = self._construct_instrument_name(
@@ -810,8 +809,9 @@ class TableToTextConverter:
                     should_keep = True
 
             if not should_keep:
+                debug_print(f"Discarded candidate row: {row}")
                 continue
-
+            debug_print(f"Found candidate row: {row}")
             expiration_str = ""
             for col_idx, col_type in self.col_map.items():
                 if col_idx < len(row) and col_type == "metadata_maturity":
@@ -892,6 +892,7 @@ if __name__ == "__main__":
     Volatility                                              356.33%        348.92%         342.77%          286.90%         325.91%
     Number of warrants granted                              375,000        625,000       1,500,000       15,000,000      10,000,000
     Estimated fair value of total warrants granted         $299,975       $493,692      $1,184,815          $59,995         $15,000
+    
     </TABLE>"""
     table = TableToTextConverter(string, is_sophisticated=True)
     print(table.process())
