@@ -40,6 +40,8 @@ UNAMBIGUOUS_EVIDENCE = {
     "CONTINUOUS_USAGE",        # Strict subject (no year)
     "NOTIONAL_NO_YEAR",        # Strict subject, no year
     "FAIR_VALUE_NO_YEAR",      # Strict subject, no year
+    "VALUE_YEAR",                # Strict subject, yearr
+    "VALUE_NO_YEAR",            # Strict subject, no year
     "VALUATION_MODEL",         # Self-validating
     "BALANCE_SHEET_LOC",       # Self-validating
 }

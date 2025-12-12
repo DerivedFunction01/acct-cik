@@ -202,7 +202,7 @@ class EvidenceReason(Reason):
     CONT_USE = "CONTINUOUS_USAGE"  # "We use Swaps to hedge" (Strict)
     NVNY = "NOTIONAL_NO_YEAR"  # "Notional is $100M"
     FVNY = "FAIR_VALUE_NO_YEAR"  # "Fair Value of Swaps is $5M"
-    VNY = "VALUE_YEAR"  # "Value of Swaps was $5M
+    VNY = "VALUE_NO_YEAR"  # "Value of Swaps was $5M
     VAL_MODEL = "VALUATION_MODEL" # Black Scholes, etc
 
     # Group B: Weak Subject / Hard Anchor (The "Ambiguous" Duals)
