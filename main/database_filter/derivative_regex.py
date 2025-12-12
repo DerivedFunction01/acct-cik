@@ -4158,10 +4158,8 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
             r"\bpension\s+funds?\b",  # Reinforces Plan Asset exclusion
             r"\bUniform\s+Commercial\s+Code\b",
             r"\bUCC\b",
-            r"\bhedge\s+funds?\b",
-            r"\bhedge\s+banks?\b",  # <--- ADDED: "The Hedge Bank" (Lender Role)
-            r"\bswap\s+dealers?\b",  # <--- ADDED: Regulatory Entity Role
-            r"\bmajor\s+swap\s+participants?\b",
+            r"\b[hH]edge\s+(?:[fF]unds?|[bB]anks?|[Pp]roviders?)\b",
+            r"\b[Ss]wap\s+(?:[dD]ealers?|[pP]articipants?)\b",  # <--- ADDED: Regulatory Entity Role
         ]
         + ISSUER_TERMS
         + BANK_ENTITIES
