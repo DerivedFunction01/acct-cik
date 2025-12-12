@@ -1,9 +1,8 @@
-#%%
+# %%
 import re
 from typing import List, Dict, Optional, Set, Tuple
 
 from derivative_regex import BASE_REGEX, CURRENCY_NAMES_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, SOFT_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TABLE_REGEX, YEAR_REGEX
-from prefilter_database import SOPHISTICATED_TARGETS
 
 # --- REGEX DEFINITIONS ---
 
@@ -52,6 +51,7 @@ NOISE_HEADERS = re.compile(r"strike|exercise|shares|units|count|ratio|weighted",
 
 DESIGNATION_REGEX = re.compile(r"designated|hedging|trading|fair value|cash flow|net investment|derivatives|aoci|income|earnings|gain|loss",re.IGNORECASE,)
 
+SOPHISTICATED_TARGETS = re.compile(r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE)
 # Paragraph Detection
 TABLE_OF_CONTENTS_REGEX = re.compile(r"\.{3,}")
 PARAGRAPH_THRESHOLD = 250
@@ -73,13 +73,13 @@ class TableToTextConverter:
     ):
         self.raw_text = table_text
         self.narrative_context = narrative_context
-        self.is_sophisticated = is_sophisticated
 
         self.caption = self._extract_caption(table_text)
         debug_print(f"Caption: {self.caption}")
         full_context = f"{self.caption} {self.narrative_context}"
 
         self.caption_is_strong = self.is_implied_derivative(full_context)
+        self.is_sophisticated = is_sophisticated or self.caption_is_strong
         debug_print(f"Caption is strong derivative: {self.caption_is_strong}")
         self.table_default_type = self._analyze_caption_context(full_context)
 
@@ -624,6 +624,8 @@ class TableToTextConverter:
             return float(clean) > 1000
         except:
             return False
+    def _has_any_value(self, val: str) -> bool:
+        return bool(val)
 
     def _is_valid_value(self, val: str) -> bool:
         clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
@@ -631,19 +633,46 @@ class TableToTextConverter:
             return False
         return bool(NUMERIC_PATTERN.match(clean))
 
-    def normalize_value(self, clean_val: str):
+    def normalize_value(self, clean_val: str, use_dollar: bool = True):
+        # Detect whether the original value used a dollar sign
+        had_dollar = "$" in clean_val
+
+        # Convert accounting negatives: (100) → -100
         clean_val = ACCOUNTING_NEGATIVE.sub(r"-\1", clean_val)
-        stripped = clean_val.strip("()").replace("%", "")
+        stripped = clean_val.strip("()").replace("%", "").replace("$", "")
+
         try:
             norm_num = float(stripped.replace(",", ""))
             num = abs(norm_num)
+
+            # Zero case
             if num == 0:
-                return "$0"
-            formatted = "$(__)" if norm_num < 0 else "$__"
+                if use_dollar or had_dollar:
+                    return "$0"
+                return "0"
+
+            # Format number
             num_str = "{:,.0f}".format(num) if num > 1000 else "{:,.2f}".format(num)
-            return formatted.replace("__", num_str)
+
+            # Determine whether to apply dollar formatting
+            apply_dollar = use_dollar or had_dollar
+
+            if apply_dollar:
+                # Accounting-style negative formatting
+                if norm_num < 0:
+                    return f"$({num_str})"
+                else:
+                    return f"${num_str}"
+
+            # No-dollar formatting
+            if norm_num < 0:
+                return f"-{num_str}"
+            else:
+                return num_str
+
         except ValueError:
             return clean_val
+
 
     def _is_subheader_row(self, row: List[str]) -> bool:
         if not row or not row[0].strip():
@@ -656,7 +685,7 @@ class TableToTextConverter:
                 i in self.col_map
                 and self.col_map[i]
                 and self.col_map[i] not in ["context_text", "metadata_maturity"]
-                and self._is_valid_value(cell)
+                and self._has_any_value(cell)
             ):
                 has_numeric_data = True
                 break
@@ -708,7 +737,7 @@ class TableToTextConverter:
         for row_idx, row in enumerate(self.data):
             if not row or not row[0].strip():
                 continue
-
+            print(row)
             if self._is_subheader_row(row):
                 raw_header = row[0].strip().rstrip(":")
                 header_years = YEAR_REGEX.findall(raw_header)
@@ -777,7 +806,7 @@ class TableToTextConverter:
                         should_keep = True
             if SOPHISTICATED_TARGETS.search(instrument_name):
                 soph = True
-                if not should_keep and self.is_sophisticated:
+                if not should_keep and self.is_sophisticated or soph:
                     should_keep = True
 
             if not should_keep:
@@ -804,7 +833,7 @@ class TableToTextConverter:
 
                 # Clean for display
                 # Note: We don't strip symbols here anymore because they are attached correctly
-                clean_val = cell.replace("$", "").replace(",", "").strip()
+                clean_val = cell.replace(",", "").strip()
 
                 parts = col_type.split("_")
                 year_str = ""
@@ -816,22 +845,21 @@ class TableToTextConverter:
                     year_str = caption_year_str
 
                 base_type = "_".join(parts)
-                value = self.normalize_value(clean_val)
-                display_instrument = f"{instrument_name}{expiration_str}"
-
                 actual_col_type = base_type
+                display_instrument = f"{instrument_name}{expiration_str}"
                 if GAIN_LOSS_HEADERS.search(display_instrument):
                     actual_col_type = "gain_loss"
                 elif VALUE_HEADERS.search(display_instrument):
                     actual_col_type = "fair_value"
                 elif STRONG_NOTIONAL_REGEX.search(display_instrument):
                     actual_col_type = "notional"
-
+                value = self.normalize_value(clean_val, actual_col_type != "value")
                 use_anchor = (
                     table_has_strong_row
                     or table_has_strong_notional_col
                     or self.caption_is_strong
-                ) and not soph
+                )
+
                 anchor_text = TABLE_ANCHOR if use_anchor else ""
 
                 if "notional" in actual_col_type:
@@ -853,7 +881,7 @@ if __name__ == "__main__":
     DEBUG = True
     string = """<TABLE>
     <CAPTION>
-    The warrants issued in lieu of the financing were recorded as derivative liabilities and valued using the Black-Scholes Option Pricing Model with the following weighted-average assumptions used.
+    The warrants issued in lieu of the financing were recorded as and valued using the Black-Scholes Option Pricing Model with the following weighted-average assumptions used.
     
                                                     11/30/05 Traunch  1/4/06 Traunch  1/30/06 Traunch  11/16/07 Traunch  4/22/08 Traunch
     ----------------------------------------------  ---------------  -------------  --------------  ---------------  --------------
@@ -865,6 +893,6 @@ if __name__ == "__main__":
     Number of warrants granted                              375,000        625,000       1,500,000       15,000,000      10,000,000
     Estimated fair value of total warrants granted         $299,975       $493,692      $1,184,815          $59,995         $15,000
     </TABLE>"""
-    table = TableToTextConverter(string)
+    table = TableToTextConverter(string, is_sophisticated=True)
     print(table.process())
 # %%
