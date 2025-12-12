@@ -54,6 +54,7 @@ from prefiltered_lib import (
     mark_as_deadweight,
     QUANT_REGEX,
 )
+from prefilter_evidence import HAD_CHANGE_REGEX
 
 
 # =============================================================================
@@ -113,7 +114,7 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
         NEGATIVE_INTENT_REGEX.search(text)
         or ABSENCE_REGEX.search(text)
         or DID_NOT_HOLD_REGEX.search(text)
-    ):
+    ) and SOFT_REGEX.search(text):
         return NoiseReason.NEG
 
     return None
@@ -387,7 +388,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 # Note: Temporal check above already killed "Terminated in [Past Year]"
                 reason = get_termination_noise_reason(masked, reporting_year=reporting_year)
             # Prevents no hedge ineffectiveness from being negated
-            elif PNL_CONTEXT_REGEX.search(masked):
+            elif PNL_CONTEXT_REGEX.search(masked) or HAD_CHANGE_REGEX.search(masked):
                 reason = NoiseReason.PNL
             if not reason:
                 # Check Absence (e.g., "We do not hold...")
