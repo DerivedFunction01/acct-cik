@@ -404,8 +404,8 @@ def process_row(row: Tuple) -> Tuple:
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
+        context_cats = get_text_categories(p) # Allow full original text
         para_clean = _cleaner.clean_entities(para_content)
-        context_cats = get_text_categories(para_clean)
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
         local_contexts = context_cats if context_cats else set()
@@ -483,7 +483,7 @@ def process_row(row: Tuple) -> Tuple:
             # Priority 2: Check Global Context (If Local failed/was empty)
             if not tracker_cat:
                 tracker_cat = tracker.resolve_instrument(clean_sent)
-                
+
             if tracker_cat:
                 soft_categories[tracker_cat] += 1
                 continue
@@ -517,7 +517,7 @@ def process_row(row: Tuple) -> Tuple:
 
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
-    
+
     attributes["debug"] = {"soft_counts": soft_categories, "strict_counts": strict_counts}
 
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
