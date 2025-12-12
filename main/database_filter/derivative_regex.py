@@ -891,7 +891,8 @@ AMBIGUOUS_BASE_TYPES = [
     "hedges?",
     "puts?",
     "calls?",
-    "straddles?" "strangles?",
+    "straddles?",
+    "strangles?",
 ]
 
 
