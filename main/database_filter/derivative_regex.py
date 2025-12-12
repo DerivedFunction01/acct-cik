@@ -2144,6 +2144,7 @@ ADOPTION_VERBS_FUTURE = [
     r"is\s+required\s+to\s+adopt",
     r"will\s+be\s+required\s+to\s+adopt",
     r"(?:is|will\s+be)\s+(?:eligible|required)\s+for\s+(?:early\s+)?adoption",
+    r"adopted\s+by"
 ]
 
 # --- ADOPTION VERBS: GENERAL ACTION ---
