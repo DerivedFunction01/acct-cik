@@ -91,6 +91,9 @@ MILLION_REGEX = re.compile(
 )
 BILLION_REGEX = re.compile(r"(?:in|dollars\s+in)\s+billions", re.IGNORECASE)
 
+UNIT_REGEX = re.compile(
+    r"(?i)\s*(?:thousands?|millions?|billions?|trillions?)", re.IGNORECASE
+)
 def convert_slash_year_to_four_digit(year_str: str) -> List[str]:
     """
     Extract all 2-digit or 4-digit years from a string, convert each to 4-digit
@@ -1109,10 +1112,10 @@ class TableToTextConverter:
         clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
         # Allow multipliers in validation
         clean = self._strip_multipliers(clean)
-        
+
         if clean in ["-", "—", "0", "0.0", "", "0.00", "--"]:
             return False
-        
+
         return bool(NUMERIC_PATTERN.match(clean))
 
     def _scan_for_multiplier(self, text: str) -> Optional[float]:
@@ -1152,21 +1155,18 @@ class TableToTextConverter:
 
         # Check for keywords and remove them from the string
         if "trillion" in lower_val:
-            text_multiplier = 1e12
-            clean_val = re.sub(r"(?i)\s*trillion", "", clean_val)
+            text_multiplier = 1e12  
         elif "billion" in lower_val:
             text_multiplier = 1e9
-            clean_val = re.sub(r"(?i)\s*billion", "", clean_val)
         elif "million" in lower_val:
             text_multiplier = 1e6
-            clean_val = re.sub(r"(?i)\s*million", "", clean_val)
         elif "thousand" in lower_val:
             text_multiplier = 1e3
-            clean_val = re.sub(r"(?i)\s*thousand", "", clean_val)
 
+        clean_val = UNIT_REGEX.sub("", clean_val)
         # 2. STRIP: Clean formatting for calculation
         # Remove symbols and commas to get raw number
-        stripped = clean_val.replace("$", "").replace("%", "").replace(",", "").strip()
+        stripped = NUMERIC_WITH_SYMBOLS.sub("", clean_val).strip()
 
         try:
             norm_num = float(stripped)
