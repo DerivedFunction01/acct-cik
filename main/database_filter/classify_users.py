@@ -427,7 +427,8 @@ def process_row(row: Tuple) -> Tuple:
                 attributes = mine_attributes(etag, attributes)
 
             is_active = not (is_para_deadweight or is_sent_deadweight)
-            clean_sent = _cleaner.clean_entities(sent_content)
+            sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
+            clean_sent = _cleaner.clean_entities(sent_content_no_evidence)
 
             # -------------------------------------------------------------
             # A. Check Strict Matches (Gate 1 - Modified)
@@ -462,18 +463,23 @@ def process_row(row: Tuple) -> Tuple:
             # -------------------------------------------------------------
             if has_unambiguous_evidence(sent_content):
                 promoted_cats = extract_categories_soft(clean_sent)
+                promoted_cats.update(extract_categories_strict(clean_sent))
                 for cat in promoted_cats:
                     strict_categories.add(cat)
                     tracker.register_paragraph(clean_sent, cat)
                     local_tracker.register_paragraph(clean_sent, cat)
                     strict_counts[cat] += 1
-                continue
+                if promoted_cats:
+                    continue
 
             # -------------------------------------------------------------
             # NEW: Explicit Soft Extraction (Catching fall-through Strict)
             # -------------------------------------------------------------
             # This catches "Interest Rate Swaps" (Strict) that fell through above.
             soft_cats = extract_categories_soft(clean_sent)
+            if strict_cats:
+                soft_cats.update(strict_cats)
+
             if soft_cats and soft_cats != {"gen"}:
                 for cat in soft_cats:
                     tracker.register_paragraph(clean_sent, cat)
