@@ -388,22 +388,41 @@ def get_cik_filings(cik: str) -> Optional[List[dict]]:
 # =============================================================================
 # CONTENT EXTRACTION
 # =============================================================================
+import unicodedata
 
 def normalize_unicode(text: str) -> str:
     """
-    Converts common Unicode punctuation and spacing characters to their
-    ASCII equivalents. For example, converts non-breaking spaces to regular
-    spaces and curly quotes to straight quotes.
-
-    Args:
-        text: The string to normalize.
-
-    Returns:
-        The normalized string.
+    Converts common Unicode punctuation to ASCII equivalents, then
+    normalizes the rest. Preserves dashes and quotes.
     """
-    # NFKD form decomposes compatibility characters into their base characters.
-    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8', 'ignore')
+    if not text:
+        return ""
 
+    # Map common non-ASCII characters to ASCII equivalents
+    replacements = {
+        # Dashes
+        u'\u2014': '-',  # Em-dash
+        u'\u2013': '-',  # En-dash
+        u'\u2012': '-',  # Figure dash
+        u'\u2015': '-',  # Horizontal bar
+        
+        # Quotes (Smart quotes)
+        u'\u2018': "'",  # Left single quote
+        u'\u2019': "'",  # Right single quote
+        u'\u201C': '"',  # Left double quote
+        u'\u201D': '"',  # Right double quote
+        
+        # Spaces (Non-breaking spaces)
+        u'\u00A0': ' ',  # No-break space
+    }
+    
+    # 1. Manual replacement of characters that NFKD doesn't handle the way we want
+    for src, dst in replacements.items():
+        text = text.replace(src, dst)
+
+    # 2. Standard normalization for accents and other diacritics
+    # Now that dashes are fixed, 'ignore' is safe to use for truly weird characters
+    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
 
 def extract_content(data: str, asHTML=True) -> str:
     """
