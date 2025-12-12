@@ -33,6 +33,7 @@ COMMA_SPACE_REGEX = re.compile(r",\s+")
 CONTEXT_HEADERS = re.compile(
     r"purpose|risk|objective|hedged item|comments|description", re.IGNORECASE
 )
+PERCENT_HEADERS = re.compile(r"percent|percentage|rate", re.IGNORECASE)
 VAR_HEADERS = re.compile(r"\bvar\b|value[- ]at[- ]risk", re.IGNORECASE)
 STRONG_NOTIONAL_REGEX = re.compile(r"notional", re.IGNORECASE)
 NOTIONAL_HEADERS = re.compile(
@@ -58,6 +59,15 @@ YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
 # Paragraph Detection
 TABLE_OF_CONTENTS_REGEX = re.compile(r"\.{3,}")
 
+# --- MULTIPLIER REGEX ---
+# specific enough to avoid false positives in narrative text
+THOUSAND_REGEX = re.compile(
+    r"(?:in|dollars\s+in)\s+thousands|\(000(?:['\s]s)?\)", re.IGNORECASE
+)
+MILLION_REGEX = re.compile(
+    r"(?:in|dollars\s+in)\s+millions|\(000(?:,000)?(?:['\s]s)?\)", re.IGNORECASE
+)
+BILLION_REGEX = re.compile(r"(?:in|dollars\s+in)\s+billions", re.IGNORECASE)
 
 def convert_slash_year_to_four_digit(year_str: str) -> List[str]:
     """
@@ -123,6 +133,8 @@ class TableToTextConverter:
         self.caption = self._extract_caption(table_text)
         debug_print(f"Caption: {self.caption}")
         full_context = f"{self.caption} {self.narrative_context}"
+        self.global_multiplier = self._scan_for_multiplier(self.caption) or 1.0
+        self.col_multipliers = {}
 
         self.caption_is_strong = self.is_implied_derivative(full_context)
         self.is_sophisticated = is_sophisticated or self.caption_is_strong
@@ -655,7 +667,7 @@ class TableToTextConverter:
                 # Accept small numbers too (fixes "In Millions" tables)
                 col_type = self.table_default_type or "value"
             elif has_percentages:
-                col_type = None  # Or "rate" if you want to capture percentages later
+                col_type = "rate"  # Or "rate" if you want to capture percentages later
 
             col_map[local_idx] = col_type
 
@@ -813,7 +825,9 @@ class TableToTextConverter:
         for local_idx, header in self.col_headers.items():
             if not header:
                 continue
-
+            h_mult = self._scan_for_multiplier(header)
+            if h_mult:
+                self.col_multipliers[local_idx] = h_mult
             # --- 0. EXTRACT YEAR (The "Comparative" Check) ---
             # Look for 4-digit years or slash dates in the header
             # e.g., "December 31, 2015" or "12/31/14"
@@ -970,6 +984,10 @@ class TableToTextConverter:
             # 10. Maturity Dates
             elif MATURITY_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "metadata_maturity"
+            # 11. Percentages
+            elif PERCENT_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "rate"
+
 
     def _apply_column_heuristics(self):
         TARGET_IDX = 1
@@ -1019,44 +1037,81 @@ class TableToTextConverter:
             return False
         return bool(NUMERIC_PATTERN.match(clean))
 
-    def normalize_value(self, clean_val: str, use_dollar: bool = True):
-        # Detect whether the original value used a dollar sign
-        had_dollar = "$" in clean_val
+    def _scan_for_multiplier(self, text: str) -> Optional[float]:
+        """
+        Scans text for financial multipliers (thousands, millions, billions).
+        Returns the float value if found, or None.
+        """
+        if not text:
+            return None
+        if BILLION_REGEX.search(text):
+            return 1_000_000_000.0
+        if MILLION_REGEX.search(text):
+            return 1_000_000.0
+        if THOUSAND_REGEX.search(text):
+            return 1_000.0
+        return None
 
-        # Convert accounting negatives: (100) → -100
-        clean_val = ACCOUNTING_NEGATIVE.sub(r"-\1", clean_val)
-        stripped = clean_val.strip("()").replace("%", "").replace("$", "")
+    def normalize_value(self, clean_val: str, multiplier: float = 1.0):
+        # 1. DETECT: Identify symbols before stripping
+        had_dollar = "$" in clean_val
+        had_percent = "%" in clean_val
+
+        # 2. STRIP: Clean formatting for calculation
+        # Handle accounting negatives (e.g. "(500)" -> "-500")
+        if "(" in clean_val and ")" in clean_val:
+            clean_val = clean_val.replace("(", "-").replace(")", "")
+
+        # Remove symbols and commas to get raw number
+        stripped = clean_val.replace("$", "").replace("%", "").replace(",", "")
 
         try:
-            norm_num = float(stripped.replace(",", ""))
+            norm_num = float(stripped)
+
+            # 3. PROCESS: Apply Multiplier
+            # Logic: Only apply the multiplier if it's NOT a percentage.
+            # (e.g., Table is "in thousands", but "8.0%" is still 8%, not 8000%)
+            if multiplier > 1.0 and not had_percent:
+                potential_val = norm_num * multiplier
+                # Safety Check: Prevent runaway numbers (exceeding 100 Trillion)
+                if abs(potential_val) < 1e14:
+                    norm_num = potential_val
+
             num = abs(norm_num)
 
             # Zero case
             if num == 0:
-                if use_dollar or had_dollar:
+                if had_dollar:
                     return "$0"
+                if had_percent:
+                    return "0%"
                 return "0"
 
-            # Format number
-            num_str = "{:,.0f}".format(num) if num > 1000 else "{:,.2f}".format(num)
-
-            # Determine whether to apply dollar formatting
-            apply_dollar = use_dollar or had_dollar
-
-            if apply_dollar:
-                # Accounting-style negative formatting
-                if norm_num < 0:
-                    return f"$({num_str})"
-                else:
-                    return f"${num_str}"
-
-            # No-dollar formatting
-            if norm_num < 0:
-                return f"-{num_str}"
+            # 4. FORMAT: Determine string representation
+            # If >= 100, use no decimals (integer look).
+            # If < 100, use 2 decimals (good for small currency and percents like 5.40%).
+            if num >= 100:
+                num_str = "{:,.0f}".format(num)
             else:
-                return num_str
+                num_str = "{:,.2f}".format(num)
+                # Optional: Remove trailing .00 for cleaner percents if desired
+                # if num_str.endswith(".00"): num_str = num_str[:-3]
+
+            # 5. RESTORE: Add symbols back
+            prefix = "$" if had_dollar else ""
+            suffix = "%" if had_percent else ""
+
+            if norm_num < 0:
+                # Accounting standard: Dollars use $(...), others use -
+                if had_dollar:
+                    return f"{prefix}({num_str}){suffix}"
+                else:
+                    return f"-{prefix}{num_str}{suffix}"
+            else:
+                return f"{prefix}{num_str}{suffix}"
 
         except ValueError:
+            # If it's not a number (e.g. "-"), return as is
             return clean_val
 
     def _is_subheader_row(self, row: List[str]) -> bool:
@@ -1096,7 +1151,6 @@ class TableToTextConverter:
             prefix = re.sub(re.escape(ctx_base), "", ctx, flags=re.IGNORECASE).strip()
         return f"{prefix} {name}".strip()
 
-
     def process(self) -> Tuple[List[str], bool]:
         if self.invalid_table or not self.data:
             return ([], False)
@@ -1135,6 +1189,7 @@ class TableToTextConverter:
             # This captures years from rows like "Balance, December 31, 2004"
             # regardless of whether they are Subheaders or Data rows.
             row_text = row[0].strip()
+            row_specific_multiplier = self._scan_for_multiplier(row_text)
             row_years = YEAR_REGEX.findall(row_text) or convert_slash_year_to_four_digit(
                 row_text
             )
@@ -1275,7 +1330,24 @@ class TableToTextConverter:
                 elif STRONG_NOTIONAL_REGEX.search(display_instrument):
                     actual_col_type = "notional"
 
-                value = self.normalize_value(clean_val, actual_col_type != "value")
+                # --- DETERMINE MULTIPLIER ---
+                # 1. Row Override
+                final_multiplier = row_specific_multiplier
+
+                # 2. Column Header Override
+                if not final_multiplier:
+                    final_multiplier = self.col_multipliers.get(col_idx)
+
+                # 3. Global/Caption Default
+                if not final_multiplier:
+                    final_multiplier = self.global_multiplier
+
+                # Pass to normalize
+                value = self.normalize_value(
+                    clean_val, multiplier=final_multiplier
+                )
+                # If the value is a percent, make it a rate
+                actual_col_type = "rate" if "%" in value else actual_col_type
 
                 use_anchor = (
                     table_has_strong_row
@@ -1292,8 +1364,12 @@ class TableToTextConverter:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a fair value of {value}."
                 elif actual_col_type == "value":
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a value of {value}."
+                elif actual_col_type == "rate":
+                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an rate of {value}."
+                    continue # Skip rates
                 else:
-                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
+                    continue
+                
                 sentences.append(sentence)
 
         return (sentences, False)
@@ -1305,25 +1381,12 @@ if __name__ == "__main__":
     <CAPTION>
     
     
-                                                                                                      Common Stock                                                                  Accumulated Other Comprehensive(Loss) Income                                                
-                                                                                          Additional Paid-In Capital             Retained Earnings        Total Shareholders'Equity                                               
-                                                                                                            Shares     Amount                     
-    ---------------------------------------------------------------------------------  -  ------------------------  -  ------  ----------------  -  -  ------------------------  -  ------------------------------------------  -------  -  -  ----------  -  -  ----------  -
-    <S>                                                                                <C><C>                       <C><C>     <C>               <C><C><C>                       <C><C>                                         <C>      <C><C><C>         <C><C><C>         <C>
-    Balance, January 1, 2002 (Unaudited)                                                                       200          $            39,500     $                     6,449                                              $  (20,846  )  $     738,499     $     763,602   
-    Net income                                                                                                                                                                                                                              1,333,545         1,333,545   
-    Net unrealized gain on option and forward contracts, net of taxes of $7,444                                                                                                                                               33,252                             33,252   
-    Dividends                                                                                                                                                                                                                              (1,389,889  )     (1,389,889  )
-    Balance, December 31, 2002                                                                                 200                       39,500                           6,449                                                  12,406           682,155           740,510   
-    Net income                                                                                                                                                                                                                              1,161,898         1,161,898   
-    Net unrealized loss on option and forward contracts, net of taxes of $(6,051)                                                                                                                                            (10,085  )                         (10,085  )
-    Dividends                                                                                                                                                                                                                              (1,211,414  )     (1,211,414  )
-    Balance, December 31, 2003                                                                                 200                       39,500                           6,449                                                   2,321           632,639           680,909   
-    Net income                                                                                                                                                                                                                                749,969           749,969   
-    Net unrealized loss on investment and forward contracts, net of taxes of $(1,150)                                                                                                                                         (3,066  )                          (3,066  )
-    Dividends                                                                                                                                                                                                                              (1,276,448  )     (1,276,448  )
-    Balance, December 31, 2004                                                                                 200          $            39,500     $                     6,449                                              $     (745  )  $     106,160     $     151,364   
-    </TABLE> """
+                    December 31, 2016                                             December 31, 2015                                     
+    --------------  -----------------  ---  -  -  --------------------  --  -  -  -----------------  -  -  -  --------------------  -  -
+    <S>             <C>                <C>  <C><C><C>                   <C> <C><C><C>                <C><C><C><C>                   <C><C>
+                           Fair Value             Change in Fair Value                   Fair Value           Change in Fair Value      
+    FX Derivatives                  $  168                           $  17                        $                             $     
+    </TABLE>"""
     table = TableToTextConverter(string, is_sophisticated=True)
     print(table.process())
 # %%
