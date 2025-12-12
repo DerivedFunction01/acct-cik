@@ -320,7 +320,7 @@ POLICY_KILLERS = TIME_KILLERS | {
 
 NOISE_TAG_PARSER = re.compile(r"(_[SD])<([^>]+)>")
 
-def mark_as_deadweight(text: str, reason: NoiseReason) -> str:
+def mark_as_deadweight(text: str, reason: NoiseReason = NoiseReason.ANLZ) -> str:
     """Mark paragraph as deadweight."""
     return f"{get_tag(DEADWEIGHT_TOKEN, reason)} {text}"
 
