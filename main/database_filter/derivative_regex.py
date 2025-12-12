@@ -2353,6 +2353,7 @@ ACCOUNTING_STANDARDS_STRICT = [
     r"accounting standards update",
     # Disclosures explicitly mandated by an ID
     rf"disclosures?\s+(?:required|mandated)\s+by\s+{STANDARD_ID_PATTERN}[^.?!]*",
+    rf"derivatives\s+and\s+hedging",
 ]
 
 # --- 2. SOFT (Lower Confidence) ---
