@@ -885,14 +885,13 @@ AMBIGUOUS_BASE_TYPES = [
     "futures?",
     "options?",
     "hedging",
-    r"(?<!to[ -])locks?",
-    r"(?<!to[ -])caps?",
+    "locks?",
+    "caps?",
     "floors?",
-    r"(?<!to[ -])hedges?",
-    r"(?<!to[ -])puts?",
-    r"(?<!to[ -])calls?",
-    "straddles?",
-    "strangles?",
+    "hedges?",
+    "puts?",
+    "calls?",
+    "straddles?" "strangles?",
 ]
 
 
