@@ -2294,7 +2294,7 @@ STANDALONE_PHRASES = [
 # Matches: FASB, "FASB", (FASB), ("FASB"), ('FASB')
 # We allow any combination of opening parens/quotes and closing parens/quotes
 ISSUER_FRAGMENT = rf"(?:[\(\"\'\s]+)?{build_alternation(ISSUER_TERMS)}(?:[\)\"\'\s]+)?"
-STANDARDS_FRAGMENT = build_alternation(STANDARDS_TERMS)
+STANDARDS_FRAGMENT = rf"(?:[\(\"\'\s]+)?{build_alternation(STANDARDS_TERMS)}(?:[\)\"\'\s]+)?"
 
 ISSUANCE_VERBS_FRAGMENT = build_alternation(ISSUANCE_VERBS)
 DESCRIPTION_VERBS_FRAGMENT = build_alternation(DESCRIPTION_VERBS)
