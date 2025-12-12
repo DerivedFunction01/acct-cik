@@ -590,6 +590,7 @@ class TableToTextConverter:
 
         cleaned_rows = self._heal_data_rows(cleaned_rows)
         cleaned_rows = self._repair_split_numbers(cleaned_rows)
+        cleaned_rows = self._repair_shifted_currency(cleaned_rows)
 
         # Identify active columns (columns that actually have data)
         active_col_indices = set()
@@ -606,8 +607,6 @@ class TableToTextConverter:
             filtered_row = [row[i] if i < len(row) else "" for i in active_col_indices]
             if any(filtered_row):
                 filtered_rows.append(filtered_row)
-
-        # ... inside _extract_data_driven ...
 
         # --- 6. ASSIGN HEADERS & TYPES ---
 
@@ -672,6 +671,49 @@ class TableToTextConverter:
             col_map[local_idx] = col_type
 
         return filtered_rows, col_map, col_headers
+    def _repair_shifted_currency(self, rows):
+        """
+        Detects when a currency symbol for the NEXT column has been 
+        wrongly concatenated to the end of the CURRENT column.
+        
+        Example: 
+        ['$168 $', '17 $', '$'] -> ['$168', '$17', '$$']
+        """
+        cleaned_rows = []
+
+        # Regex to find a value ending with a space and a dollar sign
+        # Capture group 1: The real value
+        # Capture group 2: The wrongly attached currency symbol
+        pattern = re.compile(r"^(.*?)\s+(\$)$")
+
+        for row in rows:
+            # iterate backwards to safely push items forward?
+            # Actually forward iteration is fine if we modify in place or use a carry.
+
+            for i in range(len(row) - 1): # Stop at second to last col
+                current_cell = row[i].strip()
+
+                match = pattern.search(current_cell)
+                if match:
+                    real_value = match.group(1) # "$168"
+                    symbol = match.group(2)     # "$"
+
+                    # 1. Fix current cell
+                    row[i] = real_value
+
+                    # 2. Push symbol to next cell
+                    # We check if next cell is empty or has content
+                    next_cell = row[i+1].strip()
+                    row[i+1] = f"{symbol}{next_cell}"
+
+            # OPTIONAL: Clean up artifacts in the final pass
+            # If we pushed a '$' onto a cell that was already '$', we might get '$$'
+            # This handles the empty columns that are just placeholders.
+            row = [x.replace('$$', '$').strip() for x in row]
+
+            cleaned_rows.append(row)
+
+        return cleaned_rows
 
     def _heal_data_rows(self, rows: List[List[str]]) -> List[List[str]]:
         """
@@ -988,7 +1030,6 @@ class TableToTextConverter:
             elif PERCENT_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "rate"
 
-
     def _apply_column_heuristics(self):
         TARGET_IDX = 1
         if TARGET_IDX not in self.col_map or self.col_map[TARGET_IDX] is not None:
@@ -1051,31 +1092,68 @@ class TableToTextConverter:
         if THOUSAND_REGEX.search(text):
             return 1_000.0
         return None
-
     def normalize_value(self, clean_val: str, multiplier: float = 1.0):
+        """
+        Normalizes a numeric string, handling currency, percentages, and
+        explicit text multipliers (e.g., '$20.0 million').
+        """
+        clean_val = clean_val.strip()
+
         # 1. DETECT: Identify symbols before stripping
         had_dollar = "$" in clean_val
         had_percent = "%" in clean_val
 
-        # 2. STRIP: Clean formatting for calculation
         # Handle accounting negatives (e.g. "(500)" -> "-500")
         if "(" in clean_val and ")" in clean_val:
             clean_val = clean_val.replace("(", "-").replace(")", "")
 
+        # --- 1.5 DETECT TEXT MULTIPLIERS ---
+        # Logic: If the cell explicitly says "million", we use that multiplier
+        # and IGNORE the global 'multiplier' passed from the header.
+        text_multiplier = 1.0
+        lower_val = clean_val.lower()
+
+        # Check for keywords and remove them from the string
+        if "trillion" in lower_val:
+            text_multiplier = 1e12
+            clean_val = re.sub(r"(?i)\s*trillion", "", clean_val)
+        elif "billion" in lower_val:
+            text_multiplier = 1e9
+            clean_val = re.sub(r"(?i)\s*billion", "", clean_val)
+        elif "million" in lower_val:
+            text_multiplier = 1e6
+            clean_val = re.sub(r"(?i)\s*million", "", clean_val)
+        elif "thousand" in lower_val:
+            text_multiplier = 1e3
+            clean_val = re.sub(r"(?i)\s*thousand", "", clean_val)
+
+        # 2. STRIP: Clean formatting for calculation
         # Remove symbols and commas to get raw number
-        stripped = clean_val.replace("$", "").replace("%", "").replace(",", "")
+        stripped = clean_val.replace("$", "").replace("%", "").replace(",", "").strip()
 
         try:
             norm_num = float(stripped)
 
             # 3. PROCESS: Apply Multiplier
-            # Logic: Only apply the multiplier if it's NOT a percentage.
-            # (e.g., Table is "in thousands", but "8.0%" is still 8%, not 8000%)
-            if multiplier > 1.0 and not had_percent:
-                potential_val = norm_num * multiplier
-                # Safety Check: Prevent runaway numbers (exceeding 100 Trillion)
-                if abs(potential_val) < 1e14:
-                    norm_num = potential_val
+            # Priority Logic:
+            # A. If we found a text multiplier (e.g. "million"), use ONLY that.
+            # B. If no text multiplier, use the global table multiplier (e.g. "in thousands").
+            # C. Never multiply percentages.
+
+            final_multiplier = 1.0
+
+            if not had_percent:
+                if text_multiplier > 1.0:
+                    final_multiplier = text_multiplier
+                else:
+                    final_multiplier = multiplier
+
+            potential_val = norm_num * final_multiplier
+
+            # Safety Check: Prevent runaway numbers (exceeding 100 Trillion)
+            # This prevents errors where a date or ID is mistaken for a value
+            if abs(potential_val) < 1e14:
+                norm_num = potential_val
 
             num = abs(norm_num)
 
@@ -1089,13 +1167,11 @@ class TableToTextConverter:
 
             # 4. FORMAT: Determine string representation
             # If >= 100, use no decimals (integer look).
-            # If < 100, use 2 decimals (good for small currency and percents like 5.40%).
+            # If < 100, use 2 decimals.
             if num >= 100:
                 num_str = "{:,.0f}".format(num)
             else:
                 num_str = "{:,.2f}".format(num)
-                # Optional: Remove trailing .00 for cleaner percents if desired
-                # if num_str.endswith(".00"): num_str = num_str[:-3]
 
             # 5. RESTORE: Add symbols back
             prefix = "$" if had_dollar else ""
@@ -1368,8 +1444,9 @@ class TableToTextConverter:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an rate of {value}."
                     continue # Skip rates
                 else:
+                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
                     continue
-                
+
                 sentences.append(sentence)
 
         return (sentences, False)
@@ -1379,14 +1456,15 @@ if __name__ == "__main__":
     DEBUG = True
     string = """ <TABLE>
     <CAPTION>
+    , we had the following Interest Rate Derivatives outstanding:
     
-    
-                    December 31, 2016                                             December 31, 2015                                     
-    --------------  -----------------  ---  -  -  --------------------  --  -  -  -----------------  -  -  -  --------------------  -  -
-    <S>             <C>                <C>  <C><C><C>                   <C> <C><C><C>                <C><C><C><C>                   <C><C>
-                           Fair Value             Change in Fair Value                   Fair Value           Change in Fair Value      
-    FX Derivatives                  $  168                           $  17                        $                             $     
-    </TABLE>"""
+                                      Initial                  Notional Amount     Maximum           Notional Amount      Effective Date         Maturity Date     Weighted Average Fixed Interest Rate Paid     Variable Interest Rate Received
+    -----------------------------  -  ----------------------------------------  -  ---------------------------------  -  ---------------  -  -----------------  -  -----------------------------------------  -  -------------------------------
+    <S>                            <C><C>                                       <C><C>                                <C><C>              <C><C>                <C><C>                                        <C><C>
+    SPL Interest Rate Derivatives                                $20.0 million                        $628.8 million     August 14, 2012         July 31, 2019                                         1.98%                     One-month LIBOR
+    CQP Interest Rate Derivatives                               $225.0 million                          $1.3 billion      March 22, 2016     February 29, 2020                                         1.19%                     One-month LIBOR
+    CCH Interest Rate Derivatives                                $28.8 million                          $5.5 billion        May 20, 2015          May 31, 2022                                         2.29%                     One-month LIBOR
+    </TABLE> """
     table = TableToTextConverter(string, is_sophisticated=True)
     print(table.process())
 # %%
