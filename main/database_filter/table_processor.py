@@ -896,53 +896,33 @@ class TableToTextConverter:
         return False
 
     def _classify_columns_from_headers(self):
-        """
-        Refines column classification using physical header text.
-        1. Identifies the base type (Notional, Fair Value, etc.).
-        2. Identifies any specific year in the header (e.g. "2015").
-        3. Combines them (e.g. "notional_2015" or "value_2015").
-        """
         for local_idx, header in self.col_headers.items():
             if not header:
                 continue
             h_mult = self._scan_for_multiplier(header)
             if h_mult:
                 self.col_multipliers[local_idx] = h_mult
-            # --- 0. EXTRACT YEAR (The "Comparative" Check) ---
-            # Look for 4-digit years or slash dates in the header
-            # e.g., "December 31, 2015" or "12/31/14"
+
             years = YEAR_REGEX.findall(header) or convert_slash_year_to_four_digit(
                 header
             )
-
-            # Normalize to a suffix string: "_2015"
             year_suffix = ""
             if years:
-                # convert_slash helper might return ints, regex returns strings
-                # map to str just in case
                 y_val = max(str(y) for y in years)
                 year_suffix = f"_{y_val}"
 
             header_lower = header.lower()
-
-            # Don't override context or maturity columns based on data inference
-            # (unless the header is explicitly "Notional", but usually Context is safe)
             current_type = self.col_map.get(local_idx)
             if current_type in ["context_text", "metadata_maturity"]:
                 continue
 
             new_base_type = None
-
-            # --- 1. DETERMINE BASE TYPE (Accounting Concept) ---
-
             if NOISE_HEADERS.search(header_lower):
                 self.col_map[local_idx] = None
                 continue
-
             elif CONTEXT_HEADERS.search(header_lower):
                 new_base_type = "context_text"
-                year_suffix = ""  # Context generally doesn't get a year split
-
+                year_suffix = ""
             elif NOTIONAL_HEADERS.search(header_lower):
                 new_base_type = "notional"
             elif VAR_HEADERS.search(header_lower):
@@ -968,98 +948,17 @@ class TableToTextConverter:
             elif MATURITY_HEADERS.search(header_lower):
                 new_base_type = "metadata_maturity"
                 year_suffix = ""
-
-            # --- 2. COMBINE TYPE + YEAR ---
-
-            if new_base_type:
-                # Case A: Specific Header Found (e.g. "Notional 2015")
-                # Result: "notional_2015"
-                self.col_map[local_idx] = f"{new_base_type}{year_suffix}"
-
-            elif year_suffix:
-                # Case B: Only Year Found (e.g. "2015" or "Dec 31, 2014")
-                # If we already guessed "value" from the data, keep it.
-                # If we have no guess, default to "value".
-
-                # Check current inferred type
-                if current_type and "value" in current_type:
-                    base = current_type  # e.g., "gross_fair_value"
-                else:
-                    base = "value"  # Default fallback
-
-                # Result: "value_2015" or "gross_fair_value_2015"
-                self.col_map[local_idx] = f"{base}{year_suffix}"
-        """
-        Refines column classification using the physical header text extracted
-        earlier. This overrides generic data-inferred types (like 'value')
-        with specific accounting types (like 'notional' or 'gain_loss').
-        """
-        for local_idx, header in self.col_headers.items():
-            if not header:
-                continue
-
-            header_lower = header.lower()
-
-            # --- SKIP CHECK ---
-            # If we already identified this as a Date or Text column based on data,
-            # we generally trust the data over the header (e.g., a column named "Date"
-            # containing only text is likely Context, not a Maturity Date).
-            current_type = self.col_map.get(local_idx)
-            if current_type in ["context_text", "metadata_maturity"]:
-                continue
-
-            # --- REGEX CLASSIFICATION ---
-
-            # 1. Noise / Ignore
-            if NOISE_HEADERS.search(header_lower):
-                self.col_map[local_idx] = None
-                continue
-
-            # 2. Context / Description
-            if CONTEXT_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "context_text"
-
-            # 3. Notional / Principal (Strong Signal)
-            elif NOTIONAL_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "notional"
-
-            # 4. Fair Value / VAR
-            elif VAR_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "fair_value"
-
-            # 5. Net / Gross Amounts
-            elif NET_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "net_fair_value"
-            elif GROSS_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "gross_fair_value"
-
-            # 6. Level 1/2/3
-            elif LEVEL_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "fair_value"
-
-            # 7. Asset / Liability specific
-            elif VALUE_HEADERS.search(header_lower):
-                if ASSET_HEADERS.search(header_lower):
-                    self.col_map[local_idx] = "asset_fair_value"
-                elif LIABILITY_HEADERS.search(header_lower):
-                    self.col_map[local_idx] = "liability_fair_value"
-                else:
-                    self.col_map[local_idx] = "fair_value"
-
-            # 8. Gains / Losses (Income Statement)
-            elif GAIN_LOSS_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "gain_loss"
-
-            # 9. Location / Balance Sheet Line
-            elif LOCATION_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "location"
-
-            # 10. Maturity Dates
-            elif MATURITY_HEADERS.search(header_lower):
-                self.col_map[local_idx] = "metadata_maturity"
-            # 11. Percentages
             elif PERCENT_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "rate"
+
+            if new_base_type:
+                self.col_map[local_idx] = f"{new_base_type}{year_suffix}"
+            elif year_suffix:
+                if current_type and "value" in current_type:
+                    base = current_type
+                else:
+                    base = "value"
+                self.col_map[local_idx] = f"{base}{year_suffix}"
 
     def _apply_column_heuristics(self):
         TARGET_IDX = 1
