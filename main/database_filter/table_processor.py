@@ -598,6 +598,7 @@ class TableToTextConverter:
             if i in self.col_map and self.col_map[i] and self.col_map[i] not in ["context_text", "metadata_maturity"] and self._is_valid_value(cell):
                 has_numeric_data = True
                 break
+        debug_print("Numeric Data:", has_numeric_data)
         return not has_numeric_data
 
     def _construct_instrument_name(self, row_text: str, context_text: str) -> str:
@@ -638,8 +639,9 @@ class TableToTextConverter:
 
         for row_idx, row in enumerate(self.data):
             if not row or not row[0].strip(): continue
-
+            debug_print(f"--- Row {row_idx}: {row}")
             if self._is_subheader_row(row):
+                debug_print(f"  Subheader detected, context now: {active_context}")
                 raw_header = row[0].strip().rstrip(":")
                 header_years = YEAR_REGEX.findall(raw_header)
                 if header_years:
@@ -679,7 +681,9 @@ class TableToTextConverter:
             if SOPHISTICATED_TARGETS.search(instrument_name):
                 soph = True
                 if not should_keep and self.is_sophisticated: should_keep = True
-            
+            debug_print(f"  Instrument: {instrument_name}")
+            debug_print(f"  Signals - strict:{is_strict}, soft:{is_soft}, fx:{is_fx}, ir:{is_ir}")
+            debug_print(f"  Keep row: {should_keep}")
             if not should_keep: continue
 
             expiration_str = ""
