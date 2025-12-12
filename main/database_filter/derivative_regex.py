@@ -675,6 +675,7 @@ RISK_MANAGEMENT_TERMS = [
     r"stabiliz(?:e|es|ed|ing)",
     r"to\s+(?:limit|control|reduce|offset)",
 ]
+RISK_MANAGEMENT_REGEX = build_regex(RISK_MANAGEMENT_TERMS)
 HEDGING_CONTEXT_TERMS = (
     [
        r"bifurcat(?:ed|ion|ing)",
