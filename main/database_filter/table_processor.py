@@ -1096,13 +1096,15 @@ class TableToTextConverter:
             prefix = re.sub(re.escape(ctx_base), "", ctx, flags=re.IGNORECASE).strip()
         return f"{prefix} {name}".strip()
 
+
     def process(self) -> Tuple[List[str], bool]:
         if self.invalid_table or not self.data:
             return ([], False)
         sentences = []
         active_context = ""
-        section_year_str = ""
+        section_year_str = ""  # Running state for year context
 
+        # Check for strong signals in the table type
         table_has_strong_notional_col = any(
             col_type and STRONG_NOTIONAL_REGEX.search(col_type)
             for col_type in self.col_map.values()
@@ -1110,36 +1112,65 @@ class TableToTextConverter:
         if self.table_default_type == "notional":
             table_has_strong_notional_col = True
 
+        # Extract year from caption for global fallback
         caption_year_str = ""
         if self.caption:
-            caption_years = YEAR_REGEX.findall(self.caption) or convert_slash_year_to_four_digit(self.caption)
+            caption_years = YEAR_REGEX.findall(
+                self.caption
+            ) or convert_slash_year_to_four_digit(self.caption)
             if caption_years:
                 try:
                     caption_year_str = f"in {max(int(y) for y in caption_years)} "
                 except:
                     caption_year_str = f"in {caption_years[-1]} "
+
         debug_print(f"Found {len(self.data)} rows")
         debug_print(f"Header: {self.col_headers}")
+
         for row_idx, row in enumerate(self.data):
             if not row or not row[0].strip():
                 continue
+
+            # --- NEW: ALWAYS CHECK FIRST CELL FOR YEAR CONTEXT ---
+            # This captures years from rows like "Balance, December 31, 2004"
+            # regardless of whether they are Subheaders or Data rows.
+            row_text = row[0].strip()
+            row_years = YEAR_REGEX.findall(row_text) or convert_slash_year_to_four_digit(
+                row_text
+            )
+
+            if row_years:
+                # Update the running section year (fallback for rows with no column-specific year)
+                # We assume the last/largest year in the text is the relevant one
+                y_val = max(int(y) for y in row_years)
+                section_year_str = f"in {y_val} "
+
+            # --- SUBHEADER DETECTION ---
             if self._is_subheader_row(row):
                 debug_print(f"Found subheader row: {row}")
-                raw_header = row[0].strip().rstrip(":")
-                header_years = YEAR_REGEX.findall(raw_header) or convert_slash_year_to_four_digit(raw_header)
-                if header_years:
-                    y_val = max(int(y) for y in header_years)
-                    section_year_str = f"in {y_val} "
+                raw_header = row_text.rstrip(":")
+
+                # We already extracted the year above into section_year_str.
+                # Now clean the header text so we don't duplicate the year in the context string.
+                if row_years:
                     raw_header = YEAR_REGEX.sub("", raw_header).strip(" (),")
 
                 if raw_header:
+                    # Smart Context Management
                     is_designation = bool(DESIGNATION_REGEX.search(raw_header))
+
+                    if "cash flow" in raw_header.lower() and len(raw_header) > 20:
+                        is_designation = False
+                    if len(raw_header) > 50:
+                        is_designation = False
+
                     if is_designation and active_context:
                         active_context = f"{active_context} {raw_header}"
                     else:
                         active_context = raw_header
                 continue
 
+            # --- ROW PROCESSING (Data Rows) ---
             instrument_name = row[0].strip()
             if "total" == instrument_name.lower():
                 continue
@@ -1148,11 +1179,10 @@ class TableToTextConverter:
                     instrument_name, active_context
                 )
 
+            # (Existing Row Classification Logic...)
             is_strict = self.is_implied_derivative(instrument_name)
             is_table_safe = bool(TABLE_REGEX.search(instrument_name))
-            is_soft = (
-                bool(SOFT_REGEX.search(instrument_name)) if not is_strict else False
-            )
+            is_soft = bool(SOFT_REGEX.search(instrument_name)) if not is_strict else False
             has_base = bool(BASE_REGEX.search(instrument_name))
             has_strong_notional = bool(STRONG_NOTIONAL_REGEX.search(instrument_name))
             has_currency_notional = bool(CURRENCY_NAMES_REGEX.search(instrument_name))
@@ -1160,20 +1190,13 @@ class TableToTextConverter:
             is_fx = bool(FX_SOFT_REGEX.search(instrument_name)) or has_currency_notional
             is_not_cp = is_ir or is_fx
             table_has_strong_row = (
-                is_strict
-                or is_table_safe
-                or has_strong_notional
-                or has_currency_notional
+                is_strict or is_table_safe or has_strong_notional or has_currency_notional
             )
 
             should_keep = False
             soph = False
-            if (
-                is_strict
-                or is_table_safe
-                or has_strong_notional
-                or has_currency_notional
-            ):
+
+            if is_strict or is_table_safe or has_strong_notional or has_currency_notional:
                 should_keep = True
             elif is_soft:
                 if is_not_cp:
@@ -1190,23 +1213,29 @@ class TableToTextConverter:
                 ):
                     if has_base:
                         should_keep = True
+
             if SOPHISTICATED_TARGETS.search(instrument_name):
                 soph = True
-                if not should_keep and self.is_sophisticated or soph:
+                if not should_keep and (self.is_sophisticated or soph):
                     should_keep = True
 
             if not should_keep:
                 debug_print(f"Discarded candidate row: {row}")
                 continue
+
             debug_print(f"Found candidate row: {row}")
+
+            # Extract Expiration
             expiration_str = ""
             for col_idx, col_type in self.col_map.items():
                 if col_idx < len(row) and col_type == "metadata_maturity":
                     cell = row[col_idx]
-                    years = YEAR_REGEX.findall(cell) or convert_slash_year_to_four_digit(cell)
-                    if years:
-                        expiration_str = f" (expiring in {max(years)})"
+                    # Don't use split logic here, use regex
+                    yrs = YEAR_REGEX.findall(cell) or convert_slash_year_to_four_digit(cell)
+                    if yrs:
+                        expiration_str = f" (expiring in {max(yrs)})"
 
+            # Generate Sentences
             for col_idx, col_type in self.col_map.items():
                 if (
                     col_idx >= len(row)
@@ -1218,21 +1247,26 @@ class TableToTextConverter:
                 if not cell or not self._is_valid_value(cell):
                     continue
 
-                # Clean for display
-                # Note: We don't strip symbols here anymore because they are attached correctly
                 clean_val = cell.replace(",", "").strip()
 
+                # Handle Year Suffixes (value_2008 -> in 2008)
                 parts = col_type.split("_")
                 year_str = ""
                 if parts[-1].isdigit() and len(parts[-1]) == 4:
+                    # 1. Priority: Column Header Year
                     year_str = f"in {parts.pop()} "
+
+                # 2. Priority: Section Year (from row[0] or subheader)
                 if not year_str and section_year_str:
                     year_str = section_year_str
+
+                # 3. Priority: Caption Year
                 if not year_str and caption_year_str:
                     year_str = caption_year_str
 
                 base_type = "_".join(parts)
                 actual_col_type = base_type
+
                 display_instrument = f"{instrument_name}{expiration_str}"
                 if GAIN_LOSS_HEADERS.search(display_instrument):
                     actual_col_type = "gain_loss"
@@ -1240,13 +1274,14 @@ class TableToTextConverter:
                     actual_col_type = "fair_value"
                 elif STRONG_NOTIONAL_REGEX.search(display_instrument):
                     actual_col_type = "notional"
+
                 value = self.normalize_value(clean_val, actual_col_type != "value")
+
                 use_anchor = (
                     table_has_strong_row
                     or table_has_strong_notional_col
                     or self.caption_is_strong
                 )
-
                 anchor_text = TABLE_ANCHOR if use_anchor else ""
 
                 if "notional" in actual_col_type:
