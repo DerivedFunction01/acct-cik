@@ -376,7 +376,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
-        if not LOOSE_GEN_REGEX.search(masked) or is_sophisticated_target(text):
+        if not LOOSE_GEN_REGEX.search(masked) or not is_sophisticated_target(text):
             reason = NoiseReason.CTX
 
         if not reason:
