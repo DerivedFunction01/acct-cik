@@ -107,9 +107,8 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
         return NoiseReason.POT
 
     if (
-        NEGATIVE_INTENT_REGEX.search(text)
-        or ABSENCE_REGEX.search(text)
-        or DID_NOT_HOLD_REGEX.search(text)
+        ABSENCE_REGEX.search(text) # No such oustanding
+        or DID_NOT_HOLD_REGEX.search(text) # We did not plan to use
     ):
         if PNL_CONTEXT_REGEX.search(text):
             return NoiseReason.PNL
