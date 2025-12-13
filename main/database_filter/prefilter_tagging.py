@@ -338,10 +338,8 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         ):
             if RISK_MANAGEMENT_REGEX.search(masked):
                 reason = NoiseReason.RISK
-            elif is_pnl(masked):
+            elif is_pnl(masked, context_only=True): # PNL is tricky
                 reason = NoiseReason.PNL
-            else:
-                reason = NoiseReason.CTX
 
         if not reason:
             reason = get_temporal_noise_reason(masked, reporting_year)
@@ -354,8 +352,10 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             if TRADING_STATEMENTS_REGEX.search(masked):
                 # "We do not trade..." -> Critical End User Signal
                 reason = NoiseReason.TRADING
-            elif is_pnl(masked):
-                reason = NoiseReason.PNL
+            elif is_pnl(masked): # PNL is tricky, skipping until evidence tagging (PNL_CONTEXT_REGEX.search(text) or HAD_CHANGE_REGEX.search(text))
+                tagged_output.append(orig)
+                surviving_text_parts.append(masked)
+                continue
             elif not reason:
                 # Check Termination (e.g., "Terminated in [Current Year]")
                 # Note: Temporal check above already killed "Terminated in [Past Year]"

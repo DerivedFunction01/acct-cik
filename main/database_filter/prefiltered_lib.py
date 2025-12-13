@@ -668,5 +668,8 @@ HAD_CHANGE_REGEX = re.compile(
     re.IGNORECASE,
 )
 
-def is_pnl(text):
-    return PNL_CONTEXT_REGEX.search(text) or HAD_CHANGE_REGEX.search(text)
+def is_pnl(text, context_only = True):
+    if context_only:
+        return bool(PNL_CONTEXT_REGEX.search(text))
+    return bool(HAD_CHANGE_REGEX.search(text)) or bool(PNL_CONTEXT_REGEX.search(text))
+
