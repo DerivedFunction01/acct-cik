@@ -41,6 +41,7 @@ from derivative_regex import (
 
 from prefilter_database import is_sophisticated_content, is_sophisticated_target
 from prefiltered_lib import (
+    HEDGE_DOC_REGEX,
     SKIP_TOKEN,
     DEADWEIGHT_TOKEN,
     ZERO_QUANT_REGEX,
@@ -100,7 +101,6 @@ def get_temporal_noise_reason(text: str, reporting_year: int) -> Optional[NoiseR
 
     return None
 
-
 def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     """Returns HYPO or NEG based on intent."""
     if POTENTIAL_REGEX.search(text) or VAGUE_TIMING_REGEX.search(text):
@@ -128,26 +128,6 @@ def get_termination_noise_reason(text: str, reporting_year: int) -> Optional[Noi
     return None
 
 COMPARISON_REGEX = build_regex(COMPARISON_PHRASES)
-
-
-G = r"(?:\W+\w+){0,3}"  # up to 3 intermediate words
-
-HEDGE_DOC_TERMS = [
-    rf"formally{G}document",
-    rf"hedge{G}documentation",
-    r"documentation",
-    rf"at{G}inception",
-    rf"effectiveness{G}(?:is|was){G}assessed",
-    rf"highly{G}effective",
-    rf"qualif(?:y|ies|ied){G}(?:for|as){G}hedg(?:ing|e?){G}(?:accounting|relationship|documentation)?",
-    rf"(?:not)?{G}designated",
-    rf"(?:dis)?continu(?:es?|ed|ing){G}hedge{G}(?:accounting|relationship|documentation)?",
-    rf"economic{G}relationship",
-    rf"nature{G}of",
-]
-
-HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)
-
 
 COUNTERPARTY_POLICY_TERMS = [
     r"credit\s+risk",
@@ -409,9 +389,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
         # --- TIER 4: SOFT KILLS (The "Generic" Tags) ---
         if not reason:
-            if HEDGE_DOC_REGEX.search(masked):
-                reason = NoiseReason.DOC
-            elif COUNTERPARTY_REGEX.search(masked):
+            if COUNTERPARTY_REGEX.search(masked):
                 reason = NoiseReason.CREDIT
 
         # --- TIER 5: FALLBACK SCORING ---
