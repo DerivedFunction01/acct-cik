@@ -114,14 +114,29 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     return None
 
 
-def get_termination_noise_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
-    """Returns TERM if sentence describes dead positions."""
+def get_termination_noise_reason(
+    text: str, reporting_year: int
+) -> Optional[NoiseReason]:
+    """
+    Returns TERM if sentence describes SPECIFIC dead positions (anchored by time).
+    """
     if TERMINATION_REGEX.search(text):
         years = [int(y) for y in YEAR_REGEX.findall(text)]
+
+        # CASE 1: No Date -> Likely Policy/Hypothetical ("We terminate if...")
+        if not years:
+            # OPTIONAL: You could return NoiseReason.POLICY here if you want to be specific,
+            # or keep OTHER/None to let it flow to other filters.
+            # Returning None lets the sentence survive to be checked for other signals (like Risk Mgmt).
+            return None
+
+        # CASE 2: Has Date -> Check if it's in the past
+        # If any year is in the future (e.g. "Terminates in 2026"), it's NOT dead (Active).
+        # We only tag as TERM if ALL dates are <= reporting year.
         if not any(y > reporting_year for y in years):
             return NoiseReason.TERM
-    return None
 
+    return None
 
 
 COMPARISON_REGEX = build_regex(COMPARISON_PHRASES)
