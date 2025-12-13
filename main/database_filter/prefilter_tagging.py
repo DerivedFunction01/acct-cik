@@ -352,10 +352,8 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
             if TRADING_STATEMENTS_REGEX.search(masked):
                 # "We do not trade..." -> Critical End User Signal
                 reason = NoiseReason.TRADING
-            elif is_pnl(masked): # PNL is tricky, skipping until evidence tagging (PNL_CONTEXT_REGEX.search(text) or HAD_CHANGE_REGEX.search(text))
-                tagged_output.append(orig)
-                surviving_text_parts.append(masked)
-                continue
+            elif is_pnl(masked):
+                reason = NoiseReason.PNL
             elif not reason:
                 # Check Termination (e.g., "Terminated in [Current Year]")
                 # Note: Temporal check above already killed "Terminated in [Past Year]"
@@ -403,7 +401,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         else:
             tagged_output.append(orig)
             surviving_text_parts.append(masked)
-            
+
     final_text = " ".join(tagged_output)
     # --- E. Final Signal Check ---
     if not surviving_text_parts:
