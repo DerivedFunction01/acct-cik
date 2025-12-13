@@ -50,7 +50,7 @@ from prefiltered_lib import (
     mark_as_deadweight,
     QUANT_REGEX,
 )
-from prefilter_evidence import HAD_CHANGE_REGEX
+from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, HAD_CHANGE_REGEX, NOTIONAL_CONTEXT_REGEX, POSS_VERB_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
 
 
 # =============================================================================
@@ -317,10 +317,19 @@ def get_quantitative_noise_reason(
     """Returns ZERO if values are present but all zero."""
     if not reporting_year:
         return None
-    
+    is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
+    is_fair_value = bool(FAIR_VALUE_CONTEXT_REGEX.search(text))
+    has_active_verb = (
+        POSS_VERB_REGEX.search(text)
+        or USAGE_VERB_REGEX.search(text)
+        or TRANS_VERB_REGEX.search(text)
+    )
+    if PNL_CONTEXT_REGEX.search(text) or HAD_CHANGE_REGEX.search(text): # make sure that we are not in pnl
+        return NoiseReason.PNL
+    if not (is_notional or is_fair_value or has_active_verb): # Not related
+        return None
     if check_is_quantitative_zero(text, reporting_year):
         return NoiseReason.ZERO
-
     return None
 
 
