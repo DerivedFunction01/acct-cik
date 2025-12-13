@@ -581,16 +581,16 @@ ZERO_QUANT_REGEX = re.compile(
 )
 
 
-G = r"(?:\W+\w+){0,3}"  # up to 3 intermediate words
+G = r"(?:\W+\w+){0,5}"  # up to 3 intermediate words
 
 HEDGE_DOC_TERMS = [
     rf"formally\s+document",
     rf"hedge\s+documentation",
     r"documentation",
     rf"at\s+inception",
-    rf"effectiveness{G}assessed",
+    rf"(?:in)?effectiveness\s+(?:portion)?",
     rf"highly\s+effective",
-    rf"qualif(?:y|ies|ied){G}hedg(?:ing|e?)",
+    rf"qualif(?:y|ies|ied){G}hedg(?:ing|es?)",
     rf"(?:not)?\s+designated\s+as",
     rf"(?:dis)?continu(?:es?|ed|ing)\s+hedge\s+(?:accounting|relationship|documentation|designation)?",
     rf"economic\s+relationship",
