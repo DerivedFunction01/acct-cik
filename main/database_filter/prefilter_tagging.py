@@ -81,10 +81,6 @@ def mask_text(text: str) -> str:
     """
     return _cleaner.clean(text)
 
-
-# --- REASON-BASED CHECKS ---
-
-
 def get_temporal_noise_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
     """Returns NoiseReason.TIME if sentence is purely historical."""
     if not reporting_year:
