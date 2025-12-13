@@ -149,6 +149,7 @@ HEDGE_DOC_TERMS = [
 
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)
 
+
 COUNTERPARTY_POLICY_TERMS = [
     r"credit\s+risk",
     r"counterpart(?:y|ies)",
@@ -180,6 +181,7 @@ PNL_TERMS = [
     r"impact\s+(?:on|to)\s+(?:earnings|income|revenue)",
 ]
 PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
+
 def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
     """
     Parses sentence to find years and 'Value Tokens'.
@@ -188,46 +190,32 @@ def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
 
     # 2. Extract Years (from cleaned string, though years usually aren't inside the date patterns above)
     years = [int(y) for y in YEAR_REGEX.findall(sentence)]
-    # Replace all the years
     sentence = YEAR_REGEX.sub("YEAR", sentence)
 
-    # 3. Extract Values from CLEANED string
     value_tokens = []
 
-    # Find Zeros
-    for m in ZERO_QUANT_REGEX.finditer(sentence):
-        value_tokens.append({"start": m.start(), "is_zero": True, "text": m.group()})
+    def mask_span(text, start, end):
+        return text[:start] + ("_" * (end - start)) + text[end:]
 
-    # Find Numerics (Strict)
+    # 1. Masked working copy
+    masked = sentence
+
+    # 2. Strict numerics first
     for m in QUANT_REGEX.finditer(sentence):
         value_tokens.append({"start": m.start(), "is_zero": False, "text": m.group()})
+        masked = mask_span(masked, m.start(), m.end())
 
-    # # Track ranges occupied by Strict/Zero matches to prevent double counting with Loose
-    # existing_ranges = set()
-    # for v in value_tokens:
-    #     for i in range(v["start"], v["start"] + len(v["text"])):
-    #         existing_ranges.add(i)
+    # 3. Zeros second (on masked string)
+    for m in ZERO_QUANT_REGEX.finditer(masked):
+        value_tokens.append(
+            {
+                "start": m.start(),
+                "is_zero": True,
+                "text": sentence[m.start() : m.end()],  # original text
+            }
+        )
 
-    # # Track ranges occupied by Years (to prevent 2023 from being a value)
-    # year_ranges = set()
-    # for m in YEAR_REGEX.finditer(sentence):
-    #     for i in range(m.start(), m.end()):
-    #         year_ranges.add(i)
-
-    # # Find Positives (Loose) - Safely runs on clean_sentence (No Dates)
-    # for m in ANY_NUMBER_LOOSE.finditer(sentence):
-    #     # Skip if overlaps with strict value
-    #     if m.start() in existing_ranges:
-    #         continue
-    #     # Skip if overlaps with a year
-    #     if m.start() in year_ranges:
-    #         continue
-
-    #     value_tokens.append({"start": m.start(), "is_zero": False, "text": m.group()})
-
-    # Sort by position
     value_tokens.sort(key=lambda x: x["start"])
-
     return years, value_tokens
 
 
