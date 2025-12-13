@@ -119,6 +119,8 @@ ACTIVE_ADJECTIVES = [
     r"remaining",
     r"consist(?:s|ed)\s+of",
     r"compris(?:e|es|ed)\s+of",
+    r"new",
+    r"current",
 ]
 
 FINANCIAL_OUTCOME_VERBS = [
