@@ -42,6 +42,7 @@ from prefiltered_lib import (
     Reason,
     get_tag,
     mark_as_deadweight,
+    mark_as_evidence,
     parse_noise_tags,
     HAD_CHANGE_REGEX,
     CHANGE_FV_REGEX,
@@ -542,7 +543,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
 
     # Process sentences: tag untagged ones, collect evidence
     tagged_sentences = []
-    all_evidence = set()
+    all_evidence: Set[EvidenceReason] = set()
 
     for orig, masked in zip(original_sentences, masked_sentences):
         # Parse existing tags from this sentence
@@ -575,8 +576,8 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
     # Apply hierarchy: check if mixed signals kill the paragraph
     if should_mark_deadweight(all_evidence, existing_paragraph_noise, sent_count=len(original_sentences)):
         return mark_as_deadweight(tagged_paragraph, noise=existing_paragraph_noise)
-
-    return tagged_paragraph
+    else:
+        return mark_as_evidence(tagged_paragraph, evidence=all_evidence, noise=existing_paragraph_noise)
 
 
 # =============================================================================

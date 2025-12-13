@@ -218,9 +218,6 @@ class NoiseReason(Reason):
 
 
 class EvidenceReason(Reason):
-    MGMTD = "MGMT_DER"  # Risk managment paragraph with intent of using derivatives (no quant)
-    MGMTDQ = "MGMT_DER_QUANT"  # Risk managment paragraph with intent of using derivatives (with quant)
-    POSDQ = "DER_QUANT" # Standard valuation of derivative paragraph (quant, have strong evidence)
     # =========================================================
     # TIER 1: STRONG (The "Smoking Gun")
     # Criteria: Strict Subject ("Swap") + Hard Anchor (Year/Value)
@@ -278,6 +275,28 @@ class EvidenceReason(Reason):
     PNL_REC = "PNL_RECOGNITION"
     REM_TERM = "REMAINING_TERM"
     UNCAT = "UNCATEGORIZED"
+
+    # ========================================================
+    # Paragraph level tags
+    # ========================================================
+    # 1. Valuation & Position (The "Balance Sheet" View)
+    # Evidence: FVY, VY, AS_YEAR, TABLE, NVY (High Confidence)
+    POSDQ = "POSITION_DERIVATIVE_QUANT"
+
+    # 2. Risk Management Strategy (The "Intent" View)
+    # Evidence: CONT_USE + Quant, or RISK (Noise) + Quant
+    MGMTDQ = "MGMT_DERIVATIVE_QUANT"  # "We use swaps to hedge $10m debt."
+    MGMTD = "MGMT_DERIVATIVE_GEN"  # "We use swaps to hedge risk." (No numbers)
+
+    # 3. Flow & Activity (The "Income Statement" View)
+    # Evidence: ACT_YEAR, PNL_REC + Quant
+    FLOWDQ = (
+        "FLOW_DERIVATIVE_QUANT"  # "We recognized $5m gain." / "Entered $10m new swaps."
+    )
+
+    # 4. Credit & Collateral (The "Counterparty" View)
+    # Evidence: CREDIT (Noise) + Quant
+    CREDITDQ = "CREDIT_DERIVATIVE_QUANT"  # "Posted $2m collateral."
 
 # --- LOGIC SETS ---
 
@@ -363,16 +382,84 @@ POLICY_KILLERS = TIME_KILLERS | {
 
 
 NOISE_TAG_PARSER = re.compile(r"(_[SD])<([^>]+)>")
+
 def mark_as_evidence(
     text: str,
-    noise: Optional[Set[NoiseReason]] = None,
     evidence: Optional[Set[EvidenceReason]] = None,
+    noise: Optional[Set[NoiseReason]] = None,
 ) -> str:
     """
     Marks paragraph as evidence with a specific semantic reason derived from its tags.
     """
     final_reason = EvidenceReason.UNCAT  # Default fallback
-    return text
+
+    if evidence is None:
+        evidence = set()
+    if noise is None:
+        noise = set()
+
+    # --- HELPER: CHECK FOR QUANT ---
+    # Many sentence tags imply quant (FVY, NVY), but some don't (CONT_USE).
+    # We check if *any* strong quant tag exists in the evidence set.
+    has_quant = not evidence.isdisjoint(
+        {
+            EvidenceReason.FVY,
+            EvidenceReason.NVY,
+            EvidenceReason.VY,
+            EvidenceReason.AS_YEAR,
+            EvidenceReason.ACT_YEAR,
+            EvidenceReason.TABLE,
+        }
+    )
+
+    # Note: You might also want to pass a raw 'has_quant' boolean if you rely on
+    # extract_values_and_years() at the paragraph level, but checking tags is usually sufficient.
+
+    # --- TIER 1: HARD VALUATION (The Strongest Signal) ---
+    # If it's a Table or Explicit Year-End Value, it's a Position disclosure.
+    if not evidence.isdisjoint(
+        {
+            EvidenceReason.TABLE,
+            EvidenceReason.FVY,
+            EvidenceReason.VY,
+            EvidenceReason.AS_YEAR,
+        }
+    ):
+        final_reason = EvidenceReason.POSDQ
+
+    # --- TIER 2: FLOW & ACTIVITY ---
+    # Transaction years or PnL recognition (with numbers)
+    elif not evidence.isdisjoint({EvidenceReason.ACT_YEAR}) or (
+        EvidenceReason.PNL_REC in evidence and has_quant
+    ):
+        final_reason = EvidenceReason.FLOWDQ
+
+    # --- TIER 3: CREDIT / COLLATERAL ---
+    # If "CREDIT" noise survived, it means it was saved by Strong Evidence.
+    # Usually implies collateral posting or netting agreements with values.
+    elif NoiseReason.CREDIT in noise and has_quant:
+        final_reason = EvidenceReason.CREDITDQ
+
+    # --- TIER 4: RISK MANAGEMENT STRATEGY ---
+    # Check for Strategy indicators (CONT_USE) or Risk Context (RISK tag)
+    elif (
+        not evidence.isdisjoint({EvidenceReason.CONT_USE, EvidenceReason.CONT_USE_AMB})
+        or NoiseReason.RISK in noise
+    ):
+        if has_quant:
+            final_reason = EvidenceReason.MGMTDQ  # "We hedge $100m of debt"
+        else:
+            final_reason = EvidenceReason.MGMTD  # "We hedge debt"
+
+    # --- TIER 5: REMAINING QUANT (Catch-all) ---
+    # E.g. "Notional amount was $50m" (NVY) - fits loosely into Valuation or Strategy
+    elif EvidenceReason.NVY in evidence:
+        final_reason = EvidenceReason.POSDQ
+
+    # Apply the tag
+    return f"{get_tag(EVIDENCE_TOKEN, final_reason)} {text}"
+
+
 def mark_as_deadweight(
     text: str,
     noise: Optional[Set[NoiseReason]] = None,
