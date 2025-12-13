@@ -48,10 +48,11 @@ from prefiltered_lib import (
     MinimalTextCleaner,
     NoiseReason,
     get_tag,
+    is_pnl,
     mark_as_deadweight,
     QUANT_REGEX,
 )
-from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, HAD_CHANGE_REGEX, NOTIONAL_CONTEXT_REGEX, POSS_VERB_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
+from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX, POSS_VERB_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
 
 
 # =============================================================================
@@ -106,7 +107,7 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
         ABSENCE_REGEX.search(text) # No such oustanding
         or DID_NOT_HOLD_REGEX.search(text) # We did not plan to use
     ):
-        if PNL_CONTEXT_REGEX.search(text):
+        if is_pnl(text):
             return NoiseReason.PNL
         if HEDGE_DOC_REGEX.search(text):
             return NoiseReason.DOC
@@ -118,10 +119,14 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
 def get_termination_noise_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
     """Returns TERM if sentence describes dead positions."""
     if TERMINATION_REGEX.search(text):
+        if is_pnl(text):
+            return NoiseReason.PNL
         years = [int(y) for y in YEAR_REGEX.findall(text)]
         if not any(y > reporting_year for y in years):
             return NoiseReason.TERM
     return None
+
+
 
 COMPARISON_REGEX = build_regex(COMPARISON_PHRASES)
 
@@ -140,22 +145,7 @@ COUNTERPARTY_POLICY_TERMS = [
     r"nonperformance",
 ]
 COUNTERPARTY_REGEX = build_regex(COUNTERPARTY_POLICY_TERMS)
-PNL_TERMS = [
-    # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
-    r"(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
-    # 2. "On" Construction (e.g., "Gain on derivatives")
-    r"(?:net\s+)?(?:gains?|loss(?:es)?)",
-    # 3. Fair Value CHANGES (Strictly Flow)
-    # 4. Ineffectiveness (Strictly PnL context)
-    r"ineffective\s+portion",
-    r"hedge\s+ineffectiveness",
-    # 6. Mark-to-Market (Action/Result, usually implies flow)
-    # Distinguishes from "Fair Value" measurement policy
-    r"mark(?:ed)?[- ]to[- ]market",
-    # 7. Impact statements
-    r"impact\s+(?:on|to)\s+(?:earnings|income|revenue)",
-]
-PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
+
 
 def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
     """
@@ -298,7 +288,7 @@ def get_quantitative_noise_reason(
         or USAGE_VERB_REGEX.search(text)
         or TRANS_VERB_REGEX.search(text)
     )
-    if PNL_CONTEXT_REGEX.search(text) or HAD_CHANGE_REGEX.search(text): # make sure that we are not in pnl
+    if is_pnl(text): # make sure that we are not in pnl
         return NoiseReason.PNL
     if not (is_notional or is_fair_value or has_active_verb): # Not related
         return None
@@ -341,7 +331,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
         ):
             if RISK_MANAGEMENT_REGEX.search(masked):
                 reason = NoiseReason.RISK
-            elif PNL_CONTEXT_REGEX.search(masked) or HAD_CHANGE_REGEX.search(masked):
+            elif is_pnl(masked):
                 reason = NoiseReason.PNL
             else:
                 reason = NoiseReason.CTX
@@ -363,7 +353,7 @@ def tag_paragraph(text: str, reporting_year: int) -> str:
                 # Note: Temporal check above already killed "Terminated in [Past Year]"
                 reason = get_termination_noise_reason(masked, reporting_year=reporting_year)
             # Prevents no hedge ineffectiveness from being negated
-            elif PNL_CONTEXT_REGEX.search(masked) or HAD_CHANGE_REGEX.search(masked):
+            elif is_pnl(masked):
                 reason = NoiseReason.PNL
             if not reason:
                 # Check Absence (e.g., "We do not hold...")

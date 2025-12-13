@@ -43,6 +43,8 @@ from prefiltered_lib import (
     get_tag,
     mark_as_deadweight,
     parse_noise_tags,
+    HAD_CHANGE_REGEX,
+    CHANGE_FV_REGEX,
 )
 import multiprocessing as mp
 
@@ -166,59 +168,6 @@ FLEX_SEP = r"(?:\s+\S+){0,5}\s+"
 BS_LOC_REGEX = re.compile(f"{verbs_pattern}{FLEX_SEP}{locs_pattern}", re.IGNORECASE)
 
 
-_prep_pattern = build_alternation([r"in", r"of", r"on"])
-CHANGE_FV_REGEX = build_regex(
-    [
-        # LOGIC:
-        # 1. Match "Change in fair value"
-        rf"\bchange(?:s)?\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value"
-    ]
-)
-
-# 1. Match auxiliary verbs: have, having, had, has
-# 2. Allow 0-2 filler words (e.g., "recorded a", "significant", "no", "a")
-# 3. Match target: "change(s) in fair value"
-# --- 1. Core components -------------------------------------------------------
-
-# Change verbs: change / changes / increased / decreases / etc.
-_change_verbs = [
-    r"change(?:s)?",
-    r"increase(?:d|s)?",
-    r"decrease(?:d|s)?",
-]
-
-change_verb_pattern = build_alternation(_change_verbs)
-
-
-# --- 2. Fair value targets ----------------------------------------------------
-
-_fv_targets = [
-    # e.g., "change in fair value", "increase of fair value"
-    rf"{change_verb_pattern}\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value",
-    # e.g., "fair value changes"
-    r"fair\s+value\s+change(?:s)?",
-]
-
-fv_target_pattern = build_alternation(_fv_targets)
-
-# --- 3. Auxiliary verb anchor -------------------------------------------------
-_aux_verbs = [
-    r"hav(?:e|ing)",
-    r"had",
-    r"has",
-]
-
-aux_verb_pattern = build_alternation(_aux_verbs)
-
-# --- 4. Final regex -----------------------------------------------------------
-
-HAD_CHANGE_REGEX = re.compile(
-    rf"\b{aux_verb_pattern}"  # have / having / had / has
-    rf"(?:\s+\S+){{0,2}}"  # 0–2 filler words
-    rf"\s+{fv_target_pattern}",  # fair value change target
-    re.IGNORECASE,
-)
-
 REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
 
@@ -304,7 +253,7 @@ def check_quantitative_evidence(
             return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
         else:
             return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
-    
+
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
     if has_active_verb:
         if STRICT_REGEX.search(text):
