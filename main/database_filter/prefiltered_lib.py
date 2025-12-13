@@ -1,14 +1,25 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
-from final_verification import QUANT_REGEX
-from notional_filter import DATE_DM_REGEX, DATE_MD_REGEX
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX
 
 # The token to append to deadweight paragraphs.
 DEADWEIGHT_TOKEN = "_D"
 
 # Token for sentence-level skips (Base string, will be formatted by get_tag)
 SKIP_TOKEN = " _S"
+
+# 5. Date Exclusion Patterns
+MONTHS_PATTERN = r"(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?"
+
+# Matches: "December 31", "Dec 31st"
+DATE_MD_REGEX = re.compile(
+    rf"\b(?:{MONTHS_PATTERN})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?\b", re.IGNORECASE
+)
+
+# Matches: "31 December", "1st of Jan"
+DATE_DM_REGEX = re.compile(
+    rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{MONTHS_PATTERN})\b", re.IGNORECASE
+)
 
 # Token for evidence
 EVIDENCE_TOKEN = " _E"
@@ -60,6 +71,12 @@ class MinimalTextCleaner:
         """
         # Step 1: Identify and protect quantitative values
         quant_matches = list(QUANT_REGEX.finditer(text))
+        protected_ranges = set()
+        for match in quant_matches:
+            for i in range(match.start(), match.end()):
+                protected_ranges.add(i)
+        # Step 2: Identify and protect nil quantitative values
+        quant_matches = list(ZERO_QUANT_REGEX.finditer(text))
         protected_ranges = set()
         for match in quant_matches:
             for i in range(match.start(), match.end()):
@@ -436,7 +453,9 @@ def parse_noise_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
 
 # Zero specifically: 0, 0.0, 0.00
 ZERO_NUM = r"0(?:\.0+)?"
-NUMBER_PATTERN = r"(?:0\.\d+|(?:[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d*)(?:\.\d+)?)"
+NUMBER_PATTERN = (
+    r"(?:0\.(0[1-9]|[1-9][0-9][0-9])|(?:[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d*)(?:\.\d+)?)"
+)
 SCALE_WORDS = r"(?:million|billion|trillion|thousand)"
 QUANT_REGEX = re.compile(
     # Currency symbol + optional parens + number + optional parens
@@ -451,7 +470,7 @@ QUANT_REGEX = re.compile(
 
 
 # Needs to match $0, $ 0, $ (0), or $(0), 0 USD, USD 0, or 0 million units/shares
-ZERO_PATTERN = re.compile(
+ZERO_QUANT_REGEX = re.compile(
     # The value was nil
     r"\b(?:nil)\b|"
     # 2. Currency Prefix: $0, $ 0, $ (0), or $(0) or USD 0

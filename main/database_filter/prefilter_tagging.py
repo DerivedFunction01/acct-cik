@@ -43,6 +43,7 @@ from prefilter_database import is_sophisticated_content, is_sophisticated_target
 from prefiltered_lib import (
     SKIP_TOKEN,
     DEADWEIGHT_TOKEN,
+    ZERO_QUANT_REGEX,
     MinimalTextCleaner,
     NoiseReason,
     get_tag,
@@ -127,16 +128,6 @@ def get_termination_noise_reason(text: str, reporting_year: int) -> Optional[Noi
             return NoiseReason.TERM
     return None
 
-
-# 2. Zero Indicators (Text & Numeric)
-ZERO_PATTERN = re.compile(
-    r"\b(?:nil|zero)(?!\s+(?:cost|coupon|premium))\b|"  # Text: "nil"
-    rf"(?:(?:\b{CURRENCY_SYMBOL_PATTERN})\b\s*)?0(?:\.0+)?\s*(?:million|billion|trillion|thousand)?\b|"  # Prefix: $0
-    rf"\b0(?:\.0+)?\s+(?:\b{CURRENCY_SYMBOL_PATTERN})\b",  # Suffix: 0 USD
-)
-
-# 4. Any Number (Loose)
-ANY_NUMBER_LOOSE = re.compile(r"\b[1-9]\d*(?:,\d{3})*(?:\.\d+)?\b")
 COMPARISON_REGEX = build_regex(COMPARISON_PHRASES)
 
 
@@ -204,7 +195,7 @@ def extract_values_and_years(sentence: str) -> Tuple[List[int], List[Dict]]:
     value_tokens = []
 
     # Find Zeros
-    for m in ZERO_PATTERN.finditer(sentence):
+    for m in ZERO_QUANT_REGEX.finditer(sentence):
         value_tokens.append({"start": m.start(), "is_zero": True, "text": m.group()})
 
     # Find Numerics (Strict)
