@@ -107,8 +107,6 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
         ABSENCE_REGEX.search(text) # No such oustanding
         or DID_NOT_HOLD_REGEX.search(text) # We did not plan to use
     ):
-        if HEDGE_DOC_REGEX.search(text):
-            return NoiseReason.DOC
         return NoiseReason.NEG
 
     return None
