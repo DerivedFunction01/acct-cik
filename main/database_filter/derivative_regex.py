@@ -3883,12 +3883,14 @@ def build_simple_reference_regex() -> re.Pattern:
     # PATTERN B: "The table below", "The accompanying schedule"
     # Matches: (Noun) (Direction)
     pat_b = rf"\b(?:{EXHIBIT_FRAGMENT})\s+(?:{direction_alt})\b"
+    
+    pat_b2 = rf"\b(?:{direction_alt})\s+(?:{EXHIBIT_FRAGMENT})\b"
 
     # PATTERN C: "Note 5.", "Exhibit 10." (Explicit Numbering at sentence start/end)
     # Checks for Noun + Number (1-3 digits)
     pat_c = rf"\b(?:{EXHIBIT_FRAGMENT})\s+(?:No\.\s+)?\d{{1,3}}\b"
 
-    return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
+    return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_b2}|{pat_c})", re.IGNORECASE)
 
 # Compile once
 IS_REFERENCE_REGEX = build_simple_reference_regex()

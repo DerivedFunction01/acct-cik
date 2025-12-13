@@ -125,7 +125,6 @@ def parse_tags(text: str) -> Tuple[bool, Optional[str], str]:
 def has_unambiguous_evidence(sentence: str) -> bool:
     """Check if sentence has unambiguous evidence tags."""
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
-    print(sentence, evidence_tags, flush=True)
     return bool(evidence_tags.intersection(UNAMBIGUOUS_EVIDENCE))
 
 
