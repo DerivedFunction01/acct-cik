@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
 
 # The token to append to deadweight paragraphs.
 DEADWEIGHT_TOKEN = "_D"
@@ -483,3 +483,22 @@ ZERO_QUANT_REGEX = re.compile(
     # Custom Tabular data (custom and consistent)
     rf"(?:amount|value)\s+of\s+\b{ZERO_NUM}\b",  # we do not do ignore case here
 )
+
+
+G = r"(?:\W+\w+){0,3}"  # up to 3 intermediate words
+
+HEDGE_DOC_TERMS = [
+    rf"formally\s+document",
+    rf"hedge\s+documentation",
+    r"documentation",
+    rf"at\s+inception",
+    rf"effectiveness{G}assessed",
+    rf"highly\s+effective",
+    rf"qualif(?:y|ies|ied){G}hedg(?:ing|e?)",
+    rf"(?:not)?\s+designated\s+as",
+    rf"(?:dis)?continu(?:es?|ed|ing)\s+hedge\s+(?:accounting|relationship|documentation|designation)?",
+    rf"economic\s+relationship",
+    rf"nature\s+of",
+]
+
+HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)

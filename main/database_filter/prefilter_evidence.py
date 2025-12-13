@@ -29,6 +29,7 @@ from prefiltered_lib import (
     FLOW_EVIDENCE,
     FLOW_KILLERS,
     FLUFF_EVIDENCE,
+    HEDGE_DOC_REGEX,
     POLICY_KILLED_EVIDENCE,
     POLICY_KILLERS,
     SKIP_TOKEN,
@@ -450,6 +451,8 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
 def mark_sentence_as_other(text: str) -> Optional[Reason]:
     if TABLE_ANCHOR in text and not is_sophisticated_content(text): # Only for "normal" derivatives
         return EvidenceReason.TABLE
+    if HEDGE_DOC_REGEX.search(text):
+        return NoiseReason.DOC
     if not SOFT_REGEX.search(text): # Contracts, swaps, etc
         return NoiseReason.CTX
     return None # Remain uncategorized
