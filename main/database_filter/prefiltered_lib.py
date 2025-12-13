@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_regex
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_alternation, build_regex
 
 # The token to append to deadweight paragraphs.
 DEADWEIGHT_TOKEN = "_D"
@@ -502,3 +502,75 @@ HEDGE_DOC_TERMS = [
 ]
 
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)
+PNL_TERMS = [
+    # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
+    r"(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
+    # 2. "On" Construction (e.g., "Gain on derivatives")
+    r"(?:net\s+)?(?:gains?|loss(?:es)?)",
+    # 3. Fair Value CHANGES (Strictly Flow)
+    # 4. Ineffectiveness (Strictly PnL context)
+    r"ineffective\s+portion",
+    r"hedge\s+ineffectiveness",
+    # 6. Mark-to-Market (Action/Result, usually implies flow)
+    # Distinguishes from "Fair Value" measurement policy
+    r"mark(?:ed)?[- ]to[- ]market",
+    # 7. Impact statements
+    r"impact\s+(?:on|to)\s+(?:earnings|income|revenue)",
+]
+PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
+
+_prep_pattern = build_alternation([r"in", r"of", r"on"])
+CHANGE_FV_REGEX = build_regex(
+    [
+        # LOGIC:
+        # 1. Match "Change in fair value"
+        rf"\bchange(?:s)?\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value"
+    ]
+)
+
+# 1. Match auxiliary verbs: have, having, had, has
+# 2. Allow 0-2 filler words (e.g., "recorded a", "significant", "no", "a")
+# 3. Match target: "change(s) in fair value"
+# --- 1. Core components -------------------------------------------------------
+
+# Change verbs: change / changes / increased / decreases / etc.
+_change_verbs = [
+    r"change(?:s)?",
+    r"increase(?:d|s)?",
+    r"decrease(?:d|s)?",
+]
+
+change_verb_pattern = build_alternation(_change_verbs)
+
+
+# --- 2. Fair value targets ----------------------------------------------------
+
+_fv_targets = [
+    # e.g., "change in fair value", "increase of fair value"
+    rf"{change_verb_pattern}\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value",
+    # e.g., "fair value changes"
+    r"fair\s+value\s+change(?:s)?",
+]
+
+fv_target_pattern = build_alternation(_fv_targets)
+
+# --- 3. Auxiliary verb anchor -------------------------------------------------
+_aux_verbs = [
+    r"hav(?:e|ing)",
+    r"had",
+    r"has",
+]
+
+aux_verb_pattern = build_alternation(_aux_verbs)
+
+# --- 4. Final regex -----------------------------------------------------------
+
+HAD_CHANGE_REGEX = re.compile(
+    rf"\b{aux_verb_pattern}"  # have / having / had / has
+    rf"(?:\s+\S+){{0,2}}"  # 0–2 filler words
+    rf"\s+{fv_target_pattern}",  # fair value change target
+    re.IGNORECASE,
+)
+
+def is_pnl(text):
+    return PNL_CONTEXT_REGEX.search(text) or HAD_CHANGE_REGEX.search(text)
