@@ -216,7 +216,7 @@ if __name__ == "__main__":
         csv_name = sys.argv[2] if len(sys.argv) > 2 else None
         export_users_production(db_name, csv_name)
     else:
-        default_db = "verified_active_data.db"
+        default_db = "classified_data.db"
         db_input = input(f"Enter database (default: {default_db}): ").strip()
         db_name = db_input or default_db
 
