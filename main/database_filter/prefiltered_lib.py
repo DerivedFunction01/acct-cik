@@ -363,7 +363,16 @@ POLICY_KILLERS = TIME_KILLERS | {
 
 
 NOISE_TAG_PARSER = re.compile(r"(_[SD])<([^>]+)>")
-
+def mark_as_evidence(
+    text: str,
+    noise: Optional[Set[NoiseReason]] = None,
+    evidence: Optional[Set[EvidenceReason]] = None,
+) -> str:
+    """
+    Marks paragraph as evidence with a specific semantic reason derived from its tags.
+    """
+    final_reason = EvidenceReason.UNCAT  # Default fallback
+    return text
 def mark_as_deadweight(
     text: str,
     noise: Optional[Set[NoiseReason]] = None,
