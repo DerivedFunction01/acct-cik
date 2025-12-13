@@ -3587,24 +3587,62 @@ def build_negative_intent_regex() -> re.Pattern:
 
 def build_absence_regex() -> re.Pattern:
     """
-    Matches: "no interest rate swaps", "no such outstanding positions"
-
-    Updated to be flexible: Allows up to 12 arbitrary tokens between 'no' and the instrument.
-    This captures complex phrasings like: "There were no 'exchange, interest rate swap or' outstanding..."
-    Note: if the sentence mentions that it doesn't have something, then we don't need the sentence anyways.
+    Matches "No [Modifier] [Modifier] ... [Instrument]" patterns.
+    
+    Structure:
+    1. Trigger ("No")
+    2. Optional Gap Chain (0-5x):
+       - Small Filler (0-3 words like "such", "material", "or")
+       - Semantic Modifier (Placeholder like "interest" or Loose Regex)
+    3. Final Filler (0-3 words)
+    4. Target Instrument ("swaps")
+    
+    Example Match: "No [such interest] (rate), [forward] (exchange), [or commodity] (contracts)"
     """
-    # Create master object pattern
-    _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+    
+    # 1. Triggers
+    triggers = build_alternation(ABSENCE_INDICATORS)
 
-    # Relaxed Fillers: Allow up to 12 arbitrary words/tokens (non-whitespace chunks)
-    # Matches: "such", "material", "exchange,", "outstanding", etc.
-    _arbitrary_gap = r"(?:\S+\s+){0,12}"
+    # 2. Semantic Modifiers (The "Meat")
+    # Expands your placeholders to cover standard list items
+    modifiers = [
+        "exchange", "rate", "currency", "interest", "foreign",
+        "commodity", "equity", "credit", "market", "forward",
+        "future", "option", "swap", "purchase", "sale",
+        "cash", "fair", "value", "material", "significant",
+        "hedging", "derivative", "financial"
+    ]
+    
+    # Combine explicit placeholders with your LOOSE_GEN_REGEX
+    # This allows "No [call] options" or "No [interest] rate"
+    semantic_modifier = rf"(?:{build_alternation(modifiers)}|{LOOSE_GEN_REGEX.pattern})"
+
+    # 3. Small Filler (The "Glue")
+    # Matches 0-3 "garbage" tokens (punctuation, conjunctions, adjectives not in list)
+    # e.g., "such", "any", "of the", ",", "or"
+    small_filler = r"(?:\S+\s+){0,3}"
+
+    # 4. The Gap Unit
+    # A single link in the chain: [Filler] + [Semantic Word]
+    # e.g., "such interest" or ", forward"
+    gap_unit = rf"(?:{small_filler}{semantic_modifier})"
+
+    # 5. The Chain
+    # Allow 0 to 5 of these units to precede the final target
+    # Matches: "[such interest] (rate), [forward] (exchange), [or commodity]"
+    gap_chain = rf"(?:{gap_unit}\s+){{0,5}}"
+
+    # 6. Target Instrument
+    # The final noun must be a strong derivative term
+    # (Reuse existing definitions)
+    target = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
 
     return re.compile(
-        rf"\b{build_alternation(ABSENCE_INDICATORS)}\b\s+"  # No/None
-        rf"{_arbitrary_gap}"  # Flexible N-word gap
-        rf"{_instrument_object}\b",  # The Instrument
-        re.IGNORECASE,
+        rf"\b{triggers}\b\s+"      # "No"
+        rf"{gap_chain}"            # The Semantic Chain
+        rf"{small_filler}"         # Final connector ("or")
+        rf"{target}\b",            # "contracts"
+        re.IGNORECASE
     )
 
 
