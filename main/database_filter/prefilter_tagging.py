@@ -228,7 +228,6 @@ def check_is_quantitative_zero(sentence: str, reporting_year: int) -> bool:
     # --- STEP 1: Extract Data ---
     # We use the cleaner inside extract_values_and_years
     years, values = extract_values_and_years(sentence)
-    print(years, values)
 
     # If no values at all, skip
     if not values:
