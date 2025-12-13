@@ -1697,7 +1697,9 @@ DER_STD_REGEX = build_derivative_standards()
 
 
 def build_loose_gen_regex() -> re.Pattern:
-    pattern = build_alternation(ALL_BASE_TYPES + ALL_SUFFIXES + ["warrants"])
+    bases = ALL_BASE_TYPES.copy()
+    bases.remove("hedging")
+    pattern = build_alternation(bases + ALL_SUFFIXES + ["warrants"])
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
