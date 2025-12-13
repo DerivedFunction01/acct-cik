@@ -434,7 +434,8 @@ def parse_noise_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
 
     return text, noise_tags
 
-
+# Zero specifically: 0, 0.0, 0.00
+ZERO_NUM = r"0(?:\.0+)?"
 NUMBER_PATTERN = r"(?:0\.\d+|(?:[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d*)(?:\.\d+)?)"
 SCALE_WORDS = r"(?:million|billion|trillion|thousand)"
 QUANT_REGEX = re.compile(
@@ -442,12 +443,24 @@ QUANT_REGEX = re.compile(
     rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*\(?\s*{NUMBER_PATTERN}\s*\)?|"
     # Number + optional parens + currency symbol
     rf"\(?\s*{NUMBER_PATTERN}\s*\)?\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
-    # Currency + number + scale word
-    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s+{NUMBER_PATTERN}\s+{SCALE_WORDS}|"
     # Number + optional scale word + commodity unit
-    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+{COMMODITY_UNIT_PATTERN}|"
-    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+shares|"
-    # Tabular data
-    rf"(?:amount|value)\s+of\s+{NUMBER_PATTERN}",
-    re.IGNORECASE,
+    rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+(?:{COMMODITY_UNIT_PATTERN}|shares)|"
+    # Custom Tabular data (custom and consistent)
+    rf"(?:amount|value)\s+of\s+{NUMBER_PATTERN}", # we do not do ignore case here
+)
+
+
+# Needs to match $0, $ 0, $ (0), or $(0), 0 USD, USD 0, or 0 million units/shares
+ZERO_PATTERN = re.compile(
+    # The value was nil
+    r"\b(?:nil)\b|"
+    # 2. Currency Prefix: $0, $ 0, $ (0), or $(0) or USD 0
+    # Matches: Symbol + Optional Parens + Zero + Optional Scale
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*\(?\s*{ZERO_NUM}\s*\)?\b|"
+    # 3. Currency Suffix: 0 USD, 0 EUR
+    rf"\b{ZERO_NUM}\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
+    # 4. Commodity / Shares / Units: 0 barrels, 0 shares
+    rf"\b{ZERO_NUM}(?:\s+{SCALE_WORDS})?\s+(?:{COMMODITY_UNIT_PATTERN}|shares)\b"
+    # Custom Tabular data (custom and consistent)
+    rf"(?:amount|value)\s+of\s+\b{ZERO_NUM}\b",  # we do not do ignore case here
 )
