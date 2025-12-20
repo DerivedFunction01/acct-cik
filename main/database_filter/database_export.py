@@ -30,7 +30,7 @@ def process_batch(batch):
     results = []
     # Row: (url, cik, year, matches_json, categories_json)
     # NOTE: Assuming categories_json now holds the array of "ir_fx", "eq_gen", etc.
-    for url, cik, year, _, categories_json in batch:
+    for url, cik, year, categories_json in batch:
 
         if not categories_json or categories_json == "[]":
             continue
@@ -82,13 +82,9 @@ def fetch_all_data(db_path: str):
     cur = conn.cursor()
 
     query = """
-        SELECT wr.url, rd.cik, rd.year, wr.matches, cat.categories
-        FROM webpage_result wr
-        JOIN report_data rd ON wr.url = rd.url
-        LEFT JOIN category cat ON wr.url = cat.url
-        WHERE wr.matches IS NOT NULL 
-          AND wr.matches != '[]'
-          AND wr.matches != ''
+        SELECT rd.url, rd.cik, rd.year, cat.categories
+        FROM category cat
+        JOIN report_data rd ON cat.url = rd.url
     """
 
     cur.execute(query)
@@ -142,19 +138,19 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
 
     # Count Active
     cur.execute(
-        "SELECT COUNT(*) FROM webpage_result WHERE matches != '[]' AND matches IS NOT NULL"
+        "SELECT COUNT(*) FROM category"
     )
     active_count = cur.fetchone()[0]
 
-    # Count Terminated
-    cur.execute("SELECT COUNT(*) FROM webpage_result WHERE matches = '[]'")
-    terminated_count = cur.fetchone()[0]
+    # # Count Terminated
+    # cur.execute("SELECT COUNT(*) FROM webpage_result WHERE matches = '[]'")
+    # terminated_count = cur.fetchone()[0]
 
-    conn.close()
+    # conn.close()
 
-    print(f"   Active Year-End Users: {active_count:,}")
-    print(f"   Terminated During Year: {terminated_count:,} (Skipped)")
-    print(f"   Total Records: {active_count + terminated_count:,}\n")
+    # print(f"   Active Year-End Users: {active_count:,}")
+    # print(f"   Terminated During Year: {terminated_count:,} (Skipped)")
+    # print(f"   Total Records: {active_count + terminated_count:,}\n")
 
     if active_count == 0:
         print("⚠️  No active users found. Check your filtering logic.")
