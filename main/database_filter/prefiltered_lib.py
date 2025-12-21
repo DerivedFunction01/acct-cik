@@ -550,7 +550,7 @@ def parse_noise_tags(text: str) -> Tuple[str, Set[NoiseReason]]:
 # Zero specifically: 0, 0.0, 0.00
 ZERO_NUM = r"0(?:\.0+)?"
 NUMBER_PATTERN = (
-    r"(?:0\.(0[1-9]|[1-9][0-9][0-9])|(?:[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d*)(?:\.\d+)?)"
+    r"(?:0\.(0[1-9]|[1-9][0-9]{0,3})|(?:[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d*)(?:\.\d+)?)"
 )
 SCALE_WORDS = r"(?:million|billion|trillion|thousand)"
 QUANT_REGEX = re.compile(
