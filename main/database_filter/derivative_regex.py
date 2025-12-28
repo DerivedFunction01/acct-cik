@@ -1415,8 +1415,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"(?:{spread_types_alternation})\s+spreads?\s+(?:{standalone_alternation})",
         # SHORTER: spreads alone
         rf"(?:{spread_types_alternation})\s+spreads?",
-        r"virtual power purchase agreements?",  # raw string for regex
-        r"virtual PPA",
+        r"fixed[- ]price swaps?"
     ]
 
     # Pre-sort longest-first for Max Munch precedence
