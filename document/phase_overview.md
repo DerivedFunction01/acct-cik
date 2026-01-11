@@ -471,12 +471,12 @@ If the sentence has passed through Gates 1 and 2 without being locked in as 
 
 | Step | Condition | What happens | Why it matters |
 |------|-----------|--------------|----------------|
-| **Soft Candidate from Strict Match** | A *strict* match existed earlier but lacked evidence (see Gate 1 note). | The same categories are now added to `soft_categories` and registered in trackers. | Allows us to keep "weak" strict matches as soft candidates that can still be counted if they appear frequently enough across the document. |
-| **Explicit Soft Extraction** | We use a function to heuristically count the category specific keywords within the paragraph. | All those categories are added to `soft_categories` and registered in trackers. | Handles phrases like "interest rate swaps" where no strict header exists but the wording is unmistakable. |
-| **Tracker Resolution** | No soft categories matched, but the local or global tracker can resolve a generic instrument word (e.g., "swap") to a known category. | The resolved category is added to `soft_categories`. | Leverages earlier strict anchors to infer meaning for later generic mentions. |
+| **Soft Candidate from Strict Match** | A *strict* match existed earlier but lacked evidence (see Gate 1 note). | The same categories are now added to `soft_counts` and registered in trackers. | Allows us to keep "weak" strict matches as soft candidates that can still be counted if they appear frequently enough across the document. |
+| **Explicit Soft Extraction** | We use a function to heuristically count the category specific keywords within the paragraph. | All those categories are added to `soft_counts` and registered in trackers. | Handles phrases like "interest rate swaps" where no strict header exists but the wording is unmistakable. |
+| **Tracker Resolution** | No soft categories matched, but the local or global tracker can resolve a generic instrument word (e.g., "swap") to a known category. | The resolved category is added to `soft_counts`. | Leverages earlier strict anchors to infer meaning for later generic mentions. |
 | **Context‑Based Soft Expansion** | After all previous checks, the only match found is the generic token `"gen"` (e.g., "the instruments"), and the sentence has *local context*. | Every local context category gets a soft count. | If a sentence only says "the instruments", we infer its meaning from the surrounding context that was already identified as, say, `ir` or `eq`. |
 
-> **All of these soft steps increment `soft_categories`, not `strict_counts`.**  
+> **All of these soft steps increment `soft_counts`, not `strict_counts`.**  
 > The counts are later filtered which enforces a minimum mention threshold and removes statistically insignificant categories.
 
 ---
