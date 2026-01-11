@@ -59,6 +59,8 @@ Since fetching raw filings over the internet is the main bottleneck of the progr
 
 Instead of using hardcoded keywords (e.g. `interest rate swap`), we use **structured patterns** where terms relate to each other. While it is complex for this use case, it was originally used for instrument extraction but the program has evolved to use rules-based tagging. Using a regex allows us to use both the singular or plural form, and allows nearly almost all variations of deriative reporting. Note that some variations will result in a very unlikely and awkward derivative namea, as well as soft mentions.
 
+> Note: Strict mentions (true derivatives) is a subset of soft mentions.
+
 ```
 [PATTERN] = ( [DESCRIPTOR] AND ) [BASE] AND/OR [SUFFIX]
 ```
