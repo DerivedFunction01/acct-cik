@@ -1,14 +1,49 @@
 # PHASE OVERVIEW: The 4-Phase Derivative Classification System
 
+## Terminology Glossary
+
+| Term | Meaning |
+|------|---------|
+| **Active User** | Company currently holds derivatives (as of filing date) |
+| **Soft Mention** | Financial instrument that may not be a derivative without proper context (e.g. `natural gas contracts`) |
+| **Strict Mention** | Financial instrument that always refer to a derivative (e.g. `swap agreement`) |
+| **Deadweight** | Paragraph marked as "context only, not evidence" but preserved |
+| **Tag** | Label added to text (e.g., `_S<TIME>`) to mark a sentence |
+| **Evidence** | A marked sentence that proves the company uses derivatives within the reporting year |
+| **Noise** | A marked sentence that is not evidence |
+
+---
+
 ## What This System Does
 
 This system reads company SEC filings and determines:
 1. **Does this company use financial derivatives?** (Yes/No)
 2. **What types?** (Interest Rate, Foreign Exchange, Commodity, Equity, Credit)
 3. **What evidence proves it?** (Specific sentences from the filing, with tag annotations)
-4. **What attributes characterize their use?** (Hedging vs. trading, sophisticated vs. simple, etc.)
 
-The system is designed to be **conservative but wide reaching**: instead of biasing against firms that only use strict mentions in the grammar, we also do not want to miss out on soft mentions, without using a limited set of hardcoded keywords.
+The system is designed to be **conservative but wide reaching**: Instead of "N hard-coded keyword hits" that clearly has bias for heavy reports from major firms such as Abbott, we capture any possible mention of a derivative instrument. Additionally, different firms can report them slightly differently. We also do not want to bias against earlier year reporting. For example, the update of SFAS 133 in 2001 (and other standards) that require more disclosures, so before the adoption of SFAS 133, there may be firms with minimal mentions of derivatives. As a result, the smallest firm with earlier year reporting can still be correctly classified as a active user if such mention exists.
+
+## Assumptions and constraints
+Since we are not using any modern LLM such as ChatGPT to perform semantic analysis, there are several constraints to follow:
+
+1. All derivative mentions captured within the initial script are assumed to be "noise" until proven otherwise. This is due to the need to be conservative but wide reaching.
+2. We follow common "SEC grammar heuristics" for derivative disclosures. All filings have a certain "formal" writing pattern that can be exploited using common regex patterns. This means that we will capture the majority of common sentences found for such disclosures, but uncommon variants may not be captured or be tagged incorrectly.
+3. We do not individually distinguish what instruments are used, just the category (e.g. IR swap and IR call option within the same paragraph relate to IR), although we have such ability from such regex patterns.
+4. Not all disclosures distinguish between active or past use. We consider the "heavy exiter" scenario of a major firm: A major firm that have expired or historical positions with no active positions with extensive documentation.
+5. Major events or topics warrants its own paragraph. For example:
+  - If a company terminates an interest rate swap, that paragraph should only mention that specific instrument and no other positions.
+  - "Noise" topics are distinct from "Usage" topics and are distinct paragraphs. For example, a paragraph on the valuation nature of a derivative and the notional value of such derivative are distinct. 
+6. Multiple categories can be present in the same paragraph, such as a major internation firm stating both IR and FX risk and deriatives used. This can lead to certain edge cases:
+  - Mention non-use/termination for the IR category, which will dominate over weaker evidence in the FX category.
+7. We apply rules assuming we read "top down" paragraph by paragraph at the paragraph level first, and then the document level. If there is a standalone "forward contract" that can refer to both FX or CP (it seen both at the document level), then we look at it at the paragraph level to see if the paragraph have context clues/key phrases to distinctly refer to a category. On the other hand, if an IR swap is mentioned earlier, then a standalone "swap liability" refer to the IR swap, not the currency swap in later paragraphs since it hasn't "seen" it yet. 
+8. Time-Sensitive Noise Rules and Evidence Tagging must be strict enough to only capture relevant sentences. Else, a poorly thought out noise regex will invalidate valid usage statements, or an evidence regex will match for a non user.
+9. We have to be aware of soft vs strict mentions: soft mentions are ambiguous, and without proper "hedging/derivative context", it is not a derivative. For example (soft mentions):
+  - `interest rate cap` may refer to percentage, a debt feature
+  - `natural gas contract` is a supply contract unless it mentions derivatives -> "We use derivatives, such as natural gas contracts, to hedge risk"
+10. Aliases: A firm may mention the strict variant `interest rate cap contract", only to refer it as a "interest rate cap", "cap", or "contract" for natural grammatical flow. For example:
+  - "We primarily use interest rate swaps. The notional value of these contracts is $10M."
+  - "The company enters into currency swaps ("Swap")."  
+11. A singular report refers to one singular entity, even if there are multiple child companies (e.g. power companies operating in multiple states each with its own section).
 
 ## SEC Filing (raw text)
 
@@ -527,16 +562,3 @@ This system is designed to **match or exceed** human reviewers by using a rules-
 It's not designed to:
 - Capture every known fiiling report grammar or tabular disclosure formats. As such the regex may incorrectly tag a sentence.
 - Have perfect semantic understanding and relations between sentences.
-
----
-
-## Terminology Glossary
-
-| Term | Meaning |
-|------|---------|
-| **Active User** | Company currently holds derivatives (as of filing date) |
-| **Soft Mention** | Financial instrument that may not be a derivative without proper context (e.g. `natural gas contracts`) |
-| **Strict Mention** | Financial instrument that always refer to a derivative (e.g. `swap agreement`) |
-| **Deadweight** | Paragraph marked as "context only, not evidence" but preserved |
-| **Tag** | Label added to text (e.g., `_S<TIME>`) to mark a sentence |
-| **Evidence** | A marked sentence that proves the company uses derivatives |
