@@ -8,9 +8,174 @@ This system reads company SEC filings and determines:
 3. **What evidence proves it?** (Specific sentences from the filing, with tag annotations)
 4. **What attributes characterize their use?** (Hedging vs. trading, sophisticated vs. simple, etc.)
 
-The system is designed to be **conservative**: it would rather say "I'm not sure" than incorrectly claim a company uses derivatives when they don't.
+The system is designed to be **conservative but wide reaching**: instead of biasing against firms that only use strict mentions in the grammar, we also do not want to miss out on soft mentions, without using a limited set of hardcoded keywords.
+
+## SEC Filing (raw text)
+
+Since fetching raw filings over the internet is the main bottleneck of the program, we want to "cast a wide net" by including soft mentions along with strict mentions, and then perform filtering later.
+
+## Instrument Detection Regex
+
+### Core Principle: Understand Relationships
+
+Instead of using hardcoded keywords (e.g. `interest rate swap`), we use **structured patterns** where terms relate to each other. While it is complex for this use case, it was originally used for instrument removal but the program has evolved to use rules-based tagging. Using a regex allows us to use both the singular or plural form, and allows nearly almost all variations of deriative reporting. Note that some variations will result in a very unlikely and awkward derivative namea, as well as soft mentions.
+
+```
+[PATTERN] = [DESCRIPTOR] AND [BASE] AND/OR [SUFFIX]
+```
+
+| Term | Meaning |
+|------|---------|
+| **DESCRIPTOR** | Keywords that describes the category of a derivative instrument (IR, FX, CP, EQ, CR). Without a descriptor, it is unknown/generic (GEN) |
+| **BASE** | Keywords that describe the mechanics of the derivative instrument (e.g. swap, forward, futures, options, hedging, ...) |
+| **SUFFIX** | Select Keywords that usually pair after a BASE (e.g. commitment, contract, agreement, arrangement, options, ...) |
+
+| Instrument | Why it is valid |
+|------|---------|
+| `interest rate swap arrangement` | [DESCRIPTOR] AND [BASE] AND [SUFFIX] |
+| `foreign currency contracts` | [DESCRIPTOR] AND [SUFFIX] |
+| `commodity call options` | [DESCRIPTOR] AND [BASE] AND [SUFFIX] |
+| `currency option agreement` | [DESCRIPTOR] AND [BASE] AND [SUFFIX]  |
+
 
 ---
+
+## Category-Specific DESCRIPTOR
+
+### IR (Interest Rate)
+
+#### Core Pattern Structure
+
+```
+[RATES] = [TYPE] AND ["RATE"]
+
+TYPE: "interest", "fixed", "variable", "floating", "prime", "treasury", ...
+
+OUTPUT EXAMPLE: fixed rate swap
+
+```
+
+#### Special Mechanics
+
+```
+[PAY_MECH] = ["PAY"] AND [TYPE], ["RECIEVE"] [TYPE] ( AND [RATES] )
+
+TYPE: "fixed", "variable", "floating"
+
+OUTPUT EXAMPLE: pay fixed, receive variable swap and pay floating, receive floating interest rate swap 
+
+```
+
+#### Special Benchmarks
+
+```
+[SPEC] = [BENCH] ( AND [RELATION] )
+
+BENCH: LIBOR, SONIA, ...
+RELATION: linked, based
+
+OUTPUT EXAMPLE: LIBOR contract, SONIA-linked swap
+
+```
+
+#### Special Phrases
+
+zero-coupon swap, treasury locks, ...
+
+---
+
+### FX (Foreign Exchange)
+
+For FX related derivatives, we use a dynamic pattern to capture both the longest form along with the normal regex variations by using a "bag of words" approach.
+
+#### Dynamic Pattern Structure
+| Position | Words |
+|------|---------|
+| Prefix | forward, foreign |
+| Compound | cross/multi-currency |
+| Middle/End | currency, exchange |
+| End | rate |
+
+Using a list of dynamic templates with careful safeguards against invalid combinations, we can generate the following:
+Forward foreign currency exchange rate contract, forward currency exchange rate swaps, ...
+
+#### Currency linked Derivatives
+
+```
+[CC] = [ISO] OR [NAME] ( AND [RELATION] )
+
+ISO: JPY, AUD, ... along with ISO-PAIRS -> USD/EUR, ...
+NAME: Swedish Krona, Bulgarian Lev, ...
+
+OUTPUT EXAMPLE: JPY/CHF call option, US Dollar swap, ... ILS-denominated contract
+
+```
+
+#### Special Phrases
+
+Note that CCIRS count for both IR and FX:
+
+cross-currency interest rate swap, non-deliverable forward, ...
+
+---
+
+### CP (Commodity/Physical)
+
+By listing out over 30 common commodities, we aim to capture a majority of firms that do not mention commodity derivatives, but rather describe what they are using as the derivative. It is likely to have false positives since all regexes share a common pool of base and suffixes. Note that numerous safeguards are considered to prevent false positives, since it can be mixed in with physical supply contracts (e.g. natural gas agreements, jet fuel forward shipment)
+
+#### Core Pattern Structure
+```
+[CP] = ( ["Fixed"] AND ) [COMMODITY] (AND [MODIFIER])
+
+COMMODITY: corn, copper, crude oil, commodity, ...
+MODIFIER: price, spread, linked, index, capacity, ...
+
+OUTPUT EXAMPLE: fixed-commodity contracts, natural gas linked swap, ...
+
+```
+#### Special Phrases
+
+weather derivatives, fixed-price swaps, power purchase agreements, crack spreads,  ...
+
+---
+
+### EQ (Equity), Convertible + Warrant Detection (WARR)
+
+Due to the nature of using the regex system, it is highly likely to have false positives since all regexes share a common pool of base and suffixes. Similar to CP derivatives, we employ numerous safeguards to prevent unrelated terms due to regex matching, such as "stock option agreement" from appearing.
+
+Additionally, the legacy method had both convertibles and warrants (WARR) under the same category, although later scripts will apply logic to distinguish between them.
+
+Therefore, the pool for equity linked derivatives are not as expansive as other regexes
+
+#### Core Pattern Structure: EQ
+To prevent unwanted false positives and potentially more complicated filtering, equity derivatives are minimal, even as it shared common bases and suffixes (with several restrictions): equity-linked swap, market index option contract 
+
+#### Core Pattern Structure: WARR
+For warrants, we require a mention of `warrant` along with either `deriative` or `liability` within the same sentence.
+For convertible financing, `convertible debt/security, ...` as well as any reference to conversion features are included.
+
+In this cases, derivatives may be marked as `GEN` if derivative liability, embedded derivative phrases are mentioned, but we do not have `WARR` phrases within the same sentence.
+
+---
+
+
+### CR (Credit)
+
+Due to the nature of counterparty credit risk being mentioned in the same paragraph/sentence, only a select few without counterparty risk terms will be classified as CR_USER in the tagging stage.
+
+#### Core Pattern Structure:
+```
+[CR] = [PREFIX] AND [MODIFIER]
+
+PREFIX: credit, basket, first-to-
+MODIFIER: linked, default, based
+
+OUTPUT EXAMPLE: credit default swap, basket linked options, ...
+
+```
+#### Special Phrases
+
+credit swaps, credit-linked debt, ...
 
 ## Architecture: Four Phases
 
@@ -50,9 +215,8 @@ Each phase **preserves all text** but adds metadata (tags) to indicate what shou
    - Extracts candidate text
 
 2. **Entity Masking** - Replace company/org names with placeholders
-   - "The CFTC regulates swaps" → "The _E regulates swaps"
+   - "The Commodity Futures Trading Commision regulates swaps" → "The _E regulates swaps"
    - Prevents false positives from regulatory/competitor mentions
-   - Keeps company data (JPM, Goldman) for final output
 
 3. **Hard Exclusions** - Delete entire paragraphs
    - Litigation: "In Smith v. Corporation, the court ruled..."
@@ -75,7 +239,7 @@ Each phase **preserves all text** but adds metadata (tags) to indicate what shou
    - Uses `is_sophisticated_target()` to prevent false positives
    - Example: "convertible debt" is kept if and only if there is a derivative mention related.
 
-**What survives:** Paragraphs likely about the company's actual derivative use. Note: convertible debt/warrants "steals" embedded derivative sentences.
+**What survives:** Paragraphs likely about the company's actual derivative use. Note: convertible debt/warrants "steals" embedded derivative or deriative liability sentences.
 
 **Output**: 
 - Paragraphs marked with tags or clean text
@@ -111,26 +275,60 @@ Each phase **preserves all text** but adds metadata (tags) to indicate what shou
 4. **Fluff Detector** - Final safeguard
    - If all sentences in paragraph are tagged as noise
    - AND no derivative keywords survive
-   - Mark entire paragraph: `_D<ANLZ>` (requires attributes mining)
+   - Mark entire paragraph: `_D<REASON1>`
    - Prevents false "inactive" classifications
 
-**What survives:** Sentences with proof of actual derivative use
+**What survives:** Sentences with proof of high likely proof of actual derivative use
+
+**Output**:
+- Paragraphs with sentence-level tags
+- Audit trail: tags show exactly why sentences were marked
+
+
+### PHASE 2: Fine-Grained Sentence Classification
+**File**: `prefilter_evidence.py`
+
+**What gets tagged:** Individual sentences that are evidence of usage, with time-sensitive checking on the paragraph level.
+
+**Key actions:**
+
+1. **Masking for Logic Checks similar to PHASE 1**
+
+2. **Reason-Based Sentence Checks**
+   - **Structural Noise**: "See Note 5", "Swap shall mean..." (definitions)
+   - **Temporal Noise**: "In 2022 we used swaps" (historical, if reporting year is 2024)
+   - **Intent Noise**: "We may enter into swaps", "We do not intend to use..."
+   - **Termination Noise (Present)**: "Swaps expired in December"
+   - **Quantitative Noise**: "Notional value was $0"
+   - **Other**: "We do not use derivatives for trading"
+
+3. **Tagging Logic**
+   - Find all applicable tags for this sentence
+   - Apply: `_S<REASON1> Original text...`
+   - Later phases read these tags to decide survival
+
+4. **Fluff Detector** - Final safeguard
+   - If all sentences in paragraph are tagged as noise
+   - AND no derivative keywords survive
+   - Mark entire paragraph: `_D<REASON1>`
+   - Prevents false "inactive" classifications
+
+**What survives:** Sentences and paragraphs with proof of actual derivative use
 
 **Output**:
 - Paragraphs with sentence-level tags
 - Audit trail: tags show exactly why sentences were marked
 
 ---
-### PHASE 2: Category Assignment & Attributes** 
+
+### PHASE 3: Category Assignment & Attributes** 
 **File**: `classify_users.py`
 The process is now structured as a **Four-Gate System**, where evidence quality determines how a mention contributes to the final score.
 
-### PHASE 2: Category Assignment & Attributes (Revised Flow)
-
-| Component | Goal | Status |
-| :--- | :--- | :--- |
-| **Input** | Paragraphs tagged with **Noise** (`_S<...>`, `_D<...>` from Stage 2) and **Evidence** (`_E<...>` from Stage 3). | |
-| **Output** | Final categories (`ir`, `fx`, etc.) and user attributes (`reports_notional`, `is_hedger`). | |
+| Component | Goal |
+| :--- | :--- | 
+| **Input** | Paragraphs tagged with **Noise** (`_S<...>`, `_D<...>` from Stage 2) and **Evidence** (`_E<...>` from Stage 3). | 
+| **Output** | Final categories (`ir`, `fx`, etc.) and user attributes (`reports_notional`, `is_hedger`). | 
 
 ---
 
@@ -162,35 +360,9 @@ The core classification occurs through four sequential gates. A sentence stops a
 * **Final Candidate Pool:** Combine all successfully classified **Strict** categories (which are already anchored) with the high-frequency **Soft** categories.
 * **Outlier Removal Logic:** 
     1.  **Anchor Magnitude:** Calculate the total weight of all Strict Anchors (Strict Count + Soft Count for that same category).
-    2.  **Threshold:** Determine the threshold as $10\%$ of the largest Anchor's magnitude (minimum of 3 mentions).
+    2.  **Threshold:** Determine the threshold as 25% of the largest Anchor's magnitude (minimum of 3 mentions).
     3.  **Filtration:** Any Soft-Only category (e.g., `warr`) that falls below this dynamic threshold is removed.
 * **Final Classification:** The resulting set of categories forms the final classification for the user.
-
-5. **Attributes Mining** - Extract user characteristics from tags
-   - `_D<POLICY>` → "documents_hedge_accounting"
-   - `_S<AOCI>` / `_S<PNL>` → "has_aoci_activity"
-   - `_S<TRADING>` → "is_hedger" (trading denial signals hedging company)
-   - `_S<TIME>` / `_S<TERM>` → "is_historical" (used to use derivatives, no longer does)
-   - Evidence tags → "reports_positions", "reports_notional", "reports_fair_value"
-
-**Output**: Final decision
-```json
-{
-  "url": "https://sec.gov/...",
-  "categories": ["ir", "fx"],
-  "attributes": {
-    "is_hedger": true,
-    "documents_hedge_accounting": true,
-    "has_aoci_activity": true,
-    "manages_credit_risk": false,
-    "reports_positions": true,
-    "reports_notional": true,
-    "reports_fair_value": true
-  },
-  "cik": 12345,
-  "year": 2024
-}
-```
 
 ---
 
@@ -219,22 +391,39 @@ At each phase, certain content is protected from being filtered:
 
 **Phase 0 Safeguard:**
 - Rule: "If a paragraph mentions a specific derivative instrument, keep it"
-- Reason: "Interest rate swap" is proof of position, even in regulatory context
+- Reason: "Interest rate swap" is proof of instrument, even in regulatory context. If a paragraph is poisonous, we discard it (e.g. a lawsuit on commodity options trading must have been a dinstinct paragraph separate from usage positions).
 
 **Phase 1 Safeguard:**
 - Rule: "If surviving sentences contain actual derivative keywords, don't mark entire paragraph as deadweight"
 - Reason: One good sentence outweighs boilerplate
 
 **Phase 2 Safeguard:**
-- Rule: "If any evidence tags exist, upgrade soft matches to strict"
-- Reason: Evidence (like "at year-end 2024") disambiguates weak instrument references
+- Rule: "Apply time-sensitive rules to all evidence, but remove likely footnotes"
+- Reason: One strong sentence outweighs rules within a category, and remaining unmarked sentences have skipped passed all noise and evidence rules, so it is likely to be "garbage."
+
+**Phase 3 Safeguard:**
+- Rule: "If any strict evidence tags exist, upgrade soft matches to strict"
+- Reason: If there are 1 strict evidence of IR usage and we have 100 IR "soft" matches and 1 CP "soft" match, the firm likely is not a CP user, and there might have been unmarked sentences within a paragraph. 
 
 ### Evidence Hierarchy
 
-Different evidence types survive different noise patterns:
+Different evidence types survive different Time-Senstive noise patterns. Note that weaker tiered can "piggyback" stronger tiered evidence such that the paragraph is marked as valid and not discarded.
+
+#### Tier I of time-sensitive noise
+TERM: Current year termination of a derivative. 
+
+#### Tier II time-sensitive noise
+NEG: Explicit mention of non-use with or without the year
+ZERO: Zero or nil value current year reporting. "The notional value is nil and $10M"
+POT: Potential use with or without the year. "We periodically use"
+TIME: Previous year mention
+
+### Other noise
+Other noise tags would not affect the majority of the evidence except for the weakest link.
+
 
 ```
-STRONG EVIDENCE (Immune to all noise)
+STRONG EVIDENCE (Immune to all noise) -> "If I have it at the year-end of the reporting year, nothing else matters
 - AS_YEAR: "Swaps outstanding at Dec 31, 2024"
 - NVY: "Notional was $100M in 2024"
 - MAT_FUT: "Swaps mature in 2026"
@@ -262,7 +451,7 @@ A company can survive if it has ANY STRONG evidence, even if surrounded by noise
 ### Problem 1: Entity Name Confusion
 ```
 Raw text: "The Commodity Futures Trading Commission regulates swaps."
-Phase 0: Masks "CFTC" → "_E regulates swaps"
+Phase 0: Masks CFTC → "_E regulates swaps"
 Phase 1: No company activity found → Likely deadweight
 Result: Not counted as company derivative use ✓
 ```
@@ -310,113 +499,34 @@ Result: Ambiguous alone, but confirmed by strict matches ✓
 
 ---
 
-## Data Flow & Tag Preservation
-
-### Example: Full Journey
-
-**Original filing text:**
-```
-"In 2022, we used interest rate swaps with a notional 
- of $50M to manage LIBOR exposure. The fair value 
- of these positions was $2M at year-end 2024."
-```
-
-**Phase 0 (Structural):**
-```
-Passes through (no entity names, has instruments)
-Output: [original paragraph]
-```
-
-**Phase 1 (Semantic):**
-```
-Sentence 1: "In 2022, we used..." 
-  - Check: Contains "2022" (past year, if reporting year is 2024)
-  - Tag: _S<TIME>
-
-Sentence 2: "The fair value of these positions was $2M at year-end 2024."
-  - Check: Contains quantitative evidence ($2M) + year
-  - No tag (SAFEGUARD: Quantitative evidence)
-
-Output: 
-_S<TIME> In 2022, we used interest rate swaps with a notional of $50M...
-The fair value of these positions was $2M at year-end 2024.
-```
-
-**Phase 2 (Tagging):**
-```
-Sentence 1 (with _S<TIME> tag):
-  - Already marked as historical
-  - Still tagged as _S<TIME>
-
-Sentence 2 (no tag):
-  - Check: Strict match on "interest rate" + valuation language
-  - Evidence: Fair value + year → _E<FVY>
-  - Output: _E<FVY> The fair value of these positions was $2M at year-end 2024.
-
-Paragraph decision: Has evidence tag and derivative keywords
-  - NOT marked as _D<ANLZ> (not deadweight)
-```
-
-**Phase 3 (Classification):**
-```
-Parse tags:
-  - _S<TIME> on sentence 1 → "is_historical": true
-  - _E<FVY> on sentence 2 → "reports_fair_value": true
-
-Category matching:
-  - Strict: "interest rate swap" → IR (1000 points)
-
-Final output:
-{
-  "categories": ["ir"],
-  "attributes": {
-    "is_historical": true,
-    "reports_fair_value": true,
-    ...
-  }
-}
-```
-
----
-
-## Quality Checks Built In
-
-✅ **Array alignment**: Text and categories stay synchronized through all phases  
-✅ **Safeguard checks**: Quantitative evidence can't be overridden  
-✅ **Tag preservation**: Every filtered decision is logged  
-✅ **Audit trail**: Read the tags to understand why each sentence was classified  
-✅ **Priority consumption**: FX eats "currency" so IR doesn't double-count  
-✅ **Outlier removal**: Soft categories that are <10% of anchors are discarded  
-
----
-
 ## Accuracy & Limitations
 
 ### What This System Does Well
 
 ✅ **Finds explicit disclosure** - If a company clearly states "we use swaps," system finds it  
-✅ **Avoids false positives** - Doesn't count regulatory/competitor mentions  
+✅ **Avoids false positives** - Doesn't count regulatory/litigation mentions  
 ✅ **Preserves context** - Deadweight paragraphs help resolve later ambiguities  
 ✅ **Handles complexity** - Multi-category companies are categorized separately  
 ✅ **Quantitative verification** - Can't claim "no use" if $100M notional is reported  
 
 ### What This System Might Miss
 
-⚠️ **Vague disclosure** - If a company says "we manage exposures" without naming instruments, might not classify  
-⚠️ **Implicit categories** - If a company says "we use forwards" without specifying type, categorizes as generic  
+⚠️ **Vague disclosure** - If a company says "we manage exposures" without naming instruments, might not classify
+⚠️ **Mixed disclosure** - If valid usage sentences have been merged in the same paragraph as litgation mentions, etc
+⚠️ **Implicit categories** - If a company says "we use forwards" without specifying type, categorizes as generic or gets skipped
 ⚠️ **Pure methodology** - If all mentions are in accounting policy sections, might classify as deadweight  
 
 ### Comparison to Manual Review
 
-This system is designed to **match or exceed** human reviewers at:
+This system is designed to **match or exceed** human reviewers by using a rules-based approach to deriative classification following common heuristics for SEC derivative disclosures, without the need for Machine Learning or AI such as ChatGPT:
 - Finding explicit derivative disclosures
 - Avoiding false positives from non-company mentions
 - Categorizing by type with precision
+- "Read like an analyst": From top down paragraph by paragraph, and each paragraph has a distinct topic.
 
 It's not designed to:
-- Infer derivative use from indirect language
-- Distinguish hedging from trading without explicit signals
-- Make business judgment calls about materiality
+- Capture every known fiiling report grammar or tabular disclosure formats. As such the regex may incorrectly tag a sentence.
+- Have perfect semantic understanding and relations between sentences.
 
 ---
 
@@ -425,12 +535,8 @@ It's not designed to:
 | Term | Meaning |
 |------|---------|
 | **Active User** | Company currently holds derivatives (as of filing date) |
-| **Derivative** | Financial contract whose value depends on another asset |
-| **Hedge** | Using a derivative to reduce risk from another exposure |
-| **Notional** | The underlying amount a derivative is based on |
-| **Fair Value** | The estimated market price of a derivative |
+| **Soft Mention** | Financial instrument that may not be a derivative without proper context (e.g. `natural gas contracts`) |
+| **Strict Mention** | Financial instrument that always refer to a derivative (e.g. `swap agreement`) |
 | **Deadweight** | Paragraph marked as "context only, not evidence" but preserved |
-| **Tag** | Label added to text (e.g., `_S<TIME>`) to mark it without deleting |
-| **Evidence** | An unmarked sentence that proves the company uses derivatives |
-| **Attribute** | A characteristic about how the company uses derivatives |
-| **Priority Consumption** | FX gets to match "currency" before IR does |
+| **Tag** | Label added to text (e.g., `_S<TIME>`) to mark a sentence |
+| **Evidence** | A marked sentence that proves the company uses derivatives |
