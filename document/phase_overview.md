@@ -44,6 +44,8 @@ Since we are not using any modern LLM such as ChatGPT to perform semantic analys
   - "We primarily use interest rate swaps. The notional value of these contracts is $10M."
   - "The company enters into currency swaps ("Swap")."  
 11. A singular report refers to one singular entity, even if there are multiple child companies (e.g. power companies operating in multiple states each with its own section).
+12. Made for early startup firms such as BioTech, all derivative liability, embedded conversion/derivative mentions automatically validate warrants and convertible financing. Therefore, an edge case exist if an embedded derivative is linked to FX but the firm has convertible debt that is not a derivative. Else, warrants and convertible financings are not treated as derivatives. These derivative liability, embedded conversion/derivative mentions may be categorized as generic if not enough context clues remain.
+13. Rule of "equal" reporting: If a firm extensively mentions a particular category, and an outlier category soft mention exist, it does not get upgraded to active usage if there are not enough mentions of them. For example: A major firm extensively uses IR derivatives but mentions FX derivatives very briefly as weak mentions: FX is removed from the pool.
 
 ## SEC Filing (raw text)
 
@@ -97,7 +99,7 @@ OUTPUT EXAMPLE: fixed rate swap
 
 TYPE: "fixed", "variable", "floating"
 
-OUTPUT EXAMPLE: pay fixed, receive variable swap and pay floating, receive floating interest rate swap 
+OUTPUT EXAMPLE: pay fixed, receive variable swap; pay floating, receive floating interest rate swap 
 
 ```
 
@@ -156,7 +158,7 @@ cross-currency interest rate swap, non-deliverable forward, ...
 
 ### CP (Commodity/Physical)
 
-By listing out over 30 common commodities, we aim to capture a majority of firms that do not mention commodity derivatives, but rather describe what they are using as the derivative. It is likely to have false positives since all regexes share a common pool of base and suffixes. Note that numerous safeguards are considered to prevent false positives, since it can be mixed in with physical supply contracts (e.g. natural gas agreements, jet fuel forward shipment)
+By listing out over 40 common commodities, we aim to capture a majority of firms that do not mention commodity derivatives, but rather describe what they are using as the derivative. It is likely to have false positives since all regexes share a common pool of base and suffixes. Note that numerous safeguards are considered to prevent false positives, since it can be mixed in with physical supply contracts (e.g. natural gas agreements, jet fuel forward shipment)
 
 #### Core Pattern Structure
 ```
@@ -212,6 +214,16 @@ OUTPUT EXAMPLE: credit default swap, basket linked options, ...
 
 credit swaps, credit-linked debt, ...
 
+### GEN (Generic/Unknown)
+
+If no other regex captured the full term (soft or strict), then it likely does not have a descriptor. In the filtering stage, strict generics do not need hedging/derivative context, while soft generics do.
+
+```
+STRICT: swap contracts, forward contracts, hedging instruments, ...
+SOFT: swap, collar, contract, ...
+
+```
+
 ## Architecture: Four Phases
 
 ```
@@ -219,17 +231,17 @@ SEC Filing (raw text)
          ↓
 [PHASE 0: Structural Filtering & Entity Masking]
   (prefilter_database.py)
-  Remove obvious junk, mask entities, parse tables
+  Remove obvious noise, mask entities, parse tables
          ↓
-[PHASE 1: Fine-Grained Sentence Classification]
+[PHASE 1 and 2: Fine-Grained Sentence Classification]
   (prefilter_tagging.py)
   Apply reason-based checks, mark evidence, evaluate dominance
          ↓
-[PHASE 2: Category Assignment & Attributes]
+[PHASE 3: Category Assignment & Attributes]
   (classify_users.py)
-  Categorize by type, resolve ambiguities, mine user attributes
+  Categorize by type, resolve ambiguities
          ↓
-Final Answer: Categories + Evidence + Attributes
+Final Answer: Categories + Evidence
 ```
 
 Each phase **preserves all text** but adds metadata (tags) to indicate what should count as "proof" vs. "context."
@@ -266,12 +278,11 @@ Each phase **preserves all text** but adds metadata (tags) to indicate what shou
    - Sophisticated content requires additional validation
 
 5. **Table Processing** - Convert tabular derivatives to prose
-   - Extracts data from HTML tables
+   - Extracts data from HTML tables, which have been converted to SEC plain table text format for pre-2000 filings.
    - Converts to sentences: "The Company held swaps with fair value $1.2M"
 
 6. **Sophisticated Content Validation**
    - Convertibles/Warrants require equity derivative context (not general mentions)
-   - Uses `is_sophisticated_target()` to prevent false positives
    - Example: "convertible debt" is kept if and only if there is a derivative mention related.
 
 **What survives:** Paragraphs likely about the company's actual derivative use. Note: convertible debt/warrants "steals" embedded derivative or deriative liability sentences.
@@ -325,30 +336,78 @@ Each phase **preserves all text** but adds metadata (tags) to indicate what shou
 
 **What gets tagged:** Individual sentences that are evidence of usage, with time-sensitive checking on the paragraph level.
 
-**Key actions:**
+**Evidence Tags** (`_E<REASON>`)
+- Applied in Phase 2, mined in Phase 3
+- Examples: `_E<NVY>` (Notional Value Year), `_E<AS_YEAR>` (Active State with Year)
+- Used to establish dominance in evidence hierarchy
 
-1. **Masking for Logic Checks similar to PHASE 1**
+**Noise/Skip Tags** (`_S<REASON>`)
+- Applied in Phase 1 or Phase 2
+- Examples: `_S<TIME>` (historical), `_S<HYPO>` (hypothetical), `_S<TERM>` (terminated)
+- Mark sentences as non-evidence but preserve for context
 
-2. **Reason-Based Sentence Checks**
-   - **Structural Noise**: "See Note 5", "Swap shall mean..." (definitions)
-   - **Temporal Noise**: "In 2022 we used swaps" (historical, if reporting year is 2024)
-   - **Intent Noise**: "We may enter into swaps", "We do not intend to use..."
-   - **Termination Noise (Present)**: "Swaps expired in December"
-   - **Quantitative Noise**: "Notional value was $0"
-   - **Other**: "We do not use derivatives for trading"
+**Deadweight Tags** (`_D<REASON>`)
+- Applied when paragraph is marked as deadweight but worth preserving
+- Examples: `_D<ANLZ>` (generic analysis), `_D<HIST_BLOCK>` (all historical)
+- Attributes are still mined from deadweight paragraphs
 
-3. **Tagging Logic**
-   - Find all applicable tags for this sentence
-   - Apply: `_S<REASON1> Original text...`
-   - Later phases read these tags to decide survival
+### The Safeguard Principle
 
-4. **Fluff Detector** - Final safeguard
-   - If all sentences in paragraph are tagged as noise
-   - AND no derivative keywords survive
-   - Mark entire paragraph: `_D<REASON1>`
-   - Prevents false "inactive" classifications
+At each phase, certain content is protected from being filtered:
 
-**What survives:** Sentences and paragraphs with proof of actual derivative use
+**Phase 0 Safeguard:**
+- Rule: "If a paragraph mentions a specific derivative instrument, keep it"
+- Reason: "Interest rate swap" is proof of instrument, even in regulatory context. If a paragraph is poisonous, we discard it (e.g. a lawsuit on commodity options trading must have been a dinstinct paragraph separate from usage positions).
+
+**Phase 1 Safeguard:**
+- Rule: "If surviving sentences contain actual derivative keywords, don't mark entire paragraph as deadweight"
+- Reason: One good sentence outweighs boilerplate
+
+**Phase 2 Safeguard:**
+- Rule: "Apply time-sensitive rules to all evidence, but remove likely footnotes"
+- Reason: One strong sentence outweighs rules within a category, and remaining unmarked sentences have skipped passed all noise and evidence rules, so it is likely to be "garbage."
+
+**Phase 3 Safeguard:**
+- Rule: "If any strict evidence tags exist, upgrade soft matches to strict"
+- Reason: If there are 1 strict evidence of IR usage and we have 100 IR "soft" matches and 1 CP "soft" match, the firm likely is not a CP user, and there might have been unmarked sentences within a paragraph. 
+
+#### Evidence Hierarchy
+
+Different evidence types survive different Time-Senstive noise patterns. Note that weaker tiered can "piggyback" stronger tiered evidence such that the paragraph is marked as valid and not discarded.
+
+#### Tier I of time-sensitive noise
+TERM: Current year termination of a derivative. 
+
+#### Tier II time-sensitive noise
+NEG: Explicit mention of non-use with or without the year
+ZERO: Zero or nil value current year reporting. "The notional value is nil and $10M"
+POT: Potential use with or without the year. "We periodically use"
+TIME: Previous year mention
+
+### Other noise
+Other noise tags would not affect the majority of the evidence except for the weakest link.
+
+```
+STRONG EVIDENCE (Immune to all noise) -> "If I have it at the year-end of the reporting year, nothing else matters
+- AS_YEAR: "Swaps outstanding at Dec 31, 2024"
+- NVY: "Notional was $100M in 2024"
+- MAT_FUT: "Swaps mature in 2026"
+- FVY: "Fair value of swaps was $5M in 2024"
+
+FLOW EVIDENCE (Dies only to TERM)
+- ACT_YEAR: "Entered into swaps in 2024"
+
+TIME_KILLED EVIDENCE (Dies to TIME, TERM, NEG, etc.)
+- CONT_USE: "We use swaps"
+- NVNY: "Notional is $100M"
+- BS_LOC: "Recorded in earnings"
+
+POLICY_KILLED EVIDENCE (Dies to POLICY, DEF)
+- ACT_GEN: "We enter into..."
+- CONT_USE_AMB: "We use contracts..."
+```
+
+**What survives:** Sentences and paragraphs with proof of actual derivative use. A company can survive if it has ANY STRONG evidence, even if surrounded by noise.
 
 **Output**:
 - Paragraphs with sentence-level tags
@@ -398,86 +457,6 @@ The core classification occurs through four sequential gates. A sentence stops a
     2.  **Threshold:** Determine the threshold as 25% of the largest Anchor's magnitude (minimum of 3 mentions).
     3.  **Filtration:** Any Soft-Only category (e.g., `warr`) that falls below this dynamic threshold is removed.
 * **Final Classification:** The resulting set of categories forms the final classification for the user.
-
----
-
-## Key Concepts
-
-### Tag System
-
-**Evidence Tags** (`_E<REASON>`)
-- Applied in Phase 2, mined in Phase 3
-- Examples: `_E<NVY>` (Notional Value Year), `_E<AS_YEAR>` (Active State with Year)
-- Used to establish dominance in evidence hierarchy
-
-**Noise/Skip Tags** (`_S<REASON>`)
-- Applied in Phase 1 or Phase 2
-- Examples: `_S<TIME>` (historical), `_S<HYPO>` (hypothetical), `_S<TERM>` (terminated)
-- Mark sentences as non-evidence but preserve for context
-
-**Deadweight Tags** (`_D<REASON>`)
-- Applied when paragraph is marked as deadweight but worth preserving
-- Examples: `_D<ANLZ>` (generic analysis), `_D<HIST_BLOCK>` (all historical)
-- Attributes are still mined from deadweight paragraphs
-
-### The Safeguard Principle
-
-At each phase, certain content is protected from being filtered:
-
-**Phase 0 Safeguard:**
-- Rule: "If a paragraph mentions a specific derivative instrument, keep it"
-- Reason: "Interest rate swap" is proof of instrument, even in regulatory context. If a paragraph is poisonous, we discard it (e.g. a lawsuit on commodity options trading must have been a dinstinct paragraph separate from usage positions).
-
-**Phase 1 Safeguard:**
-- Rule: "If surviving sentences contain actual derivative keywords, don't mark entire paragraph as deadweight"
-- Reason: One good sentence outweighs boilerplate
-
-**Phase 2 Safeguard:**
-- Rule: "Apply time-sensitive rules to all evidence, but remove likely footnotes"
-- Reason: One strong sentence outweighs rules within a category, and remaining unmarked sentences have skipped passed all noise and evidence rules, so it is likely to be "garbage."
-
-**Phase 3 Safeguard:**
-- Rule: "If any strict evidence tags exist, upgrade soft matches to strict"
-- Reason: If there are 1 strict evidence of IR usage and we have 100 IR "soft" matches and 1 CP "soft" match, the firm likely is not a CP user, and there might have been unmarked sentences within a paragraph. 
-
-### Evidence Hierarchy
-
-Different evidence types survive different Time-Senstive noise patterns. Note that weaker tiered can "piggyback" stronger tiered evidence such that the paragraph is marked as valid and not discarded.
-
-#### Tier I of time-sensitive noise
-TERM: Current year termination of a derivative. 
-
-#### Tier II time-sensitive noise
-NEG: Explicit mention of non-use with or without the year
-ZERO: Zero or nil value current year reporting. "The notional value is nil and $10M"
-POT: Potential use with or without the year. "We periodically use"
-TIME: Previous year mention
-
-### Other noise
-Other noise tags would not affect the majority of the evidence except for the weakest link.
-
-
-```
-STRONG EVIDENCE (Immune to all noise) -> "If I have it at the year-end of the reporting year, nothing else matters
-- AS_YEAR: "Swaps outstanding at Dec 31, 2024"
-- NVY: "Notional was $100M in 2024"
-- MAT_FUT: "Swaps mature in 2026"
-- FVY: "Fair value of swaps was $5M in 2024"
-
-FLOW EVIDENCE (Dies only to TERM)
-- ACT_YEAR: "Entered into swaps in 2024"
-
-TIME_KILLED EVIDENCE (Dies to TIME, TERM, NEG, etc.)
-- CONT_USE: "We use swaps"
-- NVNY: "Notional is $100M"
-- BS_LOC: "Recorded in earnings"
-
-POLICY_KILLED EVIDENCE (Dies to POLICY, DEF)
-- ACT_GEN: "We enter into..."
-- CONT_USE_AMB: "We use contracts..."
-```
-
-A company can survive if it has ANY STRONG evidence, even if surrounded by noise.
 
 ---
 
