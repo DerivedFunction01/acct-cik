@@ -375,7 +375,7 @@ At each phase, certain content is protected from being filtered:
 
 Different evidence types survive different Time-Senstive noise patterns. Note that weaker tiered can "piggyback" stronger tiered evidence such that the paragraph is marked as valid and not discarded.
 
-#### Tier I of time-sensitive noise
+#### Tier I time-sensitive noise
 TERM: Current year termination of a derivative. 
 
 #### Tier II time-sensitive noise
