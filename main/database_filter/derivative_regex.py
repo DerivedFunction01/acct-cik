@@ -3147,8 +3147,7 @@ def build_prior_statement_pattern_2() -> re.Pattern:
     # Nouns indicating time periods (with optional "fiscal" prefix)
     # Matches: "years", "fiscal years", "reporting periods", "quarters"
     TIME_NOUNS = [
-        r"(?:fiscal\s+|reporting\s+|reported\s+)?(?:years?|periods?|quarters?|months?)",
-        r"comparable\s+periods?",  # "In the comparable period"
+        r"(?:\S+\s+){0,1}(?:years?|periods?|quarters?|months?)",
     ]
 
     # --- 2. BUILD FRAGMENTS ---
@@ -3165,11 +3164,11 @@ def build_prior_statement_pattern_2() -> re.Pattern:
     # Pattern A: Compositional (Prep + Adj + Noun)
     # Matches: "In prior years", "During the previous fiscal period"
     pat_compositional = (
-        rf"(?:\b(?:{SUBJ})\s+)?\b"  # Optional Subject ("The Company...")
+        r"\b"
         rf"(?:{PREP_ALT})\s+"  # Preposition ("In")
         rf"{DETERMINER}"  # Optional ("the")
         rf"(?:{ADJ_ALT})\s+"  # Adjective ("prior")
-        rf"(?:{NOUN_ALT})"  # Noun ("years")
+        rf"(?:{NOUN_ALT})"  # Noun ("years") ("adoption month")
         r"\b"  # Word boundary
     )
 
@@ -3178,8 +3177,8 @@ def build_prior_statement_pattern_2() -> re.Pattern:
         r"historically",
         r"previously",
         r"formerly",
-        r"in\s+the\s+(?:past|previous|last)",  # "In the past" (Noun-less)
-        r"prior\s+to\s+(?:adoption|the\s+period|this|today|\d{4})",  # "Prior to 2023"
+        r"in\s+the\s+past",  # "In the past" (Noun-less)
+        rf"prior\s+to\s+(?:{NOUN_ALT}|\b\d+{{4}}\b)",  # Prior to -> 2023; fourth quarter
         r"years?\s+ago",
         r"same\s+period\s+last\s+year",
     ]
