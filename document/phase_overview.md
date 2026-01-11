@@ -417,12 +417,12 @@ POLICY_KILLED EVIDENCE (Dies to POLICY, DEF)
 
 ### PHASE 3: Category Assignment & Attributes** 
 **File**: `classify_users.py`
-The process is now structured as a **Four-Gate System**, where evidence quality determines how a mention contributes to the final score.
+The process is a **Three-Gate System**, where evidence quality determines how a mention contributes to the final score.
 
 | Component | Goal |
 | :--- | :--- | 
 | **Input** | Paragraphs tagged with **Noise** (`_S<...>`, `_D<...>` from Stage 2) and **Evidence** (`_E<...>` from Stage 3). | 
-| **Output** | Final categories (`ir`, `fx`, etc.) and user attributes (`reports_notional`, `is_hedger`). | 
+| **Output** | Final categories (`ir`, `fx`, etc.) | 
 
 ---
 
@@ -432,20 +432,52 @@ The process is now structured as a **Four-Gate System**, where evidence quality 
 
 * **Action:** For every sentence, parse the tags to determine if it is "active" (meaning it has survived the filtering stages).
 * **Dominance Decision:** A sentence is considered **Active** if it is **not** marked as paragraph-level Deadweight (`_D<...>`, `_S<...>` inherited from paragraph noise) or sentence-level Deadweight (`_S<...>` sentence noise).
-* **Attribute Mining:** Extract all `_S<...>` (Noise) and `_E<...>` (Evidence) tags and map them to permanent user attributes (`is_hedger`, `reports_positions`, etc.).
 
 ---
 
-#### 2. The Four-Gate Category Assignment (Strict vs. Soft)
+#### 2. The Three-Gate Category Assignment (Strict vs. Soft)
 
-The core classification occurs through four sequential gates. A sentence stops at the first gate it passes.
+## Evidence "Gating" – How Sentences Get Classified
 
-| Gate | Condition | Action & Rationale |
-| :--- | :--- | :--- |
-| **Gate 1: Strict Anchor (Evidence Required)** | Sentence contains an **unambiguous strict match** (e.g., `IR_REGEX` hits "Interest Rate Swap") **AND** is marked with **any evidence tag** (`_E<...>`, including `_E<OTHER>`). | **ACTION:** Immediately classify as **Strict**. Increment `strict_counts`. **CRITICAL:** Register instrument in the **Global Tracker**. |
-| **Gate 2: Strong Promotion (Evidence Dominates)** | Sentence is **active** (survived filtering) **AND** is marked with **Unambiguous Evidence** (Tier 1/1.5/2, e.g., `_E<NOTIONAL_VALUE_YEAR>`, `_E<AS_YEAR>`). | **ACTION:** Elevate Soft Mentions (e.g., "Contracts") to **Strict**. Increment `strict_counts`. Register instrument in the **Global Tracker**.  |
-| **Gate 3: Tracker Resolution** | Sentence is **active** and contains a **generic instrument word** (e.g., "swap") that was **previously registered** by the **Global Tracker** (Gate 1 or 2). | **ACTION:** Classify as **Soft** based on the tracker's learned category (e.g., "swap" → `ir`). Increment `soft_categories`. |
-| **Gate 4: Standard Soft Match (Contextual Density)** | All previous gates failed. Sentence is **active** and contains **soft category mentions** (e.g., "commodity price risk"). | **ACTION:** Classify as **Soft** using **Priority Consumption** (FX > CP > EQ > CR > IR). Increment `soft_categories`. |
+The core of `process_row` is a **three‑step gating pipeline** that decides whether a sentence should be counted as a *strict* instrument reference or merely a *soft* hint.  
+A sentence stops at the first gate it satisfies; if no gate matches, the sentence is ignored for categorisation.
+
+---
+
+### 1. Gate 1 – Strict Anchor (Evidence‑Required)
+
+| Condition | What happens | Why it matters |
+|-----------|--------------|----------------|
+| The sentence contains at least one *strict* category **and** the sentence is *active* (not flagged deadweight). | • All strict categories are registered in both the global and local trackers. Also, if the same sentence also contains any unambiguous evidence tags, each strict category is *locked in as a strict anchor*: added to `strict_categories` **and** counted once in `strict_counts`. | Strict anchors give us a highly reliable signal that the instrument is being discussed. |
+
+> **If no evidence tags are present** the sentence still registers the strict categories in the trackers, but it *does not* increment `strict_counts`.  
+> These "no‑evidence" strict matches fall through to the soft logic (they become *soft candidates* that must meet a frequency threshold later).
+
+---
+
+### 2. Gate 2 – Unambiguous Evidence Promotion
+
+| Condition | What happens | Why it matters |
+|-----------|--------------|----------------|
+| The sentence contains an **unambiguous evidence tag**. | All categories that appear in the sentence (both strict and soft) are treated as *strict*: added to `strict_categories`, registered in trackers, and counted in `strict_counts`. | This gate is a "catch‑all" for sentences that explicitly state the role of the instrument (e.g., "We use this swap as a hedge"). Even if no strict header was present, the presence of an unambiguous evidence tag guarantees a strong association. |
+
+> After this gate the sentence is **done** – no further processing occurs.
+
+---
+
+### 3. Gate 3 – Soft Extraction & Tracker Resolution
+
+If the sentence has passed through Gates 1 and 2 without being locked in as strict, it moves into the soft‑side of the pipeline.
+
+| Step | Condition | What happens | Why it matters |
+|------|-----------|--------------|----------------|
+| **Soft Candidate from Strict Match** | A *strict* match existed earlier but lacked evidence (see Gate 1 note). | The same categories are now added to `soft_categories` and registered in trackers. | Allows us to keep "weak" strict matches as soft candidates that can still be counted if they appear frequently enough across the document. |
+| **Explicit Soft Extraction** | We use a function to heuristically count the category specific keywords within the paragraph. | All those categories are added to `soft_categories` and registered in trackers. | Handles phrases like "interest rate swaps" where no strict header exists but the wording is unmistakable. |
+| **Tracker Resolution** | No soft categories matched, but the local or global tracker can resolve a generic instrument word (e.g., "swap") to a known category. | The resolved category is added to `soft_categories`. | Leverages earlier strict anchors to infer meaning for later generic mentions. |
+| **Context‑Based Soft Expansion** | After all previous checks, the only match found is the generic token `"gen"` (e.g., "the instruments"), and the sentence has *local context*. | Every local context category gets a soft count. | If a sentence only says "the instruments", we infer its meaning from the surrounding context that was already identified as, say, `ir` or `eq`. |
+
+> **All of these soft steps increment `soft_categories`, not `strict_counts`.**  
+> The counts are later filtered which enforces a minimum mention threshold and removes statistically insignificant categories.
 
 ---
 
