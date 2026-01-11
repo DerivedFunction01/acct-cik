@@ -9,8 +9,10 @@
 | **Strict Mention** | Financial instrument that always refer to a derivative (e.g. `swap agreement`) |
 | **Deadweight** | Paragraph marked as "context only, not evidence" but preserved |
 | **Tag** | Label added to text (e.g., `_S<TIME>`) to mark a sentence |
-| **Evidence** | A marked sentence that proves the company uses derivatives within the reporting year |
+| **Evidence** | A marked sentence that proves a company's positions within the reporting year |
 | **Noise** | A marked sentence that is not evidence |
+| **Soft Count** | Ambiguous evidence or an unmarked sentence that may not be a derivative position, or is an uncategorized derivative statement. |
+| **Strict Count** | Unambiguous evidence of a marked sentence stating derivative positions |
 
 ---
 
@@ -45,7 +47,7 @@ Since we are not using any modern LLM such as ChatGPT to perform semantic analys
   - "The company enters into currency swaps ("Swap")."  
 11. A singular report refers to one singular entity, even if there are multiple child companies (e.g. power companies operating in multiple states each with its own section).
 12. Made for early startup firms such as BioTech: all derivative liability, embedded conversion/derivative mentions automatically validate warrants and convertible financing. Therefore, an edge case exist if an embedded derivative is linked to FX but the firm has convertible debt that is not a derivative. Else, warrants and convertible financings are not treated as derivatives. These derivative liability, embedded conversion/derivative mentions may be categorized as generic if not enough context clues remain.
-13. Rule of "equal" reporting: If a firm extensively mentions a particular category, and an outlier category soft mention exist, it does not get upgraded to active usage if there are not enough mentions of them. For example: A major firm extensively uses IR derivatives but mentions FX derivatives very briefly as weak mentions: FX is removed from the pool.
+13. Rule of "equal" reporting: If a firm extensively mentions a particular category, and an outlier category soft count exist, it does not get upgraded to active usage if there are not enough counts of that category. For example: A major firm extensively uses IR derivatives but mentions FX derivatives very briefly as soft counts: FX is removed from the pool.
 
 ## SEC Filing (raw text)
 
