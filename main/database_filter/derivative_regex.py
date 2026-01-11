@@ -3119,7 +3119,6 @@ def build_prior_statement_pattern_2() -> re.Pattern:
     """
 
     # --- 1. COMPOSITIONAL COMPONENTS ---
-
     PREPOSITIONS = [
         r"in",
         r"during",
@@ -3131,7 +3130,6 @@ def build_prior_statement_pattern_2() -> re.Pattern:
         r"over",
     ]
 
-    # Adjectives indicating the past
     PRIOR_INDICATORS = [
         "past",
         "previous",
@@ -3144,41 +3142,27 @@ def build_prior_statement_pattern_2() -> re.Pattern:
         "retroactive",
     ]
 
-    # Nouns indicating time periods (with optional "fiscal" prefix)
-    # Matches: "years", "fiscal years", "reporting periods", "quarters"
-    TIME_NOUNS = [
-        r"(?:\S+\s+){0,1}(?:years?|periods?|quarters?|months?)",
-    ]
+    TIME_NOUNS = r"(?:\b\S+\s+)?(?:years?|periods?|quarters?|months?)\b"
 
     # --- 2. BUILD FRAGMENTS ---
-
     PREP_ALT = build_alternation(PREPOSITIONS)
     ADJ_ALT = build_alternation(PRIOR_INDICATORS)
-    NOUN_ALT = build_alternation(TIME_NOUNS)
-
-    # Optional determiner: "In [the/our] prior year"
     DETERMINER = r"(?:the\s+|our\s+)?"
 
     # --- 3. PATTERNS ---
-
-    # Pattern A: Compositional (Prep + Adj + Noun)
-    # Matches: "In prior years", "During the previous fiscal period"
+    # Pattern A: Compositional
     pat_compositional = (
-        r"\b"
-        rf"(?:{PREP_ALT})\s+"  # Preposition ("In")
-        rf"{DETERMINER}"  # Optional ("the")
-        rf"(?:{ADJ_ALT})\s+"  # Adjective ("prior")
-        rf"(?:{NOUN_ALT})"  # Noun ("years") ("adoption month")
-        r"\b"  # Word boundary
+        r"\b" rf"{PREP_ALT}\s+" rf"{DETERMINER}" rf"{ADJ_ALT}\s+" rf"{TIME_NOUNS}" r"\b"
     )
 
-    # Pattern B: Standalone Catch-Alls (Adverbs & Specific Phrases)
+    # Pattern B: Standalone Catch-Alls
+    # FIX 2: Ensure TIME_NOUNS is handled as a clean string here
     CATCH_ALLS = [
         r"historically",
         r"previously",
         r"formerly",
-        r"in\s+the\s+past",  # "In the past" (Noun-less)
-        rf"prior\s+to\s+(?:{NOUN_ALT}|\b\d+{{4}}\b)",  # Prior to -> 2023; fourth quarter
+        r"in\s+the\s+past",
+        rf"prior\s+to\s+(?:the\s+)?(?:{TIME_NOUNS}|\d{{4}})",  # Corrected f-string braces
         r"years?\s+ago",
         r"same\s+period\s+last\s+year",
     ]
@@ -3186,6 +3170,7 @@ def build_prior_statement_pattern_2() -> re.Pattern:
 
     # --- 4. COMBINE ---
     return re.compile(rf"(?:{pat_compositional}|{pat_catchall})", re.IGNORECASE)
+
 
 # Export
 PRIOR_INDICATOR = build_prior_statement_pattern_2()
