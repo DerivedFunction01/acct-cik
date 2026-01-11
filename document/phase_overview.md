@@ -99,7 +99,7 @@ OUTPUT EXAMPLE: fixed rate swap
 #### Special Mechanics
 
 ```
-[PAY_MECH] = ["PAY"] AND [TYPE], ["RECIEVE"] [TYPE] ( AND [RATES] )
+[PAY_MECH] = ["PAY"] AND [TYPE], ["RECIEVE"] AND [TYPE] ( AND [RATES] )
 
 TYPE: "fixed", "variable", "floating"
 
