@@ -35,7 +35,7 @@ Since we are not using any modern LLM such as ChatGPT to perform semantic analys
 5. Major events or topics warrants its own paragraph. For example:
   - If a company terminates an interest rate swap, that paragraph should only mention that specific instrument and no other positions.
   - "Noise" topics are distinct from "Usage" topics and are distinct paragraphs. For example, a paragraph on the valuation nature of a derivative and the notional value of such derivative are distinct. 
-6. Multiple categories can be present in the same paragraph, such as a major internation firm stating both IR and FX risk and deriatives used. This can lead to certain edge cases:
+6. Multiple categories can be present in the same paragraph, such as a major international firm stating both IR and FX risk and deriatives used. This can lead to certain edge cases:
   - Mention non-use/termination for the IR category, which will dominate over weaker evidence in the FX category.
 7. We apply rules assuming we read "top down" paragraph by paragraph at the paragraph level first, and then the document level. If there is a standalone "forward contract" that can refer to both FX or CP (it seen both at the document level), then we look at it at the paragraph level to see if the paragraph have context clues/key phrases to distinctly refer to a category. On the other hand, if an IR swap is mentioned earlier, then a standalone "swap liability" refer to the IR swap, not the currency swap in later paragraphs since it hasn't "seen" it yet. 
 8. Time-Sensitive Noise Rules and Evidence Tagging must be strict enough to only capture relevant sentences. Else, a poorly thought out noise regex will invalidate valid usage statements, or an evidence regex will match for a non user.
