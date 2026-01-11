@@ -383,7 +383,7 @@ def process_row(row: Tuple) -> Tuple:
 
     # Initialize
     strict_categories = set()
-    soft_categories = defaultdict(int)
+    soft_counts = defaultdict(int)
     strict_counts = defaultdict(int)
     attributes: Dict[str, Any] = {
         "is_hedger": False,
@@ -482,7 +482,7 @@ def process_row(row: Tuple) -> Tuple:
                 for cat in soft_cats:
                     tracker.register_paragraph(clean_sent, cat)
                     local_tracker.register_paragraph(clean_sent, cat)
-                    soft_categories[cat] += 1
+                    soft_counts[cat] += 1
                 continue
 
             # -------------------------------------------------------------
@@ -495,7 +495,7 @@ def process_row(row: Tuple) -> Tuple:
                 tracker_cat = tracker.resolve_instrument(clean_sent)
 
             if tracker_cat:
-                soft_categories[tracker_cat] += 1
+                soft_counts[tracker_cat] += 1
                 continue
             # -------------------------------------------------------------
             # D. Standard Soft Extraction with Local Resolution
@@ -507,15 +507,15 @@ def process_row(row: Tuple) -> Tuple:
             # and we have valid local contexts, resolve to ALL of them.
             if local_contexts and "gen" in found_soft and len(found_soft) == 1:
                 for ctx in local_contexts:
-                    soft_categories[ctx] += 1
+                    soft_counts[ctx] += 1
             else:
                 for cat in found_soft:
-                    soft_categories[cat] += 1
+                    soft_counts[cat] += 1
 
     # --- REMOVE OUTLIERS ---
     valid_soft_cats = remove_outlier_categories(
         strict_counts, 
-        soft_categories,
+        soft_counts,
         threshold_pct=0.10,
         min_mentions=3
     )
@@ -528,7 +528,7 @@ def process_row(row: Tuple) -> Tuple:
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
 
-    attributes["debug"] = {"soft_counts": soft_categories, "strict_counts": strict_counts}
+    attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
 
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
 # =============================================================================
