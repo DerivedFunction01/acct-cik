@@ -1689,10 +1689,12 @@ def build_loose_gen_regex() -> re.Pattern:
         "caps",
         "floors",
         "warrants",
-        "puts",  # Added for high-confidence plural matches
-        "calls",  # Added for high-confidence plural matches
+        "puts", 
+        "calls", 
+        "contracts?",
+        "instruments?",
     ]
-    pattern = build_alternation(bases + ALL_SUFFIXES + plurals)
+    pattern = build_alternation(bases + plurals)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
