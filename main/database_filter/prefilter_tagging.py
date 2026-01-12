@@ -359,6 +359,13 @@ def is_trading_statement(text: str) -> bool:
 
     return False
 
+VALUE_REGEX = build_regex(["notional", "fair value"])
+def is_value(text: str) -> bool:
+    if not QUANT_REGEX.search(text):
+        return False
+    if not VALUE_REGEX.search(text):
+        return False
+    return True
 
 # =============================================================================
 # CORE TAGGING LOGIC
@@ -389,8 +396,10 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
         temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
-        if not PRECISE_LOOSE_GEN_REGEX.search(temp_sent) and not is_sophisticated_target(
-            temp_sent
+        if not (
+            PRECISE_LOOSE_GEN_REGEX.search(temp_sent)
+            or is_sophisticated_target(temp_sent)
+            or is_value(temp_sent) # allow "The notional value is XX to bypass"
         ):
             if RISK_MANAGEMENT_REGEX.search(masked):
                 reason = NoiseReason.RISK
