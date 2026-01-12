@@ -859,10 +859,10 @@ PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
 # Negative lookahead: forward NOT followed by physical keywords
 FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 SPECIAL_BASE = [
-    "(?:call|put) (?:options?|contracts?)?",
+    "(?:call|put|swap) (?:options?|contracts?)",
     "(?:basis|variance|volatility|total[- ]return) swaps?",
     "swaptions?",
-    "(:?asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
+    "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
 ]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
@@ -898,7 +898,6 @@ ALL_SUFFIXES = [
     "commitments?",
     "instruments?",
     "arrangements?",
-    "options?",
 ]
 
 
@@ -1690,6 +1689,8 @@ def build_loose_gen_regex() -> re.Pattern:
         "caps",
         "floors",
         "warrants",
+        "puts",  # Added for high-confidence plural matches
+        "calls",  # Added for high-confidence plural matches
     ]
     pattern = build_alternation(bases + ALL_SUFFIXES + plurals)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
