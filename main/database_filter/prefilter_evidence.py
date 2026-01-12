@@ -63,7 +63,7 @@ VERB_MAP = {
         r"carr(?:y|ies|ied|ying)",
         r"retain(?:s|ed|ing)?",
         r"remained?\s+(?:open|outstanding|active)",
-        r"(?:is|are|was|were)\s+(?:a\s+)?party\s+to",
+        r"(?:a\s+)?party\s+to",
     ],
     "PRU": [
         r"use(?:s|d|ing)?",
