@@ -50,6 +50,10 @@ class MinimalTextCleaner:
         rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d{1,3}\b",
         re.IGNORECASE,
     )
+    
+    soph_pattern = re.compile(
+        r"\b(?:convertibles?|warrants?)\b", re.IGNORECASE
+    )
 
     # Standard IDs: ASC 815-20, IFRS 9, etc.
     standard_id_pattern = STANDARD_ID_REGEX
@@ -126,17 +130,19 @@ class MinimalTextCleaner:
         text = self.normalize_whitespace(text)
         return text
 
-    def clean_non_derivatives(self, text: str) -> str:
+    def clean_non_derivatives(self, text: str, is_nst: bool = True) -> str:
         text = NON_DERIVATIVE_REGEX.sub(" ", text)
+        if is_nst:
+            text = self.soph_pattern.sub(" ", text) # replace warrants and convertible -> "convertble debt" -> "debt"
         text = self.normalize_whitespace(text)
         return text
 
-    def clean(self, text: str, remove_years: bool = False) -> str:
+    def clean(self, text: str, remove_years: bool = False, is_nst: bool = True) -> str:
         texts = []
         for sent in SENTENCE_SPLIT_PATTERN.split(text):
             sent = self.clean_for_quant_analysis(sent, remove_years)
             sent = self.clean_entities(sent)
-            sent = self.clean_non_derivatives(sent)
+            sent = self.clean_non_derivatives(sent, is_nst)
             texts.append(sent)
         return text
 

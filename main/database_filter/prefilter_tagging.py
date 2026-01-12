@@ -73,14 +73,14 @@ _cleaner = MinimalTextCleaner()
 # =============================================================================
 
 
-def mask_text(text: str) -> str:
+def mask_text(text: str, is_nst: bool = True) -> str:
     """
     Prepares text for logic checks.
     1. Normalizes whitespace.
     2. Masks entities (JPM -> _E) to prevent overfitting on names.
     3. DOES NOT remove years (critical for temporal checks).
     """
-    return _cleaner.clean(text)
+    return _cleaner.clean(text, is_nst=is_nst)
 
 def get_temporal_noise_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
     """Returns NoiseReason.TIME if sentence is purely historical."""
@@ -311,9 +311,9 @@ def get_quantitative_noise_reason(
 # =============================================================================
 
 
-def tag_paragraph(text: str, reporting_year: int) -> str:
+def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
     # 1. Masking for Logic Checks
-    masked_text = mask_text(text)
+    masked_text = mask_text(text, is_nst=is_nst)
 
     # 3. Dual Split (Original vs Masked)
     original_sentences = [
@@ -430,7 +430,7 @@ def process_row(row):
             new_paragraphs.append(p)
             continue
 
-        tagged_p = tag_paragraph(p, year)
+        tagged_p = tag_paragraph(p, year, is_nst=is_nst)
         new_paragraphs.append(tagged_p)
 
     return (url, json.dumps(new_paragraphs), cik, year)
