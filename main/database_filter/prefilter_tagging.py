@@ -18,7 +18,7 @@ from derivative_regex import (
     IR_SOFT_REGEX,
     NON_DER_CAP_FLOOR_REGEX,
     IS_REFERENCE_REGEX,
-    LOOSE_GEN_REGEX,
+    PRECISE_LOOSE_GEN_REGEX,
     MORE_INFO_REGEX,
     RISK_MANAGEMENT_REGEX,
     SENTENCE_SPLIT_PATTERN,
@@ -393,7 +393,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
         temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
-        if not LOOSE_GEN_REGEX.search(temp_sent) and not is_sophisticated_target(
+        if not PRECISE_LOOSE_GEN_REGEX.search(temp_sent) and not is_sophisticated_target(
             temp_sent
         ):
             if RISK_MANAGEMENT_REGEX.search(masked):

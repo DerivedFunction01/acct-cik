@@ -10,7 +10,7 @@ from derivative_regex import (
     ACTIVE_STATE_REGEX,
     FX_SOFT_REGEX,
     IR_SOFT_REGEX,
-    LOOSE_GEN_REGEX,
+    PRECISE_LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     SOFT_REGEX,
     STRICT_REGEX,
@@ -183,7 +183,7 @@ REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
 def check_mention(text: str) -> bool:
     """Check if text mentions any derivative instrument."""
-    return bool(SOFT_REGEX.search(text) or LOOSE_GEN_REGEX.search(text))
+    return bool(SOFT_REGEX.search(text) or PRECISE_LOOSE_GEN_REGEX.search(text))
 
 
 def check_derivative_global(text: str) -> bool:

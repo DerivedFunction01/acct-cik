@@ -1683,7 +1683,7 @@ def build_derivative_standards() -> re.Pattern:
 DER_STD_REGEX = build_derivative_standards()
 
 
-def build_loose_gen_regex() -> re.Pattern:
+def build_loose_gen_regex_precise() -> re.Pattern:
     bases = UNAMBIGUOUS_BASE_TYPES.copy()
     plurals = [
         "caps",
@@ -1695,6 +1695,13 @@ def build_loose_gen_regex() -> re.Pattern:
         "instruments?",
     ]
     pattern = build_alternation(bases + plurals)
+    return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
+
+def build_loose_gen_regex() -> re.Pattern:
+    plurals = [
+        "warrants", 
+    ]
+    pattern = build_alternation(ALL_BASE_TYPES + plurals + ALL_SUFFIXES)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
@@ -1769,6 +1776,7 @@ SOFT_REGEX = re.compile(
     re.IGNORECASE,
 )
 LOOSE_GEN_REGEX = build_loose_gen_regex()
+PRECISE_LOOSE_GEN_REGEX = build_loose_gen_regex_precise()
 ALL_REGEX = re.compile(
     r"|".join(
         [

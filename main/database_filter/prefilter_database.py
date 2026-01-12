@@ -26,7 +26,7 @@ from derivative_regex import (
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
     EQ_REGEX,
-    EQ_SOFT_REGEX,
+
     EXCLUDE_REGEX_ACCOUNTING_STD,
     EXCLUDE_REGEX_EQUITY_COMP,
     EXCLUDE_REGEX_FILING,
@@ -37,13 +37,11 @@ from derivative_regex import (
     EXCLUDE_REGEX_FORWARD_LOOKING,
     EXCLUDE_REGEX_LIBOR_TRANSITION,
     HEDGING_CONTEXT_REGEX,
-    IR_SOFT_REGEX,
-    LOOSE_GEN_REGEX,
+    PRECISE_LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     SOFT_GEN_REGEX,
     SOFT_REGEX,
     STRICT_REGEX,
-    VALUATION_MODELS,
     VALUATION_MODELS_REGEX,
 
     aggregate_discards,
@@ -56,7 +54,6 @@ from derivative_regex import (
 
 from table_processor import TABLE_ANCHOR, TableToTextConverter
 from prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
-
 
 
 # =============================================================================
@@ -223,7 +220,7 @@ def find_hedging_context(paragraph: str) -> bool:
         return True
     else: # perform hard sentence by sentence verification
         for sent in SENTENCE_SPLIT_PATTERN.split(paragraph):
-            if LOOSE_GEN_REGEX.search(sent):
+            if PRECISE_LOOSE_GEN_REGEX.search(sent):
                 if HEDGING_CONTEXT_REGEX.search(sent) or DER_STD_REGEX.search(sent):
                     return True
     return False
