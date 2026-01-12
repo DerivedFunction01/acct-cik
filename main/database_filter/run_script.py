@@ -7,28 +7,19 @@ from pathlib import Path
 PYTHON_EXEC = sys.executable
 LOG_FILE = "pipeline_run.log"
 
-# Definition: (Script, Output_CSV)
+# Definition: (Script, additonal args)
 PIPELINE_STAGES = [
     # 0. Filter and Parse
-    ("prefilter_database.py", ),
+    ("prefilter_database.py", None),
     # 2. Tag each sentence
-    ("prefilter_tagging.py",),
+    ("prefilter_tagging.py",  None),
     # 3. Tag each sentence
-    ("prefilter_evidence.py", ),
+    ("prefilter_evidence.py", None),
     # 4. Classify
-    ("classify_users.py", ),
+    ("classify_users.py", None),
     # 5. Export
     ("database_export.py", "classified_data.db"),
 ]
-
-# FINAL REPORT CONFIG: Compare first stage output to last stage output
-FINAL_REPORT_CONFIG = {
-    "enabled": True,
-    "start_index": 0,  # Which pipeline stage's CSV to use as "start"
-    "end_index": -1,  # Which pipeline stage's CSV to use as "end" (-1 = last)
-    "report_name": "Final Attrition Report (Start vs End)",
-}
-
 
 def log(message):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -56,13 +47,13 @@ def run_pipeline():
 
     total_start = time.time()
     
-    for script, csv_target in PIPELINE_STAGES:
+    for script, arg in PIPELINE_STAGES:
         if not Path(script).exists():
             log(f"❌ MISSING SCRIPT: {script}")
             sys.exit(1)
 
         # 1. Processing Step
-        if not run_command([PYTHON_EXEC, script, csv_target], f"Running {script}"):
+        if not run_command([PYTHON_EXEC, script, arg], f"Running {script}"):
             sys.exit(1)
 
         time.sleep(5)
