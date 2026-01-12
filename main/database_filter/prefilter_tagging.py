@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Set, Tuple
 # --- REGEX IMPORTS ---f
 from derivative_regex import (
     # Structural
+    ABSENCE_INDICATORS,
     ABSENCE_REGEX,
     COMPARISON_PHRASES,
     CURRENCY_SYMBOL_PATTERN,
@@ -22,7 +23,6 @@ from derivative_regex import (
     RISK_MANAGEMENT_REGEX,
     SENTENCE_SPLIT_PATTERN,
     DEFINITION_INDICATORS,
-    TRADING_STATEMENTS_REGEX,
     AOCI_NOISE_REGEX,
     EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
     # Classification Killers
@@ -32,6 +32,8 @@ from derivative_regex import (
     VAGUE_TIMING_REGEX,
     YEAR_REGEX,
     PRIOR_INDICATOR,
+    build_alternation,
+    build_negation_prefix_pattern,
     build_regex,
     # Scoring
     is_contractual_noise,
@@ -306,24 +308,60 @@ def get_quantitative_noise_reason(
     if check_is_quantitative_zero(text, reporting_year):
         return NoiseReason.ZERO
     return None
+# In prefilter_tagging.py
+
+# Core concept: What are they denying?
+_TRADING_CORE = [
+    r"trad(?:ing|es?|ed)",
+    r"speculat(?:ive|es?|ion)",
+    r"proprietary",
+    r"arbitrage",
+]
+_TRADING_CORE_ALT = build_alternation(_TRADING_CORE)
+TRADING_CORE_REGEX = build_regex(_TRADING_CORE)
+
+# Veto/Authorization: For "not permitted/authorized" logic
+_AUTH = [r"authorize(?:d|s)?", r"permit(?:s|ted)?", r"allow(?:s|ed)?"]
+_NOT_AUTH = [r"prohibit(?:s|ed)?", r"forbid(?:s)?", r"forbade", r"prevent(?:s|ed)?"]
+
+TRADING_NOT_AUTH_REGEX = build_regex(_NOT_AUTH)
+TRADING_NOT_AUTH_REGEX2 = re.compile(rf"\bnot\s+{build_alternation(_AUTH)}\b")
+
+# Direct Denial without needing an instrument (e.g. "We do not speculate")
+_NEG = build_negation_prefix_pattern()
+TRADING_DENIAL_SIMPLE = re.compile(
+    rf"\b(?:{_NEG})\s+(?:\w+\s+){{0,3}}(?:{_TRADING_CORE_ALT})\b", re.IGNORECASE
+)
 
 
 def is_trading_statement(text: str) -> bool:
     """
-    Validates if a sentence is a trading denial statement.
-    1. Must match the qualitative denial pattern.
-    2. Must NOT contain any quantitative values (Veto).
+    Simplified Multi-Gate Trading Denial Check.
+    Logic: (Quant Veto) -> (Keyword Gate) -> (Path Checks)
     """
-    # 1. Pattern Match
-    if not TRADING_STATEMENTS_REGEX.search(text):
-        return False
-
-    # 2. Quantitative Veto
-    # Trading denials are qualitative policy; actual trades have numbers.
+    # GATE 0: Quantitative Veto (Actual trades have numbers/currencies)
     if QUANT_REGEX.search(text):
         return False
 
-    return True
+    # GATE 1: Core Keyword Check
+    if not TRADING_CORE_REGEX.search(text):
+        return False
+
+    # GATE 2: Path-Based Logical Matching
+    # Path A: Policy-based (Not permitted / Prohibited)
+    if TRADING_NOT_AUTH_REGEX.search(text) or TRADING_NOT_AUTH_REGEX2.search(text):
+        return True
+
+    # Path B: Direct Denial (e.g., "We do not speculate")
+    if TRADING_DENIAL_SIMPLE.search(text):
+        return True
+
+    # Path C: Structural Denial (Instrument required, e.g. "No trading swaps")
+    # Note: Ensure build_absence_regex includes "trading" in its modifiers
+    if DID_NOT_HOLD_REGEX.search(text) or ABSENCE_REGEX.search(text):
+        return True
+
+    return False
 
 
 # =============================================================================

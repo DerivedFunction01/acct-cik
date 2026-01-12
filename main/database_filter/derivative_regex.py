@@ -3473,7 +3473,7 @@ def build_absence_regex() -> re.Pattern:
         "commodity", "equity", "credit", "market", "forward",
         "future", "option", "swap", "purchase", "sale",
         "cash", "fair", "value", "material", "significant",
-        "hedging", "derivative", "financial"
+        "hedging", "derivative", "financial", "trading",
     ]
     
     # Combine explicit placeholders with your LOOSE_GEN_REGEX
@@ -3530,87 +3530,6 @@ def build_did_not_hold_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
-
-def build_trading_denial_pattern() -> re.Pattern:
-    """
-    Revised Trading Denial Regex using Gap Chain logic (No Quant Check).
-    """
-    # 1. Components
-    _NEG = build_negation_prefix_pattern()
-    _ACT = build_alternation(
-        [
-            "use",
-            "hold",
-            "enter into",
-            "engage",
-            "utilize",
-            "participate",
-            "transact",
-            "maintain",
-        ]
-    )
-    _TRAD = build_alternation(
-        ["trading", "speculative", "speculation", "proprietary", "arbitrage"]
-    )
-    _PURP = build_alternation(
-        ["purposes?", "activities?", "basis", "intent", "objectives?"]
-    )
-    _AUTH = build_alternation(
-        ["permitted", "authorized", "allowed", "condoned", "sanctioned", "prohibited"]
-    )
-
-    # 2. Instrument Chain (Supports: "No interest rate, currency, or commodity derivatives...")
-    modifiers = [
-        "exchange",
-        "rate",
-        "currency",
-        "interest",
-        "foreign",
-        "commodity",
-        "equity",
-        "credit",
-        "market",
-        "forward",
-        "future",
-        "option",
-        "swap",
-    ]
-
-    semantic_mod = rf"(?:{build_alternation(modifiers)}|{LOOSE_GEN_REGEX.pattern})"
-    filler = r"(?:\s+\S+){0,3}\s+"
-    gap_unit = rf"(?:{semantic_mod}{filler})"
-    instrument_chain = (
-        rf"(?:{gap_unit}){{0,5}}(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern})"
-    )
-
-    # --- CLAUSES ---
-    # Pattern 1: Active/Passive Denial ("Do not use X for trading")
-    pat_denial = (
-        rf"\b(?:{SUBJ}|{instrument_chain})\s+"
-        rf"(?:{_NEG})\s+"
-        rf"(?:\S+\s+){{0,5}}"
-        rf"(?:{_ACT}|{_TRAD})\s+"
-        rf"(?:\S+\s+){{0,5}}"
-        rf"(?:{_TRAD})(?:\s+{_PURP})?\b"
-    )
-
-    # Pattern 2: Authorization Veto ("Trading of X is not permitted")
-    pat_auth = (
-        rf"\b(?:{_TRAD})\s+"
-        rf"(?:of\s+)?(?:{instrument_chain})?\s+"
-        rf"(?:is|are|was|were)\s+"
-        rf"(?:not|prohibited|{_NEG})\s+"
-        rf"{_AUTH}\b"
-    )
-
-    # Pattern 3: Header Style ("No trading purposes")
-    pat_header = rf"\b(?:no|not)\s+(?:for\s+)?(?:{_TRAD})\s+(?:{_PURP})\b"
-
-    combined = build_alternation([pat_denial, pat_auth, pat_header])
-    return re.compile(combined, re.IGNORECASE | re.VERBOSE)
-
-
-TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 
 def build_termination_regex() -> re.Pattern:
     """Matches: "expired", "matured", "unwound" """
