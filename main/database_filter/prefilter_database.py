@@ -50,10 +50,56 @@ from derivative_regex import (
     is_contractual_noise,
     is_hypothetical_noise,
     is_regulatory_noise,
+    
+    COMMODITY_REGEX,
+    CURRENCY_NAMES_REGEX,
 )
 
 from table_processor import TABLE_ANCHOR, TableToTextConverter
 from prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
+
+
+# =============================================================================
+# CURRENCY & COMMODITY COUNTING
+# =============================================================================
+def count_currencies_and_commodities(text: str) -> dict:
+    """
+    Count occurrences of currencies and commodities in text.
+    
+    Args:
+        text: Combined text from all paragraphs
+        
+    Returns:
+        Dictionary with structure:
+        {
+            "currencies": {"USD": 5, "EUR": 3, ...},
+            "commodities": {"gold": 2, "oil": 1, ...},
+            "currency_total": 8,
+            "commodity_total": 3
+        }
+    """
+    result = {
+        "currencies": {},
+        "commodities": {},
+        "currency_total": 0,
+        "commodity_total": 0
+    }
+    
+    # Count currencies
+    if CURRENCY_NAMES_REGEX:
+        for match in CURRENCY_NAMES_REGEX.finditer(text):
+            currency = match.group().upper()
+            result["currencies"][currency] = result["currencies"].get(currency, 0) + 1
+            result["currency_total"] += 1
+    
+    # Count commodities
+    if COMMODITY_REGEX:
+        for match in COMMODITY_REGEX.finditer(text):
+            commodity = match.group().lower()
+            result["commodities"][commodity] = result["commodities"].get(commodity, 0) + 1
+            result["commodity_total"] += 1
+    
+    return result
 
 
 # =============================================================================
@@ -528,8 +574,20 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             final_results.sort(key=lambda x: x[0])
             seen = set()
             unique_paragraphs = []
+            
+            # Combine all text for currency/commodity counting
+            combined_text = " ".join([text for _, text in final_results])
+            currency_commodity_counts = count_currencies_and_commodities(combined_text)
+            
             # Prepend the Metadata Paragraph
-            metadata = {"type": "metadata", "NST": is_nst}
+            metadata = {
+                "type": "metadata",
+                "NST": is_nst,
+                "currencies": currency_commodity_counts["currencies"],
+                "commodities": currency_commodity_counts["commodities"],
+                "currency_total": currency_commodity_counts["currency_total"],
+                "commodity_total": currency_commodity_counts["commodity_total"]
+            }
             unique_paragraphs.append(json.dumps(metadata))
             for _, text in final_results:
                 if text not in seen:

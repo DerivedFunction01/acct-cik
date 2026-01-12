@@ -14,6 +14,7 @@ from derivative_regex import (
     IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
+from prefilter_database import find_hedging_context
 from table_processor import TABLE_ANCHOR
 from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, convertible_ir, is_sophisticated_content, is_sophisticated_target
 
@@ -188,6 +189,31 @@ def extract_categories_soft(sentence: str) -> Set[str]:
             cats.add("gen")
 
     return cats
+
+
+def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
+    """
+    Extract actual matched instrument text from category regexes.
+    Returns a dict mapping category -> set of matched instrument keywords.
+    
+    Only captures matches from the category regexes (strict_inst, soft_inst).
+    Used ONLY for valid evidence cases to avoid noise.
+    """
+    instruments = defaultdict(set)
+    
+    for cat, (strict_inst, soft_inst, _, _) in CATEGORY_MAP.items():
+        # Try strict instrument first (higher confidence)
+        if strict_inst:
+            for match in strict_inst.finditer(sentence):
+                instruments[cat].add(match.group(0).strip())
+        
+        # Then soft instrument (if no strict found)
+        if soft_inst and cat not in instruments:
+            for match in soft_inst.finditer(sentence):
+                instruments[cat].add(match.group(0).strip())
+    
+    # Clean up empty categories
+    return {cat: kw for cat, kw in instruments.items() if kw}
 
 
 def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
@@ -384,6 +410,7 @@ def process_row(row: Tuple) -> Tuple:
     strict_categories = set()
     soft_counts = defaultdict(int)
     strict_counts = defaultdict(int)
+    valid_instruments = defaultdict(set)  # Track instrument keywords by category
     attributes: Dict[str, Any] = {
         "is_hedger": False,
         "documents_hedge_accounting": False,
@@ -400,6 +427,7 @@ def process_row(row: Tuple) -> Tuple:
             metadata_str = paragraphs.pop(0)  # Safely remove the first element
             metadata = json.loads(metadata_str)
             is_nst = metadata.get("NST", False)
+            attributes["metadata"] = metadata
         except (json.JSONDecodeError, KeyError):
             pass
     # --- SINGLE PASS Processing ---
@@ -413,6 +441,16 @@ def process_row(row: Tuple) -> Tuple:
 
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         attributes = mine_attributes(para_tag_reason, attributes)
+
+        # --- INSTRUMENT SALVAGE: Check for strict mentions even in deadweight ---
+        # Even if this paragraph is tagged as noise, if it contains strict instrument mentions
+        # with hedging context, we still want to record those instruments as known.
+        if is_para_deadweight and find_hedging_context(para_content):
+            strict_salvage_cats = extract_categories_strict(para_content)
+            if strict_salvage_cats:
+                instrument_keywords = extract_instrument_keywords(para_content)
+                for cat, keywords in instrument_keywords.items():
+                    valid_instruments[cat].update(keywords)
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
@@ -436,6 +474,15 @@ def process_row(row: Tuple) -> Tuple:
                 attributes = mine_attributes(etag, attributes)
 
             is_active = not (is_para_deadweight or is_sent_deadweight)
+            
+            # --- SENTENCE-LEVEL INSTRUMENT SALVAGE ---
+            # Even if sentence is deadweight, capture instruments if it has strict matches + hedging context
+            if is_sent_deadweight and find_hedging_context(sent_content):
+                strict_salvage_cats = extract_categories_strict(sent_content)
+                if strict_salvage_cats:
+                    instrument_keywords = extract_instrument_keywords(sent_content)
+                    for cat, keywords in instrument_keywords.items():
+                        valid_instruments[cat].update(keywords)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             clean_sent = _cleaner.clean_entities(sent_content_no_evidence)
             clean_sent = _cleaner.clean_non_derivatives(clean_sent, effective_nst)
@@ -456,6 +503,10 @@ def process_row(row: Tuple) -> Tuple:
                     for cat in strict_cats:
                         strict_categories.add(cat)
                         strict_counts[cat] += 1  # Only increment Anchor magnitude here!
+                    # Capture instruments from valid evidence
+                    instrument_keywords = extract_instrument_keywords(clean_sent)
+                    for cat, keywords in instrument_keywords.items():
+                        valid_instruments[cat].update(keywords)
                     continue  # Done. We trust this sentence.
 
                 # 3. If NO Evidence, fall through!
@@ -479,6 +530,10 @@ def process_row(row: Tuple) -> Tuple:
                     tracker.register_paragraph(clean_sent, cat)
                     local_tracker.register_paragraph(clean_sent, cat)
                     strict_counts[cat] += 1
+                # Capture instruments from unambiguous evidence
+                instrument_keywords = extract_instrument_keywords(clean_sent)
+                for cat, keywords in instrument_keywords.items():
+                    valid_instruments[cat].update(keywords)
                 if promoted_cats:
                     continue
 
@@ -540,8 +595,10 @@ def process_row(row: Tuple) -> Tuple:
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
 
+    # Add valid instruments as category -> list mapping
+    attributes["instruments"] = {cat: sorted(list(keywords)) for cat, keywords in valid_instruments.items()}
     attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
-
+    
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
 # =============================================================================
 # DATABASE

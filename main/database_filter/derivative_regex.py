@@ -4200,7 +4200,7 @@ FX_STRICT_TERMS = [
 
 # 1. Helper: Build the commodity alternation once
 _COMMODITY_NAMES = build_alternation(COMMON_COMMODITIES)
-
+COMMODITY_REGEX = build_regex(COMMON_COMMODITIES)
 # 2. COMMODITY (Strict)
 # FIX: Do NOT include raw commodity names.
 # Only include them if attached to "price", "cost", "risk", "hedge", "volaitity"
