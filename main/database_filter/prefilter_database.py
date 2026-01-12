@@ -76,14 +76,11 @@ SOPHISTICATED_TARGET_GATE = re.compile(
 # Used to validate the sophisticated buffer.
 SOPHISTICATED_CONTEXT_TERMS = [
     # REFINED: "embedded" must be followed by a relevant noun to be a self-validating signal
-    r"embedded\s+(?:derivatives?|conversions?|features?|options?|liabilit(?:y|ies))",
+    r"embedded\s+derivatives?",
     r"bifurcat(?:e|ion|ed)",
-    r"derivative\s+liabilit(?:y|ies)",
+    r"derivative\s+(?:liabilit(?:y|ies)|assets?)",
     r"host\s+contracts?",
-    r"conversion\s+(?:options?|features?|prices?|rates?)",
-    r"cash\s+conversions?",
-    r"make[- ]whole",
-    r"fundamental\s+change",
+    r"conversion\s+(?:options?|features?)",
     r"fair\s+value\s+options?",
 ] + VALUATION_MODELS  # Black-Scholes, Monte Carlo, etc.
 
@@ -302,21 +299,17 @@ def validate_sophisticated_buffer(
     """
     if not sophisticated_buffer:
         return False
+    # 1. Check for Internal Sophisticated Context
+    # Combined text from all sophisticated paragraphs
+    combined_text = " ".join(sophisticated_buffer)
+    if SOPHISTICATED_CONTEXT_REGEX.search(combined_text):
+        return True
 
     # 1. Check for Free Pass (Gated Target in standard text)
     # Use is_sophisticated_target() to ensure equity context
     for p in clean_paragraphs:
         if EQ_REGEX.search(p) and is_sophisticated_target(p):
             return True
-        if find_hedging_context(p) and is_sophisticated_target(p):
-            return True
-
-    # 2. Check for Internal Sophisticated Context
-    # Combined text from all sophisticated paragraphs
-    combined_text = " ".join(sophisticated_buffer)
-    if SOPHISTICATED_CONTEXT_REGEX.search(combined_text):
-        return True
-
     return False
 
 
