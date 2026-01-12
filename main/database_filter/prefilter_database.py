@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 from tqdm import tqdm
 
-from prefiltered_lib import DEADWEIGHT_TOKEN
+from prefiltered_lib import DEADWEIGHT_TOKEN, SOPHISTICATED_CONTEXT_REGEX, SOPHISTICATED_TARGETS, is_sophisticated_content, is_sophisticated_target
 
 # =============================================================================
 # CONFIGURATION
@@ -57,66 +57,6 @@ from derivative_regex import (
 from table_processor import TABLE_ANCHOR, TableToTextConverter
 from prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
 
-# =============================================================================
-# SOPHISTICATED CONTEXT DEFINITIONS
-# =============================================================================
-# 1. Target Instruments (The "What") - NOW REQUIRES EQ CONTEXT
-# Instead of just matching "convertible" or "warrant" standalone,
-# we require them to co-occur with equity derivative signals
-SOPHISTICATED_TARGETS = re.compile(
-    r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
-)
-
-# NEW: Gate for Sophisticated Targets
-# Ensures we only flag convertibles/warrants that are ACTUALLY equity derivatives
-SOPHISTICATED_TARGET_GATE = re.compile(
-    rf"(?:{EQ_REGEX.pattern}|{EQ_SOFT_REGEX.pattern})", re.IGNORECASE
-)
-
-# 2. Sophisticated Context (The "Why/How")
-# Used to validate the sophisticated buffer.
-SOPHISTICATED_CONTEXT_TERMS = [
-    # REFINED: "embedded" must be followed by a relevant noun to be a self-validating signal
-    r"embedded\s+derivatives?",
-    r"bifurcat(?:e|ion|ed)",
-    r"derivative\s+(?:liabilit(?:y|ies)|assets?)",
-    r"host\s+contracts?",
-    r"conversion\s+(?:options?|features?)",
-    r"fair\s+value\s+options?",
-] + VALUATION_MODELS  # Black-Scholes, Monte Carlo, etc.
-
-SOPHISTICATED_CONTEXT_REGEX = build_regex(SOPHISTICATED_CONTEXT_TERMS)
-
-def is_sophisticated_target(text: str) -> bool:
-    """
-    Returns True if text contains a sophisticated target (convertible/warrant/conversion)
-    AND has equity derivative context (EQ_REGEX or EQ_SOFT_REGEX).
-
-    This prevents false positives from unrelated mentions of "warrant" or "convertible".
-    """
-    # Quick exit: no target word present
-    if not SOPHISTICATED_TARGETS.search(text):
-        return False
-    
-    # Quick exit 2: refer to interest rate category
-    if IR_SOFT_REGEX.search(text):
-        return False
-
-    # Required: target must have equity context
-    if SOPHISTICATED_TARGET_GATE.search(text):
-        return True
-
-    return False
-
-
-def is_sophisticated_content(text: str) -> bool:
-    """
-    Returns True if text is sophisticated derivative content.
-    Checks: (Target + EQ context) OR (Sophisticated context terms)
-
-    Used throughout to gate sophisticated buffer routing.
-    """
-    return is_sophisticated_target(text) or bool(SOPHISTICATED_CONTEXT_REGEX.search(text))
 
 
 # =============================================================================
