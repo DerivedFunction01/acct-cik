@@ -4133,6 +4133,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "stock option",  #
         "stock purchase",  #
         "equity method",  # Matches "Equity method contract"
+        "stock",
     ]
 
     placeholder_alternation = build_alternation(placeholders)
