@@ -22,7 +22,7 @@ from derivative_regex import (
 )
 
 from table_processor import TABLE_ANCHOR
-from prefilter_database import is_sophisticated_content
+from prefilter_database import SOPHISTICATED_TARGETS, is_sophisticated_content
 from prefiltered_lib import (
     DEADWEIGHT_TOKEN,
     EVIDENCE_TOKEN,
@@ -631,7 +631,13 @@ def process_row(row):
             continue
 
         # Pass the is_nst flag to the tagger to inform its logic
-        tagged_p = tag_paragraph(p, year, is_nst=is_nst)
+        local_is_nst = False
+        # Pass the is_nst flag to the tagger to inform its logic
+        if SOPHISTICATED_TARGETS.search(p) and IR_SOFT_REGEX.search(
+            p
+        ):  # Discussions of ir cap, swap, etc
+            local_is_nst = True
+        tagged_p = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
         new_paragraphs.append(tagged_p)
 
     return (url, json.dumps(new_paragraphs), cik, year)

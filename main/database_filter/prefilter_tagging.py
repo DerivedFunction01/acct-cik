@@ -14,6 +14,7 @@ from derivative_regex import (
     COMPARISON_PHRASES,
     CURRENCY_SYMBOL_PATTERN,
     DID_NOT_HOLD_REGEX,
+    IR_SOFT_REGEX,
     NON_DER_CAP_FLOOR_REGEX,
     IS_REFERENCE_REGEX,
     LOOSE_GEN_REGEX,
@@ -39,7 +40,11 @@ from derivative_regex import (
 )
 
 
-from prefilter_database import is_sophisticated_content, is_sophisticated_target
+from prefilter_database import (
+    is_sophisticated_content,
+    is_sophisticated_target,
+    SOPHISTICATED_TARGETS,
+)
 from prefiltered_lib import (
     HEDGE_DOC_REGEX,
     SKIP_TOKEN,
@@ -447,9 +452,13 @@ def process_row(row):
         if DEADWEIGHT_TOKEN in p:
             new_paragraphs.append(p)
             continue
-
+        local_is_nst = False
         # Pass the is_nst flag to the tagger to inform its logic
-        tagged_p = tag_paragraph(p, year, is_nst=is_nst)
+        if SOPHISTICATED_TARGETS.search(p) and IR_SOFT_REGEX.search(
+            p
+        ):  # Discussions of ir cap, swap, etc
+            local_is_nst = True
+        tagged_p = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
         new_paragraphs.append(tagged_p)
 
     return (url, json.dumps(new_paragraphs), cik, year)
