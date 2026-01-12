@@ -424,12 +424,31 @@ def process_row(row):
         return None
 
     new_paragraphs = []
+    is_nst = False  # Default to False unless metadata says otherwise
+
+    # 1. Extract and Handle Metadata
+    if paragraphs and paragraphs[0].startswith('{"type": "metadata"'):
+        try:
+            metadata_str = paragraphs.pop(0)  # Remove it so it isn't tagged as text
+            metadata = json.loads(metadata_str)
+            is_nst = metadata.get(
+                "NST", False
+            )  # Use the key "NST" from your earlier plan
+
+            # Re-add the metadata to the top of the NEW list
+            # so it persists for the next stage (Phase 2/3)
+            new_paragraphs.append(metadata_str)
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # 2. Process remaining actual text paragraphs
     for p in paragraphs:
-        # Respect existing tags from previous steps (Prefilter Simple Nonuse)
+        # Respect existing tags (e.g., DEADWEIGHT from Phase 0)
         if DEADWEIGHT_TOKEN in p:
             new_paragraphs.append(p)
             continue
 
+        # Pass the is_nst flag to the tagger to inform its logic
         tagged_p = tag_paragraph(p, year, is_nst=is_nst)
         new_paragraphs.append(tagged_p)
 
