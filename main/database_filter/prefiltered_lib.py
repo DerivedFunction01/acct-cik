@@ -50,7 +50,7 @@ class MinimalTextCleaner:
         rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d{1,3}\b",
         re.IGNORECASE,
     )
-    
+
     soph_pattern = re.compile(
         r"\b(?:convertibles?|warrants?)\b", re.IGNORECASE
     )
@@ -79,10 +79,10 @@ class MinimalTextCleaner:
         for match in quant_matches:
             for i in range(match.start(), match.end()):
                 protected_ranges.add(i)
-        # Step 2: Identify and protect nil quantitative values
-        quant_matches = list(ZERO_QUANT_REGEX.finditer(text))
-        protected_ranges = set()
-        for match in quant_matches:
+
+        # Step 2: Identify and protect nil/zero values (ADD to the set, don't re-initialize)
+        zero_matches = list(ZERO_QUANT_REGEX.finditer(text))
+        for match in zero_matches:
             for i in range(match.start(), match.end()):
                 protected_ranges.add(i)
 
@@ -144,7 +144,7 @@ class MinimalTextCleaner:
             sent = self.clean_entities(sent)
             sent = self.clean_non_derivatives(sent, is_nst)
             texts.append(sent)
-        return text
+        return " ".join(texts)
 
 from enum import Enum
 class Reason(Enum):
@@ -679,4 +679,3 @@ def is_pnl(text, context_only = True):
     if context_only:
         return bool(PNL_CONTEXT_REGEX.search(text))
     return bool(HAD_CHANGE_REGEX.search(text)) or bool(PNL_CONTEXT_REGEX.search(text))
-
