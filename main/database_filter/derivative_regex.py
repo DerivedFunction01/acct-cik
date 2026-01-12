@@ -170,17 +170,25 @@ SENTENCE_SPLIT_PATTERN = re.compile(
 
 COMMON_COMMODITIES = [
     # 🌾 Agriculture & Food
-    "agricultural",
     "cocoa",
     "coffee",
     "corn",
     "cotton",
     "dairy",
+    "milk",
     "grain",
     "livestock",
-    "soybean",
+    "soybeans?",
     "sugar",
     "wool",
+    "oranges?",
+    "bananas?",
+    "apples?",
+    "grapes?",
+    "tomato(?:es)?",
+    "potato(?:es)?",
+    "wheat",
+    "rice",
     # ⛽ Energy & Fuels
     "biodiesel",
     "biomass",
