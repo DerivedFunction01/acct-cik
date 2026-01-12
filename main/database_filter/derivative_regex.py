@@ -859,20 +859,10 @@ PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
 # Negative lookahead: forward NOT followed by physical keywords
 FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 SPECIAL_BASE = [
-    "call options?",
-    "put options?",
-    "basis swaps?",
-    "total[- ]return swaps?",
-    "barrier options?",
-    "asian options?",
-    "bermuda options?",
-    "variance swaps?",
-    "volatility swaps?",
+    "(?:call|put) (?:options?|contracts?)?",
+    "(?:basis|variance|volatility|total[- ]return) swaps?",
     "swaptions?",
-    "basket options?",  # Generic multi-asset
-    "rainbow options?",  # Generic multi-asset
-    "lookback options?",
-    "exotic options?",
+    "(:?asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
 ]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
@@ -1695,9 +1685,13 @@ DER_STD_REGEX = build_derivative_standards()
 
 
 def build_loose_gen_regex() -> re.Pattern:
-    bases = ALL_BASE_TYPES.copy()
-    bases.remove("hedging")
-    pattern = build_alternation(bases + ALL_SUFFIXES + ["warrants"])
+    bases = UNAMBIGUOUS_BASE_TYPES.copy()
+    plurals = [
+        "caps",
+        "floors",
+        "warrants",
+    ]
+    pattern = build_alternation(bases + ALL_SUFFIXES + plurals)
     return re.compile(r"\b" + pattern + r"\b", re.IGNORECASE)
 
 
