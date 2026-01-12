@@ -138,7 +138,7 @@ PASSIVE_STATE_VERBS = [
     r"hedg(?:e|es|ed|ing)",
     r"manag(?:e|es|ed|ing)",
     r"carr(?:y|ies|ied|ying)",  # "Carries at fair value"
-    r"(?:be|is|are|was|were)\s+a\s+party\s+to",  # "Is a party to interest rate swaps"
+    r"(?:be|is|are|was|were)\s+(?:a\s+)?party\s+to",  # "Is a party to interest rate swaps"
     rf"remained?\s+{ACTIVE_STATE_PATTERN}",  # "remained active/open/outstanding"
 ]
 

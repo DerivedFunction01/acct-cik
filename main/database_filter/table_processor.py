@@ -1297,6 +1297,7 @@ class TableToTextConverter:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a notional amount of {value}."
                 elif "gain_loss" in actual_col_type:
                     sentence = f"{anchor_text} {year_str}The Company recorded {display_instrument} of {value}."
+                    continue
                 elif "fair_value" in actual_col_type:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a fair value of {value}."
                 elif actual_col_type == "value":
