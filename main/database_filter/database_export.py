@@ -32,7 +32,7 @@ def process_batch(batch):
     # NOTE: Assuming categories_json now holds the array of "ir_fx", "eq_gen", etc.
     for url, cik, year, categories_json in batch:
 
-        if not categories_json or categories_json == "[]":
+        if not categories_json:
             continue
 
         try:
@@ -51,9 +51,6 @@ def process_batch(batch):
             for cat in individual_cats:
                 if cat and cat not in {"other", "unknown", "table"}:
                     doc_cat_set.add(cat)
-
-        if not doc_cat_set:
-            continue
 
         # 3. Create Binary Flags based on the final document set
         results.append(
