@@ -298,7 +298,7 @@ def remove_outlier_categories(
 
 
 PRIORITY_ORDER = ["fx", "cp", "eq", "cr", "ir"]
-def get_text_categories(text: str) -> Set[str]:
+def get_text_categories(text: str, is_nst: bool) -> Set[str]:
     """
     Determines category using Weighted Scoring and Map Iteration.
 
@@ -324,7 +324,7 @@ def get_text_categories(text: str) -> Set[str]:
         # B. Strict Context ("Interest Rate Risk")
         if strict_ctx and strict_ctx.search(text):
             # Special Handling for Equity -> Warrants
-            if cat == "eq" and is_sophisticated_content(text):
+            if cat == "eq" and is_sophisticated_content(text) and not is_nst:
                 scores["warr"] += 6000  # Immediate override
             else:
                 scores[cat] += 2000
@@ -395,7 +395,14 @@ def process_row(row: Tuple) -> Tuple:
     }
     mentions_venue = False
     tracker = GlobalInstrumentTracker()
-
+    is_nst = True
+    if paragraphs and paragraphs[0].startswith('{"type": "metadata"'):
+        try:
+            metadata_str = paragraphs.pop(0)  # Safely remove the first element
+            metadata = json.loads(metadata_str)
+            is_nst = metadata.get("NST", False)
+        except (json.JSONDecodeError, KeyError):
+            pass
     # --- SINGLE PASS Processing ---
     for p in paragraphs:
         local_tracker = GlobalInstrumentTracker()
@@ -407,7 +414,7 @@ def process_row(row: Tuple) -> Tuple:
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
-        context_cats = get_text_categories(para_content)  # Allow full original text
+        context_cats = get_text_categories(para_content, is_nst=is_nst)  # Allow full original text
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
         local_contexts = context_cats if context_cats else set()
@@ -427,6 +434,7 @@ def process_row(row: Tuple) -> Tuple:
             is_active = not (is_para_deadweight or is_sent_deadweight)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             clean_sent = _cleaner.clean_entities(sent_content_no_evidence)
+            clean_sent = _cleaner.clean_non_derivatives(clean_sent, is_nst)
 
             # -------------------------------------------------------------
             # A. Check Strict Matches (Gate 1 - Modified)
