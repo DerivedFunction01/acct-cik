@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_alternation, build_regex
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EQ_REGEX, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_alternation, build_regex
 
 # The token to append to deadweight paragraphs.
 DEADWEIGHT_TOKEN = "_D"
@@ -131,9 +131,34 @@ class MinimalTextCleaner:
         return text
 
     def clean_non_derivatives(self, text: str, is_nst: bool = True) -> str:
+        """
+        Modified to protect genuine equity derivatives (EQ_REGEX)
+        from being mutilated by the sophisticated term stripper.
+        """
+
+        # Step 2: Remove known non-derivative terms
         text = NON_DERIVATIVE_REGEX.sub(" ", text)
+
+        # Step 3: Handle Sophisticated Term Stripping (is_nst=True)
         if is_nst:
-            text = self.soph_pattern.sub(" ", text) # replace warrants and convertible -> "convertble debt" -> "debt"
+            # Step 1: Identify and protect genuine Equity Derivatives (e.g., "convertible note hedge")
+            eq_matches = list(EQ_REGEX.finditer(text))
+            protected_ranges = set()
+            for match in eq_matches:
+                for i in range(match.start(), match.end()):
+                    protected_ranges.add(i)
+            # Define a safe substitution that avoids protected ranges
+            def safe_soph_sub(match):
+                # If the match for "convertible" or "warrant" is inside a
+                # protected EQ_REGEX match, keep it.
+                if any(
+                    i in protected_ranges for i in range(match.start(), match.end())
+                ):
+                    return match.group(0)
+                return " "
+
+            text = self.soph_pattern.sub(safe_soph_sub, text)
+
         text = self.normalize_whitespace(text)
         return text
 
