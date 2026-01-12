@@ -408,9 +408,15 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     sophisticated_buffer_orig = []
     sophisticated_buffer_masked = []
     local_discards = []
+    all_text_parts = []  # Track all text for metadata counting (even if discarded)
 
     for idx, p in enumerate(paragraphs):
         try:
+            # Track all text for metadata (before any filtering)
+            # Skip metadata paragraphs from previous stages
+            if not p.startswith('{"type": "metadata"'):
+                all_text_parts.append(p)
+            
             p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
             # === TABLE HANDLING ===
@@ -570,24 +576,37 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     # === RECONSTRUCT & SORT ===
     try:
+        # Always prepare metadata, even if final_results is empty
+        # Use final_results text if available, otherwise use all collected text
+        if final_results:
+            text_for_counting = final_results
+            is_empty = False
+        elif all_text_parts:
+            text_for_counting = [(0, text) for text in all_text_parts]
+            is_empty = True  # Content exists but all filtered out
+        else:
+            # Document had no derivative content at all
+            text_for_counting = []
+            is_empty = True
+        
+        combined_text = " ".join([text for _, text in text_for_counting]) if text_for_counting else ""
+        currency_commodity_counts = count_currencies_and_commodities(combined_text)
+        
+        # Prepend the Metadata Paragraph
+        metadata = {
+            "type": "metadata",
+            "NST": is_nst,
+            "is_empty": is_empty,
+            "currencies": currency_commodity_counts["currencies"],
+            "commodities": currency_commodity_counts["commodities"],
+            "currency_total": currency_commodity_counts["currency_total"],
+            "commodity_total": currency_commodity_counts["commodity_total"]
+        }
+        
         if final_results:
             final_results.sort(key=lambda x: x[0])
             seen = set()
             unique_paragraphs = []
-            
-            # Combine all text for currency/commodity counting
-            combined_text = " ".join([text for _, text in final_results])
-            currency_commodity_counts = count_currencies_and_commodities(combined_text)
-            
-            # Prepend the Metadata Paragraph
-            metadata = {
-                "type": "metadata",
-                "NST": is_nst,
-                "currencies": currency_commodity_counts["currencies"],
-                "commodities": currency_commodity_counts["commodities"],
-                "currency_total": currency_commodity_counts["currency_total"],
-                "commodity_total": currency_commodity_counts["commodity_total"]
-            }
             unique_paragraphs.append(json.dumps(metadata))
             for _, text in final_results:
                 if text not in seen:
@@ -600,10 +619,38 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 year,
                 aggregate_discards(local_discards),
             )
+        else:
+            # No results, but still include metadata
+            unique_paragraphs = [json.dumps(metadata)]
+            return (
+                url,
+                json.dumps(unique_paragraphs),
+                cik,
+                year,
+                aggregate_discards(local_discards),
+            )
     except Exception as e:
         print(f"❌ Error reconstructing final results for {url}: {e}")
 
-    return (url, "[]", cik, year, aggregate_discards(local_discards))
+    # Fallback: still include metadata if there's an error
+    try:
+        if all_text_parts:
+            combined_text = " ".join(all_text_parts)
+        else:
+            combined_text = ""
+        currency_commodity_counts = count_currencies_and_commodities(combined_text)
+        metadata = {
+            "type": "metadata",
+            "NST": is_nst,
+            "is_empty": True,  # Fallback means filtering failed or no results
+            "currencies": currency_commodity_counts["currencies"],
+            "commodities": currency_commodity_counts["commodities"],
+            "currency_total": currency_commodity_counts["currency_total"],
+            "commodity_total": currency_commodity_counts["commodity_total"]
+        }
+        return (url, json.dumps([json.dumps(metadata)]), cik, year, aggregate_discards(local_discards))
+    except:
+        return (url, "[]", cik, year, aggregate_discards(local_discards))
 
 
 # =============================================================================
