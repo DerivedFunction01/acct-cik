@@ -634,6 +634,7 @@ _change_verbs = [
     r"change(?:s)?",
     r"increase(?:d|s)?",
     r"decrease(?:d|s)?",
+    r"adjustments?"
 ]
 
 change_verb_pattern = build_alternation(_change_verbs)
@@ -645,7 +646,7 @@ _fv_targets = [
     # e.g., "change in fair value", "increase of fair value"
     rf"{change_verb_pattern}\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value",
     # e.g., "fair value changes"
-    r"fair\s+value\s+change(?:s)?",
+    rf"fair\s+value\s+{change_verb_pattern}",
 ]
 
 fv_target_pattern = build_alternation(_fv_targets)
