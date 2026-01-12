@@ -10,12 +10,9 @@ from typing import Dict, List, Optional, Set, Tuple
 # --- REGEX IMPORTS ---f
 from derivative_regex import (
     # Structural
-    ABSENCE_INDICATORS,
     ABSENCE_REGEX,
     COMPARISON_PHRASES,
-    CURRENCY_SYMBOL_PATTERN,
     DID_NOT_HOLD_REGEX,
-    IR_SOFT_REGEX,
     NON_DER_CAP_FLOOR_REGEX,
     IS_REFERENCE_REGEX,
     PRECISE_LOOSE_GEN_REGEX,
@@ -27,7 +24,6 @@ from derivative_regex import (
     EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
     # Classification Killers
     POTENTIAL_REGEX,
-    NEGATIVE_INTENT_REGEX,
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
     YEAR_REGEX,
