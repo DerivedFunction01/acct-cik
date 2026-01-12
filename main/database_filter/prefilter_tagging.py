@@ -39,12 +39,6 @@ from derivative_regex import (
     is_regulatory_noise,
 )
 
-
-from prefilter_database import (
-    is_sophisticated_content,
-    is_sophisticated_target,
-    SOPHISTICATED_TARGETS,
-)
 from prefiltered_lib import (
     HEDGE_DOC_REGEX,
     SKIP_TOKEN,
@@ -52,8 +46,11 @@ from prefiltered_lib import (
     ZERO_QUANT_REGEX,
     MinimalTextCleaner,
     NoiseReason,
+    convertible_ir,
     get_tag,
     is_pnl,
+    is_sophisticated_content,
+    is_sophisticated_target,
     mark_as_deadweight,
     QUANT_REGEX,
 )
@@ -452,12 +449,8 @@ def process_row(row):
         if DEADWEIGHT_TOKEN in p:
             new_paragraphs.append(p)
             continue
-        local_is_nst = False
         # Pass the is_nst flag to the tagger to inform its logic
-        if SOPHISTICATED_TARGETS.search(p) and IR_SOFT_REGEX.search(
-            p
-        ):  # Discussions of ir cap, swap, etc
-            local_is_nst = True
+        local_is_nst = convertible_ir(p)
         tagged_p = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
         new_paragraphs.append(tagged_p)
 

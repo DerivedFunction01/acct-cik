@@ -15,8 +15,7 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
 from table_processor import TABLE_ANCHOR
-from prefilter_database import is_sophisticated_content, is_sophisticated_target
-from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason
+from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, is_sophisticated_content, is_sophisticated_target
 
 # =============================================================================
 # CONFIGURATION

@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EQ_REGEX, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, YEAR_REGEX, build_alternation, build_regex
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EQ_REGEX, EQ_SOFT_REGEX, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, VALUATION_MODELS, YEAR_REGEX, build_alternation, build_regex
 
 # The token to append to deadweight paragraphs.
 DEADWEIGHT_TOKEN = "_D"
@@ -704,3 +704,76 @@ def is_pnl(text, context_only = True):
     if context_only:
         return bool(PNL_CONTEXT_REGEX.search(text))
     return bool(HAD_CHANGE_REGEX.search(text)) or bool(PNL_CONTEXT_REGEX.search(text))
+
+# =============================================================================
+# SOPHISTICATED CONTEXT DEFINITIONS
+# =============================================================================
+
+def is_sophisticated_content(text: str) -> bool:
+    """
+    Returns True if text is sophisticated derivative content.
+    Checks: (Target + EQ context) OR (Sophisticated context terms)
+
+    Used throughout to gate sophisticated buffer routing.
+    """
+    return is_sophisticated_target(text) or bool(
+        SOPHISTICATED_CONTEXT_REGEX.search(text)
+    )
+
+
+# 1. Target Instruments (The "What") - NOW REQUIRES EQ CONTEXT
+# Instead of just matching "convertible" or "warrant" standalone,
+# we require them to co-occur with equity derivative signals
+SOPHISTICATED_TARGETS = re.compile(
+    r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
+)
+# 2. Sophisticated Context (The "Why/How")
+# Used to validate the sophisticated buffer.
+SOPHISTICATED_CONTEXT_TERMS = [
+    # REFINED: "embedded" must be followed by a relevant noun to be a self-validating signal
+    r"embedded\s+derivatives?",
+    r"bifurcat(?:e|ion|ed)",
+    r"derivative\s+(?:liabilit(?:y|ies)|assets?)",
+    r"host\s+contracts?",
+    r"conversion\s+(?:options?|features?)",
+    r"fair\s+value\s+options?",
+] + VALUATION_MODELS  # Black-Scholes, Monte Carlo, etc.
+
+SOPHISTICATED_CONTEXT_REGEX = build_regex(SOPHISTICATED_CONTEXT_TERMS)
+
+# NEW: Gate for Sophisticated Targets
+# Ensures we only flag convertibles/warrants that are ACTUALLY equity derivatives
+SOPHISTICATED_TARGET_GATE = re.compile(
+    rf"(?:{EQ_REGEX.pattern}|{EQ_SOFT_REGEX.pattern})", re.IGNORECASE
+)
+
+
+def is_sophisticated_target(text: str) -> bool:
+    """
+    Returns True if text contains a sophisticated target (convertible/warrant/conversion)
+    AND has equity derivative context (EQ_REGEX or EQ_SOFT_REGEX).
+
+    This prevents false positives from unrelated mentions of "warrant" or "convertible".
+    """
+    # Quick exit: no target word present
+    if not SOPHISTICATED_TARGETS.search(text):
+        return False
+
+    # Quick exit 2: refer to interest rate category
+    if IR_SOFT_REGEX.search(text):
+        return False
+
+    # Required: target must have equity context
+    if SOPHISTICATED_TARGET_GATE.search(text):
+        return True
+
+    return False
+
+def convertible_ir(p):
+    local_is_nst = False
+    if SOPHISTICATED_TARGETS.search(p) and IR_SOFT_REGEX.search(
+        p
+    ):  # Discussions of ir cap, swap, etc
+        if not SOPHISTICATED_CONTEXT_REGEX.search(p):
+            local_is_nst = True
+    return local_is_nst
