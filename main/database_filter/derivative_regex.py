@@ -3452,6 +3452,51 @@ def build_negative_intent_regex() -> re.Pattern:
         rf"(?:{_neg_pattern_standard}|{_neg_pattern_plans})\b", re.IGNORECASE
     )
 
+# Semantic Modifiers
+# --- SHARED SEMANTIC COMPONENTS FOR DENIAL LOGIC ---
+
+# The "Meat": Keywords that define what is being denied
+_DENIAL_MODIFIERS = [
+    "exchange",
+    "rate",
+    "currency",
+    "interest",
+    "foreign",
+    "commodity",
+    "equity",
+    "credit",
+    "market",
+    "forward",
+    "future",
+    "option",
+    "swap",
+    "purchase",
+    "sale",
+    "cash",
+    "fair",
+    "value",
+    "material",
+    "significant",
+    "hedging",
+    "derivative",
+    "financial",
+    "trading",
+    "proprietary",
+    "speculative", 
+]
+
+# The "Glue": Small filler words that appear between modifiers
+_DENIAL_FILLER = r"(?:\S+\s+){0,3}"
+
+# The "Chain": A single unit of [Filler] + [Modifier]
+# Supports lists like "interest rate, foreign exchange, or commodity..."
+_DENIAL_SEMANTIC_MOD = (
+    rf"(?:{build_alternation(_DENIAL_MODIFIERS)}|{LOOSE_GEN_REGEX.pattern})"
+)
+_DENIAL_GAP_UNIT = rf"(?:{_DENIAL_FILLER}{_DENIAL_SEMANTIC_MOD})"
+
+# The "Target": The final noun in the sequence
+_DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
 
 def build_absence_regex() -> re.Pattern:
     """
@@ -3470,71 +3515,29 @@ def build_absence_regex() -> re.Pattern:
     
     # 1. Triggers
     triggers = build_alternation(ABSENCE_INDICATORS)
-
-    # 2. Semantic Modifiers (The "Meat")
-    # Expands your placeholders to cover standard list items
-    modifiers = [
-        "exchange", "rate", "currency", "interest", "foreign",
-        "commodity", "equity", "credit", "market", "forward",
-        "future", "option", "swap", "purchase", "sale",
-        "cash", "fair", "value", "material", "significant",
-        "hedging", "derivative", "financial", "trading", "proprietary", "speculative"
-    ]
-    
-    # Combine explicit placeholders with your LOOSE_GEN_REGEX
-    # This allows "No [call] options" or "No [interest] rate"
-    semantic_modifier = rf"(?:{build_alternation(modifiers)}|{LOOSE_GEN_REGEX.pattern})"
-
-    # 3. Small Filler (The "Glue")
-    # Matches 0-3 "garbage" tokens (punctuation, conjunctions, adjectives not in list)
-    # e.g., "such", "any", "of the", ",", "or"
-    small_filler = r"(?:\S+\s+){0,3}"
-
-    # 4. The Gap Unit
-    # A single link in the chain: [Filler] + [Semantic Word]
-    # e.g., "such interest" or ", forward"
-    gap_unit = rf"(?:{small_filler}{semantic_modifier})"
-
-    # 5. The Chain
-    # Allow 0 to 5 of these units to precede the final target
-    # Matches: "[such interest] (rate), [forward] (exchange), [or commodity]"
-    gap_chain = rf"(?:{gap_unit}\s+){{0,5}}"
-
-    # 6. Target Instrument
-    # The final noun must be a strong derivative term
-    # (Reuse existing definitions)
-    target = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+    gap_chain = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
 
     return re.compile(
-        rf"\b{triggers}\b\s+"      # "No"
-        rf"{gap_chain}"            # The Semantic Chain
-        rf"{small_filler}"         # Final connector ("or")
-        rf"{target}\b",            # "contracts"
+        rf"\b{triggers}\b\s+"
+        rf"{gap_chain}"
+        rf"{_DENIAL_FILLER}"
+        rf"{_DENIAL_TARGET}\b",
         re.IGNORECASE
     )
 
 
 def build_did_not_hold_regex() -> re.Pattern:
-    """
-    Matches: "did not hold", "didn't enter", "couldn't engage" in swaps, derivatives
-    Note: if the sentence mentions that it can't do something, then we don't need the sentence anyways.
-    """
-    # Use the same unified prefix
-    _neg_prefix = build_negation_prefix_pattern()
-
-    _instrument_object = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
-    # _fillers = (
-    #     r"(?:such\s+|any\s+|" rf"{MATERIAL_PATTERN}\s+|" rf"{ACTIVE_STATE_PATTERN}\s+)*"
-    # )
+    """Matches: '[Negation] [Action] [Gap Chain] [Target]'"""
+    neg_prefix = build_negation_prefix_pattern()
+    gap_chain = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
 
     return re.compile(
-        # Replace the hardcoded (did|does...) with the unified prefix
-        # We do not currently have XXX instruments
-        rf"{_neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+(?:\S+\s+){{0,12}}"
-        rf"{_instrument_object}\b",
-        re.IGNORECASE,
+        rf"{neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+"
+        rf"{gap_chain}"
+        rf"{_DENIAL_FILLER}"
+        rf"{_DENIAL_TARGET}\b",
+        re.IGNORECASE
     )
-
 
 def build_termination_regex() -> re.Pattern:
     """Matches: "expired", "matured", "unwound" """
