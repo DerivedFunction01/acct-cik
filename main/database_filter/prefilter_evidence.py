@@ -39,6 +39,7 @@ from prefiltered_lib import (
     MinimalTextCleaner,
     NoiseReason,
     Reason,
+    convertible_ir,
     get_tag,
     is_sophisticated_content,
     mark_as_deadweight,
@@ -632,12 +633,7 @@ def process_row(row):
             continue
 
         # Pass the is_nst flag to the tagger to inform its logic
-        local_is_nst = False
-        # Pass the is_nst flag to the tagger to inform its logic
-        if SOPHISTICATED_TARGETS.search(p) and IR_SOFT_REGEX.search(
-            p
-        ):  # Discussions of ir cap, swap, etc
-            local_is_nst = True
+        local_is_nst = convertible_ir(p)
         tagged_p = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
         new_paragraphs.append(tagged_p)
 

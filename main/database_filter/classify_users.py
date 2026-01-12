@@ -15,7 +15,7 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
 from table_processor import TABLE_ANCHOR
-from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, is_sophisticated_content, is_sophisticated_target
+from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, convertible_ir, is_sophisticated_content, is_sophisticated_target
 
 # =============================================================================
 # CONFIGURATION
@@ -405,6 +405,9 @@ def process_row(row: Tuple) -> Tuple:
     # --- SINGLE PASS Processing ---
     for p in paragraphs:
         local_tracker = GlobalInstrumentTracker()
+        effective_nst = is_nst
+        if convertible_ir(p):
+            effective_nst = True
         if not mentions_venue and TRADING_VENUE_REGEX.search(p):
             mentions_venue = True
 
@@ -413,7 +416,9 @@ def process_row(row: Tuple) -> Tuple:
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
-        context_cats = get_text_categories(para_content, is_nst=is_nst)  # Allow full original text
+        context_cats = get_text_categories(
+            para_content, is_nst=effective_nst
+        )  # Allow full original text, while stripping convertible debt as standard debt if it is not a derivative
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
         local_contexts = context_cats if context_cats else set()
@@ -433,7 +438,7 @@ def process_row(row: Tuple) -> Tuple:
             is_active = not (is_para_deadweight or is_sent_deadweight)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             clean_sent = _cleaner.clean_entities(sent_content_no_evidence)
-            clean_sent = _cleaner.clean_non_derivatives(clean_sent, is_nst)
+            clean_sent = _cleaner.clean_non_derivatives(clean_sent, effective_nst)
 
             # -------------------------------------------------------------
             # A. Check Strict Matches (Gate 1 - Modified)
