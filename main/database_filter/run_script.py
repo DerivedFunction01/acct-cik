@@ -7,18 +7,18 @@ from pathlib import Path
 PYTHON_EXEC = sys.executable
 LOG_FILE = "pipeline_run.log"
 
-# Definition: (Script, Output_DB, Output_CSV)
+# Definition: (Script, Output_CSV)
 PIPELINE_STAGES = [
-    # 0. Attempt to cleanup tables
-    ("prefilter_database.py", "prefiltered_data.db", "prefiltered.csv"),
-    # # 1. Drop simple nonusers
-    # ("prefilter_simple_nonuse.py", "refined_data.db", "prefiltered_refined.csv"),
+    # 0. Filter and Parse
+    ("prefilter_database.py", ),
     # 2. Tag each sentence
-    ("prefilter_tagging.py", "tagged_data.db", "prefiltered_refined.csv"),
+    ("prefilter_tagging.py",),
     # 3. Tag each sentence
-    ("prefilter_evidence.py", "evidence_data.db", "prefiltered_refined.csv"),
+    ("prefilter_evidence.py", ),
     # 4. Classify
-    ("classify_users.py", "classified_data.db", "classified_users.csv"),
+    ("classify_users.py", ),
+    # 5. Export
+    ("database_export.py", "classified_data.db"),
 ]
 
 # FINAL REPORT CONFIG: Compare first stage output to last stage output
@@ -55,87 +55,18 @@ def run_pipeline():
     log("=" * 60)
 
     total_start = time.time()
-    previous_csv = None
-    stage_csvs = []  # Track all CSV outputs for final report
-
-    for script, db_target, csv_target in PIPELINE_STAGES:
+    
+    for script, csv_target in PIPELINE_STAGES:
         if not Path(script).exists():
             log(f"❌ MISSING SCRIPT: {script}")
             sys.exit(1)
 
         # 1. Processing Step
-        if not run_command([PYTHON_EXEC, script], f"Running {script}"):
+        if not run_command([PYTHON_EXEC, script, csv_target], f"Running {script}"):
             sys.exit(1)
-
-        # # 2. Export Step
-        # if Path(db_target).exists() and csv_target:
-        #     run_command(
-        #         [PYTHON_EXEC, "database_export.py", db_target, csv_target],
-        #         f"Exporting {csv_target}",
-        #     )
-
-        #     stage_csvs.append(csv_target)
-
-            # # 3. Analysis: Visual Sampling (HTML)
-            # if not run_command(
-            #     [PYTHON_EXEC, "run_analysis.py", "sample", db_target],
-            #     f"Visual Sample: {db_target}",
-            # ):
-            #     log(
-            #         f"⚠️ Non-critical error: Visual sampling failed for {db_target}. Continuing."
-            #     )
-
-            # # 4. Analysis: Diff Comparison (Excel)
-            # if previous_csv and Path(previous_csv).exists():
-            #     if not run_command(
-            #         [
-            #             PYTHON_EXEC,
-            #             "run_analysis.py",
-            #             "compare",
-            #             previous_csv,
-            #             csv_target,
-            #         ],
-            #         f"Compare: {previous_csv} vs {csv_target}",
-            #     ):
-            #         log(f"⚠️ Non-critical error: Comparison failed. Continuing.")
-
-            # previous_csv = csv_target
-
-        # else:
-        #     log(f"⚠️  Output DB {db_target} not found. Skipping export/analysis.")
 
         time.sleep(5)
 
-    # # Final Summary Comparison (Dynamic)
-    # log("=" * 60)
-    # log("RUNNING FINAL SUMMARY ANALYSIS")
-
-    # if FINAL_REPORT_CONFIG["enabled"] and len(stage_csvs) >= 2:
-    #     start_idx = FINAL_REPORT_CONFIG["start_index"]
-    #     end_idx = FINAL_REPORT_CONFIG["end_index"]
-
-    #     # Resolve negative indices
-    #     if end_idx < 0:
-    #         end_idx = len(stage_csvs) + end_idx
-
-    #     start_csv = stage_csvs[start_idx]
-    #     end_csv = stage_csvs[end_idx]
-
-    #     if Path(start_csv).exists() and Path(end_csv).exists():
-    #         run_command(
-    #             [
-    #                 PYTHON_EXEC,
-    #                 "run_analysis.py",
-    #                 "compare",
-    #                 start_csv,
-    #                 end_csv,
-    #             ],
-    #             FINAL_REPORT_CONFIG["report_name"],
-    #         )
-    #     else:
-    #         log(f"⚠️ Cannot generate final report: {start_csv} or {end_csv} not found.")
-    # else:
-    #     log("⚠️ Final report disabled or insufficient pipeline stages.")
 
     total_duration = time.time() - total_start
     log("=" * 60)
