@@ -308,6 +308,24 @@ def get_quantitative_noise_reason(
     return None
 
 
+def is_trading_statement(text: str) -> bool:
+    """
+    Validates if a sentence is a trading denial statement.
+    1. Must match the qualitative denial pattern.
+    2. Must NOT contain any quantitative values (Veto).
+    """
+    # 1. Pattern Match
+    if not TRADING_STATEMENTS_REGEX.search(text):
+        return False
+
+    # 2. Quantitative Veto
+    # Trading denials are qualitative policy; actual trades have numbers.
+    if QUANT_REGEX.search(text):
+        return False
+
+    return True
+
+
 # =============================================================================
 # CORE TAGGING LOGIC
 # =============================================================================
@@ -353,7 +371,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         # "See note 5 re: termination" -> TERM (Signal), not REF (Noise).
 
         if not reason:
-            if TRADING_STATEMENTS_REGEX.search(masked):
+            if is_trading_statement(masked):
                 # "We do not trade..." -> Critical End User Signal
                 reason = NoiseReason.TRADING
             elif is_pnl(masked):

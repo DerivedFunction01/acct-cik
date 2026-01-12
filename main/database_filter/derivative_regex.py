@@ -2804,127 +2804,86 @@ WEAK_VERB_PATTERN = build_alternation(PASSIVE_STATE_VERBS)
 VERB_PATTERN = "|".join([STRONG_VERB_PATTERN, WEAK_VERB_PATTERN])
 VERB_REGEX = re.compile(rf"\b(?:{VERB_PATTERN})\b", re.IGNORECASE)
 
-
 def build_trading_denial_pattern() -> re.Pattern:
     """
-    Build regex pattern for detecting trading denial statements.
-    Detects: "We do not trade", "Derivatives are not used for trading", "No trading purposes".
+    Revised Trading Denial Regex using Gap Chain logic (No Quant Check).
     """
+    # 1. Components
+    _NEG = build_negation_prefix_pattern()
+    _ACT = build_alternation(
+        [
+            "use",
+            "hold",
+            "enter into",
+            "engage",
+            "utilize",
+            "participate",
+            "transact",
+            "maintain",
+        ]
+    )
+    _TRAD = build_alternation(
+        ["trading", "speculative", "speculation", "proprietary", "arbitrage"]
+    )
+    _PURP = build_alternation(
+        ["purposes?", "activities?", "basis", "intent", "objectives?"]
+    )
+    _AUTH = build_alternation(
+        ["permitted", "authorized", "allowed", "condoned", "sanctioned", "prohibited"]
+    )
 
-    # 1. Base Negation (Reuse global helper if available, or define here)
-    # Matches: did not, will not, cannot, didn't, never
-    active_negation = build_negation_prefix_pattern()
-
-    # 2. Context-Specific Passive Negation
-    passive_negators = [
-        r"are\s+not", r"is\s+not", r"were\s+not", r"was\s+not",
-        r"are\s+neither", r"is\s+neither", r"were\s+neither", r"was\s+neither",
-        r"never", r"not"
+    # 2. Instrument Chain (Supports: "No interest rate, currency, or commodity derivatives...")
+    modifiers = [
+        "exchange",
+        "rate",
+        "currency",
+        "interest",
+        "foreign",
+        "commodity",
+        "equity",
+        "credit",
+        "market",
+        "forward",
+        "future",
+        "option",
+        "swap",
     ]
-    passive_negation = build_alternation(passive_negators)
 
-    # Combined Negation Block
-    _NEG = rf"(?:{active_negation}|{passive_negation})"
-
-    # --- ACTIONS ---
-    ACTIONS = [
-        r"use(?:d|s)?", r"using", r"utiliz(?:e|es|ed|ing)",
-        r"enter(?:ed|s)?\s+into", r"entering\s+into",
-        r"engage(?:d|s)?\s+in", r"engaging\s+in",
-        r"hold(?:s)?", r"have", r"held", r"holding",
-        r"conduct(?:ed|s)?", r"conducting",
-        r"undertake(?:n|s)?", r"undertaking",
-        r"employ(?:ed|s)?", r"maintain(?:ed|s)?",
-        r"designate(?:d|s)?", 
-        r"intend\s+to", 
-        r"expect\s+to",
-    ]
-    _ACT = build_alternation(ACTIONS)
-
-    # --- OBJECTS & PURPOSES ---
-    TRADING_WORDS = [
-        r"trading", r"speculative", r"speculation", r"proprietary\s+trading",
-    ]
-    _TRAD = build_alternation(TRADING_WORDS)
-
-    PURPOSE_WORDS = [
-        r"purposes?", r"activities?", r"basis", r"transactions?", r"reasons?",
-    ]
-    _PURP = build_alternation(PURPOSE_WORDS)
-
-    # --- HELPERS ---
-    SUBJ_Or_OBJ = r"(?:[\w\s,]+)" 
-    
-    # GAP HANDLER
-    _ADVERB_GAP = r"(?:\s+(?:currently|historically|primarily|solely|intend\s+to|expect\s+to))?"
-
-    # --- NEW: AUTHORIZATION VERBS (For Clause 8) ---
-    # Matches: "are not permitted", "is not authorized"
-    _AUTH_VERBS = r"(?:permitted|authorized|allowed|condoned)"
+    semantic_mod = rf"(?:{build_alternation(modifiers)}|{LOOSE_GEN_REGEX.pattern})"
+    filler = r"(?:\s+\S+){0,3}\s+"
+    gap_unit = rf"(?:{semantic_mod}{filler})"
+    instrument_chain = (
+        rf"(?:{gap_unit}){{0,5}}(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern})"
+    )
 
     # --- CLAUSES ---
-
-    # 1. Active: "We do not [currently] use [swaps] for trading"
-    CLAUSE_1 = (
-        rf"\b(?:{SUBJ_Or_OBJ})\s+(?:{_NEG}){_ADVERB_GAP}\s+(?:{_ACT})\s+"
-        rf"(?:any\s+|such\s+)?\S+(?:\s+\S+){{0,10}}\s+" 
-        rf"(?:for\s+)?(?:on\s+a\s+)?(?:{_TRAD})\s+(?:{_PURP})?\b"
+    # Pattern 1: Active/Passive Denial ("Do not use X for trading")
+    pat_denial = (
+        rf"\b(?:{SUBJ}|{instrument_chain})\s+"
+        rf"(?:{_NEG})\s+"
+        rf"(?:\S+\s+){{0,5}}"
+        rf"(?:{_ACT}|{_TRAD})\s+"
+        rf"(?:\S+\s+){{0,5}}"
+        rf"(?:{_TRAD})(?:\s+{_PURP})?\b"
     )
 
-    # 2. Passive: "[Swaps] are not [currently] used for trading"
-    CLAUSE_2 = (
-        rf"\b\S+(?:\s+\S+){{0,7}}\s+"
-        rf"(?:{_NEG}){_ADVERB_GAP}\s+(?:be\s+)?(?:{_ACT})\s+"
-        rf"(?:for\s+)?(?:on\s+a\s+)?(?:{_TRAD})(?:\s+(?:{_PURP}))?\b"
+    # Pattern 2: Authorization Veto ("Trading of X is not permitted")
+    pat_auth = (
+        rf"\b(?:{_TRAD})\s+"
+        rf"(?:of\s+)?(?:{instrument_chain})?\s+"
+        rf"(?:is|are|was|were)\s+"
+        rf"(?:not|prohibited|{_NEG})\s+"
+        rf"{_AUTH}\b"
     )
 
-    # 3. Short Active: "Did not use for trading" (Implicit Subject)
-    CLAUSE_3 = (
-        rf"\b(?:{_NEG}){_ADVERB_GAP}\s+(?:be\s+)?(?:{_ACT})\s+"
-        rf"(?:(?:any\s+|such\s+)?\S+(?:\s+\S+){{0,7}}\s+)?" 
-        rf"(?:for\s+)?(?:on\s+a\s+)?(?:{_TRAD})(?:\s+(?:{_PURP}))?\b"
-    )
+    # Pattern 3: Header Style ("No trading purposes")
+    pat_header = rf"\b(?:no|not)\s+(?:for\s+)?(?:{_TRAD})\s+(?:{_PURP})\b"
 
-    # 4. Speculation: "We do not speculate"
-    CLAUSE_4 = rf"\b(?:{SUBJ_Or_OBJ})\s+(?:{_NEG}){_ADVERB_GAP}\s+(?:speculate|trade)\b"
+    combined = build_alternation([pat_denial, pat_auth, pat_header])
+    return re.compile(combined, re.IGNORECASE | re.VERBOSE)
 
-    # 5. None Held: "None of [assets] are held for trading"
-    CLAUSE_5 = (
-        rf"\bnone\s+of\s+(?:the\s+|our\s+)?\S+(?:\s+\S+){{0,7}}\s+"
-        rf"(?:are|is|were|was)\s+(?:{_ACT})\s+"
-        rf"(?:for\s+)?(?:{_TRAD})(?:\s+(?:{_PURP}))?\b"
-    )
 
-    # 6. Strict Header: "No trading purposes"
-    CLAUSE_6 = rf"""
-        \b(?:no|not)\s+                
-        (?:{_TRAD})(?:\s+\S+){{0,4}}    
-        (?:\s+or\s+(?:{_TRAD}|{_PURP}))? 
-        (?:\s+(?:{_PURP}))?     
-        \b
-    """
-
-    # 7. Explicit Denial: "Derivatives are not used..."
-    CLAUSE_7 = (
-        rf"\b(?:{SUBJ_Or_OBJ}|derivatives?|instruments?|contracts?)\s+"
-        rf"(?:are|is|were|was)\s+not\s+"
-        rf"(?:used|held|entered|designated)\s+"
-        rf"(?:for\s+)?(?:{_TRAD})(?:\s+(?:{_PURP}))?\b"
-    )
-
-    # 8. NEW: "Derivatives for speculation [is/are] not permitted"
-    CLAUSE_8 = (
-        rf"\b(?:{SUBJ_Or_OBJ}|derivatives?)\s+" # "Use of derivatives"
-        rf"(?:for|in)\s+(?:the\s+purpose\s+of\s+)?(?:{_TRAD})\s+"           # "for speculation"
-        rf"(?:are|is|were|was)\s+not\s+{_AUTH_VERBS}\b"                     # "are not permitted"
-    )
-
-    pattern = build_alternation([
-        CLAUSE_1, CLAUSE_2, CLAUSE_3, CLAUSE_4, 
-        CLAUSE_5, CLAUSE_6, CLAUSE_7, CLAUSE_8
-    ])
-    
-    return re.compile(pattern, re.IGNORECASE | re.VERBOSE)
+TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 
 # =============================================================================
 # DEFINITION DETECTION (Isolated boilerplate)
@@ -3656,8 +3615,6 @@ def build_termination_regex() -> re.Pattern:
     """Matches: "expired", "matured", "unwound" """
     return re.compile(rf"\b{build_alternation(TERMINATION_VERBS)}\b", re.IGNORECASE)
 
-
-TRADING_STATEMENTS_REGEX = build_trading_denial_pattern()
 
 def check_for_instrument(sentence: str, strict: bool = False) -> bool:
     from table_processor import TABLE_ANCHOR
