@@ -37,6 +37,7 @@ from derivative_regex import (
     EXCLUDE_REGEX_FORWARD_LOOKING,
     EXCLUDE_REGEX_LIBOR_TRANSITION,
     HEDGING_CONTEXT_REGEX,
+    IR_SOFT_REGEX,
     LOOSE_GEN_REGEX,
     SENTENCE_SPLIT_PATTERN,
     SOFT_GEN_REGEX,
@@ -95,6 +96,10 @@ def is_sophisticated_target(text: str) -> bool:
     """
     # Quick exit: no target word present
     if not SOPHISTICATED_TARGETS.search(text):
+        return False
+    
+    # Quick exit 2: refer to interest rate category
+    if IR_SOFT_REGEX.search(text):
         return False
 
     # Required: target must have equity context
