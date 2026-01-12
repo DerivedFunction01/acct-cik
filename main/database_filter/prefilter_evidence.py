@@ -282,7 +282,12 @@ def check_future_maturity(
     if not any(y > reporting_year for y in years): # Termination noun without a year? probably termination amount/settlement
         return NoiseReason.PNL
 
-    return (
+    is_transaction = bool(TRANS_VERB_REGEX.search(text))
+    if is_transaction:
+        # Treat it as a transaction that didn't expire yet
+        return EvidenceReason.ACT_YEAR if is_strict_derivative else EvidenceReason.ACT_AMB_YEAR
+    else:
+        return (
         EvidenceReason.MAT_FUT if is_strict_derivative else EvidenceReason.MAT_AMB_FUT
     )
 
