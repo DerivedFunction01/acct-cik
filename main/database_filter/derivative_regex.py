@@ -4127,7 +4127,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "insurance",  #
         "pension",  #
         "warranty",  #
-        "purchase",  # Matches "Purchase contract"
+        r"(?<!power[- ])purchase",  # Matches "Purchase contract"
         "trade",  # Matches "Trade agreement
         "deferred compensation",  #
         "stock option",  #
