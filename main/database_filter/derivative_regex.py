@@ -761,7 +761,6 @@ EQ_CONTEXT_TERMS = [
     r"(?:preferred|common)\s+stock",
     # --- D. Structures & Events ---
     r"stock\s+warrants?",
-    rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     r"initial\s+public\s+offering|IPO",
     r"primary\s+market|secondary\s+market",
     r"accelerated\s+share\s+repurchases?",  # ASR is a derivative
