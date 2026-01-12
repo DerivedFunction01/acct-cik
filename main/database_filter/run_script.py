@@ -7,12 +7,13 @@ from pathlib import Path
 PYTHON_EXEC = sys.executable
 LOG_FILE = "pipeline_run.log"
 
-# Definition: (Script, additonal args)
+# Definition: (Script, additional_arg_or_None)
+# FIXED: All tuples now have exactly 2 elements.
 PIPELINE_STAGES = [
     # 0. Filter and Parse
     ("prefilter_database.py", None),
     # 2. Tag each sentence
-    ("prefilter_tagging.py",  None),
+    ("prefilter_tagging.py", None),
     # 3. Tag each sentence
     ("prefilter_evidence.py", None),
     # 4. Classify
@@ -20,6 +21,7 @@ PIPELINE_STAGES = [
     # 5. Export
     ("database_export.py", "classified_data.db"),
 ]
+
 
 def log(message):
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -46,18 +48,22 @@ def run_pipeline():
     log("=" * 60)
 
     total_start = time.time()
-    
+
     for script, arg in PIPELINE_STAGES:
         if not Path(script).exists():
             log(f"❌ MISSING SCRIPT: {script}")
             sys.exit(1)
 
+        # FIXED: Construct command dynamically based on whether arg exists
+        cmd = [PYTHON_EXEC, script]
+        if arg:
+            cmd.append(arg)
+
         # 1. Processing Step
-        if not run_command([PYTHON_EXEC, script, arg], f"Running {script}"):
+        if not run_command(cmd, f"Running {script}"):
             sys.exit(1)
 
         time.sleep(5)
-
 
     total_duration = time.time() - total_start
     log("=" * 60)
