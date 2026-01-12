@@ -22,7 +22,6 @@ from derivative_regex import (
 )
 
 from table_processor import TABLE_ANCHOR
-from prefilter_database import SOPHISTICATED_TARGETS, is_sophisticated_content
 from prefiltered_lib import (
     DEADWEIGHT_TOKEN,
     EVIDENCE_TOKEN,
@@ -41,11 +40,13 @@ from prefiltered_lib import (
     NoiseReason,
     Reason,
     get_tag,
+    is_sophisticated_content,
     mark_as_deadweight,
     mark_as_evidence,
     parse_noise_tags,
     HAD_CHANGE_REGEX,
     CHANGE_FV_REGEX,
+    SOPHISTICATED_TARGETS,
 )
 import multiprocessing as mp
 
