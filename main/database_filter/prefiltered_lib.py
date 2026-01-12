@@ -1,6 +1,6 @@
 import re
 from typing import Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EQ_REGEX, EQ_SOFT_REGEX, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, VALUATION_MODELS, YEAR_REGEX, build_alternation, build_regex
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, VALUATION_MODELS, YEAR_REGEX, build_alternation, build_regex
 
 # The token to append to deadweight paragraphs.
 DEADWEIGHT_TOKEN = "_D"
@@ -774,6 +774,9 @@ def convertible_ir(p):
     if SOPHISTICATED_TARGETS.search(p) and IR_SOFT_REGEX.search(
         p
     ):  # Discussions of ir cap, swap, etc
-        if not SOPHISTICATED_CONTEXT_REGEX.search(p):
+        if not (
+            SOPHISTICATED_CONTEXT_REGEX.search(p)
+            or EQ_CONTEXT_REGEX.search(p)
+        ):
             local_is_nst = True
     return local_is_nst

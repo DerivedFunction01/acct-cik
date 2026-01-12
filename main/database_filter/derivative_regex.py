@@ -4336,8 +4336,6 @@ EQ_STRICT_TERMS = [
     rf"equity\s+(?:price|{_RISK_ALTERNATION})",
     rf"stock\s+(?:price|appreciation|option|{_RISK_ALTERNATION})",
     rf"share\s+(?:price|{_RISK_ALTERNATION})",
-    # 2. Convertible Instruments
-    rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
     # 4. Specific Instruments
     r"accelerated\s+share\s+repurchases?",
     r"capped\s+calls?",
