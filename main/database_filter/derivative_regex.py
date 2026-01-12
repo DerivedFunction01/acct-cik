@@ -3473,7 +3473,7 @@ def build_absence_regex() -> re.Pattern:
         "commodity", "equity", "credit", "market", "forward",
         "future", "option", "swap", "purchase", "sale",
         "cash", "fair", "value", "material", "significant",
-        "hedging", "derivative", "financial", "trading",
+        "hedging", "derivative", "financial", "trading", "proprietary", "speculative"
     ]
     
     # Combine explicit placeholders with your LOOSE_GEN_REGEX
