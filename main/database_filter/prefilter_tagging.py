@@ -13,6 +13,7 @@ from derivative_regex import (
     ABSENCE_REGEX,
     COMPARISON_PHRASES,
     DID_NOT_HOLD_REGEX,
+    GEN_REGEX,
     NON_DER_CAP_FLOOR_REGEX,
     IS_REFERENCE_REGEX,
     PRECISE_LOOSE_GEN_REGEX,
@@ -24,6 +25,8 @@ from derivative_regex import (
     EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
     # Classification Killers
     POTENTIAL_REGEX,
+    SOFT_REGEX,
+    STRICT_REGEX,
     TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
     YEAR_REGEX,
@@ -398,8 +401,9 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
         if not (
             PRECISE_LOOSE_GEN_REGEX.search(temp_sent)
+            or SOFT_REGEX.search(temp_sent)
             or is_sophisticated_target(temp_sent)
-            or is_value(temp_sent) # allow "The notional value is XX to bypass"
+            or is_value(temp_sent)  # allow "The notional value is XX to bypass"
         ):
             if RISK_MANAGEMENT_REGEX.search(masked):
                 reason = NoiseReason.RISK
