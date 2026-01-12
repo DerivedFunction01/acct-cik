@@ -558,7 +558,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     # === FINAL GATEKEEPERS ===
     final_results = []
-
+    is_nst = False
     try:
         # A. Validate Standard Buffer
         std_masked_texts = [text for _, text in clean_buffer_masked]
@@ -577,9 +577,11 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
         if validate_sophisticated_buffer(soph_masked_texts, std_masked_texts):
             final_results.extend(sophisticated_buffer_orig)
-        elif sophisticated_buffer_orig:
-            discarded = "\n\n".join([text for _, text in sophisticated_buffer_orig])
-            local_discards.append((url, discarded, NoiseReason.NO_SOPH.value))
+        else: 
+            is_nst = True
+            if sophisticated_buffer_orig:
+                discarded = "\n\n".join([text for _, text in sophisticated_buffer_orig])
+                local_discards.append((url, discarded, NoiseReason.NO_SOPH.value))
     except Exception as e:
         print(f"⚠️ Error validating sophisticated buffer for {url}: {e}")
 
@@ -589,6 +591,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             final_results.sort(key=lambda x: x[0])
             seen = set()
             unique_paragraphs = []
+            # Prepend the Metadata Paragraph
+            metadata = {"type": "metadata", "NST": is_nst}
+            unique_paragraphs.append(json.dumps(metadata))
             for _, text in final_results:
                 if text not in seen:
                     unique_paragraphs.append(text)
