@@ -3809,7 +3809,6 @@ EXHIBIT_NOUNS = [
     "subsection",
     "statement",
     "table",
-    "No.",
     "page",
     "pp.",
     "p.",
