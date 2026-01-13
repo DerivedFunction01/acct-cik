@@ -626,6 +626,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         # Prepend the Metadata Paragraph
         metadata = {
             "type": "metadata",
+            "cik": cik,
+            "year": year,
+            "url": url,
             "NST": is_nst,
             "is_empty": is_empty,
             "currencies": currency_commodity_counts["currencies"],
