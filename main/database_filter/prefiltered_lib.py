@@ -185,8 +185,9 @@ class NoiseReason(Reason):
     AOCI = "AOCI"  # AOCI ("recorded in AOCI")
     PNL = "PNL" # PNL (gains/losses, change in FV)
     NPNS = "NPNS"  # Normal Purchases / Sales
-    LOAN = "LOAN"  # Non derivative interest rate caps and floors on debt
+    FLR_CAP = "FLR_CAP"  # Non derivative interest rate caps and floors on debt
     CTX = "CONTEXT" # Context text
+    DEBT = "DEBT"
     OTHER = "OTHER"  # Has derivative mention but no Evidence -> Other
     RISK = "RISK" # Risk management text
 
