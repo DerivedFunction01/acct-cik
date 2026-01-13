@@ -126,6 +126,12 @@ PARAGRAPH_THRESHOLD = 250
 TABLE_ANCHOR = " T_"
 DEBUG = False
 
+# Header keyword pattern for detecting where headers actually end
+LAST_HEADER_PATTERN = re.compile(
+    r"\b(notional|fair|location|carrying|level|maturity|rate|yield|weighted|amount|value|balance|principal|gain|loss|income|asset|liability)\b",
+    re.IGNORECASE
+)
+
 # Multipliers
 THOUSAND_REGEX = re.compile(
     r"(?:in|dollars\s+in)\s+thousands|\(000(?:['\s]s)?\)", re.IGNORECASE
@@ -210,6 +216,9 @@ class TableToTextConverter:
         )
 
         self.invalid_table = len(self.data) == 0
+        # If it is invalid, attempt to repair it (Usually when the entire data is classified as a header)
+        if self.invalid_table:
+            self._repair_invalid_table()
         debug_print(f"Data rows extracted: {len(self.data)}")
 
         if self._detect_paragraph_masquerading_as_table():
@@ -221,6 +230,87 @@ class TableToTextConverter:
             self._classify_columns_from_headers()
             self._apply_column_heuristics()
             self._resolve_offsetting_conflicts()
+
+    def _repair_invalid_table(self):
+        """
+        Repairs a table that was marked invalid because all rows were classified as headers.
+        
+        Strategy: Find the actual header row using keyword patterns, relocate the <S> marker
+        to that row, reconstruct the table string, and re-run the normal extraction logic.
+        """
+        debug_print("Attempting to repair invalid table...")
+        
+        # Remove caption and split into lines
+        table_text = CAPTION_REGEX.sub("", self.raw_text)
+        table_text = TABLE_TAG_REGEX.sub("", table_text)
+        lines = table_text.split("\n")
+
+        # Find current marker line
+        old_marker_idx = None
+        old_marker_line = None
+        for i, line in enumerate(lines):
+            if S_MARKER_REGEX.search(line):
+                old_marker_idx = i
+                old_marker_line = line
+                break
+
+        if old_marker_idx is None:
+            debug_print("No marker line found, cannot repair")
+            return
+        assert old_marker_line is not None
+        # Score each line before the marker by counting header keywords
+        best_header_idx = old_marker_idx
+        best_score = 0
+
+        for i in range(old_marker_idx):
+            line = lines[i].strip()
+            if not line or line.startswith("<"):
+                continue
+            
+            # Count header keyword matches
+            matches = LAST_HEADER_PATTERN.findall(line)
+            score = len(matches)
+            
+            if score > best_score:
+                best_score = score
+                best_header_idx = i
+
+        # If we found a better header location, relocate the marker
+        if best_header_idx != old_marker_idx and best_score > 0:
+            debug_print(f"Found header candidate at line {best_header_idx} with score {best_score}")
+            
+            # Move marker line to the best header location
+            lines[old_marker_idx] = lines[old_marker_idx].replace("<S>", "").replace(C_MARKER_REGEX.pattern, "").strip()
+            if lines[old_marker_idx]:
+                # Keep non-marker content
+                pass
+            else:
+                # Remove empty line
+                lines[old_marker_idx] = ""
+            
+            # Add marker to the new location
+            lines[best_header_idx] = old_marker_line
+            
+            # Reconstruct table string
+            corrected_table = "\n".join(lines)
+            
+            # Re-run extraction with corrected table
+            debug_print("Re-extracting with corrected marker position...")
+            corrected_data, corrected_col_map, corrected_col_headers = self._extract_data_driven(
+                CAPTION_REGEX.sub("", corrected_table)
+            )
+            
+            # If extraction successful, use the results
+            if corrected_data:
+                self.data = corrected_data
+                self.col_map = corrected_col_map
+                self.col_headers = corrected_col_headers
+                self.invalid_table = False
+                debug_print(f"✓ Table repaired: relocated marker, recovered {len(corrected_data)} data rows")
+                return
+        
+        debug_print("Could not find suitable header location, repair failed")
+
 
     def _extract_caption(self, text: str) -> str:
         match = CAPTION_REGEX.search(text)
