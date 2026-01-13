@@ -2,14 +2,37 @@
 import re
 from typing import List, Dict, Optional, Set, Tuple
 
-from derivative_regex import BASE_REGEX, CURRENCY_NAMES_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, SOFT_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TABLE_REGEX, YEAR_REGEX
+from derivative_regex import BASE_REGEX, CURRENCY_NAMES_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, SOFT_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TABLE_REGEX, YEAR_REGEX, all_currencies
 
 # --- REGEX DEFINITIONS ---
 
 # Basic patterns
 YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
 NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
-NUMERIC_WITH_SYMBOLS = re.compile(r"[$€£¥,%()-]")
+
+# Build NUMERIC_WITH_SYMBOLS dynamically from Currency class
+# Includes all currency symbols from the defined currency list plus standard formatting symbols
+def _build_numeric_with_symbols_pattern() -> re.Pattern:
+    symbols = set()
+    # Add all currency symbols from Currency class
+    for currency in all_currencies:
+        if currency.symbol:
+            symbols.add(re.escape(currency.symbol))
+    # Add standard formatting symbols
+    symbols.update([r'%', r'\(', r'\)', r'-', r','])
+    pattern = f"[{''.join(symbols)}]"
+    return re.compile(pattern)
+
+NUMERIC_WITH_SYMBOLS = _build_numeric_with_symbols_pattern()
+
+# Build currency symbol sets from Currency class
+CURRENCY_SYMBOLS = set()
+CURRENCY_SYMBOL_LIST = []
+for currency in all_currencies:
+    if currency.symbol:
+        CURRENCY_SYMBOLS.add(currency.symbol)
+        CURRENCY_SYMBOL_LIST.append(currency.symbol)
+
 ACCOUNTING_NEGATIVE = re.compile(r"\(([^)]+)\)")  # Converts (100) to -100
 WHITESPACE_REGEX = re.compile(r"\s+")
 HTML_TAG_REGEX = re.compile(r"<[^>]+>")
@@ -47,7 +70,15 @@ C_MARKER_REGEX = re.compile(r"<C>")
 TABLE_TAG_REGEX = re.compile(r"<TABLE.*?>", re.DOTALL | re.IGNORECASE)
 
 # Spacing & Cleaning
-DOLLAR_SPACE_REGEX = re.compile(r"(\$|€|£|¥)\s+")
+# Build regex for currency symbols dynamically from Currency class
+def _build_currency_space_regex() -> re.Pattern:
+    symbols = [re.escape(s) for s in CURRENCY_SYMBOL_LIST if s]
+    if symbols:
+        pattern = f"({'|'.join(symbols)})\\s+"
+        return re.compile(pattern)
+    return re.compile(r"(\$|€|£|¥)\s+")  # Fallback
+
+DOLLAR_SPACE_REGEX = _build_currency_space_regex()
 OPEN_PAREN_SPACE_REGEX = re.compile(r"\(\s+")
 CLOSE_PAREN_SPACE_REGEX = re.compile(r"\s+\)")
 PERCENT_SPACE_REGEX = re.compile(r"\s+%")
@@ -157,6 +188,9 @@ class TableToTextConverter:
         full_context = f"{self.caption} {self.narrative_context}"
         self.global_multiplier = self._scan_for_multiplier(self.caption) or 1.0
         self.col_multipliers = {}
+        
+        # Detect currency from caption or default to USD
+        self.table_currency = self._detect_table_currency(full_context)
 
         self.caption_is_strong = self.is_implied_derivative(full_context)
         self.is_sophisticated = is_sophisticated or self.caption_is_strong
@@ -188,6 +222,46 @@ class TableToTextConverter:
             caption_text = WHITESPACE_REGEX.sub(" ", caption_text)
             return caption_text
         return ""
+
+    def _detect_table_currency(self, context: str) -> str:
+        """
+        Detects the primary currency used in the table from caption and context.
+        Returns ISO currency code (e.g., 'USD', 'EUR', 'GBP') or defaults to 'USD'.
+        
+        Logic:
+        1. Search for currency names (e.g., "Euro", "Japanese Yen")
+        2. Search for currency codes (e.g., "USD", "EUR")
+        3. Search for currency symbols (e.g., "$", "€", "£", "¥")
+        4. Default to USD if no currency found
+        """
+        if not context:
+            return "USD"
+        
+        context_lower = context.lower()
+        context_upper = context.upper()
+        
+        # Check for currency names
+        for currency in all_currencies:
+            if currency.full_name.lower() in context_lower:
+                return currency.code
+            if currency.adjective.lower() in context_lower:
+                return currency.code
+        
+        # Check for currency codes
+        for currency in all_currencies:
+            if currency.code in context_upper:
+                return currency.code
+        
+        # Check for currency symbols
+        for currency in all_currencies:
+            if currency.symbol and currency.symbol in context:
+                return currency.code
+        
+        # Default to USD if $ or no currency marker found
+        if "$" in context:
+            return "USD"
+        
+        return "USD"
 
     def _analyze_caption_context(self, caption: str) -> Optional[str]:
         if not caption:
@@ -230,7 +304,7 @@ class TableToTextConverter:
             for row in raw_rows:
                 if col_idx < len(row) and row[col_idx].strip():
                     val = row[col_idx].strip()
-                    if val in ["$", "€", "£", "¥"]:
+                    if val in CURRENCY_SYMBOLS:
                         col_patterns.add("prefix_currency")
                     elif val == "(":
                         col_patterns.add("prefix_paren")
@@ -400,7 +474,7 @@ class TableToTextConverter:
 
                 # CASE B: Leading Prefix (Merge RIGHT into next)
                 # Check if current_val is a prefix like '$' or '('
-                elif current_val in ["$", "€", "£", "¥", "("] and next_val:
+                elif current_val in CURRENCY_SYMBOLS or current_val == "(" and next_val:
                     # Constraint: Only merge if next_val looks like a number
                     if self._is_numeric_start(next_val):
                         # Merge current into next, effectively appending to final_row in next iteration?
@@ -455,10 +529,10 @@ class TableToTextConverter:
         return final_pass_row
 
     def _is_prefix_symbol(self, val: str) -> bool:
-        # Returns true for $, (, $(, etc.
+        # Returns true for $, (, $(, etc. - checks if all chars are prefix symbols
         if not val:
             return False
-        return all(c in "$€£¥(" for c in val)
+        return all(c in CURRENCY_SYMBOLS or c == "(" for c in val)
 
     def _is_suffix_symbol(self, val: str) -> bool:
         # Returns true for %, ), %), etc.
@@ -471,7 +545,11 @@ class TableToTextConverter:
         # e.g. "100", "(100", "4,000"
         if not val:
             return False
-        clean = val.replace(",", "").replace("$", "").replace("(", "")
+        clean = val
+        # Remove all currency symbols, commas, and parentheses
+        for symbol in CURRENCY_SYMBOLS:
+            clean = clean.replace(symbol, "")
+        clean = clean.replace(",", "").replace("(", "")
         if not clean:
             return False  # Was just symbol
         return clean[0].isdigit() or clean.startswith("-") or clean.startswith(".")
@@ -720,10 +798,15 @@ class TableToTextConverter:
         """
         cleaned_rows = []
 
-        # Regex to find a value ending with a space and a dollar sign
-        # Capture group 1: The real value
-        # Capture group 2: The wrongly attached currency symbol
-        pattern = re.compile(r"^(.*?)\s+(\$)$")
+        # Build regex pattern for any currency symbol
+        # Matches a value ending with a space and any currency symbol
+        currency_symbols_escaped = [re.escape(s) for s in CURRENCY_SYMBOL_LIST if s]
+        if currency_symbols_escaped:
+            symbol_pattern = f"({'|'.join(currency_symbols_escaped)})"
+            pattern = re.compile(f"^(.*?)\\s+({symbol_pattern})$")
+        else:
+            # Fallback to just dollar sign if no symbols available
+            pattern = re.compile(r"^(.*?)\s+(\$)$")
 
         for row in rows:
             # iterate backwards to safely push items forward?
@@ -735,7 +818,7 @@ class TableToTextConverter:
                 match = pattern.search(current_cell)
                 if match:
                     real_value = match.group(1) # "$168"
-                    symbol = match.group(2)     # "$"
+                    symbol = match.group(2)     # "$" or other currency
 
                     # 1. Fix current cell
                     row[i] = real_value
@@ -1032,6 +1115,22 @@ class TableToTextConverter:
         clean_val = clean_val.strip()
         had_dollar = "$" in clean_val
         had_percent = "%" in clean_val
+        
+        # Detect currency symbol or default to table currency
+        detected_currency_symbol = "$"
+        for currency in all_currencies:
+            if currency.symbol and currency.symbol in clean_val:
+                detected_currency_symbol = currency.symbol
+                break
+        
+        # If no dollar sign but table has non-USD currency, use that
+        if not had_dollar and self.table_currency != "USD":
+            for currency in all_currencies:
+                if currency.code == self.table_currency:
+                    detected_currency_symbol = currency.symbol
+                    had_dollar = True
+                    break
+        
         if "(" in clean_val and ")" in clean_val:
             clean_val = clean_val.replace("(", "-").replace(")", "")
 
@@ -1065,7 +1164,7 @@ class TableToTextConverter:
             num = abs(norm_num)
             if num == 0:
                 if had_dollar:
-                    return "$0"
+                    return f"{detected_currency_symbol}0"
                 if had_percent:
                     return "0%"
                 return "0"
@@ -1075,7 +1174,7 @@ class TableToTextConverter:
             else:
                 num_str = "{:,.2f}".format(num)
 
-            prefix = "$" if had_dollar else ""
+            prefix = detected_currency_symbol if had_dollar else ""
             suffix = "%" if had_percent else ""
 
             if norm_num < 0:
