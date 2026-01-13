@@ -248,6 +248,58 @@ def detect_currency(text: str) -> str:
     return "USD"  # Default fallback
 
 
+def normalize_amount(text: str) -> float:
+    """
+    Normalize abbreviated monetary values to numeric amounts.
+    Examples:
+        "$10M" -> 10,000,000
+        "$10 M" -> 10,000,000
+        "$1.5 billion" -> 1,500,000,000
+        "$500K" -> 500,000
+        "$10" -> 10
+    
+    Handles multipliers:
+    - Abbreviated (with optional spaces): K/k, M/m, B/b, T/t
+    - Full words: thousand, million, billion, trillion
+    """
+    # Extract the numeric part
+    num_str = re.sub(r'[^\d.]', '', text)
+    if not num_str:
+        return 0.0
+    
+    try:
+        base_value = float(num_str)
+    except ValueError:
+        return 0.0
+    
+    text_upper = text.upper()
+    
+    # 1. Try full word multipliers first (e.g., "million", "billion")
+    word_multipliers = {
+        'TRILLION': 1_000_000_000_000,
+        'BILLION': 1_000_000_000,
+        'MILLION': 1_000_000,
+        'THOUSAND': 1_000,
+    }
+    for word, multiplier in word_multipliers.items():
+        if word in text_upper:
+            return base_value * multiplier
+    
+    # 2. Try abbreviated multipliers (K, M, B, T with optional spaces)
+    multiplier_match = re.search(r'(\d\.?\d*)\s*([KMBT])', text_upper)
+    if multiplier_match:
+        suffix = multiplier_match.group(2)
+        multipliers = {
+            'K': 1_000,
+            'M': 1_000_000,
+            'B': 1_000_000_000,
+            'T': 1_000_000_000_000,
+        }
+        return base_value * multipliers.get(suffix, 1)
+    
+    return base_value
+
+
 def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
     """
     Extract actual matched instrument text from category regexes.
@@ -298,16 +350,19 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
         EvidenceReason.NVY.value,       # Notional was $X at Year
         EvidenceReason.NVNY.value,      # Notional is $X
     }
+    value_tags = {
+        EvidenceReason.VY.value,        # Value was $X at Year
+        EvidenceReason.VNY.value,       # Value is $X
+    }
     
     if evidence_tags.intersection(fv_tags):
         val_type = "fv"
     elif evidence_tags.intersection(notional_tags):
         val_type = "notional"
-    # Fallback to regex if no evidence tags found
-    elif NOTIONAL_CONTEXT_REGEX.search(sentence):
-        val_type = "notional"
-    elif FAIR_VALUE_CONTEXT_REGEX.search(sentence):
-        val_type = "fv"
+    elif evidence_tags.intersection(value_tags):
+        val_type = "value"
+    else:
+        val_type = "unknown"   
 
     # 2. Extract numeric data and years
     years, values = extract_values_and_years(sentence)
@@ -335,13 +390,9 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
     # 4. Map Values to InstrumentAmount structures
     amounts = []
     for val_tok in values:
-        # Extract numeric float from text (e.g. "$10.5" -> 10.5)
+        # Extract numeric float from text and normalize with multipliers
         raw_text = val_tok["text"]
-        num_str = re.sub(r'[^\d.]', '', raw_text)
-        try:
-            num = float(num_str) if num_str else 0.0
-        except ValueError:
-            continue
+        num = normalize_amount(raw_text)
 
         # 5. Detect Currency using Currency class mapping
         currency = detect_currency(raw_text)
