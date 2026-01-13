@@ -1388,6 +1388,8 @@ class TableToTextConverter:
                     actual_col_type = "gain_loss"
                 elif VALUE_HEADERS.search(display_instrument):
                     actual_col_type = "fair_value"
+                elif SOPHISTICATED_TARGETS.search(display_instrument) and "notional" in actual_col_type:
+                    actual_col_type = "value"
                 elif STRONG_NOTIONAL_REGEX.search(display_instrument):
                     actual_col_type = "notional"
 
