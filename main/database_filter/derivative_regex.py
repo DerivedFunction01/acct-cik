@@ -3502,7 +3502,7 @@ _DENIAL_SEMANTIC_MOD = (
     rf"(?:{build_alternation(_DENIAL_MODIFIERS)}|{LOOSE_GEN_REGEX.pattern})"
 )
 _DENIAL_GAP_UNIT = rf"(?:{_DENIAL_FILLER}{_DENIAL_SEMANTIC_MOD})"
-
+gap_chain = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
 # The "Target": The final noun in the sequence
 _DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
 
@@ -3520,10 +3520,9 @@ def build_absence_regex() -> re.Pattern:
     
     Example Match: "No [such interest] (rate), [forward] (exchange), [or commodity] (contracts)"
     """
-    
+
     # 1. Triggers
     triggers = build_alternation(ABSENCE_INDICATORS)
-    gap_chain = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
 
     return re.compile(
         rf"\b{triggers}\b\s+"
@@ -3535,17 +3534,37 @@ def build_absence_regex() -> re.Pattern:
 
 
 def build_did_not_hold_regex() -> re.Pattern:
-    """Matches: '[Negation] [Action] [Gap Chain] [Target]'"""
-    neg_prefix = build_negation_prefix_pattern()
-    gap_chain = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
+    """
+    Matches: "did not hold", "didn't enter", "do not, as a routine matter, use"
+    Targeting: Active non-use of derivatives.
+    """
+    # 2. Pattern Construction
+
+    neg_prefix = (
+        build_negation_prefix_pattern()
+    )  # Matches "do not", "did not", "no", etc.
+
+    # The Fix: Allow an intervening comma-phrase or adverb between "Not" and "Verb"
+    # Matches: "do not currently use" OR "do not, as a routine matter, use"
+    # Logic: Optional (ActiveAdverb + Space) OR (Comma + AnyText + Comma + Space)
+    _pre_verb_gap = (
+        r"[, ]"  # Mandatory space or comma after "not"
+        r"(?:"
+        rf"{ACTIVE_PATTERN}\s+|"  # "currently "
+        r"\s*[^,]{1,50}\s*,\s+"  # ", as a routine matter, " (Greedy but bounded)
+        r")?"
+    )
 
     return re.compile(
-        rf"{neg_prefix}\s+(?:{ACTIVE_PATTERN}\s+)?(?:{INTENT_VERB_PATTERN})\s+"
-        rf"{gap_chain}"
-        rf"{_DENIAL_FILLER}"
-        rf"{_DENIAL_TARGET}\b",
-        re.IGNORECASE
+        rf"{neg_prefix}" # "do not"
+        rf"{_pre_verb_gap}"  # <--- ", in any case, "
+        rf"(?:{INTENT_VERB_PATTERN})\s+"  # "use"
+        rf"{gap_chain}"  # Optional: "hedging", "foreign exchange"
+        rf"{_DENIAL_FILLER}"  # Optional: "any such"
+        rf"{_DENIAL_TARGET}\b",  # "instruments"
+        re.IGNORECASE,
     )
+
 
 def build_termination_regex() -> re.Pattern:
     """Matches: "expired", "matured", "unwound" """
