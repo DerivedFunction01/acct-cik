@@ -25,13 +25,20 @@ def _build_numeric_with_symbols_pattern() -> re.Pattern:
 
 NUMERIC_WITH_SYMBOLS = _build_numeric_with_symbols_pattern()
 
-# Build currency symbol sets from Currency class
+# Build currency symbol sets from Currency class - separated by position
 CURRENCY_SYMBOLS = set()
 CURRENCY_SYMBOL_LIST = []
+PREFIX_CURRENCY_SYMBOLS = set()  # Symbols that appear before number (e.g., $100)
+SUFFIX_CURRENCY_SYMBOLS = set()  # Symbols that appear after number (e.g., 100 kr)
+
 for currency in all_currencies:
     if currency.symbol:
         CURRENCY_SYMBOLS.add(currency.symbol)
         CURRENCY_SYMBOL_LIST.append(currency.symbol)
+        if currency.symbol_first:
+            PREFIX_CURRENCY_SYMBOLS.add(currency.symbol)
+        else:
+            SUFFIX_CURRENCY_SYMBOLS.add(currency.symbol)
 
 ACCOUNTING_NEGATIVE = re.compile(r"\(([^)]+)\)")  # Converts (100) to -100
 WHITESPACE_REGEX = re.compile(r"\s+")
@@ -292,9 +299,9 @@ class TableToTextConverter:
         Detects merge directions for sparse columns based on their content.
 
         IMPROVED LOGIC:
-        - Groups currencies and opening parens as 'prefix' (Merge Right).
-        - Groups percents and closing parens as 'suffix' (Merge Left).
-        - Allows mixed content if they share the same directionality (e.g. $ and ( in same column).
+        - Groups prefix currencies ($, €) and opening parens (() as 'prefix' (Merge Right).
+        - Groups suffix currencies (kr, £, etc) percent and closing parens as 'suffix' (Merge Left).
+        - Allows mixed content if they share the same directionality.
         """
         merge_directions = {}
 
@@ -304,8 +311,10 @@ class TableToTextConverter:
             for row in raw_rows:
                 if col_idx < len(row) and row[col_idx].strip():
                     val = row[col_idx].strip()
-                    if val in CURRENCY_SYMBOLS:
+                    if val in PREFIX_CURRENCY_SYMBOLS:
                         col_patterns.add("prefix_currency")
+                    elif val in SUFFIX_CURRENCY_SYMBOLS:
+                        col_patterns.add("suffix_currency")
                     elif val == "(":
                         col_patterns.add("prefix_paren")
                     elif val == ")":
@@ -323,7 +332,9 @@ class TableToTextConverter:
                 "prefix_currency" in col_patterns or "prefix_paren" in col_patterns
             )
             has_suffix = (
-                "suffix_paren" in col_patterns or "suffix_percent" in col_patterns
+                "suffix_currency" in col_patterns
+                or "suffix_paren" in col_patterns
+                or "suffix_percent" in col_patterns
             )
             has_other = "other" in col_patterns
 
@@ -464,17 +475,16 @@ class TableToTextConverter:
                 next_val = cleaned_row[i + 1]
 
                 # CASE A: Trailing Suffix (Merge LEFT into current)
-                # Check if next_val is a suffix like ')' or '%' or '$' (Wait! $ is prefix)
-                # FIXED: Removed '$' from left-merge candidates.
-                if next_val in [")", "%"] and current_val:
-                    # Constraint: Only merge ')' if current looks like a number or number-start
+                # Check if next_val is a suffix like ')' or '%' or suffix currency symbol
+                if next_val in SUFFIX_CURRENCY_SYMBOLS or next_val in [")", "%"] and current_val:
+                    # Constraint: Only merge if current looks like a number or number-start
                     if self._is_numeric_start(current_val):
                         current_val = current_val + next_val
                         skip_idx = i + 1  # Consume next
 
                 # CASE B: Leading Prefix (Merge RIGHT into next)
-                # Check if current_val is a prefix like '$' or '('
-                elif current_val in CURRENCY_SYMBOLS or current_val == "(" and next_val:
+                # Check if current_val is a prefix symbol or '('
+                elif current_val in PREFIX_CURRENCY_SYMBOLS or current_val == "(" and next_val:
                     # Constraint: Only merge if next_val looks like a number
                     if self._is_numeric_start(next_val):
                         # Merge current into next, effectively appending to final_row in next iteration?
@@ -529,27 +539,33 @@ class TableToTextConverter:
         return final_pass_row
 
     def _is_prefix_symbol(self, val: str) -> bool:
-        # Returns true for $, (, $(, etc. - checks if all chars are prefix symbols
+        # Returns true for prefix symbols like $, (, €, etc.
         if not val:
             return False
-        return all(c in CURRENCY_SYMBOLS or c == "(" for c in val)
+        return all(c in PREFIX_CURRENCY_SYMBOLS or c == "(" for c in val)
 
     def _is_suffix_symbol(self, val: str) -> bool:
-        # Returns true for %, ), %), etc.
+        # Returns true for suffix symbols like %, ), kr, £, etc.
         if not val:
             return False
-        return all(c in "%)" for c in val)
+        # For suffix currencies, check if all chars are in the suffix set
+        # Also need to handle % and )
+        return all(c in SUFFIX_CURRENCY_SYMBOLS or c in "%)" for c in val)
 
     def _is_numeric_start(self, val: str) -> bool:
         # Helper to check if a value looks like the start of a number
-        # e.g. "100", "(100", "4,000"
+        # e.g. "100", "(100", "4,000", "100 kr" (with suffix currencies)
         if not val:
             return False
         clean = val
-        # Remove all currency symbols, commas, and parentheses
-        for symbol in CURRENCY_SYMBOLS:
+        # Remove all prefix currency symbols
+        for symbol in PREFIX_CURRENCY_SYMBOLS:
             clean = clean.replace(symbol, "")
-        clean = clean.replace(",", "").replace("(", "")
+        # Remove all suffix currency symbols
+        for symbol in SUFFIX_CURRENCY_SYMBOLS:
+            clean = clean.replace(symbol, "")
+        # Remove formatting
+        clean = clean.replace(",", "").replace("(", "").replace(" ", "")
         if not clean:
             return False  # Was just symbol
         return clean[0].isdigit() or clean.startswith("-") or clean.startswith(".")
