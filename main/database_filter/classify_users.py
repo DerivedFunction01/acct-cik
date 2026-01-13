@@ -29,10 +29,15 @@ from derivative_regex import all_currencies
 @dataclass
 class InstrumentAmount:
     type: str       # 'fv', 'notional', or 'value'
-    amount: float   # Numeric value
+    amount: float   # Numeric value (calculated from text)
     currency: str    # ISO Code (USD, EUR, etc.)
     year: Optional[int] = None
     is_zero: bool = False   # Tracks "nil" or "$0" amounts
+    explicit_multiplier: float = 1.0  # Multiplier found in text (1.0 if raw, 1_000_000 if "M")
+    is_explicit: bool = False         # True if text had "M", "B", "million", etc.
+    source_multiplier: Optional[float] = None  # Which explicit multiplier was used to derive this (for audit)
+    inferred_amount: Optional[float] = None    # Final normalized value after context scanning
+    inference_note: Optional[str] = None       # Why/how it was inferred (or None if not modified)
 
 @dataclass
 class InstrumentDetail:
@@ -248,15 +253,17 @@ def detect_currency(text: str) -> str:
     return "USD"  # Default fallback
 
 
-def normalize_amount(text: str) -> float:
+def normalize_amount(text: str) -> Tuple[float, float, bool]:
     """
     Normalize abbreviated monetary values to numeric amounts.
+    Returns (calculated_amount, multiplier_used, is_explicit).
+    
     Examples:
-        "$10M" -> 10,000,000
-        "$10 M" -> 10,000,000
-        "$1.5 billion" -> 1,500,000,000
-        "$500K" -> 500,000
-        "$10" -> 10
+        "$10M" -> (10,000,000, 1_000_000, True)
+        "$10 M" -> (10,000,000, 1_000_000, True)
+        "$1.5 billion" -> (1_500_000_000, 1_000_000_000, True)
+        "$500K" -> (500,000, 1_000, True)
+        "$10" -> (10, 1.0, False)
     
     Handles multipliers:
     - Abbreviated (with optional spaces): K/k, M/m, B/b, T/t
@@ -265,12 +272,12 @@ def normalize_amount(text: str) -> float:
     # Extract the numeric part
     num_str = re.sub(r'[^\d.]', '', text)
     if not num_str:
-        return 0.0
+        return 0.0, 1.0, False
     
     try:
         base_value = float(num_str)
     except ValueError:
-        return 0.0
+        return 0.0, 1.0, False
     
     text_upper = text.upper()
     
@@ -281,23 +288,25 @@ def normalize_amount(text: str) -> float:
         'MILLION': 1_000_000,
         'THOUSAND': 1_000,
     }
-    for word, multiplier in word_multipliers.items():
+    for word, mult in word_multipliers.items():
         if word in text_upper:
-            return base_value * multiplier
+            return base_value * mult, float(mult), True
     
     # 2. Try abbreviated multipliers (K, M, B, T with optional spaces)
-    multiplier_match = re.search(r'(\d\.?\d*)\s*([KMBT])', text_upper)
+    multiplier_match = re.search(r'\d\s*([KMBT])\b', text_upper)
     if multiplier_match:
-        suffix = multiplier_match.group(2)
+        suffix = multiplier_match.group(1)
         multipliers = {
             'K': 1_000,
             'M': 1_000_000,
             'B': 1_000_000_000,
             'T': 1_000_000_000_000,
         }
-        return base_value * multipliers.get(suffix, 1)
-    
-    return base_value
+        mult = float(multipliers.get(suffix, 1.0))
+        return base_value * mult, mult, True
+
+    # 3. No explicit multiplier found
+    return base_value, 1.0, False
 
 
 def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
@@ -392,7 +401,7 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
     for val_tok in values:
         # Extract numeric float from text and normalize with multipliers
         raw_text = val_tok["text"]
-        num = normalize_amount(raw_text)
+        final_amt, mult, explicit = normalize_amount(raw_text)
 
         # 5. Detect Currency using Currency class mapping
         currency = detect_currency(raw_text)
@@ -402,10 +411,13 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
 
         amounts.append(InstrumentAmount(
             type=val_type,
-            amount=num,
+            amount=final_amt,
             currency=currency,
             year=mapped_year,
-            is_zero=val_tok["is_zero"]
+            is_zero=val_tok["is_zero"],
+            explicit_multiplier=mult,
+            is_explicit=explicit,
+            source_multiplier=mult if explicit else None
         ))
 
     return InstrumentDetail(category=category, name=inst_name, amounts=amounts)
@@ -466,6 +478,105 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
     if target_attr := TAG_MAP.get(tag_reason):
         attributes[target_attr] = True
     return attributes
+
+
+def aggregate_and_normalize(evidence_details: List[InstrumentDetail]) -> Tuple[Dict[str, Dict], Dict[str, List[str]]]:
+    """
+    Context-aware normalization with type-specific range validation.
+    
+    PRESCAN PHASE:
+    1. Scan for ANY explicit multiplier (FV, notional, value - doesn't matter for multiplier).
+    2. Determine global multiplier per category (mode of explicit multipliers).
+    3. Build type-specific range maps (max FV, max notional, etc.).
+    
+    APPLICATION PHASE:
+    4. For each orphan value (< 5000, non-explicit, non-zero):
+       - Infer it using the category multiplier
+       - Validate against type-specific range (can't exceed 10x max explicit of that type)
+       - Update InstrumentAmount.inferred_amount with result
+    5. Aggregate using inferred_amount (or original if validation failed)
+    
+    Returns:
+        (aggregated_totals, validation_warnings)
+        where evidence_details are MODIFIED IN PLACE with inferred_amount populated
+    """
+    if not evidence_details:
+        return {}, {}
+    
+    # --- PHASE 1: PRESCAN FOR EXPLICIT MULTIPLIERS & RANGES BY TYPE ---
+    global_multipliers = []
+    category_multipliers = defaultdict(list)
+    explicit_amounts_by_type = defaultdict(lambda: defaultdict(list))  # {category: {type: [amounts]}}
+    
+    for det in evidence_details:
+        for amt in det.amounts:
+            if amt.is_explicit and amt.explicit_multiplier > 1.0:
+                category_multipliers[det.category].append(amt.explicit_multiplier)
+                global_multipliers.append(amt.explicit_multiplier)
+            # Track explicit amounts by category AND type
+            if amt.is_explicit:
+                explicit_amounts_by_type[det.category][amt.type].append(amt.amount)
+
+    # Determine Global Default (Mode of explicit multipliers, fallback to 1M)
+    global_default = 1_000_000.0  # Standard SEC filing convention
+    if global_multipliers:
+        global_default = max(set(global_multipliers), key=global_multipliers.count)
+
+    # --- PHASE 2: NORMALIZE & AGGREGATE WITH TYPE-SPECIFIC RANGE VALIDATION ---
+    aggregated = defaultdict(lambda: {"notional": 0.0, "fair_value": 0.0, "value": 0.0})
+    validation_warnings = defaultdict(list)
+    
+    for det in evidence_details:
+        # Determine category-specific default multiplier (any explicit multiplier applies to all types)
+        if det.category in category_multipliers and category_multipliers[det.category]:
+            cat_default = max(set(category_multipliers[det.category]), key=category_multipliers[det.category].count)
+        else:
+            cat_default = global_default
+        
+        # Get type-specific range bounds for this category
+        cat_type_amounts = explicit_amounts_by_type[det.category]
+        max_by_type = {
+            amt_type: max(amounts) if amounts else None 
+            for amt_type, amounts in cat_type_amounts.items()
+        }
+
+        for amt in det.amounts:
+            final_val = amt.amount
+            inference_note = None
+            
+            # Logic: If amount was not explicit AND is small (< 5000) AND not zero, apply inferred multiplier
+            if not amt.is_explicit and not amt.is_zero and 0 < abs(amt.amount) < 5000:
+                inferred_val = amt.amount * cat_default
+                
+                # Range validation: Check against max explicit of THE SAME TYPE
+                max_explicit_for_type = max_by_type.get(amt.type)
+                if max_explicit_for_type and inferred_val > max_explicit_for_type * 10:
+                    validation_warnings[det.category].append(
+                        f"{amt.type.upper()} inference for ${amt.amount} using multiplier {cat_default} "
+                        f"(=${inferred_val:.0f}) exceeds max {amt.type} by 10x (max={max_explicit_for_type:.0f}). "
+                        f"Keeping raw value ${amt.amount}."
+                    )
+                    # Validation failed, keep raw value but note it
+                    final_val = amt.amount
+                    inference_note = f"REJECTED: inference ${inferred_val:.0f} exceeds max by 10x"
+                else:
+                    # Validation passed, use inferred
+                    final_val = inferred_val
+                    inference_note = f"Inferred using multiplier {cat_default:.0f}"
+            
+            # Update the InstrumentAmount object with inferred value
+            amt.inferred_amount = final_val
+            amt.inference_note = inference_note
+            
+            # Summation by type (use inferred_amount)
+            if amt.type == 'notional':
+                aggregated[det.category]['notional'] += final_val
+            elif amt.type == 'fv':
+                aggregated[det.category]['fair_value'] += final_val
+            elif amt.type == 'value':
+                aggregated[det.category]['value'] += final_val
+
+    return dict(aggregated), dict(validation_warnings)
 
 
 def remove_outlier_categories(
@@ -806,6 +917,13 @@ def process_row(row: Tuple) -> Tuple:
     for detail in evidence_details:
         evidence_by_category[detail.category].append(asdict(detail))
     attributes["evidence_details"] = dict(evidence_by_category)
+    
+    # Normalize implicit values based on context (explicit multipliers in the document)
+    # Type-aware: FV uses FV multipliers, notional/value use notional multipliers
+    aggregated_totals, validation_warnings = aggregate_and_normalize(evidence_details)
+    attributes["aggregated_totals"] = aggregated_totals
+    if validation_warnings:
+        attributes["normalization_warnings"] = validation_warnings
     
     attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
     
