@@ -20,7 +20,9 @@ def _build_numeric_with_symbols_pattern() -> re.Pattern:
             symbols.add(re.escape(currency.symbol))
     # Add standard formatting symbols
     symbols.update([r'%', r'\(', r'\)', r'-', r','])
-    return build_regex(list(symbols))
+    # Remove unsafe symbols
+    symbols.remove("R")
+    return re.compile(rf"(?:{'|'.join(symbols)})")
 NUMERIC_WITH_SYMBOLS = _build_numeric_with_symbols_pattern()
 
 # Build currency symbol sets from Currency class - separated by position

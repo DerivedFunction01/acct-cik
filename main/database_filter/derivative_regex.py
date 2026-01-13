@@ -363,7 +363,7 @@ class Currency:
 major_currencies = [
     Currency("USD", "US Dollar", "$", "U.S.", "United States"),
     Currency("EUR", "Euro", "€", "European", "Europe"),
-    Currency("GBP", "British Pound", "£", "British", "U.K."),
+    Currency("GBP", "British Pound", "£", "British", "United Kingdom"),
     Currency("JPY", "Japanese Yen", "¥", "Japanese", "Japan"),
     Currency("CAD", "Canadian Dollar", "C$", "Canadian", "Canada"),
     Currency("AUD", "Australian Dollar", "A$", "Australian", "Australia"),
