@@ -2,7 +2,7 @@
 import re
 from typing import List, Dict, Optional, Set, Tuple
 
-from derivative_regex import BASE_REGEX, CURRENCY_NAMES_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, SOFT_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TABLE_REGEX, YEAR_REGEX, all_currencies
+from derivative_regex import BASE_REGEX, CURRENCY_NAMES_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, SOFT_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TABLE_REGEX, YEAR_REGEX, all_currencies, build_regex
 
 # --- REGEX DEFINITIONS ---
 
@@ -20,9 +20,7 @@ def _build_numeric_with_symbols_pattern() -> re.Pattern:
             symbols.add(re.escape(currency.symbol))
     # Add standard formatting symbols
     symbols.update([r'%', r'\(', r'\)', r'-', r','])
-    pattern = f"[{''.join(symbols)}]"
-    return re.compile(pattern)
-
+    return build_regex(list(symbols))
 NUMERIC_WITH_SYMBOLS = _build_numeric_with_symbols_pattern()
 
 # Build currency symbol sets from Currency class - separated by position
