@@ -525,10 +525,12 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     Process:
     1. Check if paragraph is already deadweight - if so, return unchanged
     2. Parse existing noise tags from paragraph
-    3. Split into sentences
-    4. Tag ONLY untagged sentences with their evidence
-    5. Collect evidence for dominance check
-    6. Apply hierarchy to check if mixed signals should kill the paragraph
+    3. Pre-scan for future maturity signals (paragraph-level promotion hook)
+    4. Split into sentences
+    5. Tag ONLY untagged sentences with their evidence
+    6. Apply promotion logic for historical-but-active sentences
+    7. Collect evidence for dominance check
+    8. Apply hierarchy to check if mixed signals should kill the paragraph
     """
     # If paragraph is already marked deadweight, leave it alone
     if text.startswith(DEADWEIGHT_TOKEN):
@@ -539,6 +541,21 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
 
     masked_text = _cleaner.clean(text, is_nst=is_nst)
     is_strict_derivative = check_derivative_global(masked_text)
+
+    # === PRE-SCAN: Identify if paragraph contains an Active Maturity signal ===
+    # This allows us to "rescue" historical inception sentences in the same paragraph.
+    # Logic: If position matures in the future, then "2001 entry" is active evidence.
+    has_active_maturity = False
+    mat_reasons = {EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT}
+
+    split_masked_prescan = [
+        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()
+    ]
+    for s in split_masked_prescan:
+        res = check_future_maturity(s, reporting_year, is_strict_derivative)
+        if res in mat_reasons:
+            has_active_maturity = True
+            break
 
     # Split into sentences
     original_sentences = [
@@ -558,6 +575,23 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
         # Parse existing tags from this sentence
         clean_sent, existing_noise = parse_noise_tags(orig)
 
+        # === PROMOTION LOGIC: Reclaim Historical Inception ===
+        # If we know the position matures in the future (has_active_maturity),
+        # then a "2001 entry" tagged as TIME is actually active evidence.
+        if has_active_maturity and NoiseReason.TIME in existing_noise:
+            # Check if this sentence contains a transaction verb (entering position)
+            if TRANS_VERB_REGEX.search(masked):
+                # Promote to Active Transaction Evidence
+                evidence = (
+                    EvidenceReason.ACT_YEAR
+                    if is_strict_derivative
+                    else EvidenceReason.ACT_AMB_YEAR
+                )
+                all_evidence.add(evidence)
+                tagged_sent = f"{get_tag(EVIDENCE_TOKEN, evidence)} {clean_sent}"
+                tagged_sentences.append(tagged_sent)
+                continue
+
         # Only scan and tag sentences that have NO existing tags
         if not existing_noise:
             # Scan for evidence - returns single tag or None
@@ -566,7 +600,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
             )
             if evidence:
                 evidence_type = isinstance(evidence, EvidenceReason)
-                if evidence_type:
+                if isinstance(evidence, EvidenceReason):
                     all_evidence.add(evidence)
                 elif isinstance(evidence, NoiseReason):
                     existing_paragraph_noise.add(evidence)
