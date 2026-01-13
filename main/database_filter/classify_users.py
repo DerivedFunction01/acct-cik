@@ -334,15 +334,16 @@ def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
     return {cat: kw for cat, kw in instruments.items() if kw}
 
 
-def extract_instrument_evidence(sentence: str, category: str, reporting_year: int) -> Optional[InstrumentDetail]:
+def extract_instrument_evidence(sentence: str, category: str, reporting_year: int) -> List[InstrumentDetail]:
     """
-    Links a detected instrument with its quantitative data found in the same sentence.
-    Returns an InstrumentDetail with amounts, currencies, and years.
+    Links detected instruments with their quantitative data found in the same sentence.
+    Returns a list of InstrumentDetail objects—one per matched instrument.
     
     Enhancements:
     1. Uses evidence tags (FVY, NVY, etc.) to determine accounting type
-    2. Captures full instrument names from matched phrases
+    2. Captures full instrument names from matched phrases (all of them, not just longest)
     3. Uses Currency class mapping for currency detection
+    4. Creates separate InstrumentDetail for each instrument to avoid consolidation
     """
     # 1. Determine Accounting Context from Evidence Tags (Primary)
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
@@ -376,27 +377,26 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
     # 2. Extract numeric data and years
     years, values = extract_values_and_years(sentence)
     
-    # 3. Find Full Instrument Name (using category-specific keywords first)
+    # 3. Find ALL Instrument Names (using category-specific keywords first)
     inst_keywords = extract_instrument_keywords(sentence)
-    inst_name = "derivative"
+    instrument_names = []
     
     if inst_keywords and category in inst_keywords:
-        # Get the matched instruments for this category
+        # Get ALL matched instruments for this category (not just the longest)
         matched = list(inst_keywords[category])
         if matched:
-            # Prefer longer names (more specific: "forward contract" > "forward")
-            inst_name = max(matched, key=len)
+            # Sort by length (longest/most specific first) for predictable ordering
+            instrument_names = sorted(matched, key=len, reverse=True)
     else:
         # Fallback to BASE_REGEX for generic instrument detection
-        name_match = BASE_REGEX.search(sentence)
-        if name_match:
-            inst_name = name_match.group(0).strip()
+        name_matches = [m.group(0).strip() for m in BASE_REGEX.finditer(sentence)]
+        instrument_names = name_matches if name_matches else ["derivative"]
     
+    # If no values, return empty list (no evidence to capture)
     if not values:
-        # Return detail with empty amounts for tracking "User = 1 but no amounts" cases
-        return InstrumentDetail(category=category, name=inst_name, amounts=[])
+        return []
 
-    # 4. Map Values to InstrumentAmount structures
+    # 4. Map Values to InstrumentAmount structures (shared across all instruments)
     amounts = []
     for val_tok in values:
         # Extract numeric float from text and normalize with multipliers
@@ -420,7 +420,12 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
             source_multiplier=mult if explicit else None
         ))
 
-    return InstrumentDetail(category=category, name=inst_name, amounts=amounts)
+    # 6. Create one InstrumentDetail per matched instrument (all share the same amounts)
+    details = []
+    for inst_name in instrument_names:
+        details.append(InstrumentDetail(category=category, name=inst_name, amounts=amounts))
+    
+    return details
 
 
 def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
@@ -814,9 +819,9 @@ def process_row(row: Tuple) -> Tuple:
                         instrument_keywords = extract_instrument_keywords(clean_sent)
                         for kw_cat, keywords in instrument_keywords.items():
                             valid_instruments[kw_cat].update(keywords)
-                        # Extract quantitative evidence
-                        if detail := extract_instrument_evidence(sent_content, cat, year):
-                            evidence_details.append(detail)
+                        # Extract quantitative evidence (now returns list)
+                        details = extract_instrument_evidence(sent_content, cat, year)
+                        evidence_details.extend(details)
                     continue  # Done. We trust this sentence.
 
                 # 3. If NO Evidence, fall through!
@@ -840,9 +845,9 @@ def process_row(row: Tuple) -> Tuple:
                     tracker.register_paragraph(clean_sent, cat)
                     local_tracker.register_paragraph(clean_sent, cat)
                     strict_counts[cat] += 1
-                    # Extract quantitative evidence for promoted categories
-                    if detail := extract_instrument_evidence(sent_content, cat, year):
-                        evidence_details.append(detail)
+                    # Extract quantitative evidence for promoted categories (now returns list)
+                    details = extract_instrument_evidence(sent_content, cat, year)
+                    evidence_details.extend(details)
                 # Capture instruments from unambiguous evidence
                 instrument_keywords = extract_instrument_keywords(clean_sent)
                 for cat, keywords in instrument_keywords.items():
