@@ -4,6 +4,7 @@ import json
 import re
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass, asdict
 import multiprocessing as mp
 from tqdm import tqdm
 from typing import Any, Tuple, Dict, Set, Optional, List
@@ -15,8 +16,29 @@ from derivative_regex import (
     SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
 )
 from prefilter_database import find_hedging_context
+from prefilter_tagging import extract_values_and_years
+from prefilter_evidence import NOTIONAL_CONTEXT_REGEX, FAIR_VALUE_CONTEXT_REGEX
 from table_processor import TABLE_ANCHOR
 from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, convertible_ir, is_sophisticated_content, is_sophisticated_target
+from derivative_regex import all_currencies
+
+# =============================================================================
+# INSTRUMENT EVIDENCE STRUCTURES
+# =============================================================================
+
+@dataclass
+class InstrumentAmount:
+    type: str       # 'fv', 'notional', or 'value'
+    amount: float   # Numeric value
+    currency: str    # ISO Code (USD, EUR, etc.)
+    year: Optional[int] = None
+    is_zero: bool = False   # Tracks "nil" or "$0" amounts
+
+@dataclass
+class InstrumentDetail:
+    category: str
+    name: str       # The specific phrase found (e.g. "Interest rate swap")
+    amounts: List[InstrumentAmount]
 
 # =============================================================================
 # CONFIGURATION
@@ -46,6 +68,22 @@ UNAMBIGUOUS_EVIDENCE = {
 }
 
 _cleaner = MinimalTextCleaner()
+
+# =============================================================================
+# CURRENCY MAPPING
+# =============================================================================
+# Build currency mapping from Currency class for efficient lookup
+CURRENCY_CODE_MAP = {}
+CURRENCY_SYMBOL_MAP = {}
+for currency in all_currencies:
+    # Map full name -> code
+    CURRENCY_CODE_MAP[currency.full_name.lower()] = currency.code
+    # Map symbol -> code
+    CURRENCY_SYMBOL_MAP[currency.symbol.lower()] = currency.code
+    # Map code to itself
+    CURRENCY_CODE_MAP[currency.code.lower()] = currency.code
+    # Map adjective -> code (e.g., "U.S." -> "USD")
+    CURRENCY_CODE_MAP[currency.adjective.lower()] = currency.code
 
 # =============================================================================
 # GLOBAL INSTRUMENT TRACKER
@@ -191,6 +229,25 @@ def extract_categories_soft(sentence: str) -> Set[str]:
     return cats
 
 
+def detect_currency(text: str) -> str:
+    """
+    Detect currency code from text using CURRENCY_CODE_MAP and CURRENCY_SYMBOL_MAP.
+    Returns ISO currency code (default: USD).
+    """
+    # First try symbol matching (fastest)
+    for symbol, code in CURRENCY_SYMBOL_MAP.items():
+        if symbol in text.lower():
+            return code
+    
+    # Then try name/code matching
+    text_lower = text.lower()
+    for name, code in CURRENCY_CODE_MAP.items():
+        if name in text_lower:
+            return code
+    
+    return "USD"  # Default fallback
+
+
 def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
     """
     Extract actual matched instrument text from category regexes.
@@ -214,6 +271,93 @@ def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
     
     # Clean up empty categories
     return {cat: kw for cat, kw in instruments.items() if kw}
+
+
+def extract_instrument_evidence(sentence: str, category: str, reporting_year: int) -> Optional[InstrumentDetail]:
+    """
+    Links a detected instrument with its quantitative data found in the same sentence.
+    Returns an InstrumentDetail with amounts, currencies, and years.
+    
+    Enhancements:
+    1. Uses evidence tags (FVY, NVY, etc.) to determine accounting type
+    2. Captures full instrument names from matched phrases
+    3. Uses Currency class mapping for currency detection
+    """
+    # 1. Determine Accounting Context from Evidence Tags (Primary)
+    evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
+    val_type = "value"
+    
+    # Map evidence tags to accounting types
+    fv_tags = {
+        EvidenceReason.FVY.value,       # Fair Value was $X at Year
+        EvidenceReason.FVNY.value,      # Fair Value is $X
+        EvidenceReason.FVAIY.value,     # Fair Value at inception was $X
+        EvidenceReason.FVAINY.value,    # Fair Value at inception is $X
+    }
+    notional_tags = {
+        EvidenceReason.NVY.value,       # Notional was $X at Year
+        EvidenceReason.NVNY.value,      # Notional is $X
+    }
+    
+    if evidence_tags.intersection(fv_tags):
+        val_type = "fv"
+    elif evidence_tags.intersection(notional_tags):
+        val_type = "notional"
+    # Fallback to regex if no evidence tags found
+    elif NOTIONAL_CONTEXT_REGEX.search(sentence):
+        val_type = "notional"
+    elif FAIR_VALUE_CONTEXT_REGEX.search(sentence):
+        val_type = "fv"
+
+    # 2. Extract numeric data and years
+    years, values = extract_values_and_years(sentence)
+    
+    # 3. Find Full Instrument Name (using category-specific keywords first)
+    inst_keywords = extract_instrument_keywords(sentence)
+    inst_name = "derivative"
+    
+    if inst_keywords and category in inst_keywords:
+        # Get the matched instruments for this category
+        matched = list(inst_keywords[category])
+        if matched:
+            # Prefer longer names (more specific: "forward contract" > "forward")
+            inst_name = max(matched, key=len)
+    else:
+        # Fallback to BASE_REGEX for generic instrument detection
+        name_match = BASE_REGEX.search(sentence)
+        if name_match:
+            inst_name = name_match.group(0).strip()
+    
+    if not values:
+        # Return detail with empty amounts for tracking "User = 1 but no amounts" cases
+        return InstrumentDetail(category=category, name=inst_name, amounts=[])
+
+    # 4. Map Values to InstrumentAmount structures
+    amounts = []
+    for val_tok in values:
+        # Extract numeric float from text (e.g. "$10.5" -> 10.5)
+        raw_text = val_tok["text"]
+        num_str = re.sub(r'[^\d.]', '', raw_text)
+        try:
+            num = float(num_str) if num_str else 0.0
+        except ValueError:
+            continue
+
+        # 5. Detect Currency using Currency class mapping
+        currency = detect_currency(raw_text)
+
+        # Heuristic Year Mapping: Use reporting year if mentioned, else first year found
+        mapped_year = reporting_year if reporting_year in years else (years[0] if years else None)
+
+        amounts.append(InstrumentAmount(
+            type=val_type,
+            amount=num,
+            currency=currency,
+            year=mapped_year,
+            is_zero=val_tok["is_zero"]
+        ))
+
+    return InstrumentDetail(category=category, name=inst_name, amounts=amounts)
 
 
 def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
@@ -411,6 +555,7 @@ def process_row(row: Tuple) -> Tuple:
     soft_counts = defaultdict(int)
     strict_counts = defaultdict(int)
     valid_instruments = defaultdict(set)  # Track instrument keywords by category
+    evidence_details: List[InstrumentDetail] = []  # Track detailed instrument evidence
     attributes: Dict[str, Any] = {
         "is_hedger": False,
         "documents_hedge_accounting": False,
@@ -503,10 +648,13 @@ def process_row(row: Tuple) -> Tuple:
                     for cat in strict_cats:
                         strict_categories.add(cat)
                         strict_counts[cat] += 1  # Only increment Anchor magnitude here!
-                    # Capture instruments from valid evidence
-                    instrument_keywords = extract_instrument_keywords(clean_sent)
-                    for cat, keywords in instrument_keywords.items():
-                        valid_instruments[cat].update(keywords)
+                        # Capture instruments from valid evidence
+                        instrument_keywords = extract_instrument_keywords(clean_sent)
+                        for kw_cat, keywords in instrument_keywords.items():
+                            valid_instruments[kw_cat].update(keywords)
+                        # Extract quantitative evidence
+                        if detail := extract_instrument_evidence(sent_content, cat, year):
+                            evidence_details.append(detail)
                     continue  # Done. We trust this sentence.
 
                 # 3. If NO Evidence, fall through!
@@ -530,6 +678,9 @@ def process_row(row: Tuple) -> Tuple:
                     tracker.register_paragraph(clean_sent, cat)
                     local_tracker.register_paragraph(clean_sent, cat)
                     strict_counts[cat] += 1
+                    # Extract quantitative evidence for promoted categories
+                    if detail := extract_instrument_evidence(sent_content, cat, year):
+                        evidence_details.append(detail)
                 # Capture instruments from unambiguous evidence
                 instrument_keywords = extract_instrument_keywords(clean_sent)
                 for cat, keywords in instrument_keywords.items():
@@ -597,6 +748,14 @@ def process_row(row: Tuple) -> Tuple:
 
     # Add valid instruments as category -> list mapping
     attributes["instruments"] = {cat: sorted(list(keywords)) for cat, keywords in valid_instruments.items()}
+    
+    # Add detailed evidence with quantitative data
+    # Group evidence_details by category for easier querying
+    evidence_by_category = defaultdict(list)
+    for detail in evidence_details:
+        evidence_by_category[detail.category].append(asdict(detail))
+    attributes["evidence_details"] = dict(evidence_by_category)
+    
     attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
     
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
