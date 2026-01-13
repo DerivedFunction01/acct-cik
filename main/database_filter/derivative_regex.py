@@ -96,8 +96,6 @@ RISK_TERMS = [
     "management?",
     "costs?",
     "prices?",
-    "hedges?",
-    "hedging?",
 ]
 _RISK_ALTERNATION = build_alternation(RISK_TERMS)
 
@@ -676,6 +674,7 @@ RISK_MANAGEMENT_TERMS = [
     r"exposed\s+to",
     r"risk\s+management",
     rf"economic\s+{_RISK_ALTERNATION}",
+    r"economic\s+hedges?",
     # --- Safe for Phase 1 Contextual Capture ---
     rf"(?:market|rate|currency|credit|equity|price)[ -]{_RISK_ALTERNATION}",
     r"fluctuations?",  # e.g., "protect against fluctuations"

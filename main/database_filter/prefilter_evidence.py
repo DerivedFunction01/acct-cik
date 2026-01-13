@@ -539,7 +539,18 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     # Parse any existing noise tags from the paragraph for dominance evaluation
     _, existing_paragraph_noise = parse_noise_tags(text)
 
-    masked_text = _cleaner.clean(text, is_nst=is_nst)
+    # Split into sentences FIRST to ensure alignment
+    original_sentences = [
+        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
+    ]
+
+    # Mask each sentence individually
+    masked_sentences = [
+        _cleaner.clean(s, is_nst=is_nst) for s in original_sentences
+    ]
+
+    # Reconstruct masked text for global check
+    masked_text = " ".join(masked_sentences)
     is_strict_derivative = check_derivative_global(masked_text)
 
     # === PRE-SCAN: Identify if paragraph contains an Active Maturity signal ===
@@ -548,24 +559,11 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     has_active_maturity = False
     mat_reasons = {EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT}
 
-    split_masked_prescan = [
-        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()
-    ]
-    for s in split_masked_prescan:
+    for s in masked_sentences:
         res = check_future_maturity(s, reporting_year, is_strict_derivative)
         if res in mat_reasons:
             has_active_maturity = True
             break
-
-    # Split into sentences
-    original_sentences = [
-        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
-    ]
-    masked_sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()]
-
-    # Align lengths (safety)
-    if len(original_sentences) != len(masked_sentences):
-        masked_sentences = original_sentences
 
     # Process sentences: tag untagged ones, collect evidence
     tagged_sentences = []

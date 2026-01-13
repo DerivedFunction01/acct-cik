@@ -383,19 +383,15 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
     original_sentences = [
         s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if s.strip()
     ]
-    masked_sentences = [
-        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(masked_text) if s.strip()
-    ]
+
     reasons: Set[NoiseReason] = set()
-    if len(original_sentences) != len(masked_sentences):
-        masked_sentences = original_sentences
 
     tagged_output = []
     surviving_text_parts = []
 
-    for orig, masked in zip(original_sentences, masked_sentences):
+    for orig in original_sentences:
         reason: Optional[NoiseReason] = None
-
+        masked = mask_text(orig, is_nst=is_nst)
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
         temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
