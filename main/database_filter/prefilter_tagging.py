@@ -445,7 +445,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
             elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
                 reason = NoiseReason.NPNS
             elif NON_DER_CAP_FLOOR_REGEX.search(masked):
-                reason = NoiseReason.LOAN
+                reason = NoiseReason.FLR_CAP
 
         # --- TIER 4: SOFT KILLS (The "Generic" Tags) ---
         if not reason:

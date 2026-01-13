@@ -25,6 +25,7 @@ from derivative_regex import (
     DER_STD_REGEX,
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
+    EQ_CONTEXT_REGEX,
     EQ_REGEX,
 
     EXCLUDE_REGEX_ACCOUNTING_STD,
@@ -112,6 +113,33 @@ INDIVIDUAL_FOOTNOTE_PATTERN = re.compile(
 )
 TAG_PATTERN = re.compile(r"<[^>]+>")
 
+def is_standard_debt(text: str) -> bool:
+    """
+    Returns True if a paragraph mentions sophisticated targets (convertible/warrant)
+    but LACKS the necessary equity or derivative context.
+    
+    Logic:
+    1. Check if Target exists (e.g. "convertible notes").
+    2. If found, strictly require either:
+       - Sophisticated Context (e.g. "embedded", "bifurcation", "derivative liability")
+       - Equity Context (e.g. "common stock", "share price", "conversion option")
+    3. If neither context exists, it is likely just standard debt reporting.
+    """
+    # Quick exit: if it doesn't mention convertibles/warrants, it's not "Standard Convertible Debt"
+    if not SOPHISTICATED_TARGETS.search(text):
+        return False
+
+    # Guard 1: Sophisticated Derivative Context (Strongest Signal)
+    if SOPHISTICATED_CONTEXT_REGEX.search(text):
+        return False
+        
+    # Guard 2: Equity Context (Necessary for valid Convertibles)
+    if EQ_CONTEXT_REGEX.search(text):
+        return False
+    
+    # If we are here, we have "convertible" without "equity" or "derivative" context.
+    # Result: Treat as Standard Debt (Noise).
+    return bool(STRICT_REGEX.search(text))
 
 def check_hard_exclusions(text: str) -> Optional[str]:
     """
@@ -156,6 +184,9 @@ def check_hard_exclusions(text: str) -> Optional[str]:
     if is_hypothetical_noise(text):
         # Return the Enum value string to match process_item check
         return NoiseReason.HYP_SCORE.value
+    # Convertible debt check: Is it just standard debt issuance/mechanics or is it really a derivative
+    if is_standard_debt(text):
+        return NoiseReason.DEBT.value
         # Commodity check: is it refering to a derivative?
     if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
         if not find_hedging_context(text):
