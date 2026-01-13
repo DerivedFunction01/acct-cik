@@ -273,7 +273,7 @@ COMMON_COMMODITIES = [
     "wood",
     "wood chip",
     "wood pellet",
-    r"(?<!commericial\s)paper",
+    r"(?<!commericial[ -])paper",
     "pulp",
     # 🧩 General / Raw Inputs
     "feedstock",
