@@ -70,6 +70,7 @@ UNAMBIGUOUS_EVIDENCE = {
     EvidenceReason.VNY.value,  # " Value is $5M"
     EvidenceReason.FVNY.value,  # "Fair Value is $5M"
     EvidenceReason.BS_LOC.value,  # "Recorded in Earnings"
+    EvidenceReason.ACT_GEN.value,
 }
 
 _cleaner = MinimalTextCleaner()
