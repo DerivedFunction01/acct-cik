@@ -8,12 +8,35 @@ from typing import List, Tuple, Optional
 from tqdm import tqdm
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
-from defs.prefiltered_lib import DEADWEIGHT_TOKEN, SOPHISTICATED_CONTEXT_REGEX, SOPHISTICATED_TARGETS, Stage, is_sophisticated_content, is_sophisticated_target
+from defs.prefiltered_lib import (
+    DEADWEIGHT_TOKEN, 
+    SOPHISTICATED_CONTEXT_REGEX, 
+    SOPHISTICATED_TARGETS, 
+    Stage, 
+    is_sophisticated_content, 
+    is_sophisticated_target
+)
 from defs.derivative_lib import CATEGORY_REGEX, SOFT_CATEGORY_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
-from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX
+from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EXCLUDE_REGEX_EQUITY_COMP
 from defs.gen_regex import HEDGING_CONTEXT_REGEX
 from defs.shared_context import CURRENCY_NAMES_REGEX, VALUATION_MODELS_REGEX
+from defs.ir_regex import EXCLUDE_REGEX_LIBOR_TRANSITION, is_bank_list_noise
+from defs.exclusion_regex import (
+    EXCLUDE_REGEX_FORWARD_LOOKING,
+    ENTITY_EXCLUSION_REGEX,
+    ENTITY_TOKEN,
+    EXCLUDE_REGEX_FILING,
+    EXCLUDE_REGEX_LEGAL_LITIGATION,
+    EXCLUDE_COMPETITOR_REGEX,
+    EXCLUDE_NON_FINANCIAL_REGEX,
+    EXCLUDE_PLAN_ASSETS_REGEX,
+    aggregate_discards,
+)
+from defs.acct_std import EXCLUDE_REGEX_ACCOUNTING_STD
+from defs.contract import is_contractual_noise
+from defs.hypo import is_hypothetical_noise
+from defs.regul import is_regulatory_noise
 
 # =============================================================================
 # CONFIGURATION
@@ -25,30 +48,8 @@ SOURCE_DB_PATH = "web_data.db"
 TARGET_DB_PATH = "prefiltered_data.db"
 
 # --- IMPORTS ---
-from defs.derivative_regex import (
-
-    ENTITY_EXCLUSION_REGEX,
-    ENTITY_TOKEN,
-
-    EXCLUDE_REGEX_ACCOUNTING_STD,
-    EXCLUDE_REGEX_EQUITY_COMP,
-    EXCLUDE_REGEX_FILING,
-    EXCLUDE_REGEX_LEGAL_LITIGATION,
-    EXCLUDE_COMPETITOR_REGEX,
-    EXCLUDE_NON_FINANCIAL_REGEX,
-    EXCLUDE_PLAN_ASSETS_REGEX,
-    EXCLUDE_REGEX_FORWARD_LOOKING,
-    EXCLUDE_REGEX_LIBOR_TRANSITION,
-    aggregate_discards,
-    is_bank_list_noise,
-    is_contractual_noise,
-    is_hypothetical_noise,
-    is_regulatory_noise,
-)
-
 from table_processor import TABLE_ANCHOR, TableToTextConverter
 from defs.prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
-
 
 # =============================================================================
 # CURRENCY & COMMODITY COUNTING
@@ -273,8 +274,6 @@ def process_accounting_standards_paragraph(
         discards.append((url, discarded_text, "accounting_standards"))
 
     return kept, discards
-
-
 
 
 def validate_sophisticated_buffer(

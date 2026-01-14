@@ -1,7 +1,13 @@
 import re
 from typing import List, Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, VALUATION_MODELS, YEAR_REGEX
-from regex_lib import build_alternation, build_regex
+from defs.cp_regex import COMMODITY_UNIT_PATTERN
+from defs.refer import EXHIBIT_FRAGMENT
+from defs.acct_std import STANDARD_ID_REGEX
+from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX
+from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIVATIVE_REGEX
+from defs.ir_regex import IR_SOFT_REGEX
+from defs.shared_context import CURRENCY_SYMBOL_PATTERN, VALUATION_MODELS
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 

@@ -91,9 +91,28 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     return strict_eq_regex, soft_eq_regex
 
 
+stock_terms = [
+    "prices?",
+    "markets?",
+    "dividends?",
+    "splits?",
+    "units?",
+    "warrants?",
+    "indices?",
+    "awards?",
+    "grants?",
+    "compensation",
+    "appreciation",
+    "options?",
+    "purchases",
+    "capital",
+    "securit(?:y|ies)",
+]
+stock_alt = build_alternation(stock_terms)
+
 EQ_CONTEXT_TERMS = [
     # --- A. Core Prices & Markets ---
-    r"(?:stock|share|equity)\s+(prices?|markets?|warrants?|indices?|awards?|grants?|compensation|appreciation|options?|derivatives?|capital|securit(?:y|ies))",
+    rf"(?:stock|share|equity)\s+{stock_alt}",
     r"market\s+index(?:es)?",
     # --- B. Specific Indices ---
     r"S\&P\s+500",
@@ -101,7 +120,7 @@ EQ_CONTEXT_TERMS = [
     r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
     r"Russell\s+2000",
     # --- C. Equity Components ---
-    r"(?:preferred|common|treasury|outstanding)\s+(?:stocks?|shares)",
+    r"(?:preferred|common|treasury|outstanding|restricted)\s+(?:stocks?|shares)",
     # --- D. Structures & Events ---
     r"initial\s+public\s+offering|IPO",
     r"(?:primary|secondary)\s+markets?",
@@ -111,7 +130,43 @@ EQ_CONTEXT_TERMS = [
     r"capped\s+calls?",
 ]
 
-EQ_CONTEXT_TERMS += VALUATION_MODELS
+# Section 1: Employee Equity Compensation (Updated)
+EQUITY_COMP_KEYWORDS = [
+    # 1. Standard Compensation Terms
+    "stock (?:options?|awards?|splits?|dividends?|purchases?)",
+    "restricted (?:stock|shares?|units?)",
+    "RSUs?",
+    "PSUs?",  # Performance Share Units
+    "DSUs?",  # Deferred Share Units
+    "ESPP",  # Employee Stock Purchase Plan
+    "SARs?",  # Stock Appreciation Rights
+    "stock appreciation rights?",
+    "phantom stocks?",
+    "employee stocks?",
+    "employees?",
+    # 2. Plan/HR Terminology
+    "compensations?",
+    "benefit plans?",
+    "incentive plans?",
+    "share-based payment",
+    "vesting",
+    "exercisable",
+    "grant date",
+    "service period",
+    "unrecognized compensation",
+    "weighted-average exercise price",
+    # 3. Income Statement Noise
+    "bonus",
+    "salary",
+    "wage",
+    "payroll",
+    "severance",
+    "common shares?",
+    "treasury stocks?",
+    "exercise",
+]
+EQ_CONTEXT_TERMS += VALUATION_MODELS + EQUITY_COMP_KEYWORDS
 EQ_CONTEXT_REGEX = build_regex(EQ_CONTEXT_TERMS)
 EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_CONTEXT_TERMS)
 EQ_REGEX, EQ_SOFT_REGEX = build_eq_regex()
+EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)

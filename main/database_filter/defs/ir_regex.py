@@ -159,6 +159,121 @@ IR_OTHER_TERMS = [
     r"weighted\s+average\s+interest",
 ]
 
-IR_CONTEXT = [IR_DEBT_LOOKBEHIND_TERM] + IR_OTHER_TERMS + BENCHMARK_RATES + IR_STRICT_TERMS
+
+# =============================================================================
+# BANK ENTITY LISTS (New)
+# =============================================================================
+
+CENTRAL_BANKS = [
+    r"Bank\s+of\s+England",
+    r"\bBoE\b",
+    r"Federal\s+Reserve",
+    r"the\s+Fed\b",  # Careful with "Fed", usually safe with "the"
+    r"Federal\s+Reserve\s+Bank\s+of\s+New\s+York",
+    r"New\s+York\s+Fed",
+    r"\bNY\s+Fed\b",
+    r"European\s+Central\s+Bank",
+    r"\bECB\b",
+    r"Swiss\s+National\s+Bank",
+    r"\bSNB\b",
+    r"Bank\s+of\s+Japan",
+    r"\bBoJ\b",
+    r"Financial\s+Conduct\s+Authority",  # UK Regulator (LIBOR killer)
+    r"\bFCA\b",
+]
+# Major Global & US Banks (Counterparties / Lenders)
+BANK_ENTITIES = [
+    # US Majors
+    r"J\.?P\.?\s+Morgan(?:\s+Chase)?",
+    r"Goldman\s+Sachs",
+    r"Morgan\s+Stanley",
+    r"Bank\s+of\s+America",
+    r"BofA(?:\s+Securities)?",
+    r"Merrill\s+Lynch",
+    r"Citigroup",
+    r"Citibank",
+    r"Wells\s+Fargo",
+    r"State\s+Street",
+    r"Bank\s+of\s+New\s+York(?:\s+Mellon)?",
+    r"BNY\s+Mellon",
+    # International Majors
+    r"Barclays",
+    r"HSBC",
+    r"Deutsche\s+Bank",
+    r"UBS",
+    r"Credit\s+Suisse",
+    r"BNP\s+Paribas",
+    r"Soci[eé]t[eé]\s+G[eé]n[eé]rale",
+    r"SocGen",
+    r"Credit\s+Agricole",
+    r"NatWest",
+    r"Standard\s+Chartered",
+    r"Santander",
+    r"Mizuho",
+    r"Nomura",
+    r"Sumitomo\s+Mitsui",
+    r"MUFG",
+    r"Royal\s+Bank\s+of\s+Canada",
+    r"RBC",
+    r"Toronto[- ]Dominion",
+    r"TD\s+Bank",
+    r"Scotiabank",
+    r"Bank\s+of\s+Montreal",
+    r"BMO",
+] + CENTRAL_BANKS
+
+
+# Compile for Bag-of-Words Scoring
+BANK_SCORING_REGEX = build_regex(BANK_ENTITIES)
+
+# --- LIBOR TRANSITION NOISE (Updated) ---
+LIBOR_TRANSITION_KEYWORDS = [
+    # ... (Your existing transition terms: cessation, phase-out) ...
+    r"LIBOR\s+transition",
+    r"transition\s+(?:from|away\s+from)\s+LIBOR",
+    r"discontinu(?:ance|ation|ed)\s+of\s+LIBOR",
+    r"cessation\s+of\s+LIBOR",
+    r"phase[- ]?out\s+of\s+LIBOR",
+    r"replacement\s+of\s+LIBOR",
+    r"migration\s+from\s+LIBOR",
+    # Regulatory Bodies & Committees
+    r"Alternative\s+Reference\s+Rates?\s+Committee",
+    r"\bARRC\b",
+    r"reference\s+rate\s+reform",
+    r"interbank\s+offered\s+rates?\s+reform",
+    r"IBOR\s+reform",
+    # Specific Dates
+    r"publication\s+of\s+(?:certain\s+|all\s+)?LIBOR\s+rates?",
+    r"no\s+longer\s+publish(?:ed)?",
+    r"cease\s+to\s+be\s+representative",
+    r"synthetic\s+LIBOR",
+    r"ASC\s+848",
+    r"Facilitation\s+of\s+the\s+Effects\s+of\s+Reference\s+Rate\s+Reform",
+    r"publication\s+(?:of\s+)?(?:certain\s+|all\s+)?(?:USD\s+)?LIBOR.*June\s+30,?\s+2023",
+    # 2. "Cease... after June 30"
+    # Matches: "cease to be representative after June 30, 2023"
+    r"cease\s+to\s+be.*June\s+30,?\s+2023",
+    # 3. "Transition... by June 30"
+    r"transition.*by\s+June\s+30,?\s+2023",
+] + CENTRAL_BANKS
+
+# Compile
+IR_CONTEXT = (
+    [IR_DEBT_LOOKBEHIND_TERM] + IR_OTHER_TERMS + BENCHMARK_RATES + IR_STRICT_TERMS
+)
 IR_CONTEXT_REGEX = build_regex(IR_CONTEXT)
 IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS)
+EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
+
+def is_bank_list_noise(text: str, threshold: int = 3) -> bool:
+    """
+    Bag-of-Words Score for Banking Lists.
+
+    Logic: If a paragraph mentions 3+ distinct banks, it is likely a
+    Credit Agreement / Syndication list, not a specific derivative trade.
+
+    Example: "The lenders include JPM, Citi, and BofA." -> Score 3 -> True (Noise)
+    """
+    # Use set to count unique banks (avoid double counting "JPM... JPM")
+    hits = set(match.group(0).lower() for match in BANK_SCORING_REGEX.finditer(text))
+    return len(hits) >= threshold

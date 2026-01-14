@@ -18,6 +18,22 @@ from defs.shared_context import (
 # STRICT CONTEXT DEFINITIONS (Updated)
 # =============================================================================
 
+TRADING_ENTITIES = [
+    r"\bNYMEX\b",
+    r"\bNew\s+York\s+Mercantile\s+Exchange\b",
+    r"\bCOMEX\b",
+    r"\bCommodity\s+Exchange\b",
+    r"\bCBOT\b",
+    r"\bChicago\s+Board\s+of\s+Trade\b",
+    r"\bCME\b",
+    r"\bChicago\s+Mercantile\s+Exchange\b",
+    r"\bICE\b",
+    r"\bIntercontinental\s+Exchange\b",
+    r"\bLME\b",
+    r"\bLondon\s+Metal\s+Exchange\b",
+    r"\bCBOE\b",
+    r"\bChicago\s+Board\s+Options\s+Exchange\b",
+]
 COMMON_COMMODITIES = [
     # 🌾 Agriculture & Food
     "cocoa",
@@ -240,35 +256,12 @@ CP_CONTEXT_TERMS = (
         "OPIS",  # Pricing reporting agencies
         "Brent"
         # Exchanges
-        # Exchanges
-        "LME",
-        "London Metal Exchange",
-        "CBOT",
-        "Chicago Board of Trade",
-        "ICE Futures",
-        "Intercontinental Exchange",
-        "COMEX",
-        "NYMEX",
     ]
     + COMMON_COMMODITIES
     + CP_UNITS_STRICT
+    + TRADING_ENTITIES
 )
-venues = [
-    r"\bNYMEX\b",
-    r"\bNew\s+York\s+Mercantile\s+Exchange\b",
-    r"\bCOMEX\b",
-    r"\bCommodity\s+Exchange\b",
-    r"\bCBOT\b",
-    r"\bChicago\s+Board\s+of\s+Trade\b",
-    r"\bCME\b",
-    r"\bChicago\s+Mercantile\s+Exchange\b",
-    r"\bICE\b",
-    r"\bIntercontinental\s+Exchange\b",
-    r"\bLME\b",
-    r"\bLondon\s+Metal\s+Exchange\b",
-    r"\bCBOE\b",
-    r"\bChicago\s+Board\s+Options\s+Exchange\b",
-]
+
 
 CP_STRICT_TERMS = [
     # General terms
@@ -279,7 +272,7 @@ CP_STRICT_TERMS = [
     # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
     rf"{_RISK_ALTERNATION}(?:\s+\w+){0,3}{_COMMODITY_NAMES}",
     rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}",  # natural gas inventory, etc,
-] + venues
+] + TRADING_ENTITIES
 
 
 def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:

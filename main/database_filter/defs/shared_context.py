@@ -191,6 +191,8 @@ def build_currency_symbol_pattern() -> str:
 
     return build_alternation(all_identifiers)
 
+CURRENCY_SYMBOL_PATTERN = build_currency_symbol_pattern()
+
 
 def build_currency_names_regex() -> re.Pattern:
     terms = []
@@ -214,3 +216,20 @@ VALUATION_MODELS = [
     r"option[- ]pricing\s+models?",
 ]
 VALUATION_MODELS_REGEX = build_regex(VALUATION_MODELS)
+
+# --- MONTHS (for date boilerplate) ---
+MONTHS_TERMS = [
+    r"January",
+    r"February",
+    r"March",
+    r"April",
+    r"May",
+    r"June",
+    r"July",
+    r"August",
+    r"September",
+    r"October",
+    r"November",
+    r"December",
+]
+MONTHS_FRAGMENT = build_alternation(MONTHS_TERMS)
