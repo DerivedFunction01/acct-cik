@@ -39,6 +39,7 @@ from prefiltered_lib import (
     MinimalTextCleaner,
     NoiseReason,
     Reason,
+    Stage,
     convertible_ir,
     get_tag,
     is_sophisticated_content,
@@ -617,7 +618,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
 
     # Apply hierarchy: check if mixed signals kill the paragraph
     if should_mark_deadweight(all_evidence, existing_paragraph_noise, sent_count=len(original_sentences)):
-        return mark_as_deadweight(tagged_paragraph, noise=existing_paragraph_noise)
+        return mark_as_deadweight(tagged_paragraph, noise=existing_paragraph_noise, stage=Stage.PF_EV)
     else:
         return mark_as_evidence(tagged_paragraph, evidence=all_evidence, noise=existing_paragraph_noise)
 

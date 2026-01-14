@@ -47,6 +47,7 @@ from prefiltered_lib import (
     ZERO_QUANT_REGEX,
     MinimalTextCleaner,
     NoiseReason,
+    Stage,
     convertible_ir,
     get_tag,
     is_pnl,
@@ -477,7 +478,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
     final_text = " ".join(tagged_output)
     # --- E. Final Signal Check ---
     if not surviving_text_parts:
-        return mark_as_deadweight(final_text, noise=reasons)
+        return mark_as_deadweight(final_text, noise=reasons, stage=Stage.PF_TG)
     return final_text
 
 

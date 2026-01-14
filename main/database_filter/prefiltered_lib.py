@@ -494,9 +494,16 @@ def mark_as_evidence(
     return f"{get_tag(EVIDENCE_TOKEN, final_reason)} {text}"
 
 
+class Stage(Enum):
+    PF_DB = "PF_DB"  # Phase 0
+    PF_TG = "PF_TG"  # Phase 1
+    PF_EV = "PF_EV"  # Phase 2
+
+
 def mark_as_deadweight(
     text: str,
     noise: Optional[Set[NoiseReason]] = None,
+    stage: Optional[Stage] = None,
 ) -> str:
     """
     Marks paragraph as deadweight with a specific semantic reason derived from its tags.
@@ -555,7 +562,7 @@ def mark_as_deadweight(
         final_reason = NoiseReason.REF
 
     # Apply the specific tag
-    return f"{get_tag(DEADWEIGHT_TOKEN, final_reason)} {text}"
+    return f"{get_tag(DEADWEIGHT_TOKEN, final_reason)} {stage}: {text}"
 
 
 def parse_noise_tags(text: str) -> Tuple[str, Set[NoiseReason]]:

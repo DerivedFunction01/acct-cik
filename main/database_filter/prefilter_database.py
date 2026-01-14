@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 from tqdm import tqdm
 
-from prefiltered_lib import DEADWEIGHT_TOKEN, SOPHISTICATED_CONTEXT_REGEX, SOPHISTICATED_TARGETS, is_sophisticated_content, is_sophisticated_target
+from prefiltered_lib import DEADWEIGHT_TOKEN, SOPHISTICATED_CONTEXT_REGEX, SOPHISTICATED_TARGETS, Stage, is_sophisticated_content, is_sophisticated_target
 
 # =============================================================================
 # CONFIGURATION
@@ -500,7 +500,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
                     # (Ensure get_tag helper is available or format string manually)
                     tag_str = get_tag(DEADWEIGHT_TOKEN, exclusion_reason)
-                    p_deadweight = f"{tag_str} {p}"
+                    p_deadweight = f"{tag_str} {Stage.PF_DB} {p}"
 
                     # Save to 'clean' buffer (it's legally 'clean' text, just contextually dead)
                     append_to_buffer("clean", idx, p_deadweight, p_masked)
