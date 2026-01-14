@@ -409,7 +409,11 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                 reason = NoiseReason.CTX
 
         if not reason:
-            reason = get_temporal_noise_reason(masked, reporting_year)
+            if AOCI_NOISE_REGEX.search(masked):
+                if not POSS_VERB_REGEX.search(masked):
+                    reason = NoiseReason.AOCI
+            else:
+                reason = get_temporal_noise_reason(masked, reporting_year)
 
         # --- TIER 2: EVIDENCE / SIGNAL (The "High Value" Tags) ---
         # We check these BEFORE Structural Noise (REF).
@@ -436,8 +440,6 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                 reason = NoiseReason.REF
             elif DEFINITION_INDICATORS.search(masked):
                 reason = NoiseReason.DEF
-            elif AOCI_NOISE_REGEX.search(masked):
-                reason = NoiseReason.AOCI
             elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
                 reason = NoiseReason.NPNS
             elif NON_DER_CAP_FLOOR_REGEX.search(masked):

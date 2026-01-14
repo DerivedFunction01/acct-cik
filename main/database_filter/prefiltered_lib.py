@@ -398,6 +398,7 @@ TIME_KILLERS = FLOW_KILLERS | {
     NoiseReason.POT,  # "We periodically use..."
     NoiseReason.NEG,  # "Did not enter"
     NoiseReason.ZERO,  # "Zero value"
+    NoiseReason.AOCI,  # "Recorded in AOCI"
 }
 
 # Expanded Killers for TIER 3 (Weak)
@@ -409,7 +410,6 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.REF,  # "See Note 5"
     NoiseReason.TRADING,  # "We do not trade"
     NoiseReason.PNL,  # An unrealized gain
-    NoiseReason.AOCI,  # "Recorded in AOCI"
 }
 
 
