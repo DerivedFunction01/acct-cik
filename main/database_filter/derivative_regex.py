@@ -3557,7 +3557,7 @@ def build_did_not_hold_regex() -> re.Pattern:
     return re.compile(
         rf"{neg_prefix}" # "do not"
         rf"{_pre_verb_gap}"  # <--- ", in any case, "
-        rf"(?:{INTENT_VERB_PATTERN})\s+"  # "use"
+        rf"(?:to\s+)?(?:{INTENT_VERB_PATTERN})\s+"  # "use"
         rf"{gap_chain}"  # Optional: "hedging", "foreign exchange"
         rf"{_DENIAL_FILLER}"  # Optional: "any such"
         rf"{_DENIAL_TARGET}\b",  # "instruments"
