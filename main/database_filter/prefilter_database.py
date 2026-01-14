@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 from tqdm import tqdm
 
-from prefiltered_lib import DEADWEIGHT_TOKEN, SOPHISTICATED_CONTEXT_REGEX, SOPHISTICATED_TARGETS, Stage, is_sophisticated_content, is_sophisticated_target
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN
+from defs.prefiltered_lib import DEADWEIGHT_TOKEN, SOPHISTICATED_CONTEXT_REGEX, SOPHISTICATED_TARGETS, Stage, is_sophisticated_content, is_sophisticated_target
+from defs.derivative_lib import CATEGORY_REGEX, SOFT_CATEGORY_REGEX, find_hedging_context
+from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
+from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX
+from defs.gen_regex import HEDGING_CONTEXT_REGEX
+from defs.shared_context import CURRENCY_NAMES_REGEX, VALUATION_MODELS_REGEX
 
 # =============================================================================
 # CONFIGURATION
@@ -19,14 +25,10 @@ SOURCE_DB_PATH = "web_data.db"
 TARGET_DB_PATH = "prefiltered_data.db"
 
 # --- IMPORTS ---
-from derivative_regex import (
-    CP_REGEX,
-    CP_SOFT_REGEX,
-    DER_STD_REGEX,
+from defs.derivative_regex import (
+
     ENTITY_EXCLUSION_REGEX,
     ENTITY_TOKEN,
-    EQ_CONTEXT_REGEX,
-    EQ_REGEX,
 
     EXCLUDE_REGEX_ACCOUNTING_STD,
     EXCLUDE_REGEX_EQUITY_COMP,
@@ -37,27 +39,15 @@ from derivative_regex import (
     EXCLUDE_PLAN_ASSETS_REGEX,
     EXCLUDE_REGEX_FORWARD_LOOKING,
     EXCLUDE_REGEX_LIBOR_TRANSITION,
-    HEDGING_CONTEXT_REGEX,
-    PRECISE_LOOSE_GEN_REGEX,
-    SENTENCE_SPLIT_PATTERN,
-    SOFT_GEN_REGEX,
-    SOFT_REGEX,
-    STRICT_REGEX,
-    VALUATION_MODELS_REGEX,
-
     aggregate_discards,
-    build_regex,
     is_bank_list_noise,
     is_contractual_noise,
     is_hypothetical_noise,
     is_regulatory_noise,
-    
-    COMMODITY_REGEX,
-    CURRENCY_NAMES_REGEX,
 )
 
 from table_processor import TABLE_ANCHOR, TableToTextConverter
-from prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
+from defs.prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
 
 
 # =============================================================================
@@ -139,7 +129,7 @@ def is_standard_debt(text: str) -> bool:
     
     # If we are here, we have "convertible" without "equity" or "derivative" context.
     # Result: Treat as Standard Debt (Noise).
-    return bool(STRICT_REGEX.search(text))
+    return bool(CATEGORY_REGEX.search(text))
 
 def check_hard_exclusions(text: str) -> Optional[str]:
     """
@@ -285,22 +275,7 @@ def process_accounting_standards_paragraph(
     return kept, discards
 
 
-def find_hedging_context(paragraph: str) -> bool:
-    """Standard Gatekeeper for regular derivatives."""
-    if "<TABLE>" in paragraph.upper(): # Tables should have been parsed
-        return False 
-    elif STRICT_REGEX.search(paragraph):
-        return True
-    elif SOFT_GEN_REGEX.search(paragraph):
-        return True
-    elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
-        return True
-    else: # perform hard sentence by sentence verification
-        for sent in SENTENCE_SPLIT_PATTERN.split(paragraph):
-            if PRECISE_LOOSE_GEN_REGEX.search(sent):
-                if HEDGING_CONTEXT_REGEX.search(sent) or DER_STD_REGEX.search(sent):
-                    return True
-    return False
+
 
 def validate_sophisticated_buffer(
     sophisticated_buffer: List[str], clean_paragraphs: List[str]
@@ -488,8 +463,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             if exclusion_reason in SALVAGEABLE_REASONS:
                 # CHECK: Does this "Noise" actually name an instrument?
                 # We use STRICT (e.g. "Interest Rate Swap") or SOFT + CONTEXT (e.g. "Hedging Contracts")
-                has_instrument = STRICT_REGEX.search(p_masked) or (
-                    SOFT_REGEX.search(p_masked)
+                has_instrument = CATEGORY_REGEX.search(p_masked) or (
+                    SOFT_CATEGORY_REGEX.search(p_masked)
                     and HEDGING_CONTEXT_REGEX.search(p_masked)
                 )
 
@@ -520,12 +495,11 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
                     kept_indices = []
                     for sent_idx, (sent_masked,) in enumerate(zip(sentences_masked)):
-                        if STRICT_REGEX.search(sent_masked):
+                        if CATEGORY_REGEX.search(sent_masked):
                             kept_indices.append(sent_idx)
-                        elif SOFT_REGEX.search(sent_masked):
+                        elif SOFT_CATEGORY_REGEX.search(sent_masked):
                             if (
-                                SOFT_GEN_REGEX.search(sent_masked)
-                                or DER_STD_REGEX.search(sent_masked)
+                                HEDGING_CONTEXT_REGEX.search(sent_masked)
                                 or is_sophisticated_content(sent_masked)
 
                             ):

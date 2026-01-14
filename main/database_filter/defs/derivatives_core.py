@@ -1,0 +1,190 @@
+import re
+from typing import List, Optional
+from defs.regex_lib import build_alternation
+
+PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
+    "delivery",
+    "purchase",
+    "order",
+    "sales?",
+    "supply",
+    "confirmation",
+    "invoice",
+    "shipment",
+    "receipt",
+    "inventory",
+    "liability",  # Forward liability
+    "stock",
+    "looking",  # Just added it here against forward-looking
+]
+
+PHYSICAL_DELIVERY_PATTERN = build_alternation(
+    PHYSICAL_COMMERCIAL_TERMS, sort_longest_first=True
+)
+
+PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
+
+# Negative lookahead: forward NOT followed by physical keywords
+FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
+SPECIAL_BASE = [
+    "(?:call|put|swap) (?:options?|contracts?)",
+    "(?:basis|variance|volatility|total[- ]return) swaps?",
+    "swaptions?",
+    "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
+]
+UNAMBIGUOUS_BASE_TYPES = [
+    "swaps?",
+    rf"forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
+    "collars?",
+    "derivatives?",
+    "hedges",  # plural form
+    "futures",  # plural form
+] + SPECIAL_BASE
+
+AMBIGUOUS_BASE_TYPES = [
+    "futures?",
+    "options?",
+    "hedging",
+    "locks?",
+    "caps?",
+    "floors?",
+    "hedges?",
+    "puts?",
+    "calls?",
+    "straddles?",
+    "strangles?",
+]
+
+
+ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
+ALL_SUFFIXES = [
+    "agreements?",
+    "contracts?",
+    "commitments?",
+    "instruments?",
+    "arrangements?",
+]
+
+
+# =============================================================================
+# TABLE SPECIFIC REGEX
+# =============================================================================
+def build_table_regex() -> re.Pattern:
+    """
+    A stricter regex for table filtering that eliminates singular noise
+    (future, option, forward) but keeps the plurals often found in headers.
+    """
+
+    # 1. Safe Plurals (Standalones that are safe in tables)
+    # Note: 'swaps' and 'derivatives' are already in ALL_REGEX via GEN_REGEX
+    # We add the others that are usually unsafe singular but safe plural.
+    table_safe_plurals = [
+        "futures",
+        rf"(?<!carry\s)forwards",
+        "hedges",
+        "collars",
+        "swaptions",
+        "derivatives",
+        "swaps",
+        "puts",
+        "calls",
+    ] + SPECIAL_BASE
+
+    plural_pattern = build_alternation(table_safe_plurals, sort_longest_first=True)
+
+    return re.compile(rf"\b{plural_pattern}\b", re.IGNORECASE)
+
+
+TABLE_REGEX = build_table_regex()
+
+
+def build_smart_regex(
+    core_terms: List[str],
+    context_terms: str,
+    specific_phrases: List[str],
+) -> str:
+    """
+    Build smart regex ensuring longest matches first.
+    "interest rate swap contract" matches fully, not just "interest rate swap"
+    """
+    core_pattern = build_alternation(core_terms, sort_longest_first=True)
+
+    # Core + suffix: "interest rate" + "-" + "swap"
+    pattern1 = (
+        rf"(?:{core_pattern})"  # e.g., "interest rate"
+        r"[- ]"  # MANDATORY separator (space or hyphen)
+        rf"(?:{context_terms})"  # MANDATORY: base or (base + suffix)
+    )
+
+    # Specific phrases like "zero coupon swaps"
+    if not specific_phrases:
+        return pattern1
+
+    pattern2 = build_alternation(specific_phrases, sort_longest_first=True)
+
+    # Return sorted so longest specific phrases come first
+    # E.g., "interest rate swap agreement" before "interest rate swap"
+    return build_alternation([pattern2, pattern1], True)
+
+
+# --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
+base_alternation = build_alternation(ALL_BASE_TYPES, True)
+BASE_REGEX = re.compile(r"\b" + base_alternation + r"\b", re.IGNORECASE)
+safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
+suffix_alternation = build_alternation(ALL_SUFFIXES, True)
+standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
+unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
+# ----------------------------------------------------------------------------------
+
+
+def expand_instruments(
+    unsafe: bool = True,
+    exclude_standalone_suffixes: bool = False,
+    additional_standalone_suffixes: Optional[List[str]] = None,
+    additional_bases: Optional[List[str]] = None,
+) -> str:
+    """
+    Creates an optimized alternation pattern.
+
+    Fixed Logic:
+    1. Ensures (OldBase OR NewBase) + Suffix is treated as a single unit.
+    2. Ensures additional_bases are NOT matched as standalone words.
+    """
+
+    # 1. Construct the Base Component for the Combined Pattern
+    # We wrap (Existing | New) together so the suffix applies to BOTH.
+    if additional_bases:
+        new_base_alt = build_alternation(additional_bases, True)
+        # Result: (?:(?:existing_bases)|(?:new_bases))
+        effective_base_pattern = rf"(?:{base_alternation}|{new_base_alt})"
+    else:
+        effective_base_pattern = base_alternation
+
+    # 2. Base + Suffix Combination (Highest priority)
+    # The [- ] separator now applies to everything in effective_base_pattern
+    # Matches: "swap agreement", "protection contract"
+    combined_pattern = rf"(?:{effective_base_pattern}[- ]{suffix_alternation})"
+
+    # 3. Standalone Term (Lower priority)
+    # Note: We DO NOT add additional_bases here. They will fail to match if they lack a suffix.
+    if not exclude_standalone_suffixes:
+        base_standalone = (
+            unsafe_standalone_alternation if unsafe else standalone_alternation
+        )
+    else:
+        base_standalone = base_alternation if unsafe else safe_base_alternation
+
+    # 4. Integrate Additional Standalone SUFFIXES
+    extras = []
+    if additional_standalone_suffixes:
+        extras.append(build_alternation(additional_standalone_suffixes, True))
+
+    if extras:
+        # Append extras to the standalone pattern
+        extras_pattern = "|".join(extras)
+        final_standalone = rf"{base_standalone}|{extras_pattern}"
+    else:
+        final_standalone = base_standalone
+
+    # 5. Final Assembly (Max Munch: Combined first)
+    return rf"{combined_pattern}|{final_standalone}"

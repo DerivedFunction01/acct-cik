@@ -1,6 +1,9 @@
 import re
-from typing import Optional, Set, Tuple
-from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, VALUATION_MODELS, YEAR_REGEX, build_alternation, build_regex
+from typing import List, Optional, Set, Tuple
+from derivative_regex import COMMODITY_UNIT_PATTERN, CURRENCY_SYMBOL_PATTERN, ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXHIBIT_FRAGMENT, IR_SOFT_REGEX, NON_DERIVATIVE_REGEX, SENTENCE_SPLIT_PATTERN, STANDARD_ID_REGEX, VALUATION_MODELS, YEAR_REGEX
+from regex_lib import build_alternation, build_regex
+
+YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
 # The token to append to deadweight paragraphs.
 DEADWEIGHT_TOKEN = "_D"
@@ -790,3 +793,14 @@ def convertible_ir(p):
         ):
             local_is_nst = True
     return local_is_nst
+
+ACTIVE_STATE_DESCRIPTORS = [
+    "outstanding",
+    "active",
+    "remaining",
+    "open",
+    "current(?:ly)?",
+]
+
+ACTIVE_STATE_PATTERN = build_alternation(ACTIVE_STATE_DESCRIPTORS)
+ACTIVE_STATE_REGEX = build_regex(ACTIVE_STATE_DESCRIPTORS)

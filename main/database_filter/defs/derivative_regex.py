@@ -650,6 +650,7 @@ SOFT_GEN_TERMS = [
     r"fair\s+value\s+hedges?",
     r"cash\s+flow\s+hedges?",
 ]
+
 VALUATION_MODELS = [
     # The Gold Standard for Equity Options/Warrants
     r"Black[- ]Scholes(?:[- ]Merton)?",
@@ -3177,7 +3178,7 @@ def cleanup_fragment(sentence: str) -> str:
 # =============================================================================
 
 # Transaction verbs (Action)
-_TRANSACTION_VERBS = [r"enter", r"engage", r"transact", r"perform", r"chooses?"]
+_TRANSACTION_VERBS = [r"enter", r"engage", r"transact", r"perform", r"chooses?", r"purchase"]
 _TRANSACTION_PATTERN = build_alternation(_TRANSACTION_VERBS)
 
 # Combined intent verbs: standard (hold, use, hedge) + transaction (enter, engage)
@@ -4233,7 +4234,7 @@ venues = [
 ]
 CP_STRICT_TERMS = [
     # General terms
-    rf"{_COMMODITY_NAMES}(?:\s+\w+){0,3}{_RISK_ALTERNATION}"
+    rf"{_COMMODITY_NAMES}(?:\s+\w+){0,3}{_RISK_ALTERNATION}",
     r"raw\s+material\s+costs?",
     r"fuel\s+surcharges?",
     # Financial Modifier + Specific Commodity

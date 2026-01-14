@@ -8,12 +8,9 @@ from tqdm import tqdm
 from typing import Dict, List, Optional, Set, Tuple
 
 # --- REGEX IMPORTS ---f
-from derivative_regex import (
+from defs.derivative_regex import (
     # Structural
-    ABSENCE_REGEX,
     COMPARISON_PHRASES,
-    DID_NOT_HOLD_REGEX,
-    GEN_REGEX,
     NON_DER_CAP_FLOOR_REGEX,
     IS_REFERENCE_REGEX,
     PRECISE_LOOSE_GEN_REGEX,
@@ -26,21 +23,18 @@ from derivative_regex import (
     # Classification Killers
     POTENTIAL_REGEX,
     SOFT_REGEX,
-    STRICT_REGEX,
-    TERMINATION_REGEX,
     VAGUE_TIMING_REGEX,
-    YEAR_REGEX,
+
     PRIOR_INDICATOR,
-    build_alternation,
-    build_negation_prefix_pattern,
-    build_regex,
     # Scoring
     is_contractual_noise,
     is_hypothetical_noise,
     is_regulatory_noise,
 )
 
-from prefiltered_lib import (
+from defs.regex_lib import build_alternation, build_regex
+from defs.verb_regex import ABSENCE_REGEX, DID_NOT_HOLD_REGEX, POSS_VERB_REGEX, TERMINATION_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX, build_negation_prefix_pattern
+from defs.prefiltered_lib import (
     HEDGE_DOC_REGEX,
     SKIP_TOKEN,
     DEADWEIGHT_TOKEN,
@@ -55,8 +49,9 @@ from prefiltered_lib import (
     is_sophisticated_target,
     mark_as_deadweight,
     QUANT_REGEX,
+    YEAR_REGEX,
 )
-from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX, POSS_VERB_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
+from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX
 
 
 # =============================================================================
@@ -360,7 +355,7 @@ def is_trading_statement(text: str) -> bool:
     # Note: Ensure build_absence_regex includes "trading" in its modifiers
     if DID_NOT_HOLD_REGEX.search(text) or ABSENCE_REGEX.search(text):
         return True
-
+    
     return False
 
 VALUE_REGEX = build_regex(["notional", "fair value"])

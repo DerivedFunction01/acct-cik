@@ -10,17 +10,22 @@ from tqdm import tqdm
 from typing import Any, Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
-from derivative_regex import (
-    CATEGORY_MAP, CURRENCY_NAMES_REGEX, HEDGING_CONTEXT_REGEX, IR_REGEX, FX_REGEX, CP_REGEX, EQ_REGEX, CR_REGEX,
-    IR_SOFT_REGEX, FX_SOFT_REGEX, CP_SOFT_REGEX, EQ_SOFT_REGEX, CR_SOFT_REGEX, LOOSE_GEN_REGEX,
-    SENTENCE_SPLIT_PATTERN, SOFT_GEN_REGEX, STRICT_GEN_REGEX, TRADING_VENUE_REGEX, BASE_REGEX,
+from defs.derivative_regex import (
+   TRADING_VENUE_REGEX, 
 )
-from prefilter_database import find_hedging_context
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN
+from defs.ir_regex import IR_REGEX, IR_SOFT_REGEX
+from defs.fx_regex import FX_REGEX, FX_SOFT_REGEX
+from defs.cp_regex import CP_REGEX, CP_SOFT_REGEX
+from defs.cr_regex import CR_REGEX, CR_SOFT_REGEX
+from defs.eq_regex import EQ_REGEX, EQ_SOFT_REGEX
+from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, LOOSE_GEN_REGEX
+from defs.derivative_lib import CATEGORY_MAP, find_hedging_context
+from defs.derivatives_core import BASE_REGEX
+from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
 from prefilter_tagging import extract_values_and_years
-from prefilter_evidence import NOTIONAL_CONTEXT_REGEX, FAIR_VALUE_CONTEXT_REGEX
 from table_processor import TABLE_ANCHOR
-from prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, convertible_ir, is_sophisticated_content, is_sophisticated_target
-from derivative_regex import all_currencies
+from defs.prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, convertible_ir, is_sophisticated_content, is_sophisticated_target
 
 # =============================================================================
 # INSTRUMENT EVIDENCE STRUCTURES
@@ -225,7 +230,7 @@ def extract_categories_soft(sentence: str) -> Set[str]:
         cats.add("eq")
 
     if not cats:
-        if STRICT_GEN_REGEX.search(sentence) or SOFT_GEN_REGEX.search(sentence):
+        if GEN_REGEX.search(sentence) or GEN_STRICT_CONTEXT_REGEX.search(sentence):
             cats.add("gen")
         elif LOOSE_GEN_REGEX.search(sentence) and HEDGING_CONTEXT_REGEX.search(
             sentence

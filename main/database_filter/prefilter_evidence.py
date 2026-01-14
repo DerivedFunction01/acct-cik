@@ -6,23 +6,17 @@ import sqlite3
 from typing import Optional, Set, Tuple
 
 from tqdm import tqdm
-from derivative_regex import (
-    ACTIVE_STATE_REGEX,
-    FX_SOFT_REGEX,
-    IR_SOFT_REGEX,
-    PRECISE_LOOSE_GEN_REGEX,
-    SENTENCE_SPLIT_PATTERN,
-    SOFT_REGEX,
-    STRICT_REGEX,
-    TERMINATION_ALL_REGEX,
-    VALUATION_MODELS_REGEX,
-    YEAR_REGEX,
-    build_alternation,
-    build_regex,
-)
-
+from defs.verb_regex import ACCT_VERB_REGEX, POSS_VERB_REGEX, TERMINATION_ALL_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
+from defs.derivative_lib import SOFT_CATEGORY_REGEX, CATEGORY_REGEX
+from defs.fx_regex import FX_SOFT_REGEX
+from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX
+from defs.ir_regex import IR_SOFT_REGEX
+from defs.shared_context import VALUATION_MODELS_REGEX
 from table_processor import TABLE_ANCHOR
-from prefiltered_lib import (
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
+from defs.prefiltered_lib import (
+    ACTIVE_STATE_REGEX,
+    YEAR_REGEX,
     DEADWEIGHT_TOKEN,
     EVIDENCE_TOKEN,
     FLOW_EVIDENCE,
@@ -48,46 +42,11 @@ from prefiltered_lib import (
     parse_noise_tags,
     HAD_CHANGE_REGEX,
     CHANGE_FV_REGEX,
-    SOPHISTICATED_TARGETS,
 )
 import multiprocessing as mp
 
 _cleaner = MinimalTextCleaner()
 
-# =============================================================================
-# VERB MAPS & PRECOMPILED REGEXES
-# =============================================================================
-VERB_MAP = {
-    "POSS": [
-        r"hold(?:s|ing)?|held",
-        r"hav(?:e|ing)|had",
-        r"maintain(?:s|ed|ing)?",
-        r"possess(?:e|es|ed|ing)?",
-        r"carr(?:y|ies|ied|ying)",
-        r"retain(?:s|ed|ing)?",
-        r"remained?\s+(?:open|outstanding|active)",
-        r"(?:a\s+)?party\s+to",
-    ],
-    "PRU": [
-        r"use(?:s|d|ing)?",
-        r"utiliz(?:e|es|ed|ing)",
-        r"employ(?:s|ed|ing)?",
-        r"apply(?:ies|ied|ying)?",
-    ],
-    "ACT": [
-        r"enter(?:s|ed|ing)?(?:\s+into)?",
-        r"engag(?:e|es|ed|ing)(?:\s+in)?",
-        r"execut(?:e|es|ed|ing)",
-        r"transact(?:s|ed|ing)?",
-        r"purchas(?:e|es|ed|ing)",
-        r"issu(?:e|es|ed|ing)?",
-        r"convert(?:s|ed|ing)?",
-        r"secur(?:e|es|ed|ing)",
-    ],
-    "ACCT": [
-        r"designat(?:e|es|ed|ing)",
-    ],
-}
 
 NOTIONAL_TERMS = [
     r"notional",
@@ -162,10 +121,7 @@ NOTIONAL_CONTEXT_REGEX = build_regex(NOTIONAL_TERMS)
 FAIR_VALUE_CONTEXT_REGEX = build_regex(FAIR_VALUE_TERMS)
 ACTIVE_PREP_REGEX = build_regex(ACTIVE_PREPOSITIONS)
 ACTIVE_ADJ_REGEX = build_regex(ACTIVE_ADJECTIVES)
-POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
-USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
-TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
-ACCT_VERB_REGEX = build_regex(VERB_MAP["ACCT"])
+
 
 locs_escaped = [re.escape(x) for x in BALANCE_SHEET_LOCATIONS]
 locs_pattern = build_alternation(locs_escaped)
@@ -184,13 +140,13 @@ REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
 def check_mention(text: str) -> bool:
     """Check if text mentions any derivative instrument."""
-    return bool(SOFT_REGEX.search(text) or PRECISE_LOOSE_GEN_REGEX.search(text))
+    return bool(SOFT_CATEGORY_REGEX.search(text) or PRECISE_LOOSE_GEN_REGEX.search(text))
 
 
 def check_derivative_global(text: str) -> bool:
     """Global check - returns True if text is a STRICT derivative mention."""
     return bool(
-        STRICT_REGEX.search(text)
+        CATEGORY_REGEX.search(text)
         or IR_SOFT_REGEX.search(text)
         or FX_SOFT_REGEX.search(text)
         or is_sophisticated_content(text)
@@ -262,7 +218,7 @@ def check_quantitative_evidence(
 
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
     if has_active_verb:
-        if STRICT_REGEX.search(text):
+        if CATEGORY_REGEX.search(text):
             return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
     return None
 
@@ -414,7 +370,7 @@ def mark_sentence_as_other(text: str) -> Optional[Reason]:
         return EvidenceReason.TABLE
     if HEDGE_DOC_REGEX.search(text):
         return NoiseReason.DOC
-    if not SOFT_REGEX.search(text): # Contracts, swaps, etc
+    if not SOFT_CATEGORY_REGEX.search(text): # Contracts, swaps, etc
         return NoiseReason.CTX
     return None # Remain uncategorized
 
