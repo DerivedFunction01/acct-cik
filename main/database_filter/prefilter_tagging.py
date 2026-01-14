@@ -414,6 +414,9 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                     reason = NoiseReason.AOCI
             else:
                 reason = get_temporal_noise_reason(masked, reporting_year)
+                if reason:
+                    if AOCI_NOISE_REGEX.search(masked):
+                        reason = NoiseReason.AOCI
 
         # --- TIER 2: EVIDENCE / SIGNAL (The "High Value" Tags) ---
         # We check these BEFORE Structural Noise (REF).
