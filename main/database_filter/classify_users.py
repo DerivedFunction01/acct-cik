@@ -1037,7 +1037,7 @@ if __name__ == "__main__":
         source = list(data_generator(SOURCE_DB_PATH, processed_urls))
         
         for result in tqdm(
-            executor.map(process_row, source, chunksize=50),
+            executor.map(process_row, source, chunksize=NUM_WORKERS),
             total=len(source),
             desc="Classifying",
         ):
