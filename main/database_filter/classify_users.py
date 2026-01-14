@@ -698,7 +698,7 @@ def get_text_categories(text: str, is_nst: bool) -> Set[str]:
     max_score = max(scores.values())
 
     # If we have a massive strict hit (>1000), raise threshold to kill weak noise
-    threshold = 1000 if max_score >= 1000 else 75
+    threshold = 1000 if max_score >= 1000 else 45
 
     top_cats = {cat for cat, score in scores.items() if score >= threshold}
     specific = top_cats - {"gen"}
