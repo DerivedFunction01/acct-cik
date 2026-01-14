@@ -305,6 +305,7 @@ class EvidenceReason(Reason):
     # Survival: Dies to ANY Noise.
     # =========================================================
     PNL_REC = "PNL_RECOGNITION"
+    ACT_AMB_GEN = "TRANSACTION_AMB_GENERIC"
     REM_TERM = "REMAINING_TERM"
     UNCAT = "UNCATEGORIZED"
 
@@ -382,7 +383,8 @@ POLICY_KILLED_EVIDENCE = {
 FLUFF_EVIDENCE = {
     EvidenceReason.PNL_REC,
     EvidenceReason.REM_TERM,
-    EvidenceReason.UNCAT
+    EvidenceReason.UNCAT,
+    EvidenceReason.ACT_AMB_GEN,
 }
 
 # --- KILLER SETS ---
