@@ -372,7 +372,8 @@ def check_transaction_action(
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
     if not years:
-        return EvidenceReason.ACT_GEN
+        return EvidenceReason.ACT_GEN if is_strict_derivative else EvidenceReason.ACT_AMB_GEN
+
 
     if any(y >= reporting_year for y in years):
         return (
