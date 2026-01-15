@@ -309,7 +309,8 @@ _TRADING_CORE = [
     r"speculat(?:ive|es?|ion)",
     r"proprietary",
     r"arbitrage",
-    r"for\s+any\s+(?:other\s+)?purposes?"
+    r"for\s+any\s+(?:other\s+)?purposes?", # Not for any other (trading) purpose
+    r"(?:except|only for)\s+hedging", # Negation: Not (not) hedging -> not trading
 ]
 _TRADING_CORE_ALT = build_alternation(_TRADING_CORE)
 TRADING_CORE_REGEX = build_regex(_TRADING_CORE)
