@@ -1152,22 +1152,14 @@ def adjust_rate_in_background(
 #         )
 
 
-def fetch_raw_content(item, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
+def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
     """
     Fetches raw text content from a URL. This is purely I/O-bound.
     Properly distinguishes between different failure modes.
     """
-    if isinstance(item, str):
-        url = item
-        cik = None
-        year = None
-    else:
-        url, cik, year = item
-
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT 1 FROM webpage_result WHERE url = ?", (url,))
-
     exists = c.fetchone()
     conn.close()
     if exists:
@@ -1177,7 +1169,7 @@ def fetch_raw_content(item, rate_limiter: Optional[ThreadSafeRateLimiter] = None
 
     if raw_text:
         # Successfully fetched
-        return url, raw_text, cik, year
+        return url, raw_text
     elif raw_text is None and url:
         # fetch_url returned None - could be 429, timeout, or other error
         # The rate_limiter was already notified by fetch_url
@@ -1194,11 +1186,7 @@ def parse_and_save_content(data):
     if data is None:
         return None
 
-    if len(data) == 4:
-        url, raw_text, cik, year = data
-    else:
-        url, raw_text = data
-        cik, year = None, None
+    url, raw_text = data
 
     try:
         # 1. Extract clean content from raw text (CPU-intensive)
@@ -1213,29 +1201,6 @@ def parse_and_save_content(data):
         # 2. Filter for keywords to get relevant sentences (CPU-intensive)
         # CPU-intensive parsing
         categorized_sentences = filter_by_keywords(content)
-
-        # Fallback for pre-XBRL (<= 2009) if no matches
-        if not categorized_sentences and year and year <= 2009:
-            # Try to construct full text URL from the primary document URL
-            # URL format: .../data/{cik}/{accession_no_dashes}/{doc}
-            # Full text: .../data/{cik}/{accession_no_dashes}/{accession_with_dashes}.txt
-            try:
-                parts = url.split('/')
-                if len(parts) >= 2:
-                    accession_no_dashes = parts[-2]
-                    if len(accession_no_dashes) == 18 and accession_no_dashes.isdigit():
-                        accession_with_dashes = f"{accession_no_dashes[:10]}-{accession_no_dashes[10:12]}-{accession_no_dashes[12:]}"
-                        full_text_url = url.rsplit('/', 1)[0] + f"/{accession_with_dashes}.txt"
-                        
-                        full_raw_text = fetch_url(full_text_url)
-                        if full_raw_text:
-                            # Extract content from full text submission
-                            full_content = extract_content(full_raw_text, True) # Treat as HTML as it often contains tags
-                            if full_content:
-                                categorized_sentences = filter_by_keywords(full_content)
-            except Exception as e:
-                print(f"Fallback fetch failed for {url}: {e}")
-
         # 3. Save the result to the database
         result_row = pd.Series({"url": url, "matches": categorized_sentences})
 
@@ -1254,11 +1219,7 @@ def parse_content(data):
     if data is None:
         return None
 
-    if len(data) == 4:
-        url, raw_text, cik, year = data
-    else:
-        url, raw_text = data
-        cik, year = None, None
+    url, raw_text = data
 
     try:
         # 1. Extract clean content from raw text (CPU-intensive)
@@ -1271,28 +1232,8 @@ def parse_content(data):
             return None
 
         # 2. Filter for keywords to get relevant sentences (CPU-intensive)
+        # CPU-intensive parsing
         categorized_sentences = filter_by_keywords(content)
-        
-        # Fallback for pre-XBRL (<= 2009) if no matches
-        if not categorized_sentences and year and year <= 2009:
-            try:
-                parts = url.split('/')
-                if len(parts) >= 2:
-                    accession_no_dashes = parts[-2]
-                    if len(accession_no_dashes) == 18 and accession_no_dashes.isdigit():
-                        accession_with_dashes = f"{accession_no_dashes[:10]}-{accession_no_dashes[10:12]}-{accession_no_dashes[12:]}"
-                        full_text_url = url.rsplit('/', 1)[0] + f"/{accession_with_dashes}.txt"
-                        
-                        # Note: This fetch happens inside the parser process. 
-                        # It bypasses the main rate limiter but is rare enough.
-                        full_raw_text = fetch_url(full_text_url)
-                        if full_raw_text:
-                            full_content = extract_content(full_raw_text, True)
-                            if full_content:
-                                categorized_sentences = filter_by_keywords(full_content)
-            except Exception as e:
-                print(f"Fallback fetch failed for {url}: {e}")
-
         # 3. Save the result to the database
         result_row = pd.Series({"url": url, "matches": categorized_sentences})
 
@@ -1320,9 +1261,9 @@ def process_all_reports_fully():
     processed_set = get_processed_urls()
 
     reports_to_process = [
-        (r.url, r.cik, r.year)
+        (r.url)
         for r in existing_report_df.itertuples(index=False)
-        if (r.url,) not in processed_set and r.url and r.cik and r.year
+        if (r.url,) not in processed_set and r.url
     ]
 
     total_reports = len(reports_to_process)
@@ -1358,8 +1299,8 @@ def process_all_reports_fully():
         fetched_data = []
         with ThreadPoolExecutor(max_workers=NUM_FETCHERS) as fetch_executor:
             fetch_futures = [
-                fetch_executor.submit(fetch_raw_content, item, rate_limiter)
-                for item in chunk
+                fetch_executor.submit(fetch_raw_content, url, rate_limiter)
+                for url in chunk if isinstance(url, str)
             ]
 
             # Create the tqdm bar instance
@@ -1548,8 +1489,8 @@ def process_producer_consumer_adaptive():
     initial_count = 0
 
     for r in existing_report_df.itertuples(index=False):
-        if r.url and (r.url,) not in processed_set and r.cik and r.year:
-            url_queue.put((r.url, r.cik, r.year))
+        if r.url and (r.url,) not in processed_set:
+            url_queue.put(r.url)
             initial_count += 1
 
     print(f"Queue populated with {initial_count} reports.")
@@ -1760,8 +1701,8 @@ def fetch_worker_adaptive(
     """
     while not stop_event.is_set():
         try:
-            # Get item (url, cik, year) with timeout
-            item = url_queue.get(timeout=1)
+            # Get a URL with timeout to allow checking stop_event
+            url = url_queue.get(timeout=1)
         except queue.Empty:
             continue
 
@@ -1776,7 +1717,7 @@ def fetch_worker_adaptive(
                 fetch_metrics["last_sample_time"] = time.time()
 
             # 3. Fetch
-            result = fetch_raw_content(item, rate_limiter)
+            result = fetch_raw_content(url, rate_limiter)
 
             # 4. Put into Queue
             if result:
@@ -1784,12 +1725,12 @@ def fetch_worker_adaptive(
                     # Explicit rate limit - signal the rate limiter
                     rate_limiter.signal_429()
                     # Put URL back for retry (sleep already increased)
-                    url_queue.put(item)
+                    url_queue.put(url)
 
                 elif result[0] == "FAILED":
                     # Other failure (timeout, connection error) - retry but don't increase sleep
                     rate_limiter.signal_timeout()
-                    url_queue.put(item)
+                    url_queue.put(url)
                     time.sleep(0.5)
 
                 else:
@@ -1799,7 +1740,7 @@ def fetch_worker_adaptive(
                         raw_queue.put(result, timeout=5)
                     except queue.Full:
                         # Queue is full - put URL back and try again later
-                        url_queue.put(item)
+                        url_queue.put(url)
                         time.sleep(0.5)
 
         except Exception as e:
