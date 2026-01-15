@@ -13,7 +13,7 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     "shipments?",
     "receipts?",
     "inventor(?:y|ies)",
-    "liabilit(?y|ies)",  # Forward liability
+    "liabilit(:?y|ies)",  # Forward liability
     "stocks?",
     "looking",  # Just added it here against forward-looking
 ]
