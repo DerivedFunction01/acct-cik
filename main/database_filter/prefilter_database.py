@@ -30,7 +30,6 @@ from defs.exclusion_regex import (
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_COMPETITOR_REGEX,
     EXCLUDE_NON_FINANCIAL_REGEX,
-    EXCLUDE_PLAN_ASSETS_REGEX,
     aggregate_discards,
 )
 from defs.acct_std import EXCLUDE_REGEX_ACCOUNTING_STD
@@ -150,9 +149,6 @@ def check_hard_exclusions(text: str) -> Optional[str]:
     # --- TIER 2: SPECIFIC TOPIC FILTERS ---
     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
         return NoiseReason.LEGAL.value
-
-    if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
-        return NoiseReason.PLAN.value
 
     if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
         return NoiseReason.NON_FIN.value
@@ -421,7 +417,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # Skip metadata paragraphs from previous stages
             if not p.startswith('{"type": "metadata"'):
                 all_text_parts.append(p)
-            
+
             p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
             # === TABLE HANDLING ===
@@ -488,7 +484,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
                     if len(sentences) != len(sentences_masked):
                         local_discards.append(
-                            (url, p[:100], "equity_comp_salvage_failed")
+                            (url, p, NoiseReason.EQ_COMP.value)
                         )
                         continue
 
@@ -526,9 +522,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                             discarded_text = " ".join(
                                 sentences[i] for i in sorted(discarded_indices)
                             )
-                            local_discards.append((url, discarded_text, NoiseReason.COMP.value))
+                            local_discards.append((url, discarded_text, NoiseReason.EQ_COMP.value))
                 except Exception as e:
-                    local_discards.append((url, p[:100], "equity_comp_salvage_failed"))
+                    local_discards.append((url, p[:100], NoiseReason.EQ_COMP.value))
                 continue
 
             # === DISTRIBUTION ===
@@ -592,10 +588,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # Document had no derivative content at all
             text_for_counting = []
             is_empty = True
-        
+
         combined_text = " ".join([text for _, text in text_for_counting]) if text_for_counting else ""
         currency_commodity_counts = count_currencies_and_commodities(combined_text)
-        
+
         # Prepend the Metadata Paragraph
         metadata = {
             "type": "metadata",
@@ -609,7 +605,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             "currency_total": currency_commodity_counts["currency_total"],
             "commodity_total": currency_commodity_counts["commodity_total"]
         }
-        
+
         if final_results:
             final_results.sort(key=lambda x: x[0])
             seen = set()
