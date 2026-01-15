@@ -63,7 +63,7 @@ def find_hedging_context(paragraph: str) -> bool:
     """Standard Gatekeeper for regular derivatives."""
     if "<TABLE>" in paragraph.upper():  # Tables should have been parsed
         return False
-    elif CATEGORY_REGEX.search(paragraph):
+    elif CATEGORY_REGEX.search(paragraph) or GEN_STRICT_CONTEXT_REGEX.search(paragraph):
         return True
     elif SOFT_CATEGORY_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
         return True
