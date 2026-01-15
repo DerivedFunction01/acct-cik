@@ -31,13 +31,7 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         r"derivative\s+counterpart(?:y|ies)",
     ]
 
-    # --- 6. Dynamic Fund Pattern (Your existing logic) ---
-    # Matches: "United States Commodity Index Fund", "Oil Derivatives Trust"
-    triggers = r"(?:Commodity|Oil|Gas|Energy|Derivatives?|Futures?|Options?|Swaps?)"
-    suffixes = r"(?:Fund|Trust|ETF|LP|L\.P\.|Holdings?|Portfolio|Group|Capital)"
-    fund_pattern = rf"\b(?:[A-Z][a-z]+\s+)*{triggers}(?:\s+[A-Z][a-z]+)*\s+{suffixes}\b"
-
-    all_patterns = entities + [fund_pattern]
+    all_patterns = entities
 
     # Use build_alternation to ensure longest matches (e.g., full name) are prioritized
     # Note: We enforce word boundaries \b for short acronyms inside the list above
