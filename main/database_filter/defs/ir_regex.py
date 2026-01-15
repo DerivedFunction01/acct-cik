@@ -154,7 +154,7 @@ IR_OTHER_TERMS = [
     r"capital\s+leases?",
     r"mortgages?",
     # Rate Types & Benchmarks
-    r"(?benchmark|(?<!currency[- ])interest|forward)[- ]rates?",
+    r"(?:benchmark|(?<!currency[- ])interest|forward)[- ]rates?",
     r"basis\s+points?",
     r"weighted\s+average\s+interest",
 ]

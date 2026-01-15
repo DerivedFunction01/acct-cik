@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import re
-from regex_lib import build_alternation, build_regex
+from defs.regex_lib import build_alternation, build_regex
 
 _DEBT_TERMS = r"(?:debts?|loans?|borrowings?|bonds?|senior notes?|notes?|debentures?)"
 RISK_TERMS = [

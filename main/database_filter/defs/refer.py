@@ -1,7 +1,7 @@
 # Exhibit/Reference nouns
 import re
-from defs.regex_lib import build_alternation
-from defs.derivative_lib import CATEGORY_REGEX
+from defs.regex_lib import build_alternation, build_regex
+from defs.derivatives_core import unsafe_standalone_alternation
 from defs.shared_context import SUBJ
 
 EXHIBIT_NOUNS = [
@@ -132,19 +132,43 @@ def build_definition_regex() -> re.Pattern:
     """
 
     # 1. Setup Components
-    instr = f"(?:{CATEGORY_REGEX.pattern})"
-    subject = SUBJ  # From derivative_regex.py
-    SENTENCE_TAIL = r"[^.?!]*"
-
+    subject = SUBJ 
+    
     # 2. Key Verbs Grouped by Safety
+    # Optional copula
+    _GAP = r"(?:\s+\S+){0,2}"
+
+    _COPULA = r"(?:is|are)"
+
+    # Optional "the"
+    _OPT_THE = r"(?:the)"
+
+    # Definition noun
+    _DEF_NOUN = r"defin(?:ed|itions?)"
+
+    # Prepositions
+    _DEF_PREP = r"(?:as|of)"
 
     # SAFE: Legal terms that rarely appear in narrative flow
-    LEGAL_VERBS = r"(?:shall\s+mean|is\s+defined\s+as|definitions?\s+of)"
+    LEGAL_VERBS_LIST = [
+        r"shall\s+mean",
+        r"(?:(?:is|are)\s+)?considered\s+as"
+        rf"(?:{_COPULA}{_GAP})?"
+        rf"(?:{_OPT_THE}{_GAP})?"
+        rf"{_DEF_NOUN}{_GAP}"
+        rf"{_DEF_PREP}\b",
+    ]
+
+    COMMON_VERBS_LIST = [
+        r"means?",
+        r"refers?\s+to",
+        r"represents?",
+        
+    ] + LEGAL_VERBS_LIST
 
     # RISKY: Common verbs that need specific subjects (Quotes, "The term", Instrument names)
-    COMMON_VERBS = (
-        r"(?:means?|represents?|refers?\s+to|considered\s+as|\:)"  # Add colon
-    )
+    COMMON_VERBS = build_alternation(COMMON_VERBS_LIST)
+    LEGAL_VERBS = build_alternation(LEGAL_VERBS_LIST)
     # Subject Groups
     # 1. Safe Accounting Nouns (Fair Value, Notional, etc.) - Can use "is the"
     SAFE_ACCT_SUBJ = (
@@ -152,49 +176,32 @@ def build_definition_regex() -> re.Pattern:
         r"hedge\s+effectiveness|credit\s+risk)"
     )
 
-    # 2. Instrument Names (Swaps, Forwards) - NEED STRICTER VERBS
-    INSTR_SUBJ = f"(?:{CATEGORY_REGEX.pattern})"  # Your LOOSE_GEN_REGEX equivalent
+    INSTR_SUBJ = unsafe_standalone_alternation  # swap, future, collar, contract, etc
 
     # 3. Generic Definitional Objects (To anchor "is the")
     DEF_OBJECTS = r"(?:agreement|contract|exchange|obligation|instrument|transaction|commitment|arrangement)"
     pattern_list = [
-        # --- 1. The "Legal Hammer" (Safe to be broad) ---
-        # Matches: "Swaps shall mean...", "Hedging is defined as..."
-        # We allow broad subjects here because "shall mean" is distinct.
-        rf".*?\s+{LEGAL_VERBS}\s+.*{SENTENCE_TAIL}",
-        # --- 2. Anchored "Means/Refers" (Strict Subjects Only) ---
-        # Matches: "The term 'Swap' means...", "'Derivatives' refers to..."
-        # Logic: Must start with "The term", "This caption", or a Quoted String.
-        rf"(?:[Tt]he\s+term\s+|[Tt]his\s+(?:caption|account)\s+|[\"“].*?[\"”]\s+){COMMON_VERBS}{SENTENCE_TAIL}",
+        LEGAL_VERBS,
+        # Quoted subjects "X" refers to
+        rf"[\"“].*?[\"”]\s+{COMMON_VERBS}",
         # --- 3. Instrument-Subject Definitions ---
-        # Matches: "Interest Rate Swaps means...", "Options are considered as..."
+        # Matches: "Interest Rate [Swaps means...]", "[Options are considered as...]"
         # Logic: Subject MUST be a detected instrument category.
-        rf"(?:a\s+)?{instr}\s+(?:{COMMON_VERBS}){SENTENCE_TAIL}",
-        # --- 4. Accounting Specifics ---
-        # Matches: "Notional value represents..."
-        rf"{SAFE_ACCT_SUBJ}\s+(?:represents?|means?){SENTENCE_TAIL}",
+        rf"{INSTR_SUBJ}\s+(?:{COMMON_VERBS})",
         # --- 5. Corporate Definitions ---
         # Matches: "The Company defines...", "Management considers..."
-        rf"(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{instr}.*as{SENTENCE_TAIL}",
-        # --- 6. Inverted Definitions ---
-        # Matches: "...is the definition of..."
-        rf".*?\s+is\s+the\s+definition\s+of{SENTENCE_TAIL}",
+        rf"(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{_GAP}{INSTR_SUBJ}.*as",
+    
         # --- 4. Accounting Specifics (Safe with 'is the') ---
         # "Fair value is the price..."
-        rf"{SAFE_ACCT_SUBJ}\s+(?:represents?|means?|is\s+the|are\s+the){SENTENCE_TAIL}",
+        rf"{SAFE_ACCT_SUBJ}\s+(?:represents?|means?|is\s+the|are\s+the)",
         # --- 5. Instrument Definitions (Strict) ---
-        # A. Strong Verbs: "Swaps mean..." (Safe)
-        rf"{INSTR_SUBJ}\s+(?:means?|refers?\s+to|is\s+defined\s+as){SENTENCE_TAIL}",
         # B. "Is The" Anchor: Requires abstract subject ("A swap") AND generic object ("is a contract")
         # Matches: "A swap is the exchange...", "An option is a contract..."
-        # Avoids: "The swap is the tool..."
-        rf"(?:A|An)\s+{INSTR_SUBJ}\s+is\s+(?:the|an?)\s+{DEF_OBJECTS}{SENTENCE_TAIL}",
+        rf"{INSTR_SUBJ}\s+(?:is|are)\s+(?:the|an?)\s+{DEF_OBJECTS}",
     ]
 
-    combined = "|".join(f"(?:{p})" for p in pattern_list)
-
-    return re.compile(combined, re.IGNORECASE | re.VERBOSE)
-
+    return build_regex(pattern_list)
 
 # Compile and Export
 MORE_INFO_REGEX = build_information_reference_regex()
