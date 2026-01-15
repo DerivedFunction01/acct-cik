@@ -227,7 +227,7 @@ class NoiseReason(Reason):
     LEGAL = "LEGAL"  # Litigation
     PLAN = "PLAN"  # Pension Plans or Hedge Funds
     NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
-    COMP = "COMP"  # Competitors
+    COMP = "COMPETE"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
     NC = "NC"  # Non derivative commodity contracts (No hedging context anywhere)
 
