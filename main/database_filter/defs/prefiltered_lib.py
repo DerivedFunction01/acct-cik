@@ -776,6 +776,8 @@ SOPHISTICATED_CONTEXT_TERMS = [
     r"host\s+contracts?",
     r"conversion\s+(?:options?|features?)",
     r"fair\s+value\s+options?",
+    r"warrants?.*not indexed to.*stock",
+    r"warrants?.*(?:accounted|classified).*liability",
 ] + VALUATION_MODELS  # Black-Scholes, Monte Carlo, etc.
 
 SOPHISTICATED_CONTEXT_REGEX = build_regex(SOPHISTICATED_CONTEXT_TERMS)

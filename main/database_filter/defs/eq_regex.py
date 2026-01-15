@@ -31,7 +31,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     # Warrant liabilities (Financial Warrants only)
     warrant_phrases = [
         # Direct warrant + (liability OR derivative)
-        rf"{warrant}\s+(?:{derivative}[- ]{liability}|{liability}|{derivative})",
+        rf"{warrant}\s+(?:and\s+|or\s+)?(?:{derivative}[- ]{liability}|{liability}|{derivative})",
         # Inverted: liability/derivative + warrant
         rf"(?:{liability}|{derivative})[- ]classified\s+{warrant}",
         # Classified context: warrant...classified as (liability|derivative)
