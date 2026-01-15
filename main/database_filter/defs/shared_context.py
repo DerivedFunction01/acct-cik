@@ -233,3 +233,54 @@ MONTHS_TERMS = [
     r"December",
 ]
 MONTHS_FRAGMENT = build_alternation(MONTHS_TERMS)
+
+
+SUBJECTS = [
+    # Simple pronouns
+    r"we",
+    r"us",
+    # Generic entity terms
+    r"(?:the\s+)?(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
+    r"(?:our\s+)(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
+    # Management references
+    r"(?:the\s+)?(?:our\s+)?management",
+    # LLC / LP / GP structures
+    r"(?:the\s+|our\s+)?(?:llc|l\.l\.c\.|lp|l\.p\.|gp|g\.p\.)",
+    # Partnership (general/limited)
+    r"(?:the\s+|our\s+)?(?:general\s+partner|limited\s+partner|partnership)",
+    # Corporate forms
+    r"(?:the\s+|our\s+)?(?:corporation|corp\.|co\.|inc\.|incorporated)",
+    # Parent entity references
+    r"(?:the\s+|our\s+)?(?:parent(?:\s+company)?)",
+    # Subsidiary references
+    r"(?:the\s+|our\s+)?(?:wholly[-\s]+owned\s+)?(?:subsidiary|subsidiaries)",
+]
+SUBJ = build_alternation(SUBJECTS)
+
+
+# =============================================================================
+# SHARED COMPONENTS (moved from filter_database.py)
+# =============================================================================
+# Comparison verbs phrases
+COMPARISON_PHRASES = [
+    r"compared to",
+    r"versus",
+    r"vs\.?",  # Abbreviated version
+    r"as against",
+    r"in comparison with",
+    r"whereas",
+    r"compared with",
+    r"relative to",
+    r"in contrast to",
+    r"as opposed to",
+    r"vis-à-vis",
+    r"when compared with",
+    r"from",  # "decreased to $X from $Y"
+    r"but",
+    r"however",
+    r"whereas",
+    r"although",
+    r"though",
+    r"while",
+    r"yet",
+]
