@@ -213,6 +213,13 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         rf"\b{placeholder_alternation}\s+{suffix_alternation}\b", re.IGNORECASE
     )
 
+# Use build_regex for consistency
+AOCI_STRICT_TERMS = [
+    r"accumulated\s+other\s+comprehensive",  # Strict "Accumulated"
+    r"AOCI\b",
+    r"reclassifi.{0,20}(?:AOCI|O\.?C\.?I|comprehensive)",  # Reclassification implies moving OUT (History)
+]
+
 
 # Compile and Export
 ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN = build_entity_exclusion_regex()
@@ -223,6 +230,7 @@ EXCLUDE_COMPETITOR_REGEX = build_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_NON_FINANCIAL_REGEX = build_regex(NON_FINANCIAL_KEYWORDS)
 EXCLUDE_PLAN_ASSETS_REGEX = build_regex(PLAN_ASSETS_KEYWORDS)
 NON_DERIVATIVE_REGEX = build_non_derivative_instrument_regex()
+AOCI_NOISE_REGEX = build_regex(AOCI_STRICT_TERMS)
 
 def aggregate_discards(
     discards: List[Tuple[str, str, str]],
