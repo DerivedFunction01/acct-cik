@@ -180,7 +180,7 @@ SOFT_GEN_TERMS = [
     r"(?:instruments?|contracts?) are designated",
     r"(?:ineffective|effective) portions?",
     # Expanded Hedging Noun Contexts (Strategy, Activity, Program, etc.)
-    rf"hedg(?:es?|ing)\s+{hedge_phrases}",
+    rf"(?:hedg(?:es?|ing)|derivatives?)\s+{hedge_phrases}",
     r"derivative expenses?",
     r"designated as (?:a )?hedg(?:es?|ing)",
     r"(?:gain|loss) on derivatives?",
