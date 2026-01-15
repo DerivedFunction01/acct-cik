@@ -48,7 +48,7 @@ REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
 MAX_LEN = 1000
 
-SEC_RATE = 8 # requests per second
+SEC_RATE = 8  # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
 NUM_FETCHERS = 1
@@ -68,6 +68,7 @@ IS_COLAB = Path(DRIVE_PATH).exists()
 
 # Auto-detect system capabilities
 
+
 def get_system_config():
     """Auto-detects system capabilities to set configuration."""
     cpu_cores = mp.cpu_count()
@@ -76,8 +77,8 @@ def get_system_config():
     print(f"🖥️  System Detected: {cpu_cores} CPU cores, {ram_gb:.2f} GB RAM")
 
     # Set worker counts based on CPU cores
-    num_fetchers =  SEC_RATE  # I/O bound
-    num_parsers = cpu_cores - 1  if cpu_cores > 2 else  cpu_cores # CPU bound
+    num_fetchers = SEC_RATE  # I/O bound
+    num_parsers = cpu_cores - 1 if cpu_cores > 2 else cpu_cores  # CPU bound
 
     # Set CHUNK_SIZE based on RAM
     if ram_gb > 32:  # High-RAM machine
@@ -93,7 +94,9 @@ def get_system_config():
     # Adjust SEC rate limit based on the number of fetchers
     sec_rate_limit = num_fetchers / SEC_RATE
 
-    print(f"⚙️  Configuration: {num_fetchers} fetchers, {num_parsers} parsers, CHUNK_SIZE={chunk_size}")
+    print(
+        f"⚙️  Configuration: {num_fetchers} fetchers, {num_parsers} parsers, CHUNK_SIZE={chunk_size}"
+    )
     return num_fetchers, num_parsers, chunk_size, sec_rate_limit
 
 
@@ -105,7 +108,10 @@ def get_system_config():
 from defs.derivative_lib import ALL_REGEX, CATEGORY_REGEX, SOFT_CATEGORY_REGEX
 from defs.derivatives_core import TABLE_REGEX
 from defs.eq_regex import EXCLUDE_REGEX_EQUITY_COMP
-from defs.exclusion_regex import EXCLUDE_REGEX_FORWARD_LOOKING, EXCLUDE_REGEX_LEGAL_LITIGATION
+from defs.exclusion_regex import (
+    EXCLUDE_REGEX_FORWARD_LOOKING,
+    EXCLUDE_REGEX_LEGAL_LITIGATION,
+)
 from defs.gen_regex import DER_STD_REGEX, GEN_STRICT_CONTEXT_REGEX
 
 
@@ -165,10 +171,12 @@ CLEANUP_PATTERNS = [
 ]
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
-TABLE_HINT_PATTERN = re.compile(r"\b(table|summary|following|below|presented|summarized|\:)\b", re.IGNORECASE)
+TABLE_HINT_PATTERN = re.compile(
+    r"\b(table|summary|following|below|presented|summarized|\:)\b", re.IGNORECASE
+)
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
-WRAPPED_LINE_PATTERN = re.compile(r'(?<!\n)\n(?!\n)')
-SPACE_PATTERN = re.compile(r'\s+')
+WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)\n(?!\n)")
+SPACE_PATTERN = re.compile(r"\s+")
 
 # %%
 # =============================================================================
@@ -185,6 +193,7 @@ def debug_print(*args):
     global DEBUG
     if DEBUG:
         print(*args)
+
 
 # =============================================================================
 # DATABASE FUNCTIONS
@@ -334,6 +343,7 @@ def save_process_result_batch(batch_df):
 # FETCH SEC FILINGS
 # =============================================================================
 
+
 # %%
 def fetch_json(url: str) -> dict | None:
     global SEC_RATE_LIMIT
@@ -400,8 +410,7 @@ def get_cik_filings(cik: str) -> Optional[List[dict]]:
 
     older_files = data.get("filings", {}).get("files", [])
     for f in older_files:
-        older_data = fetch_json(
-            f"https://data.sec.gov/submissions/{f.get('name')}")
+        older_data = fetch_json(f"https://data.sec.gov/submissions/{f.get('name')}")
         if isinstance(older_data, dict):
             links.extend(extract_filings(older_data, cik, name, ticker))
 
@@ -412,6 +421,7 @@ def get_cik_filings(cik: str) -> Optional[List[dict]]:
 # CONTENT EXTRACTION
 # =============================================================================
 import unicodedata
+
 
 def normalize_unicode(text: str) -> str:
     """
@@ -424,34 +434,34 @@ def normalize_unicode(text: str) -> str:
     # Map common non-ASCII characters to ASCII equivalents
     replacements = {
         # Dashes
-        u'\u2014': '-',  # Em-dash
-        u'\u2013': '-',  # En-dash
-        u'\u2012': '-',  # Figure dash
-        u'\u2015': '-',  # Horizontal bar
-        
+        "\u2014": "-",  # Em-dash
+        "\u2013": "-",  # En-dash
+        "\u2012": "-",  # Figure dash
+        "\u2015": "-",  # Horizontal bar
         # Quotes (Smart quotes)
-        u'\u2018': "'",  # Left single quote
-        u'\u2019': "'",  # Right single quote
-        u'\u201C': '"',  # Left double quote
-        u'\u201D': '"',  # Right double quote
-        
+        "\u2018": "'",  # Left single quote
+        "\u2019": "'",  # Right single quote
+        "\u201c": '"',  # Left double quote
+        "\u201d": '"',  # Right double quote
         # Spaces (Non-breaking spaces)
-        u'\u00A0': ' ',  # No-break space
+        "\u00a0": " ",  # No-break space
     }
-    
+
     # 1. Manual replacement of characters that NFKD doesn't handle the way we want
     for src, dst in replacements.items():
         text = text.replace(src, dst)
 
     # 2. Standard normalization for accents and other diacritics
     # Now that dashes are fixed, 'ignore' is safe to use for truly weird characters
-    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("utf-8")
+
 
 def extract_content(data: str, asHTML=True) -> str:
     """
     Extract content using html2text for better recursion handling.
     Preserves tables and structure without deep recursion issues.
     """
+
     def is_bold_style(tag):
         style = tag.get("style", "")
         if not style:
@@ -483,7 +493,7 @@ def extract_content(data: str, asHTML=True) -> str:
             style=re.compile(r"display:\s*none|visibility:\s*hidden", re.IGNORECASE)
         ):
             element.decompose()
-            
+
         for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
             comment.extract()
 
@@ -495,7 +505,7 @@ def extract_content(data: str, asHTML=True) -> str:
             if table.caption:
                 title = table.caption.get_text(strip=True)
 
-            prev_text = table.find_previous(string=lambda s: s.strip() and len(s.strip()) > 20) # type: ignore
+            prev_text = table.find_previous(string=lambda s: s.strip() and len(s.strip()) > 20)  # type: ignore
             if prev_text:
                 prev_string = prev_text.strip()
                 if len(prev_string) < 500 and TABLE_HINT_PATTERN.search(prev_string):
@@ -524,7 +534,7 @@ def extract_content(data: str, asHTML=True) -> str:
                     for cell in tr.find_all(["td", "th"]):
                         text = cell.get_text(strip=True)
                         try:
-                            colspan = int(cell.get("colspan", 1)) # type: ignore
+                            colspan = int(cell.get("colspan", 1))  # type: ignore
                         except (ValueError, TypeError):
                             colspan = 1
 
@@ -557,7 +567,6 @@ def extract_content(data: str, asHTML=True) -> str:
                                 header_count += 1
                             else:
                                 in_header_block = False
-
 
                         rows.append(row_cells)
                         col_count = max(col_count, len(row_cells))
@@ -738,7 +747,10 @@ def filter_by_keywords(content: str) -> list[str]:
                     # STRICT SAVIOR:
                     # STRICT_REGEX includes IR/FX/CP/Strict-EQ (Swaps), but NOT Options.
                     # SOFT_GEN includes "Hedge Accounting".
-                    if not (CATEGORY_REGEX.search(part) or GEN_STRICT_CONTEXT_REGEX.search(part)):
+                    if not (
+                        CATEGORY_REGEX.search(part)
+                        or GEN_STRICT_CONTEXT_REGEX.search(part)
+                    ):
                         continue
 
                 if lower_part not in seen:
@@ -812,9 +824,8 @@ def filter_by_keywords(content: str) -> list[str]:
                     # STRICT_REGEX now contains "Equity Swaps" but NOT "Equity Options".
                     # So "Equity Options" (without hedge accounting) will fail this check and be discarded.
                     if not (
-                        SOFT_CATEGORY_REGEX.search(para)
-                        or DER_STD_REGEX.search(para)
-                        ):
+                        SOFT_CATEGORY_REGEX.search(para) or DER_STD_REGEX.search(para)
+                    ):
                         i += 1
                         continue
 
@@ -834,11 +845,7 @@ def filter_by_keywords(content: str) -> list[str]:
 
 
 def filter_by_fyear(filings: list[dict], fyear: int) -> list[dict]:
-    return [
-        f
-        for f in filings
-        if f.get("report_date", "").startswith(str(fyear))
-    ]
+    return [f for f in filings if f.get("report_date", "").startswith(str(fyear))]
 
 
 def fetch_all_grouped(saveIteration: int = 100):
@@ -852,10 +859,8 @@ def fetch_all_grouped(saveIteration: int = 100):
     if existing_report_df is None or existing_report_df.empty:
         existing_report_df = pd.DataFrame(columns=["cik", "year"])
 
-    already_done = set(
-        zip(existing_report_df["cik"], existing_report_df["year"]))
-    cik_groups = all_derivatives_df.groupby(
-        "cik")["year"].apply(list).reset_index()
+    already_done = set(zip(existing_report_df["cik"], existing_report_df["year"]))
+    cik_groups = all_derivatives_df.groupby("cik")["year"].apply(list).reset_index()
 
     def process_cik(row):
         cik = row.cik
@@ -960,7 +965,7 @@ class ThreadSafeRateLimiter:
             # Exit recovery mode if no 429s for 30 seconds
             if self._recovery_mode and time_since_last_429 > 30:
                 self._recovery_mode = False
-                
+
             # Determine target rate based on recovery status
             target_rate_adjusted = (
                 target_rate * 0.5 if self._recovery_mode else target_rate
@@ -1042,6 +1047,7 @@ def adjust_rate_in_background(
                 target=f"{target_rate_adjusted:.1f} req/s",
             )
             last_sleep = current_sleep
+
 
 # class ThreadSafeRateLimiter: # Old version for process-report fully
 #     """
@@ -1277,7 +1283,7 @@ def process_all_reports_fully():
     total_empty = 0
 
     chunks = [
-        reports_to_process[i: i + CHUNK_SIZE]
+        reports_to_process[i : i + CHUNK_SIZE]
         for i in range(0, total_reports, CHUNK_SIZE)
     ]
 
@@ -1300,7 +1306,8 @@ def process_all_reports_fully():
         with ThreadPoolExecutor(max_workers=NUM_FETCHERS) as fetch_executor:
             fetch_futures = [
                 fetch_executor.submit(fetch_raw_content, url, rate_limiter)
-                for url in chunk if isinstance(url, str)
+                for url in chunk
+                if isinstance(url, str)
             ]
 
             # Create the tqdm bar instance
@@ -1330,7 +1337,9 @@ def process_all_reports_fully():
                             # Rate limit detected. Notify the limiter and increase sleep time a bit.
                             try:
                                 rate_limiter.signal_429()
-                                tqdm_bar.set_postfix_str(f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms")
+                                tqdm_bar.set_postfix_str(
+                                    f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
+                                )
                             except Exception:
                                 pass
 
