@@ -1246,7 +1246,7 @@ def parse_content(data):
         # CPU-intensive parsing
         categorized_sentences = filter_by_keywords(content)
         
-        # Fallback for pre-XBRL (<= 2011) if no matches
+        # Fallback for pre-XBRL (<= 2011) if no matches (< 100K chars)
         if is_short and not categorized_sentences and year and year <= 2011:
             try:
                 parts = url.split('/')
@@ -1258,7 +1258,7 @@ def parse_content(data):
                         
                         # Note: This fetch happens inside the parser process. 
                         # It bypasses the main rate limiter but is rare enough.
-                        full_raw_text = fetch_url(full_text_url)
+                        full_raw_text = fetch_url(full_text_url) # Will have a 5 sec wait
                         if full_raw_text:
                             full_content, _ = extract_content(full_raw_text, True)
                             if full_content:
