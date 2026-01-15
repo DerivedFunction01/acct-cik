@@ -299,6 +299,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"{spread_types_alternation}\s+spreads?",
         "spreads?",
         "capacity",
+        "purchase"
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
 

@@ -73,6 +73,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     core_terms = (
         [
             "single[- ]currency",
+            "interest[- ]exchange"
         ]
         + rate_adjective_phrases
         + brate_adjective_phrases
