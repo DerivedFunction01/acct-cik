@@ -9,7 +9,8 @@ from tqdm import tqdm
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from defs.prefiltered_lib import (
-    DEADWEIGHT_TOKEN, 
+    DEADWEIGHT_TOKEN,
+    SKIP_TOKEN, 
     SOPHISTICATED_CONTEXT_REGEX, 
     SOPHISTICATED_TARGETS, 
     Stage, 
@@ -257,8 +258,13 @@ def process_accounting_standards_paragraph(
             if QUANT_REGEX.search(sent):
                 # Current sentence is quantifiable - keep it, or mention derivative classification for warrants, etc
                 kept.append(sent)
-            if SOPHISTICATED_CONTEXT_REGEX.search(sent) and not EXCLUDE_REGEX_ACCOUNTING_STD.search(sent):
-                kept.append(sent)
+            if SOPHISTICATED_CONTEXT_REGEX.search(sent):
+                if not EXCLUDE_REGEX_ACCOUNTING_STD.search(sent):
+                    kept.append(sent)
+                else:
+                    sent = f"{get_tag(SKIP_TOKEN, NoiseReason.ACCT_STD)} {sent}"
+                    kept.append(sent)
+
             elif sent_idx + 1 < len(sentences):
                 # Look ahead: keep this sentence if next sentence is quantifiable
                 # and not another boilerplate trigger
