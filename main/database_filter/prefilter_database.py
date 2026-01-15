@@ -254,8 +254,10 @@ def process_accounting_standards_paragraph(
                 # else: discard it, and everything after
         else:
             # Already in boilerplate zone
-            if QUANT_REGEX.search(sent) or SOPHISTICATED_CONTEXT_REGEX.search(sent):
+            if QUANT_REGEX.search(sent):
                 # Current sentence is quantifiable - keep it, or mention derivative classification for warrants, etc
+                kept.append(sent)
+            if SOPHISTICATED_CONTEXT_REGEX.search(sent) and not EXCLUDE_REGEX_ACCOUNTING_STD.search(sent):
                 kept.append(sent)
             elif sent_idx + 1 < len(sentences):
                 # Look ahead: keep this sentence if next sentence is quantifiable
