@@ -534,7 +534,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
         # === PROMOTION LOGIC: Reclaim Historical Inception ===
         # If we know the position matures in the future (has_active_maturity),
         # then a "2001 entry" tagged as TIME is actually active evidence.
-        if has_active_maturity and NoiseReason.TIME in existing_noise:
+        if has_active_maturity and (NoiseReason.TIME in existing_noise or NoiseReason.TRANSACT in existing_noise):
             # Check if this sentence contains a transaction verb (entering position)
             if TRANS_VERB_REGEX.search(masked):
                 # Promote to Active Transaction Evidence
