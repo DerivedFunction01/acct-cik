@@ -406,7 +406,6 @@ FLOW_KILLERS = {
 TIME_KILLERS = FLOW_KILLERS | {
     NoiseReason.TIME,  # "In 2019..."
     NoiseReason.HIST_BLOCK,  # Entire paragraph is marked as historical (legacy)
-    NoiseReason.POT,  # "We periodically use..."
     NoiseReason.NEG,  # "Did not enter"
     NoiseReason.ZERO,  # "Zero value"
     NoiseReason.AOCI,  # "Recorded in AOCI"
@@ -415,6 +414,7 @@ TIME_KILLERS = FLOW_KILLERS | {
 # Expanded Killers for TIER 3 (Weak)
 # Includes everything above + Policy/Definitions
 POLICY_KILLERS = TIME_KILLERS | {
+    NoiseReason.POT,  # "We periodically use..."
     NoiseReason.DOC,  # "Hedge documentation is..."
     NoiseReason.DEF,  # "Swap shall mean..."
     NoiseReason.ACCT_STD,  # "FASB ASU..."

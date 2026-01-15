@@ -45,7 +45,7 @@ from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX, RISK_MANAGEMENT_REGEX
 from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
 from defs.ir_regex import NON_DER_CAP_FLOOR_REGEX
 from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX
-from defs.exclusion_regex import AOCI_NOISE_REGEX
+from defs.exclusion_regex import AOCI_NOISE_REGEX, EXCLUDE_PLAN_ASSETS_REGEX
 from defs.shared_context import COMPARISON_PHRASES
 from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX
 
@@ -415,7 +415,9 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         # "See note 5 re: termination" -> TERM (Signal), not REF (Noise).
 
         if not reason:
-            if is_trading_statement(masked):
+            if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
+                reason = NoiseReason.PLAN
+            elif is_trading_statement(masked):
                 # "We do not trade..." -> Critical End User Signal
                 reason = NoiseReason.TRADING
             elif is_pnl(masked):
