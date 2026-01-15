@@ -466,7 +466,7 @@ def run_tests():
         (
             "DID_NOT_HOLD",
             DID_NOT_HOLD_REGEX,
-            "We did not hold any such derivatives",
+            "Kronos was not a party to such a contract at December 31, 2004",
             True,
         ),
         (
@@ -482,7 +482,7 @@ def run_tests():
             False,
         ),
         # ABSENCE_REGEX
-        ("ABSENCE", ABSENCE_REGEX, "There were no such interest rate swaps", True),
+        ("ABSENCE", ABSENCE_REGEX, "At March 31, 2004 and March 31, 2003, no financial instruments existed", True),
         ("ABSENCE", ABSENCE_REGEX, "We have no foreign exchange, interest rate, or other contracts", True),
         ("ABSENCE", ABSENCE_REGEX, "We have swaps", False),
         # POTENTIAL_REGEX
