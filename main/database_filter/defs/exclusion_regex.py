@@ -221,6 +221,46 @@ AOCI_STRICT_TERMS = [
     r"reclassifi.{0,20}(?:AOCI|O\.?C\.?I|comprehensive)",  # Reclassification implies moving OUT (History)
 ]
 
+def build_non_derivative_treatment_regex() -> re.Pattern:
+    neg = [
+        "not",
+        "no longer",
+    ]
+    verbs = [
+        "qualif(?:ied|y)",
+        "classif(?:ied|y)",
+        "account(?:ed)?",
+        "designate(?:d)?",
+        "treat(?:ed)?",
+        "elect(?:ed)?",
+    ]
+
+    prepositions = [
+        "for",
+        "as",
+        "under",
+    ]
+
+    targets = [
+        "derivatives?",
+        "hedges?",
+        "hedging",
+    ]
+
+    contexts = [
+        "treatment",
+        "accounting",
+    ]
+    neg_pat = build_alternation(neg)
+    verb_pat = build_alternation(verbs)
+    prep_pat = build_alternation(prepositions)
+    target_pat = build_alternation(targets)
+    context_pat = build_alternation(contexts)
+    phrases = [
+        rf"{neg_pat}\s+{verb_pat}\s+{prep_pat}\s+(?:an?\s+)?{target_pat}\s+{context_pat}",
+        rf"{neg_pat}\s+a\s+derivative",
+    ]
+    return build_regex(phrases)
 
 # Compile and Export
 ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN = build_entity_exclusion_regex()
@@ -231,6 +271,7 @@ EXCLUDE_COMPETITOR_REGEX = build_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_NON_FINANCIAL_REGEX = build_regex(NON_FINANCIAL_KEYWORDS)
 EXCLUDE_PLAN_ASSETS_REGEX = build_regex(PLAN_ASSETS_KEYWORDS)
 NON_DERIVATIVE_REGEX = build_non_derivative_instrument_regex()
+NON_DERIVATIVE_TREATMENT_REGEX = build_non_derivative_treatment_regex()
 AOCI_NOISE_REGEX = build_regex(AOCI_STRICT_TERMS)
 
 def aggregate_discards(
