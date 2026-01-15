@@ -6,6 +6,8 @@
 import queue
 import string
 import sys
+
+
 # Increase recursion limit to handle deeply nested HTML structures
 # Default is usually 1000, increase to 5000 for robust handling
 sys.setrecursionlimit(5000)
@@ -96,28 +98,49 @@ def get_system_config():
 
 
 # %%
-# =============================================================================
-# REGEX PATTERNS AND KEYWORDS
-# =============================================================================
 
 # =============================================================================
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
+from defs.derivative_lib import ALL_REGEX, CATEGORY_REGEX, SOFT_CATEGORY_REGEX
+from defs.derivatives_core import TABLE_REGEX
+from defs.eq_regex import EXCLUDE_REGEX_EQUITY_COMP
+from defs.exclusion_regex import EXCLUDE_REGEX_FORWARD_LOOKING, EXCLUDE_REGEX_LEGAL_LITIGATION
+from defs.gen_regex import DER_STD_REGEX, GEN_STRICT_CONTEXT_REGEX
 
-# Import all derivative regexes and patterns
-from derivative_regex import (
-    ALL_REGEX,
-    BASE_REGEX,
-    DER_STD_REGEX,
-    STRICT_REGEX,  # <--- NEW: The "Strict Instrument" Savior
-    EXCLUDE_REGEX_EQUITY_COMP,
-    EXCLUDE_REGEX_LEGAL_LITIGATION,
-    SOFT_GEN_REGEX,  # <--- NEW: The "Accounting" Savior
-    HEADER_CLEANUP_PATTERNS,
-    EXCLUDE_REGEX_FORWARD_LOOKING,
-    TABLE_REGEX,
-)
 
+# New Header and Structural Cleanup Patterns
+HEADER_CLEANUP_PATTERNS = [
+    # 1. Markdown Headers: Targets # Title # and similar structure
+    (re.compile(r"\n\#+\s*.*?\#*\n", re.IGNORECASE), "\n\n"),
+    # 2. Markdown Bold/Italics Emphasis: Targets **Title** or *Title* or _Title_
+    # Replaces with space to separate merged text fragments
+    (re.compile(r"\*{1,}.*?\*{1,}", re.IGNORECASE), " "),
+    (re.compile(r"\_[^\s_].*?[^\s_]\_", re.IGNORECASE), " "),
+    # 3. ALL-CAPS DERIVATIVE HEADER DELETION
+    # Targets long, non-narrative all-caps sequences containing key terms
+    (
+        re.compile(
+            r"^(?:[^a-z\n]*?(?:DERIVATIVES?|HEDGING)[^a-z\n]*?)(?=[A-Z][a-z])",
+            re.MULTILINE,
+        ),
+        " ",
+    ),
+    (
+        re.compile(r"^\s*[^a-z\n]*?(?:DERIVATIVES?|HEDGING)[^a-z\n]*?$", re.MULTILINE),
+        "\n\n",
+    ),
+    # 4. QUOTED HEADER DELETION (NEW)
+    # Targets lines like: "Hedging Activities", "Derivative Instruments"
+    # Logic: Start of line + Quote + (Key Terms) + Quote + End of line
+    (
+        re.compile(
+            r'^\s*["“][^"”\n]*?(?:Derivatives?|Hedging|Fair\s+Value|Financial\s+Instruments)[^"”\n]*?["”]\s*$',
+            re.MULTILINE | re.IGNORECASE,
+        ),
+        "\n\n",
+    ),
+]
 FILING_TYPES = {
     "10-K",
     "10-KT",
@@ -501,7 +524,7 @@ def extract_content(data: str, asHTML=True) -> str:
                     for cell in tr.find_all(["td", "th"]):
                         text = cell.get_text(strip=True)
                         try:
-                            colspan = int(cell.get("colspan", 1))
+                            colspan = int(cell.get("colspan", 1)) # type: ignore
                         except (ValueError, TypeError):
                             colspan = 1
 
@@ -715,7 +738,7 @@ def filter_by_keywords(content: str) -> list[str]:
                     # STRICT SAVIOR:
                     # STRICT_REGEX includes IR/FX/CP/Strict-EQ (Swaps), but NOT Options.
                     # SOFT_GEN includes "Hedge Accounting".
-                    if not (STRICT_REGEX.search(part) or SOFT_GEN_REGEX.search(part)):
+                    if not (CATEGORY_REGEX.search(part) or GEN_STRICT_CONTEXT_REGEX.search(part)):
                         continue
 
                 if lower_part not in seen:
@@ -789,8 +812,7 @@ def filter_by_keywords(content: str) -> list[str]:
                     # STRICT_REGEX now contains "Equity Swaps" but NOT "Equity Options".
                     # So "Equity Options" (without hedge accounting) will fail this check and be discarded.
                     if not (
-                        STRICT_REGEX.search(para)
-                        or SOFT_GEN_REGEX.search(para)
+                        SOFT_CATEGORY_REGEX.search(para)
                         or DER_STD_REGEX.search(para)
                         ):
                         i += 1
