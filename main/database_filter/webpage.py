@@ -44,7 +44,7 @@ import subprocess
 # =============================================================================
 DEBUG = False
 ALL_FIRMS_DATA = "derivatives_data.csv"
-REPORT_CSV_PATH = "report_data.csv"
+REPORT_CSV_PATH = "report_data2.csv"
 DB_PATH = "web_data.db"
 MAX_LEN = 1000
 
@@ -1184,37 +1184,37 @@ def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = 
     return None
 
 
-def parse_and_save_content(data):
-    """
-    Parses raw HTML/text, filters for keywords, and saves to the database.
-    This is a CPU-bound task.
-    """
-    if data is None:
-        return None
+# def parse_and_save_content(data):
+#     """
+#     Parses raw HTML/text, filters for keywords, and saves to the database.
+#     This is a CPU-bound task.
+#     """
+#     if data is None:
+#         return None
 
-    url, raw_text = data
+#     url, raw_text = data
 
-    try:
-        # 1. Extract clean content from raw text (CPU-intensive)
-        if url.endswith("htm"):
-            content = extract_content(raw_text, True)
-        else:
-            content = extract_content(raw_text, False)
+#     try:
+#         # 1. Extract clean content from raw text (CPU-intensive)
+#         if url.endswith("htm"):
+#             content = extract_content(raw_text, True)
+#         else:
+#             content = extract_content(raw_text, False)
 
-        if not content:
-            return None
+#         if not content:
+#             return None
 
-        # 2. Filter for keywords to get relevant sentences (CPU-intensive)
-        # CPU-intensive parsing
-        categorized_sentences = filter_by_keywords(content)
-        # 3. Save the result to the database
-        result_row = pd.Series({"url": url, "matches": categorized_sentences})
+#         # 2. Filter for keywords to get relevant sentences (CPU-intensive)
+#         # CPU-intensive parsing
+#         categorized_sentences = filter_by_keywords(content)
+#         # 3. Save the result to the database
+#         result_row = pd.Series({"url": url, "matches": categorized_sentences})
 
-        save_process_result(result_row)
-        return True
-    except Exception as e:
-        print(f"Parse error for {url}: {e}")
-        return None
+#         save_process_result(result_row)
+#         return True
+#     except Exception as e:
+#         print(f"Parse error for {url}: {e}")
+#         return None
 
 
 def parse_content(data):
