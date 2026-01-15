@@ -2,10 +2,14 @@
 import re
 from typing import List, Dict, Optional, Set, Tuple
 
-from derivative_regex import BASE_REGEX, CURRENCY_NAMES_REGEX, FX_SOFT_REGEX, IR_SOFT_REGEX, SOFT_GEN_REGEX, SOFT_REGEX, STRICT_REGEX, TABLE_REGEX, YEAR_REGEX, all_currencies, build_regex
-
 # --- REGEX DEFINITIONS ---
-
+from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
+from defs.derivative_lib import CATEGORY_REGEX, SOFT_CATEGORY_REGEX
+from defs.derivatives_core import BASE_REGEX, TABLE_REGEX
+from defs.fx_regex import FX_SOFT_REGEX
+from defs.gen_regex import GEN_REGEX
+from defs.ir_regex import IR_SOFT_REGEX
+from defs.prefiltered_lib import YEAR_REGEX
 # Basic patterns
 YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
 NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
@@ -376,8 +380,8 @@ class TableToTextConverter:
 
     def is_implied_derivative(self, full_context):
         return bool(
-            STRICT_REGEX.search(full_context)
-            or SOFT_GEN_REGEX.search(full_context)
+            CATEGORY_REGEX.search(full_context)
+            or GEN_REGEX.search(full_context)
             or IR_SOFT_REGEX.search(full_context)
             or FX_SOFT_REGEX.search(full_context)
         )
@@ -1391,7 +1395,7 @@ class TableToTextConverter:
             is_strict = self.is_implied_derivative(instrument_name)
             is_table_safe = bool(TABLE_REGEX.search(instrument_name))
             is_soft = (
-                bool(SOFT_REGEX.search(instrument_name)) if not is_strict else False
+                bool(SOFT_CATEGORY_REGEX.search(instrument_name)) if not is_strict else False
             )
             has_base = bool(BASE_REGEX.search(instrument_name))
             has_strong_notional = bool(STRONG_NOTIONAL_REGEX.search(instrument_name))
