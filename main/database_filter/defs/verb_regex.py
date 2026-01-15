@@ -13,7 +13,6 @@ SPECULATIVE_PHRASES = [
     r"historically",
     r"previously",
     r"occasionally",
-    r"in\s+the\s+future",
     r"in\s+future\s+periods",
     r"upon\s+occurrence",
     r"believes?",
@@ -176,7 +175,7 @@ def build_potential_regex() -> re.Pattern:
 
 
 def build_vague_timing_regex() -> re.Pattern:
-    """Matches: "from time to time", "in the future" """
+    """Matches: "from time to time", "in future periods" """
     return re.compile(rf"\b{build_alternation(SPECULATIVE_PHRASES)}\b", re.IGNORECASE)
 
 
