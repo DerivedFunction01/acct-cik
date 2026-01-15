@@ -259,16 +259,19 @@ CP_CONTEXT_TERMS = (
         "OPIS",  # Pricing reporting agencies
         "Brent",
         "packaging",
-        "manufacturing",
-        "supplier",
+        "manufactur(?:ing|er)",
+        "suppliers?",
         "raw materials?",
-        "supply",
+        "suppl(?:y|ies)",
         "containers?",
         "shipping",
         "transportation",
-        "inventory",
+        "inventor(?:y|ies)",
         "shipments?",
-        "inventory",
+        "warehouses?",
+        "storage",
+        "factor(?:y|ies)",
+        "deliver(?:y|ies)",
         # Exchanges
     ]
     + COMMON_COMMODITIES
