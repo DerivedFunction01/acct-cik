@@ -10,23 +10,18 @@ from defs.regex_lib import build_alternation, build_regex
 SPECULATIVE_PHRASES = [
     r"from\s+time\s+to\s+time",
     r"periodically",
-    r"historically",
-    r"previously",
-    r"occasionally",
     r"in\s+future\s+periods",
     r"upon\s+occurrence",
-    r"believes?",
-    r"(?:may|might)\s+consider",
     r"when\s+(?:deemed\s+)?necessary",
     r"when\s+(?:chosen|choosed)",
-    r"expects?\s+that",
-    r"(?!not )prevent",
 ]
 
 # Potential / Hypothetical Modals & Phrases
 POTENTIAL_INDICATORS = [
     r"may",
+    r"occasionally",
     r"might",
+    r"(?:may|might)\s+consider",
     r"could",
     r"would",
     r"will",
