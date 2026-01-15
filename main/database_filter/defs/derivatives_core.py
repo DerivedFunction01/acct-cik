@@ -1,6 +1,6 @@
 import re
 from typing import List, Optional
-from defs.regex_lib import build_alternation
+from defs.regex_lib import build_alternation, build_regex
 
 PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
     "deliver(?:y|ies)",
@@ -57,13 +57,17 @@ AMBIGUOUS_BASE_TYPES = [
 
 
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
-ALL_SUFFIXES = [
-    # "agreements?",
+UNAMBIGUOUS_SUFFIXES = [
     "contracts?",
-    # "commitments?",
     "instruments?",
-   #  "arrangements?",
 ]
+
+AMBIGUOUS_SUFFIXES = [
+    "agreements?",
+    "commitments?",
+    "arrangements?",
+]
+ALL_SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
 
 
 # =============================================================================
@@ -129,10 +133,10 @@ def build_smart_regex(
 
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(ALL_BASE_TYPES, True)
-BASE_REGEX = re.compile(r"\b" + base_alternation + r"\b", re.IGNORECASE)
+BASE_REGEX = build_regex(ALL_BASE_TYPES)
 safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
 suffix_alternation = build_alternation(ALL_SUFFIXES, True)
-standalone_alternation = build_alternation(ALL_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
+standalone_alternation = build_alternation(UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
 unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
