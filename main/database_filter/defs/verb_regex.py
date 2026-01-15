@@ -37,7 +37,7 @@ POTENTIAL_INDICATORS = [
     r"if",
     r"whether",
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
-    r"expect(?:s|ed)?\s+to\s+(?!continue)",
+    r"expect(?:s|ed)?\s+to(?![- ]continue)",
 ]
 
 # Add this alongside your other lists
@@ -151,6 +151,7 @@ VERB_MAP = {
         r"designat(?:e|es|ed|ing)",
         r"chose(?:\s+to)",
         r"choos(?:e|es|ing)(?:\s+to)",
+        r"hedge"
     ],
 }
 
