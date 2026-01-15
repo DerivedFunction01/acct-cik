@@ -270,7 +270,7 @@ def process_accounting_standards_paragraph(
     discards = []
     discarded_text = " ".join(set(sentences) - set(kept))
     if discarded_text:
-        discards.append((url, discarded_text, "accounting_standards"))
+        discards.append((url, discarded_text, NoiseReason.ACCT_STD.value))
 
     return kept, discards
 
