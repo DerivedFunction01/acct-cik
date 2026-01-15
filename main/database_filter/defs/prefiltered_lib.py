@@ -743,9 +743,36 @@ def is_sophisticated_content(text: str) -> bool:
 # 1. Target Instruments (The "What") - NOW REQUIRES EQ CONTEXT
 # Instead of just matching "convertible" or "warrant" standalone,
 # we require them to co-occur with equity derivative signals
-SOPHISTICATED_TARGETS = re.compile(
-    r"\b(?:convertibles?|warrants?|conversion)\b", re.IGNORECASE
+NEG_CONVERSION_LB = build_alternation(
+    [
+        r"currency[ -]",
+        r"foreign[ -]",
+        r"exchange[ -]",
+        r"forex[ -]",
+        r"spot[ -]",
+        r"forward[ -]",
+        r"rate[ -]",
+        r"interest[ -]",
+        r"yield[ -]",
+        r"coupon[ -]",
+        r"principal[ -]",
+        r"debt[ -]",
+        r"loan[ -]",
+        r"accounting[ -]",
+        r"reporting[ -]",
+        r"classification[ -]",
+        r"unit[ -]",
+        r"energy[ -]",
+        r"power[ -]",
+    ]
 )
+CONVERSION_EQ = rf"(?<!{NEG_CONVERSION_LB})conversion"
+
+SOPHISTICATED_TARGETS = re.compile(
+    rf"\b(?:convertibles?|warrants?|{CONVERSION_EQ})\b",
+    re.IGNORECASE,
+)
+
 # 2. Sophisticated Context (The "Why/How")
 # Used to validate the sophisticated buffer.
 SOPHISTICATED_CONTEXT_TERMS = [
