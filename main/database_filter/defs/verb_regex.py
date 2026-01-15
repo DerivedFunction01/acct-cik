@@ -303,8 +303,8 @@ _settle_lookbehind = "".join([rf"(?<!\b{word}\s)" for word in SETTLEMENT_MODIFIE
 TERMINATION_VERBS = [
     # --- SAFE VERBS (Past/Present/Participle) ---
     # Regex note: We removed |ion, |ity, |ment, |y suffixes
-    r"expir(?:e(?:d|s)?|ing)",  # Matches: expire, expired, expiring.  STOPS: expiration, expiry
-    r"matur(?:e(?:d|s)?|ing)",  # Matches: mature, matured, maturing.  STOPS: maturity
+    r"expir(?:e(?:d|s)?|ing)\s+(:?in|at|on)",  # Matches: expire, expired, expiring.  STOPS: expiration, expiry
+    r"matur(?:e(?:d|s)?|ing)\s+(?:in|at|on)",  # Matches: mature, matured, maturing.  STOPS: maturity
     r"terminat(?:e(?:d|s)?|ing)",  # Matches: terminate, terminated.      STOPS: termination
     r"ceas(?:e(?:d|s)?|ing)",  # Matches: cease, ceased
     r"retir(?:e(?:d|s)?|ing)",  # Matches: retire, retired.
@@ -332,10 +332,7 @@ TERMINATION_VERBS = [
     r"derecogni[sz](?:e|ed|ing)",
     r"divest(?:ed|s|ing)?",
     r"preterminat(?:e(?:d|s)?|ing)",
-    r"accelerat(?:e(?:d|s)?|ing)",
     r"relinquish(?:ed|es|ing)?",
-    r"lapse(?:d|s|ing)?",
-    r"forfeit(?:ed|s|ing)?",
 ]
 TERMINATION_NOUNS = [
     # --- STATES (Strongest) ---
