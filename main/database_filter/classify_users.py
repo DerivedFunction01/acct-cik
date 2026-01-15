@@ -910,9 +910,6 @@ def process_row(row: Tuple) -> Tuple:
 
     final_categories = strict_categories.union(valid_soft_cats)
 
-    if len(final_categories) > 1 and "gen" in final_categories:
-        final_categories.remove("gen")
-
     if mentions_venue and not attributes["is_hedger"]:
         attributes["is_trader"] = True
 
