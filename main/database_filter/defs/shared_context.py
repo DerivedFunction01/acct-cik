@@ -11,7 +11,8 @@ RISK_TERMS = [
     "movements?",
     "variabilit(?:y|ies)",
     "changes?",
-    "management?",
+    "managements?",
+    "transactions?",
     "costs?",
     "prices?",
 ]
