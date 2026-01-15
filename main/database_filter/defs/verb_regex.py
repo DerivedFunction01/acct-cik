@@ -163,7 +163,7 @@ def build_potential_regex() -> re.Pattern:
     """
     return re.compile(
         rf"\b{build_alternation(POTENTIAL_INDICATORS)}[, ]"
-        r"(?:\w+\s+){0,3}"
+        r"(?:\w+\s+){0,4}"
         rf"(?:, )?({INTENT_VERB_PATTERN})\b",
         re.IGNORECASE,
     )
