@@ -162,9 +162,9 @@ def build_potential_regex() -> re.Pattern:
     Relaxed middle group catches: "may [occasionally] use", "may [typically] enter"
     """
     return re.compile(
-        rf"\b{build_alternation(POTENTIAL_INDICATORS)}\s+"
+        rf"\b{build_alternation(POTENTIAL_INDICATORS)}[, ]"
         r"(?:\w+\s+){0,3}"
-        rf"({INTENT_VERB_PATTERN})\b",
+        rf"(?:, )?({INTENT_VERB_PATTERN})\b",
         re.IGNORECASE,
     )
 
