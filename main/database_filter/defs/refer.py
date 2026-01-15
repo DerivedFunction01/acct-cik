@@ -133,7 +133,7 @@ def build_definition_regex() -> re.Pattern:
 
     # 1. Setup Components
     subject = SUBJ 
-    
+
     # 2. Key Verbs Grouped by Safety
     # Optional copula
     _GAP = r"(?:\s+\S+){0,2}"
@@ -151,12 +151,12 @@ def build_definition_regex() -> re.Pattern:
 
     # SAFE: Legal terms that rarely appear in narrative flow
     LEGAL_VERBS_LIST = [
-        r"shall\s+mean",
-        r"(?:(?:is|are)\s+)?considered\s+as"
+        r"shall\s+(?:mean|refer|represent)",
+        r"(?:is|are)?\s+considered\s+as",
         rf"(?:{_COPULA}{_GAP})?"
         rf"(?:{_OPT_THE}{_GAP})?"
         rf"{_DEF_NOUN}{_GAP}"
-        rf"{_DEF_PREP}\b",
+        rf"{_DEF_PREP}",
     ]
 
     COMMON_VERBS_LIST = [
@@ -183,18 +183,18 @@ def build_definition_regex() -> re.Pattern:
     pattern_list = [
         LEGAL_VERBS,
         # Quoted subjects "X" refers to
-        rf"[\"“].*?[\"”]\s+{COMMON_VERBS}",
+        rf"(?:(?:term|caption|account)(?:\s+[\"“\'].*?[\"”\'])?\s+|[\"“\'].*?[\"”\']\s+){COMMON_VERBS}",
         # --- 3. Instrument-Subject Definitions ---
         # Matches: "Interest Rate [Swaps means...]", "[Options are considered as...]"
         # Logic: Subject MUST be a detected instrument category.
-        rf"{INSTR_SUBJ}\s+(?:{COMMON_VERBS})",
+        rf"{INSTR_SUBJ}\s+{COMMON_VERBS}",
         # --- 5. Corporate Definitions ---
         # Matches: "The Company defines...", "Management considers..."
         rf"(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{_GAP}{INSTR_SUBJ}.*as",
     
         # --- 4. Accounting Specifics (Safe with 'is the') ---
         # "Fair value is the price..."
-        rf"{SAFE_ACCT_SUBJ}\s+(?:represents?|means?|is\s+the|are\s+the)",
+        rf"{SAFE_ACCT_SUBJ}\s+(?:represents?|means?|is\s+the|are\s+the|{COMMON_VERBS})",
         # --- 5. Instrument Definitions (Strict) ---
         # B. "Is The" Anchor: Requires abstract subject ("A swap") AND generic object ("is a contract")
         # Matches: "A swap is the exchange...", "An option is a contract..."
@@ -207,3 +207,51 @@ def build_definition_regex() -> re.Pattern:
 MORE_INFO_REGEX = build_information_reference_regex()
 IS_REFERENCE_REGEX = build_simple_reference_regex()
 DEFINITION_INDICATORS = build_definition_regex()
+
+def run_tests():
+    print("Running tests for refer.py...")
+
+    test_cases = [
+        # --- IS_REFERENCE_REGEX ---
+        ("REF: Easy - See Note", IS_REFERENCE_REGEX, "See Note 5.", True),
+        ("REF: Easy - Refer to table", IS_REFERENCE_REGEX, "Refer to the above table.", True),
+        ("REF: Med - As discussed in", IS_REFERENCE_REGEX, "As discussed in Note 12.", True),
+        ("REF: Med - Accompanying schedule", IS_REFERENCE_REGEX, "The accompanying schedule.", True),
+        ("REF: Hard - Included in table", IS_REFERENCE_REGEX, "included in the table below", True),
+        ("REF: Hard - Exhibit No", IS_REFERENCE_REGEX, "set forth in Exhibit No. 99.1", True),
+        ("REF: Neg - Verb note", IS_REFERENCE_REGEX, "We note that the value changed.", False),
+        ("REF: Neg - Literal table", IS_REFERENCE_REGEX, "The table is large.", False),
+        ("REF: Neg - See future", IS_REFERENCE_REGEX, "We will see the future.", False),
+
+        # --- MORE_INFO_REGEX ---
+        ("INFO: Easy - For more info", MORE_INFO_REGEX, "For more information", True),
+        ("INFO: Easy - For further details", MORE_INFO_REGEX, "For further details", True),
+        ("INFO: Med - Complete discussion", MORE_INFO_REGEX, "For a complete discussion of", True),
+        ("INFO: Hard - Details on", MORE_INFO_REGEX, "For details on", True),
+        ("INFO: Neg - For year ended", MORE_INFO_REGEX, "For the year ended December 31", False),
+
+        # --- DEFINITION_INDICATORS ---
+        ("DEF: Easy - Shall mean", DEFINITION_INDICATORS, "Swap shall mean an agreement.", True),
+        ("DEF: Easy - Notional represents", DEFINITION_INDICATORS, "Notional value represents the face amount.", True),
+        ("DEF: Med - Term refers to", DEFINITION_INDICATORS, "The term \"Derivative\" refers to financial instruments.", True),
+        ("DEF: Med - IR Swaps means", DEFINITION_INDICATORS, "Interest Rate Swaps refers to a contract", True),
+        ("DEF: Hard - Swap is contract", DEFINITION_INDICATORS, "Interest rate swap is a contract that exchanges cash flows.", True),
+        ("DEF: Hard - Options considered", DEFINITION_INDICATORS, "Options are considered as derivatives.", True),
+        ("DEF: Neg - Swap is effective", DEFINITION_INDICATORS, "The swap is effective.", False),
+        ("DEF: Neg - Management considers", DEFINITION_INDICATORS, "Management considers the swap to be effective.", False),
+        ("DEF: Neg - Generic means", DEFINITION_INDICATORS, "This means that we lost money.", False),
+        ("DEF: Neg - Represents significant", DEFINITION_INDICATORS, "It represents a significant portion of assets.", False),
+    ]
+
+    failures = 0
+    for name, regex, text, expected in test_cases:
+        match = regex.search(text)
+        result = bool(match)
+        if result != expected:
+            print(f"FAIL [{name}]: '{text}' -> Expected {expected}, Got {result}")
+            failures += 1
+
+    if failures == 0:
+        print(f"All {len(test_cases)} tests passed.")
+    else:
+        print(f"{failures} tests failed.")

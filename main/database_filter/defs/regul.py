@@ -115,3 +115,57 @@ def is_regulatory_noise(text: str, threshold: int = 4) -> bool:
     score = (strict_hits * W_STRICT) + (loose_hits * W_LOOSE)
 
     return score >= threshold
+
+def run_tests():
+    print("Running tests for regul.py...")
+
+    test_cases = [
+        (
+            "Paragraph Level: High Noise (Dodd-Frank + Volcker)",
+            "We are strictly monitoring compliance with the Dodd-Frank Act and the Volcker Rule regarding our derivatives.",
+            True,  # 2 + 2 = 4
+            4,
+        ),
+        (
+            "Paragraph Level: Medium Noise (SEC + Regulation)",
+            "The Company is subject to regulation by the SEC.",
+            False,  # 1 + 1 = 2 < 4
+            4,
+        ),
+        (
+            "Sentence Level: Medium Noise (SEC + Regulation)",
+            "The Company is subject to regulation by the SEC.",
+            True,  # 1 + 1 = 2 >= 2
+            2,
+        ),
+        (
+            "Paragraph Level: High Density Loose",
+            "Governmental regulations governing the SEC oversight of our trading activities are complex.",
+            True,  # 1 + 1 + 1 + 1 = 4
+            4,
+        ),
+        (
+            "Clean Text",
+            "We entered into interest rate swaps to hedge our floating rate debt.",
+            False,
+            4,
+        ),
+        (
+            "Environmental Acts (CERCLA + EPA)",
+            "Liabilities may arise under CERCLA which is enforced by the EPA.",
+            True,  # 2 + 2 = 4
+            4,
+        ),
+    ]
+
+    failures = 0
+    for name, text, expected, threshold in test_cases:
+        result = is_regulatory_noise(text, threshold)
+        if result != expected:
+            print(f"FAIL [{name}]: Expected {expected}, Got {result}")
+            failures += 1
+
+    if failures == 0:
+        print(f"All {len(test_cases)} tests passed.")
+    else:
+        print(f"{failures} tests failed.")
