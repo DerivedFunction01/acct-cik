@@ -184,6 +184,7 @@ SOFT_GEN_TERMS = [
     r"derivative expenses?",
     r"designated as (?:a )?hedg(?:es?|ing)",
     r"(?:gain|loss) on derivatives?",
+    r"value of derivatives?",
     r"notional"
 ]
 
