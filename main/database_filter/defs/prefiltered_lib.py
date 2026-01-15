@@ -783,12 +783,6 @@ SOPHISTICATED_CONTEXT_TERMS = [
 
 SOPHISTICATED_CONTEXT_REGEX = build_regex(SOPHISTICATED_CONTEXT_TERMS)
 
-# NEW: Gate for Sophisticated Targets
-# Ensures we only flag convertibles/warrants that are ACTUALLY equity derivatives
-SOPHISTICATED_TARGET_GATE = re.compile(
-    rf"(?:{EQ_REGEX.pattern}|{EQ_SOFT_REGEX.pattern})", re.IGNORECASE
-)
-
 
 def is_sophisticated_target(text: str) -> bool:
     """
@@ -806,7 +800,7 @@ def is_sophisticated_target(text: str) -> bool:
         return False
 
     # Required: target must have equity context
-    if SOPHISTICATED_TARGET_GATE.search(text):
+    if EQ_SOFT_REGEX.search(text):
         return True
 
     return False
