@@ -58,11 +58,11 @@ AMBIGUOUS_BASE_TYPES = [
 
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
 ALL_SUFFIXES = [
-    "agreements?",
+    # "agreements?",
     "contracts?",
-    "commitments?",
+    # "commitments?",
     "instruments?",
-    "arrangements?",
+   #  "arrangements?",
 ]
 
 
