@@ -311,6 +311,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"fixed[- ](?:{commodity_alternation})[- ](?:{modifier_alternation})",
         rf"(?:{commodity_alternation})[- ](?:{modifier_alternation})",
         rf"(?:{commodity_alternation})",
+        r"fixed[- ]price(?: purchase)?",
     ]
     strict_core_alternation = build_alternation(
         strict_core_patterns, sort_longest_first=True
