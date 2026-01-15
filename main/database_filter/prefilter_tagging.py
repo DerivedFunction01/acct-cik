@@ -89,7 +89,7 @@ def get_temporal_noise_reason(text: str, reporting_year: int) -> Optional[NoiseR
 
     # Fallback: "In prior years", "During the previous period"
     if PRIOR_INDICATOR.search(text):
-        return NoiseReason.TIME
+        return NoiseReason.POT
 
     return None
 
