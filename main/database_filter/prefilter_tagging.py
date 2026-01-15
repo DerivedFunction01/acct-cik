@@ -149,6 +149,8 @@ COUNTERPARTY_POLICY_TERMS = [
     r"concentration\s+of\s+credit",
     r"non[- ]performance",
     r"nonperformance",
+    r"monitoring",
+    r"fail\s+to\s+perform",
 ]
 COUNTERPARTY_REGEX = build_regex(COUNTERPARTY_POLICY_TERMS)
 
