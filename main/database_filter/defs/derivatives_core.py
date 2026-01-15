@@ -3,18 +3,18 @@ from typing import List, Optional
 from defs.regex_lib import build_alternation
 
 PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
-    "delivery",
-    "purchase",
-    "order",
+    "deliver(?:y|ies)",
+    "purchases?",
+    "orders?",
     "sales?",
-    "supply",
+    "suppl(?:y|ies)",
     "confirmation",
-    "invoice",
-    "shipment",
-    "receipt",
-    "inventory",
-    "liability",  # Forward liability
-    "stock",
+    "invoices?",
+    "shipments?",
+    "receipts?",
+    "inventor(?:y|ies)",
+    "liabilit(?y|ies)",  # Forward liability
+    "stocks?",
     "looking",  # Just added it here against forward-looking
 ]
 

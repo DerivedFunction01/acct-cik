@@ -55,6 +55,7 @@ COMMON_COMMODITIES = [
     "potato(?:es)?",
     "wheat",
     "rice",
+    "eggs?",
     # ⛽ Energy & Fuels
     "biodiesel",
     "biomass",
@@ -140,6 +141,8 @@ COMMON_COMMODITIES = [
     "wood chip",
     "wood pellet",
     r"(?<!commericial[ -])paper",
+    r"cardboard",
+    r"cartons?",
     "pulp",
     # 🧩 General / Raw Inputs
     "feedstock",
@@ -254,7 +257,18 @@ CP_CONTEXT_TERMS = (
         "Platts",
         "Argus",
         "OPIS",  # Pricing reporting agencies
-        "Brent"
+        "Brent",
+        "packaging",
+        "manufacturing",
+        "supplier",
+        "raw materials?",
+        "supply",
+        "containers?",
+        "shipping",
+        "transportation",
+        "inventory",
+        "shipments?",
+        "inventory",
         # Exchanges
     ]
     + COMMON_COMMODITIES
