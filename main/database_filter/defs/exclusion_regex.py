@@ -27,7 +27,8 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         # --- 4. Clearing Houses (Critical for "Cleared Swaps" noise) ---
         r"\bOptions\s+Clearing\s+Corporation\b",
         r"\b[hH]edge\s+(?:[fF]unds?|[bB]anks?|[Pp]roviders?)\b",
-        r"\b[Ss]wap\s+(?:[dD]ealers?|[pP]articipants?)\b", 
+        r"\b[Ss]wap\s+(?:[dD]ealers?|[pP]articipants?)\b",
+        r"derivative\s+counterpart(?:y|ies)",
     ]
 
     # --- 6. Dynamic Fund Pattern (Your existing logic) ---
