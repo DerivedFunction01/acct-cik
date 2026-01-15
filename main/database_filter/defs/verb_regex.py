@@ -463,3 +463,60 @@ PRIOR_INDICATOR = build_prior_statement_pattern_2()
 
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 TERMINATION_REGEX = build_regex(TERMINATION_VERBS)
+
+def run_tests():
+    print("Running tests for verb_regex.py...")
+
+    test_cases = [
+        # DID_NOT_HOLD_REGEX
+        (
+            "DID_NOT_HOLD",
+            DID_NOT_HOLD_REGEX,
+            "We did not hold any such derivatives",
+            True,
+        ),
+        (
+            "DID_NOT_HOLD",
+            DID_NOT_HOLD_REGEX,
+            "We do not, as a routine matter, use interest rate swaps",
+            True,
+        ),
+        (
+            "DID_NOT_HOLD",
+            DID_NOT_HOLD_REGEX,
+            "We possess foreign exchange, interest rate, and commodity contracts",
+            False,
+        ),
+        # ABSENCE_REGEX
+        ("ABSENCE", ABSENCE_REGEX, "There were no such interest rate swaps", True),
+        ("ABSENCE", ABSENCE_REGEX, "We have no foreign exchange, interest rate, or other contracts", True),
+        ("ABSENCE", ABSENCE_REGEX, "We have swaps", False),
+        # POTENTIAL_REGEX
+        ("POTENTIAL", POTENTIAL_REGEX, "We may continue to enter into interest rate swaps", True),
+        ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge our exposure", True),
+        ("POTENTIAL", POTENTIAL_REGEX, "We entered into swaps", False),
+        # VAGUE_TIMING
+        ("VAGUE_TIMING", VAGUE_TIMING_REGEX, "We use swaps from time to time", True),
+        ("VAGUE_TIMING", VAGUE_TIMING_REGEX, "We use swaps periodically", True),
+        # PRIOR
+        ("PRIOR", PRIOR_INDICATOR, "In the prior year, we had interest rate swaps", True),
+        ("PRIOR", PRIOR_INDICATOR, "During previous reporting periods", True),
+        ("PRIOR", PRIOR_INDICATOR, "Historically", True),
+        # TERMINATION
+        ("TERMINATION", TERMINATION_REGEX, "The swaps expired", True),
+        ("TERMINATION", TERMINATION_REGEX, "We terminated the agreement", True),
+        ("TERMINATION", TERMINATION_REGEX, "The swaps matured", True),
+    ]
+
+    failures = 0
+    for name, pattern, text, expected in test_cases:
+        match = pattern.search(text)
+        is_match = bool(match)
+        if is_match != expected:
+            print(f"FAIL [{name}]: '{text}' -> Expected {expected}, Got {is_match}")
+            failures += 1
+
+    if failures == 0:
+        print(f"All {len(test_cases)} tests passed.")
+    else:
+        print(f"{failures} tests failed.")
