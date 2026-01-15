@@ -367,6 +367,21 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
     # Return the tuple of (strict, soft)
     return strict_cp_regex, soft_cp_regex
 
+NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
+    # The "NPNS" Exemption (Physical Contracts)
+    r"normal\s+purchases?\s+(?:and|&)\s+(?:normal\s+)?sales?",
+    r"NPNS",
+    r"own[- ]use\s+exemption",
+    # Unconditional Obligations (ASC 440)
+    r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
+    r"take[- ]or[- ]pay",
+    r"throughput\s+agreements?",
+    # General Supply Chain (If not caught by Physical Inventory)
+    r"supply\s+arrangements?",
+    r"procurement\s+contracts?",
+]
+
+EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
 CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS)
 CP_CONTEXT_REGEX = build_regex(CP_CONTEXT_TERMS)
 CP_REGEX, CP_SOFT_REGEX = build_cp_regex()

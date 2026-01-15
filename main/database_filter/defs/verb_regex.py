@@ -5,6 +5,40 @@ import re
 from defs.derivative_regex import LOOSE_GEN_REGEX, STRICT_REGEX
 from regex_lib import build_alternation, build_regex
 
+# Speculative / Uncertain Timing Phrases
+SPECULATIVE_PHRASES = [
+    r"from\s+time\s+to\s+time",
+    r"periodically",
+    r"historically",
+    r"previously",
+    r"occasionally",
+    r"in\s+the\s+future",
+    r"in\s+future\s+periods",
+    r"upon\s+occurrence",
+    r"believes?",
+    r"(?:may|might)\s+consider",
+    r"when\s+(?:deemed\s+)?necessary",
+    r"when\s+(?:chosen|choosed)",
+    r"expects?\s+that",
+    r"(?!not )prevent",
+]
+
+# Potential / Hypothetical Modals & Phrases
+POTENTIAL_INDICATORS = [
+    r"may",
+    r"might",
+    r"could",
+    r"would",
+    r"will",
+    r"seek\s+to",
+    r"intend\s+to",
+    r"plan(?:s|ned)?\s+to",
+    r"if",
+    r"whether",
+    # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
+    r"expect(?:s|ed)?\s+to\s+(?!continue)",
+]
+
 # Add this alongside your other lists
 NEGATIVE_CONTRACTIONS = [
     # Active
@@ -118,15 +152,30 @@ VERB_MAP = {
         r"choos(?:e|es|ing)(?:\s+to)",
     ],
 }
-POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
-USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
-TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
-ACCT_VERB_REGEX = build_regex(VERB_MAP["ACCT"])
+
 ALL_VERBS = list(
     VERB_MAP["POSS"] + VERB_MAP["PRU"] + VERB_MAP["ACT"] + VERB_MAP["ACCT"]
 )
+
 INTENT_VERB_PATTERN = build_alternation(ALL_VERBS)
-ALL_VERB_REGEX = build_alternation(ALL_VERBS)
+
+
+def build_potential_regex() -> re.Pattern:
+    """
+    Matches: "may enter", "might use", "expect to hedge"
+    Relaxed middle group catches: "may [occasionally] use", "may [typically] enter"
+    """
+    return re.compile(
+        rf"\b{build_alternation(POTENTIAL_INDICATORS)}\s+"
+        r"(?:\w+\s+){0,3}"
+        rf"({INTENT_VERB_PATTERN})\b",
+        re.IGNORECASE,
+    )
+
+
+def build_vague_timing_regex() -> re.Pattern:
+    """Matches: "from time to time", "in the future" """
+    return re.compile(rf"\b{build_alternation(SPECULATIVE_PHRASES)}\b", re.IGNORECASE)
 
 
 # The "Meat": Keywords that define what is being denied
@@ -211,7 +260,6 @@ def build_did_not_hold_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
-DID_NOT_HOLD_REGEX = build_did_not_hold_regex()
 
 def build_absence_regex() -> re.Pattern:
     """
@@ -238,7 +286,7 @@ def build_absence_regex() -> re.Pattern:
         rf"{_DENIAL_TARGET}\b",
         re.IGNORECASE,
     )
-ABSENCE_REGEX = build_absence_regex()
+
 
 # Termination Verbs
 # If these appear before "settled", it's likely a description of mechanics, not termination.
@@ -330,7 +378,86 @@ TERMINATION_NOUNS = [
     r"divestiture",
 ]
 
-
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
+
+def build_prior_statement_pattern_2() -> re.Pattern:
+    """
+    Build regex pattern for DETECTING prior period statements.
+
+    Strategy:
+    1. Compositional: Preposition + (Optional 'the') + Adjective + Noun
+       matches: "In the prior year", "During previous reporting periods"
+    2. Catch-Alls: Standalone adverbs/phrases
+       matches: "Historically", "Prior to 2022"
+    """
+
+    # --- 1. COMPOSITIONAL COMPONENTS ---
+    PREPOSITIONS = [
+        r"in",
+        r"during",
+        r"for",
+        r"as\s+of",
+        r"at",
+        r"from",
+        r"throughout",
+        r"over",
+    ]
+
+    PRIOR_INDICATORS = [
+        "past",
+        "previous",
+        "last",
+        "prior",
+        "earlier",
+        "former",
+        "preceding",
+        "historical",
+        "retroactive",
+    ]
+
+    TIME_NOUNS = r"(?:\b\S+\s+)?(?:years?|periods?|quarters?|months?)\b"
+
+    # --- 2. BUILD FRAGMENTS ---
+    PREP_ALT = build_alternation(PREPOSITIONS)
+    ADJ_ALT = build_alternation(PRIOR_INDICATORS)
+    DETERMINER = r"(?:the\s+|our\s+)?"
+
+    # --- 3. PATTERNS ---
+    # Pattern A: Compositional
+    pat_compositional = (
+        r"\b" rf"{PREP_ALT}\s+" rf"{DETERMINER}" rf"{ADJ_ALT}\s+" rf"{TIME_NOUNS}" r"\b"
+    )
+
+    # Pattern B: Standalone Catch-Alls
+    # FIX 2: Ensure TIME_NOUNS is handled as a clean string here
+    CATCH_ALLS = [
+        r"historically",
+        r"previously",
+        r"formerly",
+        r"in\s+the\s+past",
+        rf"prior\s+to\s+(?:the\s+)?(?:{TIME_NOUNS}|\d{{4}})",  # Corrected f-string braces
+        r"years?\s+ago",
+        r"same\s+period\s+last\s+year",
+    ]
+    pat_catchall = rf"\b{build_alternation(CATCH_ALLS)}\b"
+
+    # --- 4. COMBINE ---
+    return re.compile(rf"(?:{pat_compositional}|{pat_catchall})", re.IGNORECASE)
+
+
+# Export
+POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
+USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
+TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
+ACCT_VERB_REGEX = build_regex(VERB_MAP["ACCT"])
+ALL_VERB_REGEX = build_alternation(ALL_VERBS)
+
+
+DID_NOT_HOLD_REGEX = build_did_not_hold_regex()
+ABSENCE_REGEX = build_absence_regex()
+POTENTIAL_REGEX = build_potential_regex()
+VAGUE_TIMING_REGEX = build_vague_timing_regex()
+PRIOR_INDICATOR = build_prior_statement_pattern_2()
+
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 TERMINATION_REGEX = build_regex(TERMINATION_VERBS)

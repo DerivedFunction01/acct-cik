@@ -7,33 +7,19 @@ from pathlib import Path
 from tqdm import tqdm
 from typing import Dict, List, Optional, Set, Tuple
 
-# --- REGEX IMPORTS ---f
-from defs.derivative_regex import (
-    # Structural
-    COMPARISON_PHRASES,
-    NON_DER_CAP_FLOOR_REGEX,
-    IS_REFERENCE_REGEX,
-    PRECISE_LOOSE_GEN_REGEX,
-    MORE_INFO_REGEX,
-    RISK_MANAGEMENT_REGEX,
-    SENTENCE_SPLIT_PATTERN,
-    DEFINITION_INDICATORS,
-    AOCI_NOISE_REGEX,
-    EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX,
-    # Classification Killers
-    POTENTIAL_REGEX,
-    SOFT_REGEX,
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
+from defs.verb_regex import (
+    ABSENCE_REGEX,
+    DID_NOT_HOLD_REGEX,
+    POSS_VERB_REGEX,
+    TERMINATION_REGEX,
+    TRANS_VERB_REGEX,
+    USAGE_VERB_REGEX,
     VAGUE_TIMING_REGEX,
-
+    POTENTIAL_REGEX,
+    build_negation_prefix_pattern,
     PRIOR_INDICATOR,
-    # Scoring
-    is_contractual_noise,
-    is_hypothetical_noise,
-    is_regulatory_noise,
 )
-
-from defs.regex_lib import build_alternation, build_regex
-from defs.verb_regex import ABSENCE_REGEX, DID_NOT_HOLD_REGEX, POSS_VERB_REGEX, TERMINATION_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX, build_negation_prefix_pattern
 from defs.prefiltered_lib import (
     HEDGE_DOC_REGEX,
     SKIP_TOKEN,
@@ -51,6 +37,16 @@ from defs.prefiltered_lib import (
     QUANT_REGEX,
     YEAR_REGEX,
 )
+from defs.contract import is_contractual_noise
+from defs.hypo import is_hypothetical_noise
+from defs.regul import is_regulatory_noise
+from defs.derivative_lib import SOFT_CATEGORY_REGEX
+from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX, RISK_MANAGEMENT_REGEX
+from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
+from defs.ir_regex import NON_DER_CAP_FLOOR_REGEX
+from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX
+from defs.exclusion_regex import AOCI_NOISE_REGEX
+from defs.shared_context import COMPARISON_PHRASES
 from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX
 
 
@@ -393,7 +389,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
         if not (
             PRECISE_LOOSE_GEN_REGEX.search(temp_sent)
-            or SOFT_REGEX.search(temp_sent)
+            or SOFT_CATEGORY_REGEX.search(temp_sent)
             or is_sophisticated_target(temp_sent)
             or is_value(temp_sent)  # allow "The notional value is XX to bypass"
         ):

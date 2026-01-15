@@ -1,7 +1,7 @@
 import re
 from typing import Tuple
 
-from defs.derivatives_core import build_smart_regex, expand_instruments, suffix_alternation
+from defs.derivatives_core import ALL_SUFFIXES, build_smart_regex, expand_instruments, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION
 
@@ -257,13 +257,6 @@ LIBOR_TRANSITION_KEYWORDS = [
     r"transition.*by\s+June\s+30,?\s+2023",
 ] + CENTRAL_BANKS
 
-# Compile
-IR_CONTEXT = (
-    [IR_DEBT_LOOKBEHIND_TERM] + IR_OTHER_TERMS + BENCHMARK_RATES + IR_STRICT_TERMS
-)
-IR_CONTEXT_REGEX = build_regex(IR_CONTEXT)
-IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS)
-EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 
 def is_bank_list_noise(text: str, threshold: int = 3) -> bool:
     """
@@ -277,3 +270,72 @@ def is_bank_list_noise(text: str, threshold: int = 3) -> bool:
     # Use set to count unique banks (avoid double counting "JPM... JPM")
     hits = set(match.group(0).lower() for match in BANK_SCORING_REGEX.finditer(text))
     return len(hits) >= threshold
+
+
+def build_embedded_cap_floor_regex() -> re.Pattern:
+    # 1. Connectors (The "Filler")
+    connectors = [
+        r"subject\s+to",
+        r"contain(?:s|ed|ing)?",
+        r"include(?:s|d|ing)?",
+        r"have",
+        r"has",
+        r"had",
+        r"with",
+        r"bears?\s+interest",
+        r"features?",
+        r"sets?",
+        r"provisions?",
+        r"terms?",
+    ]
+    conn_pat = build_alternation(connectors)
+
+    # 2. Build Suffix Logic
+    # ALL_SUFFIXES includes: agreements, contracts, commitments, instruments, arrangements, options
+
+    # A. Full Suffix List (For Long-Form Instruments)
+    # "Interest Rate Cap Agreement" -> SAFE (Excluded from match)
+    full_suffix_alt = build_alternation(ALL_SUFFIXES)
+
+    # B. Safe Suffix List (For Short-Form Instruments)
+    # Remove "agreement" so "Cap Agreement" is caught and checked for debt context.
+    # We explicitly keep strong terms like "Contract" and "Option".
+    safe_list = set(ALL_SUFFIXES) - {
+        "agreements?",
+        "arrangements?",
+    }  # Arrangements also vague
+    safe_suffix_alt = build_alternation(list(safe_list))
+
+    # 3. Targets (Caps/Floors only)
+    targets = [
+        # Long Form: Trust ALL suffixes (Agreements included)
+        rf"interest\s+rate\s+(?:caps?|floors?|collars?)(?!\s+{full_suffix_alt})",
+        # Short Form: Trust only STRONG suffixes (Contracts/Options)
+        # "Cap Agreement" or "Cap Arrangement" will MATCH here (and risk discard)
+        rf"caps?(?!\s+{safe_suffix_alt})",
+        rf"floors?(?!\s+{safe_suffix_alt})",
+    ]
+    target_pat = build_alternation(targets)
+
+    # 4. Pattern A: Debt... [gap] ... Cap/Floor
+    pat_a = rf"\b{_DEBT_TERMS}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat}\b"
+
+    # 5. Pattern B: Cap/Floor... [gap] ... Percentage
+    percent_pat = r"\d+(?:\.\d+)?\s*(?:%|percent|bps|basis\s+points)"
+    pat_b = rf"\b{target_pat}\s+(?:\S+\s+){{0,3}}{percent_pat}\b"
+
+    # 6. Pattern C: Explicit "Feature" Nouns
+    noun_indicators = r"(?:features?|provisions?|terms?)"
+    pat_c = rf"\b{target_pat}\s+{noun_indicators}\b"
+
+    return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
+
+
+# Compile
+IR_CONTEXT = (
+    [IR_DEBT_LOOKBEHIND_TERM] + IR_OTHER_TERMS + BENCHMARK_RATES + IR_STRICT_TERMS
+)
+IR_CONTEXT_REGEX = build_regex(IR_CONTEXT)
+IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS)
+EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
+NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
