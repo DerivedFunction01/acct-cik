@@ -19,7 +19,7 @@ from defs.prefiltered_lib import (
 from defs.derivative_lib import CATEGORY_REGEX, SOFT_CATEGORY_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EXCLUDE_REGEX_EQUITY_COMP
-from defs.gen_regex import HEDGING_CONTEXT_REGEX
+from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
 from defs.shared_context import CURRENCY_NAMES_REGEX, VALUATION_MODELS_REGEX
 from defs.ir_regex import EXCLUDE_REGEX_LIBOR_TRANSITION, is_bank_list_noise
 from defs.exclusion_regex import (
@@ -490,7 +490,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
                     kept_indices = []
                     for sent_idx, (sent_masked,) in enumerate(zip(sentences_masked)):
-                        if CATEGORY_REGEX.search(sent_masked):
+                        if (
+                            CATEGORY_REGEX.search(sent_masked)
+                            or GEN_STRICT_CONTEXT_REGEX.search(sent_masked)
+                        ):
                             kept_indices.append(sent_idx)
                         elif SOFT_CATEGORY_REGEX.search(sent_masked):
                             if (
