@@ -264,7 +264,7 @@ CP_CONTEXT_TERMS = (
         "raw materials?",
         "suppl(?:y|ies)",
         "containers?",
-        "shipping",
+        "shipp(?:ing|ed)",
         "transportation",
         "inventor(?:y|ies)",
         "shipments?",
@@ -272,6 +272,7 @@ CP_CONTEXT_TERMS = (
         "storage",
         "factor(?:y|ies)",
         "deliver(?:y|ies)",
+        "products?",
         # Exchanges
     ]
     + COMMON_COMMODITIES
