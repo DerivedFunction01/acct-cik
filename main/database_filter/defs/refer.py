@@ -181,27 +181,30 @@ def build_definition_regex() -> re.Pattern:
     # 3. Generic Definitional Objects (To anchor "is the")
     DEF_OBJECTS = r"(?:agreement|contract|exchange|obligation|instrument|transaction|commitment|arrangement)"
     pattern_list = [
-        LEGAL_VERBS,
+        rf"\b{LEGAL_VERBS}\b",
         # Quoted subjects "X" refers to
-        rf"(?:(?:term|caption|account)(?:\s+[\"“\'].*?[\"”\'])?\s+|[\"“\'].*?[\"”\']\s+){COMMON_VERBS}",
+        rf"\b(?:term|caption|account)(?:\s+[\"“\'].*?[\"”\'])?\s+{COMMON_VERBS}\b",
+        rf"[\"“\'].*?[\"”\']\s+{COMMON_VERBS}\b",
+        # Quoted definition with colon: "rate contracts": a/any...
+        r"[\"“\'].*?[\"”\']\s*:\s*(?:a|an|any|the)\b",
         # --- 3. Instrument-Subject Definitions ---
         # Matches: "Interest Rate [Swaps means...]", "[Options are considered as...]"
         # Logic: Subject MUST be a detected instrument category.
-        rf"{INSTR_SUBJ}\s+{COMMON_VERBS}",
+        rf"\b{INSTR_SUBJ}\s+{COMMON_VERBS}\b",
         # --- 5. Corporate Definitions ---
         # Matches: "The Company defines...", "Management considers..."
-        rf"(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{_GAP}{INSTR_SUBJ}.*as",
+        rf"\b(?:{subject})\s+(?:consider|define)s?\s+(?:a\s+)?{_GAP}{INSTR_SUBJ}.*as\b",
     
         # --- 4. Accounting Specifics (Safe with 'is the') ---
         # "Fair value is the price..."
-        rf"{SAFE_ACCT_SUBJ}\s+(?:represents?|means?|is\s+the|are\s+the|{COMMON_VERBS})",
+        rf"\b{SAFE_ACCT_SUBJ}\s+(?:represents?|means?|is\s+the|are\s+the|{COMMON_VERBS})\b",
         # --- 5. Instrument Definitions (Strict) ---
         # B. "Is The" Anchor: Requires abstract subject ("A swap") AND generic object ("is a contract")
         # Matches: "A swap is the exchange...", "An option is a contract..."
-        rf"{INSTR_SUBJ}\s+(?:is|are)\s+(?:the|an?)\s+{DEF_OBJECTS}",
+        rf"\b{INSTR_SUBJ}\s+(?:is|are)\s+(?:the|an?)\s+{DEF_OBJECTS}\b",
     ]
-
-    return build_regex(pattern_list)
+    
+    return re.compile(build_alternation(pattern_list), re.IGNORECASE)
 
 # Compile and Export
 MORE_INFO_REGEX = build_information_reference_regex()
@@ -241,6 +244,7 @@ def run_tests():
         ("DEF: Neg - Management considers", DEFINITION_INDICATORS, "Management considers the swap to be effective.", False),
         ("DEF: Neg - Generic means", DEFINITION_INDICATORS, "This means that we lost money.", False),
         ("DEF: Neg - Represents significant", DEFINITION_INDICATORS, "It represents a significant portion of assets.", False),
+        ("DEF: Quoted Colon", DEFINITION_INDICATORS, '"Rate contracts": any agreement...', True),
     ]
 
     failures = 0
