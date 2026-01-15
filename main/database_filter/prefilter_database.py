@@ -130,7 +130,7 @@ def is_standard_debt(text: str) -> bool:
     
     # If we are here, we have "convertible" without "equity" or "derivative" context.
     # Result: Treat as Standard Debt (Noise).
-    return bool(CATEGORY_REGEX.search(text))
+    return bool(CATEGORY_REGEX.search(text) or GEN_STRICT_CONTEXT_REGEX.search(text))
 
 def check_hard_exclusions(text: str) -> Optional[str]:
     """
