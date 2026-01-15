@@ -150,7 +150,7 @@ COUNTERPARTY_POLICY_TERMS = [
     r"non[- ]performance",
     r"nonperformance",
     r"monitoring",
-    r"fail\s+to\s+perform",
+    r"fail(?:ure)?\s+to\s+perform",
 ]
 COUNTERPARTY_REGEX = build_regex(COUNTERPARTY_POLICY_TERMS)
 
