@@ -2,8 +2,9 @@
 # VERB MAPS & PRECOMPILED REGEXES
 # =============================================================================
 import re
-from defs.derivative_regex import LOOSE_GEN_REGEX, STRICT_REGEX
-from regex_lib import build_alternation, build_regex
+from defs.gen_regex import LOOSE_GEN_REGEX
+from defs.derivative_lib import CATEGORY_REGEX
+from defs.regex_lib import build_alternation, build_regex
 
 # Speculative / Uncertain Timing Phrases
 SPECULATIVE_PHRASES = [
@@ -220,7 +221,7 @@ _DENIAL_SEMANTIC_MOD = (
 _DENIAL_GAP_UNIT = rf"(?:{_DENIAL_FILLER}{_DENIAL_SEMANTIC_MOD})"
 gap_chain = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
 # The "Target": The final noun in the sequence
-_DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+_DENIAL_TARGET = rf"(?:{CATEGORY_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
 # Active / Timing Indicators (New)
 ACTIVE_INDICATORS = [
     "currently",
