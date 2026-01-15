@@ -199,6 +199,7 @@ class NoiseReason(Reason):
     DEBT = "DEBT"
     OTHER = "OTHER"  # Has derivative mention but no Evidence -> Other
     RISK = "RISK" # Risk management text
+    NON_DERIV = "NON_DERIV" # Non-derivative accounting
 
     # --- Business Logic / Signals ---
     TRADING = "TRADING"  # Trading Denial ("We do not trade")

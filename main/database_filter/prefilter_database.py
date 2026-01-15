@@ -30,6 +30,7 @@ from defs.exclusion_regex import (
     EXCLUDE_REGEX_LEGAL_LITIGATION,
     EXCLUDE_COMPETITOR_REGEX,
     EXCLUDE_NON_FINANCIAL_REGEX,
+    NON_DERIVATIVE_TREATMENT_REGEX,
     aggregate_discards,
 )
 from defs.acct_std import EXCLUDE_REGEX_ACCOUNTING_STD
@@ -152,6 +153,8 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
         return NoiseReason.NON_FIN.value
+    if NON_DERIVATIVE_TREATMENT_REGEX.search(text):
+        return NoiseReason.NON_DERIV.value
 
     if EXCLUDE_COMPETITOR_REGEX.search(text):
         return NoiseReason.COMP.value
