@@ -1,7 +1,6 @@
 """
-Export script to create Excel file with only MISMATCHED records for manual review.
-Identifies mismatches between data_check.csv and classified_data_active_users.csv,
-then exports the relevant URLs and categories from the database.
+Export script to create Excel file with MISMATCHED records.
+Includes Type-Safety and adds ACTUAL vs PREDICTED columns for easier debugging.
 """
 
 import sqlite3
@@ -10,149 +9,130 @@ import pandas as pd
 from pathlib import Path
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
 from tqdm import tqdm
-from typing import Optional, Set, Tuple
+from typing import Optional
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-GROUND_TRUTH_FILE = "data_check.csv"
+GROUND_TRUTH_FILE = "data_check.csv"  # Ensure this file exists!
 PREDICTED_FILE = "analysis_output/classified_data_active_users.csv"
-# You can add "ir_user", "fx_user" here if you want to validate them as well
-COLUMNS_TO_VALIDATE = ["ir_user"]
-
-# Map validation columns to their corresponding check columns
-CHECK_COLUMN_MAPPING = {
-    "ir_user": "check_ir",
-    "fx_user": "check_fx",
-    "cp_user": "check_cp",
-}
+COLUMNS_TO_VALIDATE = ["ir_user", "cp_user", "fx_user"]  # Can add "ir_user", "fx_user"
 
 # =============================================================================
-# DATA PREPROCESSING
+# 1. IDENTIFY MISMATCHES & RETRIEVE VALUES
 # =============================================================================
 
 
-def preprocess_ground_truth(df):
+def get_mismatch_details(ground_truth_path: str, predicted_path: str) -> pd.DataFrame:
     """
-    Invert ground truth values based on check columns.
-    Logic: If check_* is 0, the labeled value is incorrect, so we invert it.
+    Compare files and return a DataFrame containing only mismatched records.
+    Columns: cik, year, Actual_{col}, Pred_{col}
     """
-    df_processed = df.copy()
+    gt_path = Path(ground_truth_path)
+    pred_path = Path(predicted_path)
 
-    print("  ...Preprocessing Ground Truth (applying check_* logic)...")
+    if not gt_path.exists():
+        raise FileNotFoundError(f"Missing: {gt_path}")
+    if not pred_path.exists():
+        raise FileNotFoundError(f"Missing: {pred_path}")
 
-    for val_col, check_col in CHECK_COLUMN_MAPPING.items():
-        # Only process if both columns exist in the dataframe
-        if val_col in df_processed.columns and check_col in df_processed.columns:
-            # Find rows where check is 0 (meaning the label needs inversion)
-            mask_invert = df_processed[check_col] == 0
-            count_inverted = mask_invert.sum()
-
-            if count_inverted > 0:
-                # Invert 0 to 1 and 1 to 0
-                df_processed.loc[mask_invert, val_col] = (
-                    1 - df_processed.loc[mask_invert, val_col]
-                )
-                print(
-                    f"    - {val_col}: Inverted {count_inverted} records where {check_col} == 0"
-                )
-
-    return df_processed
-
-
-# =============================================================================
-# FIND MISMATCHES
-# =============================================================================
-
-
-def find_mismatches(
-    ground_truth_path: str, predicted_path: str
-) -> Set[Tuple[int, int]]:
-    """
-    Find all cik,year pairs from ground_truth that have at least one mismatch
-    in validated columns when compared to predictions.
-    Returns a set of (cik, year) tuples.
-    """
     # Load data
-    gt = pd.read_csv(ground_truth_path)
-    pred = pd.read_csv(predicted_path)
+    gt = pd.read_csv(gt_path)
+    pred = pd.read_csv(pred_path)
 
-    # --- NEW: Apply Logic to Ground Truth ---
-    # gt = preprocess_ground_truth(gt)
-
-    # Keep only validated columns (Now that values are corrected)
+    # Filter columns
     gt_cols = ["cik", "year"] + COLUMNS_TO_VALIDATE
     pred_cols = ["cik", "year"] + COLUMNS_TO_VALIDATE
-
-    # Ensure columns exist before selecting
-    missing_cols = [c for c in gt_cols if c not in gt.columns]
-    if missing_cols:
-        raise ValueError(f"Missing columns in ground truth: {missing_cols}")
 
     gt = gt[gt_cols].copy()
     pred = pred[pred_cols].copy()
 
-    # Merge on cik and year with inner join (only records in both files)
-    merged = gt.merge(pred, on=["cik", "year"], suffixes=("", "_pred"))
+    # Merge
+    merged = gt.merge(pred, on=["cik", "year"], suffixes=("_actual", "_pred"))
 
-    mismatches = set()
+    # Track mismatches
+    mismatch_indices = set()
 
-    # Find mismatches for each column
+    print("🔍 Analyzing mismatches...")
+
     for col in COLUMNS_TO_VALIDATE:
+        actual_col = f"{col}_actual"
         pred_col = f"{col}_pred"
 
-        # Rows where values don't match
-        mismatched_mask = merged[col] != merged[pred_col]
-        mismatched = merged[mismatched_mask][["cik", "year"]]
+        # STRICT Type Casting (Handle 1 vs 1.0 vs "1")
+        s_actual = (
+            pd.to_numeric(merged[actual_col], errors="coerce").fillna(-1).astype(int)
+        )
+        s_pred = pd.to_numeric(merged[pred_col], errors="coerce").fillna(-1).astype(int)
 
-        for _, row in mismatched.iterrows():
-            mismatches.add((int(row["cik"]), int(row["year"])))
+        # Update DataFrame with clean integers for export
+        merged[actual_col] = s_actual
+        merged[pred_col] = s_pred
 
-    return mismatches
+        # Find differences
+        diff_mask = s_actual != s_pred
+        if diff_mask.sum() > 0:
+            print(f"   Found {diff_mask.sum()} mismatches in '{col}'")
+            mismatch_indices.update(merged[diff_mask].index.tolist())
+
+    if not mismatch_indices:
+        return pd.DataFrame()
+
+    # Return only the mismatched rows
+    result_df = merged.loc[list(mismatch_indices)].copy()
+
+    # Rename columns for clarity in Excel (e.g., cp_user_actual -> Actual_cp_user)
+    rename_map = {}
+    for col in COLUMNS_TO_VALIDATE:
+        rename_map[f"{col}_actual"] = f"Actual_{col}"
+        rename_map[f"{col}_pred"] = f"Pred_{col}"
+
+    result_df = result_df.rename(columns=rename_map)
+    return result_df
 
 
 # =============================================================================
-# DATABASE FETCH
+# 2. FETCH DATABASE METADATA
 # =============================================================================
 
 
-def fetch_mismatched_data(db_path: str, mismatches: Set[Tuple[int, int]]):
-    """Fetch all data from database for mismatched cik,year pairs."""
+def fetch_db_data(db_path: str, mismatch_keys: pd.DataFrame) -> pd.DataFrame:
+    """
+    Fetch URL and Categories for the specific CIK/Year pairs found in mismatches.
+    """
     conn = sqlite3.connect(db_path, timeout=60)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA query_only=1")
-
-    cur = conn.cursor()
-
     query = """
         SELECT rd.url, rd.cik, rd.year, cat.categories
-        FROM category cat
-        JOIN report_data rd ON cat.url = rd.url
+        FROM report_data rd
+        JOIN category cat ON rd.url = cat.url
     """
-
-    cur.execute(query)
-
-    results = []
-    for url, cik, year, categories_json in cur.fetchall():
-        if (cik, year) in mismatches:
-            results.append((url, cik, year, categories_json))
-
+    # Read entire mapping (usually faster than 1000s of SELECTs for medium datasets)
+    # If DB is huge, filtering via SQL IN clause would be better, but this is safe for <1M rows
+    db_df = pd.read_sql_query(query, conn)
     conn.close()
-    return results
+
+    # Convert DB types to match mismatch_keys for merging
+    db_df["cik"] = pd.to_numeric(db_df["cik"], errors="coerce").fillna(0).astype(int)
+    db_df["year"] = pd.to_numeric(db_df["year"], errors="coerce").fillna(0).astype(int)
+
+    # Filter DB results to only those in our mismatch list
+    # Inner join will keep URL/Categories and duplicate the Mismatch Values if multiple URLs exist
+    keys = mismatch_keys[["cik", "year"]].drop_duplicates()
+    filtered_db = db_df.merge(keys, on=["cik", "year"], how="inner")
+
+    return filtered_db
 
 
 # =============================================================================
-# EXCEL CREATION
+# 3. EXCEL FORMATTING & EXPORT
 # =============================================================================
 
 
-def format_excel(ws, total_rows):
-    """Apply formatting to worksheet."""
-    # Header styling
+def format_excel(ws):
+    """Apply styling to the header and cells."""
+    # Header Style
     header_fill = PatternFill(
         start_color="C00000", end_color="C00000", fill_type="solid"
     )
@@ -165,13 +145,26 @@ def format_excel(ws, total_rows):
             horizontal="center", vertical="center", wrap_text=True
         )
 
-    # Set column widths
+    # Column Widths
     ws.column_dimensions["A"].width = 60  # URL
     ws.column_dimensions["B"].width = 12  # CIK
     ws.column_dimensions["C"].width = 8  # Year
-    ws.column_dimensions["D"].width = 50  # Categories
 
-    # Alternating row colors
+    # Auto-width for value columns (D, E, etc.)
+    col_idx = 4
+    while True:
+        col_letter = openpyxl.utils.get_column_letter(col_idx)
+        header_val = ws.cell(row=1, column=col_idx).value
+        if header_val == "Categories":
+            ws.column_dimensions[col_letter].width = 50
+            break
+        elif header_val is None:
+            break
+        else:
+            ws.column_dimensions[col_letter].width = 15  # Actual/Pred columns
+        col_idx += 1
+
+    # Row Styling
     light_fill = PatternFill(
         start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"
     )
@@ -182,116 +175,90 @@ def format_excel(ws, total_rows):
         bottom=Side(style="thin"),
     )
 
-    for row_idx in range(2, total_rows + 2):
-        for col_idx in range(1, 5):
-            cell = ws.cell(row=row_idx, column=col_idx)
-            if row_idx % 2 == 0:
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            if cell.row % 2 == 0:
                 cell.fill = light_fill
             cell.border = border
-            if col_idx == 2 or col_idx == 3:  # CIK and Year
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-            elif col_idx == 4:  # Categories
+
+            # Alignments
+            if cell.column == 1:  # URL
+                cell.alignment = Alignment(horizontal="left")
+            elif cell.column == len(row):  # Categories (last col)
                 cell.alignment = Alignment(
                     horizontal="left", vertical="top", wrap_text=True
                 )
+            else:  # CIK, Year, Values
+                cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    # Freeze header row
     ws.freeze_panes = "A2"
 
 
-def export_mismatches_to_excel(db_path: str, excel_path: Optional[str] = None):
-    """Export mismatched records from database to Excel file."""
-
-    db = Path(db_path)
-    if not db.exists():
-        print(f"❌ Database not found: {db}")
-        return
-
-    gt_file = Path(GROUND_TRUTH_FILE)
-    pred_file = Path(PREDICTED_FILE)
-
-    if not gt_file.exists():
-        print(f"❌ Ground truth file not found: {gt_file}")
-        return
-    if not pred_file.exists():
-        print(f"❌ Predicted file not found: {pred_file}")
-        return
-
+def export_mismatches(db_path: str, excel_path: Optional[str] = None):
     if excel_path is None:
-        excel_path = "mismatches_review.xlsx"
+        excel_path = "mismatches_debug.xlsx"
 
-    print(f"{'=' * 70}")
-    print(f"EXPORTING MISMATCHES TO EXCEL FOR REVIEW")
-    print(f"Source DB: {db.name}")
-    print(f"Ground Truth: {gt_file.name}")
-    print(f"Predictions: {pred_file.name}")
-    print(f"Target: {excel_path}")
-    print(f"{'=' * 70}\n")
+    print(f"{'='*70}\nEXPORTING MISMATCHES (WITH DEBUG VALUES)\n{'='*70}")
 
-    # Find mismatches
-    print("🔍 Finding mismatches...")
-    mismatches = find_mismatches(str(gt_file), str(pred_file))
-    print(f"   Found {len(mismatches):,} mismatched cik,year pairs\n")
+    # 1. Get Mismatch Data (CIK, Year, Values)
+    try:
+        df_mismatches = get_mismatch_details(GROUND_TRUTH_FILE, PREDICTED_FILE)
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return
 
-    if len(mismatches) == 0:
+    if df_mismatches.empty:
         print("✅ No mismatches found!")
         return
 
-    # Fetch mismatched data
-    print("🔄 Fetching data from database...")
-    data = fetch_mismatched_data(str(db), mismatches)
-    print(f"   Retrieved {len(data):,} URLs for mismatched records\n")
+    print(f"   Found {len(df_mismatches)} mismatched filing years.")
 
-    # Create workbook
+    # 2. Get DB Data (URL, Categories)
+    print("🔄 Fetching URLs and Categories from DB...")
+    df_db = fetch_db_data(db_path, df_mismatches)
+
+    # 3. Merge Metadata with Mismatch Values
+    final_df = df_db.merge(df_mismatches, on=["cik", "year"], how="left")
+
+    # 4. Clean up JSON Categories for CSV/Excel
+    print("📝 formatting categories...")
+
+    def clean_json(x):
+        try:
+            return ", ".join(json.loads(x)) if x else ""
+        except:
+            return "JSON Error"
+
+    final_df["categories"] = final_df["categories"].apply(clean_json)
+
+    # 5. Reorder Columns
+    # Standard: URL, CIK, Year, [Actual_X, Pred_X...], Categories
+    value_cols = [c for c in df_mismatches.columns if c not in ["cik", "year"]]
+    cols_order = ["url", "cik", "year"] + value_cols + ["categories"]
+    final_df = final_df[cols_order]
+
+    # 6. Write to Excel
+    print(f"💾 Saving to {excel_path}...")
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Mismatches"
 
-    # Write header
-    ws.append(["URL", "CIK", "Year", "Categories"])
+    # Write headers
+    ws.append(list(final_df.columns))
 
-    # Write data
-    print("📝 Writing to Excel...")
-    for url, cik, year, categories_json in tqdm(data, desc="Writing rows", unit="row"):
-        # Parse categories
-        try:
-            if categories_json:
-                categories_array = json.loads(categories_json)
-                categories_str = ", ".join(categories_array)
-            else:
-                categories_str = ""
-        except json.JSONDecodeError:
-            categories_str = "ERROR: Invalid JSON"
+    # Write rows
+    for row in tqdm(
+        final_df.itertuples(index=False), total=len(final_df), desc="Writing rows"
+    ):
+        ws.append(list(row))
 
-        ws.append([url, cik, year, categories_str])
-
-    # Format
-    print("✨ Formatting Excel...")
-    format_excel(ws, len(data))
-
-    # Save workbook
+    format_excel(ws)
     wb.save(excel_path)
-
-    print(f"\n{'=' * 70}")
-    print(f"✅ Export Complete: {excel_path}")
-    print(f"   Total Records: {len(data):,}")
-    print(f"   Mismatched cik,year pairs: {len(mismatches):,}")
-    print(f"{'=' * 70}\n")
+    print(f"\n✅ Done! File saved: {excel_path}")
 
 
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) > 1:
-        db_name = sys.argv[1]
-        excel_name = sys.argv[2] if len(sys.argv) > 2 else None
-        export_mismatches_to_excel(db_name, excel_name)
-    else:
-        default_db = "classified_data.db"
-        db_input = input(f"Enter database (default: {default_db}): ").strip()
-        db_name = db_input or default_db
-
-        if not db_name.endswith(".db"):
-            db_name += ".db"
-
-        export_mismatches_to_excel(db_name)
+    db_name = sys.argv[1] if len(sys.argv) > 1 else "classified_data.db"
+    export_mismatches(db_name)
