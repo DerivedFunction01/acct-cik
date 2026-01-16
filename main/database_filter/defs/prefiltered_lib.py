@@ -78,25 +78,28 @@ class MinimalTextCleaner:
     def __init__(self):
         # 2. Define Removal Patterns (applied to masked text)
         self.initialize_regex()
-        
+
     def initialize_regex(self):
         # A. PnL / Price Context (Preceding the quant)
         # Matches: "expense of <Q_0>", "earnings <Q_1>", "price of <Q_2>"
         # Excludes: "gain", "loss" (as requested)
+        quant_token = r"<Q_\d+>"
+        sep_pattern = r"\s*(?:,|and|or|to|&)\s*"  # Allow standard list separators
+        quant_chain = rf"{quant_token}(?:{sep_pattern}{quant_token})*"
         pnl_terms = r"(?:income|expenses?|earnings?|prices?|costs?|revenues?|payments?)"
         pnl_connectors = (
             r"(?:of|by|was|were|is|are|aggregated|totaling|approximately|approx\.?|to|at)"
         )
         self.pnl_regex = re.compile(
-            rf"\b{pnl_terms}\s+(?:{pnl_connectors}\s+)?(?P<token><Q_\d+>)",
+            rf"\b{pnl_terms}\s+(?:{pnl_connectors}\s+)?(?P<token>{quant_chain})",
             re.IGNORECASE,
         )
         # Matches: "<Q_0> debt", "<Q_1> principal amount", "<Q_2> senior notes"
         debt_terms = rf"(?:aggregate\s+)?(?:principal|{_DEBT_TERMS})"
         self.debt_regex = re.compile(
-            rf"(?P<token><Q_\d+>)\s+{debt_terms}", re.IGNORECASE
+            rf"(?P<token>{quant_chain})\s+{debt_terms}", re.IGNORECASE
         )
-        
+
     def clean_contextual_quants(self, text: str) -> str:
         """
         Targeted cleaning of quantitative values that act as noise.
