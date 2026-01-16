@@ -83,9 +83,9 @@ class MinimalTextCleaner:
         # A. PnL / Price Context (Preceding the quant)
         # Matches: "expense of <Q_0>", "earnings <Q_1>", "price of <Q_2>"
         # Excludes: "gain", "loss" (as requested)
-        pnl_terms = r"(?:income|expenses?|earnings?|prices?|costs?|revenues?)"
+        pnl_terms = r"(?:income|expenses?|earnings?|prices?|costs?|revenues?|payments?)"
         pnl_connectors = (
-            r"(?:of|by|was|were|is|are|aggregated|totaling|approximately|approx\.?)"
+            r"(?:of|by|was|were|is|are|aggregated|totaling|approximately|approx\.?|to|at)"
         )
         self.pnl_regex = re.compile(
             rf"\b{pnl_terms}\s+(?:{pnl_connectors}\s+)?(?P<token><Q_\d+>)",
