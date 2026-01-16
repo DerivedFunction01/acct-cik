@@ -81,7 +81,7 @@ def find_mismatches(
     pred = pd.read_csv(predicted_path)
 
     # --- NEW: Apply Logic to Ground Truth ---
-    gt = preprocess_ground_truth(gt)
+    # gt = preprocess_ground_truth(gt)
 
     # Keep only validated columns (Now that values are corrected)
     gt_cols = ["cik", "year"] + COLUMNS_TO_VALIDATE

@@ -1,6 +1,7 @@
 """
-Validation Script: Compare classified_data_active_users.csv against data_check.csv
+Validation Script: Compare classified_data_active_users.csv against data_check_cleaned.csv
 Validates ir_user, fx_user, and cp_user columns using cik,year as key.
+Includes strict Type Handling to prevent false mismatches (1 vs 1.0).
 """
 
 import pandas as pd
@@ -18,16 +19,10 @@ from pathlib import Path
 # CONFIGURATION
 # =============================================================================
 
-GROUND_TRUTH_FILE = "data_check.csv"
+# Now pointing to the CLEANED ground truth file
+GROUND_TRUTH_FILE = "data_check_cleaned.csv"
 PREDICTED_FILE = "analysis_output/classified_data_active_users.csv"
-COLUMNS_TO_VALIDATE = ["ir_user", "fx_user", "cp_user"]
-
-# Map validation columns to their corresponding check columns
-CHECK_COLUMN_MAPPING = {
-    "ir_user": "check_ir",
-    "fx_user": "check_fx",
-    "cp_user": "check_cp",
-}
+COLUMNS_TO_VALIDATE = ["cp_user", "ir_user", "fx_user"]
 
 # =============================================================================
 # VALIDATION LOGIC
@@ -36,55 +31,24 @@ CHECK_COLUMN_MAPPING = {
 
 def load_data(file_path):
     """Load CSV file and return as dataframe."""
-    df = pd.read_csv(file_path)
-    return df
-
-
-def preprocess_ground_truth(df):
-    """
-    Invert ground truth values based on check columns.
-    Logic: If check_* is 0, the labeled value is incorrect, so we invert it (0->1 or 1->0).
-    """
-    df_processed = df.copy()
-
-    print("  ...Preprocessing Ground Truth (applying check_* logic)...")
-
-    for val_col, check_col in CHECK_COLUMN_MAPPING.items():
-        if check_col not in df_processed.columns:
-            print(
-                f"    WARNING: {check_col} not found in ground truth. Skipping adjustment for {val_col}."
-            )
-            continue
-
-        # Find rows where check is 0 (meaning the label needs inversion)
-        # We assume binary data (0 or 1). 1 - x flips 0 to 1 and 1 to 0.
-        mask_invert = df_processed[check_col] == 0
-
-        count_inverted = mask_invert.sum()
-        if count_inverted > 0:
-            df_processed.loc[mask_invert, val_col] = (
-                1 - df_processed.loc[mask_invert, val_col]
-            )
-            print(
-                f"    - {val_col}: Inverted {count_inverted} records where {check_col} == 0"
-            )
-
-    return df_processed
+    return pd.read_csv(file_path)
 
 
 def merge_datasets(ground_truth, predicted):
     """Merge datasets on cik,year pairs."""
-    # Rename columns to distinguish them
-    gt_cols = ["cik", "year"] + COLUMNS_TO_VALIDATE
-    pred_cols = ["cik", "year"] + COLUMNS_TO_VALIDATE
 
-    gt = ground_truth[gt_cols].copy()
-    pred = predicted[pred_cols].copy()
+    # Filter only necessary columns (plus keys)
+    # We use a set intersection to avoid errors if a column is missing in one file
+    available_gt_cols = [c for c in COLUMNS_TO_VALIDATE if c in ground_truth.columns]
+    available_pred_cols = [c for c in COLUMNS_TO_VALIDATE if c in predicted.columns]
 
-    # Rename predicted columns
-    pred = pred.rename(columns={col: f"{col}_pred" for col in COLUMNS_TO_VALIDATE})
+    gt = ground_truth[["cik", "year"] + available_gt_cols].copy()
+    pred = predicted[["cik", "year"] + available_pred_cols].copy()
 
-    # Merge on cik and year
+    # Rename predicted columns to avoid collision during merge
+    pred = pred.rename(columns={col: f"{col}_pred" for col in available_pred_cols})
+
+    # Merge on cik and year (inner join = only compare records present in BOTH)
     merged = gt.merge(pred, on=["cik", "year"], how="inner")
 
     return merged
@@ -100,7 +64,11 @@ def calculate_metrics(y_true, y_pred, column_name):
         "f1": f1_score(y_true, y_pred, zero_division=0),
     }
 
-    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    # Confusion Matrix
+    # Labels parameter ensures we get a 2x2 matrix even if data lacks 0s or 1s
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+    tn, fp, fn, tp = cm.ravel()
+
     metrics["tn"] = int(tn)
     metrics["fp"] = int(fp)
     metrics["fn"] = int(fn)
@@ -169,12 +137,12 @@ def validate(ground_truth_path=None, predicted_path=None):
     if predicted_path is None:
         predicted_path = PREDICTED_FILE
 
-    # Check files exist
     gt_file = Path(ground_truth_path)
     pred_file = Path(predicted_path)
 
     if not gt_file.exists():
         print(f"❌ Ground truth file not found: {gt_file}")
+        print(f"   (Run 'create_clean_ground_truth.py' first if this is missing)")
         return
     if not pred_file.exists():
         print(f"❌ Predicted file not found: {pred_file}")
@@ -184,39 +152,60 @@ def validate(ground_truth_path=None, predicted_path=None):
     print(f"   Ground Truth: {gt_file}")
     print(f"   Predicted:    {pred_file}\n")
 
-    # Load data
     ground_truth = load_data(ground_truth_path)
     predicted = load_data(predicted_path)
 
-    # --- NEW: Preprocess Ground Truth ---
-    ground_truth = preprocess_ground_truth(ground_truth)
-
-    # Merge
     merged = merge_datasets(ground_truth, predicted)
 
-    # Calculate metrics for each column
     all_metrics = []
+
+    # Calculate metrics for each column
     for col in COLUMNS_TO_VALIDATE:
-        y_true = merged[col].values
-        y_pred = merged[f"{col}_pred"].values
+        pred_col = f"{col}_pred"
+
+        # Skip if column not found in merged data
+        if col not in merged.columns or pred_col not in merged.columns:
+            print(f"⚠️  Skipping {col}: Not found in both datasets.")
+            continue
+
+        # --- TYPE SAFETY BLOCK ---
+        # Coerce to numeric, fill NaNs with -1 (or 0), then cast to int
+        # This ensures 1.0 (float) == 1 (int)
+        y_true = pd.to_numeric(merged[col], errors="coerce").fillna(0).astype(int)
+        y_pred = pd.to_numeric(merged[pred_col], errors="coerce").fillna(0).astype(int)
+
         metrics = calculate_metrics(y_true, y_pred, col)
         all_metrics.append(metrics)
+
+    if not all_metrics:
+        print("❌ No overlapping columns found to validate.")
+        return
 
     # Print results
     print_summary(ground_truth, predicted, merged, all_metrics)
     print_metrics_table(all_metrics)
     print_confusion_matrices(all_metrics)
 
-    # Overall accuracy across all columns
-    total_comparisons = len(merged) * len(COLUMNS_TO_VALIDATE)
-    total_correct = sum(
-        (merged[col] == merged[f"{col}_pred"]).sum() for col in COLUMNS_TO_VALIDATE
-    )
-    overall_accuracy = total_correct / total_comparisons
+    # Overall accuracy
+    # We recalculate strictly on the validated columns
+    total_comparisons = 0
+    total_correct = 0
 
-    print("\n" + "=" * 100)
-    print(f"OVERALL ACCURACY (all columns): {overall_accuracy:.4f}")
-    print("=" * 100 + "\n")
+    for m in all_metrics:
+        col = m["column"]
+        tn = m["tn"]
+        tp = m["tp"]
+        fn = m["fn"]
+        fp = m["fp"]
+
+        total_correct += tn + tp
+        total_comparisons += tn + tp + fn + fp
+
+    if total_comparisons > 0:
+        overall_accuracy = total_correct / total_comparisons
+        print("\n" + "=" * 100)
+        print(f"OVERALL ACCURACY (weighted average): {overall_accuracy:.4f}")
+        print("=" * 100 + "\n")
 
 
 if __name__ == "__main__":
