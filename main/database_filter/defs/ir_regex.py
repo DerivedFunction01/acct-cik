@@ -4,7 +4,6 @@ from typing import Tuple
 from defs.derivatives_core import ALL_SUFFIXES, build_smart_regex, expand_instruments, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION
-from defs.verb_regex import ALL_TERM_TERMS
 
 BENCHMARK_RATES = [
     "SOFR",

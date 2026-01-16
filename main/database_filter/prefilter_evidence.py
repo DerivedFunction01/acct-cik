@@ -218,6 +218,9 @@ def check_quantitative_evidence(
 
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
     if has_active_verb:
+        # But we need more restrictions: This interest swap agreement had a positive impact on 2003 earnings, reducing interest expense by $0.3 million.
+        # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
+        # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
         if STRICT_REGEX.search(text):
             return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
     return None
