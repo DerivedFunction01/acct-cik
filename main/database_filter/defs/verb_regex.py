@@ -5,6 +5,7 @@ import re
 from defs.gen_regex import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
+from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS
 
 # Speculative / Uncertain Timing Phrases
 SPECULATIVE_PHRASES = [
@@ -283,96 +284,6 @@ def build_absence_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
-
-# Termination Verbs
-# If these appear before "settled", it's likely a description of mechanics, not termination.
-SETTLEMENT_MODIFIERS = [
-    "cash",
-    "net",
-    "daily",
-    "monthly",
-    "physically",
-    "final",
-    "mandatory",
-    "annually",
-    "weekly",
-]
-_settle_lookbehind = "".join([rf"(?<!\b{word}\s)" for word in SETTLEMENT_MODIFIERS])
-# In termination_filter.py
-
-TERMINATION_VERBS = [
-    # --- SAFE VERBS (Past/Present/Participle) ---
-    # Regex note: We removed |ion, |ity, |ment, |y suffixes
-    r"expir(?:e(?:d|s)?)",  # Matches: expire, expired.  STOPS: expiration, expiry
-    r"matur(?:e(?:d|s)?)",  # Matches: mature, matured.  STOPS: maturity
-    r"terminat(?:e(?:d|s)?)",  # Matches: terminate, terminated.      STOPS: termination
-    r"ceas(?:e(?:d|s)?|ing)",  # Matches: cease, ceased
-    r"retir(?:e(?:d|s)?|ing)",  # Matches: retire, retired.
-    r"clos(?:e(?:d|s)?|ing)(?!\s+(?:price|rate|date|balance|value))",
-    r"liquidat(?:e(?:d|s)?|ing)",  # Matches: liquidate, liquidated.  STOPS: liquidation
-    r"unwound",
-    r"unwind",
-    r"exercis(?:e(?:d|s)?|ing)",  # Matches: exercise, exercised.        STOPS: exercisable
-    r"extinguish(?:e(?:d|s)?|ing)",  # Matches: extinguish, extinguished.   STOPS: extinguishment
-    r"novat(?:e(?:d|s)?|ing)",  # Matches: novate, novated.            STOPS: novation
-    r"cancel(?:l(?:ed|ing)|s)?",  # Matches: cancel, cancelled.          STOPS: cancellation
-    r"rescind(?:e(?:d|s)?|ing)",  # Matches: rescind, rescinded.         STOPS: rescission
-    r"void(?:ed)?",
-    r"withdraw(?:n|s|ing)?",
-    r"withdrew",
-    r"discontinu(?:e(?:d|s)?|ing)",  # Matches: discontinued.               STOPS: discontinuation
-    r"exit(?:ed|s|ing)?",
-    r"redeem(?:e(?:d|s)?|ing)",  # Matches: redeem, redeemed.           STOPS: redemption
-    r"repudiat(?:e(?:d|s)?|ing)",
-    # --- SAFEGUARDED SETTLEMENT (From previous turn) ---
-    rf"(?<!{_settle_lookbehind}\s)settl(?:e(?:d)|ing)",
-    r"sold",
-    r"wind(?:ing)?\s+down",
-    r"dispos(?:e(?:d|s)?|ing)",
-    r"derecogni[sz](?:e|ed|ing)",
-    r"divest(?:ed|s|ing)?",
-    r"preterminat(?:e(?:d|s)?|ing)",
-    r"relinquish(?:ed|es|ing)?",
-]
-TERMINATION_NOUNS = [
-    # --- STATES (Strongest) ---
-    r"expir(?:ation|y|ing)",  # Matches: expiration, expiry
-    r"maturit(?:y|ies)",  # Matches: maturity, maturities
-    r"maturing",  # Matches: maturing
-    r"terminat(?:ion|or|ing)",  # Matches: termination
-    r"redemption",  # Matches: redemption
-    # --- EVENTS (Transactional) ---
-    r"extinguishment",  # Matches: extinguishment
-    r"settlement",  # Matches: settlement
-    r"cancellation",  # Matches: cancellation
-    r"novation",  # Matches: novation
-    r"rescission",  # Matches: rescission
-    r"discontinu(?:ance|ation)",  # Matches: discontinuance, discontinuation
-    r"withdrawal",  # Matches: withdrawal
-    r"retirement",  # Matches: retirement
-    r"unwinding",  # Matches: unwinding
-    r"repudiation",  # Matches: repudiation
-    r"cessation",  # Matches: cessation
-    r"closure",  # Matches: closure
-    r"exit",  # Matches: exit (noun form)
-    r"liquidation",
-    r"forfeiture",
-    r"acceleration",
-    r"close[- ]?out",
-    r"lapse",
-    r"forfeiture",
-    r"derecognition",
-    r"wind[- ]?down",
-    r"sale",
-    r"disposition",
-    r"transfer",
-    r"assignment",
-    r"relinquishment",
-    r"voiding",
-    r"divestiture",
-]
-
-ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
 
 def build_prior_statement_pattern_2() -> re.Pattern:
     """
