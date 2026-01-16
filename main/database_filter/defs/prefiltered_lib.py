@@ -661,6 +661,7 @@ HEDGE_DOC_TERMS = [
     rf"\bhedge\s+(?:accounting|relationship|documentation|designation|treatment)?\b",
     rf"\beconomic\s+relationship\b",
     rf"\bnature\s+of\b",
+    r"\bearnings\s+impact\b",
     # 2. ASC 815 / FAS 133 Specifics (New & Tightened)
     # Matches: "Hedges of forecasted transactions\b", "Hedge of a recognized asset"
     r"\bhedges?\s+of\s+(?:(?:a|the|these|those|any)\s+)?(?:forecasted|recognized)\b",
