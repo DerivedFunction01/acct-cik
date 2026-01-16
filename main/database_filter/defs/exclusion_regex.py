@@ -256,6 +256,37 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
     ]
     return build_regex(phrases)
 
+
+def bankruptcy_regex() -> re.Pattern:
+    bankruptcy_terms = [
+        # 1. Statutory Chapters (US Code)
+        # Matches: Chapter 11, Chapter 7, Chapter 15 (Cross-border)
+        r"chapter\s+(?:7|11|15)",
+        # 2. Core Legal Status
+        r"bankruptcy",
+        r"insolvency",
+        r"receivership",
+        r"conservatorship",  # Common for banks (e.g., FDIC takeover)
+        # 3. The Process / Legal Actions
+        r"debtor[- ]in[- ]possession",  # DIP financing
+        r"voluntary\s+petition",
+        r"involuntary\s+petition",
+        r"petition\s+for\s+relief",  # "filed a petition for relief under Chapter 11"
+        r"automatic\s+stay",  # The legal halt on creditors
+        # 4. Reorganization & Emergence
+        r"plan\s+of\s+reorganization",
+        r"emergence\s+from\s+bankruptcy",
+        r"fresh[- ]start\s+(?:accounting|reporting)",  # Specific accounting treatment upon emergence
+        # 5. Liquidation (Guarded)
+        # GUARD: "Liquidation" alone is dangerous (e.g. "liquidation of hedges").
+        # We target the accounting basis or the corporate plan.
+        r"liquidation\s+basis",
+        r"plan\s+of\s+liquidation",
+    ]
+
+    return build_regex(bankruptcy_terms)
+
+
 # Compile and Export
 ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN = build_entity_exclusion_regex()
 EXCLUDE_REGEX_FORWARD_LOOKING = build_regex(FORWARD_LOOKING_KEYWORDS)
@@ -264,6 +295,7 @@ EXCLUDE_REGEX_LEGAL_LITIGATION = build_regex(LEGAL_LITIGATION_KEYWORDS)
 EXCLUDE_COMPETITOR_REGEX = build_regex(COMPETITOR_KEYWORDS)
 EXCLUDE_NON_FINANCIAL_REGEX = build_regex(NON_FINANCIAL_KEYWORDS, use_sep=False)
 EXCLUDE_PLAN_ASSETS_REGEX = build_regex(PLAN_ASSETS_KEYWORDS)
+EXCLUDE_BANKRUPTCY_REGEX = bankruptcy_regex()
 NON_DERIVATIVE_REGEX = build_non_derivative_instrument_regex()
 NON_DERIVATIVE_TREATMENT_REGEX = build_non_derivative_treatment_regex()
 AOCI_NOISE_REGEX = build_regex(AOCI_STRICT_TERMS)

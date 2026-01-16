@@ -238,6 +238,7 @@ class NoiseReason(Reason):
     EQ_COMP = "EQ_COMP"  # Equity
     COMP = "COMPETE"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
+    BANKRUPTCY = "CH11"  # Bankruptcy
     NC = "NC"  # Non derivative commodity contracts (No hedging context anywhere)
 
     # 1. Historical / Temporal
