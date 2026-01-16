@@ -21,7 +21,7 @@ from typing import Optional, Set, Tuple
 GROUND_TRUTH_FILE = "data_check.csv"
 PREDICTED_FILE = "analysis_output/classified_data_active_users.csv"
 # You can add "ir_user", "fx_user" here if you want to validate them as well
-COLUMNS_TO_VALIDATE = ["cp_user"]
+COLUMNS_TO_VALIDATE = ["ir_user"]
 
 # Map validation columns to their corresponding check columns
 CHECK_COLUMN_MAPPING = {

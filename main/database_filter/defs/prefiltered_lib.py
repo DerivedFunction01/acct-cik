@@ -22,12 +22,12 @@ MONTHS_PATTERN = r"(?:January|February|March|April|May|June|July|August|Septembe
 
 # Matches: "December 31", "Dec 31st"
 DATE_MD_REGEX = re.compile(
-    rf"\b(?:{MONTHS_PATTERN})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?\b", re.IGNORECASE
+    rf"\b(?:{MONTHS_PATTERN})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)", re.IGNORECASE
 )
 
 # Matches: "31 December", "1st of Jan"
 DATE_DM_REGEX = re.compile(
-    rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{MONTHS_PATTERN})\b", re.IGNORECASE
+    rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{MONTHS_PATTERN})\b", re.IGNORECASE
 )
 
 # Token for evidence
@@ -455,6 +455,9 @@ def mark_as_evidence(
             EvidenceReason.AS_YEAR,
             EvidenceReason.ACT_YEAR,
             EvidenceReason.TABLE,
+            EvidenceReason.FVNY,
+            EvidenceReason.NVNY,
+            EvidenceReason.VNY,
         }
     )
 
@@ -469,13 +472,16 @@ def mark_as_evidence(
             EvidenceReason.FVY,
             EvidenceReason.VY,
             EvidenceReason.AS_YEAR,
+            EvidenceReason.FVNY,
+            EvidenceReason.VNY,
+            EvidenceReason.NVNY,
         }
     ):
         final_reason = EvidenceReason.POSDQ
 
     # --- TIER 2: FLOW & ACTIVITY ---
     # Transaction years or PnL recognition (with numbers)
-    elif not evidence.isdisjoint({EvidenceReason.ACT_YEAR}) or (
+    elif not evidence.isdisjoint({EvidenceReason.ACT_YEAR, EvidenceReason.ACT_GEN}) or (
         EvidenceReason.PNL_REC in evidence and has_quant
     ):
         final_reason = EvidenceReason.FLOWDQ
