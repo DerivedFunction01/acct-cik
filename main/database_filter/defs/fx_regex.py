@@ -97,8 +97,6 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         # Explicitly safe Forward Types
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)\s+(?:{suffix_alternation})",
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)",
-        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
-        r"net\s+investment\s+hedges?",
     ]
 
     # -------------------------------------------------------------------------
