@@ -285,3 +285,19 @@ COMPARISON_PHRASES = [
     r"while",
     r"yet",
 ]
+
+
+def debt_expiration_regex() -> re.Pattern:
+    from defs.verb_regex import ALL_TERM_TERMS
+
+    # Needs to match {DEBT} with an expiration date of; {DEBT} maturing in; .. No need for year, just to strip the termination verbs
+    # [debt] [gap] [gap] [termination] ->
+    WORD_GAP = r"(?:\s+\w+){0,2}"
+    pattern = (
+        rf"\b(?:{_DEBT_TERMS}|facility){WORD_GAP}{build_alternation(ALL_TERM_TERMS)}\b"
+    )
+    return re.compile(pattern, re.IGNORECASE)
+
+
+DEBT_TOKEN = " debt "
+DEBT_EXP_REGEX = debt_expiration_regex()

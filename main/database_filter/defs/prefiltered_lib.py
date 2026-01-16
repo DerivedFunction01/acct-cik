@@ -5,11 +5,16 @@ from defs.refer import EXB_TOKEN, EXHIBIT_FRAGMENT
 from defs.acct_std import STANDARD_ID_REGEX, STD_TOKEN
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX
 from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIVATIVE_REGEX
-from defs.ir_regex import DEBT_EXP_REGEX, DEBT_TOKEN, IR_SOFT_REGEX
-from defs.shared_context import _DEBT_TERMS, CURRENCY_SYMBOL_PATTERN, VALUATION_MODELS
+from defs.shared_context import (
+    _DEBT_TERMS,
+    CURRENCY_SYMBOL_PATTERN,
+    VALUATION_MODELS,
+    DEBT_EXP_REGEX,
+    DEBT_TOKEN,
+)
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.gen_regex import GEN_HEDGES
-from defs.verb_regex import VERB_REGEX
+from defs.ir_regex import IR_SOFT_REGEX
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
