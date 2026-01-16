@@ -6,22 +6,22 @@ from defs.shared_context import SUBJ
 
 EXB_TOKEN = " E_XB "
 EXHIBIT_NOUNS = [
-    "exhibits",
-    "references",
+    "exhibits?",
+    "references?",
     "note",
     "appendix",
-    "schedule",
-    "article",
-    "section",
-    "subsection",
-    "statement",
+    "schedules?",
+    "articles?",
+    "sections?",
+    "subsections?",
+    "statements?",
     "table",
     "No.",
-    "page",
+    "pages?",
     "pp.",
     "p.",
-    "figure",
-    "chart",
+    "figures?",
+    "charts?",
     EXB_TOKEN
 ]
 
