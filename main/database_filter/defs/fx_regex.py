@@ -68,7 +68,6 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         r"foreign\s+exchange",
         r"(?<!single[- ])currency",
         r"fx",
-        r"exchange",
         r"forex",
     ]
     soft_core_alternation = build_alternation(soft_core_terms, sort_longest_first=True)
@@ -111,7 +110,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     strict_dynamic_fragment = expand_instruments(
         unsafe=False,
         exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?", "options?"],
+        additional_standalone_suffixes=["contracts?", "options?", "forwards?"],
     )
 
     # 1. Substitute the dynamic fragment into the templates

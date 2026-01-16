@@ -210,6 +210,6 @@ GEN_STRICT_CONTEXT_REGEX = build_regex(SOFT_GEN_TERMS)
 GEN_HEDGES = build_regex(
     [  # Specific FX Instrument Names/Hedges
         r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
-        r"(?:net investment|fair\s+value|cash\s+flow)\s+hedges?",
+        r"(?:[\"“\'])?(?:net investment|fair\s+value|cash\s+flow)(?:[\"“\'])?\s+hedges?",
     ]
 )

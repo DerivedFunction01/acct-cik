@@ -41,7 +41,7 @@ from defs.contract import is_contractual_noise
 from defs.hypo import is_hypothetical_noise
 from defs.regul import is_regulatory_noise
 from defs.derivative_lib import SOFT_CATEGORY_REGEX
-from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX, RISK_MANAGEMENT_REGEX
+from defs.gen_regex import GEN_HEDGES, PRECISE_LOOSE_GEN_REGEX, RISK_MANAGEMENT_REGEX
 from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
 from defs.ir_regex import NON_DER_CAP_FLOOR_REGEX
 from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX
@@ -358,6 +358,23 @@ def is_trading_statement(text: str) -> bool:
     
     return False
 
+"""
+All derivatives are recognized on the balance sheet at their fair value.  
+On the date a derivative contract is entered into, the Company designates the derivative as a hedge of a recognized asset 
+or liability (\"fair value\" hedge), a hedge of a forecasted transaction or of the variability of cash flows to be received or paid related 
+to a recognized asset or liability (\"cash flow\" hedge), or a hedge of the net investment in a foreign operation. 
+Changes in the fair value of a derivative that qualify as a fair value hedge are recorded in earnings along with the gain or 
+loss on the hedged asset or liability.  _E<BALANCE_SHEET_LOC> Changes in the fair value of a derivative that 
+qualifies as a cash flow hedge are recorded in other comprehensive income, until earnings are affected by the variability of cash flows. 
+Changes in the fair value of a derivative used to hedge the net investment in a foreign operation are recorded in the 
+cumulative translation adjustment accounts within equity.
+"""
+def is_gen_hedge_doc(text: str) -> bool:
+    # Mark generic hedge documentation/policy sentences: Must not have the words interest rate swap, etc
+    
+    if not GEN_HEDGES.search(text):
+        return False
+    return True
 VALUE_REGEX = build_regex(["notional", "fair value"])
 def is_value(text: str) -> bool:
     if not QUANT_REGEX.search(text):

@@ -660,6 +660,11 @@ HEDGE_DOC_TERMS = [
     rf"(?:dis)?continu(?:es?|ed|ing)\s+hedge\s+(?:accounting|relationship|documentation|designation)?",
     rf"economic\s+relationship",
     rf"nature\s+of",
+    r"hedges?\s+of\s+(?:(?:a|the|any)\s)?forecasted\s+transactions?",
+    r"changes\s+in\s+(?:the )?fair\s+value\s+of\s+(?:a|the|these)\s+derivatives?",
+    r"recognized\s+(?:assets?|liabilit(?:y|ies))",
+    r"variabilit(?:y|ies)\s+of\s+cash\s+flows?",
+    r"the\s+derivatives?\s+(?:are|is)\s+recognized",
 ]
 
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)
