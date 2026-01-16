@@ -50,10 +50,15 @@ class MinimalTextCleaner:
     bullet_pattern = re.compile(
         r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
         r"(?:"
-        r"\(?\d+\)|\d+\.|\d+:|"  # (1), 1), 1., 1:   <-- added colon
-        r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"  # (i), (ii), i., ii. (roman numerals)
-        r"\([a-z]\)|[a-z]\.|"  # (a), (b), a., b. (letters)
-        r"\([A-Z]\)|[A-Z]\."  # (A), (B), A., B. (capitals)
+        # 1. Capture years/numbers with parentheses: (2023), 2023) -> STRIP
+        r"\(\d+\)|\d+\)|"
+        # 2. Capture numbers with period/colon ONLY if NOT a year: 1., 1: -> STRIP
+        #    Uses negative lookahead to protect 19xx and 20xx
+        r"(?!(?:19|20)\d{2})\d+\.|(?!(?:19|20)\d{2})\d+:|"
+        # 3. Roman numerals and letters -> STRIP
+        r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"
+        r"\([a-z]\)|[a-z]\.|"
+        r"\([A-Z]\)|[A-Z]\."
         r")"
         r"(?=\s)",  # Followed by whitespace
         re.IGNORECASE,
@@ -358,15 +363,15 @@ class MinimalTextCleaner:
         # --- 2. DEFINE THE EXPANDED TORTURE TEST PARAGRAPH ---
         test_paragraph = (
             "(1) Overview: During the 2023 Fiscal Year, per ASC 815-20 and ASU 2025-12, the Company held several "
-            "interest rate swaps with a notional amount of $500 million. (2) These were used to fix the rate of our "
+            "interest rate swaps maturing in 2029. Thw swap has a notional amount of $500 million. (2) These were used to fix the rate of our "
             "2024 Convertible Senior Notes due December 31, 2029 and our 2025 Secured Debentures maturing in 2030. "
             "(ii) Results: We recorded a gain of $42 million on these swaps; however, the interest rate swap "
             "mechanics had an impact on 2023 earnings of $120 million, $80 million, and $15.5 million respectively. "
             "Furthermore, interest expense was increased by $5.2 million due to amortization. "
             "(iii) Equity: We also entered into convertible note hedge transactions to limit dilution, alongside "
             "separate warrant transactions which we bifurcated as embedded derivatives using Black-Scholes. "
-            "Note that the 2012 Stock Incentive Plan and the 2018 Performance Share Plan include options "
-            "expiring 2026. (4) Distress: Due to liquidity issues, the Company filed a voluntary petition for "
+            "Note that the 2012 Stock Incentive Plan and the 2018 Performance Share Plan include options expiring 2026. "
+            "(4) Distress: Due to liquidity issues, the Company filed a voluntary petition for "
             "relief under Chapter 11 of the Bankruptcy Code in a plan of reorganization. "
             "See Exhibit 10.1 and Schedule 14A for additional 'fair value' hedges and debt documentation."
         )
