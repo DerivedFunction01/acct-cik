@@ -372,14 +372,15 @@ TERMINATION_NOUNS = [
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
 
 def debt_expiration_regex() -> re.Pattern:
-
-
-    # Needs to match {DEBT} with an expiration date of; {DEBT} maturing in; .. No need for year, just to strip the termination verbs
-    # [debt] [gap] [gap] [termination] ->
-    WORD_GAP = r"(?:\s+\w+){0,2}"
-    pattern = (
-        rf"\b(?:{_DEBT_TERMS}|facility){WORD_GAP}{build_alternation(ALL_TERM_TERMS)}\b"
-    )
+    # 1. We use a non-greedy gap (?:\s+\S+){0,3}? 
+    # 2. We ensure the termination verb is checked at every step
+    WORD_GAP = r"(?:\s+\S+){0,3}?" 
+    
+    # We strip the \b from the alternation to allow it to match 
+    # immediately after the gap
+    verbs = build_alternation(ALL_TERM_TERMS)
+    
+    pattern = rf"\b(?:{_DEBT_TERMS}|facility)(?:,)?{WORD_GAP}\s+{verbs}\b"
     return re.compile(pattern, re.IGNORECASE)
 
 
