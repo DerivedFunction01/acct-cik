@@ -238,11 +238,12 @@ class MinimalTextCleaner:
         text = self.bullet_pattern.sub(safe_bullet_sub, text)
 
         # Step 4: Apply POLICY cleanups
+        text = self.standard_id_pattern.sub(STD_TOKEN, text)
+        text = self.exhibit_pattern.sub(" ", text)
         text = self.dashed_pattern.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
         text = DATE_DM_REGEX.sub(" ", text)
-        text = self.exhibit_pattern.sub(" ", text)
-        text = self.standard_id_pattern.sub(STD_TOKEN, text)
+        
         if remove_years:
             text = YEAR_REGEX.sub(" ", text)
         return text
