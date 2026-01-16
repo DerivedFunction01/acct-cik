@@ -20,46 +20,97 @@ from typing import Optional, Set, Tuple
 
 GROUND_TRUTH_FILE = "data_check.csv"
 PREDICTED_FILE = "analysis_output/classified_data_active_users.csv"
+# You can add "ir_user", "fx_user" here if you want to validate them as well
 COLUMNS_TO_VALIDATE = ["cp_user"]
+
+# Map validation columns to their corresponding check columns
+CHECK_COLUMN_MAPPING = {
+    "ir_user": "check_ir",
+    "fx_user": "check_fx",
+    "cp_user": "check_cp",
+}
+
+# =============================================================================
+# DATA PREPROCESSING
+# =============================================================================
+
+
+def preprocess_ground_truth(df):
+    """
+    Invert ground truth values based on check columns.
+    Logic: If check_* is 0, the labeled value is incorrect, so we invert it.
+    """
+    df_processed = df.copy()
+
+    print("  ...Preprocessing Ground Truth (applying check_* logic)...")
+
+    for val_col, check_col in CHECK_COLUMN_MAPPING.items():
+        # Only process if both columns exist in the dataframe
+        if val_col in df_processed.columns and check_col in df_processed.columns:
+            # Find rows where check is 0 (meaning the label needs inversion)
+            mask_invert = df_processed[check_col] == 0
+            count_inverted = mask_invert.sum()
+
+            if count_inverted > 0:
+                # Invert 0 to 1 and 1 to 0
+                df_processed.loc[mask_invert, val_col] = (
+                    1 - df_processed.loc[mask_invert, val_col]
+                )
+                print(
+                    f"    - {val_col}: Inverted {count_inverted} records where {check_col} == 0"
+                )
+
+    return df_processed
+
 
 # =============================================================================
 # FIND MISMATCHES
 # =============================================================================
 
 
-def find_mismatches(ground_truth_path: str, predicted_path: str) -> Set[Tuple[int, int]]:
+def find_mismatches(
+    ground_truth_path: str, predicted_path: str
+) -> Set[Tuple[int, int]]:
     """
-    Find all cik,year pairs from ground_truth that have at least one mismatch 
+    Find all cik,year pairs from ground_truth that have at least one mismatch
     in validated columns when compared to predictions.
     Returns a set of (cik, year) tuples.
     """
     # Load data
     gt = pd.read_csv(ground_truth_path)
     pred = pd.read_csv(predicted_path)
-    
-    # Keep only validated columns
+
+    # --- NEW: Apply Logic to Ground Truth ---
+    gt = preprocess_ground_truth(gt)
+
+    # Keep only validated columns (Now that values are corrected)
     gt_cols = ["cik", "year"] + COLUMNS_TO_VALIDATE
     pred_cols = ["cik", "year"] + COLUMNS_TO_VALIDATE
-    
+
+    # Ensure columns exist before selecting
+    missing_cols = [c for c in gt_cols if c not in gt.columns]
+    if missing_cols:
+        raise ValueError(f"Missing columns in ground truth: {missing_cols}")
+
     gt = gt[gt_cols].copy()
     pred = pred[pred_cols].copy()
-    
+
     # Merge on cik and year with inner join (only records in both files)
     merged = gt.merge(pred, on=["cik", "year"], suffixes=("", "_pred"))
-    
+
     mismatches = set()
-    
+
     # Find mismatches for each column
     for col in COLUMNS_TO_VALIDATE:
         pred_col = f"{col}_pred"
-        
+
         # Rows where values don't match
         mismatched_mask = merged[col] != merged[pred_col]
         mismatched = merged[mismatched_mask][["cik", "year"]]
-        
+
         for _, row in mismatched.iterrows():
             mismatches.add((int(row["cik"]), int(row["year"])))
-    
+
     return mismatches
 
 
@@ -102,29 +153,35 @@ def fetch_mismatched_data(db_path: str, mismatches: Set[Tuple[int, int]]):
 def format_excel(ws, total_rows):
     """Apply formatting to worksheet."""
     # Header styling
-    header_fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+    header_fill = PatternFill(
+        start_color="C00000", end_color="C00000", fill_type="solid"
+    )
     header_font = Font(bold=True, color="FFFFFF", size=12)
-    
+
     for cell in ws[1]:
         cell.fill = header_fill
         cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    
+        cell.alignment = Alignment(
+            horizontal="center", vertical="center", wrap_text=True
+        )
+
     # Set column widths
-    ws.column_dimensions['A'].width = 60  # URL
-    ws.column_dimensions['B'].width = 12  # CIK
-    ws.column_dimensions['C'].width = 8   # Year
-    ws.column_dimensions['D'].width = 50  # Categories
-    
+    ws.column_dimensions["A"].width = 60  # URL
+    ws.column_dimensions["B"].width = 12  # CIK
+    ws.column_dimensions["C"].width = 8  # Year
+    ws.column_dimensions["D"].width = 50  # Categories
+
     # Alternating row colors
-    light_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
-    border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
+    light_fill = PatternFill(
+        start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"
     )
-    
+    border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+
     for row_idx in range(2, total_rows + 2):
         for col_idx in range(1, 5):
             cell = ws.cell(row=row_idx, column=col_idx)
@@ -134,15 +191,17 @@ def format_excel(ws, total_rows):
             if col_idx == 2 or col_idx == 3:  # CIK and Year
                 cell.alignment = Alignment(horizontal="center", vertical="center")
             elif col_idx == 4:  # Categories
-                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-    
+                cell.alignment = Alignment(
+                    horizontal="left", vertical="top", wrap_text=True
+                )
+
     # Freeze header row
     ws.freeze_panes = "A2"
 
 
 def export_mismatches_to_excel(db_path: str, excel_path: Optional[str] = None):
     """Export mismatched records from database to Excel file."""
-    
+
     db = Path(db_path)
     if not db.exists():
         print(f"❌ Database not found: {db}")
@@ -150,7 +209,7 @@ def export_mismatches_to_excel(db_path: str, excel_path: Optional[str] = None):
 
     gt_file = Path(GROUND_TRUTH_FILE)
     pred_file = Path(PREDICTED_FILE)
-    
+
     if not gt_file.exists():
         print(f"❌ Ground truth file not found: {gt_file}")
         return
