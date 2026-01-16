@@ -99,7 +99,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)\s+(?:{suffix_alternation})",
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)",
         # Specific FX Instrument Names/Hedges
-        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
+        r"(?<!to\s)hedges?\s+of\s+(?:the\s+)?net\s+investments?",
         "net investment hedges?",
     ]
 
