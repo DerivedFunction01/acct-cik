@@ -309,6 +309,12 @@ class MinimalTextCleaner:
         text = GEN_HEDGES.sub(" ", text)
         text = self.normalize_whitespace(text)
         return text
+    
+    def add_period(self, text: str) -> str:
+        # Adds a period at the end of the sentence if it doesn't exist
+        if not text.endswith("."):
+            text += "."
+        return text
 
     def clean(self, text: str, remove_years: bool = False, is_nst: bool = True) -> str:
         texts = []
@@ -316,6 +322,7 @@ class MinimalTextCleaner:
             sent = self.clean_for_quant_analysis(sent, remove_years)
             sent = self.clean_entities(sent)
             sent = self.clean_non_derivatives(sent, is_nst)
+            sent = self.add_period(sent)
             texts.append(sent)
         return " ".join(texts)
     def run_test(self):
