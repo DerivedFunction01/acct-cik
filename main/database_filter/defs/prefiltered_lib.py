@@ -2,7 +2,7 @@ import re
 from typing import List, Optional, Set, Tuple
 from defs.cp_regex import COMMODITY_UNIT_PATTERN
 from defs.refer import EXHIBIT_FRAGMENT
-from defs.acct_std import STANDARD_ID_REGEX
+from defs.acct_std import STANDARD_ID_REGEX, STD_TOKEN
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX
 from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIVATIVE_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
@@ -242,7 +242,7 @@ class MinimalTextCleaner:
         text = DATE_MD_REGEX.sub(" ", text)
         text = DATE_DM_REGEX.sub(" ", text)
         text = self.exhibit_pattern.sub(" ", text)
-        text = self.standard_id_pattern.sub(" ", text)
+        text = self.standard_id_pattern.sub(STD_TOKEN, text)
         if remove_years:
             text = YEAR_REGEX.sub(" ", text)
         return text

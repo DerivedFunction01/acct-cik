@@ -4,6 +4,7 @@ from typing import Tuple
 from defs.derivatives_core import ALL_BASE_TYPES, ALL_SUFFIXES, SPECIAL_BASE, UNAMBIGUOUS_BASE_TYPES
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS
+from main.database_filter.defs.acct_std import STD_TOKEN
 
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
@@ -128,8 +129,8 @@ DERIVATIVE_STDS = [
     # --- NEW: The Codified Version (ASC 815-40) ---
     # EITF 00-19 was codified into ASC 815-40 "Contracts in Entity's Own Equity"
     r"ASC\s+815[-–—\s]?40",
-    # Just adding this here
-    r"bifurcat(?:ed|ion|ing)",
+    # Masked standards token
+    STD_TOKEN,
 ]
 RISK_MANAGEMENT_TERMS = [
     r"to\s+hedge",
