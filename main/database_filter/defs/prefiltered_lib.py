@@ -58,7 +58,7 @@ class MinimalTextCleaner:
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
 
     exhibit_pattern = re.compile(
-        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d{1,3}(?:\.\d+)?b",
+        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d{1,3}(?:\.\d+)?\b",
         re.IGNORECASE,
     )
 
