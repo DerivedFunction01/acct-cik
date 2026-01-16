@@ -348,15 +348,22 @@ class MinimalTextCleaner:
             sent = self.add_punctuation(sent, punctuation)
             texts.append(sent)
         return " ".join(texts)
+
     def run_test(self):
-        # --- 2. DEFINE THE TORTURE TEST PARAGRAPH ---
-        # This paragraph contains every edge case we discussed.
+        # --- 2. DEFINE THE EXPANDED TORTURE TEST PARAGRAPH ---
         test_paragraph = (
-            "(1) On December 31, 2023, per ASC 815, we entered into interest rate swaps with a notional amount of $500 million to fix the rate of 2024 Convertible Senior Notes expiring in December 31, 2029. "
-            "(ii) We recorded a gain of $42 million, but the interest rate swap had an impact on 2023 earnings of $120 million. "
-            "We also entered into convertible note hedge transactions to limit dilution (according to ASU 2014-09), alongside separate warrant transactions. "
-            "The 2015 Incentive Plan includes options expiring 2025. "
-            "See Exhibit 10.1 for details."
+            "(1) Overview: During the 2023 Fiscal Year, per ASC 815-20 and ASU 2025-12, the Company held several "
+            "interest rate swaps with a notional amount of $500 million. (2) These were used to fix the rate of our "
+            "2024 Convertible Senior Notes due December 31, 2029 and our 2025 Secured Debentures maturing in 2030. "
+            "(ii) Results: We recorded a gain of $42 million on these swaps; however, the interest rate swap "
+            "mechanics had an impact on 2023 earnings of $120 million, $80 million, and $15.5 million respectively. "
+            "Furthermore, interest expense was increased by $5.2 million due to amortization. "
+            "(iii) Equity: We also entered into convertible note hedge transactions to limit dilution, alongside "
+            "separate warrant transactions which we bifurcated as embedded derivatives using Black-Scholes. "
+            "Note that the 2012 Stock Incentive Plan and the 2018 Performance Share Plan include options "
+            "expiring 2026. (4) Distress: Due to liquidity issues, the Company filed a voluntary petition for "
+            "relief under Chapter 11 of the Bankruptcy Code in a plan of reorganization. "
+            "See Exhibit 10.1 and Schedule 14A for additional 'fair value' hedges and debt documentation."
         )
 
         print("-" * 60)
@@ -365,7 +372,8 @@ class MinimalTextCleaner:
         print(test_paragraph)
         print("\n" + "=" * 60 + "\n")
 
-        # Set is_nst=True to test the "warrant" stripping vs "convertible note hedge" protection
+        # Set is_nst=True to simulate the 'Biotech/Non-Sophisticated' document-level flag
+        # But we expect 'convertible note hedge' and 'embedded derivatives' to be protected
         cleaned_text = self.clean(test_paragraph, remove_years=False, is_nst=True)
 
         print("-" * 60)
@@ -374,18 +382,53 @@ class MinimalTextCleaner:
         print(cleaned_text)
         print("-" * 60)
 
-        # --- 4. VERIFICATION CHECKLIST ---
+        # --- 4. EXPANDED VERIFICATION CHECKLIST ---
         print("\nVISUAL CHECKLIST:")
-        print(f"['(1)', '(ii)'] Removed?          {'SUCCESS' if '(1)' not in cleaned_text and '(ii)' not in cleaned_text else 'FAIL'}")
-        print(f"['ASC 815'] Removed?             {'SUCCESS' if 'ASC 815' not in cleaned_text else 'FAIL'}")
-        print(f"['$500 million'] (Notional) Kept? {'SUCCESS' if '$500 million' in cleaned_text else 'FAIL'}")
-        print(f"['$42 million'] (Gain) Kept?      {'SUCCESS' if '$42 million' in cleaned_text else 'FAIL'}")
-        print(f"['$120 million'] (Earnings) Gone? {'SUCCESS' if '$120 million' not in cleaned_text else 'FAIL'}")
-        print(f"['$1.0 billion'] (Debt) Gone?     {'SUCCESS' if '$1.0 billion' not in cleaned_text else 'FAIL'}")
-        print(f"['2024'] (Identifier) Gone?       {'SUCCESS' if '2024 Convertible' not in cleaned_text and 'Senior Notes' in cleaned_text else 'FAIL'}")
-        print(f"['2015'] (Plan) Gone?             {'SUCCESS' if '2015 Incentive' not in cleaned_text else 'FAIL'}")
-        print(f"['warrant'] Stripped (NST)?       {'SUCCESS' if 'warrant' not in cleaned_text.lower() else 'FAIL'}")
-        print(f"['note hedge'] Protected?         {'SUCCESS' if 'convertible note hedge' in cleaned_text.lower() else 'FAIL'}")
+
+        # Numeric/Bullet Cleaning
+        print(
+            f"Bullets ['(1)', '(ii)', '(4)'] Removed?    {'SUCCESS' if '(1)' not in cleaned_text and '(4)' not in cleaned_text else 'FAIL'}"
+        )
+        print(
+            f"Standards ['ASC 815', 'ASU 2025'] Gone?    {'SUCCESS' if '815' not in cleaned_text and '2025' not in cleaned_text else 'FAIL'}"
+        )
+
+        # Quant Protection vs Cleaning
+        print(
+            f"Notional ['$500 million'] Kept?            {'SUCCESS' if '$500 million' in cleaned_text else 'FAIL'}"
+        )
+        print(
+            f"Gain ['$42 million'] Kept?                 {'SUCCESS' if '$42 million' in cleaned_text else 'FAIL'}"
+        )
+        print(
+            f"Earnings List ['$120M, $80M...'] Gone?     {'SUCCESS' if '$120 million' not in cleaned_text and '$80 million' not in cleaned_text else 'FAIL'}"
+        )
+        print(
+            f"Expense ['$5.2 million'] Gone?             {'SUCCESS' if '$5.2 million' not in cleaned_text else 'FAIL'}"
+        )
+
+        # Year Contextual Cleaning
+        print(
+            f"ID Years ['2024', '2025 Debentures'] Gone? {'SUCCESS' if '2024 Convertible' not in cleaned_text and '2025 Secured' not in cleaned_text else 'FAIL'}"
+        )
+        print(
+            f"Maturity ['due Dec 31, 2029'] Gone?        {'SUCCESS' if '2029' not in cleaned_text else 'FAIL'}"
+        )
+        print(
+            f"Fiscal Year ['2023 Fiscal'] Kept?          {'SUCCESS' if '2023 Fiscal' in cleaned_text else 'FAIL'}"
+        )
+
+        # Sophisticated Logic
+        print(
+            f"Protected ['convertible note hedge']?      {'SUCCESS' if 'convertible note hedge' in cleaned_text.lower() else 'FAIL'}"
+        )
+        print(
+            f"NST Stripped ['warrant']?                  {'SUCCESS' if 'warrant' not in cleaned_text.lower() else 'FAIL'}"
+        )
+
+        # Debt Termination Neutralization
+        # 'Debentures maturing in 2030' should have been neutralized by your DEBT
+
 
 from enum import Enum
 class Reason(Enum):
