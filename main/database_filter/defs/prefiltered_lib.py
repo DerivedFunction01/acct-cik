@@ -68,9 +68,9 @@ class MinimalTextCleaner:
 
     # Standard IDs: ASC 815-20, IFRS 9, etc.
     standard_id_pattern = STANDARD_ID_REGEX
-    
+
     punct = re.compile(r"([.!?|:;])$")
-    
+
     pnl_regex = None
 
     year_regex = None
@@ -227,6 +227,8 @@ class MinimalTextCleaner:
         """
         Remove numeric noise that confuses quantitative parsing.
         """
+        text = DATE_MD_REGEX.sub(" ", text)
+        text = DATE_DM_REGEX.sub(" ", text)
         text = self.clean_contextual_quants(text)
         text = self.clean_contextual_years(text)
         # Step 1: Identify and protect remaining quantitative values
@@ -255,8 +257,6 @@ class MinimalTextCleaner:
         text = self.standard_id_pattern.sub(STD_TOKEN, text)
         text = self.exhibit_pattern.sub(EXB_TOKEN, text)
         text = self.dashed_pattern.sub(" ", text)
-        text = DATE_MD_REGEX.sub(" ", text)
-        text = DATE_DM_REGEX.sub(" ", text)
 
         if remove_years:
             text = YEAR_REGEX.sub(" ", text)
@@ -340,7 +340,7 @@ class MinimalTextCleaner:
             # Search for the last non-whitespace character that is punctuation
             match = self.punct.search(sent.strip())
             punctuation = match.group(1) if match else "."
-            
+
             sent = self.clean_for_quant_analysis(sent, remove_years)
             sent = self.clean_entities(sent)
             sent = self.clean_non_derivatives(sent, is_nst)
@@ -351,7 +351,7 @@ class MinimalTextCleaner:
         # --- 2. DEFINE THE TORTURE TEST PARAGRAPH ---
         # This paragraph contains every edge case we discussed.
         test_paragraph = (
-            "(1) On December 31, 2023, per ASC 815, we entered into interest rate swaps with a notional amount of $500 million to fix the rate of 2024 Convertible Senior Notes due 2029. "
+            "(1) On December 31, 2023, per ASC 815, we entered into interest rate swaps with a notional amount of $500 million to fix the rate of 2024 Convertible Senior Notes expiring in December 31, 2029. "
             "(ii) We recorded a gain of $42 million, but the interest rate swap had an impact on 2023 earnings of $120 million. "
             "We also entered into convertible note hedge transactions to limit dilution (according to ASU 2014-09), alongside separate warrant transactions. "
             "The 2015 Incentive Plan includes options expiring 2025. "
