@@ -68,7 +68,9 @@ class MinimalTextCleaner:
 
     # Standard IDs: ASC 815-20, IFRS 9, etc.
     standard_id_pattern = STANDARD_ID_REGEX
-
+    
+    punct = re.compile(r"([.!?|:;])$")
+    
     pnl_regex = None
 
     year_regex = None
@@ -319,11 +321,18 @@ class MinimalTextCleaner:
     def clean(self, text: str, remove_years: bool = False, is_nst: bool = True) -> str:
         texts = []
         for sent in SENTENCE_SPLIT_PATTERN.split(text):
-            puntuation = sent[-1] if sent[-1].strip() else "." # last char
+            if not sent.strip():
+                continue
+
+            # 1. Capture the original terminal punctuation reliably
+            # Search for the last non-whitespace character that is punctuation
+            match = self.punct.search(sent.strip())
+            punctuation = match.group(1) if match else "."
+            
             sent = self.clean_for_quant_analysis(sent, remove_years)
             sent = self.clean_entities(sent)
             sent = self.clean_non_derivatives(sent, is_nst)
-            sent = self.add_punctuation(sent, puntuation)
+            sent = self.add_punctuation(sent, punctuation)
             texts.append(sent)
         return " ".join(texts)
     def run_test(self):
