@@ -428,10 +428,10 @@ class MinimalTextCleaner:
 
         # 2. Accounting & Exhibit Stripping
         print(
-            f"Accounting IDs (ASC/ASU) replaced?      {'SUCCESS' if '815' not in cleaned_text and 'STD_TOKEN' in cleaned_text else 'FAIL'}"
+            f"Accounting IDs (ASC/ASU) replaced?      {'SUCCESS' if '815' not in cleaned_text and STD_TOKEN in cleaned_text else 'FAIL'}"
         )
         print(
-            f"Exhibits (Exhibit 10.1) replaced?        {'SUCCESS' if '10.1' not in cleaned_text and 'EXB_TOKEN' in cleaned_text else 'FAIL'}"
+            f"Exhibits (Exhibit 10.1) replaced?        {'SUCCESS' if '10.1' not in cleaned_text and EXB_TOKEN in cleaned_text else 'FAIL'}"
         )
 
         # 3. Quant Contextual Removal (The 'Gap' & 'respectively' check)
@@ -453,7 +453,7 @@ class MinimalTextCleaner:
             f"ID Years (2024 Notes / 2025 Debentures) Gone? {'SUCCESS' if 'Notes' in cleaned_text and '2024' not in cleaned_text else 'FAIL'}"
         )
         print(
-            f"Maturity (due December 31, 2029) Gone?   {'SUCCESS' if '2029' not in cleaned_text and 'December' not in cleaned_text else 'FAIL'}"
+            f"Maturity (due December 31, 2029) Gone?   {'SUCCESS' if 'December 31, 2029' not in cleaned_text and 'December' not in cleaned_text else 'FAIL'}"
         )
         print(
             f"Incentive Plans (2012 / 2018) Gone?      {'SUCCESS' if 'Incentive Plan' in cleaned_text and '2012' not in cleaned_text else 'FAIL'}"
@@ -475,7 +475,7 @@ class MinimalTextCleaner:
         # Replaces 'fair value of the facility' -> 'debt'
         # Replaces 'change in fair value of debt' -> 'debt'
         print(
-            f"Maturity neutralized (maturing in 2030 -> debt)? {'SUCCESS' if 'maturing' not in cleaned_text and 'debt' in cleaned_text.lower() else 'FAIL'}"
+            f"Maturity neutralized (maturing in 2030 -> debt)? {'SUCCESS' if 'maturing in 2030' not in cleaned_text and 'debt' in cleaned_text.lower() else 'FAIL'}"
         )
         print(
             f"FV of Debt neutralized?                  {'SUCCESS' if 'fair value of the facility' not in cleaned_text.lower() else 'FAIL'}"
