@@ -243,7 +243,7 @@ class MinimalTextCleaner:
         text = self.dashed_pattern.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
         text = DATE_DM_REGEX.sub(" ", text)
-        
+
         if remove_years:
             text = YEAR_REGEX.sub(" ", text)
         return text
@@ -309,20 +309,21 @@ class MinimalTextCleaner:
         text = GEN_HEDGES.sub(" ", text)
         text = self.normalize_whitespace(text)
         return text
-    
-    def add_period(self, text: str) -> str:
+
+    def add_punctuation(self, text: str, punct: str) -> str:
         # Adds a period at the end of the sentence if it doesn't exist
-        if not text.endswith("."):
-            text += "."
+        if not text.endswith(punct):
+            text += punct
         return text
 
     def clean(self, text: str, remove_years: bool = False, is_nst: bool = True) -> str:
         texts = []
         for sent in SENTENCE_SPLIT_PATTERN.split(text):
+            puntuation = sent[-1] if sent[-1].strip() else "." # last char
             sent = self.clean_for_quant_analysis(sent, remove_years)
             sent = self.clean_entities(sent)
             sent = self.clean_non_derivatives(sent, is_nst)
-            sent = self.add_period(sent)
+            sent = self.add_punctuation(sent, puntuation)
             texts.append(sent)
         return " ".join(texts)
     def run_test(self):
