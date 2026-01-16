@@ -646,9 +646,10 @@ ZERO_QUANT_REGEX = re.compile(
 )
 
 
-G = r"(?:\W+\w+){0,5}"  # up to 3 intermediate words
+G = r"(?:\W+\w+){0,5}"  # up to 5 intermediate words
 
 HEDGE_DOC_TERMS = [
+    # 1. Documentation & Designation (Existing)
     rf"formally\s+document",
     rf"hedge\s+documentation",
     r"documentation",
@@ -660,11 +661,19 @@ HEDGE_DOC_TERMS = [
     rf"(?:dis)?continu(?:es?|ed|ing)\s+hedge\s+(?:accounting|relationship|documentation|designation)?",
     rf"economic\s+relationship",
     rf"nature\s+of",
-    r"hedges?\s+of\s+(?:(?:a|the|any)\s)?forecasted\s+transactions?",
-    r"changes\s+in\s+(?:the )?fair\s+value\s+of\s+(?:a|the|these)\s+derivatives?",
-    r"recognized\s+(?:assets?|liabilit(?:y|ies))",
+    # 2. ASC 815 / FAS 133 Specifics (New & Tightened)
+    # Matches: "Hedges of forecasted transactions", "Hedge of a recognized asset"
+    r"hedges?\s+of\s+(?:(?:a|the|these|those|any)\s+)?(?:forecasted|recognized)",
+    # Matches: "Changes in the fair value of a derivative"
+    r"changes?\s+in\s+(?:the\s+)?fair\s+values?\s+of\s+(?:a|the|these|those|any)\s+derivatives?",
+    # Matches: "Derivatives are recognized", "The derivative is recognized"
+    r"(?:the\s+|these\s+|those\s+|a\s+)?derivatives?\s+(?:are|is)\s+recognized",
+    # Matches: "Variability of cash flows" (Safe if inside derivative/hedging paragraphs)
     r"variabilit(?:y|ies)\s+of\s+cash\s+flows?",
-    r"the\s+derivatives?\s+(?:are|is)\s+recognized",
+    # Matches: "Hedge of net investment in foreign operation"
+    r"hedges?\s+of\s+(?:the\s+)?net\s+investment",
+    # Matches: "Recorded in OCI", "Recorded in earnings" (Standard mechanics)
+    r"(?:recognized|recorded)\s+in\s+(?:other\s+comprehensive|earnings|oci)",
 ]
 
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)
