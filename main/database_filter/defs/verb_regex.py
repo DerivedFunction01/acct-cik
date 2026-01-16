@@ -154,7 +154,7 @@ ALL_VERBS = list(
 )
 
 INTENT_VERB_PATTERN = build_alternation(ALL_VERBS)
-
+VERB_REGEX = build_regex(VERB_MAP["POSS"] + VERB_MAP["PRU"] + VERB_MAP["ACT"])
 
 def build_potential_regex() -> re.Pattern:
     """

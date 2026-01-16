@@ -9,6 +9,7 @@ from defs.ir_regex import IR_SOFT_REGEX
 from defs.shared_context import _DEBT_TERMS, CURRENCY_SYMBOL_PATTERN, VALUATION_MODELS
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.gen_regex import GEN_HEDGES
+from defs.verb_regex import VERB_REGEX
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
