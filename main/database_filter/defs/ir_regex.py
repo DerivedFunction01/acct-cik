@@ -4,6 +4,7 @@ from typing import Tuple
 from defs.derivatives_core import ALL_SUFFIXES, build_smart_regex, expand_instruments, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION
+from defs.verb_regex import ALL_TERM_TERMS
 
 BENCHMARK_RATES = [
     "SOFR",
@@ -331,7 +332,14 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
 
     return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
 
+def debt_expiration_regex() -> re.Pattern:
+    # Needs to match {DEBT} with an expiration date of; {DEBT} maturing in; .. No need for year, just to strip the termination verbs
+    # [debt] [gap] [gap] [termination] ->
+    WORD_GAP = r"(?:\s+\w+){0,2}"
+    pattern = rf"\b{_DEBT_TERMS}{WORD_GAP}{build_alternation(ALL_TERM_TERMS)}\b"
+    return re.compile(pattern, re.IGNORECASE)
 
+DEBT_TOKEN = " debt "
 # Compile
 IR_CONTEXT = (
     [IR_DEBT_LOOKBEHIND_TERM] + IR_OTHER_TERMS + BENCHMARK_RATES + IR_STRICT_TERMS + BANK_ENTITIES
@@ -340,3 +348,4 @@ IR_CONTEXT_REGEX = build_regex(IR_CONTEXT)
 IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS)
 EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
+DEBT_EXP_REGEX = debt_expiration_regex()
