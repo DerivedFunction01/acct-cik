@@ -157,6 +157,7 @@ hedging_terms = [
     r"programs?",
     r"positions?",
     r"assets?",
+    r"vehicles?",
     r"liabilit(?:y|ies)",
     r"polic(?:y|ies)",
     r"transactions?",
