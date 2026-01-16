@@ -650,31 +650,30 @@ G = r"(?:\W+\w+){0,5}"  # up to 5 intermediate words
 
 HEDGE_DOC_TERMS = [
     # 1. Documentation & Designation (Existing)
-    rf"formally\s+document",
-    rf"hedge\s+documentation",
-    r"documentation",
-    rf"at\s+inception",
-    rf"(?:in)?effectiveness\s+(?:portion)?",
-    rf"highly\s+effective",
-    rf"qualif(?:y|ies|ied){G}hedg(?:ing|es?)",
-    rf"(?:not)?\s+designated\s+as",
-    rf"(?:dis)?continu(?:es?|ed|ing)\s+hedge\s+(?:accounting|relationship|documentation|designation)?",
-    rf"economic\s+relationship",
-    rf"nature\s+of",
+    rf"\bformally\s+document\b",
+    r"\bdocumentation\b",
+    rf"\bat\s+inception\b",
+    rf"\b(?:in)?effectiveness\s+(?:portion)?\b",
+    rf"\bhighly\s+effective\b",
+    rf"\bqualif(?:y|ies|ied){G}hedg(?:ing|es?)\b",
+    rf"\b(?:not)?\s+designated\s+as\b",
+    rf"\b(?:dis)?continu(?:es?|ed|ing)\s+hedge\s+(?:accounting|relationship|documentation|designation)?\b",
+    rf"\beconomic\s+relationship\b",
+    rf"\bnature\s+of\b",
     # 2. ASC 815 / FAS 133 Specifics (New & Tightened)
-    # Matches: "Hedges of forecasted transactions", "Hedge of a recognized asset"
-    r"hedges?\s+of\s+(?:(?:a|the|these|those|any)\s+)?(?:forecasted|recognized)",
+    # Matches: "Hedges of forecasted transactions\b", "Hedge of a recognized asset"
+    r"\bhedges?\s+of\s+(?:(?:a|the|these|those|any)\s+)?(?:forecasted|recognized)\b",
     # Matches: "Changes in the fair value of a derivative"
-    r"changes?\s+in\s+(?:the\s+)?fair\s+values?\s+of\s+(?:a|the|these|those|any)\s+derivatives?",
-    # Matches: "Derivatives are recognized", "The derivative is recognized"
-    r"(?:the\s+|these\s+|those\s+|a\s+)?derivatives?\s+(?:are|is)\s+recognized",
+    r"\bchanges?\s+in\s+(?:the\s+)?fair\s+values?\s+of\s+(?:a|the|these|those|any)\s+derivatives?\b",
+    # Matches: "Derivatives are recognized\b", "The derivative is recognized"
+    r"\b(?:the\s+|these\s+|those\s+|a\s+)?derivatives?\s+(?:are|is)\s+recognized\b",
     # Matches: "Variability of cash flows" (Safe if inside derivative/hedging paragraphs)
-    r"variabilit(?:y|ies)\s+of\s+cash\s+flows?",
+    r"\bvariabilit(?:y|ies)\s+of\s+cash\s+flows?\b",
     # Matches: "Hedge of net investment in foreign operation"
-    r"hedges?\s+of\s+(?:the\s+)?net\s+investment",
-    # Matches: "Recorded in OCI", "Recorded in earnings" (Standard mechanics)
-    r"(?:recognized|recorded)\s+in\s+(?:other\s+comprehensive|earnings|oci)",
-    r"(?:[\"“\'])?(?:net investment|fair\s+value|cash\s+flow)(?:[\"“\'])?\s+hedges?",
+    r"\bhedges?\s+of\s+(?:the\s+)?net\s+investment\b",
+    # Matches: "Recorded in OCI\b", "Recorded in earnings" (Standard mechanics)
+    r"\b(?:recognized|recorded)\s+in\s+(?:other\s+comprehensive|earnings|oci)\b",
+    r"\b(?:[\"“\'])?(?:net investment|fair\s+value|cash\s+flow)(?:[\"“\'])?\s+hedges?\b",
 ]
 
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS, use_sep=False)
