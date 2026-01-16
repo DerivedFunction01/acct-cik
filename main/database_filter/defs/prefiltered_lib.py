@@ -100,8 +100,16 @@ class MinimalTextCleaner:
         # Matches: "expense of <Q_0>", "earnings <Q_1>", "price of <Q_2>"
         # Excludes: "gain", "loss" (as requested)
         quant_token = r"<Q_\d+>"
-        sep_pattern = r"\s*(?:,|and|or|to|&)\s*"  # Allow standard list separators
-        quant_chain = rf"{quant_token}(?:{sep_pattern}{quant_token})*"
+
+        # IMPROVED: Allow comma, space, and/or word connectors in combination
+        # This handles: ", ", " and ", ", and ", " or "
+        sep_pattern = r"\s*(?:,|\band\b|\bor\b|&|to)\s*"
+
+        # To handle the ", and" case specifically, we can make the separator
+        # allow multiple units:
+        flexible_sep = r"(?:[\s,]+(?:and|or|&|to)?\s*)"
+
+        quant_chain = rf"{quant_token}(?:{flexible_sep}{quant_token})*"
         pnl_terms = r"(?:income|expenses?|earnings?|prices?|costs?|revenues?|payments?|gains?|sales?|loss|losses)"
         pnl_connectors = (
             r"(?:of|by|was|were|is|are|aggregated|totaling|approximately|approx\.?|to|at)"
