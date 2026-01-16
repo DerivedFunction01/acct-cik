@@ -118,7 +118,7 @@ class MinimalTextCleaner:
 
         # STRICT NOUNS: Excludes "Year", "Quarter", "Report"
         # Includes: Notes, Bonds, Loans, Facility, Plans, Programs, Schemes
-        target_nouns = rf"(?:{_DEBT_TERMS}|facility|plans?|programs?|schemes?)"
+        target_nouns = rf"(?:{_DEBT_TERMS}|facility|plans?|programs?|schemes?|(?:net\s+)?(?:income|expenses?|sales?|revenues?|earnings?))"
 
         self.title_regex = re.compile(
             rf"(?P<token>{year_chain})\s+{opt_adjectives}{target_nouns}", re.IGNORECASE
@@ -317,6 +317,44 @@ class MinimalTextCleaner:
             sent = self.clean_non_derivatives(sent, is_nst)
             texts.append(sent)
         return " ".join(texts)
+    def run_test(self):
+        # --- 2. DEFINE THE TORTURE TEST PARAGRAPH ---
+        # This paragraph contains every edge case we discussed.
+        test_paragraph = (
+            "(1) On December 31, 2023, per ASC 815, we entered into interest rate swaps with a notional amount of $500 million to fix the rate of 2024 Convertible Senior Notes due 2029. "
+            "(ii) We recorded a gain of $42 million, but the interest rate swap had an impact on 2023 earnings of $120 million. "
+            "We also entered into convertible note hedge transactions to limit dilution (according to ASU 2014-09), alongside separate warrant transactions. "
+            "The 2015 Incentive Plan includes options expiring 2025. "
+            "See Exhibit 10.1 for details."
+        )
+
+        print("-" * 60)
+        print("INPUT TEXT:")
+        print("-" * 60)
+        print(test_paragraph)
+        print("\n" + "=" * 60 + "\n")
+
+        # Set is_nst=True to test the "warrant" stripping vs "convertible note hedge" protection
+        cleaned_text = self.clean(test_paragraph, remove_years=False, is_nst=True)
+
+        print("-" * 60)
+        print("CLEANED OUTPUT:")
+        print("-" * 60)
+        print(cleaned_text)
+        print("-" * 60)
+
+        # --- 4. VERIFICATION CHECKLIST ---
+        print("\nVISUAL CHECKLIST:")
+        print(f"['(1)', '(ii)'] Removed?          {'SUCCESS' if '(1)' not in cleaned_text and '(ii)' not in cleaned_text else 'FAIL'}")
+        print(f"['ASC 815'] Removed?             {'SUCCESS' if 'ASC 815' not in cleaned_text else 'FAIL'}")
+        print(f"['$500 million'] (Notional) Kept? {'SUCCESS' if '$500 million' in cleaned_text else 'FAIL'}")
+        print(f"['$42 million'] (Gain) Kept?      {'SUCCESS' if '$42 million' in cleaned_text else 'FAIL'}")
+        print(f"['$120 million'] (Earnings) Gone? {'SUCCESS' if '$120 million' not in cleaned_text else 'FAIL'}")
+        print(f"['$1.0 billion'] (Debt) Gone?     {'SUCCESS' if '$1.0 billion' not in cleaned_text else 'FAIL'}")
+        print(f"['2024'] (Identifier) Gone?       {'SUCCESS' if '2024 Convertible' not in cleaned_text and 'Senior Notes' in cleaned_text else 'FAIL'}")
+        print(f"['2015'] (Plan) Gone?             {'SUCCESS' if '2015 Incentive' not in cleaned_text else 'FAIL'}")
+        print(f"['warrant'] Stripped (NST)?       {'SUCCESS' if 'warrant' not in cleaned_text.lower() else 'FAIL'}")
+        print(f"['note hedge'] Protected?         {'SUCCESS' if 'convertible note hedge' in cleaned_text.lower() else 'FAIL'}")
 
 from enum import Enum
 class Reason(Enum):

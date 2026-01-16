@@ -310,7 +310,7 @@ GUIDANCE_OBJECT_TYPES_FRAGMENT = build_alternation(GUIDANCE_OBJECT_TYPES)
 # --- STANDARD ID PATTERN ---
 # Matches: "EITF Issue No. 06-6", "FASB Statement No. 133", "ASU 2014-09"
 STANDARD_ID_PATTERN = rf"(?:{STANDARDS_FRAGMENT}|{GUIDANCE_OBJECT_TYPES_FRAGMENT})(?:\s+Issue)?(?:\s+No\.?)?\s+\d+(?:-\d+)*(?:[A-Z])?"
-STANDARD_ID_REGEX = re.compile(STANDARD_ID_PATTERN)
+STANDARD_ID_REGEX = re.compile(r"\b" + STANDARD_ID_PATTERN + r"\b", re.IGNORECASE)
 
 CAPITALIZED_TITLE_PATTERN = (
     r"(?:,?\s*[\"“']?(?:[A-Z][\w\-']+\s+){2,}[A-Z][\w\-']+[\"”']?)?"
@@ -383,3 +383,38 @@ ACCOUNTING_STANDARDS_SOFT = [
 # --- 3. COMBINED LIST (For General Filtering) ---
 ACCOUNTING_STANDARDS_KEYWORDS = ACCOUNTING_STANDARDS_STRICT + ACCOUNTING_STANDARDS_SOFT
 EXCLUDE_REGEX_ACCOUNTING_STD = build_regex(ACCOUNTING_STANDARDS_KEYWORDS)
+
+
+def run_test():
+    ids = [
+        # --- FASB Standards & Updates ---
+        "ASU 2025-12",  # Standard Year-Sequence
+        "ASC 815-40",  # Codification with sub-topic
+        "ASC 815",  # Broad Topic
+        "ASU No. 2024-04",  # With optional "No."
+        "FASB Statement No. 133",  # Full name + No.
+        # --- Legacy & Unofficial IDs ---
+        "SFAS 133",  # Acronym only
+        "EITF 00-19",  # Legacy format
+        "EITF Issue No. 06-6",  # Complex "Issue No." format
+        "FIN 48",  # Interpretation
+        "FSP 133-1",  # Staff Position
+        # --- International Standards ---
+        "IFRS 9",  # International standard
+        "IAS 39",  # Legacy international
+        "IFRIC 12",  # International interpretation
+        # --- Fictional/Generic "Debris" IDs ---
+        "Guidance No. 123",  # Generic Guidance object
+        "Standard 999-A",  # Generic Standard with letter suffix
+        "Opinion No. 45-B",  # Accounting Board Opinion style
+        "Bulletin 2025",  # Bulletin style
+        "Codification 815-10-05",  # Deep sub-topic mapping
+    ]
+
+    for id in ids:
+        # sub() returns an empty string if the ID matches the pattern perfectly
+        stripped = STANDARD_ID_REGEX.sub("", id).strip()
+        if stripped:
+            print(f"FAILED TO STRIP: '{id}' (Remaining: '{stripped}')")
+        else:
+            print(f"SUCCESSFULLY STRIPPED: '{id}'")
