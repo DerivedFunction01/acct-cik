@@ -59,19 +59,18 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     pattern4 = special_bases_alt
 
     # Combine with specific phrases first (highest priority)
-    # Combine with specific phrases first (highest priority)
     specific_phrases = [
-        "(?:cash[- ]flow|fair[- ]value) hedges?",
+        "(?:cash[- ]flow|fair[- ]value|net[- ]investment) hedges?",
+        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
         "(?:embedded|financial|over[- ]the[- ]counter|otc) derivatives?",
         "(?:derivative[ -]financial|risk[ -]management) instruments?",
         # Derivative/Swap Balance Sheet Items
         "(?:derivative|swap) (?:liabilit(?:y|ies)|assets?)",
-        # Hedging Balance Sheet Items
-        "hedging (?:liabilit(?:y|ies)|assets?|vehicles?)",  # <-- NEW
         # Explicit "Safe" Variants for Ambiguous Bases
         "forward contracts?",
         "forward agreements?",  # <-- NEW
         "option contracts?",  # <-- NEW
+        "zero[- ]cost collars?",
     ]
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
