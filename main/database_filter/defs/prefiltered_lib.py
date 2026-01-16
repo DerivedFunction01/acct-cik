@@ -740,23 +740,58 @@ HEDGE_DOC_TERMS = [
     r"\b(?:[\"“\'])?(?:net investment|fair\s+value|cash\s+flow)(?:[\"“\'])?\s+hedges?\b",
 ]
 
+
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS, use_sep=False)
-PNL_TERMS = [
-    # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
-    r"(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
-    # 2. "On" Construction (e.g., "Gain on derivatives")
-    r"(?:net\s+)?(?:gains?|loss(?:es)?)",
-    # 3. Fair Value CHANGES (Strictly Flow)
-    # 4. Ineffectiveness (Strictly PnL context)
-    r"ineffective\s+portion",
-    r"hedge\s+ineffectiveness",
-    # 6. Mark-to-Market (Action/Result, usually implies flow)
-    # Distinguishes from "Fair Value" measurement policy
-    r"mark(?:ed)?[- ]to[- ]market",
-    # 7. Impact statements
-    r"impact\s+(?:on|to)\s+(?:the )?(?:\d{4}\s+)?(?:earnings|incomes?|revenues)"
-]
-PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
+
+def pnl_regex() -> re.Pattern:
+    # 1. The Financial Targets (The "What")
+    # Captures: "net income", "interest expense", "2024 earnings", "revenues"
+    # Structure handles optional prefixes: "the", "net", "2024", "interest"
+    pnl_target_bases = r"(?:earnings|incomes?|revenues?|expenses?|operations|results)"
+    pnl_targets = rf"(?:the\s+)?(?:net\s+)?(?:\d{{4}}\s+)?(?:interest\s+)?(?:net\s+)?{pnl_target_bases}"
+
+    # 2. The Prepositions (The "Connector")
+    preps = r"(?:on|to|in|at|of|from)"
+
+    # 3. The Action Words (The "How")
+    # Nouns: "an impact", "an increase"
+    impact_nouns = r"(?:impact|effect|increase|decrease|gain|loss(?:es)?)"
+    # Verbs: "increased", "reducing"
+    change_verbs = r"(?:increas|decreas|reduc)(?:ed?|es|ing)"
+
+    pnl_terms = [
+        # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
+        r"(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
+        # 2. "On" Construction (e.g., "Gain on derivatives")
+        rf"(?:net\s+)?(?:gains?|loss(?:es)?)\s+{preps}",
+        # 3. Fair Value CHANGES (Strictly Flow)
+        # 4. Ineffectiveness (Strictly PnL context)
+        r"ineffective\s+portion",
+        r"hedge\s+ineffectiveness",
+        # 6. Mark-to-Market (Action/Result, usually implies flow)
+        # Distinguishes from "Fair Value" measurement policy
+        r"mark(?:ed)?[- ]to[- ]market",
+        # A. Unambiguous Gains/Losses (Stand-alone)
+        # Matches: "resulted in a gain", "recognized a loss"
+        r"(?:had|have|has|recognized|recorded|resulted\s+in)(?:\W+\w+){0,3}\s+(?:gain|loss(?:es)?)",
+        # B. "Noun" Impact (Impact/Effect ON Target)
+        # Matches: "impact on net income", "increase in 2024 earnings"
+        # Logic: Noun + Prep + Target
+        rf"{impact_nouns}\s+{preps}\s+{pnl_targets}",
+        # C. "Verb" Change (Directly Changed Target)
+        # Matches: "increased interest expense", "reducing net income"
+        # Logic: Verb + (optional 3 words) + Target
+        rf"{change_verbs}(?:\W+\w+){{0,3}}\s+{pnl_targets}",
+        # D. "Auxiliary" Impact (Had ... Impact ON Target)
+        # Matches: "had a material impact on earnings", "has no effect on results"
+        # Logic: Had/Have + (optional words) + Noun + Prep + Target
+        rf"(?:had|have|has)(?:\W+\w+){{0,3}}\s+{impact_nouns}\s+{preps}\s+{pnl_targets}",
+    ]
+
+    return build_regex(pnl_terms)
+
+
+PNL_CONTEXT_REGEX = pnl_regex()
 
 _prep_pattern = build_alternation([r"in", r"of", r"on"])
 CHANGE_FV_REGEX = build_regex(
