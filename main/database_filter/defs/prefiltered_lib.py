@@ -754,7 +754,7 @@ PNL_TERMS = [
     # Distinguishes from "Fair Value" measurement policy
     r"mark(?:ed)?[- ]to[- ]market",
     # 7. Impact statements
-    r"impact\s+(?:on|to)\s+(?:earnings|income|revenue)",
+    r"impact\s+(?:on|to)\s+(?:the )?(?:\d{4}\s+)?(?:earnings|incomes?|revenues)"
 ]
 PNL_CONTEXT_REGEX = build_regex(PNL_TERMS)
 
