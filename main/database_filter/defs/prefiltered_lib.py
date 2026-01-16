@@ -422,7 +422,7 @@ class MinimalTextCleaner:
             f"Notional ['$500 million'] Kept?            {'SUCCESS' if '$500 million' in cleaned_text else 'FAIL'}"
         )
         print(
-            f"Gain ['$42 million'] Kept?                 {'SUCCESS' if '$42 million' in cleaned_text else 'FAIL'}"
+            f"Gain ['$42 million'] Gone?                 {'SUCCESS' if '$42 million' not in cleaned_text else 'FAIL'}"
         )
         print(
             f"Earnings List ['$120M, $80M...'] Gone?     {'SUCCESS' if '$120 million' not in cleaned_text and '$80 million' not in cleaned_text else 'FAIL'}"
