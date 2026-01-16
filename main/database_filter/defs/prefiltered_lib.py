@@ -5,7 +5,7 @@ from defs.refer import EXB_TOKEN, EXHIBIT_FRAGMENT
 from defs.acct_std import STANDARD_ID_REGEX, STD_TOKEN
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX
 from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIVATIVE_REGEX
-from defs.ir_regex import IR_SOFT_REGEX
+from defs.ir_regex import DEBT_EXP_REGEX, DEBT_TOKEN, IR_SOFT_REGEX
 from defs.shared_context import _DEBT_TERMS, CURRENCY_SYMBOL_PATTERN, VALUATION_MODELS
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.gen_regex import GEN_HEDGES
@@ -179,7 +179,8 @@ class MinimalTextCleaner:
         # 5. Restore Remaining Years
         for token, original_text in replacements.items():
             masked_text = masked_text.replace(token, original_text)
-
+        masked_text = DEBT_EXP_REGEX.sub(DEBT_TOKEN, masked_text) # replaces it with the word "debt"
+        masked_text = self.normalize_whitespace(masked_text)
         return masked_text
 
     def clean_contextual_quants(self, text: str) -> str:
