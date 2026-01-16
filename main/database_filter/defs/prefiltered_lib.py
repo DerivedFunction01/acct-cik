@@ -265,6 +265,8 @@ class MinimalTextCleaner:
         2. Normalize whitespace
         3. Return cleaned text ready for QUANT_REGEX/value extraction
         """
+        text = self.clean_contextual_quants(text)
+        text = self.clean_contextual_years(text)
         text = self.clean_numerics(text, remove_years)
         text = self.normalize_whitespace(text)
         return text
