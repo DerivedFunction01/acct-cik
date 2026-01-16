@@ -118,7 +118,7 @@ class MinimalTextCleaner:
 
         # STRICT NOUNS: Excludes "Year", "Quarter", "Report"
         # Includes: Notes, Bonds, Loans, Facility, Plans, Programs, Schemes
-        target_nouns = rf"(?{_DEBT_TERMS}|facility|plans?|programs?|schemes?)"
+        target_nouns = rf"(?:{_DEBT_TERMS}|facility|plans?|programs?|schemes?)"
 
         self.title_regex = re.compile(
             rf"(?P<token>{year_chain})\s+{opt_adjectives}{target_nouns}", re.IGNORECASE
@@ -213,10 +213,8 @@ class MinimalTextCleaner:
         """
         Remove numeric noise that confuses quantitative parsing.
         """
-        # Step 0: Contextual Cleanup (NEW)
-        # Remove "bad" quants (Debt/Earnings) BEFORE they can be protected.
         text = self.clean_contextual_quants(text)
-
+        text = self.clean_contextual_years(text)
         # Step 1: Identify and protect remaining quantitative values
         quant_matches = list(QUANT_REGEX.finditer(text))
         protected_ranges = set()
@@ -265,8 +263,6 @@ class MinimalTextCleaner:
         2. Normalize whitespace
         3. Return cleaned text ready for QUANT_REGEX/value extraction
         """
-        text = self.clean_contextual_quants(text)
-        text = self.clean_contextual_years(text)
         text = self.clean_numerics(text, remove_years)
         text = self.normalize_whitespace(text)
         return text
