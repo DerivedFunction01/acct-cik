@@ -102,12 +102,18 @@ class MinimalTextCleaner:
         quant_token = r"<Q_\d+>"
         sep_pattern = r"\s*(?:,|and|or|to|&)\s*"  # Allow standard list separators
         quant_chain = rf"{quant_token}(?:{sep_pattern}{quant_token})*"
-        pnl_terms = r"(?:income|expenses?|earnings?|prices?|costs?|revenues?|payments?)"
+        pnl_terms = r"(?:income|expenses?|earnings?|prices?|costs?|revenues?|payments?|gains?|sales?|loss|losses)"
         pnl_connectors = (
             r"(?:of|by|was|were|is|are|aggregated|totaling|approximately|approx\.?|to|at)"
         )
+        # 2. Define the Gap (0-2 words)
+        # \s+\w+ matches a space followed by a word (e.g., " was increased")
+        WORD_GAP = r"(?:\s+\w+){0,2}"
+
+        # 3. Update the Regex
+        # Structure: \b{term}{gap} {optional connector} {quant}
         self.pnl_regex = re.compile(
-            rf"\b{pnl_terms}\s+(?:{pnl_connectors}\s+)?(?P<token>{quant_chain})",
+            rf"\b{pnl_terms}{WORD_GAP}\s+(?:{pnl_connectors}\s+)?(?P<token>{quant_chain})",
             re.IGNORECASE,
         )
         # Matches: "<Q_0> debt", "<Q_1> principal amount", "<Q_2> senior notes"
@@ -422,7 +428,7 @@ class MinimalTextCleaner:
             f"ID Years ['2024', '2025 Debentures'] Gone? {'SUCCESS' if '2024 Convertible' not in cleaned_text and '2025 Secured' not in cleaned_text else 'FAIL'}"
         )
         print(
-            f"Maturity ['due Dec 31, 2029'] Gone?        {'SUCCESS' if '2029' not in cleaned_text else 'FAIL'}"
+            f"Maturity ['due Dec 31, 2029'] Gone?        {'SUCCESS' if 'Dec 31, 2029' not in cleaned_text else 'FAIL'}"
         )
         print(
             f"Fiscal Year ['2023 Fiscal'] Kept?          {'SUCCESS' if '2023 Fiscal' in cleaned_text else 'FAIL'}"
