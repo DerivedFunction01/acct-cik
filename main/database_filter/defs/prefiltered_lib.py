@@ -109,7 +109,15 @@ class MinimalTextCleaner:
         # 2. Define Year Chain (Matches: <Y_0>, <Y_1> and <Y_2>)
         year_token = r"<Y_\d+>"
         sep_pattern = r"\s*(?:,|and|or|&)\s*"
-        year_chain = rf"(?:(?:{MD_PATTERN}|{DM_PATTERN})(,)?\s+)?{year_token}(?:{sep_pattern}{year_token})*"
+        # Expanded to catch "December", "December 31", or "31 December"
+        # We wrap them in optional groups to be used inside the year_chain
+        DATE_PREFIX_PATTERN = rf"(?:(?:{MD_PATTERN}|{DM_PATTERN}|{MONTHS_PATTERN})\s*(?:,)?\s*)"
+        # This now matches:
+        # "2023"
+        # "December 2023"
+        # "December 31, 2023"
+        # "December 2023, 2024 and 2025"
+        year_chain = rf"(?:{DATE_PREFIX_PATTERN})?{year_token}(?:{sep_pattern}{year_token})*"
 
         # 3. Define Removal Patterns
 
@@ -131,8 +139,12 @@ class MinimalTextCleaner:
         # This prevents cleaning evidence like "The hedge is due 2025" or "Expires in 2025"
         debt_nouns = rf"(?:{_DEBT_TERMS}|facility)"
         maturity_triggers = r"(?:due|matur(?:e|ing)|expir(?:e|ing))\s+(?:on|in|at|during|through)?\s*"
+        # Allow up to 3 words between the trigger and the date/year
+        # This catches: "due in December 2023", "due approximately 2024", etc.
+        GAP = r"(?:\W+\w+){0,4}?"
+
         self.maturity_regex = re.compile(
-            rf"{debt_nouns}\s+{maturity_triggers}\s+(?P<token>{year_chain})",
+            rf"{debt_nouns}\s+{maturity_triggers}{GAP}\s+(?P<token>{year_chain})",
             re.IGNORECASE,
         )
 
