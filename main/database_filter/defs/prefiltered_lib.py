@@ -869,16 +869,18 @@ NUMBER_PATTERN = (
 )
 SCALE_WORDS = r"(?:million|billion|trillion|thousand)"
 QUANT_REGEX = re.compile(
-    # Currency symbol + optional parens + number + optional parens
-    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*\(?\s*{NUMBER_PATTERN}\s*\)?|"
-    # Number + optional parens + currency symbol
-    rf"\(?\s*{NUMBER_PATTERN}\s*\)?\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
-    # Number + optional scale word + commodity unit
+    # 1. Currency Symbol + Number + Optional Scale (e.g., "$ 500 million")
+    rf"(?:{CURRENCY_SYMBOL_PATTERN})\s*\(?\s*{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s*\)?|"
+    
+    # 2. Number + Scale + Currency Symbol (e.g., "500 million $")
+    rf"\(?\s*{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s*\)?\s*(?:{CURRENCY_SYMBOL_PATTERN})|"
+    
+    # 3. Number + Scale + Commodity/Shares (e.g., "10 million barrels", "500 shares")
     rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+(?:{COMMODITY_UNIT_PATTERN}|shares)|"
-    # Custom Tabular data (custom and consistent)
-    rf"(?:amount|value)\s+of\s+{NUMBER_PATTERN}", # we do not do ignore case here
+    
+    # 4. Tabular Context (e.g., "amount of 500 million")
+    rf"(?:amount|value)\s+of\s+{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?",
 )
-
 
 # Needs to match $0, $ 0, $ (0), or $(0), 0 USD, USD 0, or 0 million units/shares
 ZERO_QUANT_REGEX = re.compile(
