@@ -71,9 +71,13 @@ class MinimalTextCleaner:
 
     pnl_regex = None
 
-    # B. Debt Context (Following the quant)
+    year_regex = None
 
     debt_regex = None
+
+    title_regex = None
+
+    maturity_regex = None
 
     def __init__(self):
         # 2. Define Removal Patterns (applied to masked text)
@@ -95,10 +99,74 @@ class MinimalTextCleaner:
             re.IGNORECASE,
         )
         # Matches: "<Q_0> debt", "<Q_1> principal amount", "<Q_2> senior notes"
-        debt_terms = rf"(?:aggregate\s+)?(?:principal|{_DEBT_TERMS})"
+        debt_terms = rf"(?:aggregate\s+)?(?:principal|(?:convertible )?{_DEBT_TERMS})"
         self.debt_regex = re.compile(
             rf"(?P<token>{quant_chain})\s+{debt_terms}", re.IGNORECASE
         )
+
+        # 2. Define Year Chain (Matches: <Y_0>, <Y_1> and <Y_2>)
+        year_token = r"<Y_\d+>"
+        sep_pattern = r"\s*(?:,|and|or|&)\s*"
+        year_chain = rf"{year_token}(?:{sep_pattern}{year_token})*"
+
+        # 3. Define Removal Patterns
+
+        # A. Pre-Noun Modifiers (The "2024 Notes" / "2010 Plan" case)
+        # STRICT ADJECTIVES: Excludes "Fiscal", "Annual"
+        # Includes: Senior, Convertible, Secured, Incentive, Stock, Performance, Share
+        opt_adjectives = r"(?:(?:senior|convertible|secured|unsecured|guaranteed|equity|stock|incentive|share|performance)\s+){0,3}"
+
+        # STRICT NOUNS: Excludes "Year", "Quarter", "Report"
+        # Includes: Notes, Bonds, Loans, Facility, Plans, Programs, Schemes
+        target_nouns = rf"(?{_DEBT_TERMS}|facility|plans?|programs?|schemes?)"
+
+        self.title_regex = re.compile(
+            rf"(?P<token>{year_chain})\s+{opt_adjectives}{target_nouns}", re.IGNORECASE
+        )
+
+        # B. Post-Noun Maturities (The "Notes due 2025" case)
+        # STRICT ANCHOR: Must be [Debt Noun] + "due" + [Year]
+        # This prevents cleaning evidence like "The hedge is due 2025" or "Expires in 2025"
+        debt_nouns = rf"(?:{_DEBT_TERMS}|facility)"
+        maturity_triggers = r"(?:due|matur(?:e|ing)|expir(?:e|ing))\s+(?:on|in|at|during|through)?\s*"
+        self.maturity_regex = re.compile(
+            rf"{debt_nouns}\s+{maturity_triggers}\s+(?P<token>{year_chain})",
+            re.IGNORECASE,
+        )
+
+    def clean_contextual_years(self, text: str) -> str:
+        """
+        Targeted cleaning of Years that act as Adjectives or Identifiers.
+
+        Strict Rules:
+        1. Removes: YEAR + [Adjectives] + [Debt/Plan Noun] (e.g. "2024 Senior Notes", "2010 Incentive Plan")
+        2. Removes: [Debt Noun] + due + YEAR (e.g. "Notes due 2028")
+        3. PROTECTS: "Fiscal Year", "Annual Report", and generic expirations (e.g. "Options expiring 2025")
+        """
+        # 1. Tokenize Years
+        replacements = {}
+
+        def token_sub(match):
+            token = f"<Y_{len(replacements)}>"
+            replacements[token] = match.group(0)
+            return token
+
+        # Uses the global YEAR_REGEX (e.g. \b20\d{2}\b)
+        masked_text = YEAR_REGEX.sub(token_sub, text)
+        # 4. Execute Removal
+        def remove_token(match):
+            # Replace the YEAR token chain with a space, keeping the context words.
+            return match.group(0).replace(match.group("token"), " ")
+
+        assert self.title_regex is not None and self.maturity_regex is not None
+        masked_text = self.title_regex.sub(remove_token, masked_text)
+        masked_text = self.maturity_regex.sub(remove_token, masked_text)
+
+        # 5. Restore Remaining Years
+        for token, original_text in replacements.items():
+            masked_text = masked_text.replace(token, original_text)
+
+        return masked_text
 
     def clean_contextual_quants(self, text: str) -> str:
         """
