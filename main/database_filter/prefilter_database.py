@@ -150,10 +150,11 @@ def check_hard_exclusions(text: str) -> Optional[str]:
         return NoiseReason.LIBOR.value
 
     # --- TIER 2: SPECIFIC TOPIC FILTERS ---
-    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
-        return NoiseReason.LEGAL.value
     if EXCLUDE_BANKRUPTCY_REGEX.search(text):
         return NoiseReason.BANKRUPTCY.value
+    if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
+        return NoiseReason.LEGAL.value
+
     if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
         return NoiseReason.NON_FIN.value
     if NON_DERIVATIVE_TREATMENT_REGEX.search(text):
