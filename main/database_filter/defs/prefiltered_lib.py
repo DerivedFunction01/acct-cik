@@ -674,9 +674,10 @@ HEDGE_DOC_TERMS = [
     r"hedges?\s+of\s+(?:the\s+)?net\s+investment",
     # Matches: "Recorded in OCI", "Recorded in earnings" (Standard mechanics)
     r"(?:recognized|recorded)\s+in\s+(?:other\s+comprehensive|earnings|oci)",
+    r"(?:[\"“\'])?(?:net investment|fair\s+value|cash\s+flow)(?:[\"“\'])?\s+hedges?",
 ]
 
-HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS)
+HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS, use_sep=False)
 PNL_TERMS = [
     # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
     r"(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
