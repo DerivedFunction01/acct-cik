@@ -21,15 +21,15 @@ SKIP_TOKEN = " _S"
 
 # 5. Date Exclusion Patterns
 MONTHS_PATTERN = r"(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?"
-
+MD_PATTERN = rf"\b(?:{MONTHS_PATTERN})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)"
 # Matches: "December 31", "Dec 31st"
 DATE_MD_REGEX = re.compile(
-    rf"\b(?:{MONTHS_PATTERN})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)", re.IGNORECASE
+    MD_PATTERN, re.IGNORECASE
 )
-
+DM_PATTERN = rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{MONTHS_PATTERN})\b"
 # Matches: "31 December", "1st of Jan"
 DATE_DM_REGEX = re.compile(
-    rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{MONTHS_PATTERN})\b", re.IGNORECASE
+    DM_PATTERN, re.IGNORECASE
 )
 
 # Token for evidence
@@ -109,7 +109,7 @@ class MinimalTextCleaner:
         # 2. Define Year Chain (Matches: <Y_0>, <Y_1> and <Y_2>)
         year_token = r"<Y_\d+>"
         sep_pattern = r"\s*(?:,|and|or|&)\s*"
-        year_chain = rf"{year_token}(?:{sep_pattern}{year_token})*"
+        year_chain = rf"(?:(?:{MD_PATTERN}|{DM_PATTERN})(,)?\s+)?{year_token}(?:{sep_pattern}{year_token})*"
 
         # 3. Define Removal Patterns
 
