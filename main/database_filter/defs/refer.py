@@ -4,6 +4,7 @@ from defs.regex_lib import build_alternation, build_regex
 from defs.derivatives_core import unsafe_standalone_alternation
 from defs.shared_context import SUBJ
 
+EXB_TOKEN = " E_XB "
 EXHIBIT_NOUNS = [
     "exhibits",
     "references",
@@ -21,7 +22,9 @@ EXHIBIT_NOUNS = [
     "p.",
     "figure",
     "chart",
+    EXB_TOKEN
 ]
+
 EXHIBIT_FRAGMENT = build_alternation(EXHIBIT_NOUNS)
 
 
@@ -61,10 +64,10 @@ def build_simple_reference_regex() -> re.Pattern:
     pat_b2 = rf"\b(?:{direction_alt})\s+(?:{EXHIBIT_FRAGMENT})\b"
 
     # PATTERN C: "Note 5.", "Exhibit 10." (Explicit Numbering at sentence start/end)
-    # Checks for Noun + Number (1-3 digits)
-    pat_c = rf"\b(?:{EXHIBIT_FRAGMENT})\s+(?:No\.\s+)?\d{{1,3}}\b"
+    # Checks for Noun + Number (1-3 digits) Exhbit 10.2
+    pat_c = rf"\b(?:{EXHIBIT_FRAGMENT})\s+(?:No\.\s+)?\d{{1,3}}(?:\.d{{1,3}})?b"
 
-    return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_b2}|{pat_c})", re.IGNORECASE)
+    return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_b2}|{pat_c}|{EXB_TOKEN})", re.IGNORECASE)
 
 
 def build_information_reference_regex() -> re.Pattern:

@@ -1,7 +1,7 @@
 import re
 from typing import List, Optional, Set, Tuple
 from defs.cp_regex import COMMODITY_UNIT_PATTERN
-from defs.refer import EXHIBIT_FRAGMENT
+from defs.refer import EXB_TOKEN, EXHIBIT_FRAGMENT
 from defs.acct_std import STANDARD_ID_REGEX, STD_TOKEN
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX
 from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIVATIVE_REGEX
@@ -58,7 +58,7 @@ class MinimalTextCleaner:
     dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
 
     exhibit_pattern = re.compile(
-        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d{1,3}\b",
+        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d{1,3}(?:\.\d+)?b",
         re.IGNORECASE,
     )
 
@@ -239,7 +239,7 @@ class MinimalTextCleaner:
 
         # Step 4: Apply POLICY cleanups
         text = self.standard_id_pattern.sub(STD_TOKEN, text)
-        text = self.exhibit_pattern.sub(" ", text)
+        text = self.exhibit_pattern.sub(EXB_TOKEN, text)
         text = self.dashed_pattern.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
         text = DATE_DM_REGEX.sub(" ", text)
