@@ -303,9 +303,9 @@ _settle_lookbehind = "".join([rf"(?<!\b{word}\s)" for word in SETTLEMENT_MODIFIE
 TERMINATION_VERBS = [
     # --- SAFE VERBS (Past/Present/Participle) ---
     # Regex note: We removed |ion, |ity, |ment, |y suffixes
-    r"expir(?:e(?:d|s)?|ing)\s+(:?in|at|on)",  # Matches: expire, expired, expiring.  STOPS: expiration, expiry
-    r"matur(?:e(?:d|s)?|ing)\s+(?:in|at|on)",  # Matches: mature, matured, maturing.  STOPS: maturity
-    r"terminat(?:e(?:d|s)?|ing)",  # Matches: terminate, terminated.      STOPS: termination
+    r"expir(?:e(?:d|s)?)",  # Matches: expire, expired.  STOPS: expiration, expiry
+    r"matur(?:e(?:d|s)?)",  # Matches: mature, matured.  STOPS: maturity
+    r"terminat(?:e(?:d|s)?)",  # Matches: terminate, terminated.      STOPS: termination
     r"ceas(?:e(?:d|s)?|ing)",  # Matches: cease, ceased
     r"retir(?:e(?:d|s)?|ing)",  # Matches: retire, retired.
     r"clos(?:e(?:d|s)?|ing)(?!\s+(?:price|rate|date|balance|value))",
@@ -336,9 +336,10 @@ TERMINATION_VERBS = [
 ]
 TERMINATION_NOUNS = [
     # --- STATES (Strongest) ---
-    r"expir(?:ation|y)",  # Matches: expiration, expiry
+    r"expir(?:ation|y|ing)",  # Matches: expiration, expiry
     r"maturit(?:y|ies)",  # Matches: maturity, maturities
-    r"terminat(?:ion|or)",  # Matches: termination
+    r"maturing",  # Matches: maturing
+    r"terminat(?:ion|or|ing)",  # Matches: termination
     r"redemption",  # Matches: redemption
     # --- EVENTS (Transactional) ---
     r"extinguishment",  # Matches: extinguishment
@@ -469,7 +470,7 @@ def run_tests():
         (
             "DID_NOT_HOLD",
             DID_NOT_HOLD_REGEX,
-            "We do not, as a routine matter, use interest rate swaps",
+            "We do not, as a routine matter, use hedging vehicles",
             True,
         ),
         (
