@@ -170,6 +170,12 @@ class MinimalTextCleaner:
 
         text = self.normalize_whitespace(text)
         return text
+    
+    def clean_with_regex(self, text: str, regexes: List[re.Pattern]) -> str:
+        for regex in regexes:
+            text = regex.sub(" ", text)
+        text = self.normalize_whitespace(text)
+        return text
 
     def clean(self, text: str, remove_years: bool = False, is_nst: bool = True) -> str:
         texts = []
