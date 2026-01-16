@@ -372,17 +372,32 @@ TERMINATION_NOUNS = [
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
 
 def debt_expiration_regex() -> re.Pattern:
-    # 1. We use a non-greedy gap (?:\s+\S+){0,3}? 
+    # 1. We use a non-greedy gap (?:\s+\S+){0,3}?
     # 2. We ensure the termination verb is checked at every step
     WORD_GAP = r"(?:\s+\S+){0,3}?" 
-    
-    # We strip the \b from the alternation to allow it to match 
+
+    # We strip the \b from the alternation to allow it to match
     # immediately after the gap
     verbs = build_alternation(ALL_TERM_TERMS)
-    
+
     pattern = rf"\b(?:{_DEBT_TERMS}|facility)(?:,)?{WORD_GAP}\s+{verbs}\b"
     return re.compile(pattern, re.IGNORECASE)
 
 
+def debt_fv_regex() -> re.Pattern:
+    # 1. Optional Prefix: "Changes in", "increase in", etc.
+    # 0-3 words like "changes in the" or "fluctuations in"
+    prefix_gap = r"(?:\b(?:changes?|fluctuations?|increase|decrease|impact)\s+(?:in|to)\s+(?:the\s+)?)?"
+
+    # 2. Mid Gap: "fair value of [the/our] debt"
+    mid_gap = r"(?:\s+(?:the|our|total|aggregate))?\s*"
+
+    # 3. Pattern Construction
+    # Matches: "fair value of debt", "change in the fair value of our facility"
+    pattern = rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_DEBT_TERMS}|facility)\b"
+
+    return re.compile(pattern, re.IGNORECASE)
+
 DEBT_TOKEN = " debt "
 DEBT_EXP_REGEX = debt_expiration_regex()
+DEBT_FV_REGEX = debt_fv_regex()

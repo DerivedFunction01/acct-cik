@@ -8,6 +8,7 @@ from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIV
 from defs.shared_context import (
     _DEBT_TERMS,
     CURRENCY_SYMBOL_PATTERN,
+    DEBT_FV_REGEX,
     VALUATION_MODELS,
     DEBT_EXP_REGEX,
     DEBT_TOKEN,
@@ -91,6 +92,7 @@ class MinimalTextCleaner:
 
     maturity_regex = None
 
+    other_regexes = []
     def __init__(self):
         # 2. Define Removal Patterns (applied to masked text)
         self.initialize_regex()
@@ -313,33 +315,39 @@ class MinimalTextCleaner:
         return text
 
     def clean_non_derivatives(self, text: str, is_nst: bool = True) -> str:
-        """
-        Modified to protect genuine equity derivatives (EQ_REGEX)
-        from being mutilated by the sophisticated term stripper.
-        """
+        # Step 1: Protect genuine Equity Derivatives (EQ_REGEX)
+        # We move this to the top so we have a 'map' of what to never touch
+        eq_matches = list(EQ_REGEX.finditer(text))
+        protected_ranges = set()
+        for match in eq_matches:
+            for i in range(match.start(), match.end()):
+                protected_ranges.add(i)
 
-        # Step 2: Remove known non-derivative terms
+        # Step 2: Remove known non-derivative terms (e.g., "non-derivative")
         text = NON_DERIVATIVE_REGEX.sub(" ", text)
 
         # Step 3: Handle Sophisticated Term Stripping (is_nst=True)
         if is_nst:
-            # Step 1: Identify and protect genuine Equity Derivatives (e.g., "convertible note hedge")
-            eq_matches = list(EQ_REGEX.finditer(text))
-            protected_ranges = set()
-            for match in eq_matches:
-                for i in range(match.start(), match.end()):
-                    protected_ranges.add(i)
-            # Define a safe substitution that avoids protected ranges
+
             def safe_soph_sub(match):
-                # If the match for "convertible" or "warrant" is inside a
-                # protected EQ_REGEX match, keep it.
                 if any(
                     i in protected_ranges for i in range(match.start(), match.end())
                 ):
                     return match.group(0)
                 return " "
 
+            # Strips standalone "warrants" or "convertibles"
             text = self.soph_pattern.sub(safe_soph_sub, text)
+
+        # Step 4: Neutralize Fair Value of Debt
+        # We use a protected sub to ensure we don't kill "FV of Convertible Debt"
+        # when it's part of a protected hedge.
+        def safe_debt_fv_sub(match):
+            if any(i in protected_ranges for i in range(match.start(), match.end())):
+                return match.group(0)
+            return DEBT_TOKEN  # " debt "
+
+        text = DEBT_FV_REGEX.sub(safe_debt_fv_sub, text)
 
         text = self.normalize_whitespace(text)
         return text
@@ -353,6 +361,11 @@ class MinimalTextCleaner:
         # Adds a period at the end of the sentence if it doesn't exist
         if not text.endswith(punct):
             text += punct
+        return text
+
+    def clean_other_regexes(self, text, regexes: List[re.Pattern]):
+        for regex in regexes:
+            text = regex.sub(" ", text)
         return text
 
     def clean(self, text: str, remove_years: bool = False, is_nst: bool = True) -> str:
@@ -369,6 +382,7 @@ class MinimalTextCleaner:
             sent = self.clean_for_quant_analysis(sent, remove_years)
             sent = self.clean_entities(sent)
             sent = self.clean_non_derivatives(sent, is_nst)
+            sent = self.clean_other_regexes(sent, self.other_regexes)
             sent = self.add_punctuation(sent, punctuation)
             texts.append(sent)
         return " ".join(texts)
