@@ -6,7 +6,7 @@ from defs.acct_std import STANDARD_ID_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX
 from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIVATIVE_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
-from defs.shared_context import CURRENCY_SYMBOL_PATTERN, VALUATION_MODELS
+from defs.shared_context import _DEBT_TERMS, CURRENCY_SYMBOL_PATTERN, VALUATION_MODELS
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.gen_regex import GEN_HEDGES
 
@@ -68,35 +68,97 @@ class MinimalTextCleaner:
     # Standard IDs: ASC 815-20, IFRS 9, etc.
     standard_id_pattern = STANDARD_ID_REGEX
 
+    pnl_regex = None
+
+    # B. Debt Context (Following the quant)
+
+    debt_regex = None
+
     def __init__(self):
-        pass
+        # 2. Define Removal Patterns (applied to masked text)
+        self.initialize_regex()
+        
+    def initialize_regex(self):
+        # A. PnL / Price Context (Preceding the quant)
+        # Matches: "expense of <Q_0>", "earnings <Q_1>", "price of <Q_2>"
+        # Excludes: "gain", "loss" (as requested)
+        pnl_terms = r"(?:income|expenses?|earnings?|prices?|costs?|revenues?)"
+        pnl_connectors = (
+            r"(?:of|by|was|were|is|are|aggregated|totaling|approximately|approx\.?)"
+        )
+        self.pnl_regex = re.compile(
+            rf"\b{pnl_terms}\s+(?:{pnl_connectors}\s+)?(?P<token><Q_\d+>)",
+            re.IGNORECASE,
+        )
+        # Matches: "<Q_0> debt", "<Q_1> principal amount", "<Q_2> senior notes"
+        debt_terms = rf"(?:aggregate\s+)?(?:principal|{_DEBT_TERMS})"
+        self.debt_regex = re.compile(
+            rf"(?P<token><Q_\d+>)\s+{debt_terms}", re.IGNORECASE
+        )
+        
+    def clean_contextual_quants(self, text: str) -> str:
+        """
+        Targeted cleaning of quantitative values that act as noise.
+        Specifically removes values associated with:
+        - Income/Expense/Earnings/Price (e.g., "earnings of $10 million")
+        - Debt Principals (e.g., "$500 million aggregate principal")
+
+        Preserves:
+        - Gains/Losses (e.g., "gain of $5 million")
+        - Fair Values / Notionals (unless explicitly flagged as debt)
+        """
+        # 1. Tokenize Quants: Replace numbers with unique tokens <Q_i>
+        # This prevents partial matching and simplifies context checks.
+        replacements = {}
+
+        def token_sub(match):
+            token = f"<Q_{len(replacements)}>"
+            replacements[token] = match.group(0)
+            return token
+
+        masked_text = QUANT_REGEX.sub(token_sub, text)
+
+        # 3. Execute Removal
+        # We replace the captured token group with a space, effectively "deleting" the number
+        # while keeping the context word (e.g., "earnings") intact to be handled as text.
+
+        def remove_token(match):
+            # Replace the token part of the match with a space
+            return match.group(0).replace(match.group("token"), " ")
+        assert self.pnl_regex is not None and self.debt_regex is not None
+
+        masked_text = self.pnl_regex.sub(remove_token, masked_text)
+        masked_text = self.debt_regex.sub(remove_token, masked_text)
+
+        # 4. Restore Remaining Tokens
+        # Any token that wasn't removed gets swapped back to its original "$10 million" string.
+        for token, original_text in replacements.items():
+            masked_text = masked_text.replace(token, original_text)
+
+        return masked_text
 
     def clean_numerics(self, text: str, remove_years: bool = False) -> str:
         """
-        Remove numeric noise that confuses quantitative parsing:
-        - Bullet points (1), 1), 1.
-        - Dashed ranges (1-2)
-        - Dates (Dec 31, 31 December)
-        - Exhibit/reference markers (Note 5, Table A)
-        - Standard IDs (ASC 815, IFRS 9)
-
-        Safety: QUANT_REGEX is applied FIRST to protect actual monetary values
-        like "$ (100)" from being destroyed by the bullet pattern.
+        Remove numeric noise that confuses quantitative parsing.
         """
-        # Step 1: Identify and protect quantitative values
+        # Step 0: Contextual Cleanup (NEW)
+        # Remove "bad" quants (Debt/Earnings) BEFORE they can be protected.
+        text = self.clean_contextual_quants(text)
+
+        # Step 1: Identify and protect remaining quantitative values
         quant_matches = list(QUANT_REGEX.finditer(text))
         protected_ranges = set()
         for match in quant_matches:
             for i in range(match.start(), match.end()):
                 protected_ranges.add(i)
 
-        # Step 2: Identify and protect nil/zero values (ADD to the set, don't re-initialize)
+        # Step 2: Identify and protect nil/zero values
         zero_matches = list(ZERO_QUANT_REGEX.finditer(text))
         for match in zero_matches:
             for i in range(match.start(), match.end()):
                 protected_ranges.add(i)
 
-        # Step 2: Apply bullet pattern, but skip protected ranges
+        # Step 3: Apply bullet pattern, but skip protected ranges
         def safe_bullet_sub(match):
             if any(i in protected_ranges for i in range(match.start(), match.end())):
                 return match.group(0)  # Keep if protected
@@ -105,7 +167,7 @@ class MinimalTextCleaner:
         text = text.strip()
         text = self.bullet_pattern.sub(safe_bullet_sub, text)
 
-        # Step 3: Apply POLICY cleanups (no quant conflict)
+        # Step 4: Apply POLICY cleanups
         text = self.dashed_pattern.sub(" ", text)
         text = DATE_MD_REGEX.sub(" ", text)
         text = DATE_DM_REGEX.sub(" ", text)

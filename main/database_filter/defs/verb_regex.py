@@ -120,7 +120,6 @@ VERB_MAP = {
         r"maintain(?:s|ed|ing)?",
         r"possess(?:e|es|ed|ing)?",
         r"carr(?:y|ies|ied|ying)",
-        r"retain(?:s|ed|ing)?",
         r"remained?\s+(?:open|outstanding|active)",
         r"(?:a\s+)?party\s+to",
     ],
@@ -145,7 +144,8 @@ VERB_MAP = {
         r"designat(?:e|es|ed|ing)",
         r"chose(?:\s+to)",
         r"choos(?:e|es|ing)(?:\s+to)",
-        r"hedge"
+        r"hedge",
+        r"retain(?:s|ed|ing)?",
     ],
 }
 
