@@ -40,7 +40,7 @@ from defs.prefiltered_lib import (
 from defs.contract import is_contractual_noise
 from defs.hypo import is_hypothetical_noise
 from defs.regul import is_regulatory_noise
-from defs.derivative_lib import SOFT_CATEGORY_REGEX
+from defs.derivative_lib import SOFT_REGEX
 from defs.gen_regex import GEN_HEDGES, PRECISE_LOOSE_GEN_REGEX, RISK_MANAGEMENT_REGEX
 from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
 from defs.ir_regex import NON_DER_CAP_FLOOR_REGEX
@@ -410,7 +410,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
         if not (
             PRECISE_LOOSE_GEN_REGEX.search(temp_sent)
-            or SOFT_CATEGORY_REGEX.search(temp_sent)
+            or SOFT_REGEX.search(temp_sent)
             or is_sophisticated_target(temp_sent)
             or is_value(temp_sent)  # allow "The notional value is XX to bypass"
         ):

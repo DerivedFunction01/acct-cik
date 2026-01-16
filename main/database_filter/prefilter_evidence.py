@@ -7,7 +7,7 @@ from typing import Optional, Set, Tuple
 
 from tqdm import tqdm
 from defs.verb_regex import ACCT_VERB_REGEX, POSS_VERB_REGEX, TERMINATION_ALL_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
-from defs.derivative_lib import SOFT_CATEGORY_REGEX, CATEGORY_REGEX
+from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
 from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
@@ -140,13 +140,13 @@ REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
 def check_mention(text: str) -> bool:
     """Check if text mentions any derivative instrument."""
-    return bool(SOFT_CATEGORY_REGEX.search(text) or PRECISE_LOOSE_GEN_REGEX.search(text))
+    return bool(SOFT_REGEX.search(text) or PRECISE_LOOSE_GEN_REGEX.search(text))
 
 
 def check_derivative_global(text: str) -> bool:
     """Global check - returns True if text is a STRICT derivative mention."""
     return bool(
-        CATEGORY_REGEX.search(text)
+        STRICT_REGEX.search(text)
         or IR_SOFT_REGEX.search(text)
         or FX_SOFT_REGEX.search(text)
         or is_sophisticated_content(text)
@@ -218,7 +218,7 @@ def check_quantitative_evidence(
 
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
     if has_active_verb:
-        if CATEGORY_REGEX.search(text):
+        if STRICT_REGEX.search(text):
             return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
     return None
 
@@ -370,7 +370,7 @@ def mark_sentence_as_other(text: str) -> Optional[Reason]:
         return EvidenceReason.TABLE
     if HEDGE_DOC_REGEX.search(text):
         return NoiseReason.DOC
-    if not SOFT_CATEGORY_REGEX.search(text): # Contracts, swaps, etc
+    if not SOFT_REGEX.search(text): # Contracts, swaps, etc
         return NoiseReason.CTX
     return None # Remain uncategorized
 

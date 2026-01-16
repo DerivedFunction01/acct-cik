@@ -4,7 +4,7 @@ from typing import List, Dict, Optional, Set, Tuple
 
 # --- REGEX DEFINITIONS ---
 from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
-from defs.derivative_lib import CATEGORY_REGEX, SOFT_CATEGORY_REGEX
+from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX
 from defs.derivatives_core import BASE_REGEX, TABLE_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
 from defs.gen_regex import GEN_REGEX
@@ -380,7 +380,7 @@ class TableToTextConverter:
 
     def is_implied_derivative(self, full_context):
         return bool(
-            CATEGORY_REGEX.search(full_context)
+            STRICT_REGEX.search(full_context)
             or GEN_REGEX.search(full_context)
             or IR_SOFT_REGEX.search(full_context)
             or FX_SOFT_REGEX.search(full_context)
@@ -1395,7 +1395,7 @@ class TableToTextConverter:
             is_strict = self.is_implied_derivative(instrument_name)
             is_table_safe = bool(TABLE_REGEX.search(instrument_name))
             is_soft = (
-                bool(SOFT_CATEGORY_REGEX.search(instrument_name)) if not is_strict else False
+                bool(SOFT_REGEX.search(instrument_name)) if not is_strict else False
             )
             has_base = bool(BASE_REGEX.search(instrument_name))
             has_strong_notional = bool(STRONG_NOTIONAL_REGEX.search(instrument_name))

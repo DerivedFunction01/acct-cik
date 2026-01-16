@@ -105,7 +105,7 @@ def get_system_config():
 # =============================================================================
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
-from defs.derivative_lib import ALL_REGEX, CATEGORY_REGEX, SOFT_CATEGORY_REGEX
+from defs.derivative_lib import ALL_REGEX, STRICT_REGEX, SOFT_REGEX
 from defs.derivatives_core import TABLE_REGEX
 from defs.eq_regex import EXCLUDE_REGEX_EQUITY_COMP
 from defs.exclusion_regex import (
@@ -748,7 +748,7 @@ def filter_by_keywords(content: str) -> list[str]:
                     # STRICT_REGEX includes IR/FX/CP/Strict-EQ (Swaps), but NOT Options.
                     # SOFT_GEN includes "Hedge Accounting".
                     if not (
-                        CATEGORY_REGEX.search(part)
+                        STRICT_REGEX.search(part)
                         or GEN_STRICT_CONTEXT_REGEX.search(part)
                     ):
                         continue
@@ -824,7 +824,7 @@ def filter_by_keywords(content: str) -> list[str]:
                     # STRICT_REGEX now contains "Equity Swaps" but NOT "Equity Options".
                     # So "Equity Options" (without hedge accounting) will fail this check and be discarded.
                     if not (
-                        SOFT_CATEGORY_REGEX.search(para) or DER_STD_REGEX.search(para)
+                        SOFT_REGEX.search(para) or DER_STD_REGEX.search(para)
                     ):
                         i += 1
                         continue

@@ -17,7 +17,7 @@ from defs.prefiltered_lib import (
     is_sophisticated_content, 
     is_sophisticated_target
 )
-from defs.derivative_lib import CATEGORY_REGEX, SOFT_CATEGORY_REGEX, find_hedging_context
+from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EXCLUDE_REGEX_EQUITY_COMP
 from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
@@ -131,7 +131,7 @@ def is_standard_debt(text: str) -> bool:
     
     # If we are here, we have "convertible" without "equity" or "derivative" context.
     # Result: Treat as Standard Debt (Noise).
-    return bool(CATEGORY_REGEX.search(text) or GEN_STRICT_CONTEXT_REGEX.search(text))
+    return bool(STRICT_REGEX.search(text) or GEN_STRICT_CONTEXT_REGEX.search(text))
 
 def check_hard_exclusions(text: str) -> Optional[str]:
     """
@@ -469,8 +469,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             if exclusion_reason in SALVAGEABLE_REASONS:
                 # CHECK: Does this "Noise" actually name an instrument?
                 # We use STRICT (e.g. "Interest Rate Swap") or SOFT + CONTEXT (e.g. "Hedging Contracts")
-                has_instrument = CATEGORY_REGEX.search(p_masked) or (
-                    SOFT_CATEGORY_REGEX.search(p_masked)
+                has_instrument = STRICT_REGEX.search(p_masked) or (
+                    SOFT_REGEX.search(p_masked)
                     and HEDGING_CONTEXT_REGEX.search(p_masked)
                 )
 
@@ -502,11 +502,11 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     kept_indices = []
                     for sent_idx, (sent_masked,) in enumerate(zip(sentences_masked)):
                         if (
-                            CATEGORY_REGEX.search(sent_masked)
+                            STRICT_REGEX.search(sent_masked)
                             or GEN_STRICT_CONTEXT_REGEX.search(sent_masked)
                         ):
                             kept_indices.append(sent_idx)
-                        elif SOFT_CATEGORY_REGEX.search(sent_masked):
+                        elif SOFT_REGEX.search(sent_masked):
                             if (
                                 HEDGING_CONTEXT_REGEX.search(sent_masked)
                                 or is_sophisticated_content(sent_masked)

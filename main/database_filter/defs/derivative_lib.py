@@ -8,7 +8,7 @@ from defs.gen_regex import GEN_REGEX, DER_STD_REGEX, NOTIONAL_REGEX, HEDGING_CON
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 
 
-CATEGORY_REGEX = re.compile(
+STRICT_REGEX = re.compile(
     r"|".join(
         [
             IR_REGEX.pattern,
@@ -21,7 +21,7 @@ CATEGORY_REGEX = re.compile(
     ),
     re.IGNORECASE,
 )
-SOFT_CATEGORY_REGEX = re.compile(
+SOFT_REGEX = re.compile(
     r"|".join(
         [
             IR_SOFT_REGEX.pattern,
@@ -30,6 +30,18 @@ SOFT_CATEGORY_REGEX = re.compile(
             EQ_SOFT_REGEX.pattern,
             CR_SOFT_REGEX.pattern,
             GEN_REGEX.pattern,
+        ]
+    ),
+    re.IGNORECASE,
+)
+SOFT_CATEGORY_REGEX = re.compile(
+    r"|".join(
+        [
+            IR_SOFT_REGEX.pattern,
+            FX_SOFT_REGEX.pattern,
+            CP_SOFT_REGEX.pattern,
+            EQ_SOFT_REGEX.pattern,
+            CR_SOFT_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,
@@ -63,9 +75,9 @@ def find_hedging_context(paragraph: str) -> bool:
     """Standard Gatekeeper for regular derivatives."""
     if "<TABLE>" in paragraph.upper():  # Tables should have been parsed
         return False
-    elif CATEGORY_REGEX.search(paragraph) or GEN_STRICT_CONTEXT_REGEX.search(paragraph):
+    elif STRICT_REGEX.search(paragraph) or GEN_STRICT_CONTEXT_REGEX.search(paragraph):
         return True
-    elif SOFT_CATEGORY_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
+    elif SOFT_REGEX.search(paragraph) and HEDGING_CONTEXT_REGEX.search(paragraph):
         return True
     else:  # perform hard sentence by sentence verification
         for sent in SENTENCE_SPLIT_PATTERN.split(paragraph):
