@@ -8,6 +8,7 @@ from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIV
 from defs.ir_regex import IR_SOFT_REGEX
 from defs.shared_context import CURRENCY_SYMBOL_PATTERN, VALUATION_MODELS
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
+from defs.gen_regex import GEN_HEDGES
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
@@ -170,10 +171,9 @@ class MinimalTextCleaner:
 
         text = self.normalize_whitespace(text)
         return text
-    
-    def clean_with_regex(self, text: str, regexes: List[re.Pattern]) -> str:
-        for regex in regexes:
-            text = regex.sub(" ", text)
+
+    def clean_gen_hedges(self, text: str) -> str:
+        text = GEN_HEDGES.sub(" ", text)
         text = self.normalize_whitespace(text)
         return text
 

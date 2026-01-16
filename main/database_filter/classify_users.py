@@ -801,6 +801,7 @@ def process_row(row: Tuple) -> Tuple:
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             clean_sent = _cleaner.clean_entities(sent_content_no_evidence)
             clean_sent = _cleaner.clean_non_derivatives(clean_sent, effective_nst)
+            clean_sent = _cleaner.clean_gen_hedges(clean_sent)
 
             # -------------------------------------------------------------
             # A. Check Strict Matches (Gate 1 - Modified)
