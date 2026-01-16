@@ -65,7 +65,7 @@ def build_simple_reference_regex() -> re.Pattern:
 
     # PATTERN C: "Note 5.", "Exhibit 10." (Explicit Numbering at sentence start/end)
     # Checks for Noun + Number (1-3 digits) Exhbit 10.2
-    pat_c = rf"\b(?:{EXHIBIT_FRAGMENT})\s+(?:No\.\s+)?\d{{1,3}}(?:\.d{{1,3}})?b"
+    pat_c = rf"\b(?:{EXHIBIT_FRAGMENT})\s+(?:No\.\s+)?\d{{1,3}}(?:\.d{{1,3}})?\b"
 
     return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_b2}|{pat_c}|{EXB_TOKEN})", re.IGNORECASE)
 
@@ -223,7 +223,7 @@ def run_tests():
         ("REF: Easy - Refer to table", IS_REFERENCE_REGEX, "Refer to the above table.", True),
         ("REF: Med - As discussed in", IS_REFERENCE_REGEX, "As discussed in Note 12.", True),
         ("REF: Med - Accompanying schedule", IS_REFERENCE_REGEX, "The accompanying schedule.", True),
-        ("REF: Hard - Included in table", IS_REFERENCE_REGEX, "included in the table below", True),
+        ("REF: Hard - Included in table", IS_REFERENCE_REGEX, f"included in the {EXB_TOKEN} below", True),
         ("REF: Hard - Exhibit No", IS_REFERENCE_REGEX, "set forth in Exhibit No. 99.1", True),
         ("REF: Neg - Verb note", IS_REFERENCE_REGEX, "We note that the value changed.", False),
         ("REF: Neg - Literal table", IS_REFERENCE_REGEX, "The table is large.", False),
