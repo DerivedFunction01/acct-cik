@@ -19,7 +19,7 @@ from defs.prefiltered_lib import (
 )
 from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
-from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EXCLUDE_REGEX_EQUITY_COMP
+from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
 from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
 from defs.shared_context import CURRENCY_NAMES_REGEX, VALUATION_MODELS_REGEX
 from defs.ir_regex import EXCLUDE_REGEX_LIBOR_TRANSITION, is_bank_list_noise
@@ -302,16 +302,13 @@ def validate_sophisticated_buffer(
     """
     if not sophisticated_buffer:
         return False
-    # 1. Check for Internal Sophisticated Context
-    # Combined text from all sophisticated paragraphs
-    combined_text = " ".join(sophisticated_buffer)
-    if SOPHISTICATED_CONTEXT_REGEX.search(combined_text):
-        return True
 
     # 1. Check for Free Pass (Gated Target in standard text)
     # Use is_sophisticated_target() to ensure equity context
     for p in clean_paragraphs:
         if EQ_REGEX.search(p) and is_sophisticated_target(p):
+            return True
+        if SOPHISTICATED_CONTEXT_REGEX.search(p) and EQ_SOFT_REGEX.search(p):
             return True
     return False
 
