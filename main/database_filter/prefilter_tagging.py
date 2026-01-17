@@ -427,6 +427,8 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                 reason = NoiseReason.RISK
             elif is_pnl(masked, context_only=True): # PNL is tricky
                 reason = NoiseReason.PNL
+            elif COUNTERPARTY_REGEX.search(masked):
+                reason = NoiseReason.CREDIT
             else:
                 reason = NoiseReason.CTX
 
