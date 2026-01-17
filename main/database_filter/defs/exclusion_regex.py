@@ -167,10 +167,10 @@ NON_FINANCIAL_KEYWORDS = [
 
 PLAN_ASSETS_KEYWORDS = [
     r"\bplan\s+assets\b",
-    r"\bpension\s+(?:plan|fund|trust|benefit)",
-    r"\bpost[- ]?retirement\s+(?:benefit|plan)",
-    r"\bdefined\s+benefit\s+(?:plan|pension)",
-    r"\bretirement\s+(?:plan|system)",
+    r"\bpension\s+(?:plans|funds?|trust|benefits?)",
+    r"\bpost[- ]?retirement\s+(?:benefits?|plans?)",
+    r"\bdefined\s+benefit\s+(?:plans?|pensions?)",
+    r"\bretirement\s+(?:plans?|system|benefits?)",
     r"\btrust\s+assets\b",
     r"\b401\(?k\)?\s+plan",
     r"\bVEBA\b",  # Voluntary Employees' Beneficiary Association
