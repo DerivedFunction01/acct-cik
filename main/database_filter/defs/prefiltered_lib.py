@@ -962,7 +962,7 @@ HEDGE_DOC_TERMS = [
     rf"\bhighly\s+effective\b",
     rf"\bqualif(?:y|ies|ied){G}hedg(?:ing|es?)\b",
     rf"\b(?:not)?\s+designated\s+as\b",
-    rf"\bhedge\s+(?:accounting|relationship|documentation|designation|treatment)?\b",
+    rf"\bhedge\s+(?:accounting|relationship|documentation|designation|treatment)\b",
     rf"\beconomic\s+relationship\b",
     rf"\bnature\s+of\b",
     r"\bearnings\s+impact\b",
