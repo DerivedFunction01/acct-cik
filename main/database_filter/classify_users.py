@@ -321,53 +321,88 @@ def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
     Used ONLY for valid evidence cases to avoid noise.
     """
     instruments = defaultdict(set)
-    
+
     for cat, (strict_inst, soft_inst, _, _) in CATEGORY_MAP.items():
         # Try strict instrument first (higher confidence)
         if strict_inst:
             for match in strict_inst.finditer(sentence):
                 instruments[cat].add(match.group(0).strip())
-        
+
         # Then soft instrument (if no strict found)
         if soft_inst and cat not in instruments:
             for match in soft_inst.finditer(sentence):
                 instruments[cat].add(match.group(0).strip())
-    
+
     # Clean up empty categories
     return {cat: kw for cat, kw in instruments.items() if kw}
 
+# In classify_users.py
 
-def extract_instrument_evidence(sentence: str, category: str, reporting_year: int) -> List[InstrumentDetail]:
+
+def extract_instrument_evidence(
+    sentence: str,
+    category: str,
+    reporting_year: int,
+    local_tracker: Optional[GlobalInstrumentTracker] = None,
+    global_tracker: Optional[GlobalInstrumentTracker] = None,
+    context_cats: Optional[Set[str]] = None,
+    global_cats: Optional[Set[str]] = None,
+) -> List[InstrumentDetail]:
     """
     Links detected instruments with their quantitative data found in the same sentence.
     Returns a list of InstrumentDetail objects—one per matched instrument.
-    
+
     Enhancements:
     1. Uses evidence tags (FVY, NVY, etc.) to determine accounting type
     2. Captures full instrument names from matched phrases (all of them, not just longest)
     3. Uses Currency class mapping for currency detection
     4. Creates separate InstrumentDetail for each instrument to avoid consolidation
+    5. Resolves generic categories using trackers and context
     """
+    target_category = category
+
+    # Resolve generic category if possible
+    if target_category == "gen":
+        resolved = None
+        # 1. Local Tracker
+        if local_tracker:
+            resolved = local_tracker.resolve_instrument(sentence)
+
+        # 2. Global Tracker
+        if not resolved and global_tracker:
+            resolved = global_tracker.resolve_instrument(sentence)
+
+        # 3. Paragraph Context (if exactly one)
+        if not resolved and context_cats and len(context_cats) == 1:
+            resolved = list(context_cats)[0]
+
+        # 4. Global Context (if exactly one strict category exists globally)
+        if not resolved and global_cats and len(global_cats) == 1:
+            resolved = list(global_cats)[0]
+
+        if resolved:
+            target_category = resolved
+
     # 1. Determine Accounting Context from Evidence Tags (Primary)
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
     val_type = "value"
-    
+
     # Map evidence tags to accounting types
     fv_tags = {
-        EvidenceReason.FVY.value,       # Fair Value was $X at Year
-        EvidenceReason.FVNY.value,      # Fair Value is $X
-        EvidenceReason.FVAIY.value,     # Fair Value at inception was $X
-        EvidenceReason.FVAINY.value,    # Fair Value at inception is $X
+        EvidenceReason.FVY.value,  # Fair Value was $X at Year
+        EvidenceReason.FVNY.value,  # Fair Value is $X
+        EvidenceReason.FVAIY.value,  # Fair Value at inception was $X
+        EvidenceReason.FVAINY.value,  # Fair Value at inception is $X
     }
     notional_tags = {
-        EvidenceReason.NVY.value,       # Notional was $X at Year
-        EvidenceReason.NVNY.value,      # Notional is $X
+        EvidenceReason.NVY.value,  # Notional was $X at Year
+        EvidenceReason.NVNY.value,  # Notional is $X
     }
     value_tags = {
-        EvidenceReason.VY.value,        # Value was $X at Year
-        EvidenceReason.VNY.value,       # Value is $X
+        EvidenceReason.VY.value,  # Value was $X at Year
+        EvidenceReason.VNY.value,  # Value is $X
     }
-    
+
     if evidence_tags.intersection(fv_tags):
         val_type = "fv"
     elif evidence_tags.intersection(notional_tags):
@@ -375,18 +410,18 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
     elif evidence_tags.intersection(value_tags):
         val_type = "value"
     else:
-        val_type = "unknown"   
+        val_type = "unknown"
 
     # 2. Extract numeric data and years
     years, values = extract_values_and_years(sentence)
-    
+
     # 3. Find ALL Instrument Names (using category-specific keywords first)
     inst_keywords = extract_instrument_keywords(sentence)
     instrument_names = []
-    
-    if inst_keywords and category in inst_keywords:
+
+    if inst_keywords and target_category in inst_keywords:
         # Get ALL matched instruments for this category (not just the longest)
-        matched = list(inst_keywords[category])
+        matched = list(inst_keywords[target_category])
         if matched:
             # Sort by length (longest/most specific first) for predictable ordering
             instrument_names = sorted(matched, key=len, reverse=True)
@@ -394,7 +429,7 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
         # Fallback to BASE_REGEX for generic instrument detection
         name_matches = [m.group(0).strip() for m in BASE_REGEX.finditer(sentence)]
         instrument_names = name_matches if name_matches else ["derivative"]
-    
+
     # If no values, return empty list (no evidence to capture)
     if not values:
         return []
@@ -410,24 +445,30 @@ def extract_instrument_evidence(sentence: str, category: str, reporting_year: in
         currency = detect_currency(raw_text)
 
         # Heuristic Year Mapping: Use reporting year if mentioned, else first year found
-        mapped_year = reporting_year if reporting_year in years else (years[0] if years else None)
+        mapped_year = (
+            reporting_year if reporting_year in years else (years[0] if years else None)
+        )
 
-        amounts.append(InstrumentAmount(
-            type=val_type,
-            amount=final_amt,
-            currency=currency,
-            year=mapped_year,
-            is_zero=val_tok["is_zero"],
-            explicit_multiplier=mult,
-            is_explicit=explicit,
-            source_multiplier=mult if explicit else None
-        ))
+        amounts.append(
+            InstrumentAmount(
+                type=val_type,
+                amount=final_amt,
+                currency=currency,
+                year=mapped_year,
+                is_zero=val_tok["is_zero"],
+                explicit_multiplier=mult,
+                is_explicit=explicit,
+                source_multiplier=mult if explicit else None,
+            )
+        )
 
     # 6. Create one InstrumentDetail per matched instrument (all share the same amounts)
     details = []
     for inst_name in instrument_names:
-        details.append(InstrumentDetail(category=category, name=inst_name, amounts=amounts))
-    
+        details.append(
+            InstrumentDetail(category=target_category, name=inst_name, amounts=amounts)
+        )
+
     return details
 
 
@@ -823,7 +864,15 @@ def process_row(row: Tuple) -> Tuple:
                         for kw_cat, keywords in instrument_keywords.items():
                             valid_instruments[kw_cat].update(keywords)
                         # Extract quantitative evidence (now returns list)
-                        details = extract_instrument_evidence(sent_content, cat, year)
+                        details = extract_instrument_evidence(
+                            sent_content, 
+                            cat, 
+                            year,
+                            local_tracker=local_tracker,
+                            global_tracker=tracker,
+                            context_cats=local_contexts,
+                            global_cats=strict_categories
+                        )
                         evidence_details.extend(details)
                     continue  # Done. We trust this sentence.
 
@@ -849,7 +898,15 @@ def process_row(row: Tuple) -> Tuple:
                     local_tracker.register_paragraph(clean_sent, cat)
                     strict_counts[cat] += 1
                     # Extract quantitative evidence for promoted categories (now returns list)
-                    details = extract_instrument_evidence(sent_content, cat, year)
+                    details = extract_instrument_evidence(
+                        sent_content, 
+                        cat, 
+                        year,
+                        local_tracker=local_tracker,
+                        global_tracker=tracker,
+                        context_cats=local_contexts,
+                        global_cats=strict_categories
+                    )
                     evidence_details.extend(details)
                 # Capture instruments from unambiguous evidence
                 instrument_keywords = extract_instrument_keywords(clean_sent)
