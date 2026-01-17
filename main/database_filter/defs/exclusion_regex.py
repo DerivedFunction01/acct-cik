@@ -174,7 +174,6 @@ PLAN_ASSETS_KEYWORDS = [
     r"\btrust\s+assets\b",
     r"\b401\(?k\)?\s+plan",
     r"\bVEBA\b",  # Voluntary Employees' Beneficiary Association
-    r"hedge funds?",
 ]
 
 
