@@ -960,7 +960,7 @@ HEDGE_DOC_TERMS = [
     rf"\bat\s+inception\b",
     rf"\b(?:in)?effectiveness\s+(?:portion)?\b",
     rf"\bhighly\s+effective\b",
-    rf"\bqualif(?:y|ies|ied){G}hedg(?:ing|es?)\b",
+    rf"\bqualif(?:y|ies|ied|ying){G}hedg(?:ing|es?)\b",
     rf"\b(?:not)?\s+designated\s+as\b",
     rf"\bhedg(?:e|ing)\s+(?:accounting|relationship|documentation|designation|treatment)\b",
     rf"\beconomic\s+relationship\b",
