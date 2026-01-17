@@ -163,7 +163,7 @@ def check_quantitative_evidence(
 ) -> Optional[Reason]:
     from prefilter_tagging import extract_values_and_years
 
-    """Check for Quantitative Evidence (NVY/FVY)."""
+    """Check for Quantitative Evidence (NVY/FVY). """
     if not reporting_year:
         return None
 
@@ -171,7 +171,7 @@ def check_quantitative_evidence(
     is_fair_value = bool(FAIR_VALUE_CONTEXT_REGEX.search(text))
     has_mention = check_mention(text)
 
-    if not has_mention:
+    if not has_mention and not (is_notional or is_fair_value):
         return None
 
     years_found, values_found = extract_values_and_years(text)
