@@ -346,6 +346,7 @@ def extract_instrument_evidence(
     local_tracker: Optional[GlobalInstrumentTracker] = None,
     global_tracker: Optional[GlobalInstrumentTracker] = None,
     context_cats: Optional[Set[str]] = None,
+    accumulated_cats: Optional[Set[str]] = None,
     global_cats: Optional[Set[str]] = None,
 ) -> List[InstrumentDetail]:
     """
@@ -371,8 +372,12 @@ def extract_instrument_evidence(
         # 2. Global Tracker
         if not resolved and global_tracker:
             resolved = global_tracker.resolve_instrument(sentence)
+            
+        # 3a. Accumulated Context (if exactly one)
+        if not resolved and accumulated_cats and len(accumulated_cats) == 1:
+            resolved = list(accumulated_cats)[0]
 
-        # 3. Paragraph Context (if exactly one)
+        # 3b. Paragraph Context (if exactly one)
         if not resolved and context_cats and len(context_cats) == 1:
             resolved = list(context_cats)[0]
 
@@ -816,6 +821,7 @@ def process_row(row: Tuple) -> Tuple:
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
         local_contexts = context_cats if context_cats else set()
+        accumulated_cats = set()
 
         sentences = [
             s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()
@@ -843,10 +849,15 @@ def process_row(row: Tuple) -> Tuple:
             clean_sent = _cleaner.clean(sent_content_no_evidence, effective_nst)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
 
+            # Update accumulated contexts with specific categories found in this sentence
+            _temp_strict = extract_categories_strict(clean_sent)
+            _temp_soft = extract_categories_soft(clean_sent)
+            accumulated_cats.update({c for c in _temp_strict | _temp_soft if c not in ("gen", "other")})
+
             # -------------------------------------------------------------
             # A. Check Strict Matches (Gate 1 - Modified)
             # -------------------------------------------------------------
-            strict_cats = extract_categories_strict(clean_sent)
+            strict_cats = _temp_strict
 
             if strict_cats:
                 # 1. Always learn Definitions from Strict matches (e.g. Headers)
@@ -871,6 +882,7 @@ def process_row(row: Tuple) -> Tuple:
                             local_tracker=local_tracker,
                             global_tracker=tracker,
                             context_cats=local_contexts,
+                            accumulated_cats=accumulated_cats,
                             global_cats=strict_categories
                         )
                         evidence_details.extend(details)
@@ -890,8 +902,8 @@ def process_row(row: Tuple) -> Tuple:
             # B. Check Unambiguous Promotion (Soft -> Strict via Strong Evidence)
             # -------------------------------------------------------------
             if has_unambiguous_evidence(sent_content):
-                promoted_cats = extract_categories_soft(clean_sent)
-                promoted_cats.update(extract_categories_strict(clean_sent))
+                promoted_cats = _temp_soft.copy()
+                promoted_cats.update(_temp_strict)
                 for cat in promoted_cats:
                     strict_categories.add(cat)
                     tracker.register_paragraph(clean_sent, cat)
@@ -905,6 +917,7 @@ def process_row(row: Tuple) -> Tuple:
                         local_tracker=local_tracker,
                         global_tracker=tracker,
                         context_cats=local_contexts,
+                        accumulated_cats=accumulated_cats,
                         global_cats=strict_categories
                     )
                     evidence_details.extend(details)
@@ -919,7 +932,7 @@ def process_row(row: Tuple) -> Tuple:
             # NEW: Explicit Soft Extraction (Catching fall-through Strict)
             # -------------------------------------------------------------
             # This catches "Interest Rate Swaps" (Strict) that fell through above.
-            soft_cats = extract_categories_soft(clean_sent)
+            soft_cats = _temp_soft
             if strict_cats:
                 soft_cats.update(strict_cats)
 
@@ -946,7 +959,7 @@ def process_row(row: Tuple) -> Tuple:
             # D. Standard Soft Extraction with Local Resolution
             # -------------------------------------------------------------
             # (soft_cats already computed above, reused here if needed)
-            found_soft = soft_cats if soft_cats else extract_categories_soft(clean_sent)
+            found_soft = soft_cats if soft_cats else _temp_soft
 
             # If we found ONLY "gen" (e.g. "The instruments")
             # and we have valid local contexts, resolve to ALL of them.
