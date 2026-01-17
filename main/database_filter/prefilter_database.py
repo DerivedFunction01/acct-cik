@@ -402,6 +402,7 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
         # Split the current text chunk based on some rules
         output = split_paragraph_simple(p)
         output = remove_caps(output)
+        output = cleanup_loose_fragments(output)
         return output
     def remove_caps(paragraphs: List[str]) -> List[str]:
         # Strip out ALL CAPS artifact headers (Good for 90% of cases, no need for perfection)
@@ -457,6 +458,15 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
                 
         return cleaned_paragraphs
 
+    def cleanup_loose_fragments(paragraphs: List[str]) -> List[str]:
+        # Clean up simple patterns, no need for massive rules here
+        # Remove stray bullet double dash patterns --: ex: 1. --; 2. --
+        output = []
+        for p in paragraphs:
+            p = re.sub(r"[0-9]\.\s+--", "", p)
+            output.append(p)
+        return output
+        
     def split_paragraph_simple(p: str) -> List[str]:
         # Split the current text chunk based on some rules
         # 1. end of sentence. ALL CAPS Capitalized Word ->   support companies. PRINCIPLES OF CONSOLIDATION The accompanying
