@@ -299,12 +299,12 @@ CP_CONTEXT_TERMS = (
 
 CP_STRICT_TERMS = [
     # General terms
-    rf"{_COMMODITY_NAMES}(?:\s+\w+){0,3}{_RISK_ALTERNATION}",
+    rf"{_COMMODITY_NAMES}(?:\s+\w+){{0,3}}{_RISK_ALTERNATION}",
     r"raw\s+material\s+costs?",
     r"fuel\s+surcharges?",
     # Financial Modifier + Specific Commodity
     # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
-    rf"{_RISK_ALTERNATION}(?:\s+\w+){0,3}{_COMMODITY_NAMES}",
+    rf"{_RISK_ALTERNATION}(?:\s+\w+){{0,3}}{_COMMODITY_NAMES}",
     rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}",  # natural gas inventory, etc,
 ] + TRADING_ENTITIES
 
