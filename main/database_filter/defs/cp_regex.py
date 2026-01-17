@@ -64,9 +64,9 @@ COMMON_COMMODITIES = [
     "garlic",
     "pumpkins?",
     "peppers?",
-    "peas",
-    "carrots",
-    "beans",
+    "peas?",
+    "carrots?",
+    "beans?",
     "mushrooms?",
     # ⛽ Energy & Fuels
     "biodiesel",
