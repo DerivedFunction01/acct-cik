@@ -789,7 +789,7 @@ def process_row(row: Tuple) -> Tuple:
                 attributes = mine_attributes(etag, attributes)
 
             is_active = not (is_para_deadweight or is_sent_deadweight)
-            
+
             # --- SENTENCE-LEVEL INSTRUMENT SALVAGE ---
             # Even if sentence is deadweight, capture instruments if it has strict matches + hedging context
             if is_sent_deadweight and find_hedging_context(sent_content):
@@ -799,8 +799,7 @@ def process_row(row: Tuple) -> Tuple:
                     for cat, keywords in instrument_keywords.items():
                         valid_instruments[cat].update(keywords)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
-            clean_sent = _cleaner.clean_entities(sent_content_no_evidence)
-            clean_sent = _cleaner.clean_non_derivatives(clean_sent, effective_nst)
+            clean_sent = _cleaner.clean(sent_content_no_evidence, effective_nst)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
 
             # -------------------------------------------------------------
@@ -914,23 +913,23 @@ def process_row(row: Tuple) -> Tuple:
 
     # Add valid instruments as category -> list mapping
     attributes["instruments"] = {cat: sorted(list(keywords)) for cat, keywords in valid_instruments.items()}
-    
+
     # Add detailed evidence with quantitative data
     # Group evidence_details by category for easier querying
     evidence_by_category = defaultdict(list)
     for detail in evidence_details:
         evidence_by_category[detail.category].append(asdict(detail))
     attributes["evidence_details"] = dict(evidence_by_category)
-    
+
     # Normalize implicit values based on context (explicit multipliers in the document)
     # Type-aware: FV uses FV multipliers, notional/value use notional multipliers
     aggregated_totals, validation_warnings = aggregate_and_normalize(evidence_details)
     attributes["aggregated_totals"] = aggregated_totals
     if validation_warnings:
         attributes["normalization_warnings"] = validation_warnings
-    
+
     attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
-    
+
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
 # =============================================================================
 # DATABASE
