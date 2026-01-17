@@ -11,6 +11,7 @@ from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_rege
 from defs.verb_regex import (
     ABSENCE_REGEX,
     DID_NOT_HOLD_REGEX,
+    IMMATERIAL_REGEX,
     POSS_VERB_REGEX,
     TERMINATION_REGEX,
     TRANS_VERB_REGEX,
@@ -19,6 +20,7 @@ from defs.verb_regex import (
     POTENTIAL_REGEX,
     build_negation_prefix_pattern,
     PRIOR_INDICATOR,
+    
 )
 from defs.prefiltered_lib import (
     HEDGE_DOC_REGEX,
@@ -425,6 +427,8 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                 reason = NoiseReason.HYP_SCORE
             elif is_pnl(masked, context_only=True): # PNL is tricky
                 reason = NoiseReason.PNL
+            elif IMMATERIAL_REGEX.search(masked):
+                reason = NoiseReason.IMM
             elif COUNTERPARTY_REGEX.search(masked):
                 reason = NoiseReason.CREDIT
             elif RISK_MANAGEMENT_REGEX.search(masked):

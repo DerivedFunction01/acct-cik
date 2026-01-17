@@ -225,6 +225,47 @@ ACTIVE_INDICATORS = [
     "at present",
 ]
 ACTIVE_PATTERN = build_alternation(ACTIVE_INDICATORS)
+
+
+def build_immaterial_regex() -> re.Pattern:
+    immaterial = [
+        "immaterial",
+        "not significant",
+        "limited",
+        "not material",
+        "negligible",
+        "minimal",
+        "insignificant",
+        "not substantial",
+        "minor",
+        "trivial",
+        "nominal",
+        "zero"
+    ]
+    
+    imm_pat = build_alternation(immaterial)
+
+    subjects = [
+        r"amounts?",
+        r"values?",
+        r"fair\s+values?",
+        r"notional\s+(?:amounts?|values?)",
+        r"impacts?",
+        r"effects?",
+        r"gains?",
+        r"loss(?:es)?",
+        r"results?",
+        r"exposures?",
+        r"involvements?",
+    ]
+    subj_pat = build_alternation(subjects)
+
+    return re.compile(
+        rf"\b(?:{subj_pat})\s+(?:\w+\s+){{0,4}}(?:were|was|are|is|considered|deemed)\s+(?:\w+\s+){{0,2}}{imm_pat}\b|"
+        rf"\b{imm_pat}\s+(?:{subj_pat})\b",
+        re.IGNORECASE,
+    )
+        
 def build_did_not_hold_regex() -> re.Pattern:
     """
     Matches: "did not hold", "didn't enter", "do not, as a routine matter, use"
@@ -363,6 +404,7 @@ ABSENCE_REGEX = build_absence_regex()
 POTENTIAL_REGEX = build_potential_regex()
 VAGUE_TIMING_REGEX = build_vague_timing_regex()
 PRIOR_INDICATOR = build_prior_statement_pattern_2()
+IMMATERIAL_REGEX = build_immaterial_regex()
 
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 TERMINATION_REGEX = build_regex(TERMINATION_VERBS)

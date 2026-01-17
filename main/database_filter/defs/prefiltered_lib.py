@@ -531,6 +531,7 @@ class NoiseReason(Reason):
     TERM = "TERM"  # Termination / Expiration
     ZERO = "ZERO"  # Quantitative Zero
     TRANSACT = "TRANSACT" # Temporary: may not be noise
+    IMM = "IMMATERIAL" # The amounts were immaterial
 
     # --- Paragraph Level ---
     HIST_BLOCK = "HIST_BLOCK" # The entire block was discard as history (legacy/unused)
