@@ -45,7 +45,7 @@ from defs.gen_regex import GEN_HEDGES, PRECISE_LOOSE_GEN_REGEX, RISK_MANAGEMENT_
 from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
 from defs.ir_regex import NON_DER_CAP_FLOOR_REGEX
 from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX
-from defs.exclusion_regex import AOCI_NOISE_REGEX, EXCLUDE_PLAN_ASSETS_REGEX
+from defs.exclusion_regex import AOCI_NOISE_REGEX, EXCLUDE_PLAN_ASSETS_REGEX, NON_DERIVATIVE_TREATMENT_REGEX
 from defs.shared_context import COMPARISON_PHRASES
 from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX
 
@@ -98,6 +98,10 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     if POTENTIAL_REGEX.search(text) or VAGUE_TIMING_REGEX.search(text):
         return NoiseReason.POT
 
+    if NON_DERIVATIVE_TREATMENT_REGEX.search(text):
+        if HEDGE_DOC_REGEX.search(text):
+            return NoiseReason.DOC
+        return NoiseReason.NON_DERIV
     if (
         ABSENCE_REGEX.search(text) # No such oustanding
         or DID_NOT_HOLD_REGEX.search(text) # We did not plan to use
