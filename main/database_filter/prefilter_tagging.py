@@ -398,8 +398,6 @@ def is_value(text: str) -> bool:
 
 
 def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
-    # 1. Masking for Logic Checks
-    masked_text = mask_text(text, is_nst=is_nst)
 
     # 3. Dual Split (Original vs Masked)
     original_sentences = [
