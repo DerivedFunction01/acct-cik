@@ -886,6 +886,11 @@ def process_row(row: Tuple) -> Tuple:
                             global_cats=strict_categories
                         )
                         evidence_details.extend(details)
+                        # Sync resolved categories (e.g. gen -> ir) back to strict counts
+                        for d in details:
+                            if d.category != cat:
+                                strict_categories.add(d.category)
+                                strict_counts[d.category] += 1
                     continue  # Done. We trust this sentence.
 
                 # 3. If NO Evidence, fall through!
@@ -921,6 +926,11 @@ def process_row(row: Tuple) -> Tuple:
                         global_cats=strict_categories
                     )
                     evidence_details.extend(details)
+                    # Sync resolved categories (e.g. gen -> ir) back to strict counts
+                    for d in details:
+                        if d.category != cat:
+                            strict_categories.add(d.category)
+                            strict_counts[d.category] += 1
                 # Capture instruments from unambiguous evidence
                 instrument_keywords = extract_instrument_keywords(clean_sent)
                 for cat, keywords in instrument_keywords.items():
