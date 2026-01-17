@@ -11,7 +11,7 @@ from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
 from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
-from defs.shared_context import VALUATION_MODELS_REGEX
+from defs.shared_context import SETTLEMENT_MECHANICS_REGEX, VALUATION_MODELS_REGEX
 from table_processor import TABLE_ANCHOR
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.prefiltered_lib import (
@@ -242,6 +242,12 @@ def check_future_maturity(
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
     if not any(y > reporting_year for y in years): # Termination noun without a year? probably termination amount/settlement
+        # Check if it is just settlement mechanics, such as weekly, etc.
+        is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
+        if is_notional: # Bypass 
+            return None
+        if SETTLEMENT_MECHANICS_REGEX.search(text):
+            return NoiseReason.STL_MECH
         return NoiseReason.PNL
 
     is_transaction = bool(TRANS_VERB_REGEX.search(text))

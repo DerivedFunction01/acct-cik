@@ -508,6 +508,7 @@ class NoiseReason(Reason):
     OTHER = "OTHER"  # Has derivative mention but no Evidence -> Other
     RISK = "RISK" # Risk management text
     NON_DERIV = "NON_DERIV" # Non-derivative accounting
+    STL_MECH = "STL_MECH" # Settlement mechanics
 
     # --- Business Logic / Signals ---
     TRADING = "TRADING"  # Trading Denial ("We do not trade")

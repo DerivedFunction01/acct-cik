@@ -297,6 +297,7 @@ SETTLEMENT_MODIFIERS = [
     "weekly",
 ]
 _settle_lookbehind = "".join([rf"(?<!\b{word}\s)" for word in SETTLEMENT_MODIFIERS])
+SETTLEMENT_MECHANICS_REGEX = build_regex(SETTLEMENT_MODIFIERS)
 TERMINATION_VERBS = [
     # --- SAFE VERBS (Past/Present/Participle) ---
     # Regex note: We removed |ion, |ity, |ment, |y suffixes
