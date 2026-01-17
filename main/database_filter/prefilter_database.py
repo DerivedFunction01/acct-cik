@@ -387,8 +387,7 @@ def process_table(
 PAGE_ARTIFACT_REGEX = re.compile(r'\d*\s*<PAGE>', re.IGNORECASE)
 # Regex to find the pattern: Period + Space + (ALL CAPS HEADER) + Space + (Capitalized Word not No.)
 MEGA_SPLIT_REGEX = re.compile(r"(\.\s+)([A-Z][A-Z\s]+)(?=\s+(?!No\.)[A-Z][a-z])")
-# Regex for lowercase check
-LOWERCASE_REGEX = re.compile(r'[a-z]')
+
 
 def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
     # For plain text paragraph extraction, sometimes the text is merged accidentally, so we have a mega chunk
@@ -438,7 +437,7 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
 
             for w in words:
                 # Check if word is ALL CAPS (no lowercase)
-                if not LOWERCASE_REGEX.search(w):
+                if w.isupper():
                     caps_run.append(w)
                 else:
                     # End of run
