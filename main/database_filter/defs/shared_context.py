@@ -340,7 +340,7 @@ TERMINATION_NOUNS = [
     r"redemption",  # Matches: redemption
     # --- EVENTS (Transactional) ---
     r"extinguishment",  # Matches: extinguishment
-    rf"(?<!{_settle_lookbehind}\s)settle(?:ment|ing)(?<!\s{_settle_lookbehind})",  # Matches: settlement
+    rf"(?<!{_settle_lookbehind}\s)settl(?:ement|ing)(?<!\s{_settle_lookbehind})",  # Matches: settlement
     r"cancellation",  # Matches: cancellation
     r"novation",  # Matches: novation
     r"rescission",  # Matches: rescission
