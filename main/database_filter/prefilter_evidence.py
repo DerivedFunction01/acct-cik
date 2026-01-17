@@ -12,6 +12,7 @@ from defs.fx_regex import FX_SOFT_REGEX
 from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
 from defs.shared_context import SETTLEMENT_MECHANICS_REGEX, VALUATION_MODELS_REGEX
+from defs.exclusion_regex import AOCI_NOISE_REGEX
 from table_processor import TABLE_ANCHOR
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.prefiltered_lib import (
@@ -379,6 +380,8 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
     return None
 
 def mark_sentence_as_other(text: str) -> Optional[Reason]:
+    if AOCI_NOISE_REGEX.search(text):
+        return NoiseReason.AOCI
     if TABLE_ANCHOR in text and not is_sophisticated_content(text): # Only for "normal" derivatives
         return EvidenceReason.TABLE
     if HEDGE_DOC_REGEX.search(text):
