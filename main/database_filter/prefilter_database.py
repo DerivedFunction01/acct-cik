@@ -387,6 +387,8 @@ def process_table(
 PAGE_ARTIFACT_REGEX = re.compile(r'\d*\s*<PAGE>', re.IGNORECASE)
 # Regex to find the pattern: Period + Space + (ALL CAPS HEADER) + Space + (Capitalized Word not No.)
 MEGA_SPLIT_REGEX = re.compile(r"(\.\s+)([A-Z][A-Z\s]+)(?=\s+(?!No\.)[A-Z][a-z])")
+# Regex for table protection
+TABLE_PROTECT_REGEX = re.compile(r"(<TABLE>.*?</TABLE>)", re.IGNORECASE | re.DOTALL)
 
 
 def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
@@ -478,10 +480,21 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
         return p_new.split("\n\n")
 
     for paragraph in paragraphs:
-        if len(paragraph) > 1600:
-            output.extend(split_paragraph(paragraph))
-        else:
-            output.append(paragraph)
+        # Split by tables first to protect them
+        parts = TABLE_PROTECT_REGEX.split(paragraph)
+        for part in parts:
+            if not part.strip():
+                continue
+            
+            # If it is a table, preserve it as is
+            if "<TABLE>" in part.upper():
+                output.append(part)
+                continue
+
+            if len(part) > 1600:
+                output.extend(split_paragraph(part))
+            else:
+                output.append(part)
     return output
 
 def process_item(item: Tuple) -> Optional[Tuple]:
