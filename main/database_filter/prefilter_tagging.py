@@ -421,12 +421,14 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
             or is_sophisticated_target(temp_sent)
             or is_value(temp_sent)  # allow "The notional value is XX to bypass"
         ):
-            if RISK_MANAGEMENT_REGEX.search(masked):
-                reason = NoiseReason.RISK
+            if is_hypothetical_noise(masked, threshold=2):
+                reason = NoiseReason.HYP_SCORE
             elif is_pnl(masked, context_only=True): # PNL is tricky
                 reason = NoiseReason.PNL
             elif COUNTERPARTY_REGEX.search(masked):
                 reason = NoiseReason.CREDIT
+            elif RISK_MANAGEMENT_REGEX.search(masked):
+                reason = NoiseReason.RISK
             else:
                 reason = NoiseReason.CTX
 
