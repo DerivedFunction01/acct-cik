@@ -391,24 +391,47 @@ def run_tests():
             False,
         ),
         # ABSENCE_REGEX
-        ("ABSENCE", ABSENCE_REGEX, "At March 31, 2004 and March 31, 2003, no financial instruments existed", True),
-        ("ABSENCE", ABSENCE_REGEX, "We have no foreign exchange, interest rate, or other contracts", True),
+        (
+            "ABSENCE",
+            ABSENCE_REGEX,
+            "At March 31, 2004 and March 31, 2003, no financial instruments existed",
+            True,
+        ),
+        (
+            "ABSENCE",
+            ABSENCE_REGEX,
+            "We have no foreign exchange, interest rate, or other contracts",
+            True,
+        ),
         ("ABSENCE", ABSENCE_REGEX, "We have swaps", False),
         # POTENTIAL_REGEX
-        ("POTENTIAL", POTENTIAL_REGEX, "We may continue to enter into interest rate swaps", True),
+        (
+            "POTENTIAL",
+            POTENTIAL_REGEX,
+            "We may continue to enter into interest rate swaps",
+            True,
+        ),
         ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge our exposure", True),
         ("POTENTIAL", POTENTIAL_REGEX, "We entered into swaps", False),
         # VAGUE_TIMING
         ("VAGUE_TIMING", VAGUE_TIMING_REGEX, "We use swaps from time to time", True),
         ("VAGUE_TIMING", VAGUE_TIMING_REGEX, "We use swaps periodically", True),
         # PRIOR
-        ("PRIOR", PRIOR_INDICATOR, "In the prior year, we had interest rate swaps", True),
+        (
+            "PRIOR",
+            PRIOR_INDICATOR,
+            "In the prior year, we had interest rate swaps",
+            True,
+        ),
         ("PRIOR", PRIOR_INDICATOR, "During previous reporting periods", True),
         ("PRIOR", PRIOR_INDICATOR, "Historically", True),
         # TERMINATION
         ("TERMINATION", TERMINATION_REGEX, "The swaps expired", True),
         ("TERMINATION", TERMINATION_REGEX, "We terminated the agreement", True),
         ("TERMINATION", TERMINATION_REGEX, "The swaps matured", True),
+        ("TERMINATION", TERMINATION_REGEX, "The swaps settles weekly", False),
+        ("TERMINATION", TERMINATION_REGEX, "The swaps weekly settles", False),
+        ("TERMINATION", TERMINATION_ALL_REGEX, "The annual settlement", False),
     ]
 
     failures = 0
