@@ -321,8 +321,8 @@ TERMINATION_VERBS = [
     r"exit(?:ed|s|ing)?",
     r"redeem(?:e(?:d|s)?|ing)",  # Matches: redeem, redeemed.           STOPS: redemption
     r"repudiat(?:e(?:d|s)?|ing)",
-    # --- SAFEGUARDED SETTLEMENT (From previous turn) ---
-    rf"(?<!{_settle_lookbehind}\s)settl(?:e(?:d)|ing)",
+    # --- SAFEGUARDED SETTLEMENT (From previous turn) --- (settles annually, etc)
+    rf"(?<!{_settle_lookbehind}\s)settl(?:es?|ed)(?<!\s{_settle_lookbehind})",
     r"sold",
     r"wind(?:ing)?\s+down",
     r"dispos(?:e(?:d|s)?|ing)",
@@ -340,7 +340,7 @@ TERMINATION_NOUNS = [
     r"redemption",  # Matches: redemption
     # --- EVENTS (Transactional) ---
     r"extinguishment",  # Matches: extinguishment
-    r"settlement",  # Matches: settlement
+    rf"(?<!{_settle_lookbehind}\s)settle(?:ment|ing)(?<!\s{_settle_lookbehind})",  # Matches: settlement
     r"cancellation",  # Matches: cancellation
     r"novation",  # Matches: novation
     r"rescission",  # Matches: rescission
