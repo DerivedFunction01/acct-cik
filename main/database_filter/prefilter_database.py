@@ -383,6 +383,97 @@ def process_table(
 
     return True
 
+# Regex for page artifacts (e.g., "17 <PAGE>" or "<PAGE>")
+PAGE_ARTIFACT_REGEX = re.compile(r'\d*\s*<PAGE>', re.IGNORECASE)
+# Regex to find the pattern: Period + Space + (ALL CAPS HEADER) + Space + (Capitalized Word not No.)
+MEGA_SPLIT_REGEX = re.compile(r"(\.\s+)([A-Z][A-Z\s]+)(?=\s+(?!No\.)[A-Z][a-z])")
+# Regex for lowercase check
+LOWERCASE_REGEX = re.compile(r'[a-z]')
+
+def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
+    # For plain text paragraph extraction, sometimes the text is merged accidentally, so we have a mega chunk
+    # This is usually for pre-2000 SEC filings, where headers are all caps, etc
+    """
+     There may be certain rules to look out for as candidates for splitting:
+     1. If the candidate paragraph is too large (> 1600 chars)
+     
+    """
+    output = []
+    def split_paragraph(p: str) -> List[str]:
+        # Split the current text chunk based on some rules
+        output = split_paragraph_simple(p)
+        output = remove_caps(output)
+        return output
+    def remove_caps(paragraphs: List[str]) -> List[str]:
+        # Strip out ALL CAPS artifact headers (Good for 90% of cases, no need for perfection)
+        # 1. if it is a single word, it must be at least 5 chars long so that CFTC, SFAS doesn't count
+        # 2. Any other cases, we delete consecutive occureances of all caps, such as TEXT CORP. (MORE TEXT AS A HEADER); 
+        # Bulleted patterns such as 1)/1. CAP HEADERS
+        
+        cleaned_paragraphs = []
+        for p in paragraphs:
+            # Remove page artifacts
+            p = PAGE_ARTIFACT_REGEX.sub(' ', p)
+            
+            words = p.split()
+            if not words:
+                continue
+                
+            new_words = []
+            caps_run = []
+            
+            def process_run(run):
+                if not run: return []
+                # Check if run should be removed
+                if len(run) >= 2:
+                    return [] # Remove
+                elif len(run) == 1:
+                    # Check length constraint
+                    w = run[0]
+                    if len(w) >= 5:
+                        return [] # Remove
+                    else:
+                        return run
+                return run
+
+            for w in words:
+                # Check if word is ALL CAPS (no lowercase)
+                if not LOWERCASE_REGEX.search(w):
+                    caps_run.append(w)
+                else:
+                    # End of run
+                    if caps_run:
+                        new_words.extend(process_run(caps_run))
+                        caps_run = []
+                    new_words.append(w)
+            
+            # Process final run
+            if caps_run:
+                new_words.extend(process_run(caps_run))
+            
+            # Reconstruct paragraph
+            cleaned_p = " ".join(new_words)
+            if cleaned_p.strip():
+                cleaned_paragraphs.append(cleaned_p)
+                
+        return cleaned_paragraphs
+
+    def split_paragraph_simple(p: str) -> List[str]:
+        # Split the current text chunk based on some rules
+        # 1. end of sentence. ALL CAPS Capitalized Word ->   support companies. PRINCIPLES OF CONSOLIDATION The accompanying
+        
+        # Insert a unique separator (e.g., \n\n) before the header
+        p_new = MEGA_SPLIT_REGEX.sub(r"\1\n\n\2", p)
+        
+        
+        return p_new.split("\n\n")
+
+    for paragraph in paragraphs:
+        if len(paragraph) > 1600:
+            output.extend(split_paragraph(paragraph))
+        else:
+            output.append(paragraph)
+    return output
 
 def process_item(item: Tuple) -> Optional[Tuple]:
     """
@@ -419,7 +510,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     sophisticated_buffer_masked = []
     local_discards = []
     all_text_parts = []  # Track all text for metadata counting (even if discarded)
-
+    paragraphs = split_mega_paragraph(paragraphs)
     for idx, p in enumerate(paragraphs):
         try:
             # Track all text for metadata (before any filtering)
