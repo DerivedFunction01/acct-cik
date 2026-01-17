@@ -486,6 +486,11 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     # Save to 'clean' buffer (it's legally 'clean' text, just contextually dead)
                     append_to_buffer("clean", idx, p_deadweight, p_masked)
                     continue
+            elif exclusion_reason:
+                local_discards.append((url, p, exclusion_reason))
+                p_deadweight = f"{get_tag(DEADWEIGHT_TOKEN, exclusion_reason)} {Stage.PF_DB} {p}"
+                append_to_buffer("clean", idx, p_deadweight, p_masked)
+                continue
 
             # === SALVAGE: EQUITY COMP ===
             if EXCLUDE_REGEX_EQUITY_COMP.search(p_masked):
