@@ -158,7 +158,7 @@ COMMON_COMMODITIES = [
     "pulp",
     # 🧩 General / Raw Inputs
     "feedstock",
-    "raw material",
+    "raw materials?",
     "salt",
     "textile",
     # Generic
