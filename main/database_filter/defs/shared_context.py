@@ -336,7 +336,7 @@ TERMINATION_NOUNS = [
     r"expir(?:ation|y|ing)",  # Matches: expiration, expiry
     r"maturit(?:y|ies)",  # Matches: maturity, maturities
     r"maturing",  # Matches: maturing
-    r"terminat(?:ion|or|ing)",  # Matches: termination
+    r"terminat(?:ion|ing)",  # Matches: termination
     r"redemption",  # Matches: redemption
     # --- EVENTS (Transactional) ---
     r"extinguishment",  # Matches: extinguishment
