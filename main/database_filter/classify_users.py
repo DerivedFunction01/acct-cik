@@ -591,7 +591,7 @@ def remove_outlier_categories(
     strict_counts: Dict[str, int],  # Changed from Set[str] to Dict[str, int]
     soft_counts: Dict[str, int],
     threshold_pct: float = 0.25,
-    min_mentions: int = 3,
+    min_mentions: int = 5,
 ) -> Set[str]:
     """
     Remove soft categories that are outliers relative to the dominant strict category.
@@ -905,8 +905,6 @@ def process_row(row: Tuple) -> Tuple:
     valid_soft_cats = remove_outlier_categories(
         strict_counts, 
         soft_counts,
-        threshold_pct=0.10,
-        min_mentions=3
     )
 
     final_categories = strict_categories.union(valid_soft_cats)
