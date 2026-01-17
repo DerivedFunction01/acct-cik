@@ -150,7 +150,7 @@ COUNTERPARTY_POLICY_TERMS = [
     r"financial\s+institutions",
     r"master\s+netting",
     r"collateral\s+requirements",
-    r"concentration\s+of\s+credit",
+    r"concentrations?\s+of\s+credit",
     r"non[- ]performance",
     r"nonperformance",
     r"monitoring",
