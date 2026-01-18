@@ -120,7 +120,7 @@ EQ_CONTEXT_TERMS = [
     r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
     r"Russell\s+2000",
     # --- C. Equity Components ---
-    r"(?:preferred|common|treasury|outstanding|restricted)\s+(?:stocks?|shares)",
+    r"(?:preferred|common|treasury|outstanding|restricted|capital)\s+(?:stocks?|shares)",
     # --- D. Structures & Events ---
     r"initial\s+public\s+offering|IPO",
     r"(?:primary|secondary)\s+markets?",
@@ -129,6 +129,7 @@ EQ_CONTEXT_TERMS = [
     rf"(?:stock|share|equity)\s+{_RISK_ALTERNATION}",
     r"capped\s+calls?",
     r"outstanding equity",
+    r"acquisition date",
 ]
 
 # Section 1: Employee Equity Compensation (Updated)
