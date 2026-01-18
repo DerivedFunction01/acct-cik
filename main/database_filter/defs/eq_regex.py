@@ -128,6 +128,7 @@ EQ_CONTEXT_TERMS = [
     # --- E. Risk Integration (Smart Expansion) ---
     rf"(?:stock|share|equity)\s+{_RISK_ALTERNATION}",
     r"capped\s+calls?",
+    r"outstanding equity",
 ]
 
 # Section 1: Employee Equity Compensation (Updated)
