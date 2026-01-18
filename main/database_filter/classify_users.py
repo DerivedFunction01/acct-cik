@@ -435,7 +435,7 @@ def extract_instrument_evidence(
         name_matches = [
             m.group(0).strip() for m in PRECISE_BASE_REGEX.finditer(sentence)
         ]
-        instrument_names = name_matches if name_matches else ["derivative"]
+        instrument_names = name_matches if name_matches else ["unresolved"]
 
     # If no values, return empty list (no evidence to capture)
     if not values:
