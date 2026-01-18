@@ -386,7 +386,7 @@ def is_gen_hedge_doc(text: str) -> bool:
     if HEDGE_DOC_REGEX.search(text):
         return True
     return False
-VALUE_REGEX = build_regex(["notional", "fair value"])
+VALUE_REGEX = build_regex(["notional", r"(?:fair|carrying|market)\s+value"])
 def is_value(text: str) -> bool:
     if not QUANT_REGEX.search(text):
         return False
