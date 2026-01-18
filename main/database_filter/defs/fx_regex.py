@@ -74,7 +74,6 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     forward_types = [
         "non[- ]deliverable",
-        "deliverable",
         "deal[- ]contingent",
     ]
     forward_types_alternation = build_alternation(
