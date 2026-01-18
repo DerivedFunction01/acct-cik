@@ -65,7 +65,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     ]
     # Broad prefixes (e.g., 'currency', 'fx')
     soft_core_terms = [
-        r"foreign\s+exchange",
+        r"(?:foreign|currency|forward)\s+exchange",  # Needed for "foreign exchange hedge" (not covered by 'currency')
         r"(?<!single[- ])currency",
         r"fx",
         r"forex",
@@ -326,7 +326,7 @@ def run_tests():
         ("currency hedging", MatchLevel.SOFT),
         ("foreign currency option", MatchLevel.STRICT),
         ("currency option", MatchLevel.STRICT),
-        ("foreign currency arrangement", MatchLevel.SOFT),
+        ("currency exchange rate arrangement", MatchLevel.STRICT),
         ("currency exchange agreement", MatchLevel.STRICT),
         ("foreign currency exchange swap", MatchLevel.STRICT),
     ]
