@@ -40,6 +40,7 @@ POTENTIAL_INDICATORS = [
     r"regularly",
     r"normally",
     r"often",
+    r"frequently",
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
     r"expect(?:s|ed)?\s+to(?![- ]continue)",
 ]
