@@ -705,7 +705,7 @@ def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
     for cat, (strict_inst, soft_inst, strict_ctx, _, weak_inst, risk_mgmt) in CATEGORY_MAP.items():
         # A. Strict Instrument ("Interest Rate Swap")
         if strict_inst and strict_inst.search(text):
-            scores[cat] += 1000
+            scores[cat] += 2000
         elif soft_inst and soft_inst.search(text): # Interest rate cap
             scores[cat] += 500
         elif weak_inst and weak_inst.search(text):  # Interest rate agreement
@@ -721,7 +721,7 @@ def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
             if cat == "eq" and is_sophisticated_content(text) and not is_nst:
                 scores["warr"] += 6000  # Immediate override
             else:
-                scores[cat] += 1500
+                scores[cat] += 800
 
     # ═══════════════════════════════════════════════════════════
     # PHASE 2: SOFT CONTEXT (Priority Consumption)
@@ -1017,7 +1017,7 @@ def process_row(row: Tuple) -> Tuple:
             if local_contexts and "gen" in found_soft and len(found_soft) == 1:
                 for ctx in local_contexts:
                     score = context_scores.get(ctx, 0)
-                    if score >= 1000:
+                    if score >= 2000:
                         strict_counts[ctx] += 1
                         register_trackers(clean_sent, {ctx}, tracker, local_tracker)
                     else:
