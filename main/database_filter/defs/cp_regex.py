@@ -239,74 +239,58 @@ CP_UNITS = [
     "bars",
 ] + CP_UNITS_STRICT
 COMMODITY_UNIT_PATTERN = build_alternation(CP_UNITS)
-CP_CONTEXT_TERMS = (
-    [
+
+NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
+    # The "NPNS" Exemption (Physical Contracts)
+    r"normal\s+purchases?\s+(?:and|&)\s+(?:normal\s+)?sales?",
+    r"NPNS",
+    r"own[- ]use\s+exemption",
+    # Unconditional Obligations (ASC 440)
+    r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
+    r"take[- ]or[- ]pay",
+    r"throughput\s+agreements?",
+    # General Supply Chain (If not caught by Physical Inventory)
+    r"supply\s+arrangements?",
+    r"procurement\s+contracts?",
+]
+
+def build_cp_context_terms() -> Tuple[List[str], List[str]]:
+    strict_terms = [
+        # General terms
+        rf"{_COMMODITY_NAMES}(?:\s+\w+){{0,3}}{_RISK_ALTERNATION}",
+        r"raw\s+material\s+costs?",
+        r"fuel\s+surcharges?",
+        # Financial Modifier + Specific Commodity
+        # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
+        rf"{_RISK_ALTERNATION}(?:\s+\w+){{0,3}}{_COMMODITY_NAMES}",
+    ] + TRADING_ENTITIES
+
+    soft_terms = [
         # Power Grids / ISOs (Strongest context for "power swaps")
         "PJM",
-        "ERCOT",
-        "MISO",
-        "SPP",
-        "CAISO",
-        "NYISO",
-        "ISO-NE",
+        "ERCOT", "MISO", "SPP", "CAISO", "NYISO", "ISO-NE",
         # Load Types
-        "baseload",
-        "peak load",
-        "off-peak",
-        "on-peak",
-        "capacity",
-        "power generation",
-        "power assets",
+        "baseload", "peak load", "off-peak", "on-peak", "capacity",
+        "power generation", "power assets",
         # Gas/NGL Hubs & Benchmarks
-        "Henry Hub",
-        "WTI",
-        "West Texas Intermediate",
-        "Cushing",
-        "Mont Belvieu",
-        "TTF",
-        "JKM",
-        "Dominion South",
-        "Platts",
-        "Argus",
-        "OPIS",  # Pricing reporting agencies
-        "Brent",
-        "packaging",
-        "manufactur(?:ing|er)",
-        "suppliers?",
-        "raw materials?",
-        "suppl(?:y|ies)",
-        "containers?",
-        "shipp(?:ing|ed)",
-        "transportation",
-        "inventor(?:y|ies)",
-        "shipments?",
-        "warehouses?",
-        "storage",
-        "logistics",
-        "procurement",
-        "production",
-        "wholesale",
-        "factor(?:y|ies)",
-        "deliver(?:y|ies)",
-        "products?",
-        # Exchanges
-    ]
-    + COMMON_COMMODITIES
-    + CP_UNITS_STRICT
-    + TRADING_ENTITIES
-)
+        "Henry Hub", "WTI", "West Texas Intermediate", "Cushing",
+        "Mont Belvieu", "TTF", "JKM", "Dominion South", "Platts",
+        "Argus", "OPIS", "Brent",
+        # Supply Chain
+        "packaging", "manufactur(?:ing|ers?)", "raw materials?",
+        "suppl(?:y|ies|iers?)", "containers?", "shipp(?:ing|ed)", "transportation",
+        "inventor(?:y|ies)", "shipments?", "warehouses?", "storage",
+        "logistic(?:s|al)?", "procurements?", "productions?", "wholesale",
+        "factor(?:y|ies)", "deliver(?:y|ies)", "products?",
+        # Physical Context (moved from strict)
+        rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}",
+    ] + COMMON_COMMODITIES + CP_UNITS_STRICT + NON_DERIVATIVE_COMMERCIAL_KEYWORDS
+
+    return strict_terms, soft_terms
 
 
-CP_STRICT_TERMS = [
-    # General terms
-    rf"{_COMMODITY_NAMES}(?:\s+\w+){{0,3}}{_RISK_ALTERNATION}",
-    r"raw\s+material\s+costs?",
-    r"fuel\s+surcharges?",
-    # Financial Modifier + Specific Commodity
-    # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
-    rf"{_RISK_ALTERNATION}(?:\s+\w+){{0,3}}{_COMMODITY_NAMES}",
-    rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}",  # natural gas inventory, etc,
-] + TRADING_ENTITIES
+CP_STRICT_TERMS, CP_SOFT_TERMS = build_cp_context_terms()
+CP_CONTEXT_TERMS = CP_STRICT_TERMS + CP_SOFT_TERMS
 
 
 def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
@@ -403,19 +387,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
     # Return the tuple of (strict, soft)
     return strict_cp_regex, soft_cp_regex
 
-NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
-    # The "NPNS" Exemption (Physical Contracts)
-    r"normal\s+purchases?\s+(?:and|&)\s+(?:normal\s+)?sales?",
-    r"NPNS",
-    r"own[- ]use\s+exemption",
-    # Unconditional Obligations (ASC 440)
-    r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
-    r"take[- ]or[- ]pay",
-    r"throughput\s+agreements?",
-    # General Supply Chain (If not caught by Physical Inventory)
-    r"supply\s+arrangements?",
-    r"procurement\s+contracts?",
-]
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
 CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS)
