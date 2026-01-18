@@ -414,27 +414,31 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
     for orig in original_sentences:
         reason: Optional[NoiseReason] = None
         masked = mask_text(orig, is_nst=is_nst)
+
+        # --- TIER 0: STRICT IMMATERIALITY ---
+        if is_immaterial(masked):
+            reason = NoiseReason.IMM
+
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
-        temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
-        if not (
-            PRECISE_LOOSE_GEN_REGEX.search(temp_sent)
-            or SOFT_REGEX.search(temp_sent)
-            or is_sophisticated_target(temp_sent)
-            or is_value(temp_sent)  # allow "The notional value is XX to bypass"
-        ):
-            if is_hypothetical_noise(masked, threshold=2):
-                reason = NoiseReason.HYP_SCORE
-            elif is_pnl(masked, context_only=True): # PNL is tricky
-                reason = NoiseReason.PNL
-            elif is_immaterial(masked):
-                reason = NoiseReason.IMM
-            elif COUNTERPARTY_REGEX.search(masked):
-                reason = NoiseReason.CREDIT
-            elif RISK_MANAGEMENT_REGEX.search(masked):
-                reason = NoiseReason.RISK
-            else:
-                reason = NoiseReason.CTX
+        if not reason:
+            temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
+            if not (
+                PRECISE_LOOSE_GEN_REGEX.search(temp_sent)
+                or SOFT_REGEX.search(temp_sent)
+                or is_sophisticated_target(temp_sent)
+                or is_value(temp_sent)  # allow "The notional value is XX to bypass"
+            ):
+                if is_hypothetical_noise(masked, threshold=2):
+                    reason = NoiseReason.HYP_SCORE
+                elif is_pnl(masked, context_only=True): # PNL is tricky
+                    reason = NoiseReason.PNL
+                elif COUNTERPARTY_REGEX.search(masked):
+                    reason = NoiseReason.CREDIT
+                elif RISK_MANAGEMENT_REGEX.search(masked):
+                    reason = NoiseReason.RISK
+                else:
+                    reason = NoiseReason.CTX
 
         if not reason:
             if AOCI_NOISE_REGEX.search(masked):
@@ -500,6 +504,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         if not reason:
             # Check 0/nil
             reason = get_quantitative_noise_reason(masked, reporting_year)
+            
         # --- CONSTRUCTION ---
         if reason:
             reasons.add(reason)
