@@ -657,7 +657,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"(?:{spread_types_alternation})\s+spreads?\s+(?:{standalone_alternation})",
         # SHORTER: spreads alone
         rf"(?:{spread_types_alternation})\s+spreads?",
-        r"fixed[- ]price swaps?",
+        r"fixed[- ]price(?:[ -]purchase) swaps?",
     ]
 
     # Pre-sort longest-first for Max Munch precedence
