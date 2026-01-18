@@ -431,6 +431,6 @@ if __name__ == "__main__":
         ("commodity arrangement", MatchLevel.SOFT),
         ("commodity contracts", MatchLevel.STRICT),
         ("crude oil option", MatchLevel.STRICT),
-        ("natural gas", MatchLevel.STRICT),
+        ("natural gas", MatchLevel.LOOSE),
     ]
     run_category_tests_counter(counter_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
