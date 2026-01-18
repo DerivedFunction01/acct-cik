@@ -37,7 +37,7 @@ POTENTIAL_SUFFIX_ADVERBS = [
 POTENTIAL_INDICATORS = [
     r"may",
     r"might",
-    r"(?:may|might)\s+consider",
+    r"(?:may|might|are|were)\s+consider(?:ing)?",
     r"could",
     r"would",
     r"will",
@@ -47,7 +47,7 @@ POTENTIAL_INDICATORS = [
     r"if",
     r"whether",
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
-    r"expect(?:s|ed)?\s+to(?![- ]continue)",
+    r"expect(?:s|ed)?(?:\s+to)?(?![- ]continue)",
 ] + POTENTIAL_SUFFIX_ADVERBS
 
 # Add this alongside your other lists
@@ -380,6 +380,34 @@ def build_absence_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
+def build_strict_termination_regex() -> List[re.Pattern]:
+    """
+    Matches termination events anchored to derivative instruments.
+    1. Verb + Target: "terminated the swap"
+    2. Target + Verb: "swap expired"
+    """
+    verbs = build_alternation(TERMINATION_VERBS)
+    
+    # 1. Verb ... Target
+    # "terminated [the] [interest rate] swap"
+    pat_verb_target = (
+        rf"\b{verbs}\s+"
+        rf"(?:{_DENIAL_FILLER})?" # Optional filler
+        rf"{_DENIAL_TARGET}\b"
+    )
+
+    # 2. Target ... Verb
+    # "swap [was] terminated", "swap expired"
+    pat_target_verb = (
+        rf"\b{_DENIAL_TARGET}\s+"
+        rf"(?:{_DENIAL_FILLER})?"
+        rf"{verbs}\b"
+    )
+
+    return [
+        re.compile(pat_verb_target, re.IGNORECASE),
+        re.compile(pat_target_verb, re.IGNORECASE)
+    ]
 
 def build_prior_statement_pattern_2() -> re.Pattern:
     """
@@ -464,6 +492,13 @@ IMMATERIAL_REGEX = build_immaterial_regexes()
 
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 TERMINATION_REGEX = build_regex(TERMINATION_VERBS)
+STRICT_TERMINATION_REGEXES = build_strict_termination_regex()
+
+def is_strict_termination(text: str) -> bool:
+    for regex in STRICT_TERMINATION_REGEXES:
+        if regex.search(text):
+            return True
+    return False
 
 def is_immaterial(text: str) -> bool:
     for regex in IMMATERIAL_REGEX:
@@ -621,6 +656,18 @@ def run_tests():
             IMMATERIAL_REGEX,
             "The value was significant",
             False,
+        ),
+        (
+            "STRICT_TERM: Verb-Target",
+            STRICT_TERMINATION_REGEXES,
+            "We terminated the three month interest rate swap",
+            True,
+        ),
+        (
+            "STRICT_TERM: Target-Verb",
+            STRICT_TERMINATION_REGEXES,
+            "The foreign currency contracts has recently expired",
+            True,
         ),
     ]
 
