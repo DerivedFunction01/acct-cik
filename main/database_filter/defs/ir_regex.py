@@ -100,7 +100,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     soft_pattern = build_smart_regex(
         core_terms,
         expand_instruments(
-            unsafe=True, additional_bases=["protection"]
+            unsafe=True, additional_bases=["protection"], exclude_standalone_suffixes=True
         ),  # IR caps, locks, floors
         specific_phrases,
     )
