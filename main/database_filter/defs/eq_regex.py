@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, suffix_alternation
+from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS
 
@@ -198,14 +198,27 @@ EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
 if __name__ == "__main__":
     test_cases = [
         ("equity swap", MatchLevel.STRICT),
-        ("equity option", MatchLevel.SOFT),  # Option is ambiguous base
-        ("stock option", MatchLevel.NONE),
-        ("warrants", MatchLevel.NONE),  # Warrants are strict in EQ
-        ("embedded conversion option", MatchLevel.STRICT),
+        ("equity option", MatchLevel.SOFT),
+        ("equity derivative", MatchLevel.STRICT),
         ("equity linked swap", MatchLevel.STRICT),
         ("market index option", MatchLevel.SOFT),
+        ("embedded conversion option", MatchLevel.STRICT),
+        ("warrant liability", MatchLevel.STRICT),
         ("equity contract", MatchLevel.LOOSE),
         ("equity hedges", MatchLevel.SOFT),
-        ("stock hedging", MatchLevel.SOFT),
+        ("convertible debt", MatchLevel.SOFT),
+        ("convertible debt hedge", MatchLevel.STRICT),
     ]
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
+
+    counter_cases = [
+        ("stock option", MatchLevel.LOOSE),
+        ("share option", MatchLevel.LOOSE),
+        ("equity compensation", MatchLevel.LOOSE),
+        ("equity award", MatchLevel.LOOSE),
+        ("warrants", MatchLevel.LOOSE),
+        ("convertible debt", MatchLevel.STRICT),
+        ("equity", MatchLevel.LOOSE),
+        ("stock hedging", MatchLevel.LOOSE),
+    ]
+    run_category_tests_counter(counter_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
