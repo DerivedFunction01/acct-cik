@@ -3,10 +3,10 @@ import json
 from pathlib import Path
 import re
 import sqlite3
-from typing import Optional, Set, Tuple
+from typing import Optional, Set
 
 from tqdm import tqdm
-from defs.verb_regex import ACCT_VERB_REGEX, IMMATERIAL_REGEX, POSS_VERB_REGEX, TERMINATION_ALL_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
+from defs.verb_regex import ACCT_VERB_REGEX, POSS_VERB_REGEX, TERMINATION_ALL_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX, is_immaterial
 from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
 from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX
@@ -383,7 +383,7 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
 def mark_sentence_as_other(text: str) -> Optional[Reason]:
     if AOCI_NOISE_REGEX.search(text):
         return NoiseReason.AOCI
-    if IMMATERIAL_REGEX.search(text):
+    if is_immaterial(text):
         return NoiseReason.IMM
     if TABLE_ANCHOR in text and not is_sophisticated_content(text): # Only for "normal" derivatives
         return EvidenceReason.TABLE

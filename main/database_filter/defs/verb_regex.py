@@ -2,6 +2,7 @@
 # VERB MAPS & PRECOMPILED REGEXES
 # =============================================================================
 import re
+from typing import List, Tuple
 from defs.gen_regex import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
@@ -227,7 +228,7 @@ ACTIVE_INDICATORS = [
 ACTIVE_PATTERN = build_alternation(ACTIVE_INDICATORS)
 
 
-def build_immaterial_regex() -> re.Pattern:
+def build_immaterial_regexes() -> List[re.Pattern]:
     immaterial = [
         "immaterial",
         "not significant",
@@ -260,6 +261,7 @@ def build_immaterial_regex() -> re.Pattern:
     # "The notional amount was immaterial"
     # Gap: Subject -> [0-2 words] -> Verb -> [0-2 words] -> Immaterial
     pat_strict = rf"\b(?:{subj_pat})\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
+    regex_strict = re.compile(pat_strict, re.IGNORECASE)
 
     # 2. Instrument-Anchored (Permissive)
     # "The fair value of the interest rate swaps was immaterial"
@@ -269,17 +271,17 @@ def build_immaterial_regex() -> re.Pattern:
         rf"{_DENIAL_TARGET}\s+"
         rf"(?:\w+\s+){{0,5}}{imm_pat}\b"
     )
+    regex_pat_instrument = re.compile(pat_instrument, re.IGNORECASE)
 
     # 3. Instrument as Subject (Strict)
     # "The interest rate swap was immaterial"
     pat_instrument_subject = (
         rf"\b{_DENIAL_TARGET}\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
     )
+    regex_pat_instrument_subject = re.compile(pat_instrument_subject, re.IGNORECASE)
 
-    return re.compile(
-        rf"(?:{pat_strict}|{pat_instrument}|{pat_instrument_subject})",
-        re.IGNORECASE,
-    )
+    return [regex_strict, regex_pat_instrument, regex_pat_instrument_subject]
+
         
 def build_did_not_hold_regex() -> re.Pattern:
     """
@@ -419,10 +421,17 @@ ABSENCE_REGEX = build_absence_regex()
 POTENTIAL_REGEX = build_potential_regex()
 VAGUE_TIMING_REGEX = build_vague_timing_regex()
 PRIOR_INDICATOR = build_prior_statement_pattern_2()
-IMMATERIAL_REGEX = build_immaterial_regex()
+IMMATERIAL_REGEX = build_immaterial_regexes()
 
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 TERMINATION_REGEX = build_regex(TERMINATION_VERBS)
+
+def is_immaterial(text: str) -> bool:
+    for regex in IMMATERIAL_REGEX:
+        if regex.search(text):
+            return True
+    return False
+
 
 def run_tests():
     print("Running tests for verb_regex.py...")
@@ -492,85 +501,85 @@ def run_tests():
         # IMMATERIAL_REGEX
         (
             "IMM: Strict - Notional",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The notional amount was immaterial",
             True,
         ),
         (
             "IMM: Strict - Fair Value",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The fair value was insignificant",
             True,
         ),
         (
             "IMM: Strict - Carrying Value",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The carrying value of these instruments is de minimis",
             True,
         ),
         (
             "IMM: Strict - Market Value",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The market values were nominal",
             True,
         ),
         (
             "IMM: Counter - Impact",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The impact on earnings was not significant",
             False,
         ),
         (
             "IMM: Counter - Effect",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The effect of derivative instruments was immaterial",
             False,
         ),
         (
             "IMM: Counter - Gain/Loss",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The gain on the swap was trivial",
             False,
         ),
         (
             "IMM: Counter - Results",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The results of operations were not materially affected",
             False,
         ),
         (
             "IMM: Counter - Exposure",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The exposure related to foreign exchange contracts is insignificant",
             False,
         ),
         (
             "IMM: Instrument - FV of Swaps",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The fair value of the three month interest rate swaps was immaterial",
             True,
         ),
         (
             "IMM: Subject - Swaps",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The interest rate swap was immaterial",
             True,
         ),
         (
             "IMM: Subject - Derivatives",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "Derivative instruments were considered trivial",
             True,
         ),
         (
             "IMM: Neg - Material",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The amount was material",
             False,
         ),
         (
             "IMM: Neg - Significant",
-            IMMATERIAL_REGEX,
+            is_immaterial,
             "The value was significant",
             False,
         ),
@@ -578,11 +587,17 @@ def run_tests():
 
     failures = 0
     for name, pattern, text, expected in test_cases:
-        match = pattern.search(text)
-        is_match = bool(match)
-        if is_match != expected:
-            print(f"FAIL [{name}]: '{text}' -> Expected {expected}, Got {is_match}")
-            failures += 1
+        if isinstance(pattern, list):
+            pass
+        else:
+            pattern = [pattern]
+        for p in pattern:
+            assert isinstance(p, re.Pattern)
+            match = p.search(text)
+            is_match = bool(match)
+            if is_match != expected:
+                print(f"FAIL [{name}]: '{text}' -> Expected {expected}, Got {is_match}")
+                failures += 1
 
     if failures == 0:
         print(f"All {len(test_cases)} tests passed.")
