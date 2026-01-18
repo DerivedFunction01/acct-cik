@@ -82,11 +82,8 @@ NEGATIVE_AUXILIARY = [
     r"be",
 ]
 _ABSENCE_NOUNS = [
-    r"outstanding",  # "no such outstanding"
     r"positions?",
-    r"exposures?",
     r"obligations?",
-    r"hedges?",  # "no such hedge" (generic)
     r"activit(?:ies|y)",  # "no derivative activity"
     r"involvements?",  # "no involvement with derivatives"
     r"holdings?",  # "no holdings"
@@ -204,7 +201,6 @@ _DENIAL_MODIFIERS = [
     "trading",
     "proprietary",
     "speculative",
-    "purchase",
 ]
 
 # The "Glue": Small filler words that appear between modifiers
