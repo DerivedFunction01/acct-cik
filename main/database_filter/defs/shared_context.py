@@ -233,55 +233,61 @@ MITIGATION_VERBS = [
     r"stabiliz(?:e|es|ed|ing)",
 ]
 
-RISK_GLUE_TERMS = [
+GENERIC_RISK_GLUE = [
     "rising",
     "falling",
-    "fluctuating",
-    "volatile",
-    "economic",
-    "economy",
-    "inflation(?:ary)?"
-    "volatility",
+    "econom(?:ic|y)",
+    "inflation(?:ary)?",
+    "volatil(?:ity|e)",
     "pressure",
-    "upward",
-    "downward",
-    "market",
-    "credit",
-    "interest",
-    "rates?",
-    "currenc(?:y|ies)",
-    "foreign",
-    "exchanges?",
-    "prices?",
-    "costs?",
-    "value",
-    "cash",
-    "flows?",
+    "(?:up|down)ward",
+    "markets?",
+    "values?",
     "potential",
     "future",
     "adverse",
     "movements?",
-    "changes?",
-    "fluctuations?",
-    "exposures?",
+    "chang(?:es?|ing)",
+    "fluctuat(?:ions?|ing)",
+    "expos(?:ures?|ed)",
     "hypothetical",
     "risks?",
     "against",
     "from",
     "management",
+    "associated",
+    "related",
+    "inherent",
+    "arising",
+    "resulting",
+    "impact",
+    "effect",
+    "conditions?",
+    "uncertaint(?:y|ies)",
 ]
 
-def build_risk_managment_phrase(additional_glue: Optional[List[str]] = None) -> str:
+def build_risk_managment_phrase(
+    required_glue: Optional[List[str]] = None,
+) -> str:
     verbs = build_alternation(MITIGATION_VERBS)
-    glue_list = RISK_GLUE_TERMS.copy()
-    if additional_glue:
-        glue_list.extend(additional_glue)
-    glue = build_alternation(glue_list)
-    filler = r"(?:\S+\s+){0,2}"
-    glue_unit = rf"(?:{filler}{glue})"
-    gap_chain = rf"(?:{glue_unit}\s+){{0,6}}"
+    glue = build_alternation(GENERIC_RISK_GLUE)
+    filler = r"(?:\S+\s+){0,3}"
+    
+    if required_glue:
+        req_alt = build_alternation(required_glue)
+        glue_unit = rf"(?:{filler}{glue})"
+        req_unit = rf"(?:{filler}{req_alt})"
+        pre_chain = rf"(?:{glue_unit}\s+){{0,3}}"
+        post_chain = rf"(?:{glue_unit}\s+){{0,3}}"
+        gap = rf"{pre_chain}{req_unit}\s+{post_chain}"
+    else:
+        glue_unit = rf"(?:{filler}{glue})"
+        gap = rf"(?:{glue_unit}\s+){{0,6}}"
+
     final_filler = r"(?:\S+\s+){0,3}"
-    return rf"{verbs}\s+{gap_chain}{final_filler}{_RISK_ALTERNATION}"
+    return rf"{verbs}\s+{gap}{final_filler}{_RISK_ALTERNATION}"
+
+
 
 # --- MONTHS (for date boilerplate) ---
 MONTHS_TERMS = [
