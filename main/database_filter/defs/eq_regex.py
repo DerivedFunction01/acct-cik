@@ -3,7 +3,7 @@ from typing import Tuple, List
 
 from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS
+from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 
 def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Build Core Terms (Prefixes) ---
@@ -132,13 +132,11 @@ EQUITY_COMP_KEYWORDS = [
     "ESPP",  # Employee Stock Purchase Plan
     "SARs?",  # Stock Appreciation Rights
     "stock appreciation rights?",
-    "phantom stocks?",
-    "employee stocks?",
+    "(?:phantom|employee) stocks?",
     "employees?",
     # 2. Plan/HR Terminology
     "compensations?",
-    "benefit plans?",
-    "incentive plans?",
+    "(?:benefit|incentive|treasury) plans?",
     "share-based payment",
     "vesting",
     "exercisable",
@@ -153,45 +151,71 @@ EQUITY_COMP_KEYWORDS = [
     "payroll",
     "severance",
     "common shares?",
-    "treasury stocks?",
     "exercise",
 ]
 
 
-def build_eq_context_terms() -> Tuple[List[str], List[str]]:
-    strict_terms = [
-        # Risk Integration
-        rf"(?:stock|share|equity)\s+{_RISK_ALTERNATION}",
-        # Specific Instruments
-        r"accelerated\s+share\s+repurchases?",
-        r"capped\s+calls?",
-    ] + VALUATION_MODELS
+def build_eq_context_terms() -> Tuple[List[str], List[str], List[str]]:
 
-    soft_terms = [
-        # Core Prices & Markets
+    # 2. Prices & Markets
+    eq_prices_markets = [
         rf"(?:stock|share|equity)\s+{stock_alt}",
         r"market\s+index(?:es)?",
-        # Specific Indices
+    ]
+
+    # 3. Indices
+    eq_indices = [
         r"S\&P\s+500",
         r"Nasdaq(?:\s+Composite|\s+Index)?",
         r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
         r"Russell\s+2000",
-        # Equity Components
-        r"(?:preferred|common|treasury|outstanding|restricted|capital)\s+(?:stocks?|shares)",
-        # Structures & Events
+    ]
+
+    # 4. Equity Components (Types of stock)
+    eq_components = [
+        r"(?:preferred|common|treasury|outstanding|restricted|capital|equity)\s+(?:stocks?|shares)",
+        r"outstanding equity",
+    ]
+
+    # 5. Structures & Events
+    eq_structures = [
         r"initial\s+public\s+offering|IPO",
         r"(?:primary|secondary)\s+markets?",
-        r"outstanding equity",
         r"acquisition date",
-    ] + EQUITY_COMP_KEYWORDS
+    ]
 
-    return strict_terms, soft_terms
+    # 6. Risk Integration
+    eq_risk = [
+        rf"equity\s+{_RISK_ALTERNATION}",
+    ]
+
+    # 7. Specific Instruments (Strict)
+    eq_instruments = [
+        r"accelerated\s+share\s+repurchases?",
+        r"capped\s+calls?",
+    ]
+
+    strict_terms = eq_risk + eq_instruments + VALUATION_MODELS
+
+    soft_terms = (
+        eq_prices_markets
+        + eq_indices
+        + eq_components
+        + eq_structures
+        + EQUITY_COMP_KEYWORDS
+    )
+
+    eq_glue = eq_indices + eq_components + eq_prices_markets
+    risk_terms = [build_risk_managment_phrase(eq_glue)]
+
+    return strict_terms, soft_terms, risk_terms
 
 
-EQ_STRICT_TERMS, EQ_SOFT_TERMS = build_eq_context_terms()
-EQ_CONTEXT_TERMS = EQ_STRICT_TERMS + EQ_SOFT_TERMS
+EQ_STRICT_TERMS, EQ_SOFT_TERMS, EQ_RISK_TERMS = build_eq_context_terms()
+EQ_CONTEXT_TERMS = EQ_STRICT_TERMS + EQ_SOFT_TERMS + EQ_RISK_TERMS
 EQ_CONTEXT_REGEX = build_regex(EQ_CONTEXT_TERMS)
-EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_STRICT_TERMS)
+EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_STRICT_TERMS + EQ_RISK_TERMS)
+EQ_RISK_REGEX = build_regex(EQ_RISK_TERMS)
 EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX = build_eq_regex()
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
 
