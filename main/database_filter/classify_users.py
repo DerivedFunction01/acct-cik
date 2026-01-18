@@ -683,7 +683,7 @@ def remove_outlier_categories(
 
 
 PRIORITY_ORDER = ["fx", "cp", "eq", "cr", "ir"]
-def get_text_categories(text: str, is_nst: bool) -> Set[str]:
+def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
     """
     Determines category using Weighted Scoring and Map Iteration.
 
@@ -691,6 +691,7 @@ def get_text_categories(text: str, is_nst: bool) -> Set[str]:
     1. Strict Check (Instrument + Context): High Score (Bypass).
     2. Soft Check (Context Density): Low Score (Requires volume).
        - Uses Priority Consumption (FX eats 'Currency' before IR sees it).
+    Returns a dictionary of {category: score} for categories meeting the threshold.
     """
     scores = defaultdict(int)
 
@@ -742,17 +743,15 @@ def get_text_categories(text: str, is_nst: bool) -> Set[str]:
     # PHASE 3: THRESHOLDING
     # ═══════════════════════════════════════════════════════════
     if not scores:
-        return set()
+        return {}
 
     max_score = max(scores.values())
 
     # If we have a massive strict hit (>1000), raise threshold to kill weak noise
     threshold = 1000 if max_score >= 1000 else 45
 
-    top_cats = {cat for cat, score in scores.items() if score >= threshold}
-    specific = top_cats - {"gen"}
-
-    return specific if specific else top_cats
+    final_scores = {cat: s for cat, s in scores.items() if s >= threshold}
+    return final_scores
 
 
 def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]]) -> None:
@@ -876,12 +875,12 @@ def process_row(row: Tuple) -> Tuple:
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
-        context_cats = get_text_categories(
+        context_scores = get_text_categories(
             para_content, is_nst=effective_nst
         )  # Allow full original text, while stripping convertible debt as standard debt if it is not a derivative
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
-        local_contexts = context_cats if context_cats else set()
+        local_contexts = set(context_scores.keys())
         accumulated_cats = set()
 
         sentences = [
@@ -1010,7 +1009,12 @@ def process_row(row: Tuple) -> Tuple:
             # and we have valid local contexts, resolve to ALL of them.
             if local_contexts and "gen" in found_soft and len(found_soft) == 1:
                 for ctx in local_contexts:
-                    soft_counts[ctx] += 1
+                    score = context_scores.get(ctx, 0)
+                    if score >= 1000:
+                        strict_counts[ctx] += 1
+                        register_trackers(clean_sent, {ctx}, tracker, local_tracker)
+                    else:
+                        soft_counts[ctx] += 1
             else:
                 for cat in found_soft:
                     soft_counts[cat] += 1
