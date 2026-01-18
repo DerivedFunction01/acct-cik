@@ -137,7 +137,7 @@ VERB_MAP = {
         r"(?:a\s+)?party\s+to",
     ],
     "PRU": [
-        r"use(?:s|d|ing)?",
+        r"us(?:e(?:s|d)?|ing)",
         r"utiliz(?:e|es|ed|ing)",
         r"employ(?:s|ed|ing)?",
         r"apply(?:ies|ied|ying)?",
