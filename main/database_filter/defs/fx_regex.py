@@ -89,7 +89,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     dynamic_templates = [
         rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))[- ](?:__DYNAMIC__)",
         rf"(?:{currency_name_alternation})[- ](?:__DYNAMIC__)",
-        rf"(?<!single[- ])currency[- ](?:__DYNAMIC__)",
+        rf"(?<!single[- ])currency[- ](?:contracts?|options?|forwards?)",
     ]
 
     # Fixed (non-dynamic) specific phrases
@@ -321,6 +321,7 @@ def run_tests():
         ("foreign currency hedges", MatchLevel.SOFT),
         ("currency hedging", MatchLevel.SOFT),
         ("foreign currency option", MatchLevel.STRICT),
+        ("currency option", MatchLevel.STRICT),
         ("foreign currency arrangement", MatchLevel.SOFT),
         ("currency exchange contract", MatchLevel.STRICT),
         ("foreign currency exchange swap", MatchLevel.STRICT),
