@@ -282,7 +282,7 @@ def build_immaterial_regexes() -> List[re.Pattern]:
 
     return [regex_strict, regex_pat_instrument, regex_pat_instrument_subject]
 
-        
+
 def build_did_not_hold_regex() -> re.Pattern:
     """
     Matches: "did not hold", "didn't enter", "do not, as a routine matter, use"
@@ -501,85 +501,85 @@ def run_tests():
         # IMMATERIAL_REGEX
         (
             "IMM: Strict - Notional",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The notional amount was immaterial",
             True,
         ),
         (
             "IMM: Strict - Fair Value",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The fair value was insignificant",
             True,
         ),
         (
             "IMM: Strict - Carrying Value",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The carrying value of these instruments is de minimis",
             True,
         ),
         (
             "IMM: Strict - Market Value",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The market values were nominal",
             True,
         ),
         (
             "IMM: Counter - Impact",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The impact on earnings was not significant",
             False,
         ),
         (
             "IMM: Counter - Effect",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The effect of derivative instruments was immaterial",
             False,
         ),
         (
             "IMM: Counter - Gain/Loss",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The gain on the swap was trivial",
             False,
         ),
         (
             "IMM: Counter - Results",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The results of operations were not materially affected",
             False,
         ),
         (
             "IMM: Counter - Exposure",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The exposure related to foreign exchange contracts is insignificant",
             False,
         ),
         (
             "IMM: Instrument - FV of Swaps",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The fair value of the three month interest rate swaps was immaterial",
             True,
         ),
         (
             "IMM: Subject - Swaps",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The interest rate swap was immaterial",
             True,
         ),
         (
             "IMM: Subject - Derivatives",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "Derivative instruments were considered trivial",
             True,
         ),
         (
             "IMM: Neg - Material",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The amount was material",
             False,
         ),
         (
             "IMM: Neg - Significant",
-            is_immaterial,
+            IMMATERIAL_REGEX,
             "The value was significant",
             False,
         ),
@@ -591,13 +591,17 @@ def run_tests():
             pass
         else:
             pattern = [pattern]
+        passed = False
+        # Run through each list of patterns. We pass if one at least passes
         for p in pattern:
             assert isinstance(p, re.Pattern)
             match = p.search(text)
             is_match = bool(match)
-            if is_match != expected:
-                print(f"FAIL [{name}]: '{text}' -> Expected {expected}, Got {is_match}")
-                failures += 1
+            if is_match == expected:
+                passed = True
+        if not passed:
+            print(f"FAIL [{name}]: '{text}' -> Expected {expected}, Got {not expected}")
+            failures += 1
 
     if failures == 0:
         print(f"All {len(test_cases)} tests passed.")
