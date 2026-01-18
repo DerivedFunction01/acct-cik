@@ -30,7 +30,10 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     # --- 2. Specific Instrument Phrases (Max Munch) ---
     cln_pattern = rf"credit[- ]linked\s+{_DEBT_TERMS}"
-    specific_phrases = [cln_pattern, "credit (?:swaps|derivatives?)"]  # None for this one
+    specific_phrases = [
+        cln_pattern,
+        "credit (?:swaps?(?![- ]rates?)|derivatives?)",
+    ]  # None for this one
 
     sorted_specific_phrases = sorted(
         specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"))
@@ -65,7 +68,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         sorted_specific_phrases,
     )
     soft_cr_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-    
+
     loose_instrument_fragment = expand_instruments(
         unsafe=True, exclude_standalone_suffixes=False
     )
