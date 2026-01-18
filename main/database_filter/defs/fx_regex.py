@@ -317,6 +317,8 @@ def run_tests():
         ("foreign currency option", MatchLevel.STRICT),
         ("foreign currency arrangement", MatchLevel.LOOSE),
         ("foreign currency commitments", MatchLevel.LOOSE),
+        ("currency exchange contract", MatchLevel.STRICT),
+        ("foreign currency exchange swap", MatchLevel.STRICT),
     ]
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 
