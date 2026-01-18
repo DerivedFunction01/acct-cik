@@ -273,7 +273,7 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
     conn_pat = build_alternation(connectors)
 
     # 2. Build Suffix Logic
-
+    full_suffix_alt = build_alternation(UNAMBIGUOUS_SUFFIXES + ["options?"])
     # B. Safe Suffix List (For Short-Form Instruments)
     # Remove "agreement" so "Cap Agreement" is caught and checked for debt context.
     # We explicitly keep strong terms like "Contract" and "Option".
@@ -282,6 +282,7 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
 
     # 3. Targets (Caps/Floors only)
     targets = [
+        rf"rate\s+(?:caps?|floors?)(?!\s+{full_suffix_alt})" # Skips interest rate cap contract, rate floor option
         # "Cap Agreement" or "rate Arrangement" will MATCH here (and risk discard)
         rf"(?:caps?|floors?|rates?)(?!\s+{safe_suffix_alt})",
     ]
