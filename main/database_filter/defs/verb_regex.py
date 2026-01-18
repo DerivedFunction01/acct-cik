@@ -32,6 +32,8 @@ POTENTIAL_INDICATORS = [
     r"plan(?:s|ned)?\s+to",
     r"if",
     r"whether",
+    r"selectively",
+    r"typically",
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
     r"expect(?:s|ed)?\s+to(?![- ]continue)",
 ]
