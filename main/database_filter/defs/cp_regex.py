@@ -401,3 +401,23 @@ CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS)
 CP_CONTEXT_REGEX = build_regex(CP_CONTEXT_TERMS)
 CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 TRADING_VENUE_REGEX = build_regex(TRADING_ENTITIES)
+
+if __name__ == "__main__":
+    def run_test():
+        test_cases = [
+            "commodity swap",
+            "commodity swap agreement",
+            "crude oil swap",
+            "natural gas forward",
+            "fixed price swap",
+            "weather derivative",
+            "power purchase agreement",
+            "commodity contract",
+            "oil price swap",
+            "corn future",
+        ]
+        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
+        print("-" * 65)
+        for text in test_cases:
+            print(f"{text:<40} | {str(bool(CP_REGEX.search(text))):<6} | {str(bool(CP_SOFT_REGEX.search(text))):<6} | {str(bool(CP_LOOSE_REGEX.search(text))):<6}")
+    run_test()

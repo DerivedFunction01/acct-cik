@@ -296,3 +296,23 @@ FX_CONTEXT_TERMS = FX_STRICT_TERMS + FX_SOFT_TERMS
 FX_CONTEXT_REGEX = build_regex(FX_CONTEXT_TERMS)
 FX_STRICT_CONTEXT_REGEX = build_regex(FX_STRICT_TERMS)
 FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX = build_fx_regex()
+
+if __name__ == "__main__":
+    def run_test():
+        test_cases = [
+            "foreign currency forward",
+            "foreign currency forward contract",
+            "currency swap",
+            "currency swap agreement",
+            "FX forward",
+            "foreign exchange option",
+            "cross currency swap",
+            "forward foreign exchange contract",
+            "currency agreement",
+            "foreign currency contract",
+        ]
+        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
+        print("-" * 65)
+        for text in test_cases:
+            print(f"{text:<40} | {str(bool(FX_REGEX.search(text))):<6} | {str(bool(FX_SOFT_REGEX.search(text))):<6} | {str(bool(FX_LOOSE_REGEX.search(text))):<6}")
+    run_test()

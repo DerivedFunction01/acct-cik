@@ -194,3 +194,21 @@ EQ_CONTEXT_REGEX = build_regex(EQ_CONTEXT_TERMS)
 EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_STRICT_TERMS)
 EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX = build_eq_regex()
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
+
+if __name__ == "__main__":
+    def run_test():
+        test_cases = [
+            "equity swap",
+            "equity option",
+            "stock option",
+            "warrant",
+            "embedded conversion option",
+            "equity linked swap",
+            "market index option",
+            "equity contract",
+        ]
+        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
+        print("-" * 65)
+        for text in test_cases:
+            print(f"{text:<40} | {str(bool(EQ_REGEX.search(text))):<6} | {str(bool(EQ_SOFT_REGEX.search(text))):<6} | {str(bool(EQ_LOOSE_REGEX.search(text))):<6}")
+    run_test()

@@ -116,3 +116,21 @@ CR_CONTEXT_TERMS = CR_STRICT_TERMS + CR_SOFT_TERMS
 CR_CONTEXT_REGEX = build_regex(CR_CONTEXT_TERMS)
 CR_STRICT_CONTEXT_REGEX = build_regex(CR_STRICT_TERMS)
 CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX = build_cr_regex()
+
+if __name__ == "__main__":
+    def run_test():
+        test_cases = [
+            "credit default swap",
+            "credit default swap agreement",
+            "credit linked note",
+            "credit swap",
+            "credit default option",
+            "basket default swap",
+            "credit derivative",
+            "credit protection agreement",
+        ]
+        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
+        print("-" * 65)
+        for text in test_cases:
+            print(f"{text:<40} | {str(bool(CR_REGEX.search(text))):<6} | {str(bool(CR_SOFT_REGEX.search(text))):<6} | {str(bool(CR_LOOSE_REGEX.search(text))):<6}")
+    run_test()

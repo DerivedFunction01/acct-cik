@@ -37,7 +37,6 @@ UNAMBIGUOUS_BASE_TYPES = [
     rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
     "collars?",
     "derivatives?",
-    "hedges",  # plural form
     "futures",  # plural form
 ] + SPECIAL_BASE
 

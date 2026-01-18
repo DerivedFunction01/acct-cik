@@ -350,3 +350,24 @@ IR_CONTEXT_REGEX = build_regex(IR_CONTEXT_TERMS)
 IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS)
 EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
+
+if __name__ == "__main__":
+    def run_test():
+        test_cases = [
+            "interest rate swap",
+            "interest rate cap agreement",
+            "interest rate agreement",
+            "swap agreement",  # Should NOT match IR (no core)
+            "interest rate cap",
+            "fixed rate swap",
+            "pay fixed receive floating swap",
+            "interest rate protection",
+            "interest rate protection agreement",
+            "interest rate hedges",
+            "interest rate hedge contract"
+        ]
+        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
+        print("-" * 65)
+        for text in test_cases:
+            print(f"{text:<40} | {str(bool(IR_REGEX.search(text))):<6} | {str(bool(IR_SOFT_REGEX.search(text))):<6} | {str(bool(IR_LOOSE_REGEX.search(text))):<6}")
+    run_test()
