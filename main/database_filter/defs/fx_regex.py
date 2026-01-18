@@ -89,7 +89,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     dynamic_templates = [
         rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))[- ](?:__DYNAMIC__)",
         rf"(?:{currency_name_alternation})[- ](?:__DYNAMIC__)",
-        rf"(?<!single[- ])currency[- ](?:contracts?|options?|forwards?)",
+        
     ]
 
     # Fixed (non-dynamic) specific phrases
@@ -97,6 +97,10 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # Explicitly safe Forward Types
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)\s+(?:{suffix_alternation})",
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)",
+        # Specific Exchange Agreements (Valid because of "Exchange")
+        # Matches: "foreign exchange agreement", "currency exchange arrangement"
+        rf"(?:foreign|currency|forward|cross[- ]currency)\s+exchange\s+(?:agreements?|arrangements?|commitments?)",
+        rf"(?<!single[- ])currency[- ](?:contracts?|options?|forwards?)",
     ]
 
     # -------------------------------------------------------------------------
@@ -151,7 +155,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     soft_dynamic_fragment = expand_instruments(
         unsafe=True,
         exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?", "agreements?", "arrangements?"],
+        additional_standalone_suffixes=["contracts?"],
     )
 
     # 1. Substitute the dynamic fragment into the templates
@@ -176,8 +180,9 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     # 3. Final pattern build
     soft_instrument_fragment = expand_instruments(
-        unsafe=True
-    )  # Unsafe standalone bases allowed here
+        unsafe=True,
+        additional_standalone_suffixes=["contracts?"],
+    )
     soft_pattern = build_smart_regex(
         [soft_core_alternation],  # Broad prefixes
         soft_instrument_fragment,  # Unsafe bases included
