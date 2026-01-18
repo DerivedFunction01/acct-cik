@@ -145,7 +145,7 @@ unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES,
 
 def expand_instruments(
     unsafe: bool = True,
-    exclude_standalone_suffixes: bool = False,
+    exclude_standalone_suffixes: Optional[bool] = None,
     additional_standalone_suffixes: Optional[List[str]] = None,
     additional_bases: Optional[List[str]] = None,
 ) -> str:
@@ -156,8 +156,12 @@ def expand_instruments(
     1. Ensures (OldBase OR NewBase) + Suffix is treated as a single unit.
     2. Ensures additional_bases are NOT matched as standalone words.
     """
+    # Default: If unsafe (Soft), exclude suffixes to prevent "Corn Agreement" (Context).
+    # If safe (Strict), include suffixes to allow "Interest Rate Contract" (Instrument).
+    if exclude_standalone_suffixes is None:
+        exclude_standalone_suffixes = unsafe
 
-    # 1. Construct the Base Component for the Combined Pattern
+    # 1. Construct the Base Component for the Combined PatternW
     # We wrap (Existing | New) together so the suffix applies to BOTH.
     if additional_bases:
         new_base_alt = build_alternation(additional_bases, True)

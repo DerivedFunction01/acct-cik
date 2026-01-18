@@ -75,14 +75,14 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
     # -------------------------------------------------------------------------
 
     # Fragment for general pattern combination: Includes all derivative terminology, including standalones.
-    soft_instrument_fragment = expand_instruments(unsafe=True)
+    soft_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=True)
 
     soft_pattern = build_smart_regex(
         [strict_core_alternation],
         soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
         sorted_specific_phrases
         + [
-            rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
+            rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))", # Gets defanged if nst is true
         ],
     )
     soft_eq_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)

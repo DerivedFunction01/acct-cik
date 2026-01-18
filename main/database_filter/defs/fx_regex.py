@@ -138,7 +138,9 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     # Fragment for dynamic replacement: includes all instrument bases (unsafe=True, exclude standalones)
     soft_dynamic_fragment = expand_instruments(
-        unsafe=True, exclude_standalone_suffixes=True
+        unsafe=True,
+        exclude_standalone_suffixes=True,
+        additional_standalone_suffixes=["contracts?", "options?", "forwards?"],
     )
 
     # 1. Substitute the dynamic fragment into the templates

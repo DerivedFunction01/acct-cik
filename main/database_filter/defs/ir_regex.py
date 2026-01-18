@@ -93,14 +93,18 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
     strict_pattern = build_smart_regex(
         core_terms,
         expand_instruments(
-            unsafe=False, additional_bases=["protection"], additional_standalone_suffixes=["contracts?"]
+            unsafe=False, 
+            additional_bases=["protection"], 
+            additional_standalone_suffixes=["contracts?"]
         ),  # IR caps, locks, floors is not included without the word contract, etc
         specific_phrases,
     )
     soft_pattern = build_smart_regex(
         core_terms,
         expand_instruments(
-            unsafe=True, additional_bases=["protection"], exclude_standalone_suffixes=True
+            unsafe=True,
+            additional_bases=["protection"],
+            additional_standalone_suffixes=["contracts?"],
         ),  # IR caps, locks, floors
         specific_phrases,
     )
