@@ -755,6 +755,71 @@ def get_text_categories(text: str, is_nst: bool) -> Set[str]:
     return specific if specific else top_cats
 
 
+def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]]) -> None:
+    """Helper to salvage instruments from deadweight text if hedging context exists."""
+    if find_hedging_context(text):
+        strict_salvage_cats = extract_categories_strict(text)
+        if strict_salvage_cats:
+            instrument_keywords = extract_instrument_keywords(text)
+            for cat, keywords in instrument_keywords.items():
+                valid_instruments[cat].update(keywords)
+
+
+def register_trackers(
+    text: str,
+    categories: Set[str],
+    tracker: GlobalInstrumentTracker,
+    local_tracker: GlobalInstrumentTracker,
+) -> None:
+    """Helper to register categories with trackers."""
+    for cat in categories:
+        tracker.register_paragraph(text, cat)
+        local_tracker.register_paragraph(text, cat)
+
+
+def process_confirmed_evidence(
+    sent_content: str,
+    clean_sent: str,
+    categories: Set[str],
+    year: int,
+    local_tracker: GlobalInstrumentTracker,
+    global_tracker: GlobalInstrumentTracker,
+    local_contexts: Set[str],
+    accumulated_cats: Set[str],
+    strict_categories: Set[str],
+    strict_counts: Dict[str, int],
+    soft_counts: Dict[str, int],
+    valid_instruments: Dict[str, Set[str]],
+    evidence_details: List[InstrumentDetail],
+) -> None:
+    """Helper to process confirmed evidence (strict matches or promoted soft matches)."""
+    # Capture instruments from valid evidence
+    instrument_keywords = extract_instrument_keywords(clean_sent)
+    for kw_cat, keywords in instrument_keywords.items():
+        valid_instruments[kw_cat].update(keywords)
+
+    for cat in categories:
+        strict_categories.add(cat)
+        strict_counts[cat] += 1
+
+        details = extract_instrument_evidence(
+            sent_content,
+            cat,
+            year,
+            local_tracker=local_tracker,
+            global_tracker=global_tracker,
+            context_cats=local_contexts,
+            accumulated_cats=accumulated_cats,
+            global_cats=strict_categories,
+        )
+        evidence_details.extend(details)
+
+        for d in details:
+            if d.category != cat:
+                strict_categories.add(d.category)
+                soft_counts[d.category] += 1
+
+
 # =============================================================================
 # MAIN PROCESSING
 # =============================================================================
@@ -806,12 +871,8 @@ def process_row(row: Tuple) -> Tuple:
         # --- INSTRUMENT SALVAGE: Check for strict mentions even in deadweight ---
         # Even if this paragraph is tagged as noise, if it contains strict instrument mentions
         # with hedging context, we still want to record those instruments as known.
-        if is_para_deadweight and find_hedging_context(para_content):
-            strict_salvage_cats = extract_categories_strict(para_content)
-            if strict_salvage_cats:
-                instrument_keywords = extract_instrument_keywords(para_content)
-                for cat, keywords in instrument_keywords.items():
-                    valid_instruments[cat].update(keywords)
+        if is_para_deadweight:
+            salvage_instruments(para_content, valid_instruments)
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
@@ -839,12 +900,8 @@ def process_row(row: Tuple) -> Tuple:
 
             # --- SENTENCE-LEVEL INSTRUMENT SALVAGE ---
             # Even if sentence is deadweight, capture instruments if it has strict matches + hedging context
-            if is_sent_deadweight and find_hedging_context(sent_content):
-                strict_salvage_cats = extract_categories_strict(sent_content)
-                if strict_salvage_cats:
-                    instrument_keywords = extract_instrument_keywords(sent_content)
-                    for cat, keywords in instrument_keywords.items():
-                        valid_instruments[cat].update(keywords)
+            if is_sent_deadweight:
+                salvage_instruments(sent_content, valid_instruments)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             clean_sent = _cleaner.clean(sent_content_no_evidence, effective_nst)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
@@ -861,36 +918,25 @@ def process_row(row: Tuple) -> Tuple:
 
             if strict_cats:
                 # 1. Always learn Definitions from Strict matches (e.g. Headers)
-                for cat in strict_cats:
-                    tracker.register_paragraph(clean_sent, cat)
-                    local_tracker.register_paragraph(clean_sent, cat)
+                register_trackers(clean_sent, strict_cats, tracker, local_tracker)
 
                 # 2. If Verified Evidence exists, Lock it in as an ANCHOR.
                 if is_active and evidence_tags_found:
-                    for cat in strict_cats:
-                        strict_categories.add(cat)
-                        strict_counts[cat] += 1  # Only increment Anchor magnitude here!
-                        # Capture instruments from valid evidence
-                        instrument_keywords = extract_instrument_keywords(clean_sent)
-                        for kw_cat, keywords in instrument_keywords.items():
-                            valid_instruments[kw_cat].update(keywords)
-                        # Extract quantitative evidence (now returns list)
-                        details = extract_instrument_evidence(
-                            sent_content, 
-                            cat, 
-                            year,
-                            local_tracker=local_tracker,
-                            global_tracker=tracker,
-                            context_cats=local_contexts,
-                            accumulated_cats=accumulated_cats,
-                            global_cats=strict_categories
-                        )
-                        evidence_details.extend(details)
-                        # Sync resolved categories (e.g. gen -> ir) back to strict counts
-                        for d in details:
-                            if d.category != cat:
-                                strict_categories.add(d.category)
-                                soft_counts[d.category] += 1
+                    process_confirmed_evidence(
+                        sent_content,
+                        clean_sent,
+                        strict_cats,
+                        year,
+                        local_tracker,
+                        tracker,
+                        local_contexts,
+                        accumulated_cats,
+                        strict_categories,
+                        strict_counts,
+                        soft_counts,
+                        valid_instruments,
+                        evidence_details,
+                    )
                     continue  # Done. We trust this sentence.
 
                 # 3. If NO Evidence, fall through!
@@ -909,33 +955,23 @@ def process_row(row: Tuple) -> Tuple:
             if has_unambiguous_evidence(sent_content):
                 promoted_cats = _temp_soft.copy()
                 promoted_cats.update(_temp_strict)
-                for cat in promoted_cats:
-                    strict_categories.add(cat)
-                    tracker.register_paragraph(clean_sent, cat)
-                    local_tracker.register_paragraph(clean_sent, cat)
-                    strict_counts[cat] += 1
-                    # Extract quantitative evidence for promoted categories (now returns list)
-                    details = extract_instrument_evidence(
-                        sent_content, 
-                        cat, 
-                        year,
-                        local_tracker=local_tracker,
-                        global_tracker=tracker,
-                        context_cats=local_contexts,
-                        accumulated_cats=accumulated_cats,
-                        global_cats=strict_categories
-                    )
-                    evidence_details.extend(details)
-                    # Sync resolved categories (e.g. gen -> ir) back to strict counts
-                    for d in details:
-                        if d.category != cat:
-                            strict_categories.add(d.category)
-                            soft_counts[d.category] += 1
-                # Capture instruments from unambiguous evidence
-                instrument_keywords = extract_instrument_keywords(clean_sent)
-                for cat, keywords in instrument_keywords.items():
-                    valid_instruments[cat].update(keywords)
                 if promoted_cats:
+                    register_trackers(clean_sent, promoted_cats, tracker, local_tracker)
+                    process_confirmed_evidence(
+                        sent_content,
+                        clean_sent,
+                        promoted_cats,
+                        year,
+                        local_tracker,
+                        tracker,
+                        local_contexts,
+                        accumulated_cats,
+                        strict_categories,
+                        strict_counts,
+                        soft_counts,
+                        valid_instruments,
+                        evidence_details,
+                    )
                     continue
 
             # -------------------------------------------------------------
@@ -947,9 +983,8 @@ def process_row(row: Tuple) -> Tuple:
                 soft_cats.update(strict_cats)
 
             if soft_cats and soft_cats != {"gen"}:
+                register_trackers(clean_sent, soft_cats, tracker, local_tracker)
                 for cat in soft_cats:
-                    tracker.register_paragraph(clean_sent, cat)
-                    local_tracker.register_paragraph(clean_sent, cat)
                     soft_counts[cat] += 1
                 continue
 
