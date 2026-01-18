@@ -1,5 +1,5 @@
 import re
-from typing import Tuple
+from typing import Tuple, List
 
 from defs.derivatives_core import build_smart_regex, expand_instruments, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
@@ -110,27 +110,6 @@ stock_terms = [
 ]
 stock_alt = build_alternation(stock_terms)
 
-EQ_CONTEXT_TERMS = [
-    # --- A. Core Prices & Markets ---
-    rf"(?:stock|share|equity)\s+{stock_alt}",
-    r"market\s+index(?:es)?",
-    # --- B. Specific Indices ---
-    r"S\&P\s+500",
-    r"Nasdaq(?:\s+Composite|\s+Index)?",
-    r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
-    r"Russell\s+2000",
-    # --- C. Equity Components ---
-    r"(?:preferred|common|treasury|outstanding|restricted|capital)\s+(?:stocks?|shares)",
-    # --- D. Structures & Events ---
-    r"initial\s+public\s+offering|IPO",
-    r"(?:primary|secondary)\s+markets?",
-    r"accelerated\s+share\s+repurchases?",  # ASR is a derivative
-    # --- E. Risk Integration (Smart Expansion) ---
-    rf"(?:stock|share|equity)\s+{_RISK_ALTERNATION}",
-    r"capped\s+calls?",
-    r"outstanding equity",
-    r"acquisition date",
-]
 
 # Section 1: Employee Equity Compensation (Updated)
 EQUITY_COMP_KEYWORDS = [
@@ -167,8 +146,41 @@ EQUITY_COMP_KEYWORDS = [
     "treasury stocks?",
     "exercise",
 ]
-EQ_CONTEXT_TERMS += VALUATION_MODELS + EQUITY_COMP_KEYWORDS
+
+
+def build_eq_context_terms() -> Tuple[List[str], List[str]]:
+    strict_terms = [
+        # Risk Integration
+        rf"(?:stock|share|equity)\s+{_RISK_ALTERNATION}",
+        # Specific Instruments
+        r"accelerated\s+share\s+repurchases?",
+        r"capped\s+calls?",
+    ] + VALUATION_MODELS
+
+    soft_terms = [
+        # Core Prices & Markets
+        rf"(?:stock|share|equity)\s+{stock_alt}",
+        r"market\s+index(?:es)?",
+        # Specific Indices
+        r"S\&P\s+500",
+        r"Nasdaq(?:\s+Composite|\s+Index)?",
+        r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
+        r"Russell\s+2000",
+        # Equity Components
+        r"(?:preferred|common|treasury|outstanding|restricted|capital)\s+(?:stocks?|shares)",
+        # Structures & Events
+        r"initial\s+public\s+offering|IPO",
+        r"(?:primary|secondary)\s+markets?",
+        r"outstanding equity",
+        r"acquisition date",
+    ] + EQUITY_COMP_KEYWORDS
+
+    return strict_terms, soft_terms
+
+
+EQ_STRICT_TERMS, EQ_SOFT_TERMS = build_eq_context_terms()
+EQ_CONTEXT_TERMS = EQ_STRICT_TERMS + EQ_SOFT_TERMS
 EQ_CONTEXT_REGEX = build_regex(EQ_CONTEXT_TERMS)
-EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_CONTEXT_TERMS)
+EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_STRICT_TERMS)
 EQ_REGEX, EQ_SOFT_REGEX = build_eq_regex()
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
