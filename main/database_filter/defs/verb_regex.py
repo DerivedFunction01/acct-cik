@@ -240,7 +240,7 @@ def build_immaterial_regex() -> re.Pattern:
         "minor",
         "trivial",
         "nominal",
-        "zero"
+        "zero",
         "inconsequential",
         "de minimis",
     ]
@@ -248,17 +248,9 @@ def build_immaterial_regex() -> re.Pattern:
     imm_pat = build_alternation(immaterial)
 
     subjects = [
-        r"amounts?",
-        r"values?",
-        r"fair\s+values?",
+        r"(?:the|these)\s+(?:amounts?|values?)", # Tighten what value/amount
+        r"(?:fair|carrying|market|notional)\s+values?",
         r"notional\s+(?:amounts?|values?)",
-        r"impacts?",
-        r"effects?",
-        r"gains?",
-        r"loss(?:es)?",
-        r"results?",
-        r"exposures?",
-        r"involvements?",
     ]
     subj_pat = build_alternation(subjects)
     
@@ -281,7 +273,7 @@ def build_immaterial_regex() -> re.Pattern:
     # 3. Instrument as Subject (Strict)
     # "The interest rate swap was immaterial"
     pat_instrument_subject = (
-        rf"\b(?:{_DENIAL_TARGET})\s+(?:\w+\s+){{0,5}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
+        rf"\b(?:{_DENIAL_TARGET})\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
     )
 
     return re.compile(
@@ -497,6 +489,55 @@ def run_tests():
         ("TERMINATION", TERMINATION_REGEX, "The swaps settles weekly", False),
         ("TERMINATION", TERMINATION_REGEX, "The swaps weekly settles", False),
         ("TERMINATION", TERMINATION_ALL_REGEX, "The annual settlement", False),
+        # IMMATERIAL_REGEX
+        (
+            "IMM: Strict - Notional",
+            IMMATERIAL_REGEX,
+            "The notional amount was immaterial",
+            True,
+        ),
+        (
+            "IMM: Strict - Impact",
+            IMMATERIAL_REGEX,
+            "The impact on earnings was not significant",
+            False,
+        ),
+        (
+            "IMM: Instrument - FV of Swaps",
+            IMMATERIAL_REGEX,
+            "The fair value of the interest rate swaps was immaterial",
+            True,
+        ),
+        (
+            "IMM: Instrument - Exposure",
+            IMMATERIAL_REGEX,
+            "The exposure related to foreign exchange contracts is insignificant",
+            True,
+        ),
+        (
+            "IMM: Subject - Swaps",
+            IMMATERIAL_REGEX,
+            "The interest rate swap was immaterial",
+            True,
+        ),
+        (
+            "IMM: Subject - Derivatives",
+            IMMATERIAL_REGEX,
+            "Derivative instruments were considered trivial",
+            True,
+        ),
+        (
+            "IMM: Neg - Material",
+            IMMATERIAL_REGEX,
+            "The amount was material",
+            False,
+        ),
+        (
+            "IMM: Neg - Significant",
+            IMMATERIAL_REGEX,
+            "The value was significant",
+            False,
+        ),
     ]
 
     failures = 0
