@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import build_smart_regex, expand_instruments, suffix_alternation
+from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS
 
@@ -196,19 +196,16 @@ EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX = build_eq_regex()
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
 
 if __name__ == "__main__":
-    def run_test():
-        test_cases = [
-            "equity swap",
-            "equity option",
-            "stock option",
-            "warrant",
-            "embedded conversion option",
-            "equity linked swap",
-            "market index option",
-            "equity contract",
-        ]
-        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
-        print("-" * 65)
-        for text in test_cases:
-            print(f"{text:<40} | {str(bool(EQ_REGEX.search(text))):<6} | {str(bool(EQ_SOFT_REGEX.search(text))):<6} | {str(bool(EQ_LOOSE_REGEX.search(text))):<6}")
-    run_test()
+    test_cases = [
+        ("equity swap", MatchLevel.STRICT),
+        ("equity option", MatchLevel.SOFT),  # Option is ambiguous base
+        ("stock option", MatchLevel.NONE),
+        ("warrants", MatchLevel.NONE),  # Warrants are strict in EQ
+        ("embedded conversion option", MatchLevel.STRICT),
+        ("equity linked swap", MatchLevel.STRICT),
+        ("market index option", MatchLevel.SOFT),
+        ("equity contract", MatchLevel.LOOSE),
+        ("equity hedges", MatchLevel.SOFT),
+        ("stock hedging", MatchLevel.SOFT),
+    ]
+    run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)

@@ -1,6 +1,7 @@
 import re
 from typing import List, Tuple
 from defs.derivatives_core import (
+    MatchLevel,
     PHYSICAL_DELIVERY_PATTERN,
     build_smart_regex,
     expand_instruments,
@@ -403,21 +404,19 @@ CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 TRADING_VENUE_REGEX = build_regex(TRADING_ENTITIES)
 
 if __name__ == "__main__":
-    def run_test():
-        test_cases = [
-            "commodity swap",
-            "commodity swap agreement",
-            "crude oil swap",
-            "natural gas forward",
-            "fixed price swap",
-            "weather derivative",
-            "power purchase agreement",
-            "commodity contract",
-            "oil price swap",
-            "corn future",
-        ]
-        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
-        print("-" * 65)
-        for text in test_cases:
-            print(f"{text:<40} | {str(bool(CP_REGEX.search(text))):<6} | {str(bool(CP_SOFT_REGEX.search(text))):<6} | {str(bool(CP_LOOSE_REGEX.search(text))):<6}")
-    run_test()
+    test_cases = [
+        ("commodity swap", MatchLevel.STRICT),
+        ("commodity swap agreement", MatchLevel.STRICT),
+        ("crude oil swap", MatchLevel.STRICT),
+        ("natural gas forward", MatchLevel.STRICT),
+        ("fixed price swap", MatchLevel.STRICT),
+        ("weather derivative", MatchLevel.STRICT),
+        ("power purchase agreement", MatchLevel.STRICT),
+        ("commodity contract", MatchLevel.SOFT),
+        ("oil price contract", MatchLevel.SOFT),
+        ("corn futures", MatchLevel.STRICT),
+        ("commodity hedges", MatchLevel.SOFT),
+        ("oil hedging", MatchLevel.SOFT),
+    ]
+    from defs.derivatives_core import run_category_tests
+    run_category_tests(test_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)

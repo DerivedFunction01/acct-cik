@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import build_smart_regex, expand_instruments
+from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS
 
@@ -118,19 +118,15 @@ CR_STRICT_CONTEXT_REGEX = build_regex(CR_STRICT_TERMS)
 CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX = build_cr_regex()
 
 if __name__ == "__main__":
-    def run_test():
-        test_cases = [
-            "credit default swap",
-            "credit default swap agreement",
-            "credit linked note",
-            "credit swap",
-            "credit default option",
-            "basket default swap",
-            "credit derivative",
-            "credit protection agreement",
-        ]
-        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
-        print("-" * 65)
-        for text in test_cases:
-            print(f"{text:<40} | {str(bool(CR_REGEX.search(text))):<6} | {str(bool(CR_SOFT_REGEX.search(text))):<6} | {str(bool(CR_LOOSE_REGEX.search(text))):<6}")
-    run_test()
+    test_cases = [
+        ("credit default swap", MatchLevel.STRICT),
+        ("credit default swap agreement", MatchLevel.STRICT),
+        ("credit linked note", MatchLevel.STRICT),
+        ("credit swap", MatchLevel.STRICT),
+        ("credit default option", MatchLevel.STRICT),
+        ("basket default swap", MatchLevel.STRICT),
+        ("credit derivative", MatchLevel.STRICT),
+        ("credit default agreement", MatchLevel.LOOSE), # Protection is not a base in CR strict
+        ("credit hedges", MatchLevel.SOFT),
+    ]
+    run_category_tests(test_cases, CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX)

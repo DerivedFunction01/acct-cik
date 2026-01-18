@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import ALL_SUFFIXES, build_smart_regex, expand_instruments, suffix_alternation
+from defs.derivatives_core import ALL_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION
 
@@ -365,6 +365,7 @@ if __name__ == "__main__":
             "interest rate protection agreement",
             "interest rate hedges",
             "interest rate hedge contract"
+            "interest rate hedging",
         ]
         print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
         print("-" * 65)

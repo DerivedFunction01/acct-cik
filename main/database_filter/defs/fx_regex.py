@@ -1,6 +1,6 @@
 import re
 from typing import List, Tuple
-from defs.derivatives_core import build_smart_regex, expand_instruments, suffix_alternation
+from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_currency_descriptor_pattern, all_currencies
 
@@ -298,21 +298,18 @@ FX_STRICT_CONTEXT_REGEX = build_regex(FX_STRICT_TERMS)
 FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX = build_fx_regex()
 
 if __name__ == "__main__":
-    def run_test():
-        test_cases = [
-            "foreign currency forward",
-            "foreign currency forward contract",
-            "currency swap",
-            "currency swap agreement",
-            "FX forward",
-            "foreign exchange option",
-            "cross currency swap",
-            "forward foreign exchange contract",
-            "currency agreement",
-            "foreign currency contract",
-        ]
-        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
-        print("-" * 65)
-        for text in test_cases:
-            print(f"{text:<40} | {str(bool(FX_REGEX.search(text))):<6} | {str(bool(FX_SOFT_REGEX.search(text))):<6} | {str(bool(FX_LOOSE_REGEX.search(text))):<6}")
-    run_test()
+    test_cases = [
+        ("foreign currency forward", MatchLevel.STRICT),
+        ("foreign currency exchange contract", MatchLevel.STRICT),
+        ("currency swap", MatchLevel.STRICT),
+        ("currency swap agreement", MatchLevel.STRICT),
+        ("FX forward", MatchLevel.STRICT),
+        ("foreign exchange option", MatchLevel.STRICT), # Option is explicitly added as safe suffix
+        ("cross currency swap", MatchLevel.STRICT),
+        ("forward foreign exchange contract", MatchLevel.STRICT),
+        ("currency agreement", MatchLevel.LOOSE),
+        ("foreign currency contract", MatchLevel.LOOSE),
+        ("foreign currency hedges", MatchLevel.SOFT),
+        ("currency hedging", MatchLevel.SOFT),
+    ]
+    run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)

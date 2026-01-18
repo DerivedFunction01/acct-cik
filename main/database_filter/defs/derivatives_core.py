@@ -1,5 +1,6 @@
 import re
-from typing import List, Optional
+from enum import Enum, auto
+from typing import List, Optional, Tuple
 from defs.regex_lib import build_alternation, build_regex
 
 PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
@@ -197,3 +198,32 @@ def expand_instruments(
 
     # 5. Final Assembly (Max Munch: Combined first)
     return rf"{combined_pattern}|{final_standalone}"
+
+
+class MatchLevel(Enum):
+    STRICT = auto()
+    SOFT = auto()
+    LOOSE = auto()
+    NONE = auto()
+
+
+def run_category_tests(test_cases: List[Tuple[str, MatchLevel]], strict_regex, soft_regex, loose_regex):
+    print(f"{'Text':<40} | {'Exp':<8} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6} | {'Pass':<4}")
+    print("-" * 85)
+    all_passed = True
+    for text, expected in test_cases:
+        s = bool(strict_regex.search(text))
+        so = bool(soft_regex.search(text))
+        l = bool(loose_regex.search(text))
+
+        if s: actual = MatchLevel.STRICT
+        elif so: actual = MatchLevel.SOFT
+        elif l: actual = MatchLevel.LOOSE
+        else: actual = MatchLevel.NONE
+
+        passed = (actual == expected)
+        if not passed: all_passed = False
+        print(f"{text:<40} | {expected.name:<8} | {str(s):<6} | {str(so):<6} | {str(l):<6} | {str(passed):<4}")
+
+    if not all_passed: print("\nSOME TESTS FAILED")
+    else: print("\nALL TESTS PASSED")
