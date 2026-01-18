@@ -231,11 +231,25 @@ MITIGATION_VERBS = [
     r"neutraliz(?:e|es|ed|ing)",
     r"protect(?:s|ed|ing)?",
     r"stabiliz(?:e|es|ed|ing)",
+    r"counter(?:act|acts|acted|acting)?",
+    r"guard(?:s|ed|ing)?\s+(?:against)?",
+    r"shield(?:s|ed|ing)?",
+    r"safeguard(?:s|ed|ing)?",
+    r"defend(?:s|ed|ing)?",
+    r"prevent(?:s|ed|ing)?",
+    r"avoid(?:s|ed|ing)?",
+    r"alleviat(?:e|es|ed|ing)",
+    r"lessen(?:s|ed|ing)?",
+    r"curtail(?:s|ed|ing)?",
+    r"contain(?:s|ed|ing)?",
+    r"address(?:es|ed|ing)?",
+    r"respond(?:s|ed|ing)?\s+to",
+    r"deal(?:s|t|ing)?\s+with",
+    r"cope(?:s|d|ing)?\s+with",
 ]
 
 GENERIC_RISK_GLUE = [
-    "rising",
-    "falling",
+    "(?:ris|fall|aris|result|declin)ing",
     "econom(?:ic|y)",
     "inflation(?:ary)?",
     "volatil(?:ity|e)",
@@ -255,15 +269,39 @@ GENERIC_RISK_GLUE = [
     "against",
     "from",
     "management",
-    "associated",
-    "related",
+    "(?:associat|relat)ed",
     "inherent",
-    "arising",
-    "resulting",
     "impact",
     "effect",
     "conditions?",
     "uncertaint(?:y|ies)",
+    "negative",
+    "detrimental",
+    "un(?:favorable|anticipated|expected)",
+    "significant",
+    r"(?<!raw\s)material",
+    "substantial",
+    "severe",
+    "(?:de|in)creas(?:ed|ing)",
+    "elevated",
+    "heightened",
+    "disrupt(?:ions?|ive|ing)",
+    "(?:i|u)nstab(?:ility|le)",
+    "turmoil",
+    "stress(?:es|ful)?",
+    "shocks?",
+    "events?",
+    "factors?",
+    "developments?",
+    "trends?",
+    "scenarios?",
+    "circumstances?",
+    "situations?",
+    "consequences?",
+    "outcomes?",
+    "sensitiv(?:ity|e)",
+    "vulnerab(?:ility|le)",
+    "susceptib(?:ility|le)",
 ]
 
 def build_risk_managment_phrase(
@@ -286,7 +324,6 @@ def build_risk_managment_phrase(
 
     final_filler = r"(?:\S+\s+){0,3}"
     return rf"{verbs}\s+{gap}{final_filler}{_RISK_ALTERNATION}"
-
 
 
 # --- MONTHS (for date boilerplate) ---
