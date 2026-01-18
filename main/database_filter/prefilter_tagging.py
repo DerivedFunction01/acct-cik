@@ -21,6 +21,7 @@ from defs.verb_regex import (
     PRIOR_INDICATOR,
     is_immaterial,
     is_strict_termination,
+    TERMINATION_REGEX,
 )
 from defs.prefiltered_lib import (
     HEDGE_DOC_REGEX,
@@ -139,6 +140,20 @@ def get_termination_noise_reason(
 
     return None
 
+def get_loose_termination_reason(
+    text: str, reporting_year: int
+) -> Optional[NoiseReason]:
+    """
+    Returns TERM if sentence describes dead positions (unanchored but with time).
+    Checked AFTER PnL to avoid false positives like "Loss on extinguishment".
+    """
+    if TERMINATION_REGEX.search(text):
+        years = [int(y) for y in YEAR_REGEX.findall(text)]
+        if not years:
+            return None
+        if not any(y > reporting_year for y in years):
+            return NoiseReason.TERM
+    return None
 
 COMPARISON_REGEX = build_regex(COMPARISON_PHRASES)
 
@@ -464,14 +479,21 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                 reason = NoiseReason.TRADING
             elif is_gen_hedge_doc(masked):
                 reason = NoiseReason.DOC
-            elif is_pnl(masked):
-                reason = NoiseReason.PNL
-            elif not reason:
-                # Check Termination (e.g., "Terminated in [Current Year]")
-                # Note: Temporal check above already killed "Terminated in [Past Year]"
-                reason = get_termination_noise_reason(masked, reporting_year=reporting_year)
+            
+            # 1. Strict Termination (Anchored) - High Confidence
             if not reason:
-                # Check Absence (e.g., "We do not hold...")
+                reason = get_termination_noise_reason(masked, reporting_year=reporting_year)
+            
+            # 2. PnL (Gains/Losses)
+            if not reason and is_pnl(masked):
+                reason = NoiseReason.PNL
+
+            # 3. Loose Termination (Unanchored) - Low Confidence
+            if not reason:
+                reason = get_loose_termination_reason(masked, reporting_year=reporting_year)
+
+            if not reason:
+                # 4. Absence (e.g., "We do not hold...")
                 reason = get_intent_noise_reason(masked)
 
         # --- TIER 3: STRUCTURAL NOISE (The "Format" Tags) ---
