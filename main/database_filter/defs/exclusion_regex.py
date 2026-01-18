@@ -5,7 +5,7 @@ import re
 from typing import List, Tuple
 
 from defs.regex_lib import build_alternation, build_regex
-from defs.derivatives_core import suffix_alternation
+from defs.derivatives_core import ALL_SUFFIXES
 
 def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
     """
@@ -193,6 +193,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "lease",  #
         "insurance",  #
         "pension",  #
+        "retirement",
         "warranty",  #
         r"(?<!power[- ])purchase",  # Matches "Purchase contract"
         "trade",  # Matches "Trade agreement
@@ -202,7 +203,17 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "equity method",  # Matches "Equity method contract"
         "stock",
     ]
-
+    suffixes = ALL_SUFFIXES.copy()
+    additional_suffixes = [
+        r"positions?",
+        r"obligations?",
+        r"(?:activit|liabilit)(?:ies|y)", 
+        r"involvements?",  
+        r"holdings?",
+        r"assets?",
+    ]
+    suffixes.extend(additional_suffixes)
+    suffix_alternation = build_alternation(suffixes)
     placeholder_alternation = build_alternation(placeholders)
     return re.compile(
         rf"\b{placeholder_alternation}\s+{suffix_alternation}\b", re.IGNORECASE
