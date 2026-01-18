@@ -3,7 +3,7 @@ from typing import Tuple, List
 
 from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import _DEBT_TERMS
+from defs.shared_context import _DEBT_TERMS, build_risk_managment_phrase
 
 
 def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
@@ -85,25 +85,31 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 _CR_LINKED_DEBT = rf"credit[- ]linked\s+{_DEBT_TERMS}"
 
 
-def build_cr_context_terms() -> Tuple[List[str], List[str]]:
-    strict_terms = [
-        # Explicit Instruments
+def build_cr_context_terms() -> Tuple[List[str], List[str], List[str]]:
+    # 1. Explicit Instruments (Strict)
+    cr_instruments = [
         r"credit[- ]default",
         _CR_LINKED_DEBT,
         r"basket[- ]default",
         r"first[- ]to[- ]default",
         r"credit[- ]derivatives?",
-        # Indices
+    ]
+
+    # 2. Indices (Strict/Soft)
+    cr_indices = [
         r"CDX",
         r"iTraxx",
         r"Markit\s+CDX",
-        # Mechanics (Specific to CDS)
+    ]
+
+    # 3. Mechanics (Specific to CDS)
+    cr_mechanics = [
         r"reference\s+(?:entit(?:y|ies)|obligations?)",
         r"protection\s+(?:buyer|seller|sold|bought)",
     ]
 
-    soft_terms = [
-        # Broader terms
+    # 4. Broader terms (Soft)
+    cr_broad = [
         r"credit[- ](?:protections?|linked|slope|curve|tranche)",
         r"total[- ]return",
         r"credit\s+indices",
@@ -111,13 +117,23 @@ def build_cr_context_terms() -> Tuple[List[str], List[str]]:
         r"credit\s+events?",
         r"recovery\s+rates?",
     ]
-    return strict_terms, soft_terms
+
+    strict_terms = cr_instruments + cr_indices + cr_mechanics
+    soft_terms = cr_broad
+
+    # 5. Risk Management Glue
+    cr_glue = cr_indices
+
+    risk_terms = [build_risk_managment_phrase(cr_glue)]
+
+    return strict_terms, soft_terms, risk_terms
 
 
-CR_STRICT_TERMS, CR_SOFT_TERMS = build_cr_context_terms()
-CR_CONTEXT_TERMS = CR_STRICT_TERMS + CR_SOFT_TERMS
+CR_STRICT_TERMS, CR_SOFT_TERMS, CR_RISK_TERMS = build_cr_context_terms()
+CR_CONTEXT_TERMS = CR_STRICT_TERMS + CR_SOFT_TERMS + CR_RISK_TERMS
 CR_CONTEXT_REGEX = build_regex(CR_CONTEXT_TERMS)
-CR_STRICT_CONTEXT_REGEX = build_regex(CR_STRICT_TERMS)
+CR_STRICT_CONTEXT_REGEX = build_regex(CR_STRICT_TERMS + CR_RISK_TERMS)
+CR_RISK_REGEX = build_regex(CR_RISK_TERMS)
 CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX = build_cr_regex()
 
 
