@@ -169,6 +169,14 @@ ALL_VERBS = list(
 INTENT_VERB_PATTERN = build_alternation(ALL_VERBS)
 VERB_REGEX = build_regex(VERB_MAP["POSS"] + VERB_MAP["PRU"] + VERB_MAP["ACT"])
 
+MITIGATION_VERBS = [
+    r"mitigat(?:e|es|ed|ing)",
+    r"offset(?:s|ting)?",
+    r"hedg(?:e|es|ed|ing)",
+    r"manag(?:e|es|ed|ing)",
+    r"reduc(?:e|es|ed|ing)",
+]
+
 def build_potential_regex() -> re.Pattern:
     """
     Matches: "may enter", "might use", "expect to hedge"
@@ -240,6 +248,23 @@ _DENIAL_GAP_UNIT = rf"(?:{_DENIAL_FILLER}{_DENIAL_SEMANTIC_MOD})"
 gap_chain = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
 # The "Target": The final noun in the sequence
 _DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+
+def build_potential_mitigation_regex() -> re.Pattern:
+    """
+    Matches mitigation pattern: "occasionally mitigates ... by using ... [derivative]"
+    """
+    return re.compile(
+        rf"\b{build_alternation(POTENTIAL_INDICATORS)}[, ]"
+        r"(?:\w+\s+){0,2}"
+        rf"{build_alternation(MITIGATION_VERBS)}\s+"
+        r"(?:\w+\s+){0,15}"
+        r"by\s+"
+        rf"(?:{INTENT_VERB_PATTERN})\s+"
+        rf"{_DENIAL_FILLER}"
+        rf"{_DENIAL_TARGET}\b",
+        re.IGNORECASE,
+    )
+
 # Active / Timing Indicators (New)
 ACTIVE_INDICATORS = [
     "currently",
@@ -440,6 +465,7 @@ ALL_VERB_REGEX = build_alternation(ALL_VERBS)
 DID_NOT_HOLD_REGEX = build_did_not_hold_regex()
 ABSENCE_REGEX = build_absence_regex()
 POTENTIAL_REGEX = build_potential_regex()
+POT_MITIGATION_REGEX = build_potential_mitigation_regex()
 VAGUE_TIMING_REGEX = build_vague_timing_regex()
 PRIOR_INDICATOR = build_prior_statement_pattern_2()
 IMMATERIAL_REGEX = build_immaterial_regexes()

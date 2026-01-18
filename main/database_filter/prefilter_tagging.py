@@ -17,6 +17,7 @@ from defs.verb_regex import (
     USAGE_VERB_REGEX,
     VAGUE_TIMING_REGEX,
     POTENTIAL_REGEX,
+    POT_MITIGATION_REGEX,
     build_negation_prefix_pattern,
     PRIOR_INDICATOR,
     is_immaterial,
@@ -97,7 +98,7 @@ def get_temporal_noise_reason(text: str, reporting_year: int) -> Optional[NoiseR
 
 def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     """Returns HYPO or NEG based on intent."""
-    if POTENTIAL_REGEX.search(text) or VAGUE_TIMING_REGEX.search(text):
+    if POTENTIAL_REGEX.search(text) or VAGUE_TIMING_REGEX.search(text) or POT_MITIGATION_REGEX.search(text):
         return NoiseReason.POT
 
     if NON_DERIVATIVE_TREATMENT_REGEX.search(text):
