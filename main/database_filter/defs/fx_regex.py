@@ -62,6 +62,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"(?:{fx_dynamic_pattern})",
         r"cross[- ]currency\s+interest\s+rate",
         r"cross[- ]currency\s+interest",
+        r"exchange\s+rate",
     ]
     # Broad prefixes (e.g., 'currency', 'fx')
     soft_core_terms = [
@@ -69,6 +70,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"(?<!single[- ])currency",
         r"fx",
         r"forex",
+        r"exchange\s+rate",
     ]
     soft_core_alternation = build_alternation(soft_core_terms, sort_longest_first=True)
 
@@ -99,6 +101,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # Specific Exchange Agreements (Valid because of "Exchange")
         # Matches: "foreign exchange agreement", "currency exchange arrangement"
         rf"(?:foreign|currency|forward|cross[- ]currency)\s+exchange\s+(?:rate\s+)?(?:agreements?|arrangements?|commitments?)",
+        rf"exchange\s+rate\s+(?:agreements?|arrangements?|commitments?)",
         rf"(?<!single[- ])currency[- ](?:contracts?|options?|forwards?)",
     ]
 
@@ -329,6 +332,10 @@ def run_tests():
         ("currency exchange rate arrangement", MatchLevel.STRICT),
         ("currency exchange agreement", MatchLevel.STRICT),
         ("foreign currency exchange swap", MatchLevel.STRICT),
+        ("exchange rate contract", MatchLevel.STRICT),
+        ("exchange rate option", MatchLevel.STRICT),
+        ("exchange rate swap", MatchLevel.STRICT),
+        ("exchange rate hedge", MatchLevel.SOFT),
     ]
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 
