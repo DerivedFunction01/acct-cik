@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import ALL_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
+from defs.derivatives_core import ALL_SUFFIXES, UNAMBIGUOUS_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_risk_managment_phrase
 
@@ -273,29 +273,17 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
     conn_pat = build_alternation(connectors)
 
     # 2. Build Suffix Logic
-    # ALL_SUFFIXES includes: agreements, contracts, commitments, instruments, arrangements, options
-
-    # A. Full Suffix List (For Long-Form Instruments)
-    # "Interest Rate Cap Agreement" -> SAFE (Excluded from match)
-    full_suffix_alt = build_alternation(ALL_SUFFIXES)
 
     # B. Safe Suffix List (For Short-Form Instruments)
     # Remove "agreement" so "Cap Agreement" is caught and checked for debt context.
     # We explicitly keep strong terms like "Contract" and "Option".
-    safe_list = set(ALL_SUFFIXES) - {
-        "agreements?",
-        "arrangements?",
-    }  # Arrangements also vague
+    safe_list = set(UNAMBIGUOUS_SUFFIXES) # Arrangements also vague
     safe_suffix_alt = build_alternation(list(safe_list))
 
     # 3. Targets (Caps/Floors only)
     targets = [
-        # Long Form: Trust ALL suffixes (Agreements included)
-        rf"interest\s+rate\s+(?:caps?|floors?|collars?)(?!\s+{full_suffix_alt})",
-        # Short Form: Trust only STRONG suffixes (Contracts/Options)
-        # "Cap Agreement" or "Cap Arrangement" will MATCH here (and risk discard)
-        rf"caps?(?!\s+{safe_suffix_alt})",
-        rf"floors?(?!\s+{safe_suffix_alt})",
+        # "Cap Agreement" or "rate Arrangement" will MATCH here (and risk discard)
+        rf"(?:caps?|floors?|rates?)(?!\s+{safe_suffix_alt})",
     ]
     target_pat = build_alternation(targets)
 
