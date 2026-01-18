@@ -551,7 +551,20 @@ def run_tests():
             "We may continue to enter into interest rate swaps",
             True,
         ),
-        ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge our exposure", True),
+        ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge our exposure", False),
+        (
+            "POTENTIAL",
+            POTENTIAL_REGEX,
+            "We are planning to use currency contracts",
+            True,
+        ),
+        (
+            "POTENTIAL",
+            POTENTIAL_REGEX,
+            "We may consider using oil swap contracts",
+            True,
+        ),
+        ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge with derivatives", True),
         ("POTENTIAL", POTENTIAL_REGEX, "We entered into swaps", False),
         # VAGUE_TIMING
         ("VAGUE_TIMING", VAGUE_TIMING_REGEX, "We use swaps from time to time", True),
