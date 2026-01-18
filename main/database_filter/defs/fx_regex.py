@@ -128,7 +128,8 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     # 3. Final pattern build
     strict_instrument_fragment = expand_instruments(
-        unsafe=False
+        unsafe=False,
+        additional_standalone_suffixes=["options?", "contracts?"],
     )  # Safe standalone bases allowed here
     strict_pattern = build_smart_regex(
         strict_core_terms,  # Precise prefixes
