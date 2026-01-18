@@ -12,7 +12,6 @@ from defs.verb_regex import (
     ABSENCE_REGEX,
     DID_NOT_HOLD_REGEX,
     POSS_VERB_REGEX,
-    TERMINATION_REGEX,
     TRANS_VERB_REGEX,
     USAGE_VERB_REGEX,
     VAGUE_TIMING_REGEX,
@@ -21,7 +20,7 @@ from defs.verb_regex import (
     build_negation_prefix_pattern,
     PRIOR_INDICATOR,
     is_immaterial,
-    
+    is_strict_termination,
 )
 from defs.prefiltered_lib import (
     HEDGE_DOC_REGEX,
@@ -122,7 +121,7 @@ def get_termination_noise_reason(
     """
     Returns TERM if sentence describes SPECIFIC dead positions (anchored by time).
     """
-    if TERMINATION_REGEX.search(text):
+    if is_strict_termination(text):
         years = [int(y) for y in YEAR_REGEX.findall(text)]
 
         # CASE 1: No Date -> Likely Policy/Hypothetical ("We terminate if...")
