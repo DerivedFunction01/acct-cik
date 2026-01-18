@@ -1,5 +1,5 @@
 import re
-from typing import Tuple
+from typing import Tuple, List
 
 from defs.derivatives_core import build_smart_regex, expand_instruments
 from defs.regex_lib import build_alternation, build_regex
@@ -67,32 +67,37 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern]:
 
 _CR_LINKED_DEBT = rf"credit[- ]linked\s+{_DEBT_TERMS}"
 
-CR_CONTEXT_TERMS = [
-    # --- A. Explicit Instruments (Broad Match) ---
-    r"credit[- ]default",  # Matches "credit default swap" (Safe)
-    r"total[- ]return",  # Matches "total return swap" (Safe)
-    _CR_LINKED_DEBT,  # "credit-linked notes" (Safe)
-    r"basket[- ]default",  # "basket default swap" (Safe)
-    r"first[- ]to[- ]default",  # (Safe)
-    # REPLACEMENT FOR RISK ALTERNATION:
-    # "Credit Protection" implies a transfer of risk (derivative/insurance), whereas "Credit Risk" just implies exposure.
-    r"credit[- ](?:protections?|derivatives?|linked|slope|curve|tranche)",
-    # --- B. Indices (Highly Specific - Keep these) ---
-    r"CDX",
-    r"iTraxx",
-    r"Markit\s+CDX",
-    r"credit\s+indices",
-    r"credit\s+index",
-    # --- C. Mechanics (Refined) ---
-    # "Reference Entity" is the specific legal term in a CDS contract.
-    r"reference\s+(?:entit(?:y|ies)|obligations?)",
-    # "Protection Seller/Buyer" is unambiguous CDS terminology.
-    r"protection\s+(?:buyer|seller|sold|bought)",
-    # "Credit Event" is the ISDA trigger (Bankruptcy, Failure to Pay).
-    r"credit\s+events?",
-    r"recovery\s+rates?",  # Specific to CDS valuation
-]
 
+def build_cr_context_terms() -> Tuple[List[str], List[str]]:
+    strict_terms = [
+        # Explicit Instruments
+        r"credit[- ]default",
+        _CR_LINKED_DEBT,
+        r"basket[- ]default",
+        r"first[- ]to[- ]default",
+        r"credit[- ]derivatives?",
+        # Indices
+        r"CDX",
+        r"iTraxx",
+        r"Markit\s+CDX",
+        # Mechanics (Specific to CDS)
+        r"reference\s+(?:entit(?:y|ies)|obligations?)",
+        r"protection\s+(?:buyer|seller|sold|bought)",
+    ]
+
+    soft_terms = [
+        # Broader terms
+        r"credit[- ](?:protections?|linked|slope|curve|tranche)",
+        r"credit\s+indices",
+        r"credit\s+index",
+        r"credit\s+events?",
+        r"recovery\s+rates?",
+    ]
+    return strict_terms, soft_terms
+
+
+CR_STRICT_TERMS, CR_SOFT_TERMS = build_cr_context_terms()
+CR_CONTEXT_TERMS = CR_STRICT_TERMS + CR_SOFT_TERMS
 CR_CONTEXT_REGEX = build_regex(CR_CONTEXT_TERMS)
-CR_STRICT_CONTEXT_REGEX = build_regex(CR_CONTEXT_TERMS)
+CR_STRICT_CONTEXT_REGEX = build_regex(CR_STRICT_TERMS)
 CR_REGEX, CR_SOFT_REGEX = build_cr_regex()
