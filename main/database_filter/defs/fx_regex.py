@@ -51,7 +51,7 @@ def _replace_dynamic_placeholder(
     return [p.replace(r"__DYNAMIC__", replacement_fragment) for p in phrases]
 
 
-def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
+def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
     currency_name_alternation = build_currency_descriptor_pattern()
     fx_dynamic_pattern = build_fx_dynamic_pattern()
@@ -109,6 +109,12 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         exclude_standalone_suffixes=True,
         additional_standalone_suffixes=["contracts?", "options?", "forwards?"],
     )
+    
+    loose_dynamic_fragment = expand_instruments(
+        unsafe=True,
+        exclude_standalone_suffixes=False,
+        additional_standalone_suffixes=["contracts?", "options?", "forwards?"],
+    )
 
     # 1. Substitute the dynamic fragment into the templates
     strict_dynamic_phrases = _replace_dynamic_placeholder(
@@ -147,10 +153,19 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
     soft_dynamic_phrases = _replace_dynamic_placeholder(
         dynamic_templates, soft_dynamic_fragment
     )
+    
+    loose_dynamic_phrases = _replace_dynamic_placeholder(
+        dynamic_templates, loose_dynamic_fragment
+    )
 
     # 2. Combine and sort all specific phrases
     soft_specific_phrases = sorted(
         soft_dynamic_phrases + fixed_phrases,
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
+    )
+    
+    loose_specific_phrases = sorted(
+        loose_dynamic_phrases + fixed_phrases,
         key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
     )
 
@@ -164,9 +179,18 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern]:
         soft_specific_phrases,  # Final list of specific phrases
     )
     soft_fx_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+    
+    loose_instrument_fragment = expand_instruments(
+        unsafe=True, exclude_standalone_suffixes=False
+    )
+    loose_pattern = build_smart_regex(
+        [soft_core_alternation],
+        loose_instrument_fragment,
+        loose_specific_phrases,
+    )
+    loose_fx_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
 
-    # Return the tuple of (strict, soft)
-    return strict_fx_regex, soft_fx_regex
+    return strict_fx_regex, soft_fx_regex, loose_fx_regex
 
 
 def build_currency_patterns() -> List[str]:
@@ -271,4 +295,4 @@ FX_STRICT_TERMS, FX_SOFT_TERMS = build_fx_context_terms_advanced()
 FX_CONTEXT_TERMS = FX_STRICT_TERMS + FX_SOFT_TERMS
 FX_CONTEXT_REGEX = build_regex(FX_CONTEXT_TERMS)
 FX_STRICT_CONTEXT_REGEX = build_regex(FX_STRICT_TERMS)
-FX_REGEX, FX_SOFT_REGEX = build_fx_regex()
+FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX = build_fx_regex()

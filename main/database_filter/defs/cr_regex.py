@@ -6,7 +6,7 @@ from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS
 
 
-def build_cr_regex() -> Tuple[re.Pattern, re.Pattern]:
+def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     """
     Returns a tuple: (strict_cr_regex, soft_cr_regex)
 
@@ -44,7 +44,11 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern]:
         additional_standalone_suffixes=["contracts?", "options?", "agreements?"],
     )
 
-    soft_instrument_fragment = expand_instruments(unsafe=True)
+    soft_instrument_fragment = expand_instruments(
+        unsafe=True,
+        exclude_standalone_suffixes=True,
+        additional_standalone_suffixes=["contracts?", "options?", "agreements?"],
+    )
 
     # --- 4. Build Patterns ---
 
@@ -61,8 +65,18 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern]:
         sorted_specific_phrases,
     )
     soft_cr_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+    
+    loose_instrument_fragment = expand_instruments(
+        unsafe=True, exclude_standalone_suffixes=False
+    )
+    loose_pattern = build_smart_regex(
+        [soft_core_alt],
+        loose_instrument_fragment,
+        sorted_specific_phrases,
+    )
+    loose_cr_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
 
-    return strict_cr_regex, soft_cr_regex
+    return strict_cr_regex, soft_cr_regex, loose_cr_regex
 
 
 _CR_LINKED_DEBT = rf"credit[- ]linked\s+{_DEBT_TERMS}"
@@ -101,4 +115,4 @@ CR_STRICT_TERMS, CR_SOFT_TERMS = build_cr_context_terms()
 CR_CONTEXT_TERMS = CR_STRICT_TERMS + CR_SOFT_TERMS
 CR_CONTEXT_REGEX = build_regex(CR_CONTEXT_TERMS)
 CR_STRICT_CONTEXT_REGEX = build_regex(CR_STRICT_TERMS)
-CR_REGEX, CR_SOFT_REGEX = build_cr_regex()
+CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX = build_cr_regex()

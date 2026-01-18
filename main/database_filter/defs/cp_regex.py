@@ -293,7 +293,7 @@ CP_STRICT_TERMS, CP_SOFT_TERMS = build_cp_context_terms()
 CP_CONTEXT_TERMS = CP_STRICT_TERMS + CP_SOFT_TERMS
 
 
-def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
+def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
 
     # Sorted alternation of all commodities (Max Munch applied internally)
@@ -383,13 +383,21 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern]:
         sorted_specific_phrases,  # All high-priority explicit phrases
     )
     soft_cp_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+    
+    loose_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=False)
+    
+    loose_pattern = build_smart_regex(
+        [strict_core_alternation],
+        loose_instrument_fragment,
+        sorted_specific_phrases,
+    )
+    loose_cp_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
 
-    # Return the tuple of (strict, soft)
-    return strict_cp_regex, soft_cp_regex
+    return strict_cp_regex, soft_cp_regex, loose_cp_regex
 
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
 CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS)
 CP_CONTEXT_REGEX = build_regex(CP_CONTEXT_TERMS)
-CP_REGEX, CP_SOFT_REGEX = build_cp_regex()
+CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 TRADING_VENUE_REGEX = build_regex(TRADING_ENTITIES)

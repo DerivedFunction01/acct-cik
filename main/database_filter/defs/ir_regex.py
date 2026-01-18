@@ -21,7 +21,7 @@ BENCHMARK_RATES = [
     "PRIBOR",
     "MOSPRIME",
 ]
-def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
+def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
     RATE_TYPES = ["fixed", "variable", "floating"]
     # RATES is for descriptive prefixes that combine with 'rate'
@@ -108,11 +108,22 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern]:
         ),  # IR caps, locks, floors
         specific_phrases,
     )
+    loose_pattern = build_smart_regex(
+        core_terms,
+        expand_instruments(
+            unsafe=True,
+            exclude_standalone_suffixes=False,
+            additional_bases=["protection"],
+            additional_standalone_suffixes=["contracts?"],
+        ),
+        specific_phrases,
+    )
     strict_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
     soft_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-    return strict_regex, soft_regex  # return the same thing as a tuple for consistency
+    loose_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
+    return strict_regex, soft_regex, loose_regex
 
-IR_REGEX, IR_SOFT_REGEX = build_ir_regex()
+IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX = build_ir_regex()
 
 # 1. Complex Debt Term (Consolidated)
 # Logic: Match DEBT only if:

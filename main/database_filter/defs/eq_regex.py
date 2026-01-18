@@ -5,7 +5,7 @@ from defs.derivatives_core import build_smart_regex, expand_instruments, suffix_
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS
 
-def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
+def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Build Core Terms (Prefixes) ---
     liability = r"liabilit(?:y|ies)"
     option = r"options?"
@@ -86,9 +86,19 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern]:
         ],
     )
     soft_eq_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
+    
+    loose_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=False)
+    loose_pattern = build_smart_regex(
+        [strict_core_alternation],
+        loose_instrument_fragment,
+        sorted_specific_phrases
+        + [
+            rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
+        ],
+    )
+    loose_eq_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
 
-    # Return the tuple of (strict, soft)
-    return strict_eq_regex, soft_eq_regex
+    return strict_eq_regex, soft_eq_regex, loose_eq_regex
 
 
 stock_terms = [
@@ -182,5 +192,5 @@ EQ_STRICT_TERMS, EQ_SOFT_TERMS = build_eq_context_terms()
 EQ_CONTEXT_TERMS = EQ_STRICT_TERMS + EQ_SOFT_TERMS
 EQ_CONTEXT_REGEX = build_regex(EQ_CONTEXT_TERMS)
 EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_STRICT_TERMS)
-EQ_REGEX, EQ_SOFT_REGEX = build_eq_regex()
+EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX = build_eq_regex()
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
