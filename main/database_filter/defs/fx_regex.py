@@ -113,7 +113,6 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     loose_dynamic_fragment = expand_instruments(
         unsafe=True,
         exclude_standalone_suffixes=False,
-        additional_standalone_suffixes=["contracts?", "options?"],
     )
 
     # 1. Substitute the dynamic fragment into the templates
@@ -146,7 +145,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     soft_dynamic_fragment = expand_instruments(
         unsafe=True,
         exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?", "options?"],
+        additional_standalone_suffixes=["contracts?"],
     )
 
     # 1. Substitute the dynamic fragment into the templates
