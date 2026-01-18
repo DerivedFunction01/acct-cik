@@ -703,6 +703,7 @@ POLICY_KILLED_EVIDENCE = {
     EvidenceReason.ACT_GEN,  # "We enter into..." (No year)
 }
 
+
 # TIER 4: FLUFF (Context Only)
 # Dies to: Any Noise.
 FLUFF_EVIDENCE = {
@@ -710,6 +711,16 @@ FLUFF_EVIDENCE = {
     EvidenceReason.REM_TERM,
     EvidenceReason.UNCAT,
     EvidenceReason.ACT_AMB_GEN,
+}
+
+# TIER 3.5: WEAK EVIDENCE (Immaterial Prone)
+# For very short 1 evidence sentence paragraphs, Dies to Immaterial
+IMMATERIAL_KILLED_EVIDENCE = FLUFF_EVIDENCE | {
+    EvidenceReason.CONT_USE,
+    EvidenceReason.CONT_USE_AMB,
+    EvidenceReason.BS_LOC,
+    EvidenceReason.VAL_MODEL,
+    EvidenceReason.ACT_GEN,
 }
 
 # --- KILLER SETS ---
@@ -738,7 +749,7 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.TRADING,  # "We do not trade"
     NoiseReason.PNL,  # An unrealized gain
     NoiseReason.TRANSACT, # Entered into a derivative in the past
-    NoiseReason.IMM 
+    NoiseReason.IMM
 }
 
 

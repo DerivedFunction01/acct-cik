@@ -17,6 +17,7 @@ from table_processor import TABLE_ANCHOR
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.prefiltered_lib import (
     ACTIVE_STATE_REGEX,
+    IMMATERIAL_KILLED_EVIDENCE,
     YEAR_REGEX,
     DEADWEIGHT_TOKEN,
     EVIDENCE_TOKEN,
@@ -460,7 +461,14 @@ def should_mark_deadweight(
     # header, footer, or isolated bullet point. Kill it to prevent "Definition" counts.
     if sent_count == 1 and not evidence_tags and not noise_tags:
         return True
-
+    if len(evidence_tags) == 1:
+        # If we have an immaterial tag and certain non-year evidence tag, invalidate them both
+        if not noise_tags.isdisjoint({NoiseReason.IMM}):
+            # If we have exactly that one piece of higher level evidence we wish to invalidate
+            if not evidence_tags.isdisjoint(IMMATERIAL_KILLED_EVIDENCE):
+                return True
+            
+            
     # 2. Handle Remaining No-Evidence Cases (Multi-sentence clean text)
     # If we are here, and tags are empty, it must be > 1 sentence.
     # We treat this as "Uncategorized Context" (Fluff). 
