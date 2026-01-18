@@ -37,7 +37,7 @@ POTENTIAL_SUFFIX_ADVERBS = [
 POTENTIAL_INDICATORS = [
     r"may",
     r"might",
-    r"(?:may|might|are|were)\s+consider(?:ing)?",
+    r"(?:may|might|are|were)\s+(?:consider|plann?)(?:ing)?",
     r"could",
     r"would",
     r"will",
@@ -47,7 +47,7 @@ POTENTIAL_INDICATORS = [
     r"if",
     r"whether",
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
-    r"expect(?:s|ed)?(?:\s+to)?(?![- ]continue)",
+    r"expect(?:s|ed)?\s+to(?![- ]continue)",
 ] + POTENTIAL_SUFFIX_ADVERBS
 
 # Add this alongside your other lists
