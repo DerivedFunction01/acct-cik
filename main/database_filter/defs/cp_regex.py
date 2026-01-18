@@ -10,7 +10,7 @@ from defs.derivatives_core import (
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import (
     _RISK_ALTERNATION,
-
+    build_risk_managment_phrase,
 )
 
 # 3. COMMODITY (Strict)
@@ -35,137 +35,140 @@ TRADING_ENTITIES = [
     r"\bCBOE\b",
     r"\bChicago\s+Board\s+Options\s+Exchange\b",
 ]
-COMMON_COMMODITIES = [
-    # 🌾 Agriculture & Food
-    "cocoa",
-    "coffee",
-    "corn",
-    "cotton",
-    "dairy",
-    "milk",
-    "grain",
-    "livestock",
-    "soybeans?",
-    "sugar",
-    "wool",
-    "oranges?",
-    "bananas?",
-    "apples?",
-    "grapes?",
-    "tomato(?:es)?",
-    "potato(?:es)?",
-    "wheat",
-    "rice",
-    "eggs?",
-    "cattle",
-    "chicken",
-    "salmon",
-    "pork",
-    "fish",
-    "garlic",
-    "pumpkins?",
-    "peppers?",
-    "peas?",
-    "carrots?",
-    "beans?",
-    "mushrooms?",
-    # ⛽ Energy & Fuels
-    "biodiesel",
-    "biomass",
-    "bunker fuel",
-    "butane",
-    "coal",
-    "coking coal",
-    "condensate",
-    "crude oil",
-    "diesel fuel",
-    "diesel",
-    "distillates",
-    "electricity",
-    "energy",
-    "ethane",
-    "ethanol",
-    "fuel",
-    "fuel oil",
-    "gas",
-    "gas oil",
-    "gasoline",
-    "heating oil",
-    "jet fuel",
-    "kerosene",
-    "liquefied natural gas",
-    "liquefied petroleum gas",
-    "LNG",
-    "LPG",
-    "marine fuel",
-    "naphtha",
-    "natural gas",
-    "natural gas liquids",
-    "oil",
-    "petroleum",
-    "power",
-    "propane",
-    "renewable energy",
-    "solar power",
-    "thermal coal",
-    "wind power",
-    # 🧪 Chemicals & Fertilizers
-    "chemical",
-    "fertilizer",
-    "nitrogen",
-    "petrochemical",
-    "phosphate",
-    "plastic",
-    "polymer",
-    "potash",
-    "resin",
-    "rubber",
-    "soda ash",
-    "sulfur",
-    # 🪨 Minerals, Metals & Ores
-    "aluminum",
-    "base metals?",
-    "copper",
-    "iron",
-    "gold",
-    "silver",
-    "metal",
-    "ore",
-    "precious metals?",
-    "steel",
-    "titanium",
-    "uranium",
-    # 🏗️ Construction Materials
-    "asphalt",
-    "bitumen",
-    "cement",
-    "concrete",
-    "gravel",
-    "limestone",
-    "sand",
-    # 🌲 Forestry & Wood Products
-    "hardwood lumber",
-    "log",
-    "lumber",
-    "plywood",
-    "softwood lumber",
-    "timber",
-    "wood",
-    "wood chip",
-    "wood pellet",
-    r"(?<!commericial[ -])paper",
-    r"cardboard",
-    r"cartons?",
-    "pulp",
-    # 🧩 General / Raw Inputs
-    "feedstock",
-    "raw materials?",
-    "salt",
-    "textile",
-    # Generic
-    "commodity",
-    "commodities",
-]
+
+COMMODITY_MAP = {
+   "crops": [
+        # --- Fruits ---
+        "oranges?", "bananas?", "apples?", "grapes?",
+        "avocados?", "mango(?:es)?", "pineapples?", "papayas?",
+        "fruit",
+
+        # --- Berries ---
+        "strawberr(?:y|ies)",
+        "blueberr(?:y|ies)",
+        "raspberr(?:y|ies)",
+        "cherr(?:y|ies)",
+        "berr(?:y|ies)",
+
+
+        # --- Vegetables ---
+        "tomato(?:es)?", "potato(?:es)?",
+        "garlic", "pumpkins?", "peppers?", "peas?", "carrots?",
+        "onions?", "cabbage", "lettuce",
+        "spinach", "broccoli", "cauliflower",
+        "vegetables?",
+
+        # --- Grains / Cereals ---
+        "corn", "grain", "wheat", "rice",
+        "barley", "oats", "rye", "sorghum",
+        "millet", "quinoa",
+
+        # --- Oilseeds ---
+        "soybeans?", "canola", "sunflower", "palm oil",
+        "rapeseed", "flax", "hemp",
+        "soy",
+
+        # --- Legumes / Pulses ---
+        "lentils?", "chickpeas?",
+        "beans?", "peas?",
+        "legumes?", "pulses?",
+
+        # --- Nuts ---
+        "almonds?", "walnuts?", "pecans?", "pistachios?",
+
+        # --- Roots / Tubers ---
+        "cassava", "yams?", "beets?",
+
+        # --- Fungi ---
+        "mushrooms?",
+
+        # --- Specialty Crops ---
+        "cocoa", "coffee", "cotton", "sugar",
+        "tea", "tobacco",
+
+        # --- General Crop Categories ---
+        "horticultural crops?", "row crops?",
+    ],
+
+
+    "livestock": [
+        "dairy", "milk", "livestock", "eggs?", "cattle", "chicken", "pork", "turkey", "avian",
+        "hogs?", "lean hogs?", "(?:feeder|live) cattle", "poultry", "beef", "meat", "lamb", "wool",
+        "sheep", "goats?", "mutton",
+        "veal", "bison", "buffalo",
+        "ducks?", "geese?", "broilers?",
+        "swine", "sows?", "boars?",
+        "calves?", "heifers?",
+        "ruminants?",
+        "livestock feed", "feedlot",  "feedstock"
+    ],
+
+    "seafood": [
+        "salmon", "fish", "shrimp", "crab", "lobster", "tuna", "seafood", "aquaculture",
+        "prawn", "scallop", "oyster", "clam", "mussel", "squid", "octopus",
+        "halibut", "cod", "haddock", "tilapia", "snapper", "mackerel",
+        "anchovy", "sardine", "trout", "bass", "catfish",
+        "(?:king|snow|blue) crab",
+        "shellfish", "bivalve", "crustacean",
+        "sea bass", "yellowtail", "albacore",
+        "eel", "uni", "roe", "caviar",
+        "seaweed", "kelp", "mariculture",
+    ],
+
+    "energy": [
+        "biodiesel", "biomass", "bunker fuel", "butane", "coal", "coking coal",
+        "condensate", "crude oil", "diesel fuel", "diesel", "distillates",
+        "electricity", "energy", "ethane", "ethanol", "fuel", "fuel oil", "gas",
+        "gas oil", "gasoline", "heating oil", "jet fuel", "kerosene",
+        "liquefied natural gas", "liquefied petroleum gas", "LNG", "LPG",
+        "marine fuel", "naphtha", "natural gas", "natural gas liquids", "oil",
+        "petroleum", "power", "propane", "renewable energy", "solar power",
+        "thermal coal", "wind power",
+    ],
+    "chemicals": [
+        "chemical", "fertilizer", "nitrogen", "petrochemical", "phosphate",
+        "plastic", "polymer", "potash", "resin", "rubber", "soda ash", "sulfur", "salt"
+    ],
+    "metals": [
+        "aluminum", "base metals?", "copper", "iron", "gold", "silver", "metal",
+        "ore", "precious metals?", "steel", "titanium", "uranium",
+
+        # --- Added ---
+        "nickel", "zinc", "lead", "tin",
+        "platinum", "palladium", "rhodium",
+        "cobalt", "molybdenum", "chromium",
+        "lithium", "magnesium",
+        "rare earth metals?", "vanadium",
+    ],
+   "construction": [
+        "asphalt", "bitumen", "cement", "concrete", "gravel", "limestone", "sand",
+        "clay", "slate", "granite", "marble", "gypsum", "plaster", "mortar", "bricks?", "ballast",
+        "dolomite", "basalt", "quartzite",
+        "pavers?", "tiles?",
+        "drywall", "sheetrock",
+        "insulation", "fiberglass",
+        "roofing materials?", "shingles?",
+        "precast panels?",
+    ],
+
+   "forestry": [
+        "hardwood lumber", "log", "lumber", "plywood", "softwood lumber", "timber",
+        "wood", "wood chip", "wood pellet", r"(?<!commericial[ -])papers?",
+        r"cardboard", r"cartons?", "pulp",
+        # --- Added ---
+        "sawnwood", "veneer", "wood fiber",
+        "kraft paper", "newsprint",
+        "wood pulp", "cellulose",
+        "oriented strand board", "particleboard",
+        "wood panel", "fiberboard",
+    ],
+
+    "general": [
+       "raw materials?", "textile", "commodity", "commodities",
+    ],
+}
+
+COMMON_COMMODITIES = [item for sublist in COMMODITY_MAP.values() for item in sublist]
 
 # 1. Helper: Build the commodity alternation once
 _COMMODITY_NAMES = build_alternation(COMMON_COMMODITIES)
@@ -255,7 +258,64 @@ NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
     r"procurement\s+contracts?",
 ]
 
-def build_cp_context_terms() -> Tuple[List[str], List[str]]:
+def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
+    # Context terms specific to commodity categories
+    category_context = {
+        "energy": [
+            # Markets/Hubs
+            "PJM", "ERCOT", "MISO", "SPP", "CAISO", "NYISO", "ISO-NE",
+            "Henry Hub", "WTI", "West Texas Intermediate", "Cushing",
+            "Mont Belvieu", "TTF", "JKM", "Dominion South", "Platts",
+            "Argus", "OPIS", "Brent",
+            # Terms
+            "baseload", "peak load", "off-peak", "on-peak", "capacity",
+            "power generation", "power assets", "fuel", "energy", "power",
+        ],
+        "crops": [
+            "crops?", "harvest(?:s|ing)?", "yields?", "acreage", "plant(?:ing|ed)",
+            "bushels?", "grains?",
+        ],
+        "livestock": [
+            "livestock", "feed", "herd", "breeding", "heads?",
+        ],
+        "seafood": [
+            "catch", "aquaculture", "fishery", "fisheries",
+        ],
+        "metals": [
+            "mining", "mines?", "ores?", "smelt(?:ing|er)?", "refin(?:ing|ery|ed)",
+            "grades?", "bullion",
+        ],
+        "forestry": [
+            "logging", "mills?", "pulp", "paper",
+        ],
+        "general": [
+            "packaging", "manufactur(?:ing|ers?)", "raw materials?",
+            "suppl(?:y|ies|iers?)", "containers?", "shipp(?:ing|ed)", "transportation",
+            "inventor(?:y|ies)", "shipments?", "warehouses?", "storage",
+            "logistic(?:s|al)?", "procurements?", "productions?", "wholesale",
+            "factor(?:y|ies)", "deliver(?:y|ies)", "products?",
+        ]
+    }
+
+    # Flatten context terms
+    all_context_terms = [term for sublist in category_context.values() for term in sublist]
+
+    # Glue for risk phrase: Commodities + Specific Context Terms
+    # We exclude generic operational terms (packaging, shipping, etc.) from the risk phrase
+    # to ensure we only capture market/price risk context.
+    specific_context_terms = []
+    for cat, terms in category_context.items():
+        if cat != "general":
+            specific_context_terms.extend(terms)
+            
+    # Selectively add safe general terms that imply market risk
+    # Note: "raw materials" is already in COMMON_COMMODITIES
+    safe_general_terms = ["procurements?", "wholesale"]
+    
+    cp_risk_glue = COMMON_COMMODITIES + specific_context_terms + safe_general_terms
+
+    risk_terms = [build_risk_managment_phrase(cp_risk_glue)]
+
     strict_terms = [
         # General terms
         rf"{_COMMODITY_NAMES}(?:\s+\w+){{0,3}}{_RISK_ALTERNATION}",
@@ -266,32 +326,19 @@ def build_cp_context_terms() -> Tuple[List[str], List[str]]:
         rf"{_RISK_ALTERNATION}(?:\s+\w+){{0,3}}{_COMMODITY_NAMES}",
     ] + TRADING_ENTITIES
 
-    soft_terms = [
-        # Power Grids / ISOs (Strongest context for "power swaps")
-        "PJM",
-        "ERCOT", "MISO", "SPP", "CAISO", "NYISO", "ISO-NE",
-        # Load Types
-        "baseload", "peak load", "off-peak", "on-peak", "capacity",
-        "power generation", "power assets",
-        # Gas/NGL Hubs & Benchmarks
-        "Henry Hub", "WTI", "West Texas Intermediate", "Cushing",
-        "Mont Belvieu", "TTF", "JKM", "Dominion South", "Platts",
-        "Argus", "OPIS", "Brent",
-        # Supply Chain
-        "packaging", "manufactur(?:ing|ers?)", "raw materials?",
-        "suppl(?:y|ies|iers?)", "containers?", "shipp(?:ing|ed)", "transportation",
-        "inventor(?:y|ies)", "shipments?", "warehouses?", "storage",
-        "logistic(?:s|al)?", "procurements?", "productions?", "wholesale",
-        "factor(?:y|ies)", "deliver(?:y|ies)", "products?",
-        # Physical Context (moved from strict)
-        rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}",
-    ] + COMMON_COMMODITIES + CP_UNITS_STRICT + NON_DERIVATIVE_COMMERCIAL_KEYWORDS
+    soft_terms = (
+        all_context_terms +
+        COMMON_COMMODITIES +
+        CP_UNITS_STRICT +
+        NON_DERIVATIVE_COMMERCIAL_KEYWORDS +
+        [rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}"]
+    )
 
-    return strict_terms, soft_terms
+    return strict_terms, soft_terms, risk_terms
 
 
-CP_STRICT_TERMS, CP_SOFT_TERMS = build_cp_context_terms()
-CP_CONTEXT_TERMS = CP_STRICT_TERMS + CP_SOFT_TERMS
+CP_STRICT_TERMS, CP_SOFT_TERMS, CP_RISK_TERMS = build_cp_context_terms()
+CP_CONTEXT_TERMS = CP_STRICT_TERMS + CP_SOFT_TERMS + CP_RISK_TERMS
 
 
 def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
@@ -402,8 +449,9 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
-CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS)
+CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS + CP_RISK_TERMS)
 CP_CONTEXT_REGEX = build_regex(CP_CONTEXT_TERMS)
+CP_RISK_REGEX = build_regex(CP_RISK_TERMS)
 CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 TRADING_VENUE_REGEX = build_regex(TRADING_ENTITIES)
 
