@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests
+from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS
 
@@ -21,7 +21,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     # --- 1. Core Prefix Terms ---
     strict_core_terms = [
-        "(?:credit|basket|first[- ]to[ -])[- ](?:default|linked|based)",
+        "(?:credit|basket|first[- ]to[ -])[- ](?:default|linked|based|protection)",
     ]
     strict_core_alt = build_alternation(strict_core_terms, sort_longest_first=True)
 
@@ -126,7 +126,17 @@ if __name__ == "__main__":
         ("credit default option", MatchLevel.STRICT),
         ("basket default swap", MatchLevel.STRICT),
         ("credit derivative", MatchLevel.STRICT),
-        ("credit default agreement", MatchLevel.LOOSE), # Protection is not a base in CR strict
-        ("credit hedges", MatchLevel.SOFT),
+        ("credit default agreement", MatchLevel.STRICT),
+        ("credit protection agreement", MatchLevel.STRICT),
     ]
     run_category_tests(test_cases, CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX)
+
+    counter_cases = [
+        ("credit agreement", MatchLevel.LOOSE),
+        ("credit facility", MatchLevel.LOOSE),
+        ("credit risk", MatchLevel.LOOSE),
+        ("credit protection", MatchLevel.LOOSE),
+        ("credit default", MatchLevel.LOOSE),
+        ("credit hedges", MatchLevel.LOOSE),
+    ]
+    run_category_tests_counter(counter_cases, CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX)
