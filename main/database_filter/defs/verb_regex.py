@@ -266,14 +266,14 @@ def build_immaterial_regex() -> re.Pattern:
     # Structure: Subject + (of/from/related to) + Instrument + ... + Immaterial
     pat_instrument = (
         rf"\b(?:{subj_pat})\s+(?:of|from|related\s+to)\s+"
-        rf"(?:{_DENIAL_TARGET})\s+"
+        rf"{_DENIAL_TARGET}\s+"
         rf"(?:\w+\s+){{0,5}}{imm_pat}\b"
     )
 
     # 3. Instrument as Subject (Strict)
     # "The interest rate swap was immaterial"
     pat_instrument_subject = (
-        rf"\b(?:{_DENIAL_TARGET})\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
+        rf"\b{_DENIAL_TARGET}\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
     )
 
     return re.compile(
@@ -497,21 +497,57 @@ def run_tests():
             True,
         ),
         (
-            "IMM: Strict - Impact",
+            "IMM: Strict - Fair Value",
+            IMMATERIAL_REGEX,
+            "The fair value was insignificant",
+            True,
+        ),
+        (
+            "IMM: Strict - Carrying Value",
+            IMMATERIAL_REGEX,
+            "The carrying value of these instruments is de minimis",
+            True,
+        ),
+        (
+            "IMM: Strict - Market Value",
+            IMMATERIAL_REGEX,
+            "The market values were nominal",
+            True,
+        ),
+        (
+            "IMM: Counter - Impact",
             IMMATERIAL_REGEX,
             "The impact on earnings was not significant",
             False,
         ),
         (
-            "IMM: Instrument - FV of Swaps",
+            "IMM: Counter - Effect",
             IMMATERIAL_REGEX,
-            "The fair value of the interest rate swaps was immaterial",
-            True,
+            "The effect of derivative instruments was immaterial",
+            False,
         ),
         (
-            "IMM: Instrument - Exposure",
+            "IMM: Counter - Gain/Loss",
+            IMMATERIAL_REGEX,
+            "The gain on the swap was trivial",
+            False,
+        ),
+        (
+            "IMM: Counter - Results",
+            IMMATERIAL_REGEX,
+            "The results of operations were not materially affected",
+            False,
+        ),
+        (
+            "IMM: Counter - Exposure",
             IMMATERIAL_REGEX,
             "The exposure related to foreign exchange contracts is insignificant",
+            False,
+        ),
+        (
+            "IMM: Instrument - FV of Swaps",
+            IMMATERIAL_REGEX,
+            "The fair value of the three month interest rate swaps was immaterial",
             True,
         ),
         (
