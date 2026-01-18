@@ -98,7 +98,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)",
         # Specific Exchange Agreements (Valid because of "Exchange")
         # Matches: "foreign exchange agreement", "currency exchange arrangement"
-        rf"(?:foreign|currency|forward|cross[- ]currency)\s+exchange\s+(?:agreements?|arrangements?|commitments?)",
+        rf"(?:foreign|currency|forward|cross[- ]currency)\s+exchange\s+(?:rate\s+)?(?:agreements?|arrangements?|commitments?)",
         rf"(?<!single[- ])currency[- ](?:contracts?|options?|forwards?)",
     ]
 
@@ -310,7 +310,7 @@ FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX = build_fx_regex()
 def run_tests():
     test_cases = [
         ("foreign currency forward", MatchLevel.STRICT),
-        ("foreign currency exchange contract", MatchLevel.STRICT),
+        ("foreign currency exchange rate contract", MatchLevel.STRICT),
         ("currency swap", MatchLevel.STRICT),
         ("currency swap agreement", MatchLevel.STRICT),
         ("FX forward", MatchLevel.STRICT),
@@ -327,14 +327,14 @@ def run_tests():
         ("foreign currency option", MatchLevel.STRICT),
         ("currency option", MatchLevel.STRICT),
         ("foreign currency arrangement", MatchLevel.SOFT),
-        ("currency exchange contract", MatchLevel.STRICT),
+        ("currency exchange agreement", MatchLevel.STRICT),
         ("foreign currency exchange swap", MatchLevel.STRICT),
     ]
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 
     counter_cases = [
         ("foreign currency hedges", MatchLevel.STRICT), # Should NOT be strict (needs suffix/instrument)
-        ("foreign exchange arrangement", MatchLevel.SOFT),
+        ("foreign currency commitments", MatchLevel.SOFT),
         ("currency rate", MatchLevel.STRICT),
         ("exchange rate", MatchLevel.STRICT),
         ("foreign currency transaction", MatchLevel.STRICT), # Transaction is not a derivative suffix
