@@ -88,6 +88,7 @@ def build_cr_context_terms() -> Tuple[List[str], List[str]]:
     soft_terms = [
         # Broader terms
         r"credit[- ](?:protections?|linked|slope|curve|tranche)",
+        r"total[- ]return",
         r"credit\s+indices",
         r"credit\s+index",
         r"credit\s+events?",
