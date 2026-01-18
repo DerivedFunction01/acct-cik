@@ -3,7 +3,7 @@ from typing import Tuple, List
 
 from defs.derivatives_core import ALL_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION
+from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_risk_managment_phrase
 
 BENCHMARK_RATES = [
     "SOFR",
@@ -21,18 +21,19 @@ BENCHMARK_RATES = [
     "PRIBOR",
     "MOSPRIME",
 ]
+
+RATE_TYPES = ["fixed", "variable", "floating"]
+
+RATE_ADJECTIVES = [
+    "treasury",
+    "forward",
+    "benchmark",
+    "prime",
+    r"fed(?:eral)?[- ]funds",
+] + RATE_TYPES
+
 def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
-    RATE_TYPES = ["fixed", "variable", "floating"]
-    # RATES is for descriptive prefixes that combine with 'rate'
-    RATES_ADJECTIVES = [
-        "treasury",
-        "forward",
-        "benchmark",
-        "interest",
-        "prime",
-        "fed[- ]funds",
-    ] + RATE_TYPES
 
     def build_pay_receive_structure() -> str:
         """Constructs the core pay/receive structure pattern."""
@@ -51,7 +52,8 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     pay_receive_pattern_string = build_pay_receive_structure()
 
     # --- 4. Build Core Terms and Specific Phrases ---
-    rate_alternation = build_alternation(RATES_ADJECTIVES, sort_longest_first=True)
+    ir_regex_adjectives = RATE_ADJECTIVES + ["interest"]
+    rate_alternation = build_alternation(ir_regex_adjectives, sort_longest_first=True)
     rate_adjective_phrases = [rf"{rate_alternation}[- ]rate"]
 
     # This pattern enforces the sequence: [P/R] + [Optional Adjectives] + [Mandatory Instrument Base]
@@ -311,7 +313,37 @@ def build_embedded_cap_floor_regex() -> re.Pattern:
     return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
 
 
-def build_ir_context_terms() -> Tuple[List[str], List[str]]:
+def build_ir_context_terms() -> Tuple[List[str], List[str], List[str]]:
+    context_adjectives = [
+        r"(?<!currency[- ])interest[- ]rates?",
+        r"(?<!foreign[- ])interest[- ]rates?",
+    ] + RATE_ADJECTIVES
+
+    risk_glue_rates = [rf"{adj}[- ]rates?" for adj in context_adjectives]
+
+    shared_debt_terms = [
+        IR_DEBT_LOOKBEHIND_TERM,
+        r"credit\s+facilit(?:y|ies)",
+        r"revolving\s+credits?",
+        r"term\s+loans?",
+        r"subordinated\s+notes?",
+        r"commercial\s+papers?",
+        r"capital\s+leases?",
+        r"mortgages?",
+    ]
+
+    interest_financials = r"interest\s+(?:payables?|expenses?|income|payments?|costs?)"
+
+    common_terms = risk_glue_rates + shared_debt_terms + [interest_financials]
+
+    risk_glue = common_terms + [
+        r"borrowing\s+costs?",
+        r"financing\s+costs?",
+        r"yield\s+curves?",
+        r"re-?pricing",
+        r"(?:floating|fixed|variable)\s+rate\s+debt",
+    ] + BENCHMARK_RATES
+
     strict_terms = [
         rf"(?<!foreign[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
         rf"(?<!currency[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
@@ -319,35 +351,28 @@ def build_ir_context_terms() -> Tuple[List[str], List[str]]:
         r"fed(?:eral)?\s+funds\s+rates?",
     ] + BENCHMARK_RATES
 
-    soft_terms = [
-        IR_DEBT_LOOKBEHIND_TERM,
-        # Debt + Payment Combinations
+    soft_terms = common_terms + [
         rf"{_DEBT_TERMS}\s+payables?",
-        r"interest\s+(?:payables?|expenses?|income|payments?)",
         rf"(?:long|short)[- ]term\s+{_DEBT_TERMS}",
-        r"credit\s+facilit(?:y|ies)",
-        r"revolving\s+credits?",
-        r"term\s+loans?",
-        r"subordinated\s+notes?",
-        r"capital\s+leases?",
-        r"mortgages?",
         r"amortization\s+of\s+debt",
-        r"commercial\s+papers?",
         rf"treasury\s+{_DEBT_TERMS}",
         r"credit\s+agreements?",
-        # Rate Types & Benchmarks (Generic)
-        r"(?:floating|variable|fixed|prime|treasury|(?<!currency[- ])interest|(?<!foreign[- ])interest|benchmark|forward)[- ]rates?",
         r"basis\s+points?",
         r"weighted\s+average\s+interest",
     ] + BANK_ENTITIES
 
-    return strict_terms, soft_terms
+    risk_terms = [
+        build_risk_managment_phrase(risk_glue)
+    ]
+
+    return strict_terms, soft_terms, risk_terms
 
 
-IR_STRICT_TERMS, IR_SOFT_TERMS = build_ir_context_terms()
-IR_CONTEXT_TERMS = IR_STRICT_TERMS + IR_SOFT_TERMS
+IR_STRICT_TERMS, IR_SOFT_TERMS, IR_RISK_TERMS = build_ir_context_terms()
+IR_CONTEXT_TERMS = IR_STRICT_TERMS + IR_SOFT_TERMS + IR_RISK_TERMS
 IR_CONTEXT_REGEX = build_regex(IR_CONTEXT_TERMS)
-IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS)
+IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS + IR_RISK_TERMS)
+IR_RISK_REGEX = build_regex(IR_RISK_TERMS)
 EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
 
