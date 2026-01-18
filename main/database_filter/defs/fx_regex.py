@@ -1,6 +1,6 @@
 import re
 from typing import List, Tuple
-from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, suffix_alternation
+from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_currency_descriptor_pattern, all_currencies
 
@@ -304,12 +304,30 @@ if __name__ == "__main__":
         ("currency swap", MatchLevel.STRICT),
         ("currency swap agreement", MatchLevel.STRICT),
         ("FX forward", MatchLevel.STRICT),
-        ("foreign exchange option", MatchLevel.STRICT), # Option is explicitly added as safe suffix
+        (
+            "foreign exchange option",
+            MatchLevel.STRICT,
+        ),  # Option is explicitly added as safe suffix
         ("cross currency swap", MatchLevel.STRICT),
         ("forward foreign exchange contract", MatchLevel.STRICT),
         ("currency agreement", MatchLevel.LOOSE),
-        ("foreign currency contract", MatchLevel.LOOSE),
+        ("foreign currency contract", MatchLevel.STRICT),
         ("foreign currency hedges", MatchLevel.SOFT),
         ("currency hedging", MatchLevel.SOFT),
+        ("foreign currency option", MatchLevel.STRICT),
+        ("foreign currency arrangement", MatchLevel.LOOSE),
+        ("foreign currency commitments", MatchLevel.LOOSE),
     ]
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
+
+    counter_cases = [
+        ("foreign currency hedges", MatchLevel.STRICT), # Should NOT be strict (needs suffix/instrument)
+        ("foreign exchange arrangement", MatchLevel.SOFT),
+        ("currency rate", MatchLevel.STRICT),
+        ("exchange rate", MatchLevel.STRICT),
+        ("foreign currency transaction", MatchLevel.STRICT), # Transaction is not a derivative suffix
+        ("currency transaction", MatchLevel.LOOSE),
+        ("foreign currency arrangement", MatchLevel.SOFT),
+        ("foreign currency commitments", MatchLevel.SOFT),
+    ]
+    run_category_tests_counter(counter_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
