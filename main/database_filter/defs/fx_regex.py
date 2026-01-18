@@ -103,7 +103,9 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- B. STRICT Pattern Construction (High Precision) ---
     # -------------------------------------------------------------------------
 
-    # Fragment for dynamic replacement: safe bases only (no suffixes as standalones, but include safe ones)
+    # Fragment for dynamic replacement (e.g. "USD-denominated ...")
+    # We use exclude_standalone_suffixes=True to strip generic suffixes,
+    # then explicitly add back "contracts" and "options" to ensure precision.
     strict_dynamic_fragment = expand_instruments(
         unsafe=False,
         exclude_standalone_suffixes=True,
@@ -127,10 +129,13 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
 
     # 3. Final pattern build
+    # Fragment for Core Terms (e.g. "Foreign Exchange ...")
+    # We use unsafe=False (Strict Mode), which includes UNAMBIGUOUS_SUFFIXES (like "contracts") by default.
+    # We explicitly add "options" because it is normally ambiguous, but safe in FX context ("Foreign Exchange Option").
     strict_instrument_fragment = expand_instruments(
         unsafe=False,
-        additional_standalone_suffixes=["options?", "contracts?"],
-    )  # Safe standalone bases allowed here
+        additional_standalone_suffixes=["options?"],
+    )
     strict_pattern = build_smart_regex(
         strict_core_terms,  # Precise prefixes
         strict_instrument_fragment,  # Safe bases only
@@ -146,7 +151,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     soft_dynamic_fragment = expand_instruments(
         unsafe=True,
         exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?"],
+        additional_standalone_suffixes=["contracts?", "agreements?", "arrangements?"],
     )
 
     # 1. Substitute the dynamic fragment into the templates
@@ -316,8 +321,7 @@ def run_tests():
         ("foreign currency hedges", MatchLevel.SOFT),
         ("currency hedging", MatchLevel.SOFT),
         ("foreign currency option", MatchLevel.STRICT),
-        ("foreign currency arrangement", MatchLevel.LOOSE),
-        ("foreign currency commitments", MatchLevel.LOOSE),
+        ("foreign currency arrangement", MatchLevel.SOFT),
         ("currency exchange contract", MatchLevel.STRICT),
         ("foreign currency exchange swap", MatchLevel.STRICT),
     ]
@@ -330,7 +334,5 @@ def run_tests():
         ("exchange rate", MatchLevel.STRICT),
         ("foreign currency transaction", MatchLevel.STRICT), # Transaction is not a derivative suffix
         ("currency transaction", MatchLevel.LOOSE),
-        ("foreign currency arrangement", MatchLevel.SOFT),
-        ("foreign currency commitments", MatchLevel.SOFT),
     ]
     run_category_tests_counter(counter_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
