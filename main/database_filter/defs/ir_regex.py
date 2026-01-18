@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import ALL_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, suffix_alternation
+from defs.derivatives_core import ALL_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION
 
@@ -352,23 +352,31 @@ EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
 
 if __name__ == "__main__":
-    def run_test():
-        test_cases = [
-            "interest rate swap",
-            "interest rate cap agreement",
-            "interest rate agreement",
-            "swap agreement",  # Should NOT match IR (no core)
-            "interest rate cap",
-            "fixed rate swap",
-            "pay fixed receive floating swap",
+    test_cases = [
+        ("interest rate swap", MatchLevel.STRICT),
+        ("interest rate swap agreement", MatchLevel.STRICT),
+        ("interest rate agreement", MatchLevel.LOOSE),
+        ("swap agreement", MatchLevel.NONE),  # Should NOT match IR (no core)
+        ("floating rate cap", MatchLevel.SOFT),
+        ("fixed rate swap", MatchLevel.STRICT),
+        ("pay fixed receive floating swap", MatchLevel.STRICT),
+        (
             "interest rate protection",
-            "interest rate protection agreement",
-            "interest rate hedges",
-            "interest rate hedge contract"
-            "interest rate hedging",
-        ]
-        print(f"{'Text':<40} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6}")
-        print("-" * 65)
-        for text in test_cases:
-            print(f"{text:<40} | {str(bool(IR_REGEX.search(text))):<6} | {str(bool(IR_SOFT_REGEX.search(text))):<6} | {str(bool(IR_LOOSE_REGEX.search(text))):<6}")
-    run_test()
+            MatchLevel.NONE,
+        ),  # Protection is not a standalone base in strict/soft
+        ("interest rate protection agreement", MatchLevel.STRICT),
+        ("interest rate contract", MatchLevel.LOOSE),
+        ("interest rate hedges", MatchLevel.SOFT),
+        ("floating rate hedge contract", MatchLevel.SOFT),
+        ("interest rate hedging", MatchLevel.SOFT),
+    ]
+    run_category_tests(test_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)
+
+    counter_cases = [
+        ("interest rate cap", MatchLevel.STRICT),  # Should NOT be strict
+        ("treasury rate floor", MatchLevel.STRICT),
+        ("interest rate protection", MatchLevel.SOFT),
+        ("fixed rate agreement", MatchLevel.STRICT),
+        ("floating rate arrangement", MatchLevel.SOFT),
+    ]
+    run_category_tests_counter(counter_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)

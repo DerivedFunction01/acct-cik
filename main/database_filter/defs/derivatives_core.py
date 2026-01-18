@@ -227,3 +227,23 @@ def run_category_tests(test_cases: List[Tuple[str, MatchLevel]], strict_regex, s
 
     if not all_passed: print("\nSOME TESTS FAILED")
     else: print("\nALL TESTS PASSED")
+
+def run_category_tests_counter(test_cases: List[Tuple[str, MatchLevel]], strict_regex, soft_regex, loose_regex):
+    print(f"{'Text (Counter)':<40} | {'Avoid':<8} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6} | {'Pass':<4}")
+    print("-" * 85)
+    all_passed = True
+    for text, avoid_level in test_cases:
+        s = bool(strict_regex.search(text))
+        so = bool(soft_regex.search(text))
+        l = bool(loose_regex.search(text))
+
+        passed = True
+        if avoid_level == MatchLevel.STRICT and s: passed = False
+        elif avoid_level == MatchLevel.SOFT and so: passed = False
+        elif avoid_level == MatchLevel.LOOSE and l: passed = False
+
+        if not passed: all_passed = False
+        print(f"{text:<40} | {avoid_level.name:<8} | {str(s):<6} | {str(so):<6} | {str(l):<6} | {str(passed):<4}")
+
+    if not all_passed: print("\nSOME COUNTER TESTS FAILED")
+    else: print("\nALL COUNTER TESTS PASSED")
