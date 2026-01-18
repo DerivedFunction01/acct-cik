@@ -34,7 +34,7 @@ SPECIAL_BASE = [
 ]
 UNAMBIGUOUS_BASE_TYPES = [
     "swaps?",
-    rf"forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
+    rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
     "collars?",
     "derivatives?",
     "hedges",  # plural form
@@ -69,6 +69,7 @@ AMBIGUOUS_SUFFIXES = [
 ]
 ALL_SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
 
+PRECISE_BASE_REGEX = build_regex(UNAMBIGUOUS_BASE_TYPES)
 
 # =============================================================================
 # TABLE SPECIFIC REGEX
@@ -138,6 +139,7 @@ safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
 suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 standalone_alternation = build_alternation(UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
 unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
+
 # ----------------------------------------------------------------------------------
 
 

@@ -18,7 +18,7 @@ from defs.cr_regex import CR_REGEX, CR_SOFT_REGEX
 from defs.eq_regex import EQ_REGEX, EQ_SOFT_REGEX
 from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, PRECISE_LOOSE_GEN_REGEX
 from defs.derivative_lib import CATEGORY_MAP, find_hedging_context
-from defs.derivatives_core import BASE_REGEX
+from defs.derivatives_core import BASE_REGEX, PRECISE_BASE_REGEX
 from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
 from prefilter_tagging import extract_values_and_years
 from table_processor import TABLE_ANCHOR
@@ -372,7 +372,7 @@ def extract_instrument_evidence(
         # 2. Global Tracker
         if not resolved and global_tracker:
             resolved = global_tracker.resolve_instrument(sentence)
-            
+
         # 3a. Accumulated Context (if exactly one)
         if not resolved and accumulated_cats and len(accumulated_cats) == 1:
             resolved = list(accumulated_cats)[0]
@@ -432,7 +432,9 @@ def extract_instrument_evidence(
             instrument_names = sorted(matched, key=len, reverse=True)
     else:
         # Fallback to BASE_REGEX for generic instrument detection
-        name_matches = [m.group(0).strip() for m in BASE_REGEX.finditer(sentence)]
+        name_matches = [
+            m.group(0).strip() for m in PRECISE_BASE_REGEX.finditer(sentence)
+        ]
         instrument_names = name_matches if name_matches else ["derivative"]
 
     # If no values, return empty list (no evidence to capture)
