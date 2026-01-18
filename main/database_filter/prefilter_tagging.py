@@ -484,18 +484,19 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
             if not reason:
                 reason = get_termination_noise_reason(masked, reporting_year=reporting_year)
             
-            # 2. PnL (Gains/Losses)
+            # 2. PnL (Gains/Losses) (no gain on swaps)
             if not reason and is_pnl(masked):
                 reason = NoiseReason.PNL
+                
+            if not reason:
+                # 4. Absence (e.g., "We do not hold..."), (no swaps oustanding)
+                reason = get_intent_noise_reason(masked)
 
             # 3. Loose Termination (Unanchored) - Low Confidence
             if not reason:
                 reason = get_loose_termination_reason(masked, reporting_year=reporting_year)
 
-            if not reason:
-                # 4. Absence (e.g., "We do not hold...")
-                reason = get_intent_noise_reason(masked)
-
+            
         # --- TIER 3: STRUCTURAL NOISE (The "Format" Tags) ---
         # Only check these if we didn't find a strong Evidence signal above.
         if not reason:
