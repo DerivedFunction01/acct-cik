@@ -241,6 +241,8 @@ def build_immaterial_regex() -> re.Pattern:
         "trivial",
         "nominal",
         "zero"
+        "inconsequential",
+        "de minimis",
     ]
     
     imm_pat = build_alternation(immaterial)
@@ -259,10 +261,31 @@ def build_immaterial_regex() -> re.Pattern:
         r"involvements?",
     ]
     subj_pat = build_alternation(subjects)
+    
+    verbs = r"(?:were|was|are|is|considered|deemed|remained)"
+
+    # 1. Short / Strict (No instrument required)
+    # "The notional amount was immaterial"
+    # Gap: Subject -> [0-2 words] -> Verb -> [0-2 words] -> Immaterial
+    pat_strict = rf"\b(?:{subj_pat})\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
+
+    # 2. Instrument-Anchored (Permissive)
+    # "The fair value of the interest rate swaps was immaterial"
+    # Structure: Subject + (of/from/related to) + Instrument + ... + Immaterial
+    pat_instrument = (
+        rf"\b(?:{subj_pat})\s+(?:of|from|related\s+to)\s+"
+        rf"(?:{_DENIAL_TARGET})\s+"
+        rf"(?:\w+\s+){{0,5}}{imm_pat}\b"
+    )
+
+    # 3. Instrument as Subject (Strict)
+    # "The interest rate swap was immaterial"
+    pat_instrument_subject = (
+        rf"\b(?:{_DENIAL_TARGET})\s+(?:\w+\s+){{0,5}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
+    )
 
     return re.compile(
-        rf"\b(?:{subj_pat})\s+(?:\w+\s+){{0,4}}(?:were|was|are|is|considered|deemed)\s+(?:\w+\s+){{0,2}}{imm_pat}\b|"
-        rf"\b{imm_pat}\s+(?:{subj_pat})\b",
+        rf"(?:{pat_strict}|{pat_instrument}|{pat_instrument_subject})",
         re.IGNORECASE,
     )
         
