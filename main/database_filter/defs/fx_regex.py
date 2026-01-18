@@ -244,8 +244,6 @@ def build_fx_context_terms_advanced() -> Tuple[List[str], List[str]]:
         # 2. Catch "Debt denominated in..." (CRITICAL for preventing IR false positives)
         rf"{_DEBT_TERMS}\s+denominated\s+(?:in|by)",
         r"cross[- ]currency",
-        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
-        r"net\s+investment\s+hedges?",
     ]
 
     soft_fx_terms = [
@@ -261,6 +259,8 @@ def build_fx_context_terms_advanced() -> Tuple[List[str], List[str]]:
         r"currenc(?:y|ies)\s+exchange\s+rates?",
         r"remeasurement\s+(?:gain|loss)",
         r"(?:forward|foreign|currency)\s+exchanges?",
+        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
+        r"net\s+investment\s+hedges?",
     ] + currency_specific_terms
 
     return strict_fx_terms, soft_fx_terms
