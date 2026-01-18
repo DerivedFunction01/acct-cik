@@ -351,7 +351,8 @@ IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS)
 EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
 
-if __name__ == "__main__":
+
+def run_tests():
     test_cases = [
         ("interest rate swap", MatchLevel.STRICT),
         ("interest rate swap agreement", MatchLevel.STRICT),
@@ -365,9 +366,9 @@ if __name__ == "__main__":
             MatchLevel.NONE,
         ),  # Protection is not a standalone base in strict/soft
         ("interest rate protection agreement", MatchLevel.STRICT),
-        ("interest rate contract", MatchLevel.LOOSE),
+        ("interest rate contract", MatchLevel.STRICT),
         ("interest rate hedges", MatchLevel.SOFT),
-        ("floating rate hedge contract", MatchLevel.SOFT),
+        ("floating rate hedge contract", MatchLevel.STRICT),
         ("interest rate hedging", MatchLevel.SOFT),
     ]
     run_category_tests(test_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)

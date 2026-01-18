@@ -407,7 +407,8 @@ CP_CONTEXT_REGEX = build_regex(CP_CONTEXT_TERMS)
 CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 TRADING_VENUE_REGEX = build_regex(TRADING_ENTITIES)
 
-if __name__ == "__main__":
+
+def run_tests():
     test_cases = [
         ("commodity swap", MatchLevel.STRICT),
         ("commodity swap agreement", MatchLevel.STRICT),

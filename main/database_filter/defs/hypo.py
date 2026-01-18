@@ -3,7 +3,7 @@
 # TIER 1: STRICT ARTIFACTS (The "Fake" Instruments)
 # These do not exist in the real world. Finding one is almost certainly methodology.
 # Weight: High (Immediate Kill or near-kill)
-from defs.derivative_regex import build_regex
+from defs.regex_lib import build_regex
 
 
 HYPOTHETICAL_STRICT = [

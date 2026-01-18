@@ -91,3 +91,16 @@ def find_hedging_context(paragraph: str) -> bool:
                 if HEDGING_CONTEXT_REGEX.search(sent):
                     return True
     return False
+
+def run_tests():
+    from defs.ir_regex import run_tests as ir_run
+    from defs.fx_regex import run_tests as fx_run
+    from defs.cp_regex import run_tests as cp_run
+    from defs.eq_regex import run_tests as eq_run
+    from defs.cr_regex import run_tests as cr_run
+    
+    ir_run()
+    fx_run()
+    cp_run()
+    eq_run()
+    cr_run()

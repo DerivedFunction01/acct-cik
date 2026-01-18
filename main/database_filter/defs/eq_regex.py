@@ -195,7 +195,7 @@ EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_STRICT_TERMS)
 EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX = build_eq_regex()
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
 
-if __name__ == "__main__":
+def run_tests():
     test_cases = [
         ("equity swap", MatchLevel.STRICT),
         ("equity option", MatchLevel.SOFT),

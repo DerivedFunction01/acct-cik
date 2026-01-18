@@ -14,9 +14,9 @@ def build_fx_dynamic_pattern() -> str:
     to sort them by length (Max Munch) automatically.
     """
     # Note: These components are simple alternations (no Max Munch needed here)
-    word1 = build_alternation([r"forward", r"foreign"], sort_longest_first=True)
+    word1 = build_alternation([r"forward", r"foreign", r"currency"], sort_longest_first=True)
     compound = build_alternation(
-        [r"cross[- ]currency", r"multi[- ]currency"], sort_longest_first=True
+        [r"cross[- ]currency", r"multi[- ]currency", r"currency"], sort_longest_first=True
     )
     word2_alt = build_alternation([r"currency", r"exchange"], sort_longest_first=True)
     word3 = r"rate"
@@ -27,12 +27,12 @@ def build_fx_dynamic_pattern() -> str:
         rf"(?:{word1})[- ](?:{word1})[- ](?:{compound})[- ](?:{word2_alt})[- ]{word3}",  # forward foreign cross currency exchange rate
         rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})[- ]{word3}",  # forward foreign exchange rate
         # Shorter, common combinations
-        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}",  # forward/foreign currency/exchange rate
+        rf"(?:{word1})[- ](?:{word2_alt})[- ]{word3}",  # forward/foreign/currency currency/exchange rate
         rf"(?:{compound})[- ](?:{word2_alt})[- ]{word3}",  # cross currency exchange rate
-        rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})",  # forward foreign exchange/currency
-        rf"(?:{compound})[- ](?:{word2_alt})",  # cross currency exchange
+        rf"(?:{word1})[- ](?:{word1})[- ](?:{word2_alt})",  # forward foreign/currency exchange/currency
+        rf"(?:{compound})[- ](?:{word2_alt})",  # cross currency exchange, currency exchange
         # Two-word descriptive terms
-        rf"(?:{word1})[- ](?:{word2_alt})",  # forward exchange, foreign currency
+        rf"(?:{word1})[- ](?:{word2_alt})",  # forward exchange, foreign currency, currency exchange
         rf"(?:{compound})",  # cross currency
         # Single-word descriptive terms (low priority, included for completeness)
         r"FX",
@@ -296,7 +296,8 @@ FX_CONTEXT_REGEX = build_regex(FX_CONTEXT_TERMS)
 FX_STRICT_CONTEXT_REGEX = build_regex(FX_STRICT_TERMS)
 FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX = build_fx_regex()
 
-if __name__ == "__main__":
+
+def run_tests():
     test_cases = [
         ("foreign currency forward", MatchLevel.STRICT),
         ("foreign currency exchange contract", MatchLevel.STRICT),

@@ -117,7 +117,8 @@ CR_CONTEXT_REGEX = build_regex(CR_CONTEXT_TERMS)
 CR_STRICT_CONTEXT_REGEX = build_regex(CR_STRICT_TERMS)
 CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX = build_cr_regex()
 
-if __name__ == "__main__":
+
+def run_tests():
     test_cases = [
         ("credit default swap", MatchLevel.STRICT),
         ("credit default swap agreement", MatchLevel.STRICT),
