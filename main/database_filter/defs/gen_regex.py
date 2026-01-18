@@ -3,7 +3,7 @@ from typing import Tuple
 
 from defs.derivatives_core import ALL_BASE_TYPES, ALL_SUFFIXES, SPECIAL_BASE, UNAMBIGUOUS_BASE_TYPES
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS
+from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import STD_TOKEN
 
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
@@ -134,9 +134,6 @@ DERIVATIVE_STDS = [
 ]
 RISK_MANAGEMENT_TERMS = [
     r"to\s+hedge",
-    r"mitigat(?:e|es|ed|ing)",
-    r"protect(?:s|ed|ing)?",
-    r"manage(?:s|d|ing)?",
     r"exposures?",
     r"exposed\s+to",
     r"risk\s+management",
@@ -146,8 +143,7 @@ RISK_MANAGEMENT_TERMS = [
     rf"(?:market|rate|currency|credit|equity|price)[ -]{_RISK_ALTERNATION}",
     r"fluctuations?",  # e.g., "protect against fluctuations"
     r"volatility",  # e.g., "manage volatility"
-    r"stabiliz(?:e|es|ed|ing)",
-    r"to\s+(?:limit|control|reduce|offset)",
+    build_risk_managment_phrase(),
 ]
 
 # Generic hedging context (required for generic matches)

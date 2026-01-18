@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import re
+from typing import List, Optional
 from defs.regex_lib import build_alternation, build_regex
 
 _DEBT_TERMS = r"(?:debts?|loans?|borrowings?|bonds?|senior notes?|notes?|debentures?)"
@@ -217,6 +218,70 @@ VALUATION_MODELS = [
     r"option[- ]pricing\s+models?",
 ]
 VALUATION_MODELS_REGEX = build_regex(VALUATION_MODELS)
+
+MITIGATION_VERBS = [
+    r"mitigat(?:e|es|ed|ing)",
+    r"offset(?:s|ting)?",
+    r"hedg(?:e|es|ed|ing)",
+    r"manag(?:e|es|ed|ing)",
+    r"reduc(?:e|es|ed|ing)",
+    r"limit(?:s|ed|ing)?",
+    r"control(?:s|led|ling)?",
+    r"minimiz(?:e|es|ed|ing)",
+    r"neutraliz(?:e|es|ed|ing)",
+    r"protect(?:s|ed|ing)?",
+    r"stabiliz(?:e|es|ed|ing)",
+]
+
+RISK_GLUE_TERMS = [
+    "rising",
+    "falling",
+    "fluctuating",
+    "volatile",
+    "economic",
+    "economy",
+    "inflation(?:ary)?"
+    "volatility",
+    "pressure",
+    "upward",
+    "downward",
+    "market",
+    "credit",
+    "interest",
+    "rates?",
+    "currenc(?:y|ies)",
+    "foreign",
+    "exchanges?",
+    "prices?",
+    "costs?",
+    "value",
+    "cash",
+    "flows?",
+    "potential",
+    "future",
+    "adverse",
+    "movements?",
+    "changes?",
+    "fluctuations?",
+    "exposures?",
+    "hypothetical",
+    "risks?",
+    "against",
+    "from",
+    "management",
+]
+
+def build_risk_managment_phrase(additional_glue: Optional[List[str]] = None) -> str:
+    verbs = build_alternation(MITIGATION_VERBS)
+    glue_list = RISK_GLUE_TERMS.copy()
+    if additional_glue:
+        glue_list.extend(additional_glue)
+    glue = build_alternation(glue_list)
+    filler = r"(?:\S+\s+){0,2}"
+    glue_unit = rf"(?:{filler}{glue})"
+    gap_chain = rf"(?:{glue_unit}\s+){{0,6}}"
+    final_filler = r"(?:\S+\s+){0,3}"
+    return rf"{verbs}\s+{gap_chain}{final_filler}{_RISK_ALTERNATION}"
 
 # --- MONTHS (for date boilerplate) ---
 MONTHS_TERMS = [

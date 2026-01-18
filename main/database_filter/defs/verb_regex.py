@@ -6,7 +6,7 @@ from typing import List, Tuple
 from defs.gen_regex import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS
+from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS, MITIGATION_VERBS
 
 # Speculative / Uncertain Timing Phrases
 SPECULATIVE_PHRASES = [
@@ -168,14 +168,6 @@ ALL_VERBS = list(
 
 INTENT_VERB_PATTERN = build_alternation(ALL_VERBS)
 VERB_REGEX = build_regex(VERB_MAP["POSS"] + VERB_MAP["PRU"] + VERB_MAP["ACT"])
-
-MITIGATION_VERBS = [
-    r"mitigat(?:e|es|ed|ing)",
-    r"offset(?:s|ting)?",
-    r"hedg(?:e|es|ed|ing)",
-    r"manag(?:e|es|ed|ing)",
-    r"reduc(?:e|es|ed|ing)",
-]
 
 def build_potential_regex() -> re.Pattern:
     """
