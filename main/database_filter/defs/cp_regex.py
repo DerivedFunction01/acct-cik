@@ -375,7 +375,11 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # -------------------------------------------------------------------------
 
     # Fragment used for general pattern combination: Includes all derivative terminology.
-    soft_instrument_fragment = expand_instruments(unsafe=True)
+    soft_instrument_fragment = expand_instruments(
+        unsafe=True,
+        exclude_standalone_suffixes=True,
+        additional_standalone_suffixes=["contracts?"],
+    )
 
     # Soft pattern combines simple prefixes ('commodity', 'CP') with the full range of instrument terms.
     soft_pattern = build_smart_regex(
@@ -417,6 +421,16 @@ if __name__ == "__main__":
         ("corn futures", MatchLevel.STRICT),
         ("commodity hedges", MatchLevel.SOFT),
         ("oil hedging", MatchLevel.SOFT),
+        ("commodity arrangement", MatchLevel.LOOSE),
+        ("commodity options", MatchLevel.SOFT),
     ]
-    from defs.derivatives_core import run_category_tests
+    from defs.derivatives_core import run_category_tests, run_category_tests_counter
     run_category_tests(test_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
+
+    counter_cases = [
+        ("commodity arrangement", MatchLevel.SOFT),
+        ("commodity contracts", MatchLevel.STRICT),
+        ("crude oil option", MatchLevel.STRICT),
+        ("natural gas", MatchLevel.STRICT),
+    ]
+    run_category_tests_counter(counter_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
