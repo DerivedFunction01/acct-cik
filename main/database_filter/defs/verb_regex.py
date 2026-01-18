@@ -18,10 +18,24 @@ SPECULATIVE_PHRASES = [
     r"when\s+(?:chosen|choosed)",
 ]
 
+POTENTIAL_SUFFIX_ADVERBS = [
+    r"occasionally",
+    r"selectively",
+    r"typically",
+    r"generally",
+    r"routinely",
+    r"customarily",
+    r"regularly",
+    r"normally",
+    r"often",
+    r"frequently",
+    r"sometimes",
+    r"rarely",
+]
+
 # Potential / Hypothetical Modals & Phrases
 POTENTIAL_INDICATORS = [
     r"may",
-    r"occasionally",
     r"might",
     r"(?:may|might)\s+consider",
     r"could",
@@ -32,18 +46,9 @@ POTENTIAL_INDICATORS = [
     r"plan(?:s|ned)?\s+to",
     r"if",
     r"whether",
-    r"selectively",
-    r"typically",
-    r"generally",
-    r"routinely",
-    r"customarily",
-    r"regularly",
-    r"normally",
-    r"often",
-    r"frequently",
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
     r"expect(?:s|ed)?\s+to(?![- ]continue)",
-]
+] + POTENTIAL_SUFFIX_ADVERBS
 
 # Add this alongside your other lists
 NEGATIVE_CONTRACTIONS = [
@@ -152,7 +157,7 @@ VERB_MAP = {
         r"designat(?:e|es|ed|ing)",
         r"chose(?:\s+to)",
         r"choos(?:e|es|ing)(?:\s+to)",
-        r"hedge",
+        r"hedg(?:e|es|ed|ing)\s+(?:with|using|by)",
         r"retain(?:s|ed|ing)?",
     ],
 }
@@ -168,11 +173,22 @@ def build_potential_regex() -> re.Pattern:
     """
     Matches: "may enter", "might use", "expect to hedge"
     Relaxed middle group catches: "may [occasionally] use", "may [typically] enter"
+    Also matches suffix adverbs: "use ... rarely", "enter ... occasionally"
     """
-    return re.compile(
+    prefix = (
         rf"\b{build_alternation(POTENTIAL_INDICATORS)}[, ]"
         r"(?:\w+\s+){0,4}"
-        rf"(?:, )?({INTENT_VERB_PATTERN})\b",
+        rf"(?:, )?({INTENT_VERB_PATTERN})\b"
+    )
+    
+    suffix = (
+        rf"\b({INTENT_VERB_PATTERN})\s+"
+        r"(?:\w+\s+){0,8}"
+        rf"{build_alternation(POTENTIAL_SUFFIX_ADVERBS)}\b"
+    )
+
+    return re.compile(
+        rf"(?:{prefix}|{suffix})",
         re.IGNORECASE,
     )
 
