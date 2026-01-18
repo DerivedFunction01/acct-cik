@@ -216,33 +216,25 @@ def build_currency_patterns() -> List[str]:
     return terms
 
 
-def build_fx_context_terms_advanced() -> List[str]:
+def build_fx_context_terms_advanced() -> Tuple[List[str], List[str]]:
     """Generate comprehensive FX context terms combining currency-specific and generic patterns."""
 
     # 1. Get patterns dynamically generated from Currency objects
     currency_specific_terms = build_currency_patterns()
 
     # 2. Define static generic FX terms
-    generic_fx_terms = [
-        r"translations?",  # Be careful, "translation of documents" exists, but usually accounting
-        r"foreign\s+(?:currenc(?:y|ies)|exchanges?|operations?|subsidiar(?:y|ies)|sales?|revenues?)",
-        # 1. Operations & Accounting
-        r"(?:functional|reporting|local|foreign)\s+currenc(?:y|ies)",
-        r"remeasurements?",
-        r"(?:currency|foreign)\s+exchanges?",
-        r"exchange\s+rates?",
-        r"translation\s+adjustments?",
+    strict_fx_terms = [
         rf"exchange\s+rate\s+{_RISK_ALTERNATION}",
-        r"foreign\s+interest\s+rates?",
         rf"foreign\s+interest[- ]rate\s+{_RISK_ALTERNATION}",
-        r"currenc(?:y|ies)\s+exchange\s+rates?",
         rf"currenc(?:y|ies)\s+{_RISK_ALTERNATION}",
-        # 2. Transactional Context
+        rf"foreign\s+(?:currency|exchange)\s+{_RISK_ALTERNATION}",
+        rf"currency\s+{_RISK_ALTERNATION}",
+        # Transactional Context
         r"cross[- ]border",
         r"repatriation",
         r"intercompany",  # Strong signal for FX swaps
         r"denominated\s+in",
-        # 3. Specific FX Instruments Keywords
+        # Specific FX Instruments Keywords
         r"spot\s+rate",
         r"non[- ]deliverable",
         rf"foreign\s+{_DEBT_TERMS}",
@@ -251,25 +243,30 @@ def build_fx_context_terms_advanced() -> List[str]:
         rf"(?:[a-z]+[- ])?denominated\s+{_DEBT_TERMS}",
         # 2. Catch "Debt denominated in..." (CRITICAL for preventing IR false positives)
         rf"{_DEBT_TERMS}\s+denominated\s+(?:in|by)",
+        r"cross[- ]currency",
+        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
+        r"net\s+investment\s+hedges?",
     ]
 
-    return currency_specific_terms + generic_fx_terms
-FX_STRICT_TERMS = [
-    rf"foreign\s+(?:currency|exchange)\s+{_RISK_ALTERNATION}",
-    rf"currency\s+{_RISK_ALTERNATION}",
-    rf"foreign interest[- ]rates?\s+{_RISK_ALTERNATION}",
-    rf"foreign interest[- ]rates?",
-    r"functional\s+currenc(?:y|ies)",
-    r"remeasurement\s+(?:gain|loss)",
-    r"foreign\s+operations?",
-    r"denominated\s+in",
-    r"cross[- ]currency",
-    r"(?:forward|foreign|currency)\s+exchanges?",
-    r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
-    r"net\s+investment\s+hedges?",
-] + build_currency_patterns()  # Specific currency names are strict context
+    soft_fx_terms = [
+        r"translations?",  # Be careful, "translation of documents" exists, but usually accounting
+        r"foreign\s+(?:currenc(?:y|ies)|exchanges?|operations?|subsidiar(?:y|ies)|sales?|revenues?)",
+        # 1. Operations & Accounting
+        r"(?:functional|reporting|local|foreign)\s+currenc(?:y|ies)",
+        r"remeasurements?",
+        r"(?:currency|foreign)\s+exchanges?",
+        r"exchange\s+rates?",
+        r"translation\s+adjustments?",
+        r"foreign\s+interest\s+rates?",
+        r"currenc(?:y|ies)\s+exchange\s+rates?",
+        r"remeasurement\s+(?:gain|loss)",
+        r"(?:forward|foreign|currency)\s+exchanges?",
+    ] + currency_specific_terms
 
-FX_CONTEXT_TERMS = build_fx_context_terms_advanced()
+    return strict_fx_terms, soft_fx_terms
+
+FX_STRICT_TERMS, FX_SOFT_TERMS = build_fx_context_terms_advanced()
+FX_CONTEXT_TERMS = FX_STRICT_TERMS + FX_SOFT_TERMS
 FX_CONTEXT_REGEX = build_regex(FX_CONTEXT_TERMS)
 FX_STRICT_CONTEXT_REGEX = build_regex(FX_STRICT_TERMS)
 FX_REGEX, FX_SOFT_REGEX = build_fx_regex()
