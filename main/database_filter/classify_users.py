@@ -322,7 +322,7 @@ def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
     """
     instruments = defaultdict(set)
 
-    for cat, (strict_inst, soft_inst, _, _) in CATEGORY_MAP.items():
+    for cat, (strict_inst, soft_inst, _, _, _) in CATEGORY_MAP.items():
         # Try strict instrument first (higher confidence)
         if strict_inst:
             for match in strict_inst.finditer(sentence):
@@ -702,12 +702,12 @@ def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
     # ═══════════════════════════════════════════════════════════
     # We check Strict Instruments (Index 0) and Strict Context (Index 2)
 
-    for cat, (strict_inst, soft_inst, strict_ctx, _) in CATEGORY_MAP.items():
+    for cat, (strict_inst, soft_inst, strict_ctx, _, weak_inst) in CATEGORY_MAP.items():
         # A. Strict Instrument ("Interest Rate Swap")
         if strict_inst and strict_inst.search(text):
             scores[cat] += 1000
-        elif soft_inst and soft_inst.search(text):
-            scores[cat] += 250
+        elif soft_inst and soft_inst.search(text): # Interest rate cap
+            scores[cat] += 500
 
         # B. Strict Context ("Interest Rate Risk")
         if strict_ctx and strict_ctx.search(text):
@@ -716,6 +716,8 @@ def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
                 scores["warr"] += 6000  # Immediate override
             else:
                 scores[cat] += 2000
+        if weak_inst and weak_inst.search(text): # Interest rate agreement
+            scores[cat] += 200
                 
 
     # ═══════════════════════════════════════════════════════════
