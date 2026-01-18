@@ -1,3 +1,4 @@
+# Very old file; out of date and not used
 from collections import defaultdict
 from dataclasses import dataclass
 import re
