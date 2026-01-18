@@ -34,7 +34,7 @@ SPECIAL_BASE = [
     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
 ]
 UNAMBIGUOUS_BASE_TYPES = [
-    "swaps?",
+    r"swaps?(?![- ]rates?)",
     rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
     "collars?",
     "derivatives?",
