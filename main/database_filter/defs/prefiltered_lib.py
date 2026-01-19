@@ -532,6 +532,7 @@ class NoiseReason(Reason):
     ZERO = "ZERO"  # Quantitative Zero
     TRANSACT = "TRANSACT" # Temporary: may not be noise
     IMM = "IMMATERIAL" # The amounts were immaterial
+    PLAN = "PLAN"  # Pension Plans or Hedge Funds
 
     # --- Paragraph Level ---
     HIST_BLOCK = "HIST_BLOCK" # The entire block was discard as history (legacy/unused)
@@ -539,7 +540,6 @@ class NoiseReason(Reason):
     FILING = "FILING"  # 10-K Headers
     FORWARD = "FORWARD"  # Safe Harbor / Forward Looking
     LEGAL = "LEGAL"  # Litigation
-    PLAN = "PLAN"  # Pension Plans or Hedge Funds
     NON_FIN = "NON_FIN"  # Non-Financial (Plasma, Chemical)
     EQ_COMP = "EQ_COMP"  # Equity
     COMP = "COMPETE"  # Competitors
@@ -748,8 +748,21 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.REF,  # "See Note 5"
     NoiseReason.TRADING,  # "We do not trade"
     NoiseReason.PNL,  # An unrealized gain
-    NoiseReason.TRANSACT, # Entered into a derivative in the past
-    NoiseReason.IMM
+    NoiseReason.TRANSACT,  # Entered into a derivative in the past
+    NoiseReason.IMM,
+    NoiseReason.BANKRUPTCY,
+    NoiseReason.CREDIT,
+    NoiseReason.NON_DERIV,
+    NoiseReason.STL_MECH,
+    NoiseReason.FLR_CAP,
+    NoiseReason.CTX,
+    NoiseReason.DEBT,
+    NoiseReason.RISK,
+    NoiseReason.NPNS,
+    NoiseReason.REG,
+    NoiseReason.HYP_SCORE,
+    NoiseReason.CONTRACT,
+    NoiseReason.COMP,
 }
 
 
