@@ -130,7 +130,7 @@ class GlobalInstrumentTracker:
                 if token not in self.STOPLIST:
                     self.instrument_map[token].add(category)
 
-    def resolve_instrument(self, sentence: str) -> Optional[str]:
+    def resolve_instrument(self, sentence: str, context_scores: Optional[Dict[str, int]] = None) -> Optional[str]:
         """Returns category if sentence contains unambiguous known instrument."""
         matches = BASE_REGEX.findall(sentence)
         sentence_lower = sentence.lower()
@@ -146,8 +146,18 @@ class GlobalInstrumentTracker:
             if token in self.instrument_map:
                 candidates.update(self.instrument_map[token])
 
+        if not candidates:
+            return None
+
         if len(candidates) == 1:
             return list(candidates)[0]
+
+        # Disambiguate using context scores if available
+        if context_scores:
+            # Find candidate with highest context score
+            best_cat = max(candidates, key=lambda c: context_scores.get(c, 0))
+            if context_scores.get(best_cat, 0) > 0:
+                return best_cat
 
         return None
 
@@ -367,11 +377,11 @@ def extract_instrument_evidence(
         resolved = None
         # 1. Local Tracker
         if local_tracker:
-            resolved = local_tracker.resolve_instrument(sentence)
+            resolved = local_tracker.resolve_instrument(sentence, context_scores)
 
         # 2. Global Tracker
         if not resolved and global_tracker:
-            resolved = global_tracker.resolve_instrument(sentence)
+            resolved = global_tracker.resolve_instrument(sentence, context_scores)
 
         # 3a. Accumulated Context (if exactly one)
         if not resolved and accumulated_cats and len(accumulated_cats) == 1:
@@ -997,11 +1007,11 @@ def process_row(row: Tuple) -> Tuple:
             # -------------------------------------------------------------
             # C. Tracker Resolution (Token Matching)
             # -------------------------------------------------------------
-            tracker_cat = local_tracker.resolve_instrument(clean_sent)
+            tracker_cat = local_tracker.resolve_instrument(clean_sent, context_scores)
 
             # Priority 2: Check Global Context (If Local failed/was empty)
             if not tracker_cat:
-                tracker_cat = tracker.resolve_instrument(clean_sent)
+                tracker_cat = tracker.resolve_instrument(clean_sent, context_scores)
 
             if tracker_cat:
                 soft_counts[tracker_cat] += 1
