@@ -506,8 +506,7 @@ class NoiseReason(Reason):
     NPNS = "NPNS"  # Normal Purchases / Sales
     FLR_CAP = "FLR_CAP"  # Non derivative interest rate caps and floors on debt
     CTX = "CONTEXT" # Context text
-    DEBT = "DEBT"
-    OTHER = "OTHER"  # Has derivative mention but no Evidence -> Other
+    DEBT = "DEBT" # All about debt
     RISK = "RISK" # Risk management text
     NON_DERIV = "NON_DERIV" # Non-derivative accounting
     STL_MECH = "STL_MECH" # Settlement mechanics
