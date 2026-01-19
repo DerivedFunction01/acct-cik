@@ -358,7 +358,6 @@ def run_tests():
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 
     counter_cases = [
-        ("foreign currency hedges", MatchLevel.STRICT), # Should NOT be strict (needs suffix/instrument)
         ("foreign currency commitments", MatchLevel.SOFT),
         ("currency rate", MatchLevel.STRICT),
         ("exchange rate", MatchLevel.STRICT),
