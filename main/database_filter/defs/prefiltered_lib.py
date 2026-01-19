@@ -665,7 +665,7 @@ STRONG_EVIDENCE = {
     EvidenceReason.MAT_FUT,  # "Matures in 2026"
     EvidenceReason.NVY,  # "Notional was $100M at Dec 31, 2024"
     EvidenceReason.FVY,  # "Fair Value was $5M at Dec 31, 2024"
-    EvidenceReason.VY  # "Value was $5M at Dec 31, 2024"
+    EvidenceReason.VY  # "We hold $5M of swaps at Dec 31, 2024"
 }
 
 # TIER 1.5: FLOW EVIDENCE (Conditional Strong)
