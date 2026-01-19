@@ -437,12 +437,11 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
         if not reason:
-            temp_sent = RISK_MANAGEMENT_REGEX.sub("", masked)
             if not (
-                PRECISE_LOOSE_GEN_REGEX.search(temp_sent)
-                or SOFT_REGEX.search(temp_sent)
-                or is_sophisticated_target(temp_sent)
-                or is_value(temp_sent)  # allow "The notional value is XX to bypass"
+                PRECISE_LOOSE_GEN_REGEX.search(masked)
+                or is_sophisticated_target(masked)
+                or SOFT_REGEX.search(masked)
+                or is_value(masked)  # allow "The notional value is XX to bypass"
             ):
                 if is_hypothetical_noise(masked, threshold=2):
                     reason = NoiseReason.HYP_SCORE
@@ -452,6 +451,8 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                     reason = NoiseReason.CREDIT
                 elif RISK_MANAGEMENT_REGEX.search(masked):
                     reason = NoiseReason.RISK
+                elif AOCI_NOISE_REGEX.search(masked):
+                    reason = NoiseReason.AOCI
                 else:
                     reason = NoiseReason.CTX
 
@@ -479,15 +480,15 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                 reason = NoiseReason.TRADING
             elif is_gen_hedge_doc(masked):
                 reason = NoiseReason.DOC
-            
+
             # 1. Strict Termination (Anchored) - High Confidence
             if not reason:
                 reason = get_termination_noise_reason(masked, reporting_year=reporting_year)
-            
+
             # 2. PnL (Gains/Losses) (no gain on swaps)
             if not reason and is_pnl(masked):
                 reason = NoiseReason.PNL
-                
+
             if not reason:
                 # 4. Absence (e.g., "We do not hold..."), (no swaps oustanding)
                 reason = get_intent_noise_reason(masked)
@@ -496,7 +497,6 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
             if not reason:
                 reason = get_loose_termination_reason(masked, reporting_year=reporting_year)
 
-            
         # --- TIER 3: STRUCTURAL NOISE (The "Format" Tags) ---
         # Only check these if we didn't find a strong Evidence signal above.
         if not reason:
@@ -527,7 +527,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         if not reason:
             # Check 0/nil
             reason = get_quantitative_noise_reason(masked, reporting_year)
-            
+
         # --- CONSTRUCTION ---
         if reason:
             reasons.add(reason)
