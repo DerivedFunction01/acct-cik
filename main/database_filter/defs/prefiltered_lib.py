@@ -749,7 +749,6 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.PNL,  # An unrealized gain
     NoiseReason.TRANSACT,  # Entered into a derivative in the past
     NoiseReason.IMM,
-    NoiseReason.BANKRUPTCY,
     NoiseReason.CREDIT,
     NoiseReason.NON_DERIV,
     NoiseReason.STL_MECH,
@@ -761,7 +760,6 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.REG,
     NoiseReason.HYP_SCORE,
     NoiseReason.CONTRACT,
-    NoiseReason.COMP,
 }
 
 
