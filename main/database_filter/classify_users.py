@@ -184,69 +184,6 @@ def has_unambiguous_evidence(sentence: str) -> bool:
     return bool(evidence_tags.intersection(UNAMBIGUOUS_EVIDENCE))
 
 
-def extract_categories_strict(sentence: str) -> Set[str]:
-    """Extract STRICT category matches only."""
-    cats = set()
-
-    if IR_REGEX.search(sentence):
-        cats.add("ir")
-    if FX_REGEX.search(sentence):
-        cats.add("fx")
-    if CP_REGEX.search(sentence):
-        cats.add("cp")
-    if CR_REGEX.search(sentence):
-        cats.add("cr")
-    if is_sophisticated_target(sentence):
-        cats.add("warr")
-    elif EQ_REGEX.search(sentence):
-        cats.add("eq")
-    if not cats and TABLE_ANCHOR in sentence:
-        if CURRENCY_NAMES_REGEX.search(sentence):
-            cats.add("fx")
-        if FX_SOFT_REGEX.search(sentence):
-            cats.add("fx")
-        if IR_SOFT_REGEX.search(sentence):
-            cats.add("ir")
-        if CP_SOFT_REGEX.search(sentence):
-            cats.add("cp")
-        if CR_SOFT_REGEX.search(sentence):
-            cats.add("cr")
-        if is_sophisticated_target(sentence):
-            cats.add("warr")
-        elif EQ_SOFT_REGEX.search(sentence):
-            cats.add("eq")
-        if not cats:
-            cats.add("gen")
-    return cats
-
-
-def extract_categories_soft(sentence: str) -> Set[str]:
-    """Extract SOFT category matches only."""
-    cats = set()
-    if IR_SOFT_REGEX.search(sentence):
-        cats.add("ir")
-    if FX_SOFT_REGEX.search(sentence):
-        cats.add("fx")
-    if CP_SOFT_REGEX.search(sentence):
-        cats.add("cp")
-    if CR_SOFT_REGEX.search(sentence):
-        cats.add("cr")
-    if is_sophisticated_target(sentence):
-        cats.add("warr")
-    elif EQ_SOFT_REGEX.search(sentence):
-        cats.add("eq")
-
-    if not cats:
-        if GEN_REGEX.search(sentence) or GEN_STRICT_CONTEXT_REGEX.search(sentence):
-            cats.add("gen")
-        elif PRECISE_LOOSE_GEN_REGEX.search(sentence) and HEDGING_CONTEXT_REGEX.search(
-            sentence
-        ):
-            cats.add("gen")
-
-    return cats
-
-
 def detect_currency(text: str) -> str:
     """
     Detect currency code from text using CURRENCY_CODE_MAP and CURRENCY_SYMBOL_MAP.
@@ -771,14 +708,28 @@ def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
     return final_scores
 
 
-def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]]) -> None:
+def derive_strict_categories(scores: Dict[str, int], text: str) -> Set[str]:
+    """Derive strict categories from scores and text checks, updating scores for 'warr'."""
+    strict_cats = {c for c, s in scores.items() if s >= 2000}
+    if is_sophisticated_target(text):
+        strict_cats.add("warr")
+        scores["warr"] = max(scores.get("warr", 0), 2000)
+    return strict_cats
+
+
+def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]], is_nst: bool = True) -> None:
     """Helper to salvage instruments from deadweight text if hedging context exists."""
     if find_hedging_context(text):
-        strict_salvage_cats = extract_categories_strict(text)
+        clean_text = _cleaner.clean(text, is_nst=is_nst)
+        clean_text = _cleaner.clean_gen_hedges(clean_text)
+        scores = get_text_categories(clean_text, is_nst=is_nst)
+        strict_salvage_cats = derive_strict_categories(scores, clean_text)
+
         if strict_salvage_cats:
-            instrument_keywords = extract_instrument_keywords(text)
+            instrument_keywords = extract_instrument_keywords(clean_text)
             for cat, keywords in instrument_keywords.items():
-                valid_instruments[cat].update(keywords)
+                if cat in strict_salvage_cats:
+                    valid_instruments[cat].update(keywords)
 
 
 def register_trackers(
@@ -888,7 +839,7 @@ def process_row(row: Tuple) -> Tuple:
         # Even if this paragraph is tagged as noise, if it contains strict instrument mentions
         # with hedging context, we still want to record those instruments as known.
         if is_para_deadweight:
-            salvage_instruments(para_content, valid_instruments)
+            salvage_instruments(para_content, valid_instruments, is_nst=effective_nst)
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
@@ -917,20 +868,35 @@ def process_row(row: Tuple) -> Tuple:
             # --- SENTENCE-LEVEL INSTRUMENT SALVAGE ---
             # Even if sentence is deadweight, capture instruments if it has strict matches + hedging context
             if is_sent_deadweight:
-                salvage_instruments(sent_content, valid_instruments)
+                salvage_instruments(sent_content, valid_instruments, is_nst=effective_nst)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             clean_sent = _cleaner.clean(sent_content_no_evidence, effective_nst)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
 
-            # Update accumulated contexts with specific categories found in this sentence
-            _temp_strict = extract_categories_strict(clean_sent)
-            _temp_soft = extract_categories_soft(clean_sent)
-            accumulated_cats.update({c for c in _temp_strict | _temp_soft if c not in ("gen", "other")})
+            sent_scores = get_text_categories(clean_sent, is_nst=effective_nst)
+
+            # Derive Strict Categories (Score >= 2000)
+            strict_cats = derive_strict_categories(sent_scores, clean_sent)
+
+            # Table Anchor Fallback (Promote soft matches if in table)
+            if not strict_cats and TABLE_ANCHOR in clean_sent:
+                strict_cats.update({c for c, s in sent_scores.items() if s >= 500})
+                if CURRENCY_NAMES_REGEX.search(clean_sent):
+                    strict_cats.add("fx")
+
+            # Derive Soft Categories
+            soft_cats = set(sent_scores.keys())
+            if not soft_cats:
+                if GEN_REGEX.search(clean_sent) or GEN_STRICT_CONTEXT_REGEX.search(clean_sent):
+                    soft_cats.add("gen")
+                elif PRECISE_LOOSE_GEN_REGEX.search(clean_sent) and HEDGING_CONTEXT_REGEX.search(clean_sent):
+                    soft_cats.add("gen")
+
+            accumulated_cats.update({c for c in soft_cats if c not in ("gen", "other")})
 
             # -------------------------------------------------------------
             # A. Check Strict Matches (Gate 1 - Modified)
             # -------------------------------------------------------------
-            strict_cats = _temp_strict
 
             if strict_cats:
                 # 1. Always learn Definitions from Strict matches (e.g. Headers)
@@ -969,14 +935,12 @@ def process_row(row: Tuple) -> Tuple:
             # B. Check Unambiguous Promotion (Soft -> Strict via Strong Evidence)
             # -------------------------------------------------------------
             if has_unambiguous_evidence(sent_content):
-                promoted_cats = _temp_soft.copy()
-                promoted_cats.update(_temp_strict)
-                if promoted_cats:
-                    register_trackers(clean_sent, promoted_cats, tracker, local_tracker)
+                if soft_cats:
+                    register_trackers(clean_sent, soft_cats, tracker, local_tracker)
                     process_confirmed_evidence(
                         sent_content,
                         clean_sent,
-                        promoted_cats,
+                        soft_cats,
                         year,
                         local_tracker,
                         tracker,
@@ -994,9 +958,6 @@ def process_row(row: Tuple) -> Tuple:
             # NEW: Explicit Soft Extraction (Catching fall-through Strict)
             # -------------------------------------------------------------
             # This catches "Interest Rate Swaps" (Strict) that fell through above.
-            soft_cats = _temp_soft
-            if strict_cats:
-                soft_cats.update(strict_cats)
 
             if soft_cats and soft_cats != {"gen"}:
                 register_trackers(clean_sent, soft_cats, tracker, local_tracker)
@@ -1020,7 +981,7 @@ def process_row(row: Tuple) -> Tuple:
             # D. Standard Soft Extraction with Local Resolution
             # -------------------------------------------------------------
             # (soft_cats already computed above, reused here if needed)
-            found_soft = soft_cats if soft_cats else _temp_soft
+            found_soft = soft_cats
 
             # If we found ONLY "gen" (e.g. "The instruments")
             # and we have valid local contexts, resolve to ALL of them.
