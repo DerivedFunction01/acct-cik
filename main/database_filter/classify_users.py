@@ -596,8 +596,8 @@ def aggregate_and_normalize(evidence_details: List[InstrumentDetail]) -> Tuple[D
 
 
 def remove_outlier_categories(
-    strict_counts: Dict[str, int],  # Changed from Set[str] to Dict[str, int]
-    soft_counts: Dict[str, int],
+    strict_counts: Dict[str, float],  # Changed from Set[str] to Dict[str, int]
+    soft_counts: Dict[str, float],
     threshold_pct: float = 0.25,
     min_mentions: int = 5,
 ) -> Set[str]:
@@ -767,8 +767,8 @@ def process_confirmed_evidence(
     context_scores: Dict[str, int],
     accumulated_cats: Set[str],
     strict_categories: Set[str],
-    strict_counts: Dict[str, int],
-    soft_counts: Dict[str, int],
+    strict_counts: Dict[str, float],
+    soft_counts: Dict[str, float],
     valid_instruments: Dict[str, Set[str]],
     evidence_details: List[InstrumentDetail],
     sent_scores: Optional[Dict[str, int]] = None,
@@ -798,7 +798,11 @@ def process_confirmed_evidence(
 
         for d in details:
             if d.category != cat:
-                soft_counts[d.category] += 1
+                if context_scores.get(d.category, 0) >= 2000:
+                    strict_counts[d.category] += 1
+                    strict_categories.add(d.category)
+                else:
+                    soft_counts[d.category] += 1
 
 
 # =============================================================================
@@ -814,8 +818,8 @@ def process_row(row: Tuple) -> Tuple:
 
     # Initialize
     strict_categories = set()
-    soft_counts = defaultdict(int)
-    strict_counts = defaultdict(int)
+    soft_counts = defaultdict(float)
+    strict_counts = defaultdict(float)
     valid_instruments = defaultdict(set)  # Track instrument keywords by category
     evidence_details: List[InstrumentDetail] = []  # Track detailed instrument evidence
     attributes: Dict[str, Any] = {
@@ -978,7 +982,10 @@ def process_row(row: Tuple) -> Tuple:
             if soft_cats and soft_cats != {"gen"}:
                 register_trackers(clean_sent, soft_cats, tracker, local_tracker)
                 for cat in soft_cats:
-                    soft_counts[cat] += 1
+                    if context_scores.get(cat, 0) >= 2000:
+                        soft_counts[cat] += 1.0
+                    else:
+                        soft_counts[cat] += 0.5
                 continue
 
             # -------------------------------------------------------------
@@ -991,7 +998,10 @@ def process_row(row: Tuple) -> Tuple:
                 tracker_cat = tracker.resolve_instrument(clean_sent, context_scores)
 
             if tracker_cat:
-                soft_counts[tracker_cat] += 1
+                if context_scores.get(tracker_cat, 0) >= 2000:
+                    soft_counts[tracker_cat] += 1.0
+                else:
+                    soft_counts[tracker_cat] += 0.5
                 continue
             # -------------------------------------------------------------
             # D. Standard Soft Extraction with Local Resolution
@@ -1005,13 +1015,16 @@ def process_row(row: Tuple) -> Tuple:
                 for ctx in local_contexts:
                     score = context_scores.get(ctx, 0)
                     if score >= 2000:
-                        strict_counts[ctx] += 1
+                        soft_counts[ctx] += 1.0
                         register_trackers(clean_sent, {ctx}, tracker, local_tracker)
                     else:
-                        soft_counts[ctx] += 1
+                        soft_counts[ctx] += 0.5
             else:
                 for cat in found_soft:
-                    soft_counts[cat] += 1
+                    if context_scores.get(cat, 0) >= 2000:
+                        soft_counts[cat] += 1.0
+                    else:
+                        soft_counts[cat] += 0.5
 
     # --- REMOVE OUTLIERS ---
     valid_soft_cats = remove_outlier_categories(
