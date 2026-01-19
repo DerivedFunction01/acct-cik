@@ -225,6 +225,9 @@ _DENIAL_MODIFIERS = [
     "financial",
     "trading",
     "proprietary",
+    "contracted",
+    "volume",
+    "price",
     "speculative",
 ]
 
