@@ -18,7 +18,7 @@ from typing import Optional
 
 GROUND_TRUTH_FILE = "data_check.csv"  # Ensure this file exists!
 PREDICTED_FILE = "analysis_output/classified_data_active_users.csv"
-COLUMNS_TO_VALIDATE = ["ir_user", "cp_user", "fx_user"]  # Can add "ir_user", "fx_user"
+COLUMNS_TO_VALIDATE = ["ir_user"]  # Can add "ir_user", "fx_user"
 
 # =============================================================================
 # 1. IDENTIFY MISMATCHES & RETRIEVE VALUES

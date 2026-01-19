@@ -75,7 +75,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     core_terms = (
         [
             "single[- ]currency",
-            "interest[- ]exchange"
+            "interest(?:[ -]rate)?[- ]exchange"
         ]
         + rate_adjective_phrases
         + brate_adjective_phrases
@@ -97,7 +97,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         expand_instruments(
             unsafe=False, 
             additional_bases=["protection"], 
-            additional_standalone_suffixes=["contracts?"]
+            additional_standalone_suffixes=["contracts?", "collars"]
         ),  # IR caps, locks, floors is not included without the word contract, etc
         specific_phrases,
     )
@@ -105,8 +105,9 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         core_terms,
         expand_instruments(
             unsafe=True,
+            exclude_standalone_suffixes=True,
             additional_bases=["protection"],
-            additional_standalone_suffixes=["contracts?"],
+            additional_standalone_suffixes=["contracts?", "caps", "floors", "locks"],
         ),  # IR caps, locks, floors
         specific_phrases,
     )
@@ -372,7 +373,8 @@ def run_tests():
         ("interest rate swap agreement", MatchLevel.STRICT),
         ("interest rate agreement", MatchLevel.LOOSE),
         ("swap agreement", MatchLevel.NONE),  # Should NOT match IR (no core)
-        ("floating rate cap", MatchLevel.SOFT),
+        ("floating rate cap", MatchLevel.LOOSE),
+        ("treasury rate locks", MatchLevel.SOFT),
         ("fixed rate swap", MatchLevel.STRICT),
         ("pay fixed receive floating swap", MatchLevel.STRICT),
         (
@@ -383,7 +385,7 @@ def run_tests():
         ("interest rate contract", MatchLevel.STRICT),
         ("interest rate hedges", MatchLevel.SOFT),
         ("floating rate hedge contract", MatchLevel.STRICT),
-        ("interest rate hedging", MatchLevel.SOFT),
+        ("interest rate hedging", MatchLevel.LOOSE),
     ]
     run_category_tests(test_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)
 

@@ -28,7 +28,7 @@ PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
 # Negative lookahead: forward NOT followed by physical keywords
 FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 SPECIAL_BASE = [
-    "(?:call|put|swap) (?:options?|contracts?)",
+    "(?:call|put|swap|cap) (?:options?|contracts?)",
     "(?:basis|variance|volatility|total[- ]return) swaps?",
     "swaptions?",
     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
@@ -134,9 +134,10 @@ def build_smart_regex(
 
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(ALL_BASE_TYPES, True)
+suffix_alternation = build_alternation(ALL_SUFFIXES, True)
+SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)"]
 BASE_REGEX = build_regex(ALL_BASE_TYPES)
 safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
-suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 standalone_alternation = build_alternation(UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
 unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 
