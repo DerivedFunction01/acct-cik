@@ -14,7 +14,7 @@ from defs.shared_context import (
     DEBT_TOKEN,
 )
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
-from defs.gen_regex import GEN_HEDGES
+from defs.gen_regex import GEN_HEDGES, NOTIONAL_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
@@ -1121,6 +1121,8 @@ HAD_CHANGE_REGEX = re.compile(
 )
 
 def is_pnl(text, context_only = True):
+    if NOTIONAL_REGEX.search(text):
+        return False
     if context_only:
         return bool(PNL_CONTEXT_REGEX.search(text))
     return bool(PNL_CONTEXT_REGEX2.search(text) or 
