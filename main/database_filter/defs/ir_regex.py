@@ -85,9 +85,8 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # CRITICAL: This pattern is prioritized for Max Munch
         aggressive_capture_pattern,
         "zero[- ]coupon swaps?",
-        "FRA",
         f"treasury locks?(?:[- ]{suffix_alternation})",
-        "treasury locks?",
+        "treasury locks",
         "overnight index swaps?",
     ]
 
@@ -117,7 +116,6 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
             unsafe=True,
             exclude_standalone_suffixes=False,
             additional_bases=["protection"],
-            additional_standalone_suffixes=["contracts?"],
         ),
         specific_phrases,
     )
@@ -383,17 +381,17 @@ def run_tests():
         ),  # Protection is not a standalone base in strict/soft
         ("interest rate protection agreement", MatchLevel.STRICT),
         ("interest rate contract", MatchLevel.STRICT),
-        ("interest rate hedges", MatchLevel.SOFT),
+        ("interest rate hedges", MatchLevel.LOOSE),
         ("floating rate hedge contract", MatchLevel.STRICT),
         ("interest rate hedging", MatchLevel.LOOSE),
     ]
     run_category_tests(test_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)
 
     counter_cases = [
-        ("interest rate cap", MatchLevel.STRICT),  # Should NOT be strict
-        ("treasury rate floor", MatchLevel.STRICT),
-        ("interest rate protection", MatchLevel.SOFT),
-        ("fixed rate agreement", MatchLevel.STRICT),
+        ("interest rate cap", MatchLevel.SOFT),  # Should NOT be strict
+        ("treasury rate floor", MatchLevel.SOFT),
+        ("interest rate protection", MatchLevel.LOOSE),
+        ("fixed rate agreement", MatchLevel.SOFT),
         ("floating rate arrangement", MatchLevel.SOFT),
     ]
     run_category_tests_counter(counter_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)

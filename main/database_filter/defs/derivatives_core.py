@@ -183,7 +183,7 @@ def expand_instruments(
             unsafe_standalone_alternation if unsafe else standalone_alternation
         )
     else:
-        base_standalone = base_alternation if unsafe else safe_base_alternation
+        base_standalone = safe_base_alternation
 
     # 4. Integrate Additional Standalone SUFFIXES
     extras = []

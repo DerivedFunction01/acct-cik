@@ -103,6 +103,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"(?:foreign|currency|forward|cross[- ]currency)\s+exchange\s+(?:rate\s+)?(?:agreements?|arrangements?|commitments?)",
         rf"exchange\s+rate\s+(?:agreements?|arrangements?|commitments?)",
         rf"(?<!single[- ])currency[- ](?:contracts?|options?|forwards?)",
+        rf"(?:foreign|forward|cross)[- ]currency\s+hedges",
     ]
 
     # -------------------------------------------------------------------------
@@ -342,8 +343,8 @@ def run_tests():
         ("forward foreign exchange contract", MatchLevel.STRICT),
         ("currency agreement", MatchLevel.LOOSE),
         ("foreign currency contract", MatchLevel.STRICT),
-        ("foreign currency hedges", MatchLevel.SOFT),
-        ("currency hedging", MatchLevel.SOFT),
+        ("foreign currency hedges", MatchLevel.STRICT),
+        ("currency hedging", MatchLevel.LOOSE),
         ("foreign currency option", MatchLevel.STRICT),
         ("currency option", MatchLevel.STRICT),
         ("currency exchange rate arrangement", MatchLevel.STRICT),
