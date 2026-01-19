@@ -46,6 +46,7 @@ POTENTIAL_INDICATORS = [
     r"plan(?:s|ned)?\s+to",
     r"if",
     r"whether",
+    r"limited", # limited use
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
     r"expect(?:s|ed)?\s+to(?![- ]continue)",
 ] + POTENTIAL_SUFFIX_ADVERBS
@@ -119,7 +120,7 @@ def build_negation_prefix_pattern() -> str:
     pattern_contract = rf"\b{build_alternation(NEGATIVE_CONTRACTIONS)}\b"
 
     # 3. Absolute (The new addition)
-    abs_neg = ["never", "neither"]
+    abs_neg = ["never", "neither", "nor"]
     pattern_absolute = rf"\b{build_alternation(abs_neg)}\b"
 
     # Combine: (did not | didn't | never)
@@ -371,7 +372,7 @@ def build_absence_regex() -> re.Pattern:
 
     Example Match: "No [such interest] (rate), [forward] (exchange), [or commodity] (contracts)"
     """
-    ABSENCE_INDICATORS = [r"no", r"none"]
+    ABSENCE_INDICATORS = [r"no", r"none", r"neither", r"nor"]
     # 1. Triggers
     triggers = build_alternation(ABSENCE_INDICATORS)
 
