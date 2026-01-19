@@ -21,12 +21,9 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     # UNSAFE STANDALONE: Require suffix
     unsafe_alone = [
         "swap",
-        "cap",
-        "floor",
         "collar",
         "hedge",
         "hedging",
-        "lock",  # plural form
         "futures",  # plural form
     ]
 
@@ -68,7 +65,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         # Derivative/Swap Balance Sheet Items
         "(?:derivative|swap) (?:liabilit(?:y|ies)|assets?)",
         # Explicit "Safe" Variants for Ambiguous Bases
-        "forward contracts?",
+        "(?:forward|cap|floor|collar|lock) contracts?",
         "forward agreements?",  # <-- NEW
         "option contracts?",  # <-- NEW
         "zero[- ]cost collars?",
