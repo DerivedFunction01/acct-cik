@@ -150,8 +150,6 @@ def check_derivative_global(text: str) -> bool:
     """Global check - returns True if text is a STRICT derivative mention."""
     return bool(
         STRICT_REGEX.search(text)
-        or IR_SOFT_REGEX.search(text)
-        or FX_SOFT_REGEX.search(text)
         or is_sophisticated_content(text)
     )
 
