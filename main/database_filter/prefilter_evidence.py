@@ -466,8 +466,19 @@ def should_mark_deadweight(
             # If we have exactly that one piece of higher level evidence we wish to invalidate
             if not evidence_tags.isdisjoint(IMMATERIAL_KILLED_EVIDENCE):
                 return True
-            
-            
+    
+    # Handle cases where all the evidence in the set is ambiguous 
+    if not evidence_tags.isdisjoint({
+        EvidenceReason.ASAIY,
+        EvidenceReason.MAT_AMB_FUT,
+        EvidenceReason.FVAIY,
+        EvidenceReason.ACT_AMB_YEAR,
+        EvidenceReason.ACT_AMB_GEN,
+        EvidenceReason.CONT_USE_AMB,
+        EvidenceReason.FVAINY,
+    }):
+        return True
+
     # 2. Handle Remaining No-Evidence Cases (Multi-sentence clean text)
     # If we are here, and tags are empty, it must be > 1 sentence.
     # We treat this as "Uncategorized Context" (Fluff). 
