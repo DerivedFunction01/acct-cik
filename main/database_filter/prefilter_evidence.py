@@ -9,7 +9,7 @@ from tqdm import tqdm
 from defs.verb_regex import ACCT_VERB_REGEX, POSS_VERB_REGEX, TERMINATION_ALL_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX, is_immaterial
 from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
-from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX
+from defs.gen_regex import NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
 from defs.shared_context import SETTLEMENT_MECHANICS_REGEX, VALUATION_MODELS_REGEX
 from defs.exclusion_regex import AOCI_NOISE_REGEX
@@ -151,6 +151,7 @@ def check_derivative_global(text: str) -> bool:
     return bool(
         STRICT_REGEX.search(text)
         or is_sophisticated_content(text)
+        or NOTIONAL_REGEX.search(text)
     )
 
 
