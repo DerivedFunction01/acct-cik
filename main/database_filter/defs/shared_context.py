@@ -231,7 +231,7 @@ MITIGATION_VERBS = [
     r"neutraliz(?:e|es|ed|ing)",
     r"protect(?:s|ed|ing)?",
     r"stabiliz(?:e|es|ed|ing)",
-    r"counter(?:act|acts|acted|acting)?",
+    r"counter(?:act)?(?:s|ed|ing)?",
     r"guard(?:s|ed|ing)?\s+(?:against)?",
     r"shield(?:s|ed|ing)?",
     r"safeguard(?:s|ed|ing)?",
@@ -244,8 +244,7 @@ MITIGATION_VERBS = [
     r"contain(?:s|ed|ing)?",
     r"address(?:es|ed|ing)?",
     r"respond(?:s|ed|ing)?\s+to",
-    r"deal(?:s|t|ing)?\s+with",
-    r"cope(?:s|d|ing)?\s+with",
+    r"to\s+(?:deal|cope)\s+with",
 ]
 
 GENERIC_RISK_GLUE = [
