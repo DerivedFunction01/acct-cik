@@ -1113,7 +1113,11 @@ HAD_CHANGE_REGEX = re.compile(
 def is_pnl(text, context_only = True):
     if context_only:
         return bool(PNL_CONTEXT_REGEX.search(text))
-    return bool(PNL_CONTEXT_REGEX2.search(text)) or bool(PNL_CONTEXT_REGEX.search(text))
+    return bool(PNL_CONTEXT_REGEX2.search(text) or 
+                PNL_CONTEXT_REGEX.search(text) or 
+                HAD_CHANGE_REGEX.search(text) or 
+                CHANGE_FV_REGEX.search(text))
+
 
 # =============================================================================
 # SOPHISTICATED CONTEXT DEFINITIONS
