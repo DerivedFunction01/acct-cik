@@ -259,17 +259,26 @@ def normalize_amount(text: str) -> Tuple[float, float, bool]:
     return base_value, 1.0, False
 
 
-def extract_instrument_keywords(sentence: str) -> Dict[str, Set[str]]:
+def extract_instrument_keywords(sentence: str, target_categories: Optional[Set[str]] = None) -> Dict[str, Set[str]]:
     """
     Extract actual matched instrument text from category regexes.
     Returns a dict mapping category -> set of matched instrument keywords.
     
     Only captures matches from the category regexes (strict_inst, soft_inst).
     Used ONLY for valid evidence cases to avoid noise.
+    
+    Args:
+        sentence: The text to scan.
+        target_categories: Optional set of categories to restrict scanning to.
     """
     instruments = defaultdict(set)
 
-    for cat, (strict_inst, soft_inst, _, _, _, _) in CATEGORY_MAP.items():
+    cats_to_scan = target_categories if target_categories is not None else CATEGORY_MAP.keys()
+
+    for cat in cats_to_scan:
+        if cat not in CATEGORY_MAP:
+            continue
+        strict_inst, soft_inst, _, _, _, _ = CATEGORY_MAP[cat]
         # Try strict instrument first (higher confidence)
         if strict_inst:
             for match in strict_inst.finditer(sentence):
@@ -295,6 +304,7 @@ def extract_instrument_evidence(
     context_scores: Optional[Dict[str, int]] = None,
     accumulated_cats: Optional[Set[str]] = None,
     global_cats: Optional[Set[str]] = None,
+    sent_scores: Optional[Dict[str, int]] = None,
 ) -> List[InstrumentDetail]:
     """
     Links detected instruments with their quantitative data found in the same sentence.
@@ -312,23 +322,30 @@ def extract_instrument_evidence(
     # Resolve generic category if possible
     if target_category == "gen":
         resolved = None
-        # 1. Local Tracker
-        if local_tracker:
+        
+        # 1. Sentence Level (New)
+        if sent_scores:
+            specific_sent = {k: v for k, v in sent_scores.items() if k not in ("gen", "other")}
+            if specific_sent:
+                resolved = max(specific_sent, key=specific_sent.get) # type: ignore
+
+        # 2. Local Tracker
+        if not resolved and local_tracker:
             resolved = local_tracker.resolve_instrument(sentence, context_scores)
 
-        # 2. Global Tracker
-        if not resolved and global_tracker:
-            resolved = global_tracker.resolve_instrument(sentence, context_scores)
-
-        # 3a. Accumulated Context (if exactly one)
+        # 3. Accumulated Context (if exactly one)
         if not resolved and accumulated_cats and len(accumulated_cats) == 1:
             resolved = list(accumulated_cats)[0]
 
-        # 3b. Paragraph Context (Score based)
+        # 4. Paragraph Context (Score based)
         if not resolved and context_scores:
             resolved = max(context_scores, key=context_scores.get) # type: ignore
 
-        # 4. Global Context (if exactly one strict category exists globally)
+        # 5. Global Tracker
+        if not resolved and global_tracker:
+            resolved = global_tracker.resolve_instrument(sentence, context_scores)
+
+        # 6. Global Context (if exactly one strict category exists globally)
         if not resolved and global_cats and len(global_cats) == 1:
             resolved = list(global_cats)[0]
 
@@ -368,7 +385,7 @@ def extract_instrument_evidence(
     years, values = extract_values_and_years(sentence)
 
     # 3. Find ALL Instrument Names (using category-specific keywords first)
-    inst_keywords = extract_instrument_keywords(sentence)
+    inst_keywords = extract_instrument_keywords(sentence, target_categories={target_category})
     instrument_names = []
 
     if inst_keywords and target_category in inst_keywords:
@@ -726,7 +743,7 @@ def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]], is_ns
         strict_salvage_cats = derive_strict_categories(scores, clean_text)
 
         if strict_salvage_cats:
-            instrument_keywords = extract_instrument_keywords(clean_text)
+            instrument_keywords = extract_instrument_keywords(clean_text, target_categories=strict_salvage_cats)
             for cat, keywords in instrument_keywords.items():
                 if cat in strict_salvage_cats:
                     valid_instruments[cat].update(keywords)
@@ -758,10 +775,11 @@ def process_confirmed_evidence(
     soft_counts: Dict[str, int],
     valid_instruments: Dict[str, Set[str]],
     evidence_details: List[InstrumentDetail],
+    sent_scores: Optional[Dict[str, int]] = None,
 ) -> None:
     """Helper to process confirmed evidence (strict matches or promoted soft matches)."""
     # Capture instruments from valid evidence
-    instrument_keywords = extract_instrument_keywords(clean_sent)
+    instrument_keywords = extract_instrument_keywords(clean_sent, target_categories=categories)
     for kw_cat, keywords in instrument_keywords.items():
         valid_instruments[kw_cat].update(keywords)
 
@@ -778,12 +796,12 @@ def process_confirmed_evidence(
             context_scores=context_scores,
             accumulated_cats=accumulated_cats,
             global_cats=strict_categories,
+            sent_scores=sent_scores,
         )
         evidence_details.extend(details)
 
         for d in details:
             if d.category != cat:
-                strict_categories.add(d.category)
                 soft_counts[d.category] += 1
 
 
@@ -918,6 +936,7 @@ def process_row(row: Tuple) -> Tuple:
                         soft_counts,
                         valid_instruments,
                         evidence_details,
+                        sent_scores=sent_scores,
                     )
                     continue  # Done. We trust this sentence.
 
@@ -951,6 +970,7 @@ def process_row(row: Tuple) -> Tuple:
                         soft_counts,
                         valid_instruments,
                         evidence_details,
+                        sent_scores=sent_scores,
                     )
                     continue
 
