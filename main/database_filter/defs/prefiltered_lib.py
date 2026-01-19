@@ -1033,6 +1033,10 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
         # A. Unambiguous Gains/Losses (Stand-alone)
         # Matches: "resulted in a gain", "recognized a loss"
         r"(?:had|have|has|recognized|recorded|resulted\s+in)(?:\W+\w+){0,3}\s+(?:gain|loss(?:es)?)",
+        # D. "Auxiliary" Impact (Had ... Impact ON Target)
+        # Matches: "had a material impact on earnings", "has no effect on results"
+        # Logic: Had/Have + (optional words) + Noun + Prep + Target
+        rf"(?:had|have|has)(?:\W+\w+){{0,3}}\s+{impact_nouns}\s+{preps}\s+{pnl_targets}",
     ]
 
     pnl_terms2 = [
@@ -1044,10 +1048,7 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
         # Matches: "increased interest expense", "reducing net income"
         # Logic: Verb + (optional 3 words) + Target
         rf"{change_verbs}(?:\W+\w+){{0,3}}\s+{pnl_targets}",
-        # D. "Auxiliary" Impact (Had ... Impact ON Target)
-        # Matches: "had a material impact on earnings", "has no effect on results"
-        # Logic: Had/Have + (optional words) + Noun + Prep + Target
-        rf"(?:had|have|has)(?:\W+\w+){{0,3}}\s+{impact_nouns}\s+{preps}\s+{pnl_targets}",
+        
     ]
 
     return build_regex(pnl_terms), build_regex(pnl_terms2)
