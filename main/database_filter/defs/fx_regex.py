@@ -60,8 +60,8 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Precise prefixes (e.g., 'forward foreign currency')
     strict_core_terms = [
         rf"(?:{fx_dynamic_pattern})",
-        r"cross[- ]currency\s+interest\s+rate",
-        r"cross[- ]currency\s+interest",
+        r"(?:cross[- ])?currency\s+interest\s+rate",
+        r"(?:cross[- ])?currency\s+interest",
         r"exchange\s+rate",
     ]
     # Broad prefixes (e.g., 'currency', 'fx')

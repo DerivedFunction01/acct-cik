@@ -345,7 +345,7 @@ def extract_instrument_evidence(
     reporting_year: int,
     local_tracker: Optional[GlobalInstrumentTracker] = None,
     global_tracker: Optional[GlobalInstrumentTracker] = None,
-    context_cats: Optional[Set[str]] = None,
+    context_scores: Optional[Dict[str, int]] = None,
     accumulated_cats: Optional[Set[str]] = None,
     global_cats: Optional[Set[str]] = None,
 ) -> List[InstrumentDetail]:
@@ -377,9 +377,9 @@ def extract_instrument_evidence(
         if not resolved and accumulated_cats and len(accumulated_cats) == 1:
             resolved = list(accumulated_cats)[0]
 
-        # 3b. Paragraph Context (if exactly one)
-        if not resolved and context_cats and len(context_cats) == 1:
-            resolved = list(context_cats)[0]
+        # 3b. Paragraph Context (Score based)
+        if not resolved and context_scores:
+            resolved = max(context_scores, key=context_scores.get) # type: ignore
 
         # 4. Global Context (if exactly one strict category exists globally)
         if not resolved and global_cats and len(global_cats) == 1:
@@ -790,7 +790,7 @@ def process_confirmed_evidence(
     year: int,
     local_tracker: GlobalInstrumentTracker,
     global_tracker: GlobalInstrumentTracker,
-    local_contexts: Set[str],
+    context_scores: Dict[str, int],
     accumulated_cats: Set[str],
     strict_categories: Set[str],
     strict_counts: Dict[str, int],
@@ -814,7 +814,7 @@ def process_confirmed_evidence(
             year,
             local_tracker=local_tracker,
             global_tracker=global_tracker,
-            context_cats=local_contexts,
+            context_scores=context_scores,
             accumulated_cats=accumulated_cats,
             global_cats=strict_categories,
         )
@@ -935,7 +935,7 @@ def process_row(row: Tuple) -> Tuple:
                         year,
                         local_tracker,
                         tracker,
-                        local_contexts,
+                        context_scores,
                         accumulated_cats,
                         strict_categories,
                         strict_counts,
@@ -970,7 +970,7 @@ def process_row(row: Tuple) -> Tuple:
                         year,
                         local_tracker,
                         tracker,
-                        local_contexts,
+                        context_scores,
                         accumulated_cats,
                         strict_categories,
                         strict_counts,
