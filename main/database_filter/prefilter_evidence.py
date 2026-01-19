@@ -467,7 +467,7 @@ def should_mark_deadweight(
             if not evidence_tags.isdisjoint(IMMATERIAL_KILLED_EVIDENCE):
                 return True
     
-    # Handle cases where all the evidence in the set is ambiguous 
+    # Handle cases where all the evidence in the set is ambiguous (derivative global is false)
     if not evidence_tags.isdisjoint({
         EvidenceReason.ASAIY,
         EvidenceReason.MAT_AMB_FUT,
