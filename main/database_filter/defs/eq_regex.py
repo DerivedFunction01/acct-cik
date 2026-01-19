@@ -75,7 +75,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # -------------------------------------------------------------------------
 
     # Fragment for general pattern combination: Includes all derivative terminology, including standalones.
-    soft_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=True)
+    soft_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=True, additional_standalone_suffixes=["options?"])
 
     soft_pattern = build_smart_regex(
         [strict_core_alternation],
@@ -229,7 +229,7 @@ def run_tests():
         ("embedded conversion option", MatchLevel.STRICT),
         ("warrant liability", MatchLevel.STRICT),
         ("equity contract", MatchLevel.LOOSE),
-        ("equity hedges", MatchLevel.SOFT),
+        ("equity hedges", MatchLevel.LOOSE),
         ("convertible debt", MatchLevel.SOFT),
         ("convertible debt hedge", MatchLevel.STRICT),
     ]

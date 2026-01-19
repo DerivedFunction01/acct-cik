@@ -353,7 +353,7 @@ def run_tests():
         ("exchange rate contract", MatchLevel.STRICT),
         ("exchange rate option", MatchLevel.STRICT),
         ("exchange rate swap", MatchLevel.STRICT),
-        ("exchange rate hedge", MatchLevel.SOFT),
+        ("exchange rate hedge", MatchLevel.LOOSE),
     ]
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 

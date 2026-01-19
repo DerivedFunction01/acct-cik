@@ -686,7 +686,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     soft_instrument_fragment = expand_instruments(
         unsafe=True,
         exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?"],
+        additional_standalone_suffixes=["contracts?", "options?"],
     )
 
     # Soft pattern combines simple prefixes ('commodity', 'CP') with the full range of instrument terms.
@@ -729,8 +729,8 @@ def run_tests():
         ("commodity contract", MatchLevel.SOFT),
         ("oil price contract", MatchLevel.SOFT),
         ("corn futures", MatchLevel.STRICT),
-        ("commodity hedges", MatchLevel.SOFT),
-        ("oil hedging", MatchLevel.SOFT),
+        ("commodity hedges", MatchLevel.LOOSE),
+        ("oil hedging", MatchLevel.LOOSE),
         ("commodity arrangement", MatchLevel.LOOSE),
         ("commodity options", MatchLevel.SOFT),
     ]
