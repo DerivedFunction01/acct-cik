@@ -11,11 +11,7 @@ from typing import Any, Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
-from defs.ir_regex import IR_REGEX, IR_SOFT_REGEX
-from defs.fx_regex import FX_REGEX, FX_SOFT_REGEX
-from defs.cp_regex import CP_REGEX, CP_SOFT_REGEX, TRADING_VENUE_REGEX
-from defs.cr_regex import CR_REGEX, CR_SOFT_REGEX
-from defs.eq_regex import EQ_REGEX, EQ_SOFT_REGEX
+from defs.cp_regex import TRADING_VENUE_REGEX
 from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, PRECISE_LOOSE_GEN_REGEX
 from defs.derivative_lib import CATEGORY_MAP, find_hedging_context
 from defs.derivatives_core import BASE_REGEX, PRECISE_BASE_REGEX
