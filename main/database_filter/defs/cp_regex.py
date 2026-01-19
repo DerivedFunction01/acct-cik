@@ -549,7 +549,7 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
         ],
         "metals": [
             "mining", "mines?", "ores?", "smelt(?:ing|er)?", "refin(?:ing|ery|ed)",
-            "grades?", "bullion",
+            "bullion",
         ],
         "forestry": [
             "logging", "mills?", "pulp", "paper",
