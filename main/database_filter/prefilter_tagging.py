@@ -445,7 +445,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
             ):
                 if is_hypothetical_noise(masked, threshold=2):
                     reason = NoiseReason.HYP_SCORE
-                elif is_pnl(masked, context_only=True): # PNL is tricky
+                elif is_pnl(masked, context_only=False): # PNL is tricky
                     reason = NoiseReason.PNL
                 elif COUNTERPARTY_REGEX.search(masked):
                     reason = NoiseReason.CREDIT
