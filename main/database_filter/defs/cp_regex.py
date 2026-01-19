@@ -653,11 +653,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     specific_phrases = [
         r"weather derivatives?",  # raw string for regex
         r"power purchase agreements?",  # raw string for regex
-        # LONGEST FIRST: spreads with suffix (uses standalone_alternation for bases/suffixes)
-        rf"(?:{spread_types_alternation})\s+spreads?\s+(?:{standalone_alternation})",
-        # SHORTER: spreads alone
-        rf"(?:{spread_types_alternation})\s+spreads?",
-        r"fixed[- ]price(?:[ -]purchase) swaps?",
     ]
 
     # Pre-sort longest-first for Max Munch precedence
