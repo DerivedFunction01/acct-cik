@@ -1002,7 +1002,7 @@ HEDGE_DOC_TERMS = [
 
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS, use_sep=False)
 
-def pnl_regex() -> re.Pattern:
+def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
     # 1. The Financial Targets (The "What")
     # Captures: "net income", "interest expense", "2024 earnings", "revenues"
     # Structure handles optional prefixes: "the", "net", "2024", "interest"
@@ -1033,6 +1033,9 @@ def pnl_regex() -> re.Pattern:
         # A. Unambiguous Gains/Losses (Stand-alone)
         # Matches: "resulted in a gain", "recognized a loss"
         r"(?:had|have|has|recognized|recorded|resulted\s+in)(?:\W+\w+){0,3}\s+(?:gain|loss(?:es)?)",
+    ]
+
+    pnl_terms2 = [
         # B. "Noun" Impact (Impact/Effect ON Target)
         # Matches: "impact on net income", "increase in 2024 earnings"
         # Logic: Noun + Prep + Target
@@ -1047,10 +1050,10 @@ def pnl_regex() -> re.Pattern:
         rf"(?:had|have|has)(?:\W+\w+){{0,3}}\s+{impact_nouns}\s+{preps}\s+{pnl_targets}",
     ]
 
-    return build_regex(pnl_terms)
+    return build_regex(pnl_terms), build_regex(pnl_terms2)
 
 
-PNL_CONTEXT_REGEX = pnl_regex()
+PNL_CONTEXT_REGEX, PNL_CONTEXT_REGEX2 = pnl_regex()
 
 _prep_pattern = build_alternation([r"in", r"of", r"on"])
 CHANGE_FV_REGEX = build_regex(
@@ -1109,7 +1112,7 @@ HAD_CHANGE_REGEX = re.compile(
 def is_pnl(text, context_only = True):
     if context_only:
         return bool(PNL_CONTEXT_REGEX.search(text))
-    return bool(HAD_CHANGE_REGEX.search(text)) or bool(PNL_CONTEXT_REGEX.search(text))
+    return bool(PNL_CONTEXT_REGEX2.search(text)) or bool(PNL_CONTEXT_REGEX.search(text))
 
 # =============================================================================
 # SOPHISTICATED CONTEXT DEFINITIONS
