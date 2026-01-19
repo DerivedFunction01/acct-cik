@@ -532,6 +532,7 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
             # Terms
             "baseload", "peak load", "off-peak", "on-peak", "capacity",
             "power generation", "power assets", "fuel", "energy", "power",
+            "(?:dark|crack|spark) spreads?"
         ],
         "crops": [
             "crops?", "harvest(?:s|ing)?", "yields?", "acreage", "plant(?:ing|ed)",
