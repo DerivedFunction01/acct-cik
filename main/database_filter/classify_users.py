@@ -920,30 +920,6 @@ def process_row(row: Tuple) -> Tuple:
                 # 1. Always learn Definitions from Strict matches (e.g. Headers)
                 register_trackers(clean_sent, strict_cats, tracker, local_tracker)
 
-                # 2. If Verified Evidence exists, Lock it in as an ANCHOR.
-                if is_active and evidence_tags_found:
-                    process_confirmed_evidence(
-                        sent_content,
-                        clean_sent,
-                        strict_cats,
-                        year,
-                        local_tracker,
-                        tracker,
-                        context_scores,
-                        accumulated_cats,
-                        strict_categories,
-                        strict_counts,
-                        soft_counts,
-                        valid_instruments,
-                        evidence_details,
-                        sent_scores=sent_scores,
-                    )
-                    continue  # Done. We trust this sentence.
-
-                # 3. If NO Evidence, fall through!
-                # We do NOT increment strict_counts. This demotes the strict match
-                # to a "Soft Candidate" which must pass the frequency threshold (3+).
-
             # -------------------------------------------------------------
             # Active Check (Gatekeeper for Soft Logic)
             # -------------------------------------------------------------
@@ -954,12 +930,18 @@ def process_row(row: Tuple) -> Tuple:
             # B. Check Unambiguous Promotion (Soft -> Strict via Strong Evidence)
             # -------------------------------------------------------------
             if has_unambiguous_evidence(sent_content):
-                if soft_cats:
-                    register_trackers(clean_sent, soft_cats, tracker, local_tracker)
+                # Prioritize strict categories if available; otherwise promote soft categories
+                target_cats = strict_cats if strict_cats else soft_cats
+
+                if target_cats:
+                    # If promoting soft categories, register them now (strict already registered)
+                    if not strict_cats:
+                        register_trackers(clean_sent, target_cats, tracker, local_tracker)
+
                     process_confirmed_evidence(
                         sent_content,
                         clean_sent,
-                        soft_cats,
+                        target_cats,
                         year,
                         local_tracker,
                         tracker,
