@@ -82,6 +82,8 @@ UNAMBIGUOUS_EVIDENCE = {
 
 # Evidence that overrides Global Exclusions (Safeguard)
 # If these tags are present, we ignore "No Hedge" or "Potential" blocks for this sentence.
+# This ensures that confirmed quantitative amounts (or explicit active states) are not invalidated 
+# by broad exclusions found elsewhere in the document.
 SAFEGUARD_EVIDENCE = {
     EvidenceReason.AS_YEAR.value,
     EvidenceReason.MAT_FUT.value,
@@ -218,7 +220,8 @@ class GlobalExclusionTracker:
             elif not commodities:
                 self.excluded_categories.add("cp")
 
-        # Check NEG logic (Specific Instrument Negation)
+        # Check NEG logic (Specific Instrument Negation) - The "Exclusion Killers"
+        # These signals create a global presumption of non-use for the mentioned instruments.
         if reason in (NoiseReason.NEG.value, NoiseReason.POT.value, NoiseReason.TERM.value, NoiseReason.ZERO.value):
             for cat, (strict_inst, soft_inst, _, _, weak_inst, _) in CATEGORY_MAP.items():
                 # Check all instrument patterns to capture what is being negated
