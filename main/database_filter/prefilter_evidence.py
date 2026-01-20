@@ -21,8 +21,6 @@ from defs.gen_regex import NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
 from defs.shared_context import SETTLEMENT_MECHANICS_REGEX, VALUATION_MODELS_REGEX
 from defs.exclusion_regex import AOCI_NOISE_REGEX
-from defs.cp_regex import CP_SOFT_REGEX
-from defs.eq_regex import EQ_SOFT_REGEX
 from table_processor import TABLE_ANCHOR
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.prefiltered_lib import (
