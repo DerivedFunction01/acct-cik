@@ -151,7 +151,7 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
     output_folder.mkdir(exist_ok=True)
 
     if csv_path is None:
-        csv_path = db.stem + "_active_users.csv"
+        csv_path = db.stem + ".csv"
 
     final_output_path = output_folder / csv_path
     temp_output_path = output_folder / "temp_raw_extraction.csv"
