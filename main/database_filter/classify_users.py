@@ -609,6 +609,7 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
     TAG_MAP = {
         # --- NOISE (Identity Signals) ---
         NoiseReason.NO_TRADING.value: "is_hedger",
+        NoiseReason.TRADING.value: "is_explicit_trader",
         NoiseReason.DOC.value: "documents_hedge_accounting",
         NoiseReason.AOCI.value: "has_aoci_activity",
         NoiseReason.CREDIT.value: "manages_credit_risk",
@@ -1067,7 +1068,7 @@ def process_row(row: Tuple) -> Tuple:
         "has_aoci_activity": False,
         "manages_credit_risk": False,
         "is_historical": False,
-        "is_trader": False,
+        "is_explicit_trader": False,
     }
     mentions_venue = False
     tracker = GlobalInstrumentTracker()
