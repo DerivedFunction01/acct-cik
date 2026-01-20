@@ -760,10 +760,9 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                 temp_text = re.sub(r"[,;]|\b(?:and|or)\b", " ", text, flags=re.IGNORECASE)
                 
                 # 2. Remove glue from other categories
-                for other_cat, glue_patterns in GLUE_MAP.items():
+                for other_cat, glue_regex in GLUE_MAP.items():
                     if other_cat == cat:
                         continue
-                    glue_regex = re.compile(r"\b(?:" + "|".join(glue_patterns) + r")\b", re.IGNORECASE)
                     temp_text = glue_regex.sub(" ", temp_text)
                 
                 # 3. Normalize spaces and check strict_inst
