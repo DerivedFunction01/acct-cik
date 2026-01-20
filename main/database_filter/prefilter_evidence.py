@@ -237,9 +237,14 @@ def check_quantitative_evidence(
     if not has_relevant_year and has_active_context:
         has_relevant_year = True
 
+    # Determine if we should treat this as a Flow (Transaction/Usage) or Stock (Possession)
+    # Usage verbs ("trade", "use") should be treated as Flow so they can be killed by Termination/Negation.
+    # Possession verbs ("hold", "maintain") remain Stock (Strong).
+    is_flow = verbs.has_transaction or verbs.has_usage_verb or force_transaction_context
+
     # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
     if is_notional:
-        if not verbs.has_transaction and not force_transaction_context:
+        if not is_flow:
             return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
         else:
             return EvidenceReason.ACT_NV_YEAR if has_relevant_year else EvidenceReason.NVNY
@@ -258,7 +263,7 @@ def check_quantitative_evidence(
         # 3. VALID EVIDENCE
         # Upgrade to Strict Evidence if we have a specific soft mention (e.g. "interest rate agreement")
         if is_strict_derivative or verbs.is_specific:
-            if not verbs.has_transaction and not force_transaction_context:
+            if not is_flow:
                 return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
             else:
                 return EvidenceReason.ACT_FV_YEAR if has_relevant_year else EvidenceReason.FVNY
@@ -271,7 +276,7 @@ def check_quantitative_evidence(
         # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
         # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
         if verbs.is_specific:
-            if not verbs.has_transaction and not force_transaction_context:
+            if not is_flow:
                 return (
                     EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
                 )
