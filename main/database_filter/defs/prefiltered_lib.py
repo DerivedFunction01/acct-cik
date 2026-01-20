@@ -92,6 +92,9 @@ class MinimalTextCleaner:
 
     maturity_regex = None
 
+    newline = re.compile(r"\n{3,}")
+    space = re.compile(r"[ \t]+")
+
     other_regexes = []
     def __init__(self):
         # 2. Define Removal Patterns (applied to masked text)
@@ -291,8 +294,8 @@ class MinimalTextCleaner:
 
     def normalize_whitespace(self, text: str) -> str:
         """Collapse multiple spaces and newlines."""
-        text = re.sub(r"[ \t]+", " ", text)
-        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = self.space.sub(" ", text)
+        text = self.newline.sub("\n\n", text)
         return text.strip()
 
     def clean_for_quant_analysis(self, text: str, remove_years: bool = False) -> str:
@@ -349,6 +352,11 @@ class MinimalTextCleaner:
 
         text = DEBT_FV_REGEX.sub(safe_debt_fv_sub, text)
 
+        text = self.normalize_whitespace(text)
+        return text
+
+    def clean_soph_targets(self, text: str) -> str:
+        text = self.soph_pattern.sub(" ", text)
         text = self.normalize_whitespace(text)
         return text
 

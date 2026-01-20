@@ -761,6 +761,11 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
     
     # Check for conjunctions for chained instrument logic
     has_conjunction = bool(CONJ.search(text))
+
+    # Special Handling for Equity -> Warrants (Moved to top)
+    if is_sophisticated_content(text) and not is_nst:
+        scores["warr"] += 6000
+        text = _cleaner.clean_soph_targets(text)
     
     def check_exclusion(cat, text_match, match_type):
         if exclusion_tracker:
@@ -784,7 +789,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
             if not matches and has_conjunction:
                 # Attempt to reconstruct chained instruments
                 # 1. Remove conjunctions and commas
-                temp_text = FULL_CONJ.sub(text, " ")
+                temp_text = FULL_CONJ.sub(" ", text)
                 
                 # 2. Remove glue from other categories
                 for other_cat, glue_regex in GLUE_MAP.items():
@@ -793,7 +798,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                     temp_text = glue_regex.sub(" ", temp_text)
                 
                 # 3. Normalize spaces and check strict_inst
-                temp_text = WHITESPACE.sub(temp_text, " ").strip()
+                temp_text = WHITESPACE.sub(" ", temp_text).strip()
                 matches = list(strict_inst.finditer(temp_text))
             
             if matches:
@@ -856,12 +861,8 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
 
         # E. Strict Context ("Interest Rate Risk")
         elif strict_ctx and strict_ctx.search(text):
-            # Special Handling for Equity -> Warrants
-            if cat == "eq" and is_sophisticated_content(text) and not is_nst:
-                scores["warr"] += 6000  # Immediate override
-            else:
-                is_excl, _ = check_exclusion(cat, "", "strict")
-                ctx_score = max(ctx_score, 60 if is_excl else 800)
+            is_excl, _ = check_exclusion(cat, "", "strict")
+            ctx_score = max(ctx_score, 60 if is_excl else 800)
         
         scores[cat] += ctx_score
 
