@@ -527,8 +527,13 @@ def debt_fv_regex() -> re.Pattern:
 
     # 3. Pattern Construction
     # Matches: "fair value of debt", "change in the fair value of our facility"
-    pattern = rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_DEBT_TERMS}|facility)\b"
-
+    # Also matches: secured debt/facility (no gap)
+    patterns = [
+        rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_DEBT_TERMS}|facility)\b",
+        rf"secured\s+(?:{_DEBT_TERMS}|facility)\b"
+        
+    ]
+    pattern = build_alternation(patterns)
     return re.compile(pattern, re.IGNORECASE)
 
 DEBT_TOKEN = " debt "

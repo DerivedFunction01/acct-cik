@@ -486,7 +486,6 @@ def extract_instrument_evidence(
 
     # 1. Determine Accounting Context from Evidence Tags (Primary)
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
-    val_type = "value"
 
 
     if evidence_tags.intersection(fv_tags):
