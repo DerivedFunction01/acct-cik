@@ -361,7 +361,7 @@ TRADING_NOT_AUTH_REGEX2 = re.compile(rf"\bnot\s+{build_alternation(_AUTH)}\b")
 # Direct Denial without needing an instrument (e.g. "We do not speculate")
 _NEG = build_negation_prefix_pattern()
 TRADING_DENIAL_SIMPLE = re.compile(
-    rf"\b(?:{_NEG}|no|not)\s+(?:\w+\s+){{0,3}}(?:for\s+)?(?:{_TRADING_CORE_ALT})\b", re.IGNORECASE
+    rf"\b(?:{_NEG}|no|not|never|neither)\s+(?:\w+\s+){{0,3}}(?:for\s+)?(?:{_TRADING_CORE_ALT})\b", re.IGNORECASE
 )
 
 
