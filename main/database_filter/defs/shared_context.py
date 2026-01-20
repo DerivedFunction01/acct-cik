@@ -405,7 +405,7 @@ NUMBERS = [
 def build_number_alternation() -> str:
     # allow two numbers, first one optional
     numbers = build_alternation(NUMBERS, sort_longest_first=True)
-    pattern = rf"(?:(?:{numbers})?[- ]{numbers})"
+    pattern = rf"(?:(?:{numbers}[- ])?{numbers})"
     return pattern
 
 NUMBER_PATTERN = build_number_alternation()
