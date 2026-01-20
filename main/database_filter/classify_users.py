@@ -742,6 +742,9 @@ def remove_outlier_categories(
 
 
 PRIORITY_ORDER = ["fx", "cp", "eq", "cr", "ir"]
+CONJ = re.compile(r"\b(?:and|or)\b", re.IGNORECASE)
+FULL_CONJ = re.compile(r"[,;]|\b(?:and|or)\b", re.IGNORECASE)
+WHITESPACE = re.compile(r"\s+", re.IGNORECASE)
 def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> Dict[str, int]:
     """
     Determines category using Weighted Scoring and Map Iteration.
@@ -757,7 +760,12 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
     sent_count = len(SENTENCE_SPLIT_PATTERN.split(text))
     
     # Check for conjunctions for chained instrument logic
-    has_conjunction = bool(re.search(r"\b(?:and|or)\b", text, re.IGNORECASE))
+    has_conjunction = bool(CONJ.search(text))
+    
+    def check_exclusion(cat, text_match, match_type):
+        if exclusion_tracker:
+            return exclusion_tracker.is_excluded(cat, text_match, match_type)
+        return False, False
 
     # ═══════════════════════════════════════════════════════════
     # PHASE 1: STRICT SIGNALS (Non-Destructive)
@@ -765,6 +773,9 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
     # We check Strict Instruments (Index 0) and Strict Context (Index 2)
 
     for cat, (strict_inst, soft_inst, strict_ctx, _, weak_inst, risk_mgmt) in CATEGORY_MAP.items():
+        cat_blocked = False
+        inst_score = 0
+
         # A. Strict Instrument ("Interest Rate Swap")
         if strict_inst:
             matches = list(strict_inst.finditer(text))
@@ -773,7 +784,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
             if not matches and has_conjunction:
                 # Attempt to reconstruct chained instruments
                 # 1. Remove conjunctions and commas
-                temp_text = re.sub(r"[,;]|\b(?:and|or)\b", " ", text, flags=re.IGNORECASE)
+                temp_text = FULL_CONJ.sub(text, " ")
                 
                 # 2. Remove glue from other categories
                 for other_cat, glue_regex in GLUE_MAP.items():
@@ -782,78 +793,77 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                     temp_text = glue_regex.sub(" ", temp_text)
                 
                 # 3. Normalize spaces and check strict_inst
-                temp_text = re.sub(r"\s+", " ", temp_text).strip()
+                temp_text = WHITESPACE.sub(temp_text, " ").strip()
                 matches = list(strict_inst.finditer(temp_text))
             
             if matches:
                 # Check exclusions for each match
-                valid_match_found = False
                 for m in matches:
-                    is_excl, is_block = False, False
-                    if exclusion_tracker:
-                        is_excl, is_block = exclusion_tracker.is_excluded(cat, m.group(0), match_type="strict")
+                    is_excl, is_block = check_exclusion(cat, m.group(0), "strict")
                     
                     if is_block:
                         scores['gen'] = -1
+                        cat_blocked = True
                         continue # Blocked completely (Score 0 contribution)
-                    elif is_excl:
-                        scores[cat] += 60 # Downgrade to soft count equivalent
-                    else:
-                        scores[cat] += 2000
-                        valid_match_found = True
-                
-                # If we found at least one valid strict match, ensure score reflects it
-                # (The += 2000 above handles it, but logic ensures mixed signals favor strict)
+                    
+                    score = 60 if is_excl else 2000
+                    inst_score = max(inst_score, score)
 
-        elif soft_inst and soft_inst.search(text): # Interest rate cap
-            match_text = soft_inst.search(text).group(0) # type: ignore
-            if notional_multiplier:
-                # Treat as strict, but check exclusion
-                is_excl, is_block = False, False
-                if exclusion_tracker:
-                    is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="soft")
+        # B. Soft Instrument (if no strict score yet)
+        if inst_score == 0 and not cat_blocked and soft_inst:
+            match = soft_inst.search(text)
+            if match:
+                match_text = match.group(0)
+                is_excl, is_block = check_exclusion(cat, match_text, "soft")
                 
                 if is_block:
                     scores['gen'] = -1
-                elif is_excl:
-                    scores[cat] += 60
+                    cat_blocked = True
                 else:
-                    scores[cat] += 2000
-            else:
-                is_excl, is_block = False, False
-                if exclusion_tracker:
-                    is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="soft")
-                
-                if is_block:
-                    scores['gen'] = -1
-                elif is_excl:
-                    scores[cat] += 15
-                else:
-                    scores[cat] += 500
-        elif weak_inst and weak_inst.search(text):  # Interest rate agreement
-            match_text = weak_inst.search(text).group(0) # type: ignore
-            is_excl, is_block = False, False
-            if exclusion_tracker:
-                is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="weak")
+                    base = 2000 if notional_multiplier else 500
+                    if is_excl:
+                        base = 60 if notional_multiplier else 15
+                    inst_score = max(inst_score, base)
+
+        # C. Weak Instrument (if no strict/soft score yet)
+        if inst_score == 0 and not cat_blocked and weak_inst:
+            match = weak_inst.search(text)
+            if match:
+                match_text = match.group(0)
+                is_excl, is_block = check_exclusion(cat, match_text, "weak")
             
-            if is_block:
-                scores['gen'] = -1
-            elif sent_count == 1 or notional_multiplier:
-                scores[cat] += 6000
-            else:
-                scores[cat] += 200
+                if is_block:
+                    scores['gen'] = -1
+                    cat_blocked = True
+                else:
+                    base = 200
+                    if sent_count == 1 or notional_multiplier:
+                        base = 6000
+                    if is_excl:
+                        base = 15
+                    inst_score = max(inst_score, base)
+        
+        scores[cat] += inst_score
 
-        # B. Risk Management ("Hedging of Interest Rate Risk")
+        if cat_blocked:
+            continue
+
+        # D. Risk Management ("Hedging of Interest Rate Risk")
+        ctx_score = 0
         if risk_mgmt and risk_mgmt.search(text):
-            scores[cat] += 2000
+            is_excl, _ = check_exclusion(cat, "", "strict")
+            ctx_score = max(ctx_score, 60 if is_excl else 2000)
 
-        # C. Strict Context ("Interest Rate Risk")
+        # E. Strict Context ("Interest Rate Risk")
         elif strict_ctx and strict_ctx.search(text):
             # Special Handling for Equity -> Warrants
             if cat == "eq" and is_sophisticated_content(text) and not is_nst:
                 scores["warr"] += 6000  # Immediate override
             else:
-                scores[cat] += 800
+                is_excl, _ = check_exclusion(cat, "", "strict")
+                ctx_score = max(ctx_score, 60 if is_excl else 800)
+        
+        scores[cat] += ctx_score
 
     # ═══════════════════════════════════════════════════════════
     # PHASE 2: SOFT CONTEXT (Priority Consumption)
