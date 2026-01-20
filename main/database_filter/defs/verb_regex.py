@@ -224,6 +224,7 @@ def build_potential_mitigation_regex() -> re.Pattern:
         r"(?:\w+\s+){0,15}"
         r"by\s+"
         rf"(?:{INTENT_VERB_PATTERN})\s+"
+        rf"{gap_chain}"
         rf"{_DENIAL_FILLER}"
         rf"{_DENIAL_TARGET}\b",
         re.IGNORECASE,
@@ -356,7 +357,8 @@ def build_strict_termination_regex() -> List[re.Pattern]:
     # "terminated [the] [interest rate] swap"
     pat_verb_target = (
         rf"\b{verbs}\s+"
-        rf"{gap_chain}" # Optional filler
+        rf"{gap_chain}"
+        rf"{_DENIAL_FILLER}"
         rf"{_DENIAL_TARGET}\b"
     )
 
