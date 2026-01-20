@@ -88,12 +88,12 @@ def build_energy_dynamic_pattern() -> str:
     base_alt = build_alternation(bases, sort_longest_first=True)
 
     # Optional prefix, optional modifier, required base, optional second base
-    return rf"""
-        (?:(?:{prefix_alt})[- ])?
-        (?:(?:{modifier_alt})[- ])?
-        (?:{base_alt})
-        (?:[- ](?:{base_alt}))?
-    """.strip()
+    return (
+        rf"(?:(?:{prefix_alt})[- ])?"
+        rf"(?:(?:{modifier_alt})[- ])?"
+        rf"(?:{base_alt})"
+        rf"(?:[- ](?:{base_alt}))?"
+    )
 
 
 def build_metals_dynamic_pattern() -> str:
@@ -163,12 +163,12 @@ def build_metals_dynamic_pattern() -> str:
     base_alt = build_alternation(bases, sort_longest_first=True)
 
     # prefix? modifier? base base?
-    return rf"""
-        (?:(?:{prefix_alt})[- ])?
-        (?:(?:{modifier_alt})[- ])?
-        (?:{base_alt})
-        (?:[- ](?:{base_alt}))?
-    """.strip()
+    return (
+        rf"(?:(?:{prefix_alt})[- ])?"
+        rf"(?:(?:{modifier_alt})[- ])?"
+        rf"(?:{base_alt})"
+        rf"(?:[- ](?:{base_alt}))?"
+    )
 
 
 COMMODITY_MAP = {
