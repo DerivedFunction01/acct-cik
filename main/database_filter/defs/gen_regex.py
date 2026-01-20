@@ -1,7 +1,7 @@
 import re
 from typing import Tuple
 
-from defs.derivatives_core import ALL_BASE_TYPES, ALL_SUFFIXES, SPECIAL_BASE, UNAMBIGUOUS_BASE_TYPES
+from defs.derivatives_core import ALL_BASE_TYPES, ALL_SUFFIXES, SPECIAL_BASE, UNAMBIGUOUS_BASE_TYPES, DOUBLE_BASE_REGEX
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import STD_TOKEN
@@ -56,6 +56,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     # Pattern 4: Special bases (complete phrases)
     pattern4 = special_bases_alt
 
+    pattern5 = DOUBLE_BASE_REGEX.pattern
+
     # Combine with specific phrases first (highest priority)
     specific_phrases = [
         "(?:cash[- ]flow|fair[- ]value|net[- ]investment) hedges?",
@@ -71,7 +73,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
     # FINAL: Specific phrases FIRST, then combined+suffix patterns, then standalone
-    instrument_pattern = rf"{specific_alt}|{pattern4}|{pattern1}|{pattern2}|{pattern3}"
+    instrument_pattern = rf"{specific_alt}|{pattern4}|{pattern5}|{pattern1}|{pattern2}|{pattern3}"
 
     INSTRUMENT_REGEX = re.compile(
         rf"\b(?P<instrument>{instrument_pattern})\b", re.IGNORECASE

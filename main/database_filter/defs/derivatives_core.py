@@ -135,7 +135,22 @@ def build_smart_regex(
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(ALL_BASE_TYPES, True)
 suffix_alternation = build_alternation(ALL_SUFFIXES, True)
-SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)"]
+
+
+def build_double_base_alternation() -> str:
+    """
+    Matches combinations of ambiguous bases which together strongly imply derivatives.
+    e.g. "caps and floors", "options and futures"
+    """
+    bases = build_alternation(AMBIGUOUS_BASE_TYPES, sort_longest_first=True)
+    sep = r"(?:\s+(?:and|or)\s+|[\s,]+)"
+    string = rf"(?:{bases}){sep}(?:{bases})"
+    return string
+
+
+double_base_alternation = build_double_base_alternation()
+DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
+SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?|{double_base_alternation})"]
 BASE_REGEX = build_regex(ALL_BASE_TYPES)
 safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
 standalone_alternation = build_alternation(UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
