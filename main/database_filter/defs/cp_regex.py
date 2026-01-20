@@ -52,7 +52,6 @@ def build_energy_dynamic_pattern() -> str:
         "propane",
         "power",
         "petroleum",
-        "liquids?",
         "diesel",
         "butane",
         "electricity",
@@ -81,6 +80,7 @@ def build_energy_dynamic_pattern() -> str:
         "solar",
         "wind",
         "renewable",
+        "liquid",
     ]
 
     prefix_alt = build_alternation(prefixes, sort_longest_first=True)
@@ -92,7 +92,7 @@ def build_energy_dynamic_pattern() -> str:
         rf"(?:(?:{prefix_alt})[- ])?"
         rf"(?:(?:{modifier_alt})[- ])?"
         rf"(?:{base_alt})"
-        rf"(?:[- ](?:{base_alt}))?"
+        rf"(?:[- ](?:{base_alt}|liquids?))?"
     )
 
 
