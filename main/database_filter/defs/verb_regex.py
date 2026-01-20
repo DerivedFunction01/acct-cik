@@ -2,11 +2,11 @@
 # VERB MAPS & PRECOMPILED REGEXES
 # =============================================================================
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from defs.gen_regex import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS, MITIGATION_VERBS
+from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS, MITIGATION_VERBS, GENERIC_RISK_GLUE, _RISK_ALTERNATION
 
 # Speculative / Uncertain Timing Phrases
 SPECULATIVE_PHRASES = [
@@ -478,6 +478,51 @@ def build_prior_statement_pattern_2() -> re.Pattern:
     return re.compile(rf"(?:{pat_compositional}|{pat_catchall})", re.IGNORECASE)
 
 
+def build_strict_do_not_mitigate_regex(required_glue: Optional[List[str]] = None) -> re.Pattern:
+    """
+    Matches: "do not hedge [risk]", "did not mitigate [exposure]"
+    Inspired by build_risk_managment_phrase but negated.
+    """
+    neg_prefix = build_negation_prefix_pattern()
+    mitigation_verbs = build_alternation(MITIGATION_VERBS)
+    
+    # Gap logic from build_risk_managment_phrase
+    glue = build_alternation(GENERIC_RISK_GLUE)
+    filler = r"(?:\S+\s+){0,3}"
+    
+    if required_glue:
+        req_alt = build_alternation(required_glue)
+        glue_unit = rf"(?:{filler}{glue})"
+        req_unit = rf"(?:{filler}{req_alt})"
+        pre_chain = rf"(?:{glue_unit}\s+){{0,3}}"
+        post_chain = rf"(?:{glue_unit}\s+){{0,3}}"
+        gap = rf"{pre_chain}{req_unit}\s+{post_chain}"
+    else:
+        glue_unit = rf"(?:{filler}{glue})"
+        gap = rf"(?:{glue_unit}\s+){{0,6}}"
+
+    final_filler = r"(?:\S+\s+){0,3}"
+    
+    # Allow adverbs between negation and verb
+    _pre_verb_gap = (
+        r"[, ]"  # Mandatory space or comma after "not"
+        r"(?:"
+        rf"{ACTIVE_PATTERN}\s+|"  # "currently "
+        r"\s*[^,]{1,50}\s*,\s+"  # ", as a routine matter, " (Greedy but bounded)
+        r")?"
+    )
+
+    return re.compile(
+        rf"{neg_prefix}"
+        rf"{_pre_verb_gap}"
+        rf"{mitigation_verbs}\s+"
+        rf"{gap}"
+        rf"{final_filler}"
+        rf"{_RISK_ALTERNATION}\b",
+        re.IGNORECASE
+    )
+
+
 # Export
 POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
 USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
@@ -493,6 +538,7 @@ POT_MITIGATION_REGEX = build_potential_mitigation_regex()
 VAGUE_TIMING_REGEX = build_vague_timing_regex()
 PRIOR_INDICATOR = build_prior_statement_pattern_2()
 IMMATERIAL_REGEX = build_immaterial_regexes()
+STRICT_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex()
 
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 TERMINATION_REGEX = build_regex(TERMINATION_VERBS)
@@ -685,6 +731,24 @@ def run_tests():
             STRICT_TERMINATION_REGEXES,
             "The foreign currency contracts has recently expired",
             True,
+        ),
+        (
+            "STRICT_DO_NOT_MITIGATE",
+            STRICT_DO_NOT_MITIGATE_REGEX,
+            "We do not hedge our exposure to foreign currency fluctuations",
+            True,
+        ),
+        (
+            "STRICT_DO_NOT_MITIGATE",
+            STRICT_DO_NOT_MITIGATE_REGEX,
+            "We do not currently mitigate interest rate risk",
+            True,
+        ),
+        (
+            "STRICT_DO_NOT_MITIGATE",
+            STRICT_DO_NOT_MITIGATE_REGEX,
+            "We do not hedge",
+            False,
         ),
     ]
 

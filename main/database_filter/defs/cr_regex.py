@@ -4,6 +4,7 @@ from typing import Tuple, List
 from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, build_risk_managment_phrase
+from defs.verb_regex import build_strict_do_not_mitigate_regex
 
 
 def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
@@ -135,6 +136,13 @@ CR_CONTEXT_REGEX = build_regex(CR_CONTEXT_TERMS)
 CR_STRICT_CONTEXT_REGEX = build_regex(CR_STRICT_TERMS + CR_RISK_TERMS)
 CR_RISK_REGEX = build_regex(CR_RISK_TERMS)
 CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX = build_cr_regex()
+CR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
+    [
+        r"credit",
+        r"counterparty",
+        r"default",
+    ]
+)
 
 
 def run_tests():

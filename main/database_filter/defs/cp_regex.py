@@ -12,6 +12,7 @@ from defs.shared_context import (
     _RISK_ALTERNATION,
     build_risk_managment_phrase,
 )
+from defs.verb_regex import build_strict_do_not_mitigate_regex
 
 # 3. COMMODITY (Strict)
 # Focus: Physical assets and specific commodity names
@@ -715,6 +716,7 @@ CP_CONTEXT_REGEX = build_regex(CP_CONTEXT_TERMS)
 CP_RISK_REGEX = build_regex(CP_RISK_TERMS)
 CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 TRADING_VENUE_REGEX = build_regex(TRADING_ENTITIES)
+CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES)
 
 
 def run_tests():

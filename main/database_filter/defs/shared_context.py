@@ -219,11 +219,14 @@ VALUATION_MODELS = [
 ]
 VALUATION_MODELS_REGEX = build_regex(VALUATION_MODELS)
 
-MITIGATION_VERBS = [
+MITIGATION_STRICT_VERBS = [
     r"mitigat(?:e|es|ed|ing)",
     r"offset(?:s|ting)?",
     r"hedg(?:e|es|ed|ing)",
     r"manag(?:e|es|ed|ing)",
+]
+
+MITIGATION_VERBS = MITIGATION_STRICT_VERBS + [
     r"reduc(?:e|es|ed|ing)",
     r"limit(?:s|ed|ing)?",
     r"control(?:s|led|ling)?",
@@ -306,8 +309,9 @@ GENERIC_RISK_GLUE = [
 
 def build_risk_managment_phrase(
     required_glue: Optional[List[str]] = None,
+    strict_verbs: bool = False,
 ) -> str:
-    verbs = build_alternation(MITIGATION_VERBS)
+    verbs = build_alternation(MITIGATION_STRICT_VERBS if strict_verbs else MITIGATION_VERBS)
     glue = build_alternation(GENERIC_RISK_GLUE)
     filler = r"(?:\S+\s+){0,3}"
     

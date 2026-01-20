@@ -4,6 +4,7 @@ from typing import Tuple, List
 from defs.derivatives_core import ALL_SUFFIXES, UNAMBIGUOUS_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_risk_managment_phrase
+from defs.verb_regex import build_strict_do_not_mitigate_regex
 
 BENCHMARK_RATES = [
     "SOFR",
@@ -363,6 +364,12 @@ IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS + IR_RISK_TERMS)
 IR_RISK_REGEX = build_regex(IR_RISK_TERMS)
 EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
+IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
+    [
+        r"(?<!foreign[- ])interest\s+rates?",
+        r"yield\s+curves?",
+    ] + BENCHMARK_RATES
+)
 
 
 def run_tests():
