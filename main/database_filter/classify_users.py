@@ -12,13 +12,19 @@ from typing import Any, Tuple, Dict, Set, Optional, List
 # --- IMPORTS ---
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from defs.cp_regex import TRADING_VENUE_REGEX
-from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, PRECISE_LOOSE_GEN_REGEX
+from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
 from defs.derivative_lib import CATEGORY_MAP, find_hedging_context
 from defs.derivatives_core import BASE_REGEX, PRECISE_BASE_REGEX
 from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
 from prefilter_tagging import extract_values_and_years
 from table_processor import TABLE_ANCHOR
 from defs.prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, convertible_ir, is_sophisticated_content, is_sophisticated_target
+from defs.ir_regex import IR_DO_NOT_MITIGATE_REGEX
+from defs.fx_regex import FX_DO_NOT_MITIGATE_REGEX
+from defs.cp_regex import CP_DO_NOT_MITIGATE_REGEX, COMMODITY_REGEX
+from defs.eq_regex import EQ_DO_NOT_MITIGATE_REGEX
+from defs.cr_regex import CR_DO_NOT_MITIGATE_REGEX
+from defs.verb_regex import STRICT_DO_NOT_MITIGATE_REGEX
 
 # =============================================================================
 # INSTRUMENT EVIDENCE STRUCTURES
@@ -157,6 +163,50 @@ class GlobalInstrumentTracker:
 
         return None
 
+class GlobalExclusionTracker:
+    """Tracks categories and commodities that the firm explicitly states it does NOT hedge."""
+    def __init__(self):
+        self.excluded_categories = set()
+        self.excluded_commodities = set()
+
+    def add_exclusion(self, text: str):
+        # Check categories
+        if IR_DO_NOT_MITIGATE_REGEX.search(text):
+            self.excluded_categories.add("ir")
+        if FX_DO_NOT_MITIGATE_REGEX.search(text):
+            self.excluded_categories.add("fx")
+        if EQ_DO_NOT_MITIGATE_REGEX.search(text):
+            self.excluded_categories.add("eq")
+        if CR_DO_NOT_MITIGATE_REGEX.search(text):
+            self.excluded_categories.add("cr")
+        
+        # Check CP and extract commodities
+        if CP_DO_NOT_MITIGATE_REGEX.search(text):
+            # If specific commodities are mentioned, exclude them
+            commodities = COMMODITY_REGEX.findall(text)
+            
+            generics = [c for c in commodities if c.lower() in ("commodity", "commodities")]
+            specifics = [c for c in commodities if c.lower() not in ("commodity", "commodities")]
+            
+            if specifics:
+                for c in specifics:
+                    self.excluded_commodities.add(c.lower())
+            
+            if generics and not specifics:
+                self.excluded_categories.add("cp")
+            elif not commodities:
+                self.excluded_categories.add("cp")
+
+    def is_excluded(self, category: str, text_match: str = "") -> Tuple[bool, bool]:
+        """Returns (is_excluded, is_specific_commodity_block)."""
+        if category == "cp" and text_match:
+            text_lower = text_match.lower()
+            for comm in self.excluded_commodities:
+                if comm in text_lower:
+                    return True, True # Excluded, Specific Block
+        
+        return category in self.excluded_categories, False
+
 # =============================================================================
 # HELPERS
 # =============================================================================
@@ -274,7 +324,7 @@ def extract_instrument_keywords(sentence: str, target_categories: Optional[Set[s
     for cat in cats_to_scan:
         if cat not in CATEGORY_MAP:
             continue
-        strict_inst, soft_inst, _, _, _, _ = CATEGORY_MAP[cat]
+        strict_inst, soft_inst, _, _, weak_inst, _ = CATEGORY_MAP[cat]
         # Try strict instrument first (higher confidence)
         if strict_inst:
             for match in strict_inst.finditer(sentence):
@@ -283,6 +333,11 @@ def extract_instrument_keywords(sentence: str, target_categories: Optional[Set[s
         # Then soft instrument (if no strict found)
         if soft_inst and cat not in instruments:
             for match in soft_inst.finditer(sentence):
+                instruments[cat].add(match.group(0).strip())
+
+        # Then weak instrument (if no strict/soft found)
+        if weak_inst and cat not in instruments:
+            for match in weak_inst.finditer(sentence):
                 instruments[cat].add(match.group(0).strip())
 
     # Clean up empty categories
@@ -645,7 +700,7 @@ def remove_outlier_categories(
 
 
 PRIORITY_ORDER = ["fx", "cp", "eq", "cr", "ir"]
-def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
+def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> Dict[str, int]:
     """
     Determines category using Weighted Scoring and Map Iteration.
 
@@ -656,6 +711,8 @@ def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
     Returns a dictionary of {category: score} for categories meeting the threshold.
     """
     scores = defaultdict(int)
+    notional_multiplier = NOTIONAL_REGEX.search(text)
+    sent_count = len(SENTENCE_SPLIT_PATTERN.split(text))
 
     # ═══════════════════════════════════════════════════════════
     # PHASE 1: STRICT SIGNALS (Non-Destructive)
@@ -664,12 +721,47 @@ def get_text_categories(text: str, is_nst: bool) -> Dict[str, int]:
 
     for cat, (strict_inst, soft_inst, strict_ctx, _, weak_inst, risk_mgmt) in CATEGORY_MAP.items():
         # A. Strict Instrument ("Interest Rate Swap")
-        if strict_inst and strict_inst.search(text):
-            scores[cat] += 2000
+        if strict_inst:
+            matches = list(strict_inst.finditer(text))
+            if matches:
+                # Check exclusions for each match
+                valid_match_found = False
+                for m in matches:
+                    is_excl, is_block = False, False
+                    if exclusion_tracker:
+                        is_excl, is_block = exclusion_tracker.is_excluded(cat, m.group(0))
+                    
+                    if is_block:
+                        continue # Blocked completely (Score 0 contribution)
+                    elif is_excl:
+                        scores[cat] += 60 # Downgrade to soft count equivalent
+                    else:
+                        scores[cat] += 2000
+                        valid_match_found = True
+                
+                # If we found at least one valid strict match, ensure score reflects it
+                # (The += 2000 above handles it, but logic ensures mixed signals favor strict)
+
         elif soft_inst and soft_inst.search(text): # Interest rate cap
-            scores[cat] += 500
+            if notional_multiplier:
+                # Treat as strict, but check exclusion
+                is_excl, is_block = False, False
+                if exclusion_tracker:
+                    is_excl, is_block = exclusion_tracker.is_excluded(cat, soft_inst.search(text).group(0)) # type: ignore
+                
+                if is_block:
+                    pass
+                elif is_excl:
+                    scores[cat] += 60
+                else:
+                    scores[cat] += 2000
+            else:
+                scores[cat] += 500
         elif weak_inst and weak_inst.search(text):  # Interest rate agreement
-            scores[cat] += 200
+            if sent_count == 1:
+                scores[cat] += 2000
+            else:
+                scores[cat] += 200
 
         # B. Risk Management ("Hedging of Interest Rate Risk")
         if risk_mgmt and risk_mgmt.search(text):
@@ -730,12 +822,12 @@ def derive_strict_categories(scores: Dict[str, int], text: str) -> Set[str]:
     return strict_cats
 
 
-def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]], is_nst: bool = True) -> None:
+def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]], is_nst: bool = True, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> None:
     """Helper to salvage instruments from deadweight text if hedging context exists."""
     if find_hedging_context(text):
         clean_text = _cleaner.clean(text, is_nst=is_nst)
         clean_text = _cleaner.clean_gen_hedges(clean_text)
-        scores = get_text_categories(clean_text, is_nst=is_nst)
+        scores = get_text_categories(clean_text, is_nst=is_nst, exclusion_tracker=exclusion_tracker)
         strict_salvage_cats = derive_strict_categories(scores, clean_text)
 
         if strict_salvage_cats:
@@ -841,6 +933,18 @@ def process_row(row: Tuple) -> Tuple:
             attributes["metadata"] = metadata
         except (json.JSONDecodeError, KeyError):
             pass
+    
+    # --- PRE-PASS: Build Exclusion Tracker ---
+    exclusion_tracker = GlobalExclusionTracker()
+    for p in paragraphs:
+        # Quick scan for NO_HEDGE tags in the raw paragraph text
+        # We split by sentence to ensure we catch tags applied at sentence level
+        sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
+        for sent in sentences:
+            _, tag_reason, sent_content = parse_tags(sent)
+            if tag_reason == NoiseReason.NO_HEDGE.value:
+                exclusion_tracker.add_exclusion(sent_content)
+
     # --- SINGLE PASS Processing ---
     for p in paragraphs:
         local_tracker = GlobalInstrumentTracker()
@@ -857,12 +961,12 @@ def process_row(row: Tuple) -> Tuple:
         # Even if this paragraph is tagged as noise, if it contains strict instrument mentions
         # with hedging context, we still want to record those instruments as known.
         if is_para_deadweight:
-            salvage_instruments(para_content, valid_instruments, is_nst=effective_nst)
+            salvage_instruments(para_content, valid_instruments, is_nst=effective_nst, exclusion_tracker=exclusion_tracker)
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
         context_scores = get_text_categories(
-            para_content, is_nst=effective_nst
+            para_content, is_nst=effective_nst, exclusion_tracker=exclusion_tracker
         )  # Allow full original text, while stripping convertible debt as standard debt if it is not a derivative
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
@@ -886,12 +990,12 @@ def process_row(row: Tuple) -> Tuple:
             # --- SENTENCE-LEVEL INSTRUMENT SALVAGE ---
             # Even if sentence is deadweight, capture instruments if it has strict matches + hedging context
             if is_sent_deadweight:
-                salvage_instruments(sent_content, valid_instruments, is_nst=effective_nst)
+                salvage_instruments(sent_content, valid_instruments, is_nst=effective_nst, exclusion_tracker=exclusion_tracker)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             clean_sent = _cleaner.clean(sent_content_no_evidence, effective_nst)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
 
-            sent_scores = get_text_categories(clean_sent, is_nst=effective_nst)
+            sent_scores = get_text_categories(clean_sent, is_nst=effective_nst, exclusion_tracker=exclusion_tracker)
 
             # Derive Strict Categories (Score >= 2000)
             strict_cats = derive_strict_categories(sent_scores, clean_sent)
