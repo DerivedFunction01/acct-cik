@@ -107,7 +107,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
             unsafe=True,
             exclude_standalone_suffixes=True,
             additional_bases=["protection"],
-            additional_standalone_suffixes=["contracts?", "caps", "floors", "locks"],
+            additional_standalone_suffixes=["contracts?", "caps?", "floors", "locks"], # Cap can be singular, rest are plural
         ),  # IR caps, locks, floors
         specific_phrases,
     )
