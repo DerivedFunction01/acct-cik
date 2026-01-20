@@ -169,7 +169,7 @@ def check_verbs(text: str) -> VerbCheckResults:
     has_usage = bool(USAGE_VERB_REGEX.search(text))
     has_active = bool(ACTIVE_VERB_REGEX.search(text))
     is_specific = bool(SOFT_REGEX.search(text))
-    if (CP_SOFT_REGEX.search(text) or EQ_SOFT_REGEX.search(text)) and not STRICT_REGEX.search(text): # avoid false positives for equity options, natural gas contracts
+    if (STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text)): # avoid false positives for equity options, natural gas contracts
         is_specific = False
     return VerbCheckResults(
         has_active_verb=has_active,
