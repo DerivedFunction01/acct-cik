@@ -571,6 +571,7 @@ class NoiseReason(Reason):
     # --- Firm Level ---
     HEDGE_FAIL = "NO_HEDGE"  # No indication of hedging (Fails stage 1 prefilter_database)
     NO_SOPH = "NO_SOPH"  # No indication of convertible/warrants as derivatives
+    NO_HEDGE = "NO_HEDGE"
 
 
 class EvidenceReason(Reason):
