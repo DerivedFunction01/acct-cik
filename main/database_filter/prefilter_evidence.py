@@ -694,7 +694,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> Tuple[
                 )
                 # Promote to Active Transaction Quant
                 evidence2 = check_quantitative_evidence(
-                    masked, reporting_year, is_strict_derivative, verbs, skip_year=True
+                    masked, reporting_year, is_strict_derivative, verbs, skip_year=True, force_transaction_context=True
                 )
 
                 if evidence2:
