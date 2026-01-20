@@ -196,6 +196,7 @@ _DENIAL_MODIFIERS = [
     "new",
     "open",
     "active",
+    "outstanding",
 ]
 
 # The "Glue": Small filler words that appear between modifiers
