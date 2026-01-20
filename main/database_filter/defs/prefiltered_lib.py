@@ -590,6 +590,9 @@ class EvidenceReason(Reason):
     # =========================================================
     AS_YEAR = "ACTIVE_STATE_YEAR"  # "Swaps outstanding at Dec 31, 2024"
     MAT_FUT = "MATURITY_FUTURE"  # "Swaps mature in 2026"
+    MAT_FUT_NV = "MATURITY_FUTURE_NOTIONAL"
+    MAT_FUT_FV = "MATURITY_FUTURE_FAIR_VALUE"
+    MAT_FUT_V = "MATURITY_FUTURE_VALUE"
     NVY = "NOTIONAL_VALUE_YEAR"  # "Notional was $100M in 2024"
     FVY = "FAIR_VALUE_YEAR"  # "Fair Value of Swaps was $5M in 2024"
     VY = "VALUE_YEAR"  # "Value of Swaps was $5M in 2024
@@ -675,6 +678,9 @@ class EvidenceReason(Reason):
 STRONG_EVIDENCE = {
     EvidenceReason.AS_YEAR,  # "Outstanding at Dec 31, 2024"
     EvidenceReason.MAT_FUT,  # "Matures in 2026"
+    EvidenceReason.MAT_FUT_NV,
+    EvidenceReason.MAT_FUT_FV,
+    EvidenceReason.MAT_FUT_V,
     EvidenceReason.NVY,  # "Notional was $100M at Dec 31, 2024"
     EvidenceReason.FVY,  # "Fair Value was $5M at Dec 31, 2024"
     EvidenceReason.VY  # "We hold $5M of swaps at Dec 31, 2024"
@@ -809,6 +815,9 @@ def mark_as_evidence(
             EvidenceReason.FVNY,
             EvidenceReason.NVNY,
             EvidenceReason.VNY,
+            EvidenceReason.MAT_FUT_NV,
+            EvidenceReason.MAT_FUT_FV,
+            EvidenceReason.MAT_FUT_V,
         }
     )
 

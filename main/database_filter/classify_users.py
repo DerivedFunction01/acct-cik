@@ -65,6 +65,9 @@ EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
 UNAMBIGUOUS_EVIDENCE = {
     EvidenceReason.AS_YEAR.value,  # "Outstanding at Dec 31, 2024"
     EvidenceReason.MAT_FUT.value,  # "Matures in 2026"
+    EvidenceReason.MAT_FUT_NV.value,
+    EvidenceReason.MAT_FUT_FV.value,
+    EvidenceReason.MAT_FUT_V.value,
     EvidenceReason.NVY.value,  # "Notional was $100M at Dec 31, 2024"
     EvidenceReason.FVY.value,  # "Fair Value was $5M at Dec 31, 2024"
     EvidenceReason.VY.value,  # "Value was $5M at Dec 31, 2024"
@@ -82,6 +85,9 @@ UNAMBIGUOUS_EVIDENCE = {
 SAFEGUARD_EVIDENCE = {
     EvidenceReason.AS_YEAR.value,
     EvidenceReason.MAT_FUT.value,
+    EvidenceReason.MAT_FUT_NV.value,
+    EvidenceReason.MAT_FUT_FV.value,
+    EvidenceReason.MAT_FUT_V.value,
     EvidenceReason.NVY.value,
     EvidenceReason.FVY.value,
     EvidenceReason.VY.value,
@@ -460,16 +466,19 @@ def extract_instrument_evidence(
         EvidenceReason.ACT_FV_YEAR.value,
         EvidenceReason.FVAIY.value,  # Fair Value at inception was $X
         EvidenceReason.FVAINY.value,  # Fair Value at inception is $X
+        EvidenceReason.MAT_FUT_FV.value,
     }
     notional_tags = {
         EvidenceReason.NVY.value,  # Notional was $X at Year
         EvidenceReason.NVNY.value,  # Notional is $X
-        EvidenceReason.ACT_NV_YEAR.value
+        EvidenceReason.ACT_NV_YEAR.value,
+        EvidenceReason.MAT_FUT_NV.value,
     }
     value_tags = {
         EvidenceReason.VY.value,  # Value was $X at Year
         EvidenceReason.VNY.value,  # Value is $X
-        EvidenceReason.ACT_V_YEAR.value
+        EvidenceReason.ACT_V_YEAR.value,
+        EvidenceReason.MAT_FUT_V.value,
     }
 
     if evidence_tags.intersection(fv_tags):

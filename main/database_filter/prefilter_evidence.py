@@ -21,6 +21,8 @@ from defs.gen_regex import NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
 from defs.shared_context import SETTLEMENT_MECHANICS_REGEX, VALUATION_MODELS_REGEX
 from defs.exclusion_regex import AOCI_NOISE_REGEX
+from defs.cp_regex import CP_SOFT_REGEX
+from defs.eq_regex import EQ_SOFT_REGEX
 from table_processor import TABLE_ANCHOR
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.prefiltered_lib import (
@@ -166,13 +168,16 @@ def check_verbs(text: str) -> VerbCheckResults:
     has_poss = bool(POSS_VERB_REGEX.search(text))
     has_usage = bool(USAGE_VERB_REGEX.search(text))
     has_active = bool(ACTIVE_VERB_REGEX.search(text))
+    is_specific = bool(SOFT_REGEX.search(text))
+    if (CP_SOFT_REGEX.search(text) or EQ_SOFT_REGEX.search(text)) and not STRICT_REGEX.search(text): # avoid false positives for equity options, natural gas contracts
+        is_specific = False
     return VerbCheckResults(
         has_active_verb=has_active,
         has_transaction=bool(TRANS_VERB_REGEX.search(text)),
         has_poss_verb=has_poss,
         has_usage_verb=has_usage,
         has_poss_or_use=has_poss or has_usage,
-        is_specific=bool(SOFT_REGEX.search(text)) and has_active,
+        is_specific= is_specific and has_active,
     )
 
 
@@ -303,6 +308,18 @@ def check_future_maturity(
         # Skip
         return None
     else:
+        evidence = check_quantitative_evidence(
+            text, reporting_year, is_strict_derivative, verbs, skip_year=True
+        )
+        
+        if is_strict_derivative and evidence:
+            if evidence in {EvidenceReason.NVY, EvidenceReason.NVNY, EvidenceReason.ACT_NV_YEAR}:
+                return EvidenceReason.MAT_FUT_NV
+            if evidence in {EvidenceReason.FVY, EvidenceReason.FVNY, EvidenceReason.ACT_FV_YEAR, EvidenceReason.FVAIY, EvidenceReason.FVAINY}:
+                return EvidenceReason.MAT_FUT_FV
+            if evidence in {EvidenceReason.VY, EvidenceReason.VNY, EvidenceReason.ACT_V_YEAR}:
+                return EvidenceReason.MAT_FUT_V
+
         return (
             EvidenceReason.MAT_FUT
             if is_strict_derivative
