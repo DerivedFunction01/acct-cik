@@ -16,6 +16,10 @@ RISK_TERMS = [
     "transactions?",
     "costs?",
     "prices?",
+    "rising",
+    "falling",
+    "increas(?:ing|es?)",
+    "decreas(?:ing|es?)",
 ]
 _RISK_ALTERNATION = build_alternation(RISK_TERMS)
 
