@@ -83,6 +83,7 @@ VERB_MAP = {
         r"participat(?:es?|ed|ing)",
         r"designat(?:e|es|ed|ing)(?![- ]as)",
         r"hedg(?:e|es|ed|ing)\s+(?:with|using|by)",
+        r"trad(?:e|es|ed|ing)",
     ],
     "ACT": [
         r"enter(?:s|ed|ing)?(?:\s+into)?",
