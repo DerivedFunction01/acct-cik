@@ -5,14 +5,13 @@ from defs.derivatives_core import (
     PHYSICAL_DELIVERY_PATTERN,
     build_smart_regex,
     expand_instruments,
-    standalone_alternation
 )
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import (
     _RISK_ALTERNATION,
     build_risk_managment_phrase,
 )
-from defs.verb_regex import build_strict_do_not_mitigate_regex
+from defs.verb_core import build_strict_do_not_mitigate_regex
 
 # 3. COMMODITY (Strict)
 # Focus: Physical assets and specific commodity names

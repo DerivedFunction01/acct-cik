@@ -3,7 +3,7 @@ from typing import List, Tuple
 from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_currency_descriptor_pattern, all_currencies, build_risk_managment_phrase
-from defs.verb_regex import build_strict_do_not_mitigate_regex
+from defs.verb_core import build_strict_do_not_mitigate_regex
 
 
 def build_fx_dynamic_pattern() -> str:

@@ -6,7 +6,13 @@ from typing import List, Tuple, Optional
 from defs.gen_regex import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import ALL_TERM_TERMS, MITIGATION_STRICT_VERBS, TERMINATION_VERBS, MITIGATION_VERBS, GENERIC_RISK_GLUE, _RISK_ALTERNATION
+from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS, MITIGATION_VERBS
+from defs.verb_core import (
+    build_negation_prefix_pattern,
+    build_strict_do_not_mitigate_regex,
+    ACTIVE_PATTERN,
+    ACTIVE_INDICATORS
+)
 
 # Speculative / Uncertain Timing Phrases
 SPECULATIVE_PHRASES = [
@@ -51,51 +57,6 @@ POTENTIAL_INDICATORS = [
     r"expect(?:s|ed)?\s+to(?![- ]continue)",
 ] + POTENTIAL_SUFFIX_ADVERBS
 
-# Add this alongside your other lists
-NEGATIVE_CONTRACTIONS = [
-    # Active
-    r"do[nN]['’]?[tT]",
-    r"does[nN]['’]?[tT]",
-    r"did[nN]['’]?[tT]",
-    r"wo[nN]['’]?[tT]",
-    r"would[nN]['’]?[tT]",
-    r"ca[nN]['’]?[tT]",
-    r"cannot",
-    r"could[nN]['’]?[tT]",
-    r"should[nN]['’]?[tT]",
-    r"sha[nN]['’]?[tT]",
-    r"have[nN]['’]?[tT]",
-    r"has[nN]['’]?[tT]",
-    r"had[nN]['’]?[tT]",
-    # Passive
-    r"are[nN]['’]?[tT]",
-    r"is[nN]['’]?[tT]",
-    r"was[nN]['’]?[tT]",
-    r"were[nN]['’]?[tT]",
-]
-
-NEGATIVE_AUXILIARY = [
-    # Active
-    r"do",
-    r"does",
-    r"did",
-    r"will",
-    r"would",
-    r"can",
-    r"could",
-    r"shall",
-    r"should",
-    r"have",
-    r"has",
-    "had",  # Added 'had'
-    r"must",
-    # Passive (Crucial for "Derivatives were not held")
-    r"are",
-    r"is",
-    r"were",
-    r"was",
-    r"be",
-]
 _ABSENCE_NOUNS = [
     r"positions?",
     r"obligations?",
@@ -103,29 +64,6 @@ _ABSENCE_NOUNS = [
     r"involvements?",  # "no involvement with derivatives"
     r"holdings?",  # "no holdings"
 ]
-
-
-def build_negation_prefix_pattern() -> str:
-    """
-    Returns a regex string matching:
-    1. Standard Negation: "did not", "was not", "will not"
-    2. Contractions: "didn't", "wasn't"
-    3. Absolute Negation: "never"
-    """
-    # 1. Standard: Auxiliary + Not
-    aux_full = build_alternation(NEGATIVE_AUXILIARY)
-    pattern_full = rf"\b{aux_full}\s+not\b"
-
-    # 2. Contractions
-    pattern_contract = rf"\b{build_alternation(NEGATIVE_CONTRACTIONS)}\b"
-
-    # 3. Absolute (The new addition)
-    abs_neg = ["never", "neither", "nor"]
-    pattern_absolute = rf"\b{build_alternation(abs_neg)}\b"
-
-    # Combine: (did not | didn't | never)
-    return rf"(?:{pattern_full}|{pattern_contract}|{pattern_absolute})"
-
 
 VERB_MAP = {
     "POSS": [
@@ -260,14 +198,6 @@ def build_potential_mitigation_regex() -> re.Pattern:
         rf"{_DENIAL_TARGET}\b",
         re.IGNORECASE,
     )
-
-# Active / Timing Indicators (New)
-ACTIVE_INDICATORS = [
-    "currently",
-    "presently",
-    "at present",
-]
-ACTIVE_PATTERN = build_alternation(ACTIVE_INDICATORS)
 
 
 def build_immaterial_regexes() -> List[re.Pattern]:
@@ -476,52 +406,6 @@ def build_prior_statement_pattern_2() -> re.Pattern:
 
     # --- 4. COMBINE ---
     return re.compile(rf"(?:{pat_compositional}|{pat_catchall})", re.IGNORECASE)
-
-
-def build_strict_do_not_mitigate_regex(required_glue: Optional[List[str]] = None) -> re.Pattern:
-    """
-    Matches: "do not hedge [risk]", "did not mitigate [exposure]"
-    Inspired by build_risk_managment_phrase but negated.
-    """
-    neg_prefix = build_negation_prefix_pattern()
-    mitigation_verbs = build_alternation(MITIGATION_STRICT_VERBS)
-
-    # Gap logic from build_risk_managment_phrase
-    glue = build_alternation(GENERIC_RISK_GLUE)
-    filler = r"(?:\S+\s+){0,3}"
-
-    if required_glue:
-        req_alt = build_alternation(required_glue)
-        glue_unit = rf"(?:{filler}{glue})"
-        req_unit = rf"(?:{filler}{req_alt})"
-        pre_chain = rf"(?:{glue_unit}\s+){{0,3}}"
-        post_chain = rf"(?:{glue_unit}\s+){{0,3}}"
-        gap = rf"{pre_chain}{req_unit}\s+{post_chain}"
-    else:
-        glue_unit = rf"(?:{filler}{glue})"
-        gap = rf"(?:{glue_unit}\s+){{0,6}}"
-
-    final_filler = r"(?:\S+\s+){0,3}"
-
-    # Allow adverbs between negation and verb
-    _pre_verb_gap = (
-        r"[, ]"  # Mandatory space or comma after "not"
-        r"(?:"
-        rf"{ACTIVE_PATTERN}\s+|"  # "currently "
-        r"\s*[^,]{1,50}\s*,\s+"  # ", as a routine matter, " (Greedy but bounded)
-        r")?"
-    )
-
-    return re.compile(
-        rf"{neg_prefix}"
-        rf"{_pre_verb_gap}"
-        rf"{mitigation_verbs}\s+"
-        rf"{gap}"
-        rf"{final_filler}"
-        rf"{_RISK_ALTERNATION}\b",
-        re.IGNORECASE
-    )
-
 
 # Export
 POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
