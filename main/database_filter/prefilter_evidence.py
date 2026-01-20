@@ -607,25 +607,28 @@ def should_mark_deadweight(
 # =============================================================================
 # TAGGING ENGINE
 # =============================================================================
-active_context_reasons = {
-        EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT, 
-        EvidenceReason.MAT_FUT_NV, EvidenceReason.MAT_FUT_FV, EvidenceReason.MAT_FUT_V,
-        EvidenceReason.AS_YEAR,
-        EvidenceReason.ACT_YEAR, EvidenceReason.ACT_NV_YEAR, EvidenceReason.ACT_FV_YEAR, EvidenceReason.ACT_V_YEAR,
-        EvidenceReason.NVY, EvidenceReason.FVY, EvidenceReason.VY
+_ACT_YEAR_SET = {
+    EvidenceReason.ACT_YEAR, EvidenceReason.ACT_NV_YEAR,
+    EvidenceReason.ACT_FV_YEAR, EvidenceReason.ACT_V_YEAR
 }
 
-transaction_reasons = {
-    EvidenceReason.ACT_YEAR, EvidenceReason.ACT_NV_YEAR, EvidenceReason.ACT_FV_YEAR, EvidenceReason.ACT_V_YEAR,
+_POSS_ACTIVE_SET = {
+    EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT,
+    EvidenceReason.MAT_FUT_NV, EvidenceReason.MAT_FUT_FV, EvidenceReason.MAT_FUT_V,
+    EvidenceReason.AS_YEAR,
+    EvidenceReason.NVY, EvidenceReason.FVY, EvidenceReason.VY
+}
+
+active_context_reasons = _ACT_YEAR_SET | _POSS_ACTIVE_SET
+
+transaction_reasons = _ACT_YEAR_SET | {
     EvidenceReason.ACT_GEN, EvidenceReason.ACT_AMB_YEAR, EvidenceReason.ACT_AMB_GEN
 }
 
-possession_reasons = {
-    EvidenceReason.AS_YEAR, EvidenceReason.ASAIY,
+possession_reasons = _POSS_ACTIVE_SET | {
+    EvidenceReason.ASAIY,
     EvidenceReason.CONT_USE, EvidenceReason.CONT_USE_AMB,
     EvidenceReason.BS_LOC,
-    EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT,
-    EvidenceReason.MAT_FUT_NV, EvidenceReason.MAT_FUT_FV, EvidenceReason.MAT_FUT_V
 }
 
 def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> Tuple[str, List[str]]:
