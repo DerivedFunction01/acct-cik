@@ -61,29 +61,6 @@ TARGET_DB_PATH = "classified_data.db"
 TAG_PARSER_STRICT = re.compile(r"^\s*(_[SD])<([^>]+)>\s+(.*)", re.DOTALL)
 EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
 
-# Evidence that elevates soft mentions to strict (unambiguous subject)
-UNAMBIGUOUS_EVIDENCE = {
-    EvidenceReason.AS_YEAR.value,  # "Outstanding at Dec 31, 2024"
-    EvidenceReason.MAT_FUT.value,  # "Matures in 2026"
-    EvidenceReason.MAT_FUT_NV.value,
-    EvidenceReason.MAT_FUT_FV.value,
-    EvidenceReason.MAT_FUT_V.value,
-    EvidenceReason.NVY.value,  # "Notional was $100M at Dec 31, 2024"
-    EvidenceReason.FVY.value,  # "Fair Value was $5M at Dec 31, 2024"
-    EvidenceReason.VY.value,  # "Value was $5M at Dec 31, 2024"
-    EvidenceReason.ACT_YEAR.value,
-    EvidenceReason.CONT_USE.value,  # "We hold/use Swaps" (No year)
-    EvidenceReason.NVNY.value,  # "Notional is $100M"
-    EvidenceReason.VNY.value,  # " Value is $5M"
-    EvidenceReason.FVNY.value,  # "Fair Value is $5M"
-    EvidenceReason.BS_LOC.value,  # "Recorded in Earnings"
-    EvidenceReason.ACT_GEN.value,
-}
-
-# Evidence that overrides Global Exclusions (Safeguard)
-# If these tags are present, we ignore "No Hedge" or "Potential" blocks for this sentence.
-# This ensures that confirmed quantitative amounts (or explicit active states) are not invalidated 
-# by broad exclusions found elsewhere in the document.
 SAFEGUARD_EVIDENCE = {
     EvidenceReason.AS_YEAR.value,
     EvidenceReason.MAT_FUT.value,
@@ -97,7 +74,17 @@ SAFEGUARD_EVIDENCE = {
     EvidenceReason.NVNY.value,
     EvidenceReason.FVNY.value,
     EvidenceReason.VNY.value,
+    EvidenceReason.ACT_NV_YEAR.value,
+    EvidenceReason.ACT_FV_YEAR.value,
+    EvidenceReason.ACT_V_YEAR.value,
 }
+
+UNAMBIGUOUS_EVIDENCE = SAFEGUARD_EVIDENCE | {
+    EvidenceReason.CONT_USE.value,
+    EvidenceReason.BS_LOC.value,
+    EvidenceReason.ACT_GEN.value,
+}
+
 
 _cleaner = MinimalTextCleaner()
 
@@ -204,9 +191,11 @@ class GlobalExclusionTracker:
             self.excluded_categories.add("cr")
         
         # Check CP and extract commodities
-        if CP_DO_NOT_MITIGATE_REGEX.search(text):
-            # If specific commodities are mentioned, exclude them
-            commodities = COMMODITY_REGEX.findall(text)
+        # Use finditer to scope commodity extraction to the negation phrase only
+        # This prevents "Unlike corn, we do not hedge wheat" from banning corn.
+        for match in CP_DO_NOT_MITIGATE_REGEX.finditer(text):
+            match_text = match.group(0)
+            commodities = COMMODITY_REGEX.findall(match_text)
             
             generics = [c for c in commodities if c.lower() in ("commodity", "commodities")]
             specifics = [c for c in commodities if c.lower() not in ("commodity", "commodities")]
