@@ -152,7 +152,6 @@ class VerbCheckResults(NamedTuple):
 
     has_active_verb: bool
     has_transaction: bool
-    has_poss_or_use: bool
     has_poss_verb: bool
     has_usage_verb: bool
     is_specific: bool
@@ -174,7 +173,6 @@ def check_verbs(text: str) -> VerbCheckResults:
         has_transaction=bool(TRANS_VERB_REGEX.search(text)),
         has_poss_verb=has_poss,
         has_usage_verb=has_usage,
-        has_poss_or_use=has_poss or has_usage,
         is_specific= is_specific and has_active,
     )
 
@@ -352,8 +350,8 @@ def check_active_state_year(
     has_adj = bool(ACTIVE_ADJ_REGEX.search(text))
     has_current_state = ACTIVE_STATE_REGEX.search(text)
 
-    # Tightened Verb Check: Must have Possession/Usage verb AND Active Connection
-    has_valid_verb = verbs.has_poss_or_use and verbs.has_active_verb
+    # Tightened Verb Check: Must have Possession verb AND Active Connection
+    has_valid_verb = verbs.has_poss_verb and verbs.has_active_verb
 
     if not (has_prep or has_adj or has_current_state or has_valid_verb):
         return None
@@ -421,7 +419,7 @@ def check_transaction_action(
     if not check_mention(text):
         return None
 
-    if not verbs.has_transaction:
+    if not verbs.has_transaction or verbs.has_usage_verb:
         return None
 
     if not verbs.has_active_verb:
@@ -550,6 +548,7 @@ def scan_sentence_for_evidence(
 
 # FIX: Only kill if ALL evidence is ambiguous/fluff.
 # Previously, this killed paragraphs containing ANY ambiguous tag, even if Strong evidence existed.
+
 ambiguous_set = {
     EvidenceReason.ASAIY,
     EvidenceReason.MAT_AMB_FUT,
@@ -564,6 +563,8 @@ def should_mark_deadweight(
 ) -> bool:
     """
     Determine if paragraph should be marked as deadweight.
+    Possible edge case that is valid usage?
+    "We entered into interest rate agreements in 2024. The contracts outstanding were $10 million."
     """
 
     # 1. ORPHAN KILL RULE
