@@ -312,7 +312,6 @@ def build_ir_context_terms() -> Tuple[List[str], List[str], List[str]]:
 
     shared_debt_terms = [
         IR_DEBT_LOOKBEHIND_TERM,
-        r"credit\s+facilit(?:y|ies)",
         r"revolving\s+credits?",
         r"term\s+loans?",
         r"subordinated\s+notes?",

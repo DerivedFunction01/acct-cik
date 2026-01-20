@@ -3,7 +3,7 @@ import re
 from typing import List, Optional
 from defs.regex_lib import build_alternation, build_regex
 
-_DEBT_TERMS = r"(?:debts?|loans?|borrowings?|bonds?|senior notes?|notes?|debentures?)"
+_DEBT_TERMS = r"(?:debts?|loans?|borrowings?|bonds?|senior\s+notes?|notes?|debentures?|credit\s+facilit(?:y|ies))"
 RISK_TERMS = [
     "risks?",
     "fluctuations?",
