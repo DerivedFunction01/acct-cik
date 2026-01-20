@@ -385,12 +385,13 @@ def check_active_state_general(
     return None
 
 
-def check_balance_sheet_location(text: str) -> Optional[EvidenceReason]:
+def check_balance_sheet_location(text: str) -> Optional[Reason]:
     """Check for Balance Sheet Location (self-validating)."""
 
     if not check_mention(text):
         return None
-
+    if CHANGE_FV_REGEX.search(text):
+        return NoiseReason.PNL
     if BS_LOC_REGEX.search(text):
         return EvidenceReason.BS_LOC
 
