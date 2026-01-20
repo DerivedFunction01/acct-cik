@@ -544,12 +544,21 @@ def scan_sentence_for_evidence(
 
     return None
 
-
 # =============================================================================
 # TAG APPLICATION LOGIC
 # =============================================================================
 
-
+# FIX: Only kill if ALL evidence is ambiguous/fluff.
+# Previously, this killed paragraphs containing ANY ambiguous tag, even if Strong evidence existed.
+ambiguous_set = {
+    EvidenceReason.ASAIY,
+    EvidenceReason.MAT_AMB_FUT,
+    EvidenceReason.FVAIY,
+    EvidenceReason.ACT_AMB_YEAR,
+    EvidenceReason.ACT_AMB_GEN,
+    EvidenceReason.CONT_USE_AMB,
+    EvidenceReason.FVAINY,
+}
 def should_mark_deadweight(
     evidence_tags: set, noise_tags: set, sent_count: int = 0
 ) -> bool:
@@ -566,17 +575,7 @@ def should_mark_deadweight(
                 return True
 
     # Handle ambiguous evidence
-    if not evidence_tags.isdisjoint(
-        {
-            EvidenceReason.ASAIY,
-            EvidenceReason.MAT_AMB_FUT,
-            EvidenceReason.FVAIY,
-            EvidenceReason.ACT_AMB_YEAR,
-            EvidenceReason.ACT_AMB_GEN,
-            EvidenceReason.CONT_USE_AMB,
-            EvidenceReason.FVAINY,
-        }
-    ):
+    if evidence_tags and evidence_tags.issubset(ambiguous_set | FLUFF_EVIDENCE):
         return True
 
     # 2. Handle Remaining No-Evidence Cases
