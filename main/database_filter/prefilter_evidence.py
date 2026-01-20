@@ -202,11 +202,12 @@ def check_quantitative_evidence(
     reporting_year: int,
     is_strict_derivative: bool,
     verbs: VerbCheckResults,
+    skip_year: bool = False,
 ) -> Optional[Reason]:
     """Check for Quantitative Evidence (NVY/FVY)."""
     from prefilter_tagging import extract_values_and_years
 
-    if not reporting_year:
+    if not reporting_year and not skip_year:
         return None
 
     is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
@@ -221,7 +222,9 @@ def check_quantitative_evidence(
     if not values_found:
         return None
 
-    has_relevant_year = any(y >= reporting_year for y in years_found)
+    has_relevant_year = (
+        any(y >= reporting_year for y in years_found) if not skip_year else True
+    )
 
     # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
     if is_notional:
@@ -624,6 +627,14 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
                     if is_strict_derivative
                     else EvidenceReason.ACT_AMB_YEAR
                 )
+                # Promote to Active Transaction Quant
+                evidence2 = check_quantitative_evidence(
+                    masked, reporting_year, is_strict_derivative, verbs, skip_year=True
+                )
+                
+                if evidence2:
+                    evidence = evidence2.value
+                    
                 all_evidence.add(evidence)
                 tagged_sent = f"{get_tag(EVIDENCE_TOKEN, evidence)} {clean_sent}"
                 tagged_sentences.append(tagged_sent)
