@@ -6,7 +6,7 @@ import sqlite3
 from typing import Optional, Set
 
 from tqdm import tqdm
-from defs.verb_regex import ACCT_VERB_REGEX, POSS_VERB_REGEX, TERMINATION_ALL_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX, is_immaterial
+from defs.verb_regex import ACCT_VERB_REGEX, POSS_VERB_REGEX, TERMINATION_ALL_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX, is_immaterial, ACTIVE_VERB_REGEX
 from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
 from defs.gen_regex import NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
@@ -302,10 +302,7 @@ def check_active_state_general(
     if not check_mention(text):
         return None
 
-    has_poss = bool(POSS_VERB_REGEX.search(text))
-    has_use = bool(USAGE_VERB_REGEX.search(text) or ACCT_VERB_REGEX.search(text))
-
-    if has_poss or has_use:
+    if ACTIVE_VERB_REGEX.search(text):
         return (
             EvidenceReason.CONT_USE
             if is_strict_derivative

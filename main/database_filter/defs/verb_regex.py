@@ -131,6 +131,18 @@ def build_potential_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
+def build_active_verb_regex() -> re.Pattern:
+    """
+    Matches active usage: "use ... derivatives", "hold ... swaps"
+    Structure: Verb + [Gap] + Instrument
+    """
+    return re.compile(
+        rf"\b(?:{INTENT_VERB_PATTERN})\s+"
+        rf"{gap_chain}"
+        rf"{_DENIAL_FILLER}"
+        rf"{_DENIAL_TARGET}\b",
+        re.IGNORECASE,
+    )
 
 def build_vague_timing_regex() -> re.Pattern:
     """Matches: "from time to time", "in future periods" """
@@ -414,6 +426,7 @@ TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
 ACCT_VERB_REGEX = build_regex(VERB_MAP["ACCT"])
 ALL_VERB_REGEX = build_alternation(ALL_VERBS)
 
+ACTIVE_VERB_REGEX = build_active_verb_regex()
 
 DID_NOT_HOLD_REGEX = build_did_not_hold_regex()
 ABSENCE_REGEX = build_absence_regex()
