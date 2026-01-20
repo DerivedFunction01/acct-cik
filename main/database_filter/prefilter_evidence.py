@@ -400,7 +400,7 @@ def check_balance_sheet_location(text: str) -> Optional[Reason]:
 
     if not check_mention(text):
         return None
-    if CHANGE_FV_REGEX.search(text):
+    if is_pnl(text):
         return NoiseReason.PNL
     if BS_LOC_REGEX.search(text):
         return EvidenceReason.BS_LOC
