@@ -187,6 +187,11 @@ _DENIAL_MODIFIERS = [
     "forward[- ]starting",
     "months?",
     "years?",
+    "net",
+    "aggregated?",
+    "total",
+    "notional",
+    "amounts?"
 ]
 
 # The "Glue": Small filler words that appear between modifiers
