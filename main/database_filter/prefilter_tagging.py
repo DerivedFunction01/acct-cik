@@ -120,7 +120,14 @@ def get_intent_noise_reason(text: str) -> Optional[NoiseReason]:
     return None
 
 def get_no_mitigation(text: str) -> Optional[NoiseReason]:
-    if STRICT_DO_NOT_MITIGATE_REGEX.search(text):
+    if (
+        STRICT_DO_NOT_MITIGATE_REGEX.search(text)
+        or IR_DO_NOT_MITIGATE_REGEX.search(text)
+        or FX_DO_NOT_MITIGATE_REGEX.search(text)
+        or CP_DO_NOT_MITIGATE_REGEX.search(text)
+        or EQ_DO_NOT_MITIGATE_REGEX.search(text)
+        or CR_DO_NOT_MITIGATE_REGEX.search(text)
+    ):
         return NoiseReason.NO_HEDGE
     return None
 
