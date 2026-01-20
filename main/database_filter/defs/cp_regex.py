@@ -96,6 +96,81 @@ def build_energy_dynamic_pattern() -> str:
     """.strip()
 
 
+def build_metals_dynamic_pattern() -> str:
+    """
+    Dynamically build comprehensive Metals patterns.
+    Allows:
+        prefix? modifier? base (base)?
+    """
+
+    prefixes = [
+        "precious",
+        "rare earth",
+        "base",
+        "scrap",
+        "silicon",
+    ]
+
+    # Optional: add more if you want "raw copper", "refined nickel", etc.
+    modifiers = [
+        "stainless",
+        "refined",
+        "raw",
+        "unrefined",
+        "high[- ]grade",
+        "low[- ]grade",
+    ]
+
+    bases = [
+        "aluminum",
+        "copper",
+        "iron",
+        "gold",
+        "silver",
+        "metals?",
+        "ores?",
+        "(?:stainless[- ])?steel",
+        "titanium",
+        "uranium",
+        "nickel",
+        "zinc",
+        "lead",
+        "tin",
+        "platinum",
+        "palladium",
+        "rhodium",
+        "cobalt",
+        "molybdenum",
+        "chromium",
+        "lithium",
+        "magnesium",
+        "vanadium",
+        "alumina",
+        "bauxite",
+        "antimony",
+        "arsenic",
+        "bismuth",
+        "indium",
+        "gallium",
+        "graphite",
+        "potassium",
+        "diamonds?",
+        "gemstones?",
+    ]
+
+    prefix_alt = build_alternation(prefixes, sort_longest_first=True)
+    modifier_alt = build_alternation(modifiers, sort_longest_first=True)
+    base_alt = build_alternation(bases, sort_longest_first=True)
+
+    # prefix? modifier? base base?
+    return rf"""
+        (?:(?:{prefix_alt})[- ])?
+        (?:(?:{modifier_alt})[- ])?
+        (?:{base_alt})
+        (?:[- ](?:{base_alt}))?
+    """.strip()
+
+
 COMMODITY_MAP = {
     "crops": [
         # --- Fruits ---
@@ -357,43 +432,7 @@ COMMODITY_MAP = {
         "ammonia",
         "carbon",
     ],
-    "metals": [
-        "aluminum",
-        "copper",
-        "iron",
-        "gold",
-        "silver",
-        "metals?",
-        "ores?",
-        "(?:stainless[- ])?steel",
-        "titanium",
-        "uranium",
-        "nickel",
-        "zinc",
-        "lead",
-        "tin",
-        "platinum",
-        "palladium",
-        "rhodium",
-        "cobalt",
-        "molybdenum",
-        "chromium",
-        "lithium",
-        "magnesium",
-        "(?:precious|rare earth|base|scrap|silicon) metals?",
-        "vanadium",
-        "alumina",
-        "bauxite",
-        "antimony",
-        "arsenic",
-        "bismuth",
-        "indium",
-        "gallium",
-        "graphite",
-        "potassium",
-        "diamonds?",
-        "gemstones?",
-    ],
+    "metals": [build_metals_dynamic_pattern()],
     "construction": [
         "asphalt",
         "bitumen",
