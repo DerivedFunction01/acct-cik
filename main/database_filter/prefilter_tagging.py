@@ -508,6 +508,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                 reason = NoiseReason.PLAN
             if not reason:
                 # "We do not trade..." -> Critical End User Signal
+                # Run before intent to prevent "do not trade" from being captured as NEG (Exclusion)
                 reason = is_trading_statement(masked)
             if not reason and is_gen_hedge_doc(masked):
                 reason = NoiseReason.DOC
