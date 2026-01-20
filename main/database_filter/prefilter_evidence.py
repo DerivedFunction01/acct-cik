@@ -155,6 +155,7 @@ class VerbCheckResults(NamedTuple):
     has_poss_or_use: bool
     has_poss_verb: bool
     has_usage_verb: bool
+    is_specific: bool
 
 
 def check_verbs(text: str) -> VerbCheckResults:
@@ -164,12 +165,14 @@ def check_verbs(text: str) -> VerbCheckResults:
     """
     has_poss = bool(POSS_VERB_REGEX.search(text))
     has_usage = bool(USAGE_VERB_REGEX.search(text))
+    has_active = bool(ACTIVE_VERB_REGEX.search(text))
     return VerbCheckResults(
-        has_active_verb=bool(ACTIVE_VERB_REGEX.search(text)),
+        has_active_verb=has_active,
         has_transaction=bool(TRANS_VERB_REGEX.search(text)),
         has_poss_verb=has_poss,
         has_usage_verb=has_usage,
         has_poss_or_use=has_poss or has_usage,
+        is_specific=bool(SOFT_REGEX.search(text)) and has_active,
     )
 
 
@@ -245,7 +248,8 @@ def check_quantitative_evidence(
                 return NoiseReason.PNL
 
         # 3. VALID EVIDENCE
-        if is_strict_derivative:
+        # Upgrade to Strict Evidence if we have a specific soft mention (e.g. "interest rate agreement")
+        if is_strict_derivative or verbs.is_specific:
             if not verbs.has_transaction:
                 return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
             else:
@@ -258,7 +262,7 @@ def check_quantitative_evidence(
         # But we need more restrictions: This interest swap agreement had a positive impact on 2003 earnings, reducing interest expense by $0.3 million.
         # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
         # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
-        if SOFT_REGEX.search(text):
+        if verbs.is_specific:
             if not verbs.has_transaction:
                 return (
                     EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
@@ -339,7 +343,8 @@ def check_active_state_year(
     if not has_relevant_year and not has_current_state:
         return None
 
-    return EvidenceReason.AS_YEAR if is_strict_derivative else EvidenceReason.ASAIY
+    is_specific = is_strict_derivative or verbs.is_specific
+    return EvidenceReason.AS_YEAR if is_specific else EvidenceReason.ASAIY
 
 
 def check_active_state_general(
@@ -353,9 +358,10 @@ def check_active_state_general(
         return None
 
     if verbs.has_active_verb:
+        is_specific = is_strict_derivative or verbs.is_specific
         return (
             EvidenceReason.CONT_USE
-            if is_strict_derivative
+            if is_specific
             else EvidenceReason.CONT_USE_AMB
         )
 
@@ -397,17 +403,19 @@ def check_transaction_action(
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
+    is_specific = is_strict_derivative or verbs.is_specific
+
     if not years:
         return (
             EvidenceReason.ACT_GEN
-            if is_strict_derivative
+            if is_specific
             else EvidenceReason.ACT_AMB_GEN
         )
 
     if any(y >= reporting_year for y in years):
         return (
             EvidenceReason.ACT_YEAR
-            if is_strict_derivative
+            if is_specific
             else EvidenceReason.ACT_AMB_YEAR
         )
 
